@@ -22,6 +22,15 @@ export function useSaveAutomation() {
   });
 }
 
+/** Create an automation from a starter with the answers to its
+ * questions — refusals stay with the form, which marks each question. */
+export function useCreateAutomationFromTemplate() {
+  return useBackendMutation(
+    'automations/mutations:createAutomationFromTemplate',
+    { errorToast: false },
+  );
+}
+
 /** Promote one version to the single live version of the automation. */
 export function useDeployAutomation() {
   return useBackendMutation('automations/mutations:deployAutomation', {

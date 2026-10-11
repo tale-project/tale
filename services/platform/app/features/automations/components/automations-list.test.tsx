@@ -202,7 +202,7 @@ describe('AutomationsList presentation', () => {
 
 describe('AutomationsList create menu', () => {
   it.each([undefined, 'proj_1'])(
-    'offers only blank and upload from the toolbar for project %s',
+    'offers a starter, blank and upload from the toolbar for project %s',
     async (projectId) => {
       automationsData = [];
       const { user } = render(
@@ -229,7 +229,14 @@ describe('AutomationsList create menu', () => {
         screen.getByRole('button', { name: 'automations.list.createButton' }),
       );
 
-      expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+      // A starter leads: the quickest way to an automation that works.
+      expect(
+        screen.getAllByRole('menuitem').map((item) => item.textContent),
+      ).toEqual([
+        'automations.createMenu.starter',
+        'automations.createMenu.blank',
+        'automations.upload.trigger',
+      ]);
       expect(
         screen.getByRole('menuitem', { name: 'automations.createMenu.blank' }),
       ).toBeInTheDocument();

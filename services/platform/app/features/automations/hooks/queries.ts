@@ -275,6 +275,15 @@ export function useAutomationProjects(organizationId: string, name: string) {
   });
 }
 
+/** The starters a person creates an automation from, with their
+ * questions — read while the gallery is open. */
+export function useAutomationTemplates(organizationId: string, enabled = true) {
+  return useBackendQuery(
+    'automations/queries:listAutomationTemplates',
+    enabled ? { organizationId } : 'skip',
+  );
+}
+
 /** The writes the automation may make without a person approving each
  * run, and whether the reader may change them. */
 export function useApprovalAllowances(

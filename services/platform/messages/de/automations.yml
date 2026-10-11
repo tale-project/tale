@@ -48,6 +48,7 @@ list:
     title: Noch keine Automatisierungen
     description: Wähle „Automatisierung erstellen“, um mit einem Trigger und einem Agenten zu beginnen oder ein Paket hochzuladen.
 createMenu:
+  starter: 'Aus einer Vorlage'
   blank: Leer (Trigger + Agent)
 blank:
   title: Neue Automatisierung
@@ -85,6 +86,45 @@ blank:
   submitting: Erstellt …
   initialMessage: Erste Version
   kindQuestion: 'Wann läuft sie?'
+starters:
+  title: 'Vorlage wählen'
+  description: 'Fertige Automatisierungen: Beantworte ein paar Fragen, um deine anzulegen.'
+  setupDescription: 'Beantworte ihre Fragen, um sie anzulegen.'
+  backToGallery: 'Alle Vorlagen'
+  search: 'Vorlagen suchen'
+  none: 'Diese Installation liefert keine Vorlagen mit.'
+  noMatches: 'Keine Vorlage passt zu deiner Suche.'
+  needsSetup: 'Braucht eine Verbindung'
+  loadFailed: 'Die Vorlagen ließen sich nicht laden: {error}'
+  howItWorks: 'So funktioniert es'
+  startsOnEvent: 'Startet bei jedem Ereignis: {event}.'
+  startsOnWebhook: 'Startet bei jeder Lieferung an ihre Webhook-Adresse.'
+  startsOnSchedule: 'Startet nach dem Zeitplan, den du unten festlegst.'
+  startsByHand: 'Startet, wenn jemand sie ausführt.'
+  stepLabel: '{connector} · {action}'
+  needsConnection: 'Verbinde {connectors}, bevor sie laufen kann.'
+  startNow: 'Jetzt starten'
+  startNowHint: 'Schaltet Version 1 live und ihren Trigger ein, sodass sie ab jetzt läuft. Aus wird sie als Entwurf angelegt, den du im Editor live schaltest.'
+  create: 'Automatisierung erstellen'
+  webhookTitle: 'Deine Webhook-Adresse'
+  nameRequired: 'Gib ihr einen Namen.'
+  answerEveryQuestion: 'Beantworte zuerst alle Fragen.'
+  projectPlaceholder: 'Projekt wählen'
+  projectSearch: 'Projekte suchen'
+  projectEmpty: 'Keine Projekte gefunden'
+  memberPlaceholder: 'Mitglied wählen'
+  memberSearch: 'Mitglieder suchen'
+  memberEmpty: 'Keine Mitglieder gefunden'
+  credentialPlaceholder: 'Name der Zugangsdaten'
+  errors:
+    required: 'Beantworte diese Frage.'
+    tooLong: 'Diese Antwort ist zu lang.'
+    unknownProject: 'Dieses Projekt gibt es nicht, oder du kannst es nicht öffnen.'
+    unknownMember: 'Diese Person ist kein Mitglied der Organisation.'
+    unknownCredential: 'Es sind keine Zugangsdaten dieses Namens in Betrieb.'
+    schedule: 'Dieser Zeitplan kann nie einen Lauf starten.'
+    choice: 'Wähle eine der Optionen.'
+    invalid: 'Diese Antwort lässt sich nicht verwenden.'
 notFound:
   title: Automatisierung nicht gefunden
   description:

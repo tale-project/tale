@@ -3,6 +3,7 @@ import type {
   TemplateAnswers,
   TemplateField,
 } from '@tale/shared/schemas/automation-template';
+import type { ScheduleRule } from '@tale/shared/schemas/schedule-rule';
 import type { Sql } from 'postgres';
 
 import {
@@ -71,7 +72,7 @@ export interface AutomationTemplateCard {
     | { kind: 'webhook' }
     | {
         kind: 'schedule';
-        repeat: Record<string, unknown> | null;
+        repeat: ScheduleRule | null;
         timezone: string | null;
       }
     | null;

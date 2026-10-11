@@ -20,6 +20,7 @@ import {
   CircleDashed,
   FileUp,
   FolderKanban,
+  LayoutTemplate,
   Plus,
   Workflow,
 } from 'lucide-react';
@@ -41,6 +42,7 @@ import { automationErrorMessage } from '../lib/errors';
 import { automationListTarget } from '../lib/list-target';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
+import { StarterGalleryDialog } from './starter-gallery-dialog';
 import { UploadAutomationDialog } from './upload-automation-dialog';
 
 interface AutomationListRow {
@@ -83,9 +85,9 @@ export function AutomationsList({
   const ability = useAbility();
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
-  const [createDialog, setCreateDialog] = useState<'blank' | 'upload' | null>(
-    null,
-  );
+  const [createDialog, setCreateDialog] = useState<
+    'starter' | 'blank' | 'upload' | null
+  >(null);
   const automationsQuery = useAutomations(
     organizationId,
     projectId,
@@ -313,6 +315,11 @@ export function AutomationsList({
   const createMenuItems = canAuthor
     ? [
         {
+          label: t('createMenu.starter'),
+          icon: LayoutTemplate,
+          onClick: () => setCreateDialog('starter'),
+        },
+        {
           label: t('createMenu.blank'),
           icon: Workflow,
           onClick: () => setCreateDialog('blank'),
@@ -327,6 +334,16 @@ export function AutomationsList({
 
   return (
     <>
+      {createDialog === 'starter' && (
+        <StarterGalleryDialog
+          organizationId={organizationId}
+          {...(projectId !== undefined && { projectId })}
+          open
+          onOpenChange={(next) => {
+            if (!next) setCreateDialog(null);
+          }}
+        />
+      )}
       {createDialog === 'blank' && (
         <BlankAutomationDialog
           organizationId={organizationId}

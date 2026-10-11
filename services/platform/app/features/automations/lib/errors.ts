@@ -117,6 +117,32 @@ export function automationTriggerIssues(
 }
 
 /** The machine code the store attached, for branching on a refusal kind. */
+/** One answer a create from a starter could not use. */
+export interface StarterAnswerIssue {
+  field: string;
+  code: string;
+}
+
+/** The answers a refused create from a starter names
+ * (`TEMPLATE_ANSWERS_INVALID`, `data.fields`), or undefined. */
+export function automationAnswerIssues(
+  error: unknown,
+): StarterAnswerIssue[] | undefined {
+  const fields = errorData(error)?.fields;
+  if (!Array.isArray(fields)) return undefined;
+  const read = fields.flatMap((entry: unknown): StarterAnswerIssue[] =>
+    typeof entry === 'object' &&
+    entry !== null &&
+    'field' in entry &&
+    'code' in entry &&
+    typeof entry.field === 'string' &&
+    typeof entry.code === 'string'
+      ? [{ field: entry.field, code: entry.code }]
+      : [],
+  );
+  return read.length === 0 ? undefined : read;
+}
+
 export function automationErrorCode(error: unknown): string | undefined {
   const code = errorData(error)?.code;
   return typeof code === 'string' ? code : undefined;
