@@ -1607,6 +1607,7 @@ dataSubjectRequests:
     orgNotifications: Notifications de sécurité la concernant
     automationRuns: "Exécutions d'automatisation"
     agentRuns: "Exécutions d'agents"
+    automationAllowances: Autorisations d’écriture des automatisations
     reviewDecisions: Décisions de relecture
     mentions: Mentions dans le texte des tâches
     authState: Tentatives de connexion et de double authentification

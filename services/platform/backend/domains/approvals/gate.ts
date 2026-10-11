@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { resolveApprovalRequirement } from '../../core/approvals/policy.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { hasApprovalAllowance } from '../automations/approval-allowances.ts';
 
 /**
  * The approvals gate for live effectful connector writes — the 0.5 twin of
@@ -133,7 +134,9 @@ export async function evaluateApprovalGate(
   });
 }
 
-/** What the org's approval policy says about this operation, no record read. */
+/** What the org's approval policy says about this operation — and, for an
+ * automation's step, whether an owner or admin allowed that automation to
+ * make it without a person — no record read. */
 async function policyRequirement(
   sql: Sql | TransactionSql,
   args: EvaluateApprovalGateArgs,
@@ -146,11 +149,21 @@ async function policyRequirement(
     // restrictions and fall back to allowing platform-internal writes.
     { strict: true },
   );
+  const allowance =
+    args.source === 'automation' && args.automation !== undefined
+      ? await hasApprovalAllowance(sql, {
+          organizationId: args.organizationId,
+          automation: args.automation,
+          connector: args.connector,
+          action: args.action,
+        })
+      : false;
   return resolveApprovalRequirement({
     connector: args.connector,
     action: args.action,
     platformInternal: args.platformInternal === true,
     policy,
+    allowance,
   });
 }
 

@@ -40,6 +40,24 @@ export type { ReplayKind, ReplayPlan } from '@/lib/engine/core/record/replay';
 import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 
+/** A write action of an automation, as its General tab lists it: whether a
+ * step of the latest version makes it, and who allowed it to run without a
+ * person. */
+export interface AutomationApprovalAllowanceRow {
+  /** `<connector>.<action>`. */
+  type: string;
+  used: boolean;
+  /** What the organization's approval policy decides for it whatever the
+   * allowance says; null when the allowance decides. */
+  policy: 'requires' | 'allows' | null;
+  allowance: {
+    grantedBy: string;
+    /** The granter's name or email; null for someone erased or gone. */
+    grantedByName: string | null;
+    grantedAt: number;
+  } | null;
+}
+
 /** How a run was run again, and from which run. */
 export interface RunReplayOf {
   /** Null once the run it replays was deleted. */
@@ -239,6 +257,13 @@ export interface AutomationsContract {
     /** `warnings` are the problems the save let through — they never
      * refuse one (`lib/shared/schemas/automation-issues.ts` reads them). */
     returns: { name: string; version: number; warnings?: unknown[] };
+  };
+  'automations/mutations:setApprovalAllowances': {
+    kind: 'mutation';
+    /** The whole set of step types the automation may write without a
+     * person — owner or admin only. */
+    args: { organizationId: string; name: string; allowed: string[] };
+    returns: { granted: string[]; withdrawn: string[] };
   };
   'automations/mutations:setAutomationProjects': {
     kind: 'mutation';
@@ -444,6 +469,15 @@ export interface AutomationsContract {
     kind: 'query';
     args: { organizationId: string; runId: string };
     returns: null | RunInDoubt;
+  };
+  'automations/queries:listApprovalAllowances': {
+    kind: 'query';
+    args: { organizationId: string; name: string };
+    returns: {
+      actions: AutomationApprovalAllowanceRow[];
+      /** Whether the reader may change them: an owner or an admin. */
+      canGrant: boolean;
+    };
   };
   'automations/queries:listAutomationProjects': {
     kind: 'query';

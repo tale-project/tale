@@ -29,6 +29,7 @@ import {
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
 import {
+  DEMO_APPROVAL_ALLOWANCE,
   DEMO_CHAT_PROMPTS,
   DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
@@ -1655,6 +1656,24 @@ export const SHOTS: readonly Shot[] = [
         name: t('automations.editor.fields.input'),
         exact: true,
       }),
+  },
+  {
+    // The pull-request review pack's General tab: its one write to an
+    // outside system, posting the review, allowed to run without approval,
+    // with who allowed it and when.
+    name: 'automation-approval-allowances',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_APPROVAL_ALLOWANCE.automation}/general`,
+    // Ready once the allowance has loaded: its switch is on.
+    readyWhen: (page) =>
+      page.getByRole('switch', { checked: true, name: /pull request review/i }),
+    capture: (page) =>
+      page
+        .getByRole('heading', {
+          level: 2,
+          name: t('automations.allowances.title'),
+        })
+        .locator('xpath=ancestor::section[1]'),
   },
   {
     // The Editor of the Gmail inbox triage with Change model open on the

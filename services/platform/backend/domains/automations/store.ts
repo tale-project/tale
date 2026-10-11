@@ -331,7 +331,7 @@ function carryVersionFields(
  * as an opaque 500 — and the create-only check below would be a
  * check-then-act race. The same idiom the sandbox admission and the skill
  * writer use. */
-async function lockAutomationName(
+export async function lockAutomationName(
   tx: TransactionSql,
   organizationId: string,
   name: string,
@@ -579,7 +579,7 @@ export async function saveVersion(
  * keeps another member's screen from showing a deleted automation, a stale
  * deployedVersion badge or the previous trigger until reload.
  */
-async function emitDefinitionHint(
+export async function emitDefinitionHint(
   tx: TransactionSql | Sql,
   organizationId: string,
   name: string,
@@ -4780,6 +4780,12 @@ export async function deleteAutomationCascade(
     }
     await tx`
       DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${args.organizationId} AND automation_name = ${args.name}
+    `;
+    // What it was allowed to write without a person goes with it: an
+    // automation created later under the name starts asking again.
+    await tx`
+      DELETE FROM app.automation_approval_allowances
       WHERE org_id = ${args.organizationId} AND automation_name = ${args.name}
     `;
     await tx`

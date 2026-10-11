@@ -60,6 +60,17 @@ const {
     bound: [] as string[],
     /** The served-model roster the model pickers list. */
     models: [] as unknown[],
+    /** What the automation may write without approval. */
+    allowances: [] as Array<{
+      type: string;
+      used: boolean;
+      policy: 'requires' | 'allows' | null;
+      allowance: null | {
+        grantedBy: string;
+        grantedByName: string | null;
+        grantedAt: number;
+      };
+    }>,
   },
   /** Newest-first run log. Empty unless a test is pinning last-run chrome. */
   runsData: [] as Array<{
@@ -266,6 +277,10 @@ vi.mock('../hooks/queries', async (importOriginal) => {
           : { id: runId, input: { owner: 'acme' }, output: { sent: 2 } },
     }),
     useAutomationProjects: () => ({ data: projectsData.bound }),
+    // Nothing is allowed to write without approval unless a test says so.
+    useApprovalAllowances: () => ({
+      data: { actions: projectsData.allowances, canGrant: true },
+    }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
     // The stored trigger the deploy notice turns on: a weekday schedule.
     useAutomationTriggers: () => ({
@@ -347,6 +362,7 @@ vi.mock('./automation-canvas', () => ({
     topStart,
     topEnd,
     toolbar,
+    allowedWrites,
   }: {
     automation: { nodes: readonly { id: string; when?: string }[] };
     layoutKey: string;
@@ -358,6 +374,7 @@ vi.mock('./automation-canvas', () => ({
     topStart?: React.ReactNode;
     topEnd?: React.ReactNode;
     toolbar?: React.ReactNode;
+    allowedWrites?: ReadonlySet<string>;
   }) => (
     <div
       data-testid="canvas"
@@ -367,6 +384,7 @@ vi.mock('./automation-canvas', () => ({
       data-changed={
         changed === undefined ? undefined : [...changed.ids].sort().join(',')
       }
+      data-allowed-writes={[...(allowedWrites ?? [])].sort().join(',')}
     >
       <div data-testid="canvas-top-start">{topStart}</div>
       <div data-testid="canvas-top-end">{topEnd}</div>
@@ -524,6 +542,7 @@ beforeEach(() => {
   projectsData.list = [];
   projectsData.bound = [];
   projectsData.models = [];
+  projectsData.allowances = [];
   runsData.length = 0;
   state.document = {
     name: 'billing/dunning',
@@ -1263,6 +1282,34 @@ describe('AutomationEditor', () => {
     expect(
       screen.queryByText(/without a pinned provider/, { exact: false }),
     ).toBeNull();
+  });
+
+  it('marks only the writes that run without approval, never one a policy rule still holds [APV-R13]', () => {
+    const granted = {
+      grantedBy: 'user-a',
+      grantedByName: 'Ada',
+      grantedAt: 1_700_000_000_000,
+    };
+    projectsData.allowances = [
+      {
+        type: 'slack.send_message',
+        used: true,
+        policy: null,
+        allowance: granted,
+      },
+      {
+        type: 'github.create_issue',
+        used: true,
+        policy: 'requires',
+        allowance: granted,
+      },
+      { type: 'http.send', used: true, policy: null, allowance: null },
+    ];
+    renderPage();
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-allowed-writes',
+      'slack.send_message',
+    );
   });
 
   it('test-runs the version on screen, not the deployed one', async () => {

@@ -22,15 +22,27 @@ const args = {
 
 /** The database supplies only organization identity and existing decisions.
  * Policy reads use the real filesystem, parser, validation and cache. */
-function database(record?: { id: string; status: string; metadata: unknown }): {
+function database(
+  record?: { id: string; status: string; metadata: unknown },
+  /** The automation allowances on file, as `<automation>/<connector>.<action>`. */
+  allowances: readonly string[] = [],
+): {
   sql: Sql;
   mutations: string[];
 } {
   const mutations: string[] = [];
-  const query = (strings: TemplateStringsArray) => {
+  const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     if (text.startsWith('SELECT "slug"')) {
       return Promise.resolve([{ slug: 'policy-proof' }]);
+    }
+    if (text.includes('FROM app.automation_approval_allowances')) {
+      const [, automation, connector, action] = values as string[];
+      return Promise.resolve(
+        allowances.includes(`${automation}/${connector}.${action}`)
+          ? [{ found: 1 }]
+          : [],
+      );
     }
     if (text.startsWith('SELECT id, status, metadata FROM app.approvals')) {
       return Promise.resolve(record ? [record] : []);
@@ -142,5 +154,61 @@ describe('approval policy authority', () => {
       approvalId: 'pending-proof',
     });
     expect(db.mutations).toEqual([]);
+  });
+});
+
+describe("an automation's allowance at the gate [APV-R13]", () => {
+  const send = {
+    organizationId: 'org-policy-proof',
+    source: 'automation' as const,
+    resourceKey: 'run-1:post',
+    connector: 'slack',
+    action: 'send_message',
+    effect: 'write' as const,
+    platformInternal: false,
+    automation: 'morning-digest',
+  };
+
+  it.each([false, true])(
+    'lets the allowed automation write without a person (policyOnly=%s)',
+    async (policyOnly) => {
+      const db = database(undefined, ['morning-digest/slack.send_message']);
+      await expect(
+        evaluateApprovalGate(db.sql, { ...send, policyOnly }),
+      ).resolves.toEqual({ decision: 'allow' });
+      expect(db.mutations).toEqual([]);
+    },
+  );
+
+  it('still asks for every other automation and every other action', async () => {
+    const db = database(undefined, ['morning-digest/slack.send_message']);
+    await expect(
+      evaluateApprovalGate(db.sql, { ...send, automation: 'weekly-digest' }),
+    ).resolves.toMatchObject({ decision: 'needs-approval' });
+    await expect(
+      evaluateApprovalGate(db.sql, {
+        ...send,
+        resourceKey: 'run-1:other',
+        action: 'add_reaction',
+      }),
+    ).resolves.toMatchObject({ decision: 'needs-approval' });
+  });
+
+  it('yields to a rule that requires a person for the action', async () => {
+    await writeFile(
+      policyFile,
+      'rules:\n  - action: slack.send_message\n    decision: require_approval\n',
+    );
+    const db = database(undefined, ['morning-digest/slack.send_message']);
+    await expect(evaluateApprovalGate(db.sql, send)).resolves.toMatchObject({
+      decision: 'needs-approval',
+    });
+  });
+
+  it('is never read for a call that is not an automation step', async () => {
+    const db = database(undefined, ['morning-digest/slack.send_message']);
+    await expect(
+      evaluateApprovalGate(db.sql, { ...send, source: 'connector' }),
+    ).resolves.toMatchObject({ decision: 'needs-approval' });
   });
 });

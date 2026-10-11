@@ -15,6 +15,11 @@
  * An organization can override either way through the `approval_policy`
  * governance file: a rule naming one `action` beats a rule naming its
  * `connector`, and either beats the built-in default.
+ *
+ * Between the two sits an automation's allowance: an owner or admin let ONE
+ * automation make this write without a person. It allows where the default
+ * would ask, and yields to any rule — a rule that requires a person for the
+ * action still requires one, whatever an automation was allowed.
  */
 
 import type { ApprovalPolicyConfig } from '@tale/shared/schemas/governance';
@@ -34,7 +39,15 @@ export interface ApprovalDecisionInput {
   platformInternal: boolean;
   /** The org's parsed policy, or null when it has none on file. */
   policy: ApprovalPolicyConfig | null;
+  /** Whether an owner or admin allowed the automation making this write to
+   * make it without a person. Absent outside an automation's step. */
+  allowance?: boolean;
 }
+
+/** Whether this write runs straight away and on whose word, or waits. */
+export type ApprovalDecision =
+  | { requirement: 'require' }
+  | { requirement: 'allow'; by: 'rule' | 'allowance' | 'platform' };
 
 /**
  * The most specific rule that speaks about this operation, or `null`.
@@ -56,13 +69,25 @@ function matchingRule(
   return actionMatch ?? connectorMatch;
 }
 
+/** Whether this write runs straight away, on whose word, or waits. */
+export function resolveApprovalDecision(
+  args: ApprovalDecisionInput,
+): ApprovalDecision {
+  const rule = matchingRule(args);
+  if (rule !== null) {
+    return rule.decision === 'auto_approve'
+      ? { requirement: 'allow', by: 'rule' }
+      : { requirement: 'require' };
+  }
+  if (args.allowance === true) return { requirement: 'allow', by: 'allowance' };
+  return args.platformInternal
+    ? { requirement: 'allow', by: 'platform' }
+    : { requirement: 'require' };
+}
+
 /** Whether this write runs straight away or waits for a person. */
 export function resolveApprovalRequirement(
   args: ApprovalDecisionInput,
 ): ApprovalRequirement {
-  const rule = matchingRule(args);
-  if (rule !== null) {
-    return rule.decision === 'auto_approve' ? 'allow' : 'require';
-  }
-  return args.platformInternal ? 'allow' : 'require';
+  return resolveApprovalDecision(args).requirement;
 }

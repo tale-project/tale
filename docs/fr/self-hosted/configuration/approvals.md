@@ -28,7 +28,7 @@ Utilise les identifiants du catalogue livré, pas les noms traduits affichés. U
 
 ## Comprendre les priorités
 
-Une règle d’action prime sur une règle de connector, quel que soit leur ordre. Parmi les règles de même précision, la dernière correspondance gagne. Sans correspondance, Tale applique le comportement interne ou externe décrit plus haut. Évite de répéter une cible pour que la politique reste lisible.
+Une règle d’action prime sur une règle de connector, quel que soit leur ordre. Parmi les règles de même précision, la dernière correspondance gagne. Sans correspondance, une automatisation qu’un propriétaire ou un admin a autorisée à écrire sans approbation (dans son onglet **Général**, sous **S’exécute sans approbation**) fait l’écriture ; sinon, Tale applique le comportement interne ou externe décrit plus haut. Une règle `require_approval` l’emporte sur une telle autorisation. Évite de répéter une cible pour que la politique reste lisible.
 
 La politique s’applique aux nouvelles évaluations. Une approbation en attente reste en attente si tu assouplis la règle ; elle n’est pas accordée silencieusement. Ce fichier ne supprime pas les autres contrôles, comme la publication d’une automation ou la clôture d’une tâche qui nécessite une revue.
 

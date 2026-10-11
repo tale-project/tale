@@ -6,7 +6,7 @@
 import { approvalPolicyConfigSchema } from '@tale/shared/schemas/governance';
 import { describe, expect, it } from 'vitest';
 
-import { resolveApprovalRequirement } from './policy';
+import { resolveApprovalDecision, resolveApprovalRequirement } from './policy';
 
 const platformWrite = {
   connector: 'task',
@@ -124,5 +124,50 @@ describe('resolveApprovalRequirement', () => {
         { connector: 'task', action: 'task.comment', decision: 'auto_approve' },
       ]),
     ).toThrow();
+  });
+});
+
+describe("an automation's allowance [APV-R13]", () => {
+  it('lets the one write it covers through without a person', () => {
+    expect(
+      resolveApprovalDecision({
+        ...outboundWrite,
+        policy: null,
+        allowance: true,
+      }),
+    ).toEqual({ requirement: 'allow', by: 'allowance' });
+    // Without it, the same write asks.
+    expect(resolveApprovalDecision({ ...outboundWrite, policy: null })).toEqual(
+      { requirement: 'require' },
+    );
+  });
+
+  it.each([
+    [
+      'the action',
+      [{ action: 'imap-smtp.send', decision: 'require_approval' }],
+    ],
+    [
+      'the connector',
+      [{ connector: 'imap-smtp', decision: 'require_approval' }],
+    ],
+  ])('yields to a rule requiring a person for %s', (_case, rules) => {
+    expect(
+      resolveApprovalDecision({
+        ...outboundWrite,
+        policy: policy(rules),
+        allowance: true,
+      }),
+    ).toEqual({ requirement: 'require' });
+  });
+
+  it('credits a rule that already allows the write, not the allowance', () => {
+    expect(
+      resolveApprovalDecision({
+        ...outboundWrite,
+        policy: policy([{ connector: 'imap-smtp', decision: 'auto_approve' }]),
+        allowance: true,
+      }),
+    ).toEqual({ requirement: 'allow', by: 'rule' });
   });
 });

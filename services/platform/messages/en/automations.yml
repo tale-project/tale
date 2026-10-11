@@ -395,6 +395,8 @@ canvas:
     returnsUnknown: Shape known after a run
     returns: 'Returns {shape}'
     writes: Changes data in {connector}. A live run may wait for approval.
+    writesAllowed: Changes data in {connector}, without approval — an owner or admin allowed it.
+    runsWithoutApproval: Runs without approval
     asks: May ask a question and wait for the answer.
     catalog:
       transform: Transform
@@ -584,6 +586,18 @@ editor:
     type: Type
     id: ID
     modelProvider: Provider
+allowances:
+  title: Runs without approval
+  hint: Writes this automation may make without a person approving each run. A rule of your organization's approval policy that requires a person still wins.
+  action: '{connector} · {action}'
+  grantedBy: 'Allowed by {name} on {date}.'
+  formerMember: a former member
+  asks: Asks a person before each live run.
+  unused: No step of the latest version makes it.
+  policyRequires: Your organization's approval policy requires a person for it, whatever is allowed here.
+  policyAllows: Your organization's approval policy already lets it run without approval.
+  none: This automation makes no write that waits for approval.
+  readOnly: Only an owner or an admin can change these.
 bindings:
   title: Projects
   countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'

@@ -1566,6 +1566,7 @@ dataSubjectRequests:
     orgNotifications: Sicherheitsbenachrichtigungen über die Person
     automationRuns: Automatisierungsläufe
     agentRuns: Agentenläufe
+    automationAllowances: Freigaben für Automatisierungen
     reviewDecisions: Prüfentscheidungen
     mentions: Erwähnungen in Aufgabentexten
     authState: Anmelde- und Zwei-Faktor-Versuche

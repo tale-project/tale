@@ -29,6 +29,7 @@ import { labelStart } from '../e2e/helpers/forms';
 import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_API_KEYS,
+  DEMO_APPROVAL_ALLOWANCE,
   DEMO_CHAT_PROMPTS,
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
@@ -1706,6 +1707,8 @@ async function appApi(
   orgId: string,
   route: string,
   body?: unknown,
+  /** The verb a body is sent with; a route that replaces a set takes PUT. */
+  method: 'POST' | 'PUT' = 'POST',
 ): Promise<AppAnswer> {
   return page.evaluate(
     async (call) => {
@@ -1715,7 +1718,7 @@ async function appApi(
         call.body === undefined
           ? { credentials: 'include' }
           : {
-              method: 'POST',
+              method: call.method,
               credentials: 'include',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify(call.body),
@@ -1730,7 +1733,7 @@ async function appApi(
       }
       return { status: response.status, body: parsed };
     },
-    { orgId, route, body },
+    { orgId, route, body, method },
   );
 }
 
@@ -1740,8 +1743,9 @@ async function appApiOk(
   orgId: string,
   route: string,
   body?: unknown,
+  method: 'POST' | 'PUT' = 'POST',
 ): Promise<unknown> {
-  const answer = await appApi(page, orgId, route, body);
+  const answer = await appApi(page, orgId, route, body, method);
   if (answer.status < 200 || answer.status >= 300) {
     throw new Error(
       `${route} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
@@ -2542,6 +2546,16 @@ export async function seedDemoOrg(
       input: (projectId) => ({ ...DEMO_TASK_CREATE.input, projectId }),
     }),
   );
+  // The pull-request review pack may post its review without a person.
+  await step('approval allowance', async () => {
+    await appApiOk(
+      page,
+      orgId,
+      `/automations/${DEMO_APPROVAL_ALLOWANCE.automation}/approval-allowances`,
+      { allowed: [DEMO_APPROVAL_ALLOWANCE.type] },
+      'PUT',
+    );
+  });
   // Last of the runs, so its message tops the owner's bell.
   await step('notify run', () =>
     ensureLiveRun(page, orgId, projects, {

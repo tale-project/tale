@@ -23,6 +23,18 @@ Une exécution en direct vérifie que le connector dispose d’un identifiant ut
 
 Tu ne peux pas modifier les paramètres sur la carte. Rejette une demande incorrecte, corrige le workflow ou ses entrées, puis teste la correction avant une nouvelle exécution réelle. Modifier la politique d’approbation ne libère pas une carte déjà en attente. Consulte les [concepts d’approbation](/fr/platform/approvals/concepts) pour le cycle de décision et la [configuration de la politique](/fr/self-hosted/configuration/approvals) pour les règles d’exploitation.
 
+## Laisser une automatisation écrire sans approbation
+
+Une écriture qui attend une personne à chaque exécution — un résumé du matin publié dans Slack — peut être autorisée pour cette seule automatisation. Ouvre l’onglet **Général** de l’automatisation : **S’exécute sans approbation** liste chaque écriture vers un système externe que fait sa dernière version ; une écriture dans Tale même, comme la création d’une tâche, n’attend jamais par défaut. Un propriétaire ou un admin active l’écriture et enregistre ; dès lors, ses exécutions réelles font cette écriture tout de suite, et sa boîte sur le canevas indique **S’exécute sans approbation**. Toute autre automatisation, et toute autre écriture de celle-ci, demande toujours.
+
+<Frame caption="L’onglet Général de l’automatisation qui relit les pull requests : elle peut envoyer sa revue sans approbation, et la ligne sous l’interrupteur indique qui l’a permis et quand.">
+
+![La section Runs without approval avec une ligne, GitHub · Submit pull request review, son interrupteur activé et, dessous, la ligne Allowed by Alex Rivera avec la date.](/images/platform/automation-approval-allowances.webp)
+
+</Frame>
+
+Une règle de la [politique d’approbation](/fr/self-hosted/configuration/approvals) qui exige une personne pour l’action l’emporte toujours sur une autorisation. Chaque autorisation et chaque retrait figurent dans le [journal d’audit](/fr/platform/admin/governance/audit-logs), et supprimer l’automatisation supprime ses autorisations.
+
 ## Répondre à une question de l’agent
 
 Quand un nœud agent utilise `ask_human`, le détail affiche **L'agent a besoin de ta réponse pour continuer**. S’il propose des choix, réponds aux questions sur la carte. Pour une réponse libre, saisis du texte sous **Ta réponse**, puis choisis **Envoyer la réponse & reprendre**.

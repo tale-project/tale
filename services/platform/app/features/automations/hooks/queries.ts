@@ -275,6 +275,20 @@ export function useAutomationProjects(organizationId: string, name: string) {
   });
 }
 
+/** The writes the automation may make without a person approving each
+ * run, and whether the reader may change them. */
+export function useApprovalAllowances(
+  organizationId: string,
+  name: string,
+  /** Off for a reader the route refuses (anyone but an author). */
+  enabled = true,
+) {
+  return useBackendQuery(
+    'automations/queries:listApprovalAllowances',
+    enabled ? { organizationId, name } : 'skip',
+  );
+}
+
 /** What starts one automation. */
 export function useAutomationTriggers(organizationId: string, name: string) {
   return useBackendQuery('automations/queries:listTriggers', {

@@ -95,6 +95,8 @@ export interface InspectorContext {
   settled: RawDocument | null;
   catalog: NodeCatalogView;
   modelLabel?: (id: string) => string | undefined;
+  /** The step types allowed to write without approval. */
+  allowedWrites?: ReadonlySet<string>;
   /** Picks a box on the canvas: a node, Start or End. */
   onSelect?: (id: string) => void;
   /** What a node returned in the run laid over the canvas. */
@@ -850,9 +852,12 @@ export function NodeFields({
       ...(context.modelLabel !== undefined && {
         modelLabel: context.modelLabel,
       }),
+      ...(context.allowedWrites !== undefined && {
+        allowedWrites: context.allowedWrites,
+      }),
       returns: { status: 'off' as const, outputs: null },
     }),
-    [t, locale, catalog, context.modelLabel],
+    [t, locale, catalog, context.modelLabel, context.allowedWrites],
   );
   const face = nodeFace(node, faceContext);
   const conditionContext = useMemo(

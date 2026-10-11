@@ -20,6 +20,8 @@ export interface CanvasFlowInput {
   automation: Automation;
   catalog: NodeCatalogView;
   modelLabel?: (id: string) => string | undefined;
+  /** The step types allowed to write without approval. */
+  allowedWrites?: ReadonlySet<string>;
   /** Start's trigger rows. */
   triggers: readonly FlowRow[];
   /** What the draft check answered, for the reader who may have one. */
@@ -50,6 +52,7 @@ export function useCanvasFlow({
   automation,
   catalog,
   modelLabel,
+  allowedWrites,
   triggers,
   check,
   startNotice,
@@ -79,6 +82,7 @@ export function useCanvasFlow({
       locale,
       catalog,
       ...(modelLabel !== undefined && { modelLabel }),
+      ...(allowedWrites !== undefined && { allowedWrites }),
       returns: { status: check.status, outputs },
       triggers,
       flow,
@@ -91,6 +95,7 @@ export function useCanvasFlow({
       locale,
       catalog,
       modelLabel,
+      allowedWrites,
       check.status,
       outputs,
       triggers,

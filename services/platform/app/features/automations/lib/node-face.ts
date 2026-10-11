@@ -70,6 +70,9 @@ export interface NodeFaceContext {
   /** A served model's display name; the id as written when unknown. */
   modelLabel?: (id: string) => string | undefined;
   returns: ReturnsSource;
+  /** The step types an owner or admin allowed this automation to write
+   * without a person approving each run. */
+  allowedWrites?: ReadonlySet<string>;
 }
 
 /** A node's title on its box: its id in words, capitalised ("Open
@@ -276,11 +279,20 @@ export function nodeFace(node: NodeDef, ctx: NodeFaceContext): NodeFace {
   }
   const parts = connectorParts(node.type);
   if (parts !== null && catalog.types.get(node.type)?.hasEffect === true) {
-    const label = t('canvas.node.writes', {
-      connector: connectorName(parts.connector, catalog, locale),
-    });
+    const allowed = ctx.allowedWrites?.has(node.type) === true;
+    const connector = connectorName(parts.connector, catalog, locale);
+    const label = allowed
+      ? t('canvas.node.writesAllowed', { connector })
+      : t('canvas.node.writes', { connector });
     markers.push({ id: 'writes', icon: ShieldCheck, label });
     sentences.push(label);
+    if (allowed) {
+      chips.push({
+        id: 'allowed',
+        label: t('canvas.node.runsWithoutApproval'),
+        tone: 'info',
+      });
+    }
   }
   if (node.type === 'agent') {
     const label = t('canvas.node.asks');

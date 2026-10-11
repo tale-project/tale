@@ -398,6 +398,8 @@ canvas:
     returnsUnknown: Struktur nach einem Lauf bekannt
     returns: 'Gibt {shape} zurück'
     writes: Ändert Daten in {connector}. Ein Live-Lauf wartet unter Umständen auf eine Freigabe.
+    writesAllowed: Ändert Daten in {connector}, ohne Freigabe – ein Inhaber oder Admin hat das erlaubt.
+    runsWithoutApproval: Läuft ohne Freigabe
     asks: Kann eine Frage stellen und auf die Antwort warten.
     catalog:
       transform: Transformation
@@ -593,6 +595,18 @@ editor:
     type: Typ
     id: ID
     modelProvider: Anbieter
+allowances:
+  title: Läuft ohne Freigabe
+  hint: Schreibzugriffe, die diese Automatisierung ausführen darf, ohne dass eine Person jeden Lauf freigibt. Eine Regel der Freigaberichtlinie deiner Organisation, die eine Person verlangt, hat weiterhin Vorrang.
+  action: '{connector} · {action}'
+  grantedBy: 'Erlaubt von {name} am {date}.'
+  formerMember: einem ehemaligen Mitglied
+  asks: Fragt vor jedem Live-Lauf eine Person.
+  unused: Kein Schritt der neuesten Version macht das.
+  policyRequires: Die Freigaberichtlinie deiner Organisation verlangt dafür eine Person, egal was hier erlaubt ist.
+  policyAllows: Die Freigaberichtlinie deiner Organisation lässt den Schreibzugriff bereits ohne Freigabe laufen.
+  none: Diese Automatisierung führt keine Schreibzugriffe aus, die auf eine Freigabe warten.
+  readOnly: Nur Inhaber und Admins können das ändern.
 bindings:
   title: Projekte
   countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
