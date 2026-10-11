@@ -272,10 +272,21 @@ the warm-up, which pulls it again while creates wait.
 
 ### An example, for one environment
 
-Names and addresses are examples; the table above is the contract. As an
-administrator:
+Names and addresses are examples; the table above is the contract. This one
+runs the spawner on the node itself, so the address its calls to the sessions
+come from is the bridge's own (`10.20.0.1`); run it elsewhere, and the ingress
+rule names that address instead. The pool (`tank`) is the node's, made by
+whoever installed Incus. As an administrator:
+
+<!-- e2e:operator-setup -->
 
 ```
+# the sandbox bridge: its own resolver forwards nothing (the egress proxy
+# resolves for the sessions), and it NATs so that the egress proxy, an instance
+# on it, reaches the internet (the sessions' ACL lets them reach nothing else)
+incus network create sbx0 ipv4.address=10.20.0.1/24 ipv4.nat=true \
+  ipv6.address=none raw.dnsmasq=no-resolv
+
 # the project
 incus project create sandbox-pr \
   -c features.images=true -c features.profiles=true \
@@ -283,14 +294,14 @@ incus project create sandbox-pr \
   -c restricted.devices.disk=allow -c restricted.devices.disk.paths=tmpfs:
 
 # the sandbox network's ACL (10.20.0.2 is the egress proxy and its resolver,
-# 10.20.0.3 the LLM gateway, 10.20.0.4 the backend, 10.20.0.5 the spawner)
+# 10.20.0.3 the LLM gateway, 10.20.0.4 the backend, 10.20.0.1 the spawner)
 incus network acl create sandbox-egress
 incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.2/32 protocol=tcp destination_port=3128
 incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.2/32 protocol=tcp destination_port=53
 incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.2/32 protocol=udp destination_port=53
 incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.3/32 protocol=tcp destination_port=8080
 incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.4/32 protocol=tcp destination_port=3005
-incus network acl rule add sandbox-egress ingress action=allow source=10.20.0.5/32 protocol=tcp destination_port=8200
+incus network acl rule add sandbox-egress ingress action=allow source=10.20.0.1/32 protocol=tcp destination_port=8200
 
 # the profile every session gets: its network device (with the ACL and port
 # isolation) and its root disk
@@ -304,6 +315,9 @@ incus profile device add sandbox root disk path=/ pool=tank size=30GiB \
 incus config trust add-certificate client.crt --name tale-sandbox-pr \
   --restricted --projects sandbox-pr
 ```
+
+The CI end-to-end lab ([e2e/incus](../e2e/incus/README.md)) runs exactly this
+block, so it cannot drift from what the backend is tested against.
 
 The spawner then runs with `SANDBOX_INCUS_ENDPOINT=https://<node>:8443`,
 `SANDBOX_INCUS_PROJECT=sandbox-pr`, `SANDBOX_INCUS_PROFILE=sandbox`,

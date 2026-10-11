@@ -1,0 +1,203 @@
+name: Sandbox Incus E2E
+
+# The sandbox spawner's Incus backend (SANDBOX_BACKEND=incus), judged against a
+# real Incus node. The unit tests run it against an in-memory imitation of the
+# Incus API; this workflow is what shows the imitation right. On a fresh runner
+# it builds the node services/sandbox/docs/incus.md describes (Incus from
+# Zabbly's stable channel, a ZFS pool, the sandbox bridge with its ACL, the
+# restricted project and certificate, Tale's own egress proxy), builds the
+# runtime and egress images from this checkout, starts the spawner from this
+# checkout, and drives its signed HTTP API through the session contract:
+# create (cold and from the warm pool), exec, files, env, stop and resume,
+# destroy, fencing, re-adoption, pins, reaping, quotas and limits, egress, and
+# Docker inside. services/sandbox/e2e/incus/README.md says what each suite
+# proves and what only production can.
+#
+# Not a required check (it takes the better part of an hour and depends on a
+# third party's package index); making it one is a branch-protection setting,
+# and a gate in CI ready's list of workflows, see the README.
+
+on:
+  pull_request:
+    branches:
+      - main
+    # Everything that decides whether the backend works on a node: the spawner,
+    # the image its sessions run and the proxy they go out through. Drafts run it
+    # too: this is the check that tells a draft of the backend whether it works.
+    paths:
+      - 'services/sandbox/**'
+      - 'services/sandbox-runtime/**'
+      - 'services/sandbox-egress/**'
+      - '.github/workflows/sandbox-incus-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  incus:
+    name: Sandbox on Incus
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      # The shared layer cache of the image builds, read, never written.
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Name the lab's files and images
+        run: bash services/sandbox/e2e/incus/lab.sh env >> "$GITHUB_ENV"
+
+      # The image builds need the room the Build workflow's runtime build does.
+      - name: Reclaim disk space
+        env:
+          MIN_FREE_GIB: '40'
+        run: |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
+          sudo docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # The cheap, risky steps first: whether this runner can be the node at
+      # all is known before the images are built.
+      - name: Install Incus, skopeo and ZFS
+        run: bash services/sandbox/e2e/incus/lab.sh install
+
+      - name: Create the ZFS pool and the Incus storage pool
+        run: bash services/sandbox/e2e/incus/lab.sh storage
+
+      - name: Give Incus the server certificate Bun can pin, and bind its API
+        run: bash services/sandbox/e2e/incus/lab.sh api
+
+      - name: Start the local registry
+        run: bash services/sandbox/e2e/incus/lab.sh registry
+
+      - name: Set up the Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
+          # The builder shares the host's network, so that it pushes to the
+          # registry on the loopback.
+          driver-opts: network=host
+
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Built as a release builds it (zstd layers, OCI media types), so that
+      # what Incus unpacks here is what it unpacks in production. Build's own
+      # layer caches are read, never written.
+      - name: Build the sandbox runtime image from this checkout
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-runtime/Dockerfile
+          platforms: linux/amd64
+          push: true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          tags: ${{ env.E2E_RUNTIME_IMAGE }}
+          build-args: VERSION=e2e
+          cache-from: |
+            type=gha,scope=sandbox-runtime
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime-buildcache:amd64
+          provenance: false
+
+      - name: Build the sandbox egress image from this checkout
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-egress/Dockerfile
+          platforms: linux/amd64
+          push: true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          tags: ${{ env.E2E_EGRESS_IMAGE }}
+          build-args: VERSION=e2e
+          cache-from: |
+            type=gha,scope=sandbox-egress
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-egress-buildcache:amd64
+          provenance: false
+
+      - name: Run the operator's setup from docs/incus.md
+        run: bash services/sandbox/e2e/incus/lab.sh operator
+
+      - name: Start the egress proxy on the sandbox bridge
+        run: bash services/sandbox/e2e/incus/lab.sh egress
+
+      - name: Write the lab file
+        run: bash services/sandbox/e2e/incus/lab.sh lab-file
+
+      - name: Smoke the restricted client certificate
+        run: |
+          set -euo pipefail
+          pki="$INCUS_E2E_DIR/pki"
+          curl -sS --cacert "$pki/server.crt" --cert "$pki/client.crt" --key "$pki/client.key" \
+            "https://127.0.0.1:8443/1.0" | jq '{auth: .metadata.auth, api_extensions: (.metadata.api_extensions | length), server_version: .metadata.environment.server_version}'
+
+      - name: Collect diagnostics
+        if: always()
+        run: bash services/sandbox/e2e/incus/lab.sh diagnose
+
+      - name: Summarize
+        if: always()
+        run: bash services/sandbox/e2e/incus/lab.sh facts >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the logs and the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sandbox-incus-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.INCUS_E2E_DIR }}/logs
+            ${{ env.INCUS_E2E_DIR }}/report
+            ${{ env.INCUS_E2E_DIR }}/phases.tsv
+            ${{ env.INCUS_E2E_DIR }}/lab.json
+          retention-days: 14
+          if-no-files-found: warn
