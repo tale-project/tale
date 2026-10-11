@@ -191,6 +191,22 @@ detail:
     draftHelp: Führt deine ungespeicherten Änderungen einmal aus und zeigt das Ergebnis auf dem Canvas.
     version: 'Version {version}'
     versionHelp: Führt die gespeicherte Version aus und behält den Lauf unter Läufe.
+  runSource:
+    button: Ausgehen von
+    tests: Tests
+    runs: Läufe
+    trigger: Trigger
+    other: Sonstiges
+    runLabel: '{status} · {time}'
+    triggerInput: Die Eingabe des Triggers
+    empty: Leer
+    required: Pflichtfelder ausfüllen
+    replaced: 'Eingabe aus {source} übernommen.'
+    reading: Eingabe des Laufs wird gelesen…
+    readFailed: Die Eingabe dieses Laufs konnte nicht gelesen werden. Versuche es erneut oder gib die Eingabe ein.
+    standIns: Simulierte Ausgaben und Fehler des Tests verwenden
+    standInsHelp: 'Simuliert {nodes}.'
+    standInsDraftOnly: Der Lauf einer gespeicherten Version verwendet keine simulierten Ausgaben und Fehler eines Tests; probiere den Entwurf aus, um sie zu verwenden.
   runScope:
     label: Projektbereich
     orgWide: Organisationsweit

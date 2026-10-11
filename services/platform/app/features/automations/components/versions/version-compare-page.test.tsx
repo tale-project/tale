@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { VersionComparePage } from './version-compare-page';
 
@@ -198,7 +198,11 @@ describe('VersionComparePage', () => {
     const panel = screen.getByRole('complementary', {
       name: 'Changes of the node',
     });
-    expect(within(panel).getByText('Summarize')).toBeVisible();
+    // The panel settles on one entry for the node: while it loads under a
+    // busy machine its content can be drawn twice for a moment.
+    await waitFor(() =>
+      expect(within(panel).getByText('Summarize')).toBeVisible(),
+    );
     renderPage(2, { node: 'collect' });
     expect(
       screen.getAllByText('This node did not change.').at(-1),

@@ -1412,6 +1412,7 @@ describe('AutomationEditor', () => {
         document: expect.objectContaining({
           nodes: [expect.objectContaining({ id: 'summary', when: 'x' })],
         }),
+        input: {},
       },
       expect.any(Object),
     );
@@ -3122,6 +3123,42 @@ describe('AutomationEditor tests', () => {
       within(banner).getByRole('button', { name: 'Hide result' }),
     );
     expect(screen.queryByRole('region', { name: 'Test: smoke' })).toBeNull();
+  });
+
+  it('tries the draft from a test’s input, with what the test stands in for', async () => {
+    state.document = {
+      ...withTests,
+      tests: [
+        {
+          name: 'stubbed',
+          input: { customer: 'acme' },
+          mocks: { summary: 'All paid.' },
+        },
+      ],
+    };
+    tryMutation.mutate.mockReset();
+    window.sessionStorage.clear();
+    const { user } = renderPage({ organizationId: 'org-tests-source' });
+    await editTheNode(user);
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+    const dialog = screen.getByRole('dialog', { name: 'Test run' });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Start from' }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'stubbed' }));
+    expect(
+      within(dialog).getByRole('checkbox', {
+        name: "Use the test's simulated outputs and failures",
+      }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Test run' }));
+    expect(tryMutation.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { customer: 'acme' },
+        bench: { mocks: { summary: 'All paid.' } },
+      }),
+      expect.any(Object),
+    );
   });
 
   it('adds a blank test to the draft and opens it on its setup', async () => {

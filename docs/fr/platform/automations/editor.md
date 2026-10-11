@@ -210,13 +210,21 @@ Pour vérifier les mêmes cas à chaque enregistrement et avant chaque mise en s
 
 <Frame caption="Pour un workflow avec des données d’entrée, saisis le JSON et vérifie le schéma avant le test.">
 
-![Le dialogue de test montre les valeurs JSON owner et repo dans l’éditeur de code et le schéma des données déplié sous forme de liste de champs.](/images/platform/automation-run-input.webp)
+![Le dialogue de test montre Start from au-dessus de Run input (JSON), les valeurs JSON owner et repo dans l’éditeur de code et le schéma des données déplié sous forme de liste de champs.](/images/platform/automation-run-input.webp)
 
 </Frame>
 
 ### Essayer le brouillon {#try-the-draft}
 
 Avec des modifications non enregistrées, **Essai** demande d’abord **Ce qui s’exécute**. **Ce brouillon (non enregistré)** exécute une fois tes modifications avec les mêmes simulations, sans les enregistrer : l’exécution n’est conservée nulle part et n’apparaît pas sous **Exécutions**. L’autre choix, par exemple **Version 3**, exécute la version enregistrée affichée, comme plus haut. L’entrée est vérifiée par rapport au schéma d’entrée de ce que tu choisis.
+
+**À partir de**, au-dessus de **Données de l’exécution (JSON)**, remplit l’entrée à partir d’un test, de l’une des cinq exécutions les plus récentes, de l’entrée du déclencheur, de rien (**Vide**) ou d’un espace réservé pour chaque champ obligatoire (**Remplir les champs obligatoires**). La boîte de dialogue s’ouvre sur ton dernier choix pour l’automatisation. Quand le test dont tu pars simule des nœuds, **Utiliser les sorties et échecs simulés du test** apparaît, activé par défaut : l’essai remplace alors ces nœuds comme le fait le test, et ils portent **Sortie simulée** ou **Échec simulé** sur le canevas. L’exécution d’une version enregistrée ne les utilise pas.
+
+<Frame caption="À partir de dans la boîte de dialogue d’essai d’un brouillon : les tests et les exécutions d’où peut venir l’entrée, rien, ou les champs obligatoires.">
+
+![La boîte de dialogue d’essai d’Order discounts avec This draft (not saved) choisi sous What runs et le menu Start from ouvert : sous Tests, Small order pays full price, Big order gets 10% off et New test ; sous Runs, une exécution réussie ; sous Other, Empty et Fill the required fields.](/images/platform/automation-run-start-from.webp)
+
+</Frame>
 
 L’exécution du brouillon s’affiche ensuite sur le canevas à la place de la dernière exécution, sous une bande **Test non enregistré** qui indique comment elle s’est terminée et quand, par exemple **Réussi en 12 ms** ou **Échec à Score**, et elle se rejoue étape par étape comme une exécution enregistrée. Sélectionne un nœud pour voir ce qu’il a reçu et renvoyé dans son onglet **Test non enregistré**. Dès que tu modifies le brouillon, la bande indique **Le brouillon a changé depuis cet essai.** **Réessayer** exécute le brouillon tel qu’il est maintenant, avec la même entrée ; ⌘⇧Entrée (Ctrl+Maj+Entrée) fait de même tant que le canevas ou l’inspecteur a le focus. **Masquer le résultat** ramène la dernière exécution. Un essai s’arrête après 20 secondes.
 

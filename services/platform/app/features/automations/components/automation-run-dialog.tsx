@@ -1,23 +1,35 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
 import { CodeEditor } from '@tale/ui/code-editor';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Field } from '@tale/ui/field';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { RadioGroup } from '@tale/ui/radio-group';
 import { SchemaTree, schemaKindLabel } from '@tale/ui/schema-tree';
 import { Text } from '@tale/ui/text';
-import { useId, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { useAutomationRun } from '../hooks/queries';
 import {
   parseJsonText,
   useJsonInputDraft,
 } from '../hooks/use-json-input-draft';
+import {
+  rememberedSource,
+  sourceMemoryOf,
+  type RunInputSource,
+  type SourceBench,
+} from '../lib/automation-tests/run-sources';
 import { guidedIssueSource } from '../lib/issue-import';
+import { nodeTitle } from '../lib/node-face';
 import { runInputProviders } from '../lib/run-input-completion';
 import {
   IssueImportFields,
@@ -42,12 +54,68 @@ export interface AutomationRunRequest {
  * or the saved version, whose run is kept with the others. */
 export type RunTarget = 'draft' | 'version';
 
+/** Where a test run's input can start from, and where the dialog keeps the
+ * last choice for this automation. */
+export interface RunSources {
+  organizationId: string;
+  memoryKey: string;
+  items: readonly RunInputSource[];
+}
+
 const NO_PROJECTS: readonly IssueImportProject[] = [];
+
+function readMemory(key: string | undefined): string | null {
+  if (key === undefined) return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch (error) {
+    // A browser that keeps no session storage still runs; it only forgets.
+    console.warn('Could not read where the run input started from', error);
+    return null;
+  }
+}
+
+function writeMemory(key: string, value: string): void {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch (error) {
+    console.warn('Could not keep where the run input started from', error);
+  }
+}
+
+/** Reads a run's input once a run is chosen to start from, and hands it on
+ * once — mounted only while one is being read. */
+function RunInputLoader({
+  organizationId,
+  runId,
+  onLoaded,
+  onFailed,
+}: {
+  organizationId: string;
+  runId: string;
+  onLoaded: (input: unknown) => void;
+  onFailed: () => void;
+}) {
+  const query = useAutomationRun(organizationId, runId);
+  const handed = useRef(false);
+  useEffect(() => {
+    if (handed.current) return;
+    if (query.data !== undefined && query.data !== null) {
+      handed.current = true;
+      onLoaded(query.data.input ?? {});
+    } else if (query.isError) {
+      handed.current = true;
+      onFailed();
+    }
+  }, [query.data, query.isError, onLoaded, onFailed]);
+  return null;
+}
 
 /** Mounted for one reviewed version and run scope. The server remains the
  * authority; client validation gives feedback before scheduling any work. */
 export function AutomationRunDialog({
   request,
+  sources,
   projects = NO_PROJECTS,
   pending = false,
   error,
@@ -55,18 +123,43 @@ export function AutomationRunDialog({
   onConfirm,
 }: {
   request: AutomationRunRequest;
+  /** Where the input can start from (a test run in the editor). */
+  sources?: RunSources;
   projects?: readonly IssueImportProject[];
   pending?: boolean;
   error?: string | null;
   onClose: () => void;
-  onConfirm: (input: unknown, target: RunTarget) => void;
+  /** `bench` is a test's stand-ins, sent with a try of the draft. */
+  onConfirm: (input: unknown, target: RunTarget, bench?: SourceBench) => void;
 }) {
   const { t } = useT('automations');
   const { t: tSchema } = useT('schemaTree');
   const { locale } = useLocale();
   const inputId = useId();
+  // The last place the input started from for this automation, when it is
+  // still on offer: the dialog opens on it.
+  const [remembered] = useState(() =>
+    sources === undefined
+      ? undefined
+      : rememberedSource(sources.items, readMemory(sources.memoryKey)),
+  );
+  const [chosen, setChosen] = useState<RunInputSource | null>(
+    remembered ?? null,
+  );
+  const [reading, setReading] = useState<RunInputSource | null>(
+    remembered?.kind === 'run' ? remembered : null,
+  );
+  const [readFailed, setReadFailed] = useState(false);
+  const [news, setNews] = useState('');
+  const [useStandIns, setUseStandIns] = useState(true);
   const [text, setText] = useState(() =>
-    JSON.stringify(request.initialInput ?? {}, null, 2),
+    JSON.stringify(
+      remembered !== undefined && remembered.kind !== 'run'
+        ? remembered.input
+        : (request.initialInput ?? {}),
+      null,
+      2,
+    ),
   );
   const [target, setTarget] = useState<RunTarget>(
     request.draft === undefined ? 'version' : 'draft',
@@ -118,8 +211,35 @@ export function AutomationRunDialog({
     return { valid: true as const, input: checked.input };
   }, [check, text, source, values, t]);
 
+  /** Puts `input` in the field, from `from`, and says so. */
+  const startFrom = (from: RunInputSource, input: unknown): void => {
+    setText(JSON.stringify(input, null, 2));
+    setChosen(from);
+    setNews(t('detail.runSource.replaced', { source: from.label }));
+  };
+  const choose = (from: RunInputSource): void => {
+    if (sources !== undefined) {
+      writeMemory(sources.memoryKey, sourceMemoryOf(from));
+    }
+    setReadFailed(false);
+    if (from.kind === 'run') {
+      setReading(from);
+      return;
+    }
+    setReading(null);
+    startFrom(from, from.input);
+  };
+  // A test's stand-ins go with a try of the draft; a saved version's run
+  // takes none.
+  const standIns = chosen?.kind === 'test' ? chosen.bench : undefined;
+  const bench = tryingDraft && useStandIns ? standIns : undefined;
+  const confirm = (input: unknown): void => {
+    onConfirm(input, target, ...(bench === undefined ? [] : [bench]));
+  };
+
   const confirmText =
     request.mode === 'live' ? t('detail.runLive') : t('detail.runMock');
+  const groups = sources === undefined ? [] : sourceGroups(sources.items);
 
   return (
     <ConfirmDialog
@@ -136,10 +256,10 @@ export function AutomationRunDialog({
             : t('detail.runInput.mockDescription')
       }
       confirmText={confirmText}
-      disableConfirm={!parsed.valid}
+      disableConfirm={!parsed.valid || reading !== null}
       isLoading={pending}
       onConfirm={() => {
-        if (parsed.valid) onConfirm(parsed.input, target);
+        if (parsed.valid) confirm(parsed.input);
       }}
     >
       {error && <Alert variant="destructive" description={error} />}
@@ -194,10 +314,52 @@ export function AutomationRunDialog({
           )}
         </>
       ) : (
-        // The input is typed when the document that runs declares one, or
-        // when the caller hands a sample to edit (a trigger's Run now).
-        (schema !== undefined || request.initialInput !== undefined) && (
+        // The input is typed when the document that runs declares one, when
+        // the caller hands a sample to edit (a trigger's Run now), or when it
+        // can start from somewhere (a test run in the editor).
+        (schema !== undefined ||
+          request.initialInput !== undefined ||
+          groups.length > 0) && (
           <div className="mt-4 space-y-3">
+            {groups.length > 0 && (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {reading !== null && (
+                  <Text as="span" variant="muted" className="text-xs">
+                    {t('detail.runSource.reading')}
+                  </Text>
+                )}
+                <DropdownMenu
+                  align="end"
+                  trigger={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={pending}
+                    >
+                      {t('detail.runSource.button')}
+                      <ChevronDown aria-hidden="true" className="size-4" />
+                    </Button>
+                  }
+                  items={() =>
+                    groups.map((group) => {
+                      const section: DropdownMenuGroup = [
+                        { type: 'label', content: t(GROUP_KEYS[group.kind]) },
+                      ];
+                      for (const item of group.items) {
+                        section.push({
+                          type: 'item',
+                          label: item.label,
+                          selected: chosen?.id === item.id,
+                          onClick: () => choose(item),
+                        });
+                      }
+                      return section;
+                    })
+                  }
+                />
+              </div>
+            )}
             <Field
               label={t('detail.runInput.label')}
               htmlFor={inputId}
@@ -208,25 +370,60 @@ export function AutomationRunDialog({
                       version: request.version,
                     })
               }
-              error={parsed.valid ? undefined : parsed.error}
+              error={
+                readFailed
+                  ? t('detail.runSource.readFailed')
+                  : parsed.valid
+                    ? undefined
+                    : parsed.error
+              }
             >
               <CodeEditor
                 id={inputId}
                 language="json"
                 value={text}
-                onChange={setText}
+                onChange={(next) => {
+                  setText(next);
+                }}
                 minRows={6}
                 maxRows={14}
                 providers={providers}
                 // Mod-Enter starts the run, as the dialog's button does —
                 // once the input is one the run takes.
                 onSubmit={() => {
-                  if (parsed.valid && !pending) onConfirm(parsed.input, target);
+                  if (parsed.valid && !pending && reading === null) {
+                    confirm(parsed.input);
+                  }
                 }}
                 submitLabel={confirmText}
                 describeDiagnostics={false}
               />
             </Field>
+            {standIns !== undefined &&
+              (tryingDraft ? (
+                <Checkbox
+                  checked={useStandIns}
+                  onCheckedChange={(checked) =>
+                    setUseStandIns(checked === true)
+                  }
+                  label={t('detail.runSource.standIns')}
+                  description={t('detail.runSource.standInsHelp', {
+                    nodes: new Intl.ListFormat(locale, {
+                      type: 'conjunction',
+                    }).format(
+                      [
+                        ...Object.keys(standIns.mocks ?? {}),
+                        ...Object.keys(standIns.failures ?? {}),
+                      ].map(nodeTitle),
+                    ),
+                  })}
+                  disabled={pending}
+                />
+              ) : (
+                <Text as="p" variant="muted" className="text-sm">
+                  {t('detail.runSource.standInsDraftOnly')}
+                </Text>
+              ))}
             {schema !== undefined && (
               <CollapsibleDetails summary={t('detail.runInput.schema')}>
                 <SchemaTree
@@ -237,9 +434,52 @@ export function AutomationRunDialog({
                 />
               </CollapsibleDetails>
             )}
+            <span role="status" className="sr-only">
+              {news}
+            </span>
           </div>
         )
       )}
+      {sources !== undefined && reading !== null && (
+        <RunInputLoader
+          // A run chosen again reads afresh.
+          key={reading.id}
+          organizationId={sources.organizationId}
+          runId={reading.kind === 'run' ? reading.runId : ''}
+          onLoaded={(input) => {
+            const from = reading;
+            setReading(null);
+            startFrom(from, input);
+          }}
+          onFailed={() => {
+            setReading(null);
+            setReadFailed(true);
+          }}
+        />
+      )}
     </ConfirmDialog>
   );
+}
+
+/** The menu's sections, in order; one without a source is left out. */
+const GROUP_KEYS = {
+  test: 'detail.runSource.tests',
+  run: 'detail.runSource.runs',
+  trigger: 'detail.runSource.trigger',
+  other: 'detail.runSource.other',
+} as const;
+
+function sourceGroups(items: readonly RunInputSource[]): Array<{
+  kind: keyof typeof GROUP_KEYS;
+  items: RunInputSource[];
+}> {
+  const byKind = (kind: keyof typeof GROUP_KEYS) =>
+    items.filter((item) =>
+      kind === 'other'
+        ? item.kind === 'empty' || item.kind === 'required'
+        : item.kind === kind,
+    );
+  return (['test', 'run', 'trigger', 'other'] as const)
+    .map((kind) => ({ kind, items: byKind(kind) }))
+    .filter((group) => group.items.length > 0);
 }

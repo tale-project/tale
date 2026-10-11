@@ -190,6 +190,22 @@ detail:
     draftHelp: Runs your unsaved changes once and shows the result on the canvas.
     version: 'Version {version}'
     versionHelp: Runs the saved version and keeps the run under Runs.
+  runSource:
+    button: Start from
+    tests: Tests
+    runs: Runs
+    trigger: Trigger
+    other: Other
+    runLabel: '{status} · {time}'
+    triggerInput: The trigger's input
+    empty: Empty
+    required: Fill the required fields
+    replaced: 'Input replaced from {source}.'
+    reading: Reading the run's input…
+    readFailed: Couldn't read that run's input. Try again or type the input.
+    standIns: Use the test's simulated outputs and failures
+    standInsHelp: 'Simulates {nodes}.'
+    standInsDraftOnly: A saved version's run doesn't use a test's simulated outputs and failures; try the draft to use them.
   runScope:
     label: Project scope
     orgWide: Organization-wide

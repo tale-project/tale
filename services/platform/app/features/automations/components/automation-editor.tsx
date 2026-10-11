@@ -123,6 +123,10 @@ import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { useTimelineWords } from '../hooks/use-timeline-words';
 import { coveredCount, pathCoverage } from '../lib/automation-tests/coverage';
+import {
+  runInputSources,
+  type SourceBench,
+} from '../lib/automation-tests/run-sources';
 import { testsOf } from '../lib/automation-tests/test-draft';
 import { formOwnsPlace, readTestForm } from '../lib/automation-tests/test-form';
 import {
@@ -246,6 +250,17 @@ import {
  * cannot carry an empty value, so the org-wide option needs a real sentinel
  * that maps back to an omitted `projectId`. */
 const RUN_SCOPE_ORG_WIDE = '__org_wide__';
+
+/** A run's status in words, as a run to start from names it. */
+const RUN_STATUS_KEYS = {
+  queued: 'runs.status.queued',
+  running: 'runs.status.running',
+  waiting: 'runs.status.waiting',
+  quarantined: 'runs.status.quarantined',
+  success: 'runs.status.success',
+  failed: 'runs.status.failed',
+  cancelled: 'runs.status.cancelled',
+} as const;
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** A draft diverges from the stored version as one thing — its document. */
@@ -510,9 +525,9 @@ function AutomationEditorScope({
     automationQuery.data?.deployedVersion !== undefined &&
     (deployedRead.unavailable || deployedRead.stale);
   const deployedFailureDetail = failureDetail(deployedQuery.error);
-  // Only the newest run matters here — it is what the canvas overlays; the
-  // Runs tab reads the log.
-  const runsQuery = useAutomationRuns(organizationId, automationSlug, 1);
+  // The newest run is what the canvas overlays, and the five newest are
+  // where a test run's input can start from; the Runs tab reads the log.
+  const runsQuery = useAutomationRuns(organizationId, automationSlug, 5);
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const boundProjectIds = useAutomationProjects(organizationId, automationSlug);
   const { projects } = useProjects(organizationId);
@@ -1425,7 +1440,11 @@ function AutomationEditorScope({
   /** Runs the draft as it is now, once and kept nowhere, and lays its run
    * over the canvas with the banner. A refusal is said where the try
    * started: in the run dialog, or above the canvas for Try again. */
-  const tryDraft = (input: unknown, from: 'dialog' | 'banner'): void => {
+  const tryDraft = (
+    input: unknown,
+    from: 'dialog' | 'banner',
+    bench?: SourceBench,
+  ): void => {
     if (rawDocument === null) return;
     const sentHash = documentHash(rawDocument);
     if (from === 'dialog') setTryRefusal(null);
@@ -1436,6 +1455,7 @@ function AutomationEditorScope({
         name: automationSlug,
         document: rawDocument,
         ...(input !== undefined && { input }),
+        ...(bench !== undefined && { bench }),
       },
       {
         onSuccess: ({ run }) => {
@@ -1716,6 +1736,34 @@ function AutomationEditorScope({
         }),
       }),
   };
+  // Where a test run's input can start from: the tests, the five newest
+  // runs, the bound trigger's input, nothing, or the required fields.
+  const runTime = new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  const runSources = runInputSources({
+    tests: tests.tests,
+    runs: runs.map((run) => ({
+      id: run.id,
+      label: t('detail.runSource.runLabel', {
+        status: t(RUN_STATUS_KEYS[run.status]),
+        time: runTime.format(run.startedAt),
+      }),
+    })),
+    trigger:
+      triggerInput === null
+        ? null
+        : { label: t('detail.runSource.triggerInput'), input: triggerInput },
+    schema: automation?.inputs,
+    words: {
+      unnamedTest: (number) => t('tests.unnamed', { number }),
+      empty: t('detail.runSource.empty'),
+      required: t('detail.runSource.required'),
+    },
+  });
   const testsPanel = {
     tests,
     canEdit: canAuthor,
@@ -2000,12 +2048,10 @@ function AutomationEditorScope({
     request: AutomationRunRequest,
     input: unknown,
     target: RunTarget,
+    bench?: SourceBench,
   ): void => {
     if (target === 'draft') {
-      tryDraft(
-        request.draft?.schema === undefined ? undefined : input,
-        'dialog',
-      );
+      tryDraft(input, 'dialog', bench);
       return;
     }
     scheduleRun(request, input);
@@ -3180,6 +3226,13 @@ function AutomationEditorScope({
       {runRequest !== null && (
         <AutomationRunDialog
           request={runRequest}
+          {...(runRequest.mode === 'mock' && {
+            sources: {
+              organizationId,
+              memoryKey: `tale.runSource.${organizationId}.${automationSlug}`,
+              items: runSources,
+            },
+          })}
           projects={projects}
           pending={startRun.isPending || tryRun.isPending}
           error={tryRefusal ?? refusal}
@@ -3188,7 +3241,9 @@ function AutomationEditorScope({
             setRefusal(null);
             setTryRefusal(null);
           }}
-          onConfirm={(input, target) => confirmRun(runRequest, input, target)}
+          onConfirm={(input, target, bench) =>
+            confirmRun(runRequest, input, target, bench)
+          }
         />
       )}
 

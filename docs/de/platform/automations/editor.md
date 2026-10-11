@@ -210,13 +210,21 @@ Damit dieselben Fälle bei jedem Speichern und vor jedem Live-Schalten geprüft 
 
 <Frame caption="Hat der Workflow Eingaben, gib JSON an und prüfe sein Schema vor dem Teststart.">
 
-![Der Testlauf-Dialog zeigt JSON-Werte für owner und repo im Code-Editor und das aufgeklappte Eingabeschema als Liste von Feldern.](/images/platform/automation-run-input.webp)
+![Der Testlauf-Dialog zeigt Start from über Run input (JSON), JSON-Werte für owner und repo im Code-Editor und das aufgeklappte Eingabeschema als Liste von Feldern.](/images/platform/automation-run-input.webp)
 
 </Frame>
 
 ### Den Entwurf ausprobieren {#try-the-draft}
 
 Mit ungespeicherten Änderungen fragt **Testlauf** zuerst **Was läuft**. **Dieser Entwurf (nicht gespeichert)** führt deine Änderungen einmal mit denselben Mocks aus, ohne sie zu speichern: Der Lauf wird nirgends behalten und erscheint nicht unter **Läufe**. Die andere Wahl, etwa **Version 3**, führt wie oben die gespeicherte Version aus, die du gerade siehst. Die Eingabe wird gegen das Eingabeschema dessen geprüft, was du wählst.
+
+**Ausgehen von** über **Eingabe für den Lauf (JSON)** füllt die Eingabe aus einem Test, einem der fünf neuesten Läufe, der Eingabe des Triggers, mit nichts (**Leer**) oder mit einem Platzhalter für jedes Pflichtfeld (**Pflichtfelder ausfüllen**). Der Dialog öffnet mit deiner letzten Wahl für die Automatisierung. Simuliert der Test, von dem du ausgehst, Nodes, erscheint **Simulierte Ausgaben und Fehler des Tests verwenden**, standardmäßig eingeschaltet: Der Versuch springt dann wie der Test für diese Nodes ein, und sie tragen auf dem Canvas **Simulierte Ausgabe** oder **Simulierter Fehler**. Der Lauf einer gespeicherten Version verwendet sie nicht.
+
+<Frame caption="Ausgehen von im Testlauf-Dialog eines Entwurfs: die Tests und Läufe, aus denen die Eingabe kommen kann, nichts oder die Pflichtfelder.">
+
+![Der Testlauf-Dialog von Order discounts mit This draft (not saved) unter What runs und dem geöffneten Menü Start from: unter Tests Small order pays full price, Big order gets 10% off und New test; unter Runs ein erfolgreicher Lauf; unter Other Empty und Fill the required fields.](/images/platform/automation-run-start-from.webp)
+
+</Frame>
 
 Der Lauf des Entwurfs liegt danach anstelle des letzten Laufs auf dem Canvas, unter einem Streifen **Ungespeicherter Test**, der sagt, wie er endete und wann, etwa **Erfolgreich in 12 ms** oder **Fehlgeschlagen bei Score**. Er lässt sich wie ein aufgezeichneter Lauf Schritt für Schritt abspielen. Wähle eine Node, um auf ihrem Tab **Ungespeicherter Test** zu sehen, was sie erhalten und zurückgegeben hat. Sobald du den Entwurf änderst, sagt der Streifen **Der Entwurf hat sich seit diesem Versuch geändert.** **Erneut ausprobieren** führt den Entwurf so aus, wie er jetzt ist, mit derselben Eingabe; ⌘⇧Enter (Strg+Umschalt+Enter) tut dasselbe, solange der Canvas oder der Inspektor den Fokus hat. **Ergebnis ausblenden** zeigt wieder den letzten Lauf. Ein Versuch stoppt nach 20 Sekunden.
 
