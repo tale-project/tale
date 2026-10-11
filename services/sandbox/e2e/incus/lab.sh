@@ -86,6 +86,14 @@ guard() {
   fi
 }
 
+# The lab's directory is the runner user's, wherever it sits (/mnt is root's).
+ensure_dir() {
+  if [ ! -d "$dir" ]; then
+    sudo mkdir -p "$dir"
+    sudo chown "$(id -u):$(id -g)" "$dir"
+  fi
+}
+
 # Incus is the administrator's here: the local socket, as root. The function
 # also stands in for the `incus` the operator block calls.
 incus() { sudo /usr/bin/incus "$@"; }
@@ -97,7 +105,6 @@ export -f incus
 phase() {
   local name="$1" started="$SECONDS" status
   shift
-  mkdir -p "$dir"
   echo "::group::lab $name"
   set +e
   (
@@ -114,7 +121,7 @@ phase() {
 # ---- install ---------------------------------------------------------------------
 
 install_incus() {
-  local codename version key fingerprint
+  local codename version key fingerprint builds
   # shellcheck source=/dev/null
   codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
   case "$codename" in
@@ -136,8 +143,10 @@ install_incus() {
     sudo tee /etc/apt/sources.list.d/zabbly-incus-stable.sources >/dev/null
   sudo apt-get update -q
 
-  if ! apt-cache madison incus | grep -qF "| $version |"; then
-    apt-cache madison incus >&2 || true
+  # Read whole, then searched: `grep -q` leaving early would fail the pipe.
+  builds="$(apt-cache madison incus)"
+  if ! grep -qF "| $version |" <<<"$builds"; then
+    echo "$builds" >&2
     die "Zabbly's stable channel no longer has incus $version: read the builds above, take a current one and pin it in lab.sh"
   fi
   # skopeo is what Incus pulls an OCI image with; zfsutils-linux the pool's.
@@ -157,7 +166,6 @@ install_incus() {
 # ---- storage ----------------------------------------------------------------------
 
 init_storage() {
-  mkdir -p "$dir"
   df -h "$dir" || true
   truncate -s "$POOL_SIZE" "$dir/pool.img"
   sudo zpool create -f -o ashift=12 -O atime=off -O compression=lz4 "$ZPOOL" "$dir/pool.img"
@@ -461,6 +469,7 @@ main() {
     env) print_env ;;
     install | storage | api | registry | operator | egress | lab-file | facts | diagnose)
       guard
+      ensure_dir
       case "$command" in
         install) phase install install_incus ;;
         storage) phase storage init_storage ;;
