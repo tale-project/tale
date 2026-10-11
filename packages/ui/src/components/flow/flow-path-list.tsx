@@ -316,18 +316,21 @@ export function FlowPathList({
                             {row.clauses && row.clauses.length > 0 && (
                               <span className="flex flex-wrap gap-1">
                                 {row.clauses.map((clause) => (
+                                  // A long clause (the tests that go down
+                                  // a path) wraps rather than hiding its
+                                  // end; one line still reads as a pill.
                                   <span
                                     key={clause.id}
-                                    className="border-border text-foreground inline-flex h-5 max-w-full items-center gap-1.5 rounded-full border px-2 text-xs"
+                                    className="border-border text-foreground inline-flex min-h-5 max-w-full items-start gap-1.5 rounded-[0.625rem] border px-2 py-0.5 text-xs"
                                   >
                                     <span
                                       aria-hidden="true"
                                       className={cn(
-                                        'size-1.5 shrink-0 rounded-full',
+                                        'mt-[0.3125rem] size-1.5 shrink-0 rounded-full',
                                         CLAUSE_DOT[clause.tone ?? 'neutral'],
                                       )}
                                     />
-                                    <span className="truncate">
+                                    <span className="min-w-0 break-words">
                                       {clause.label}
                                     </span>
                                   </span>
