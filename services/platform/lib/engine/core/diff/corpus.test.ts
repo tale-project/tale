@@ -10,8 +10,8 @@
  *
  *  1. every change summary is the reviewed one in corpus.snapshot.yml;
  *  2. the diff stays within its budget: under 5 ms per pair, the largest
- *     shipped document included (the median of repeated runs, so a busy
- *     machine's one slow sample does not decide).
+ *     shipped document included (the median of repeated batches, so runner
+ *     scheduling noise does not decide).
  *
  * After an intentional change, regenerate the snapshot with
  *
@@ -48,6 +48,8 @@ const HEADER = `# The change summary of every shipped automation document agains
 
 /** The budget per pair of documents. */
 const BUDGET_MS = 5;
+/** Calls per timing sample; averaging keeps wall-clock scheduling noise out. */
+const CALLS_PER_SAMPLE = 8;
 
 function nodesOf(doc: Doc): Node[] {
   return Array.isArray(doc.nodes) ? (doc.nodes as Node[]) : [];
@@ -274,8 +276,8 @@ function medianMs(run: () => void, samples: number): number {
   const times: number[] = [];
   for (let at = 0; at < samples; at += 1) {
     const started = performance.now();
-    run();
-    times.push(performance.now() - started);
+    for (let call = 0; call < CALLS_PER_SAMPLE; call += 1) run();
+    times.push((performance.now() - started) / CALLS_PER_SAMPLE);
   }
   times.sort((a, b) => a - b);
   return times[Math.floor(times.length / 2)] ?? 0;

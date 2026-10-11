@@ -36,7 +36,9 @@ describe('flowLooks', () => {
         { absent: { b: ['low'] } },
       ),
       primary: null,
-      incident: null,
+      // A pointer can incidentally rest on the source node while the
+      // comparison mounts; a one-run edge must remain plain in that state.
+      incident: highlightForIncident(graph, 'fetch'),
     });
     expect(nodes.get('urgent')).toEqual({
       state: 'idle',
@@ -48,6 +50,7 @@ describe('flowLooks', () => {
     expect(nodes.get('low')?.differs).toBeUndefined();
     expect(nodes.has('fetch')).toBe(false);
     expect(edges.get('fetch>classify')).toEqual({ look: 'emphasis' });
+    expect(edges.has('fetch>urgent')).toBe(false);
     expect(edges.has('__gate:urgent>urgent')).toBe(false);
     expect(edges.get('__gate:normal>low')).toEqual({ look: 'quiet' });
   });

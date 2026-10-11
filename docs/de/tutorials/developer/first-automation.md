@@ -1,5 +1,5 @@
 ---
-title: "Deine erste Automatisierung: eine tägliche Aufgabenübersicht"
+title: "Deine erste Automatisierung: tägliche Aufgaben"
 description: Lege aus der Vorlage Tägliche Aufgabenübersicht eine Automatisierung an, führe sie einmal von Hand aus und finde die Übersicht in deinen Benachrichtigungen.
 ---
 

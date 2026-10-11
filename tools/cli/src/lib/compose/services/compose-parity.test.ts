@@ -848,8 +848,20 @@ function resolveRelease(source: string, sitesOnly: boolean) {
   )?.run;
   if (!script) throw new Error('Release version step is missing');
   const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-matrix-'));
+  const cadenceBin = resolve(directory, 'bin');
   const output = resolve(directory, 'output');
   try {
+    mkdirSync(cadenceBin);
+    writeFileSync(
+      resolve(cadenceBin, 'gh'),
+      "#!/usr/bin/env bash\nprintf '\\n'\n",
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      resolve(cadenceBin, 'date'),
+      "#!/usr/bin/env bash\nprintf '2026-10-11\\n'\n",
+      { mode: 0o755 },
+    );
     const result = spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
       encoding: 'utf8',
       env: {
@@ -858,6 +870,9 @@ function resolveRelease(source: string, sitesOnly: boolean) {
         INPUT_VERSION: 'v0.5.15-sites.1',
         SITES_ONLY: String(sitesOnly),
         SOURCE_SHA: CI_SOURCE,
+        GH_TOKEN: 'fixture-token',
+        REPOSITORY: 'synthetic/tale',
+        PATH: `${cadenceBin}${delimiter}${process.env.PATH ?? ''}`,
         GITHUB_OUTPUT: output,
       },
     });

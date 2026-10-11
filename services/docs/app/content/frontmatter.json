@@ -1075,7 +1075,7 @@
     "slug": "tutorials/developer/first-automation",
     "locale": "de",
     "frontmatter": {
-      "title": "Deine erste Automatisierung: eine tägliche Aufgabenübersicht",
+      "title": "Deine erste Automatisierung: tägliche Aufgaben",
       "description": "Lege aus der Vorlage Tägliche Aufgabenübersicht eine Automatisierung an, führe sie einmal von Hand aus und finde die Übersicht in deinen Benachrichtigungen."
     }
   },
@@ -3507,7 +3507,7 @@
     "slug": "tutorials/developer/first-automation",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ta première automatisation : un récapitulatif quotidien des tâches",
+      "title": "Ta première automatisation : tâches quotidiennes",
       "description": "Crée une automatisation à partir du modèle Récapitulatif quotidien des tâches, exécute-la une fois à la main et retrouve le récapitulatif dans tes notifications."
     }
   },
