@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+  chatToolsConfigSchema,
+  DEFAULT_CHAT_TOOLS,
+  POLICY_SCHEMAS,
   uploadPolicyConfigSchema,
   retentionPolicyConfigSchema,
   piiConfigSchema,
+  sandboxQuotaConfigSchema,
+  sandboxQuotaTotal,
 } from './governance';
 
 describe('uploadPolicyConfigSchema', () => {
@@ -166,5 +171,42 @@ describe('piiConfigSchema customPattern ReDoS guard (S-02)', () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('chatToolsConfigSchema', () => {
+  it('reads a missing file and a missing switch as on', () => {
+    expect(DEFAULT_CHAT_TOOLS).toEqual({
+      files: true,
+      skills: true,
+      code: true,
+    });
+    expect(chatToolsConfigSchema.parse({ code: false })).toEqual({
+      files: true,
+      skills: true,
+      code: false,
+    });
+  });
+
+  it('refuses an unknown switch or a non-boolean value', () => {
+    expect(chatToolsConfigSchema.safeParse({ images: false }).success).toBe(
+      false,
+    );
+    expect(chatToolsConfigSchema.safeParse({ code: 'no' }).success).toBe(false);
+  });
+
+  it('is the chat_tools policy type', () => {
+    expect(POLICY_SCHEMAS.chat_tools).toBe(chatToolsConfigSchema);
+  });
+});
+
+describe('sandboxQuotaConfigSchema — light sandboxes', () => {
+  it('defaults the chat light sandbox limit to 2 and counts it in the total', () => {
+    const config = sandboxQuotaConfigSchema.parse({});
+    expect(config.maxLightSessionsPerOrg).toBe(2);
+    expect(sandboxQuotaTotal(config)).toBe(8);
+    expect(sandboxQuotaTotal({ ...config, maxLightSessionsPerOrg: 5 })).toBe(
+      11,
+    );
   });
 });

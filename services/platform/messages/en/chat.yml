@@ -570,6 +570,16 @@ thinking:
     mailAttachments: Listing email attachments
   seconds: '{seconds}s'
   summaryReasoningOnly: Showed its reasoning
+  writingFile: Writing {name}
+  generatingImages: '{count, plural, one {Generating an image} other {Generating # images}}'
+  loadingSkill: Reading the {name} skill
+  readingSkillFile: Reading {path} from the {name} skill
+  runningCode: Running {language} in a light sandbox
+artifacts:
+  label: Files from this reply
+  open: Open {name}
+  download: Download {name}
+  viewImage: View {name}
 sources:
   label: Sources
   showAll: Show all {count} sources

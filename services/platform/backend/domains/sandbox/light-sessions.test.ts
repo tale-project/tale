@@ -1,0 +1,348 @@
+// @vitest-environment node
+
+/**
+ * Light sandboxes: one per owner under a deterministic id, reused while it
+ * lives, created fresh when it is gone, and — when the organization's light
+ * budget is full — given the slot of the least recently used idle one. A
+ * busy budget or host is a `LightSandboxBusyError`, never a hang.
+ */
+
+import type { Sql } from 'postgres';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { SpawnerBusyError } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import {
+  acquireLightSession,
+  LIGHT_SESSION_IDLE_MS,
+  LightSandboxBusyError,
+  lightSessionId,
+  releaseIdleLightSessions,
+  type LightSessionSpawner,
+} from './light-sessions.ts';
+import {
+  getSessionBySessionId,
+  markSessionDestroyed,
+  reserveSessionSlot,
+  SandboxQuotaError,
+  setSessionStatus,
+} from './sessions.ts';
+
+vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => {
+  class MockSpawnerBusyError extends Error {
+    readonly retryAfterMs: number | undefined;
+    constructor(retryAfterMs?: number) {
+      super('busy');
+      this.retryAfterMs = retryAfterMs;
+    }
+  }
+  return {
+    SpawnerBusyError: MockSpawnerBusyError,
+    sessionCreate: vi.fn(),
+    sessionDestroy: vi.fn(),
+    sessionDestroyIfIdle: vi.fn(),
+    sessionIsAlive: vi.fn(),
+  };
+});
+vi.mock('./sessions.ts', () => {
+  class MockSandboxQuotaError extends Error {
+    readonly reason: string | undefined;
+    constructor(message: string, reason?: string) {
+      super(message);
+      this.reason = reason;
+    }
+  }
+  return {
+    SandboxQuotaError: MockSandboxQuotaError,
+    getSessionBySessionId: vi.fn(),
+    markSessionDestroyed: vi.fn(() => Promise.resolve(true)),
+    reserveSessionSlot: vi.fn(() => Promise.resolve('row-1')),
+    setSessionStatus: vi.fn(() => Promise.resolve(true)),
+  };
+});
+
+const ORG = 'org_1';
+const OWNER = { organizationId: ORG, ownerKey: 'thread-1', createdBy: 'u1' };
+
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+function fakeSql(lru: { sessionId: string }[][] = []): {
+  sql: Sql;
+  statements: Statement[];
+} {
+  const statements: Statement[] = [];
+  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?');
+    statements.push({ text, values });
+    if (text.includes('SELECT session_id AS "sessionId"')) {
+      return Promise.resolve(lru.shift() ?? []);
+    }
+    return Promise.resolve([]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tagged-template fake standing in for the pool
+  return { sql: fn as unknown as Sql, statements };
+}
+
+function fakeSpawner(
+  overrides: Partial<LightSessionSpawner> = {},
+): LightSessionSpawner {
+  return {
+    create: vi.fn(() =>
+      Promise.resolve({
+        session: {
+          sessionId: 'x',
+          organizationId: ORG,
+          profile: 'default' as const,
+          state: 'ready',
+          backend: 'docker',
+          createdAtMs: 0,
+          expiresAtMs: 0,
+          idleTimeoutMs: 0,
+        },
+      }),
+    ),
+    isAlive: vi.fn(() => Promise.resolve(true)),
+    destroy: vi.fn(() => Promise.resolve(true)),
+    destroyIfIdle: vi.fn(() =>
+      Promise.resolve({ destroyed: true, busy: false }),
+    ),
+    ...overrides,
+  };
+}
+
+const sessionRow = (status: string) => ({
+  id: 'row-0',
+  organizationId: ORG,
+  sessionId: lightSessionId(ORG, 'thread-1'),
+  profile: 'default',
+  status,
+  ownerType: 'light',
+  ownerId: 'thread-1',
+  createdBy: 'u1',
+  agentKind: null,
+  llmGatewayKeyId: null,
+  pinned: false,
+  createdAt: 0,
+  expiresAt: 0,
+  lastActivityAt: null,
+  destroyedAt: null,
+});
+
+beforeEach(() => {
+  vi.mocked(getSessionBySessionId).mockReset().mockResolvedValue(null);
+  vi.mocked(reserveSessionSlot).mockReset().mockResolvedValue('row-1');
+  vi.mocked(setSessionStatus).mockClear();
+  vi.mocked(markSessionDestroyed).mockClear();
+});
+
+describe('lightSessionId', () => {
+  it('is stable for one owner, distinct per organization, and a valid session id [SBX-R22]', () => {
+    const id = lightSessionId(ORG, 'thread-1');
+    expect(id).toBe(lightSessionId(ORG, 'thread-1'));
+    expect(id).not.toBe(lightSessionId('org_2', 'thread-1'));
+    expect(id).not.toBe(lightSessionId(ORG, 'thread-2'));
+    // The spawner's id alphabet, short enough for a container DNS label.
+    expect(id).toMatch(/^[a-zA-Z0-9_-]{1,50}$/);
+  });
+});
+
+describe('acquireLightSession', () => {
+  it('reuses the owner’s live sandbox and marks it used [SBX-R22]', async () => {
+    vi.mocked(getSessionBySessionId).mockResolvedValue(sessionRow('active'));
+    const { sql, statements } = fakeSql();
+    const spawner = fakeSpawner();
+
+    const lease = await acquireLightSession(sql, OWNER, spawner);
+
+    expect(lease).toEqual({
+      sessionId: lightSessionId(ORG, 'thread-1'),
+      created: false,
+    });
+    expect(spawner.create).not.toHaveBeenCalled();
+    expect(reserveSessionSlot).not.toHaveBeenCalled();
+    expect(
+      statements.some((s) => s.text.includes('SET last_activity_at_ms')),
+    ).toBe(true);
+  });
+
+  it('starts a hardened default-profile sandbox on the server when none lives', async () => {
+    const { sql } = fakeSql();
+    const spawner = fakeSpawner();
+
+    const lease = await acquireLightSession(sql, OWNER, spawner);
+
+    expect(lease.created).toBe(true);
+    expect(reserveSessionSlot).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        ownerType: 'light',
+        ownerId: 'thread-1',
+        profile: 'default',
+      }),
+    );
+    expect(spawner.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: lease.sessionId,
+        organizationId: ORG,
+        profile: 'default',
+        placement: 'server',
+      }),
+    );
+    expect(setSessionStatus).toHaveBeenCalledWith(sql, {
+      organizationId: ORG,
+      sessionId: lease.sessionId,
+      status: 'active',
+    });
+  });
+
+  it('settles a sandbox that vanished and starts a fresh one', async () => {
+    vi.mocked(getSessionBySessionId).mockResolvedValue(sessionRow('active'));
+    const { sql } = fakeSql();
+    const spawner = fakeSpawner({
+      isAlive: vi.fn(() => Promise.resolve(false)),
+    });
+
+    const lease = await acquireLightSession(sql, OWNER, spawner);
+
+    expect(markSessionDestroyed).toHaveBeenCalledWith(sql, {
+      organizationId: ORG,
+      sessionId: lease.sessionId,
+    });
+    expect(lease.created).toBe(true);
+  });
+
+  it('takes the slot of the organization’s least recently used idle sandbox when the budget is full [SBX-R23]', async () => {
+    vi.mocked(reserveSessionSlot)
+      .mockRejectedValueOnce(new SandboxQuotaError('full'))
+      .mockResolvedValueOnce('row-2');
+    const { sql, statements } = fakeSql([
+      [{ sessionId: 'lt-busy' }, { sessionId: 'lt-idle' }],
+    ]);
+    const destroyIfIdle = vi.fn((sessionId: string) =>
+      Promise.resolve(
+        sessionId === 'lt-busy'
+          ? { destroyed: false, busy: true }
+          : { destroyed: true, busy: false },
+      ),
+    );
+    const spawner = fakeSpawner({ destroyIfIdle });
+
+    const lease = await acquireLightSession(sql, OWNER, spawner);
+
+    expect(lease.created).toBe(true);
+    expect(destroyIfIdle).toHaveBeenCalledWith('lt-busy');
+    expect(markSessionDestroyed).toHaveBeenCalledWith(sql, {
+      organizationId: ORG,
+      sessionId: 'lt-idle',
+    });
+    const select = statements.find((s) =>
+      s.text.includes('SELECT session_id AS "sessionId"'),
+    );
+    // Never its own sandbox, never one younger than the grace, oldest use first.
+    expect(select?.values).toContain(lease.sessionId);
+    expect(select?.text).toContain(
+      'ORDER BY coalesce(last_activity_at_ms, created_at_ms) ASC',
+    );
+  });
+
+  it('answers busy when every light sandbox of the organization is in use [SBX-R23]', async () => {
+    vi.mocked(reserveSessionSlot).mockRejectedValue(
+      new SandboxQuotaError('full'),
+    );
+    const { sql } = fakeSql([[{ sessionId: 'lt-busy' }]]);
+    const spawner = fakeSpawner({
+      destroyIfIdle: vi.fn(() =>
+        Promise.resolve({ destroyed: false, busy: true }),
+      ),
+    });
+
+    await expect(acquireLightSession(sql, OWNER, spawner)).rejects.toThrow(
+      LightSandboxBusyError,
+    );
+    expect(spawner.create).not.toHaveBeenCalled();
+  });
+
+  it('settles a create the host refused as busy and says so', async () => {
+    const { sql } = fakeSql();
+    const spawner = fakeSpawner({
+      create: vi.fn(() => Promise.reject(new SpawnerBusyError(5000))),
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(acquireLightSession(sql, OWNER, spawner)).rejects.toThrow(
+      LightSandboxBusyError,
+    );
+    expect(setSessionStatus).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ status: 'failed' }),
+    );
+    expect(spawner.destroy).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('shares one start between two calls of one round', async () => {
+    const { sql } = fakeSql();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const create = vi.fn(async () => {
+      await gate;
+      return {
+        session: {
+          sessionId: 'x',
+          organizationId: ORG,
+          profile: 'default' as const,
+          state: 'ready',
+          backend: 'docker',
+          createdAtMs: 0,
+          expiresAtMs: 0,
+          idleTimeoutMs: 0,
+        },
+      };
+    });
+    const spawner = fakeSpawner({ create });
+
+    const first = acquireLightSession(sql, OWNER, spawner);
+    const second = acquireLightSession(sql, OWNER, spawner);
+    release();
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+    expect(create).toHaveBeenCalledOnce();
+  });
+});
+
+describe('releaseIdleLightSessions', () => {
+  it('removes the light sandboxes unused for five minutes, sparing one still running code [SBX-R24]', async () => {
+    const now = 1_760_000_000_000;
+    const { sql, statements } = fakeSql([
+      [
+        { sessionId: 'lt-idle', orgId: ORG },
+        { sessionId: 'lt-running', orgId: ORG },
+      ] as unknown as { sessionId: string }[],
+    ]);
+    const destroyIfIdle = vi.fn((sessionId: string) =>
+      Promise.resolve(
+        sessionId === 'lt-running'
+          ? { destroyed: false, busy: true }
+          : { destroyed: true, busy: false },
+      ),
+    );
+
+    await expect(
+      releaseIdleLightSessions(sql, { now }, { destroyIfIdle }),
+    ).resolves.toBe(1);
+
+    expect(LIGHT_SESSION_IDLE_MS).toBe(5 * 60 * 1000);
+    const select = statements.find((s) =>
+      s.text.includes('SELECT session_id AS "sessionId"'),
+    );
+    expect(select?.values).toContain(now - LIGHT_SESSION_IDLE_MS);
+    expect(markSessionDestroyed).toHaveBeenCalledExactlyOnceWith(sql, {
+      organizationId: ORG,
+      sessionId: 'lt-idle',
+    });
+  });
+});

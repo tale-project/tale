@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 133 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 135 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -963,6 +963,18 @@ run.
   **Worker 1** row → that task's run is cancelled, while the task on
   **Worker 2** keeps **Working…** (`tasks.agentRun.status.running`) and its
   row stays busy.
+- [ ] `SET-F83` · **The Light sandboxes limit** — **Organization limits**
+  (`sandboxes.limits.title`) → the fourth field reads **Light sandboxes**
+  (`sandboxes.quota.budgets.light`) with the hint that chats run code in a
+  small throwaway sandbox (`sandboxes.quota.budgetHints.light`), 2 in a fresh
+  organization;
+  **Total organization sessions** (`sandboxes.limits.total`) counts it with the
+  other three.
+- [ ] `SET-F84` · **A chat's light sandbox** — After a chat ran code
+  (CHAT-F68), its row reads your name with **Chat sandbox**
+  (`sandboxes.chatSandbox`) beneath it; the row menu offers **Destroy**
+  (`sandboxes.actions.destroy`) but no **Pin**. **Destroy** it → the row goes;
+  the chat's next code run starts a fresh sandbox and still succeeds.
 
 ## Boundary & error tests
 

@@ -38,7 +38,9 @@ export function isGenerationIncomplete(message: IncompleteMessage): boolean {
     message.isStreaming ||
     message.error !== undefined ||
     message.blockedReason !== undefined ||
-    message.text.length > 0
+    message.text.length > 0 ||
+    // A reply whose answer is the file it made has answered.
+    message.parts.some((part) => part.type === 'artifact')
   ) {
     return false;
   }

@@ -62,7 +62,7 @@ function EditorView(props: Partial<ComponentProps<typeof SandboxQuotaEditor>>) {
       <EditorGroup>
         <SandboxQuotaEditor
           organizationId="org-1"
-          deploymentLimits={{ status: 'available', maxSessions: 16 }}
+          deploymentLimits={{ status: 'available', maxSessions: 18 }}
           deploymentLimitsLoading={false}
           onRefreshDeploymentLimits={refresh}
           {...props}
@@ -84,6 +84,7 @@ beforeEach(() => {
     { budget: 'project', used: 1, cap: 2 },
     { budget: 'workflow', used: 1, cap: 2 },
     { budget: 'render', used: 0, cap: 2 },
+    { budget: 'light', used: 0, cap: 2 },
   ];
   save.mockReset().mockResolvedValue(null);
   refresh.mockReset();
@@ -91,16 +92,16 @@ beforeEach(() => {
 });
 
 describe('SandboxQuotaEditor', () => {
-  it('recomputes all three limits live and saves a total equal to deployment capacity', async () => {
+  it('recomputes the limits live and saves a total equal to deployment capacity', async () => {
     const { user } = render(<EditorView />);
     const total = screen.getByRole('status', {
       name: 'Total organization sessions',
     });
-    expect(total).toHaveTextContent('6 / 16');
+    expect(total).toHaveTextContent('8 / 18');
     for (const [label, value, sum] of [
-      ['Agent workers', '5', '9 / 16'],
-      ['Workflow sessions', '6', '13 / 16'],
-      ['Render sessions', '5', '16 / 16'],
+      ['Agent workers', '5', '11 / 18'],
+      ['Workflow sessions', '6', '15 / 18'],
+      ['Render sessions', '5', '18 / 18'],
     ]) {
       const input = screen.getByRole('spinbutton', { name: label });
       await user.clear(input);
@@ -117,16 +118,18 @@ describe('SandboxQuotaEditor', () => {
           maxSessionsPerOrg: 5,
           maxWorkflowSessionsPerOrg: 6,
           maxRenderSessionsPerOrg: 5,
+          maxLightSessionsPerOrg: 2,
         },
       }),
     );
   });
 
-  it('preserves the other two configured limits when editing only one', async () => {
+  it('preserves the other configured limits when editing only one', async () => {
     state.usage.data = [
       { budget: 'project', used: 1, cap: 2 },
       { budget: 'workflow', used: 3, cap: 4 },
       { budget: 'render', used: 0, cap: 6 },
+      { budget: 'light', used: 1, cap: 2 },
     ];
     const { user } = render(<EditorView />);
     const input = screen.getByRole('spinbutton', {
@@ -143,6 +146,7 @@ describe('SandboxQuotaEditor', () => {
             maxSessionsPerOrg: 6,
             maxWorkflowSessionsPerOrg: 4,
             maxRenderSessionsPerOrg: 6,
+            maxLightSessionsPerOrg: 2,
           },
         }),
       ),
@@ -156,11 +160,11 @@ describe('SandboxQuotaEditor', () => {
     await user.type(input, '13');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'The total of 17 sessions exceeds the deployment capacity of 16.',
+      'The total of 19 sessions exceeds the deployment capacity of 18.',
     );
     for (const field of screen.getAllByRole('spinbutton')) {
       expect(field).toHaveAccessibleDescription(
-        /The total of 17 sessions exceeds/,
+        /The total of 19 sessions exceeds/,
       );
       expect(field).toHaveAttribute('aria-invalid', 'true');
     }
@@ -179,7 +183,7 @@ describe('SandboxQuotaEditor', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('16 / 16');
+    ).toHaveTextContent('18 / 18');
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
@@ -198,7 +202,7 @@ describe('SandboxQuotaEditor', () => {
     const total = screen.getByRole('status', {
       name: 'Total organization sessions',
     });
-    expect(total).toHaveTextContent('6 / 14');
+    expect(total).toHaveTextContent('8 / 14');
     expect(
       screen.getByText(/plus the 4 sandboxes your devices run/),
     ).toBeInTheDocument();
@@ -206,10 +210,10 @@ describe('SandboxQuotaEditor', () => {
     await user.clear(input);
     await user.type(input, '11');
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'The total of 15 sessions exceeds the capacity of 14: 10 on the deployment and 4 on your devices.',
+      'The total of 17 sessions exceeds the capacity of 14: 10 on the deployment and 4 on your devices.',
     );
     await user.clear(input);
-    await user.type(input, '10');
+    await user.type(input, '8');
     await user.tab();
     // Beyond the deployment's 10, inside its 10 plus the devices' 4.
     expect(total).toHaveTextContent('14 / 14');
@@ -227,7 +231,7 @@ describe('SandboxQuotaEditor', () => {
     expect(input).toHaveValue(2);
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('6 / 16');
+    ).toHaveTextContent('8 / 18');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(save).not.toHaveBeenCalled();
   });
@@ -276,7 +280,7 @@ describe('SandboxQuotaEditor', () => {
       await user.tab();
       expect(
         screen.getByRole('status', { name: 'Total organization sessions' }),
-      ).toHaveTextContent('7 / Unavailable');
+      ).toHaveTextContent('9 / Unavailable');
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
       expect(
         screen.getByText(
@@ -314,11 +318,11 @@ describe('SandboxQuotaEditor', () => {
       await user.clear(render_);
       await user.type(render_, '3');
       await user.tab();
-      // Same total as saved (2 + 1 + 3 = 6): allowed.
+      // Same total as saved (2 + 1 + 3 + 2 = 8): allowed.
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(
         screen.getByRole('status', { name: 'Total organization sessions' }),
-      ).toHaveTextContent('6 / Unavailable');
+      ).toHaveTextContent('8 / Unavailable');
       expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
       await user.click(screen.getByRole('button', { name: 'Save' }));
       await waitFor(() =>
@@ -328,6 +332,7 @@ describe('SandboxQuotaEditor', () => {
               maxSessionsPerOrg: 2,
               maxWorkflowSessionsPerOrg: 1,
               maxRenderSessionsPerOrg: 3,
+              maxLightSessionsPerOrg: 2,
             },
           }),
         ),
@@ -350,10 +355,10 @@ describe('SandboxQuotaEditor', () => {
     expect(input).toHaveValue(8);
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('12 / 10');
+    ).toHaveTextContent('14 / 10');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.clear(input);
-    await user.type(input, '6');
+    await user.type(input, '4');
     await user.tab();
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -365,13 +370,14 @@ describe('SandboxQuotaEditor', () => {
       { budget: 'project', used: 1, cap: 2 },
       { budget: 'workflow', used: 3, cap: 10 },
       { budget: 'render', used: 0, cap: 8 },
+      { budget: 'light', used: 0, cap: 2 },
     ];
     const { user } = render(<EditorView />);
     const input = screen.getByRole('spinbutton', { name: 'Render sessions' });
     expect(input).toHaveValue(8);
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('20 / 16');
+    ).toHaveTextContent('22 / 18');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.clear(input);
     await user.type(input, '4');
@@ -384,6 +390,7 @@ describe('SandboxQuotaEditor', () => {
             maxSessionsPerOrg: 2,
             maxWorkflowSessionsPerOrg: 10,
             maxRenderSessionsPerOrg: 4,
+            maxLightSessionsPerOrg: 2,
           },
         }),
       ),
@@ -449,7 +456,7 @@ describe('SandboxQuotaEditor', () => {
     }
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('6 / 16');
+    ).toHaveTextContent('8 / 18');
     expect(
       screen.queryByRole('button', { name: 'Save' }),
     ).not.toBeInTheDocument();
@@ -485,6 +492,7 @@ describe('SandboxQuotaEditor', () => {
         { budget: 'project', used: 1, cap: 3 },
         { budget: 'workflow', used: 0, cap: 4 },
         { budget: 'render', used: 0, cap: 2 },
+        { budget: 'light', used: 0, cap: 2 },
       ];
       state.usage.data = undefined;
       state.usage.isError = true;
@@ -568,7 +576,7 @@ describe('SandboxQuotaEditor', () => {
         expect(input).toBeEnabled();
       expect(
         screen.getByRole('status', { name: 'Total organization sessions' }),
-      ).toHaveTextContent('9 / 16');
+      ).toHaveTextContent('11 / 18');
       await user.clear(workflow);
       await user.type(workflow, '5');
       await user.tab();
@@ -581,6 +589,7 @@ describe('SandboxQuotaEditor', () => {
             maxSessionsPerOrg: 3,
             maxWorkflowSessionsPerOrg: 5,
             maxRenderSessionsPerOrg: 2,
+            maxLightSessionsPerOrg: 2,
           },
         }),
       );
@@ -617,7 +626,7 @@ describe('SandboxQuotaEditor', () => {
       state.usage.data = data;
       render(<EditorView />);
       expect(screen.getAllByText('Allocation data unavailable')).toHaveLength(
-        data ? 2 : 3,
+        data ? 3 : 4,
       );
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(
@@ -628,7 +637,7 @@ describe('SandboxQuotaEditor', () => {
       ).not.toBeInTheDocument();
       expect(
         screen.getByRole('status', { name: 'Total organization sessions' }),
-      ).toHaveTextContent('Unavailable / 16');
+      ).toHaveTextContent('Unavailable / 18');
       for (const input of screen.getAllByRole('spinbutton')) {
         expect(input).toBeDisabled();
         expect(input).toHaveValue(null);

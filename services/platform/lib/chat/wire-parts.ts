@@ -13,7 +13,8 @@
  *   [text, tool-call, tool-result, text]
  *     → assistant(text + call) · tool(result) · assistant(text)
  *
- * Reasoning parts are skipped — thinking is display-only and never replayed.
+ * Reasoning parts are skipped — thinking is display-only and never replayed —
+ * and so are artifact parts, whose tool result already names the file.
  * Everything else that is not a tool part reads as its text surface, exactly
  * as `messageText` spells it.
  *
@@ -124,6 +125,12 @@ function explodeAssistantMessage(message: ChatMessage): ChatWireMessage[] {
     switch (part.type) {
       case 'reasoning':
         break; // display-only, never replayed
+      case 'artifact':
+        // The tool result that produced the file already names it — ref,
+        // name and type — and stays on the wire. A second copy here would
+        // end the round's transcript on an assistant turn, which the
+        // Anthropic wire reads as a reply to continue.
+        break;
       case 'text':
         appendText(part.text);
         break;

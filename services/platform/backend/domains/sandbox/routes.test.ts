@@ -133,6 +133,7 @@ beforeEach(() => {
     maxSessionsPerOrg: 2,
     maxWorkflowSessionsPerOrg: 4,
     maxRenderSessionsPerOrg: 6,
+    maxLightSessionsPerOrg: 3,
   });
   listViews.mockResolvedValue([]);
   deletions.mockResolvedValue(new Map());
@@ -446,6 +447,7 @@ describe('sandbox settings read and write authority', () => {
           nearLimit: false,
         },
         { budget: 'render', used: 0, cap: 6, atLimit: false, nearLimit: false },
+        { budget: 'light', used: 0, cap: 3, atLimit: false, nearLimit: false },
       ],
     });
   });

@@ -39,6 +39,9 @@ function samePart(a: MessagePart, b: MessagePart): boolean {
         a.url === b.url &&
         a.text === b.text
       );
+    case 'artifact':
+      // A produced file never changes once stored: its ref is its identity.
+      return b.type === 'artifact' && a.fileId === b.fileId;
     case 'tool-call':
       return (
         b.type === 'tool-call' &&

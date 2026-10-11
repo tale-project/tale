@@ -183,10 +183,10 @@ visionModel:
 imageGeneration:
   title: Image generation
   description:
-    Lets project agents working on tasks and agent nodes in automations
-    create images, billed to your organization. Off until you turn it on.
-    Chat never creates images.
-  enabledLabel: Let agents generate images
+    Lets the chat assistant, project agents working on tasks and agent
+    nodes in automations create images, billed to your organization. Off
+    until you turn it on.
+  enabledLabel: Allow image generation
   label: Image model
   labelHint:
     Automatic uses the first recommended image model your provider
@@ -195,25 +195,27 @@ imageGeneration:
   automaticLabel: Automatic
   automaticHint: Let Tale choose from the recommended image models your credentials reach.
   currentModel:
-    pinned: 'Agents currently generate images with {model}.'
-    preferred: 'Agents currently generate images with {model}, the recommended choice.'
+    pinned: 'Images are currently created with {model}.'
+    preferred: 'Images are currently created with {model}, the recommended choice.'
   draftHint: Save to apply this selection.
   noAvailable:
-    None of the recommended image models is available, so agents get no
-    image tool. Add an OpenRouter or OpenAI credential in AI providers, or
+    None of the recommended image models is available, so neither the chat
+    nor agents can create images. Add an OpenRouter or OpenAI credential in AI providers, or
     choose one of the listed models.
   unavailable:
-    The saved image model is unavailable, so agents get no image tool.
+    The saved image model is unavailable, so neither the chat nor agents
+    can create images.
     Choose another model or Automatic, or check its provider credential and
     the models it allows. Tale will not switch to another model while this
     selection is saved.
   invalidPolicy:
-    The saved image generation configuration is invalid, so agents get no
-    image tool. Switch image generation off and on, or choose a model and
+    The saved image generation configuration is invalid, so neither the
+    chat nor agents can create images. Switch image generation off and on, or choose a model and
     save, to repair it.
   policyUnavailable:
     The saved image generation configuration could not be read. Retry
-    before changing it. Agents get no image tool until it can be read.
+    before changing it. Until it can be read, neither the chat nor agents
+    can create images.
   resolutionFailed:
     Tale could not check the image model. Check the provider connection and
     retry.
@@ -588,6 +590,26 @@ voiceOutput:
   enabledLabel: Voice output enabled for this organization
   saved: Voice-output policy updated
   saveFailed: Couldn't save the voice-output policy
+chatTools:
+  title: Chat tools
+  description:
+    What the chat assistant may make besides its answers. A tool you switch
+    off is gone from every chat in the organization. Images follow the Image
+    generation setting.
+  files: Files
+  filesHint:
+    Text files the assistant writes out itself, such as Markdown, CSV, HTML
+    or calendar entries. No sandbox starts.
+  skills: Skills
+  skillsHint:
+    Instructions from each person's skill library, which the assistant
+    loads when one fits the work.
+  code: Code
+  codeHint:
+    Code in a light sandbox that starts in about a second, for Word, Excel,
+    PowerPoint and PDF files, charts and calculations. Counts toward the
+    light sandbox limit under Sandboxes.
+  saveFailed: Couldn't save the chat tools
 skillSharing:
   title: Skill sharing
   description: Choose who may share a skill with the whole organization.

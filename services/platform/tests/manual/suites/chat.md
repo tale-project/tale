@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 109 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 119 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -9,8 +9,9 @@ links and forking, arena mode, the chat header, the chat rows of the Home
 panel (pin, rename, move to a project, archive, delete), and the degraded
 states (backend unavailable, no provider, budget exceeded). There is **no
 agent picker** anymore: the composer picks a **model** and a reasoning effort;
-agents, skills, and connectors are equipped per **project** (see
-[projects.md](projects.md)), not in chat. The Home panel itself — its views,
+agents and connectors are equipped per **project** (see
+[projects.md](projects.md)); chat reads skills from the person's own skill
+library and makes files with its own tools (CHAT-F66–CHAT-F71). The Home panel itself — its views,
 bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
 list of its own any more.
 
@@ -31,8 +32,10 @@ Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock, wired per SETUP.md §1.A). In **mode A** any prompt returns the canned reply and the
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
 `e2e:length` / `e2e:stream-error` / `e2e:gateway-route` /
-`e2e:cloud-region`) drive CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58
-and CHAT-F62. Rows marked **mode B** need a live provider; CHAT-F25
+`e2e:cloud-region` / `e2e:make-file` / `e2e:make-spreadsheet`) drive
+CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58, CHAT-F62 and
+CHAT-F66–CHAT-F68; CHAT-F68 also needs the sandbox service (full Docker
+stack). Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -690,6 +693,46 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   > REST in the German UI's words) and says the documentation describes the
   latest release when relevant.
 
+### Files and skills
+
+- [ ] `CHAT-F66` · **A file the assistant writes itself** — Mode A: send a
+  message containing `e2e:make-file` → The timeline shows **Writing
+  planets.csv** (`chat.thinking.writingFile`); under the reply, **Files from
+  this reply** (`chat.artifacts.label`) holds one card **planets.csv** with
+  **CSV** and its size; Settings > Sandboxes lists no new workspace row. Reload
+  → the card is still there.
+- [ ] `CHAT-F67` · **Open and download a produced file** — On CHAT-F66's card,
+  click it (`chat.artifacts.open`) → the preview dialog shows the four planet
+  rows; Escape closes it and focus returns to the card. Click the download
+  button beside it (`chat.artifacts.download`) → the browser saves
+  `planets.csv` with the same content.
+- [ ] `CHAT-F68` · **A spreadsheet from the light sandbox** — Mode A with the
+  sandbox service: send `e2e:make-spreadsheet` → The timeline shows
+  **Running Python in a light sandbox** (`chat.thinking.runningCode`); a
+  **planets.xlsx** card appears under the reply and its preview shows the
+  Planets sheet. Settings > Sandboxes lists a row with your name and **Chat
+  sandbox** (`sandboxes.chatSandbox`); send `e2e:make-spreadsheet` again in
+  the same chat → still one such row. Six minutes after the last run, refresh
+  → the row is gone.
+- [ ] `CHAT-F69` · **The lightest way that does the job** — Mode B, one new
+  chat per prompt: "Give me the inner planets with their diameters as a CSV
+  file", "Make an Excel file with monthly revenue for 2025 and a total row
+  that uses a formula", "Write me a haiku about autumn" → the CSV arrives
+  after **Writing …** with no sandbox step; the Excel file after **Running
+  Python in a light sandbox**, its total row a formula when opened in Excel or
+  LibreOffice; the haiku has no tool step and no file.
+- [ ] `CHAT-F70` · **A skill from your library** — Mode B, with a skill your
+  teams can see (e.g. SKILL-F1's `brief-summary`): ask "Use the brief-summary
+  skill on this brief:" followed by a short brief → the timeline shows
+  **Reading the brief-summary skill** (`chat.thinking.loadingSkill`) before
+  the answer, and the answer has the skill's shape. A skill your teams cannot
+  see is never read.
+- [ ] `CHAT-F71` · **Change an attached file** — Mode B: attach a small `.csv`
+  and ask "Turn the attached CSV into an Excel file with a bar chart of the
+  totals" → **Running Python in a light sandbox**; a new `.xlsx` card holds a
+  sheet with the data and a chart; the attachment chip above your message is
+  unchanged and still opens the original CSV.
+
 ## Boundary & error tests
 
 - [ ] `CHAT-B1` · **Empty composer** — Empty or whitespace-only input → **Send
@@ -861,6 +904,24 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.history.toast.renameFailed`); retry succeeds, or Escape cancels without
   changing the old title. Repeat in the Archived drawer. While a request is
   pending, Enter followed by blur submits once and the draft is read-only.
+- [ ] `CHAT-B22` · **Code switched off** — As an admin, turn off **Code** under
+  **Chat tools** (`governance.chatTools.code`, GOV-F65) and save; in a new
+  chat (mode B) ask for an Excel file → no **Running … in a light sandbox**
+  step appears; the reply offers a CSV, says it cannot make the Excel file
+  here or suggests a task. Restore **Code** → the same request runs code
+  again.
+- [ ] `CHAT-B23` · **Every light sandbox busy** — Set **Light sandboxes**
+  (`sandboxes.quota.budgets.light`) to 1. Mode B: in chat one, ask for a
+  Python program that waits 150 seconds and then writes a CSV; within that
+  time, in chat two, ask for an Excel file → chat two's reply says all light
+  sandboxes are in use and to try again in a minute, without a file; once
+  chat one has finished and idled 30 seconds, chat two's retry succeeds.
+  Restore the limit.
+- [ ] `CHAT-B24` · **No images while image generation is off** — With image
+  generation off (the default, GOV-F38), mode B: ask "Generate an image of a
+  lighthouse at sunset" → no **Generating an image** step
+  (`chat.thinking.generatingImages`) and no picture; the reply says it cannot
+  create images here.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -920,6 +981,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   collapsed and, once pressed, **Show less** (`common.actions.showLess`) as
   expanded; Enter on **Edit message** opens the edit form. With reduced
   motion on, the time and the pencil appear without a fade.
+- [ ] `CHAT-A10` · **Produced files by keyboard** — After CHAT-F66 and a
+  generated image (GOV-F66), Tab through the reply → an image is announced as
+  **View lighthouse.png** (`chat.artifacts.viewImage`) and Enter opens the
+  gallery; a file card is announced as **Open planets.csv** and Enter opens its
+  preview; the next stop is **Download planets.csv**; each stop shows a visible
+  focus ring; the files sit in a region named **Files from this reply**.
 
 ## Performance
 

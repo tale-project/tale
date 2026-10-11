@@ -81,7 +81,7 @@ export interface SandboxContract {
     kind: 'query';
     args: { organizationId: string };
     returns: null | Array<{
-      budget: 'workflow' | 'project' | 'render';
+      budget: 'workflow' | 'project' | 'render' | 'light';
       used: number;
       cap: number;
       atLimit: boolean;

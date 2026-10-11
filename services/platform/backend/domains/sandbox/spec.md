@@ -5,7 +5,8 @@
 A sandbox is the isolated environment an agent works in, and its workspace is the files it
 keeps between turns. These rules cover who can see and manage workspaces, what an agent in a
 sandbox can reach, how many sandboxes run at once, what is left of a workspace whose sandbox
-disappears, when a workspace is deleted, and how a turn's spend is booked. Connected devices
+disappears, when a workspace is deleted, how a turn's spend is booked, and the light sandboxes
+chats run code in. Connected devices
 and agent secrets have their own specs. Egress, the health checks, image generation and how
 waiting work resumes are not covered; see Not yet.
 
@@ -94,13 +95,14 @@ tools act for nobody (`run_ended`).
 
 ## How many sandboxes run at once
 
-Three kinds of work are counted separately, each against a limit the organization can change:
+Four kinds of work are counted separately, each against a limit the organization can change:
 
 | Kind of work | Limit unless changed |
 | --- | --- |
 | Agent workers | 2 |
 | Workflow sessions (automation runs) | 2 |
 | Render sessions (website crawling) | 2 |
+| Light sandboxes (code a chat runs) | 2 |
 
 ### SBX-R8 · Each kind of work has its own limit of sandboxes running at once
 
@@ -294,6 +296,43 @@ provider subscription sets aside one request and no cost (`GOV-R16`).
 - **Example**: Mia's monthly cost limit is used up. She starts an agent whose model the gateway
   serves on a task → the turn is refused with the limit's sentence, and nothing is held against
   her limit.
+
+## Light sandboxes for chat
+
+A light sandbox runs the code of one conversation. It starts in about a second, keeps no
+workspace, and is removed once it idles; [`chat`](../chat/spec.md) states what its files become.
+
+### SBX-R22 · Each conversation has one light sandbox of its own
+
+A conversation finds its own light sandbox for as long as it lives, and never another
+conversation's or another organization's.
+
+- **Example**: Mia's chat runs code twice → both runs work in the same sandbox. Noah's chat in
+  the same organization runs code → a sandbox of its own.
+
+### SBX-R23 · At the limit, a new light sandbox takes the slot of the longest-idle one
+
+When the organization runs as many light sandboxes as its limit allows, a new one takes the slot
+of the one idle longest, if it has been idle for at least 30 seconds; a busy one is never taken.
+When none is idle, the request is answered as busy, and nothing waits in line.
+
+- **Example**: The limit is 1, and Noah's chat finished its code a minute ago. Mia's chat runs
+  code → Noah's sandbox is removed and Mia's starts. Had Noah's still been running, Mia's chat
+  would be told to try again.
+
+### SBX-R24 · A light sandbox unused for five minutes is removed
+
+One still running code is spared until it is done.
+
+- **Example**: Mia's chat last ran code at 10:00 → after 10:05 its sandbox is removed, and her
+  next request at 10:20 starts a fresh one.
+
+### SBX-R25 · A light sandbox cannot be pinned
+
+A pin would keep a sandbox that is removed as soon as it idles, so it is refused as if the
+workspace did not exist (404).
+
+- **Example**: Ada pins the light sandbox of Mia's chat → not found; nothing changes.
 
 ## Not yet
 

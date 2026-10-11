@@ -3,6 +3,7 @@ import { createFileRoute, useRouterState } from '@tanstack/react-router';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
+import { ChatToolsPolicyEditor } from '@/app/features/settings/governance/components/chat-tools-policy-editor';
 import { ConversationRoutingPolicyEditor } from '@/app/features/settings/governance/components/conversation-routing-policy-editor';
 import { DataNoticePolicyEditor } from '@/app/features/settings/governance/components/data-notice-policy-editor';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
@@ -26,6 +27,7 @@ export const Route = createFileRoute(
       'retention_policy',
       'feature_flags',
       'custom_instructions',
+      'chat_tools',
       'voice_output',
       'data_classification_notice',
       'conversation_routing',
@@ -58,6 +60,7 @@ function PoliciesLimitsRoute() {
         <RetentionEditor organizationId={organizationId} />
         <FeatureFlagsEditor organizationId={organizationId} />
         <PersonalizationPolicyEditor organizationId={organizationId} />
+        <ChatToolsPolicyEditor organizationId={organizationId} />
         <VoiceOutputPolicyEditor organizationId={organizationId} />
         <DataNoticePolicyEditor organizationId={organizationId} />
         <SkillSharingPolicyEditor organizationId={organizationId} />

@@ -360,6 +360,9 @@ export async function setSessionPinned(
         ELSE greatest(coalesce(last_activity_at_ms, 0), ${now}::bigint) END
     WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
       AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+      -- A chat's light sandbox (\`light-sessions.ts\`) is released whenever
+      -- it idles; a pin it could not keep is refused rather than ignored.
+      AND (${!args.pinned} OR owner_type <> 'light')
     RETURNING id
   `;
   return rows.length > 0;

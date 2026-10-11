@@ -65,7 +65,7 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-const TOGGLE = 'Let agents generate images';
+const TOGGLE = 'Allow image generation';
 const PICKER = 'Image model';
 
 function HeaderActions() {
@@ -144,7 +144,9 @@ describe('image generation settings', () => {
       screen.queryByRole('button', { name: PICKER }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByText(/Chat never creates images/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Lets the chat assistant, project agents/),
+    ).toBeInTheDocument();
   });
 
   it('turns image generation on at once, keeping a saved model choice', async () => {
@@ -178,7 +180,7 @@ describe('image generation settings', () => {
     );
     expect(
       screen.getByText(
-        'Agents currently generate images with openrouter · google/gemini-2.5-flash-image, the recommended choice.',
+        'Images are currently created with openrouter · google/gemini-2.5-flash-image, the recommended choice.',
       ),
     ).toBeInTheDocument();
   });
@@ -209,7 +211,7 @@ describe('image generation settings', () => {
     );
   });
 
-  it('keeps an unavailable pin visible and says agents get no image tool', async () => {
+  it('keeps an unavailable pin visible and says nothing can create images', async () => {
     state.config = {
       enabled: true,
       providerSlug: 'removed-provider',
@@ -225,7 +227,7 @@ describe('image generation settings', () => {
     const picker = screen.getByRole('button', { name: PICKER });
     expect(picker).toHaveTextContent('removed-provider · old-image-model');
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'agents get no image tool',
+      'neither the chat nor agents can create images',
     );
     expect(screen.getByRole('link', { name: 'AI providers' })).toHaveAttribute(
       'href',

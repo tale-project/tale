@@ -6,12 +6,16 @@ import type {
   WireDialect,
 } from '@tale/shared/schemas/providers';
 
-import { CHAT_ASSISTANT } from '../../../lib/chat/assistant';
+import { composeToolExecutors } from '../../../lib/agent/compose';
+import type { WorkLoadout } from '../../../lib/agent/ladder';
+import type { SkillCatalogEntry } from '../../../lib/agent/skills-block';
+import { CHAT_ASSISTANT, chatAssistantFor } from '../../../lib/chat/assistant';
 import {
   buildAudioTranscriptAppendix,
   stripAudioTranscriptAppendix,
 } from '../../../lib/chat/audio-transcript';
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import type { ToolDoc } from '../../../lib/chat/context';
 import { buildDocumentAppendix } from '../../../lib/chat/document-appendix';
 import {
   fitSamplingToWindow,
@@ -23,8 +27,16 @@ import {
   regionalEndpoint,
   sameServedBy,
 } from '../../../lib/chat/serving';
-import { CHAT_TOOL_DOCS, type ToolCallRequest } from '../../../lib/chat/tools';
-import { runTurn, userTurnParts } from '../../../lib/chat/turn';
+import {
+  CHAT_TOOL_DOCS,
+  type ChatToolExecutor,
+  type ToolCallRequest,
+} from '../../../lib/chat/tools';
+import {
+  MAX_WORK_TOOL_ROUNDS,
+  runTurn,
+  userTurnParts,
+} from '../../../lib/chat/turn';
 import type {
   ModelCall,
   ModelStreamChunk,
@@ -719,6 +731,24 @@ export interface ExecuteTurnOverrides {
     apiKeyId?: string;
     projectIds?: readonly string[];
   }) => EmbeddingMeter;
+  /** The host's work tools for this turn (`domains/agent_tools`), built once
+   * the conversation is known: the lineage the files bind to and the project
+   * the thread is filed in. Absent, or answering `undefined`, the turn
+   * offers the retrieval tools alone, exactly as before work tools existed. */
+  readonly workTools?: (turn: {
+    rootThreadId: string;
+    threadIds: readonly string[];
+    projectId: string | null;
+  }) => Promise<TurnWorkTools | undefined>;
+}
+
+/** What a turn's work tools add to it: the executor, its tool docs, the
+ * loadout the persona's ladder is written for, and the skill catalog. */
+export interface TurnWorkTools {
+  readonly executor: ChatToolExecutor;
+  readonly toolDocs: readonly ToolDoc[];
+  readonly loadout: WorkLoadout;
+  readonly skillCatalog: readonly SkillCatalogEntry[];
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -1196,6 +1226,27 @@ export async function executeTurn(
   // project) — the scope boundary of the turn's tools whether or not the
   // user may still read it; the prompt block below is the part access gates.
   const threadProjectId = unwrap(await pendingProjectId);
+  // The work tools — files, images, skills, the light sandbox — when the
+  // host offers them, set up beside the reads below: built against the
+  // conversation's lineage, the root every produced file binds to. A failure
+  // to build them never fails the turn: it runs with the retrieval tools
+  // alone.
+  const pendingWorkTools: Promise<TurnWorkTools | undefined> =
+    overrides.workTools === undefined
+      ? Promise.resolve(undefined)
+      : overrides
+          .workTools({
+            rootThreadId: lineage.rootId,
+            threadIds: lineage.threadIds,
+            projectId: threadProjectId,
+          })
+          .catch((error: unknown) => {
+            console.error(
+              `[chat] work tools for thread ${args.threadId} could not be set up; the turn runs without them:`,
+              error,
+            );
+            return undefined;
+          });
   const projectContext = await resolveProjectContext(ctx, {
     organizationId: args.organizationId,
     userId: args.userId,
@@ -1366,43 +1417,52 @@ export async function executeTurn(
     }),
   );
 
+  const workTools = await pendingWorkTools;
+  const agent =
+    workTools !== undefined
+      ? chatAssistantFor(workTools.loadout)
+      : CHAT_ASSISTANT;
+
+  const retrievalTools = createChatToolExecutor(
+    ctx,
+    chatToolContextForTurn({
+      organizationId: args.organizationId,
+      userId: args.userId,
+      threadIds: lineage.threadIds,
+      projectId: threadProjectId,
+      // A tool call is the turn's: its member, the key that sent the
+      // message, the thread's project — its search's embedding too.
+      ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+      ...(overrides.meterEmbeddings !== undefined
+        ? {
+            embeddingMeter: overrides.meterEmbeddings({
+              userId: args.userId,
+              agentSlug: EMBEDDING_SLUG,
+              ...(args.apiKeyId !== undefined
+                ? { apiKeyId: args.apiKeyId }
+                : {}),
+              ...(threadProjectId !== null
+                ? { projectIds: [threadProjectId] }
+                : {}),
+            }),
+          }
+        : {}),
+    }),
+  );
   const deps: TurnDeps = {
     model,
     // The org's guardrail chain, both directions, with its event log.
     ...buildTurnGuardrails(ctx, {
       organizationId: args.organizationId,
       threadId: args.threadId,
-      agentSlug: CHAT_ASSISTANT.slug,
+      agentSlug: agent.slug,
       policies,
     }),
-    // The chat assistant's fixed three-tool loadout. A test that wants a
-    // tool-free turn overrides `tools` with undefined.
-    tools: createChatToolExecutor(
-      ctx,
-      chatToolContextForTurn({
-        organizationId: args.organizationId,
-        userId: args.userId,
-        threadIds: lineage.threadIds,
-        projectId: threadProjectId,
-        // A tool call is the turn's: its member, the key that sent the
-        // message, the thread's project — its search's embedding too.
-        ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-        ...(overrides.meterEmbeddings !== undefined
-          ? {
-              embeddingMeter: overrides.meterEmbeddings({
-                userId: args.userId,
-                agentSlug: EMBEDDING_SLUG,
-                ...(args.apiKeyId !== undefined
-                  ? { apiKeyId: args.apiKeyId }
-                  : {}),
-                ...(threadProjectId !== null
-                  ? { projectIds: [threadProjectId] }
-                  : {}),
-              }),
-            }
-          : {}),
-      }),
-    ),
+    // The retrieval tools, joined by the work tools when the host offers
+    // them. A test that wants a tool-free turn overrides `tools` with
+    // undefined.
+    tools: composeToolExecutors([retrievalTools, workTools?.executor]),
+    ...(workTools !== undefined ? { maxToolRounds: MAX_WORK_TOOL_ROUNDS } : {}),
     ...overrides.deps,
   };
 
@@ -1421,11 +1481,17 @@ export async function executeTurn(
     // file — and the docs block for its fixed tool loadout. The org's
     // mandatory instructions, when the policy carries any, come first; the
     // person's own custom instructions ride behind the cache breakpoint.
-    agent: CHAT_ASSISTANT,
+    agent,
     ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
     ...(customInstructions !== undefined ? { customInstructions } : {}),
     ...(taskHandover !== undefined ? { taskHandover } : {}),
-    toolDocs: CHAT_TOOL_DOCS,
+    toolDocs:
+      workTools !== undefined
+        ? [...CHAT_TOOL_DOCS, ...workTools.toolDocs]
+        : CHAT_TOOL_DOCS,
+    ...(workTools !== undefined && workTools.skillCatalog.length > 0
+      ? { skillCatalog: workTools.skillCatalog }
+      : {}),
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
     ...(args.localeFixed === true ? { localeFixed: true } : {}),

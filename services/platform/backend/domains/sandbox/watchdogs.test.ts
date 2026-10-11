@@ -97,6 +97,7 @@ function fakeSql(script: {
   reclaim?: Candidate[][];
   collect?: Candidate[][];
   release?: Candidate[][];
+  light?: { sessionId: string; orgId: string }[][];
   superseded?: string[];
   sweep?: { id: string }[][];
   sweepError?: Error;
@@ -133,6 +134,11 @@ function fakeSql(script: {
     }
     if (text.includes("WHERE owner_type = 'render'")) {
       return Promise.resolve(script.release?.shift() ?? []);
+    }
+    if (
+      text.includes("status IN ('creating', 'active', 'failed', 'expired')")
+    ) {
+      return Promise.resolve(script.light?.shift() ?? []);
     }
     if (text.includes('AS superseded')) {
       const rowId = String(values[0]);
@@ -626,6 +632,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       reclaimed: 0,
       collected: 0,
       released: 0,
+      lightReleased: 0,
       settled: 0,
     });
     expect(reconcileSession).not.toHaveBeenCalled();
@@ -936,6 +943,69 @@ describe('runSandboxWatchdog — release of abandoned render sessions', () => {
   });
 });
 
+describe('runSandboxWatchdog — release of idle light sandboxes', () => {
+  it('destroys a light sandbox past its idle window and settles it; one running code and an error wait for the next tick', async () => {
+    const idle = { sessionId: 'lt-idle', orgId: 'org_1' };
+    const running = { sessionId: 'lt-running', orgId: 'org_1' };
+    const broken = { sessionId: 'lt-broken', orgId: 'org_2' };
+    const { sql, statements } = fakeSql({ light: [[idle, running, broken]] });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const destroyIfIdle = vi.fn((sessionId: string) => {
+      if (sessionId === running.sessionId) {
+        return Promise.resolve({ destroyed: false, busy: true });
+      }
+      if (sessionId === broken.sessionId) {
+        return Promise.reject(new Error('spawner 502'));
+      }
+      return Promise.resolve({ destroyed: true, busy: false });
+    });
+
+    const result = await runSandboxWatchdog(sql, {
+      spawner: scriptedSpawner({ destroyIfIdle }),
+    });
+
+    expect(result.lightReleased).toBe(1);
+    expect(markSessionDestroyed).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      sessionId: idle.sessionId,
+    });
+    expect(markSessionDestroyed).not.toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      sessionId: running.sessionId,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('releasing lt-broken failed'),
+      expect.any(Error),
+    );
+    // Only light rows unused past the window, of any lifecycle that still
+    // holds a container — nothing of a light sandbox is kept.
+    const select = statements.find((statement) =>
+      statement.text.includes(
+        "status IN ('creating', 'active', 'failed', 'expired')",
+      ),
+    );
+    expect(select?.values).toContain('light');
+    expect(select?.text).toContain(
+      'coalesce(last_activity_at_ms, created_at_ms) <',
+    );
+  });
+
+  it('is skipped with the other spawner-facing passes', async () => {
+    const { sql } = fakeSql({
+      light: [[{ sessionId: 'lt-never', orgId: 'org_1' }]],
+    });
+    const spawner = scriptedSpawner();
+
+    const result = await runSandboxWatchdog(sql, {
+      skipReconcile: true,
+      spawner,
+    });
+
+    expect(result.lightReleased).toBe(0);
+    expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
+  });
+});
+
 describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
   const NOW = 1_790_000_000_000;
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -991,6 +1061,7 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
       reclaimed: 0,
       collected: 0,
       released: 0,
+      lightReleased: 0,
       settled: 0,
     });
   });

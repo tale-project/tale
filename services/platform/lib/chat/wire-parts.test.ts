@@ -245,3 +245,40 @@ describe('attachment refs on the wire', () => {
     expect(wire[1]).toEqual({ role: 'user', content: 'plain' });
   });
 });
+
+describe('explodeMessagesForWire — produced files', () => {
+  it('keeps an artifact part off the wire: its tool result names the file', () => {
+    const wire = explodeMessagesForWire('', [
+      {
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            callId: 'c1',
+            capabilityId: 'create_file',
+            input: { name: 'a.csv' },
+          },
+          {
+            type: 'tool-result',
+            callId: 'c1',
+            capabilityId: 'create_file',
+            output: { status: 'ok', artifacts: [{ ref: 's3:o/a' }] },
+            structured: true,
+          },
+          {
+            type: 'artifact',
+            fileId: 's3:o/a',
+            name: 'a.csv',
+            mediaType: 'text/csv',
+            sizeBytes: 12,
+            callId: 'c1',
+          },
+        ],
+      },
+    ]);
+    // Call, then result — and no trailing assistant turn the Anthropic wire
+    // would read as a reply to continue.
+    expect(wire.map((message) => message.role)).toEqual(['assistant', 'tool']);
+    expect(JSON.stringify(wire)).not.toContain('[file:');
+  });
+});

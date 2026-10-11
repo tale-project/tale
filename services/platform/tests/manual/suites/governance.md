@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 94 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 96 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -332,12 +332,12 @@ agent.
   (`governance.trash.empty` describes this)
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
   **Organization limits** (`sandboxes.limits.title`) → change **Agent
-  workers**, **Workflow sessions**, and **Render sessions**
-  (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
-  displayed deployment capacity → Save →
+  workers**, **Workflow sessions**, **Render sessions**, and **Light
+  sandboxes** (`sandboxes.quota.budgets.project` / `…workflow` / `…render` /
+  `…light`) within the displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
   (`common.actions.saved`) and Save goes disabled again; after reload the
-  three fields and allocated/limit summaries hold the saved limits;
+  four fields and allocated/limit summaries hold the saved limits;
   **Total organization sessions** (`sandboxes.limits.total`) shows their sum
   against the deployment capacity — **restore afterwards**. Other organizations
   share the deployment capacity. Bounds: see GOV-B7.
@@ -730,6 +730,18 @@ agent.
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F65` · **Chat tools** — `policies-limits` → **Chat tools**
+  (`governance.chatTools.title`) lists **Files**, **Skills** and **Code**
+  (`governance.chatTools.files` / `…skills` / `…code`), each with its hint, all
+  on in a fresh organization. Turn **Code** off → the header shows Save and
+  Discard; **Save** and reload → **Code** is still off, the others on; a
+  Member sees the section read-only, without Save. Restore **Code**.
+- [ ] `GOV-F66` · **Image generation reaches chat** — Turn **Image
+  generation** on (GOV-F38) with a model available; mode B: in a new chat ask
+  "Generate an image of a lighthouse at sunset" → the timeline shows
+  **Generating an image** (`chat.thinking.generatingImages`), the picture
+  appears under the reply, and within a minute it counts against you in
+  `usage` (GOV-F45). Restore: switch image generation off.
 - [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
   Member whose own run of a project agent is listed on Sandboxes
   (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
@@ -810,7 +822,7 @@ agent.
   **Agent workers** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
-  workflow and render limits.
+  workflow, render and light sandbox limits.
 - [ ] `GOV-B8` · **A second live grant is refused in the form** — Grant
   GOV-F22's member **Act for another member** again → the dialog stays open
   with **"This member already holds this competence. Revoke the current grant

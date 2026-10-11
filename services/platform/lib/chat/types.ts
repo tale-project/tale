@@ -38,6 +38,23 @@ export type MessagePart =
       readonly text?: string;
     }
   | {
+      /** A file the assistant produced during the turn — a document, an
+       * image, a chart — stored as one of the organization's blobs and bound
+       * to the conversation, so it reads for exactly the people who can read
+       * the conversation. Rides the assistant message beside the tool call
+       * that made it. */
+      readonly type: 'artifact';
+      /** The blob reference the bytes live under — what the client resolves
+       * a download URL from and what a later tool call names to read the
+       * file again. */
+      readonly fileId: string;
+      readonly name: string;
+      readonly mediaType: string;
+      readonly sizeBytes: number;
+      /** The tool call that produced it. */
+      readonly callId?: string;
+    }
+  | {
       readonly type: 'tool-call';
       readonly callId: string;
       readonly capabilityId: string;
@@ -204,6 +221,13 @@ export function messageText(message: ChatMessage): string {
         break;
       case 'attachment':
         pieces.push(part.text ?? `[attachment: ${part.name}]`);
+        break;
+      case 'artifact':
+        // The ref rides along: it is how a later turn hands the file back
+        // to a tool (run_code reads it into its sandbox by this value).
+        pieces.push(
+          `[file: ${part.name} (${part.mediaType}) — ref ${part.fileId}]`,
+        );
         break;
       case 'tool-call':
         pieces.push(`${part.capabilityId}(${safeJson(part.input)})`);

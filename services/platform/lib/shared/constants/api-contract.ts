@@ -664,5 +664,10 @@
  * (a page of the organization or an https address), in their notifications
  * and by email — and answers who got it and who was skipped.
  * `StepFailure.reason` gains `NOTIFY_NOT_A_MEMBER` and `NOTIFY_RUN_LIMIT`.
+ *
+ * 3.36.0 — 2026-10-11: a chat reply can carry the files its assistant made —
+ * a document, a spreadsheet, a chart, an image: `MessagePart` gains
+ * `ArtifactPart` (`fileId`, `name`, `mediaType`, `sizeBytes`, `callId`),
+ * after the tool result that produced the file.
  */
-export const API_CONTRACT_VERSION = '3.35.0';
+export const API_CONTRACT_VERSION = '3.36.0';

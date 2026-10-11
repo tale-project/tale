@@ -27,11 +27,15 @@ import { cn } from '@tale/ui/cn';
 import { ThinkingDots } from '@tale/ui/thread/thinking-dots';
 import { TimelineRow } from '@tale/ui/thread/timeline-row';
 import {
+  BookOpen,
   Brain,
+  FilePlus,
   FileText,
   Globe,
+  ImagePlus,
   Loader2,
   Search,
+  SquareTerminal,
   TriangleAlert,
   Wrench,
 } from 'lucide-react';
@@ -56,6 +60,11 @@ const TOOL_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   rag_search: Search,
   rag_fetch: FileText,
   web_fetch: Globe,
+  create_file: FilePlus,
+  generate_image: ImagePlus,
+  load_skill: BookOpen,
+  read_skill_file: BookOpen,
+  run_code: SquareTerminal,
 };
 
 /** What a tool was asked, for the step's detail: the retrieval tools carry
@@ -69,7 +78,7 @@ function toolCallDetail(input: unknown): string | undefined {
     if (kind === undefined) return undefined;
     return status === undefined ? kind : `${kind} · ${status}`;
   }
-  for (const key of ['query', 'ref', 'url'] as const) {
+  for (const key of ['query', 'ref', 'url', 'name', 'path'] as const) {
     const value = input[key];
     if (typeof value === 'string' && value.length > 0) return value;
   }

@@ -180,6 +180,12 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   )}
                 </span>
               )}
+              {/* A chat's light sandbox runs code for the person chatting. */}
+              {s.ownerType === 'light' && (
+                <span className="text-muted-foreground truncate text-xs">
+                  {t('chatSandbox')}
+                </span>
+              )}
               {s.ownerEmail && !s.ownerLabel && s.ownerName && (
                 <span className="text-muted-foreground truncate text-xs">
                   {s.ownerEmail}
@@ -375,6 +381,9 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     key: 'pin',
                     label: s.pinned ? t('actions.unpin') : t('actions.pin'),
                     icon: s.pinned ? PinOff : Pin,
+                    // A chat's light sandbox is released whenever it idles,
+                    // so it takes no pin.
+                    visible: s.ownerType !== 'light' || s.pinned,
                     disabled: changing,
                     onClick: () =>
                       void run(
