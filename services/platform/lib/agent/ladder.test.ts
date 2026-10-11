@@ -40,6 +40,16 @@ describe('renderWorkLadder', () => {
     expect(text).toMatch(/3\. run_code/);
   });
 
+  it('adds the full workspace as the last rung only when the turn may hand over', () => {
+    expect(renderWorkLadder(ALL)).not.toMatch(/use_workspace/);
+    const text = renderWorkLadder({ ...ALL, escalate: true }) ?? '';
+    expect(text).toMatch(/5\. use_workspace/);
+    expect(text.indexOf('run_code')).toBeLessThan(
+      text.indexOf('use_workspace'),
+    );
+    expect(offersWork({ ...NONE, escalate: true })).toBe(true);
+  });
+
   it('points at the skills only when they are offered', () => {
     expect(renderWorkLadder(ALL)).toMatch(/load it with load_skill/);
     expect(renderWorkLadder({ ...ALL, skills: false })).not.toMatch(

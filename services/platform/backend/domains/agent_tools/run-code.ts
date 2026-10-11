@@ -40,6 +40,7 @@ import {
 import {
   failure,
   isArgsRecord,
+  skillReachable,
   stringList,
   type InputFile,
   type WorkToolScope,
@@ -241,14 +242,16 @@ export async function runRunCode(
   const skillFiles: SessionStageFile[] = [];
   const skillRoots: string[] = [];
   for (const slug of args.skills) {
-    const bundle = await readSkillBundleForViewer({
-      orgSlug: scope.orgSlug,
-      slug,
-      viewer: scope.skillViewer,
-    }).catch((error: unknown) => {
-      console.warn(`[run_code] skill "${slug}" could not be read:`, error);
-      return null;
-    });
+    const bundle = !skillReachable(scope, slug)
+      ? null
+      : await readSkillBundleForViewer({
+          orgSlug: scope.orgSlug,
+          slug,
+          viewer: scope.skillViewer,
+        }).catch((error: unknown) => {
+          console.warn(`[run_code] skill "${slug}" could not be read:`, error);
+          return null;
+        });
     if (bundle === null || bundle.files.length === 0) {
       return failure(
         'not_found',

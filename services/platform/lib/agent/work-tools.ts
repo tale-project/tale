@@ -3,8 +3,8 @@
  * than to look something up: a file it writes out, an image, a skill's
  * instructions, code in a light sandbox.
  *
- * One table for every lane that offers them: the chat assistant's turn
- * today, the native task turn on the same runtime. Each entry carries its
+ * One table for every lane that offers them: the chat assistant's turn and
+ * a task agent's native turn, which run on the same engine. Each entry carries its
  * execution tier (`tiers.ts`), the JSON Schema of its arguments, the
  * model-facing description that is the tool's contract — when to call it,
  * when not to, what comes back — and the one-line doc the system prompt
@@ -25,6 +25,7 @@ export const WORK_TOOL_NAMES = [
   'load_skill',
   'read_skill_file',
   'run_code',
+  'use_workspace',
 ] as const;
 
 export type WorkToolName = (typeof WORK_TOOL_NAMES)[number];
@@ -64,6 +65,11 @@ export const RUN_CODE_MAX_TIMEOUT_SECONDS = 180;
 export const RUN_CODE_MAX_OUTPUT_FILES = 10;
 /** The tail of stdout and stderr each that a result relays. */
 export const RUN_CODE_OUTPUT_TAIL_CHARS = 6_000;
+
+/** The longest reason `use_workspace` takes, in characters. */
+export const USE_WORKSPACE_REASON_MAX_CHARS = 500;
+/** The longest hand-over brief `use_workspace` takes, in characters. */
+export const USE_WORKSPACE_BRIEF_MAX_CHARS = 4_000;
 
 /** Where a light sandbox keeps what the tools put there and take back. */
 export const LIGHT_SANDBOX_PATHS = {
@@ -208,6 +214,27 @@ const RUN_CODE_SCHEMA = object(
   ['language', 'code'],
 );
 
+const USE_WORKSPACE_SCHEMA = object(
+  {
+    reason: {
+      type: 'string',
+      maxLength: USE_WORKSPACE_REASON_MAX_CHARS,
+      description:
+        'Why the other tools cannot do this: what the work needs that they ' +
+        'lack, in one sentence.',
+    },
+    brief: {
+      type: 'string',
+      maxLength: USE_WORKSPACE_BRIEF_MAX_CHARS,
+      description:
+        'What the full workspace needs to carry on without seeing this ' +
+        'conversation: what was asked, what you already did and made, what ' +
+        'remains.',
+    },
+  },
+  ['reason', 'brief'],
+);
+
 // ------------------------------------------------------------ descriptions
 
 const DESCRIPTIONS: Record<WorkToolName, string> = {
@@ -265,6 +292,18 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
     'Answers with the exit code, the end of stdout and stderr, and the ' +
     'attached files. Do not use it for what you can answer or type out ' +
     'yourself.',
+  use_workspace:
+    'Hand this task to the full workspace: a persistent Linux environment ' +
+    'with a shell, network access, git and a browser, where a coding agent ' +
+    'carries the work on for as long as it takes. It costs a full sandbox ' +
+    'and the most time, so it is the last resort: use it only when the work ' +
+    'cannot be done with your other tools — a repository to clone, build or ' +
+    'test, a browser session, a long-running or interactive process, work ' +
+    'over many files or hours. Never for a document, a spreadsheet, a ' +
+    'chart, an image or a file you can write out yourself: create_file and ' +
+    'run_code make those faster. Give the reason, and a brief the agent can ' +
+    'act on without seeing this conversation. After the call, end your ' +
+    'turn with one short sentence: the hand-over takes it from there.',
 };
 
 const DOCS: Record<WorkToolName, string> = {
@@ -275,6 +314,8 @@ const DOCS: Record<WorkToolName, string> = {
   read_skill_file: 'read a text file bundled with a skill',
   run_code:
     'run Python, Node.js or Bash in a light sandbox to make documents, charts and other files',
+  use_workspace:
+    'hand the task to the full workspace (shell, git, browser) when the work needs it',
 };
 
 const SCHEMAS: Record<WorkToolName, Record<string, unknown>> = {
@@ -283,6 +324,7 @@ const SCHEMAS: Record<WorkToolName, Record<string, unknown>> = {
   load_skill: LOAD_SKILL_SCHEMA,
   read_skill_file: READ_SKILL_FILE_SCHEMA,
   run_code: RUN_CODE_SCHEMA,
+  use_workspace: USE_WORKSPACE_SCHEMA,
 };
 
 const TIERS: Record<WorkToolName, ExecutionTier> = {
@@ -291,6 +333,7 @@ const TIERS: Record<WorkToolName, ExecutionTier> = {
   load_skill: 'none',
   read_skill_file: 'none',
   run_code: 'light',
+  use_workspace: 'full',
 };
 
 /** The tier a work tool runs in. */

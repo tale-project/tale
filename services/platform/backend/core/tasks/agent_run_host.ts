@@ -17,6 +17,15 @@
 
 import { randomBytes } from 'node:crypto';
 
+import {
+  composeTaskBrief,
+  discussionBeforeFeedback,
+  handoffSection,
+  requesterFeedbackSection,
+  requesterStartLine,
+  type TaskHandoff,
+  type TaskRequester,
+} from '../../../lib/agent/task-brief';
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
 import {
@@ -504,44 +513,10 @@ async function stageTaskInputs(
  * (`domains/tasks/delegated-start.ts`): an automation's `task.start_agent`
  * step or another agent of the project. The prompt names it, and says the
  * message it passed comes from an automation or an agent — never from a
- * person's review, which a person still gives at In review.
+ * person's review, which a person still gives at In review. The words
+ * themselves are the shared brief's (`lib/agent/task-brief.ts`).
  */
-export interface KickRequester {
-  kind: 'automation' | 'agent';
-  /** The automation's name, or the agent's display name. */
-  name: string;
-}
-
-function requesterPhrase(requester: KickRequester): string {
-  return requester.kind === 'automation'
-    ? `the automation "${requester.name}"`
-    : `${requester.name}, another agent of this project,`;
-}
-
-/** The line that says who started a run no person started, when it carried
- * no message of its own. */
-function requesterStartLine(requester: KickRequester): string {
-  return (
-    `This run was started by ${requesterPhrase(requester)} rather than by a ` +
-    'person.'
-  );
-}
-
-/** The message an automation or an agent passed, phrased as theirs: it
- * leads the work, but a person's word — the description, a comment —
- * outranks it. */
-function requesterFeedbackSection(
-  requester: KickRequester,
-  feedbackText: string,
-): string {
-  return (
-    `This run was started by ${requesterPhrase(requester)} with this ` +
-    `message — address it before anything else:\n${feedbackText}\n\n` +
-    `It comes from ${requester.kind === 'automation' ? 'an automation' : 'an agent'}, ` +
-    'not from a person: where it contradicts the task description or a ' +
-    "person's comment, those win."
-  );
-}
+export type KickRequester = TaskRequester;
 
 /** Phrase a FRESH conversation's prompt from the task brief (a bound rerun
  * resumes the previous conversation instead — `buildResumeKickPrompt`).
@@ -571,21 +546,8 @@ export function buildTaskPrompt(
   outputDir?: string,
   inputs?: StagedTaskInputs,
   requester?: KickRequester,
+  handoff?: TaskHandoff,
 ): string {
-  const heading =
-    brief.identifier !== undefined
-      ? `You are working on task ${brief.identifier}: ${brief.title}`
-      : `You are working on this task: ${brief.title}`;
-  const feedbackText = feedback?.trim() ?? '';
-  let discussion = brief.discussion ?? [];
-  const lastEntry = discussion.at(-1);
-  if (
-    feedbackText !== '' &&
-    lastEntry?.author === 'user' &&
-    lastEntry.body.trim() === feedbackText
-  ) {
-    discussion = discussion.slice(0, -1);
-  }
   const stagedLines = [
     ...(inputs !== undefined && inputs.attachments.length > 0
       ? [
@@ -603,40 +565,14 @@ export function buildTaskPrompt(
         ]
       : []),
   ];
-  return [
-    heading,
-    ...(brief.projectName !== undefined
-      ? [`Project: ${brief.projectName}`]
-      : []),
-    ...(brief.labels !== undefined && brief.labels.length > 0
-      ? [`Labels: ${brief.labels.join(', ')}`]
-      : []),
-    ...(brief.description !== undefined && brief.description !== ''
-      ? [`Description:\n${brief.description}`]
-      : []),
-    ...(discussion.length > 0
-      ? [
-          [
-            'Task discussion so far (oldest first — earlier runs of you posted the agent messages):',
-            ...discussion.map(
-              (entry) =>
-                `${entry.author === 'user' ? 'User' : 'You (an earlier run)'}: ${entry.body}`,
-            ),
-          ].join('\n\n'),
-        ]
-      : []),
-    ...(feedbackText !== ''
-      ? [
-          requester !== undefined
-            ? requesterFeedbackSection(requester, feedbackText)
-            : `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}`,
-        ]
-      : requester !== undefined
-        ? [requesterStartLine(requester)]
-        : []),
+  return composeTaskBrief({
+    brief,
+    ...(feedback !== undefined ? { feedback } : {}),
+    ...(requester !== undefined ? { requester } : {}),
+    ...(handoff !== undefined ? { handoff } : {}),
     ...(stagedLines.length > 0
-      ? [
-          [
+      ? {
+          inputsBlock: [
             `Task inputs — read-only copies staged for this turn:`,
             ...stagedLines,
             ...(inputs !== undefined && inputs.outputs.length > 0
@@ -645,15 +581,14 @@ export function buildTaskPrompt(
                 ]
               : []),
           ].join('\n'),
-        ]
-      : []),
+        }
+      : {}),
     ...(outputDir !== undefined
-      ? [
-          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /agent/output/ itself, is discarded.`,
-        ]
-      : []),
-    'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
-  ].join('\n\n');
+      ? {
+          delivery: `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /agent/output/ itself, is discarded.`,
+        }
+      : {}),
+  });
 }
 
 /** The opening prompt of a RESUMED later kick — same task, same harness
@@ -693,21 +628,18 @@ function buildResumeKickPrompt(args: {
    * settled-predecessor path). Never claim a cleared box on the failed /
    * cancelled path — there the box still holds the unpublished work. */
   boxCleared?: boolean;
+  /** A lighter pass of this run handed the task over; see {@link TaskHandoff}. */
+  handoff?: TaskHandoff;
 }): string {
   const feedbackText = args.feedback?.trim() ?? '';
   const descriptionText = args.description ?? '';
-  let discussion = args.discussion ?? [];
-  const lastEntry = discussion.at(-1);
-  if (
-    feedbackText !== '' &&
-    lastEntry?.author === 'user' &&
-    lastEntry.body.trim() === feedbackText
-  ) {
-    // The kicking comment closes the delta — the feedback section below
-    // already carries it, so it is dropped here rather than said twice
-    // (same rule as buildTaskPrompt).
-    discussion = discussion.slice(0, -1);
-  }
+  // The kicking comment closes the delta — the feedback section below
+  // already carries it, so it is dropped here rather than said twice
+  // (same rule as the fresh brief).
+  const discussion = discussionBeforeFeedback(
+    args.discussion ?? [],
+    feedbackText,
+  );
   const inputs = args.inputs;
   const stagedLines = [
     ...(inputs !== undefined && inputs.attachments.length > 0
@@ -759,6 +691,7 @@ function buildResumeKickPrompt(args: {
       : args.requester !== undefined
         ? [requesterStartLine(args.requester)]
         : []),
+    ...(args.handoff !== undefined ? [handoffSection(args.handoff)] : []),
     ...(stagedLines.length > 0
       ? [
           [
@@ -817,6 +750,8 @@ export function buildKickPrompts(args: {
   resumeDiscussionSince?: number;
   sweep?: boolean;
   inspectNote?: boolean;
+  /** A lighter pass of this run handed the task over; see {@link TaskHandoff}. */
+  handoff?: TaskHandoff;
 }): { fresh: string; resume: string } {
   const fromDescription = args.mentionSource === 'description';
   const base = buildTaskPrompt(
@@ -825,6 +760,7 @@ export function buildKickPrompts(args: {
     args.outputDir,
     args.inputs,
     args.requester,
+    args.handoff,
   );
   // The resumed conversation's own memory covers everything before its
   // predecessor's brief was read — carry the discussion posted after the
@@ -850,6 +786,7 @@ export function buildKickPrompts(args: {
         ? { mentionSource: args.mentionSource }
         : {}),
       ...(args.requester !== undefined ? { requester: args.requester } : {}),
+      ...(args.handoff !== undefined ? { handoff: args.handoff } : {}),
       ...(delta.length > 0 ? { discussion: delta } : {}),
       // The conversation remembers writing into the box; when this start
       // swept it (settled predecessor), the prompt must say so and point at

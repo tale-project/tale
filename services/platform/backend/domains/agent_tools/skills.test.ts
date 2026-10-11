@@ -220,3 +220,38 @@ describe('listSkillCatalog', () => {
     warn.mockRestore();
   });
 });
+
+describe('an equipped list narrows the skills a turn reaches', () => {
+  const EQUIPPED = ['docx'];
+
+  it('lists, loads and reads only what the agent is equipped with', async () => {
+    vi.mocked(listSkillsForViewer).mockResolvedValue({
+      skills: [skill({ slug: 'docx' }), skill({ slug: 'budget-review' })],
+    } as never);
+    await expect(
+      listSkillCatalog('acme', { kind: 'project', teamIds: [] }, EQUIPPED).then(
+        (entries) => entries.map((entry) => entry.slug),
+      ),
+    ).resolves.toEqual(['docx']);
+
+    const { scope } = testScope({ skillAllowlist: EQUIPPED });
+    vi.mocked(readSkillForViewer).mockImplementation(({ slug }) =>
+      Promise.resolve(skill({ slug }) as never),
+    );
+    await expect(runLoadSkill(scope, { name: 'docx' })).resolves.toMatchObject({
+      status: 'ok',
+    });
+    // Visible to the viewer, yet not the agent's: answered as absent, and the
+    // library is not even asked.
+    vi.mocked(readSkillForViewer).mockClear();
+    vi.mocked(readSkillAssetForViewer).mockClear();
+    await expect(
+      runLoadSkill(scope, { name: 'budget-review' }),
+    ).resolves.toMatchObject({ status: 'not_found' });
+    expect(readSkillForViewer).not.toHaveBeenCalled();
+    await expect(
+      runReadSkillFile(scope, { name: 'budget-review', path: 'SKILL.md' }),
+    ).resolves.toMatchObject({ status: 'not_found' });
+    expect(readSkillAssetForViewer).not.toHaveBeenCalled();
+  });
+});

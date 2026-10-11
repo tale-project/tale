@@ -14,6 +14,7 @@ import { runGenerateImage } from './image.ts';
 import { runRunCode } from './run-code.ts';
 import { failure, type WorkToolScope } from './scope.ts';
 import { runLoadSkill, runReadSkillFile } from './skills.ts';
+import { runUseWorkspace } from './use-workspace.ts';
 
 /**
  * The work tools a turn offers, as one executor the turn pipeline injects
@@ -33,6 +34,7 @@ const HANDLERS: Record<WorkToolName, Handler> = {
   load_skill: runLoadSkill,
   read_skill_file: runReadSkillFile,
   run_code: runRunCode,
+  use_workspace: runUseWorkspace,
 };
 
 /** The work tools `scope` offers, in wire order. */
@@ -45,6 +47,9 @@ function offeredWorkTools(scope: WorkToolScope): WorkToolName[] {
     tools.push('generate_image');
   }
   if (loadout.runCode) tools.push('run_code');
+  if (loadout.escalate === true && scope.escalation !== undefined) {
+    tools.push('use_workspace');
+  }
   return tools;
 }
 
