@@ -23,7 +23,7 @@ import {
   dockerRuntimeFor,
   transparentEgressSupported,
 } from '../runtime-tier.ts';
-import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
+import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { RUNNERD_INCARNATION_ENV } from './runnerd-protocol.ts';
 import {
@@ -32,6 +32,7 @@ import {
   sessionContainerName,
 } from './session-naming.ts';
 import {
+  DEFAULT_SESSION_PROFILE,
   isAgentSessionProfile,
   sessionAgentProfile,
   sessionDindEnabled,
@@ -133,36 +134,6 @@ function assertSafe(name: string, value: string, re: RegExp): void {
   }
 }
 
-/** Resource caps + user for the `default` profile (the one-shot limits in
- * docker-args.ts; uid 65534). Kept here so both profiles flow through one
- * argv builder.
- *
- * The pids cap is the exception to "one-shot limits": the platform's website
- * crawler renders pages in a `default` session, and a headless Chromium
- * beside node and the session daemon runs 160 tasks and more on an ordinary
- * content page. Under the one-shot cap of 128 the browser could not start
- * another renderer after two or three such pages: every later navigation of
- * the batch died `net::ERR_ABORTED` and the site's pages were recorded as
- * render failures. 512 — the agent profile's default — leaves the browser
- * room and is still a fork-bomb guard.
- *
- * Its CPU weight is half an agent's: a page render or a run_code call is
- * background work that yields first, to agents and to the control plane. */
-const DEFAULT_PROFILE: SessionAgentProfileConfig = {
-  cpus: 1,
-  cpuShares: 128,
-  memory: '1500m',
-  pidsLimit: 512,
-  nofileSoft: 1024,
-  nofileHard: 4096,
-  fsizeBytes: 104857600,
-  tmpfsSize: '128m',
-  shmSize: '64m',
-  user: '65534:65534',
-  uid: 65534,
-  gid: 65534,
-};
-
 export function buildDockerSessionRunArgs(
   cfg: SpawnerConfig,
   inp: DockerSessionRunInput,
@@ -185,7 +156,7 @@ export function buildDockerSessionRunArgs(
   const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile = isAgentSessionProfile(inp.profile)
     ? sessionAgentProfile(cfg, dind)
-    : DEFAULT_PROFILE;
+    : DEFAULT_SESSION_PROFILE;
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
