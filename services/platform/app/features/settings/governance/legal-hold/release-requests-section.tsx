@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
@@ -12,6 +13,7 @@ import { useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHoldReleaseRequests } from '../hooks/queries';
@@ -31,10 +33,21 @@ export function ReleaseRequestsSection({
   organizationId,
 }: ReleaseRequestsSectionProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const { data: currentUser } = useCurrentUser();
 
   const pending = useLegalHoldReleaseRequests(organizationId, 'pending');
   const approved = useLegalHoldReleaseRequests(organizationId, 'approved');
+  const pendingRecovery = useListReadRecovery({
+    error: pending.error,
+    results: pending.data ?? [],
+    retry: () => void pending.refetch(),
+  });
+  const approvedRecovery = useListReadRecovery({
+    error: approved.error,
+    results: approved.data ?? [],
+    retry: () => void approved.refetch(),
+  });
 
   const [approveTarget, setApproveTarget] = useState<ReleaseRow | null>(null);
   const [rejectId, setRejectId] = useState<string | undefined>(undefined);
@@ -198,14 +211,31 @@ export function ReleaseRequestsSection({
         description={t('legalHold.sections.releaseRequests.description')}
       >
         <Stack gap={6}>
-          <div>
+          <div
+            ref={pendingRecovery.regionRef}
+            role="region"
+            aria-label={t('legalHold.sections.releaseRequests.pendingHeader')}
+            tabIndex={-1}
+          >
             <Text variant="label" className="mb-2 text-sm">
               {t('legalHold.sections.releaseRequests.pendingHeader')}
             </Text>
+            {pendingRecovery.failedWithRows && (
+              <CatalogLoadError
+                message={tCommon('errors.errorLoadingPage')}
+                onRetry={pendingRecovery.retryRead}
+                isRetrying={pending.isFetching}
+                failureKey={pending.errorUpdateCount}
+                onFocusLost={pendingRecovery.focusRegion}
+              />
+            )}
             <DataTable<ReleaseRow>
               columns={pendingColumns}
               data={pending.data ?? []}
               isLoading={pending.isLoading}
+              error={pending.data?.length ? null : pending.error}
+              onRetry={pendingRecovery.retryRead}
+              onErrorFocusLost={pendingRecovery.focusRegion}
               approxRowCount={pending.data?.length}
               getRowId={(row) => row._id}
               emptyState={{
@@ -220,14 +250,32 @@ export function ReleaseRequestsSection({
           </div>
           {/* Hairline between the two request buckets — without it the
               approved list read as more rows of the pending table. */}
-          <div className="border-border border-t pt-6">
+          <div
+            ref={approvedRecovery.regionRef}
+            role="region"
+            aria-label={t('legalHold.sections.releaseRequests.approvedHeader')}
+            tabIndex={-1}
+            className="border-border border-t pt-6"
+          >
             <Text variant="label" className="mb-2 text-sm">
               {t('legalHold.sections.releaseRequests.approvedHeader')}
             </Text>
+            {approvedRecovery.failedWithRows && (
+              <CatalogLoadError
+                message={tCommon('errors.errorLoadingPage')}
+                onRetry={approvedRecovery.retryRead}
+                isRetrying={approved.isFetching}
+                failureKey={approved.errorUpdateCount}
+                onFocusLost={approvedRecovery.focusRegion}
+              />
+            )}
             <DataTable<ReleaseRow>
               columns={approvedColumns}
               data={approved.data ?? []}
               isLoading={approved.isLoading}
+              error={approved.data?.length ? null : approved.error}
+              onRetry={approvedRecovery.retryRead}
+              onErrorFocusLost={approvedRecovery.focusRegion}
               approxRowCount={approved.data?.length}
               getRowId={(row) => row._id}
               emptyState={{
