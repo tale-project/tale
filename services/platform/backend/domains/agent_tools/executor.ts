@@ -36,7 +36,7 @@ const HANDLERS: Record<WorkToolName, Handler> = {
 };
 
 /** The work tools `scope` offers, in wire order. */
-export function offeredWorkTools(scope: WorkToolScope): WorkToolName[] {
+function offeredWorkTools(scope: WorkToolScope): WorkToolName[] {
   const { loadout } = scope;
   const tools: WorkToolName[] = [];
   if (loadout.skills) tools.push('load_skill', 'read_skill_file');

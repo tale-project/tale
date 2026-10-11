@@ -47,7 +47,7 @@ import {
 
 /** The `sandbox_sessions.owner_type` of a light sandbox; its budget is
  * `light` (`core/sandbox/quota_policy.ts`). */
-export const LIGHT_SESSION_OWNER_TYPE = 'light';
+const LIGHT_SESSION_OWNER_TYPE = 'light';
 
 /** How long after its last use the watchdog destroys a light sandbox. */
 export const LIGHT_SESSION_IDLE_MS = 5 * 60_000;
@@ -57,7 +57,7 @@ export const LIGHT_SESSION_IDLE_MS = 5 * 60_000;
 const LIGHT_SESSION_SPAWNER_IDLE_MS = 15 * 60_000;
 
 /** No light sandbox lives longer than this, however busy. */
-export const LIGHT_SESSION_TTL_MS = 60 * 60_000;
+const LIGHT_SESSION_TTL_MS = 60 * 60_000;
 
 /** A light sandbox younger than this is never taken for another owner: it
  * may sit between two calls of a turn that is still writing its next one. */
