@@ -162,6 +162,7 @@
     "platform/chat/basics",
     "platform/chat/canvas-pane",
     "platform/chat/deep-research",
+    "platform/chat/files-and-skills",
     "platform/chat/overview",
     "platform/chat/shared-threads",
     "platform/chat/starters-and-prompts",

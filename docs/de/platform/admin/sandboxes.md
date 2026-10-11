@@ -3,7 +3,7 @@ title: Sandbox-Kapazität verwalten
 description: Passe Grenzen für gleichzeitige Arbeit an, lies Infrastrukturwerte und kläre blockierte Sandbox-Starts.
 ---
 
-Öffne **Einstellungen > Sandboxes**, wenn Agenten oder Website-Scans keine Ausführungsumgebung erhalten. Die Seite trennt die Arbeitsgrenzen deiner Organisation von der tatsächlichen Infrastruktur des Deployments. Inhaber und Admins dürfen Limits ändern und festlegen, wann ungenutzte Arbeitsbereiche gelöscht werden. Entwickler sehen Limits und zusammengefasste Kapazität, aber keine privaten Workspace-Details.
+Öffne **Einstellungen > Sandboxes**, wenn Agenten, der Chat oder Website-Scans keine Ausführungsumgebung erhalten. Die Seite trennt die Arbeitsgrenzen deiner Organisation von der tatsächlichen Infrastruktur des Deployments. Inhaber und Admins dürfen Limits ändern und festlegen, wann ungenutzte Arbeitsbereiche gelöscht werden. Entwickler sehen Limits und zusammengefasste Kapazität, aber keine privaten Workspace-Details.
 
 ## Das relevante Limit erkennen
 
@@ -12,25 +12,34 @@ description: Passe Grenzen für gleichzeitige Arbeit an, lies Infrastrukturwerte
 | **Agenten-Worker** | 2 | Ein startender oder arbeitender Worker: einer für jede Aufgabe, an der ein Agent gleichzeitig arbeitet. Jeder Worker ist eine Sandbox mit eigenem Arbeitsbereich, die der Agent für spätere Aufgaben wiederverwendet. |
 | Workflow-Sitzungen | 2 | Die Sandbox eines Workflow-Laufs. Gleichzeitige Läufe belegen getrennte Plätze. |
 | Render-Sitzungen | 2 | Eine vorübergehende Sandbox zum Rendern von Seiten bei Website-Scans. |
+| Leichte Sandboxes | 2 | Eine kurzlebige Sandbox, in der der Chat-Assistent für ein Gespräch Code ausführt. Eine unbenutzte macht dem nächsten Chat Platz; siehe [Leichte Sandboxes für den Chat](#light-sandboxes). |
 
 Die Werte begrenzen gleichzeitige Arbeit, nicht die Anzahl der Aufgaben oder die Ausgaben. Ein Agent, der an drei Aufgaben gleichzeitig arbeitet, belegt drei Agenten-Worker; ein Lauf, der alle belegt vorfindet, [wartet auf einen](#einen-blockierten-start-klaeren) und startet von selbst, sobald einer frei ist. Unter **Agenten-Worker** sehen Inhaber und Admins, wie viele Agentenläufe auf einen freien Worker warten: die Läufe, die ein höheres Limit sofort starten würde. Die Limits reservieren keine Infrastruktur: Alle Organisationen teilen sich die Deployment-Kapazität.
 
-<Frame caption="Die Summe der drei Arbeitslimits passt sich automatisch an. Sie darf die Kapazität der Bereitstellung nicht überschreiten.">
+<Frame caption="Die Summe der Arbeitslimits passt sich automatisch an. Sie darf die Kapazität der Bereitstellung nicht überschreiten.">
 
-![Der Abschnitt Organisationslimits zeigt drei bearbeitbare Sitzungslimits und ihre berechnete Summe im Verhältnis zur Kapazität der Bereitstellung.](/images/platform/settings-sandboxes.webp)
+![Der Abschnitt Organisationslimits zeigt vier bearbeitbare Sitzungslimits und ihre berechnete Summe im Verhältnis zur Kapazität der Bereitstellung.](/images/platform/settings-sandboxes.webp)
 
 </Frame>
 
 ## Ein Arbeitslimit ändern
 
 1. Prüfe die belegten Plätze der Arbeitsart und die Infrastrukturwerte darunter.
-2. Gib beim passenden Limit eine ganze Zahl von 1 bis 500 ein. Die angezeigte Gesamtzahl berechnet die Summe aller drei Felder neu.
+2. Gib beim passenden Limit eine ganze Zahl von 1 bis 500 ein. Die angezeigte Gesamtzahl berechnet die Summe aller vier Felder neu.
 3. Halte die Summe innerhalb der Deployment-Kapazität und wähle **Speichern** im Kopfbereich. **Verwerfen** stellt die gespeicherten Werte wieder her.
 4. Öffne die Seite erneut, prüfe die gespeicherten Limits und beobachte, ob neue Arbeit einen Platz erhält.
 
-Die Standardwerte ergeben zusammen 6. Bei einer Deployment-Kapazität von 8 ist eine Summe von 8 erlaubt, 9 wird abgelehnt. Der Server prüft die Kapazität beim Speichern erneut. Der aktuelle Wert kann deshalb von der ersten Beobachtung abweichen. Die verbundenen [Geräte](/de/platform/admin/sandbox-devices) deiner Organisation erhöhen die Obergrenze um die Sandboxes, die sie ausführen: Mit einem Gerät, das 4 ausführt, darf die Summe 12 erreichen.
+Die Standardwerte ergeben zusammen 8. Bei einer Deployment-Kapazität von 10 ist eine Summe von 10 erlaubt, 11 wird abgelehnt. Der Server prüft die Kapazität beim Speichern erneut. Der aktuelle Wert kann deshalb von der ersten Beobachtung abweichen. Die verbundenen [Geräte](/de/platform/admin/sandbox-devices) deiner Organisation erhöhen die Obergrenze um die Sandboxes, die sie ausführen: Mit einem Gerät, das 4 ausführt, darf die Summe 14 erreichen.
 
 Eine Senkung betrifft künftige Starts und unterbricht keine laufende Arbeit. Sind Infrastrukturwerte nicht verfügbar, bleiben Senkungen möglich; Erhöhungen brauchen einen aktuellen Kapazitätswert. Hat der Betreiber die Kapazität unter deine bisherige Summe gesenkt, reduziere die Limits vor dem nächsten Speichern. Lassen sich bereits die Organisationsbelegungen nicht laden, bleiben die Felder gesperrt, statt bearbeitbare Standardwerte anzuzeigen.
+
+## Leichte Sandboxes für den Chat {#light-sandboxes}
+
+Bittet ein Mitglied den Chat-Assistenten um eine Word-, Excel-, PowerPoint- oder PDF-Datei, ein Diagramm oder eine Berechnung, führt er Code in einer leichten Sandbox aus: einer isolierten Umgebung, die in etwa einer Sekunde startet und keinen eigenen Arbeitsbereich behält. Was Mitglieder dabei sehen, beschreibt [Im Chat Dateien erstellen und Skills nutzen](/de/platform/chat/files-and-skills).
+
+Jedes Gespräch nutzt höchstens eine leichte Sandbox. Sie behält ihre Dateien zwischen den Schritten des Assistenten und den Folgefragen des Mitglieds; nach etwa fünf Minuten ohne Nutzung entfernt Tale sie. Laufen in der Organisation bereits so viele leichte Sandboxes, wie **Leichte Sandboxes** erlaubt, übernimmt eine neue Anfrage den Platz derjenigen, die am längsten unbenutzt ist, sofern sie seit mindestens 30 Sekunden ruht. Sind alle beschäftigt, bittet der Assistent das Mitglied, es in einer Minute noch einmal zu versuchen; eine Warteschlange gibt es nicht.
+
+Unter **Arbeitsbereiche** erscheint eine leichte Sandbox mit dem Namen der Person, die chattet, und dem Hinweis **Chat-Sandbox**. Du kannst sie wie jeden Arbeitsbereich löschen. Anpinnen lässt sie sich nicht, denn Tale entfernt sie, sobald sie ruht. Soll der Chat gar keinen Code ausführen, schalte unter [Chat-Tools](/de/platform/admin/governance/policies-and-limits#chat-tools) **Code** aus.
 
 ## Die Infrastrukturwerte lesen
 
@@ -64,7 +73,7 @@ Inhaber und Admins finden im Zeilenmenü diese Aktionen:
 | Aktion | Wirkung |
 | --- | --- |
 | **Aufgabe stoppen** | Bricht alle laufenden Vorgänge dieses Arbeitsbereichs ab. Ein Worker bearbeitet jeweils eine Aufgabe, also stoppt das nur diese; die anderen Worker des Agenten arbeiten weiter. |
-| **Anpinnen** / **Lösen** | Nimmt den Arbeitsbereich von der automatischen Inaktivitäts- und Ablaufbereinigung und vom Löschen wegen Nichtnutzung aus oder stellt die normale Bereinigung wieder her. Eine angeheftete Belegung kann weiter Kapazität beanspruchen. Verschwindet die Umgebung eines angehefteten Arbeitsbereichs, etwa nach einem Neustart des Hosts, startet Tale sie mit den Workspace-Dateien neu; der Arbeitsbereich bleibt angeheftet. |
+| **Anpinnen** / **Lösen** | Nimmt den Arbeitsbereich von der automatischen Inaktivitäts- und Ablaufbereinigung und vom Löschen wegen Nichtnutzung aus oder stellt die normale Bereinigung wieder her. Eine leichte Sandbox des Chats lässt sich nicht anpinnen. Eine angeheftete Belegung kann weiter Kapazität beanspruchen. Verschwindet die Umgebung eines angehefteten Arbeitsbereichs, etwa nach einem Neustart des Hosts, startet Tale sie mit den Workspace-Dateien neu; der Arbeitsbereich bleibt angeheftet. |
 | **Löschen** | Fragt nach Bestätigung und entfernt dann Sandbox und Workspace-Dateien im Hintergrund: Zuerst wird die Anheftung gelöst und laufende Arbeit abgebrochen. Bis der Arbeitsbereich entfernt ist, steht in seiner Zeile **Wird gelöscht**, und du kannst die Seite währenddessen weiter nutzen. Kann Tale ihn auch nach mehreren Versuchen nicht entfernen, bleibt der Arbeitsbereich ohne Anheftung in der Liste und zeigt **Nicht gelöscht**; wähle dann erneut **Löschen**, um ihn vollständig zu entfernen. Solange die Zeile **Wird gelöscht** zeigt, startet in diesem Arbeitsbereich nichts Neues. Der Lauf eines Agenten, der ihn nutzen würde, nimmt einen anderen freien Worker des Agenten; ist keiner frei, wartet er und zeigt **Wartet auf einen Arbeitsbereich**. Ein Schritt eines Workflow-Laufs, der den Arbeitsbereich braucht, schlägt sofort mit dem Grund fehl, ohne zu warten oder es erneut zu versuchen, denn die Dateien seiner früheren Schritte werden gelöscht. Ist die Zeile verschwunden, erzeugt der nächste Start eine neue Umgebung; zeigt sie stattdessen **Nicht gelöscht**, geht die wartende Arbeit mit den alten Dateien weiter. |
 
 Tale speichert Änderungen am Anheftstatus dauerhaft und wiederholt die Übertragung, wenn die Laufzeit sie nicht bestätigt, auch nach einem Neustart eines Backend-Workers oder einem Geräteausfall. Jeder Versuch überträgt den zuletzt gewünschten Wert an dieselbe Session-Instanz. Wiederholtes Lösen verlängert deren Ablaufzeit nicht.

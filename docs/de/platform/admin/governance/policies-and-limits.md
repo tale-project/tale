@@ -81,6 +81,22 @@ Funktionskontrollen umfassen bereichsspezifische Kontextlimits und den organisat
 
 Der Standardschalter für benutzerdefinierte Anweisungen legt die Organisationsvorgabe für die persönlichen Anweisungen der Mitglieder fest: Solange er aktiv ist, gelten die benutzerdefinierten Anweisungen jedes Mitglieds für seine Chatantworten, es sei denn, das Mitglied hat die Funktion unter **Einstellungen > Personalisierung** selbst ausgeschaltet. Verbindliche Organisationsanweisungen stehen separat unter [Guardrails](/de/platform/admin/governance/guardrails).
 
+## Festlegen, was der Chat erstellen darf {#chat-tools}
+
+**Chat-Tools** legt fest, was der Chat-Assistent neben seinen Antworten erstellen darf. Jeder Schalter entfernt sein Tool aus allen Chats deiner Organisation; der Assistent bekommt also nie etwas angeboten, das er nicht nutzen darf:
+
+- **Dateien** — Textdateien, die der Assistent selbst schreibt, etwa Markdown, CSV, HTML oder Kalendereinträge. Dafür startet nichts.
+- **Skills** — Anleitungen aus der [Skill-Bibliothek](/de/platform/workspace/skills) der jeweiligen Person, die der Assistent liest, wenn eine zur Anfrage passt.
+- **Code** — Code in einer leichten Sandbox, für Word-, Excel-, PowerPoint- und PDF-Dateien, Diagramme und Berechnungen. Jedes Gespräch nutzt jeweils eine leichte Sandbox, und das [Limit für leichte Sandboxes](/de/platform/admin/sandboxes#light-sandboxes) deiner Organisation begrenzt, wie viele gleichzeitig laufen.
+
+<Frame caption="Richtlinien > Richtlinien & Limits — die Chat-Tools, wie eine neue Organisation sie hat: Dateien, Skills und Code eingeschaltet.">
+
+![Der Abschnitt Chat-Tools mit drei eingeschalteten Zeilen: Dateien für Textdateien, die der Assistent selbst schreibt; Skills für Anleitungen aus der Skill-Bibliothek der jeweiligen Person; und Code für Code in einer leichten Sandbox.](/images/platform/governance-chat-tools.webp)
+
+</Frame>
+
+Alle drei sind eingeschaltet, bis du einen ausschaltest. Ändere die Schalter und speichere dann die offenen Änderungen der Seite in der Kopfzeile; die nächste Antwort in jedem Chat folgt ihnen. Bilder gehören nicht zu diesem Abschnitt: Der Chat erstellt sie nur, solange die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet ist. Was Mitglieder sehen, zeigt [Im Chat Dateien erstellen und Skills nutzen](/de/platform/chat/files-and-skills).
+
 ## Einen Vertraulichkeitshinweis im Chat anzeigen
 
 **Vertraulichkeitshinweis** blendet für alle Mitglieder deiner Organisation eine kurze Zeile unter dem Nachrichtenfeld im Chat ein, etwa die Erinnerung, keine sensiblen Daten zu teilen. Der Hinweis bleibt aus, bis du ihn einschaltest.

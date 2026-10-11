@@ -3,7 +3,7 @@ title: Chat
 description: Stelle eine Frage, prüfe Antwort und Quellen und finde nützliche Gespräche später wieder.
 ---
 
-Im Chat kannst du schnell etwas zu einem Dokument fragen, ein Thema verstehen oder eine Antwort durch Rückfragen präzisieren. Der Assistent kann zugängliches Wissen durchsuchen und bei Bedarf öffentliche Seiten abrufen. Prüfe die Quellen, bevor du dich auf eine Tatsachenaussage verlässt, besonders bei veränderlichen Informationen.
+Im Chat kannst du schnell etwas zu einem Dokument fragen, ein Thema verstehen oder eine Antwort durch Rückfragen präzisieren. Der Assistent kann zugängliches Wissen durchsuchen, bei Bedarf öffentliche Seiten abrufen und auf Wunsch eine Tabelle, ein Dokument, ein Diagramm oder ein Bild erstellen. Prüfe die Quellen, bevor du dich auf eine Tatsachenaussage verlässt, besonders bei veränderlichen Informationen.
 
 <Frame caption="Frage und Antwort bleiben zusammen. So kannst du deinen Auftrag präzisieren, ohne neu anzufangen.">
 
@@ -28,11 +28,12 @@ Sind mehrere nutzbare Modelle verfügbar, kann die Modellauswahl mit **Auto** be
 | Du möchtest | Beginne hier |
 | --- | --- |
 | Fragen stellen, Angaben vergleichen oder eine Antwort klären | **Chat** |
+| Ein Dokument, eine Tabelle, ein Diagramm oder ein Bild erstellen lassen | **Chat** |
 | Dieselben Dateien und Anweisungen in mehreren Gesprächen nutzen | **Projektchat** |
 | Ein Ergebnis mit Zuständigkeit und Prüfung erstellen lassen | **Aufgabe** im Projekt |
 | Einen wiederholbaren Ablauf nach Zeitplan oder Ereignis ausführen | **Automatisierung** |
 
-Chat dient Gesprächen und der Informationssuche. Für umfangreichere Ergebnisse kann der Assistent auf eine Aufgabe verweisen. Dort arbeitet ein Agent in einer Sandbox und eine Person prüft das Ergebnis. Siehe [Aufgaben](/de/platform/projects/tasks) und [Automatisierungen](/de/platform/automations/concepts).
+Im Chat entstehen Dateien direkt im Gespräch. Braucht ein Ergebnis eine Zuständigkeit und eine Prüfung, oder geht es um Arbeit an einem Repository, in einer Browsersitzung oder über Stunden, kann der Assistent auf eine Aufgabe verweisen. Dort arbeitet ein Agent in seiner eigenen Sandbox, und eine Person prüft das Ergebnis. Siehe [Aufgaben](/de/platform/projects/tasks) und [Automatisierungen](/de/platform/automations/concepts).
 
 ## Das Gespräch gut nutzen
 
@@ -44,6 +45,10 @@ Senden, ein Modell wählen, Quellen lesen und ein Gespräch später fortsetzen.
 
 <Card title="Dateien anhängen" icon="paperclip" href="/de/platform/chat/attachments">
 Ein Dokument oder Bild hinzufügen und Upload- und Indexierungszustände verstehen.
+</Card>
+
+<Card title="Dateien erstellen und Skills nutzen" icon="file-plus" href="/de/platform/chat/files-and-skills">
+Ein Dokument, eine Tabelle, ein Diagramm oder ein Bild erhalten und einen Skill die Arbeit leiten lassen.
 </Card>
 
 <Card title="Modelle in Arena vergleichen" icon="swords" href="/de/platform/chat/arena-mode">

@@ -3,7 +3,7 @@ title: Manage sandbox capacity
 description: Adjust concurrent workload limits, interpret infrastructure measurements and investigate work waiting for a sandbox.
 ---
 
-Open **Settings > Sandboxes** when agent work or crawling cannot obtain an execution environment. The page separates your organization’s workload limits from the deployment’s actual infrastructure. Owners and Admins can change limits and decide when unused workspaces are deleted; Developers can read limits and aggregate capacity, without the private workspace list.
+Open **Settings > Sandboxes** when agent work, chat or crawling cannot obtain an execution environment. The page separates your organization’s workload limits from the deployment’s actual infrastructure. Owners and Admins can change limits and decide when unused workspaces are deleted; Developers can read limits and aggregate capacity, without the private workspace list.
 
 ## Identify the limit that matters
 
@@ -12,25 +12,34 @@ Open **Settings > Sandboxes** when agent work or crawling cannot obtain an execu
 | **Agent workers** | 2 | A worker starting or doing work: one for each task an agent works on at the same time. Each worker is a sandbox with its own workspace, reused for the agent’s later tasks. |
 | **Workflow sessions** | 2 | A workflow run’s sandbox, shared by its sandbox work. Concurrent runs use separate slots. |
 | **Render sessions** | 2 | A temporary sandbox rendering pages during website crawling. |
+| **Light sandboxes** | 2 | A short-lived sandbox in which the chat assistant runs code for one conversation. An idle one gives way to the next chat; see [Light sandboxes for chat](#light-sandboxes). |
 
 These are concurrency limits, not a count of tasks or a spending budget. An agent working three tasks at once holds three agent workers; a run that finds them all busy [waits for one](#resolve-a-blocked-start) and starts on its own when one is free. Under **Agent workers**, Owners and Admins see how many agent runs are waiting for a free worker: the runs a higher limit would start now. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
 
-<Frame caption="The three workload limits add up automatically. Their total must fit within the deployment capacity.">
+<Frame caption="The workload limits add up automatically. Their total must fit within the deployment capacity.">
 
-![The Organization limits section shows three editable session limits and their calculated total against the deployment capacity.](/images/platform/settings-sandboxes.webp)
+![The Organization limits section shows four editable session limits and their calculated total against the deployment capacity.](/images/platform/settings-sandboxes.webp)
 
 </Frame>
 
 ## Change a workload limit
 
 1. Check the workload’s **Allocated** count and the infrastructure measurements below it.
-2. Enter a whole number from 1 to 500 for the relevant limit. **Total organization sessions** recalculates the sum of all three fields.
+2. Enter a whole number from 1 to 500 for the relevant limit. **Total organization sessions** recalculates the sum of all four fields.
 3. Keep that total within deployment capacity, then select **Save** in the header. **Discard** restores the saved values.
 4. Reopen the page to confirm the saved limits and inspect whether new work can obtain an allocation.
 
-For example, the defaults total 6. If deployment capacity is 8, a total of 8 is valid and 9 is refused. The server rechecks capacity when saving, so another observation may differ from the one you first saw. Your organization's connected [devices](/platform/admin/sandbox-devices) add the sandboxes they run to the ceiling: with one device that runs 4, the total may reach 12.
+For example, the defaults total 8. If deployment capacity is 10, a total of 10 is valid and 11 is refused. The server rechecks capacity when saving, so another observation may differ from the one you first saw. Your organization's connected [devices](/platform/admin/sandbox-devices) add the sandboxes they run to the ceiling: with one device that runs 4, the total may reach 14.
 
 Lowering a limit affects future admissions; it does not interrupt active work. If infrastructure data is unavailable, reductions remain possible but increases need a fresh capacity observation. If the operator lowered capacity below your existing total, reduce your limits before saving again. If organization allocation data itself cannot load, the fields remain unavailable instead of showing editable defaults.
+
+## Light sandboxes for chat {#light-sandboxes}
+
+When a member asks the chat assistant for a Word, Excel, PowerPoint, or PDF file, a chart, or a calculation, it runs code in a light sandbox: an isolated environment that starts in about a second and keeps no workspace of its own. [Make files and use skills in chat](/platform/chat/files-and-skills) describes what members see.
+
+Each conversation uses at most one light sandbox. It keeps its files between the assistant's steps and the member's follow-up messages, and Tale removes it after about five minutes without use. When the organization runs as many light sandboxes as **Light sandboxes** allows, a new request takes the slot of the one that has been idle longest, if it has been idle for at least 30 seconds. When every light sandbox is busy, the assistant tells the member to try again in a minute; nothing waits in a queue.
+
+A light sandbox appears under **Workspaces** with the name of the person chatting and the label **Chat sandbox**. You can destroy it like any workspace; it cannot be pinned, because Tale removes it as soon as it is idle. To keep chat from running code at all, turn off **Code** under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools).
 
 ## Read the infrastructure measurements
 
@@ -64,7 +73,7 @@ Owners and Admins can use a workspace’s row menu:
 | Action | Effect |
 | --- | --- |
 | **Stop task** | Cancels all currently running operations in that workspace. A worker works one task at a time, so this stops that task only; the agent’s other workers keep working. |
-| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup and from deletion for being unused, or restores normal cleanup. A pinned allocation can continue holding capacity. If a pinned workspace’s environment disappears, for example after a host restart, Tale starts it again with its workspace files, and the workspace stays pinned. |
+| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup and from deletion for being unused, or restores normal cleanup. A chat's light sandbox cannot be pinned. A pinned allocation can continue holding capacity. If a pinned workspace’s environment disappears, for example after a host restart, Tale starts it again with its workspace files, and the workspace stays pinned. |
 | **Destroy** | Asks for confirmation, then removes the sandbox and its workspace files in the background: it unpins the workspace first and cancels running work. Until the workspace is gone, its row reads **Destroying** and you can go on using the page. If Tale still cannot remove it after several attempts, the workspace remains listed, unpinned, and reads **Destroy failed**; choose **Destroy** again to finish removing it. While the row reads **Destroying**, nothing new starts in that workspace. An agent's run that would use it takes another free worker of the agent; when none is free, it waits and reads **Waiting for a workspace**. A workflow run's step that needs the workspace fails at once with the reason, without waiting or trying again, because the files its earlier steps left are being deleted. Once the row is gone, the next start creates a fresh environment; if it reads **Destroy failed** instead, the waiting work continues in the old files. |
 
 A pin change is saved durably and retried if its runtime acknowledgement fails, including after a backend worker restart or device outage. Retries apply the latest desired value to the same session incarnation; repeated unpin delivery does not extend its expiry.
