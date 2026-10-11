@@ -98,8 +98,10 @@ function inReadingOrder(
  *    nothing means unchanged, except that a node that changed its kind
  *    reads `changed`. A renamed node (`kind: 'renamed'`, `beforeId`) is one
  *    box: its older id leaves no removed box, and its older lines count as
- *    its own. Start and End are never removed: the newer graph's stand for
- *    the older ones.
+ *    its own. `standsFor` names the older id of a node whose id moved with
+ *    another's rename while nothing about it changed — the condition in
+ *    front of a renamed step: one box too, unmarked. Start and End are never
+ *    removed: the newer graph's stand for the older ones.
  *  - Lines are the same line when their ends and their kind are: a line
  *    only one version draws is `added` or `removed`. A removed line that
  *    would close a loop through the newer graph (two nodes that swapped
@@ -114,6 +116,7 @@ export function mergeFlowGraphs(
   before: FlowGraph,
   after: FlowGraph,
   changed: (id: string) => FlowNodeDiff | undefined,
+  standsFor?: (id: string) => string | undefined,
 ): { graph: FlowGraph; diff: FlowDiffOverlay } {
   const afterById = new Map(after.nodes.map((node) => [node.id, node]));
   const beforeById = new Map(before.nodes.map((node) => [node.id, node]));
@@ -129,16 +132,18 @@ export function mergeFlowGraphs(
     if (newer !== undefined && older !== undefined && !afterById.has(older.id))
       formerOf.set(newer.id, older.id);
   }
+  /** An older id the newer graph no longer has: one a newer node may
+   * stand for. */
+  const vacated = (id: string | undefined): string | undefined =>
+    id !== undefined && beforeById.has(id) && !afterById.has(id)
+      ? id
+      : undefined;
   for (const node of after.nodes) {
     const told = changed(node.id);
     const renamedId =
-      told?.beforeId !== undefined &&
-      told.beforeId !== node.id &&
-      beforeById.has(told.beforeId) &&
-      !afterById.has(told.beforeId)
-        ? told.beforeId
-        : undefined;
-    const formerId = renamedId ?? formerOf.get(node.id) ?? node.id;
+      told?.beforeId === node.id ? undefined : vacated(told?.beforeId);
+    const quietId = vacated(standsFor?.(node.id));
+    const formerId = renamedId ?? quietId ?? formerOf.get(node.id) ?? node.id;
     if (formerId !== node.id) sameAs.set(formerId, node.id);
     const old = beforeById.get(formerId);
     if (told !== undefined) nodeDiffs[node.id] = told;

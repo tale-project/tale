@@ -97,6 +97,12 @@ Tale lehnt eine Wiederholung ab, die es nicht getreu ausführen kann, und sagt w
 
 **Damit vergleichen** bei einer Wiederholung, **Mit dem vorherigen Lauf vergleichen** im Menü von **Erneut ausführen** oder zwei im Tab **Läufe** ausgewählte Läufe und **Vergleichen** zeigen zwei Läufe nebeneinander. **Was sich unterscheidet** nennt, das Aufschlussreichste zuerst, die ausgeführten Versionen, wie viele Felder ihrer Eingabe sich unterscheiden, den Schritt, an dem sie sich trennten, und warum, etwa eine Bedingung, die anders ausging, wie jeder endete sowie Ausgabe und Schreibvorgänge. Die Tabelle darunter zeigt jeden Schritt, wie jeder Lauf ihn hinterließ und ob seine Daten gleich sind. **A und B tauschen** vertauscht die beiden Läufe. Unterscheiden sich ihre Eingabe oder Ausgabe, zeigen **Eingabe: A → B** und **Ausgabe: A → B** beide nebeneinander, jedes geänderte Feld markiert. **Beide Läufe im Diagramm** zeichnet beide in ein Diagramm: Jeder Schritt sagt, wie A und wie B ihn hinterließen, und der Schritt, an dem sie sich trennen, ist umrandet. Läufe derselben Version teilen deren Diagramm. Läufe zweier Versionen stehen auf den Schritten beider Versionen, und ein Schritt, den die Version eines Laufs nicht hat, ist gestrichelt und sagt es, etwa **Nicht in der Version von B**. Unter **Was sich unterscheidet** öffnet **Ansehen, was sich zwischen v3 und v4 geändert hat** den Vergleich der beiden Versionen, wie [Zwei Versionen vergleichen](/de/platform/automations/editor#compare) beschreibt.
 
+<Frame caption="Ein Lauf von v1 im Vergleich mit einem Lauf von v2: Summarize, das nur v2 hat, ist für A gestrichelt.">
+
+![Die Seite Compare runs für einen Lauf von v1 und einen von v2 von Weekly digest: What differs sagt, dass A v1 und B v2 ausführte, und verlinkt See what changed between v1 and v2; im Diagramm zeigen Collect und Post, dass beide Läufe erfolgreich waren, und der gestrichelte Kasten Summarize meldet B als erfolgreich und Not in A's version.](/images/platform/automation-run-compare-versions.webp)
+
+</Frame>
+
 ## Bereits erfolgte Änderungen prüfen
 
 Die Auswirkungen protokollieren Connector-Schreibvorgänge mit Node, Connector und Eingabe. Tests verwenden festgelegte Ersatzantworten; Live-Aktionen können externe Systeme ändern. Fehlen protokollierte Auswirkungen, zeigt der Lauf das ausdrücklich an.

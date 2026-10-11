@@ -97,6 +97,12 @@ Tale refuses a retry it cannot do faithfully and says why: the version to run ch
 
 **Compare with it** on a replay, **Compare with the previous run** in the **Run again** menu, or two runs selected in the **Runs** tab and **Compare** opens two runs side by side. **What differs** names, most telling first, the versions they ran, how many fields of their input differ, the step where they split and why, such as a condition that went the other way, how each ended, and their output and writes. The table below lists each step with how each run left it and whether its data is the same. **Swap A and B** swaps the two runs. When their input or output differs, **Input: A → B** and **Output: A → B** show the two side by side, each changed field marked. **Both runs on the chart** draws the two on one chart: each step says how A and how B left it, and the step where they part is ringed. Runs of one version share its chart. Runs of two versions are drawn on the steps of both, and a step one run’s version lacks is dashed and says so, such as **Not in B's version**. Under **What differs**, **See what changed between v3 and v4** opens the comparison of the two versions, as [Compare two versions](/platform/automations/editor#compare) describes.
 
+<Frame caption="A run of v1 compared with a run of v2: Summarize, which only v2 has, is dashed for A.">
+
+![The Compare runs page for a run of v1 and a run of v2 of Weekly digest: What differs says A ran v1 and B ran v2 and links See what changed between v1 and v2; on the chart Collect and Post show both runs succeeded, and the dashed Summarize box says B succeeded and Not in A's version.](/images/platform/automation-run-compare-versions.webp)
+
+</Frame>
+
 ## Check what the run changed
 
 The effects list records connector writes, with the node, connector and input. A test uses deterministic stand-ins; live actions can change external systems. The run explicitly reports when it has no recorded effects.

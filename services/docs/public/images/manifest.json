@@ -292,6 +292,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-run-compare-versions.webp",
+      "shot": "automation-run-compare-versions",
+      "route": "/dashboard/:orgId/automations/weekly-digest/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 1400
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 2800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-run-detail.webp",
       "shot": "automation-run-detail",
       "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
@@ -457,6 +470,45 @@
       "dpr": 2,
       "width": 1474,
       "height": 2036,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-version-compare.webp",
+      "shot": "automation-version-compare",
+      "route": "/dashboard/:orgId/automations/weekly-digest/versions/4?from=3",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-version-save-review.webp",
+      "shot": "automation-version-save-review",
+      "route": "/dashboard/:orgId/automations/weekly-digest/editor?version=2",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1360,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-versions.webp",
+      "shot": "automation-versions",
+      "route": "/dashboard/:orgId/automations/weekly-digest/versions",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
       "locale": "en"
     },
     {

@@ -30,7 +30,12 @@ const BEFORE = {
   name: 'digest',
   nodes: [
     { id: 'collect', type: 'transform', code: "return 'a';" },
-    { id: 'answer', type: 'transform', code: 'return nodes.collect.output;' },
+    {
+      id: 'answer',
+      type: 'transform',
+      when: '{{ nodes.collect.output }}',
+      code: 'return nodes.collect.output;',
+    },
     { id: 'notify', type: 'transform', code: "return 'n';" },
   ],
   output: '{{ nodes.answer.output }}',
@@ -42,7 +47,12 @@ const AFTER = {
   name: 'digest',
   nodes: [
     { id: 'collect', type: 'transform', code: "return 'b';" },
-    { id: 'reply', type: 'transform', code: 'return nodes.collect.output;' },
+    {
+      id: 'reply',
+      type: 'transform',
+      when: '{{ nodes.collect.output }}',
+      code: 'return nodes.collect.output;',
+    },
     { id: 'archive', type: 'transform', code: "return 'x';" },
   ],
   output: '{{ nodes.reply.output }}',
@@ -92,6 +102,14 @@ describe('the graph of a comparison in Chromium', () => {
     expect(screen.getByRole('button', { name: /^Reply/ })).toHaveTextContent(
       'Was Answer',
     );
+    // Its condition moved with it: one box, unmarked — never a removed and
+    // an added one.
+    expect(
+      document.querySelector('[data-flow-node="__gate:answer"]'),
+    ).toBeNull();
+    expect(
+      document.querySelector('[data-flow-node="__gate:reply"]'),
+    ).not.toHaveAttribute('data-flow-diff');
     await userEvent.click(screen.getByRole('button', { name: /^Collect/ }));
     expect(onSelect).toHaveBeenCalledWith('collect');
   });

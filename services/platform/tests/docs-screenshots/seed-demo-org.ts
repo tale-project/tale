@@ -63,6 +63,7 @@ import {
   DEMO_TEAMS,
   DEMO_TEST_RUN,
   DEMO_TRIGGER_SKIP,
+  DEMO_VERSIONS,
   DEMO_WEBDAV_LABELS,
   DEMO_WEBDAV_RETIRED_LABEL,
   DEMO_WEBHOOK,
@@ -2027,6 +2028,76 @@ async function ensureAutomationFailedRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/** A field of an app API answer, when it is a number. */
+function numberField(body: unknown, field: string): number | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const value: unknown = Reflect.get(body, field);
+  return typeof value === 'number' ? value : null;
+}
+
+/**
+ * The versions demo (`DEMO_VERSIONS`): its versions saved in order through
+ * the app API, each with its message, then deployed one after the other,
+ * and a test run of each of two versions. Idempotent: only the versions,
+ * deploys and runs still missing are made.
+ */
+async function ensureVersionHistory(page: Page, orgId: string): Promise<void> {
+  const { automation, name, versions, deploys, runs } = DEMO_VERSIONS;
+  await page.goto(`/dashboard/${orgId}/automations`);
+  const stored = await appApi(page, orgId, `/automations/${automation}`);
+  const latest =
+    stored.status === 200
+      ? (numberField(stored.body, 'latestVersion') ?? 0)
+      : 0;
+  for (const [index, version] of versions.entries()) {
+    if (index < latest) continue;
+    // Every version carries the display name, as the editor's saves do: a
+    // version without it would read as changing the package data.
+    await appApiOk(page, orgId, `/automations/${automation}/save`, {
+      document: version.document,
+      message: version.message,
+      presentation: { name },
+      ...(index === 0 ? { create: true } : { baseVersion: index }),
+    });
+  }
+  const now = await appApiOk(page, orgId, `/automations/${automation}`);
+  let live = numberField(now, 'deployedVersion');
+  if (live !== deploys.at(-1)) {
+    for (const version of deploys) {
+      if (version === live) continue;
+      await appApiOk(page, orgId, `/automations/${automation}/deploy`, {
+        version,
+        expectedDeployedVersion: live,
+      });
+      live = version;
+    }
+  }
+  if (await hasRun(page, orgId, automation)) return;
+  for (const version of runs) {
+    await appApiOk(page, orgId, `/automations/${automation}/start`, {
+      mode: 'mock',
+      version,
+    });
+  }
+  await expect(async () => {
+    const answer = await appApi(
+      page,
+      orgId,
+      `/automations/runs?limit=5&name=${automation}`,
+    );
+    const listed =
+      typeof answer.body === 'object' &&
+      answer.body !== null &&
+      'runs' in answer.body &&
+      Array.isArray(answer.body.runs)
+        ? (answer.body.runs as { status?: unknown }[])
+        : [];
+    expect(listed.filter((run) => run.status === 'success')).toHaveLength(
+      runs.length,
+    );
+  }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
 /** A demo automation the docs show a live run of. */
 interface LiveRunDemo {
   readonly automation: string;
@@ -2610,6 +2681,7 @@ export async function seedDemoOrg(
     ensureAutomationFailedRun(page, orgId),
   );
   await step('HTTP automation', () => ensureHttpAutomation(page, orgId));
+  await step('version history', () => ensureVersionHistory(page, orgId));
   await step('knowledge search run', () =>
     ensureLiveRun(page, orgId, projects, {
       ...DEMO_KNOWLEDGE_SEARCH,

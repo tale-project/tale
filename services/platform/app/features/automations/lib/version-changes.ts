@@ -7,6 +7,7 @@ import type {
 } from '@/lib/engine/core/diff/automation';
 import type { ChangeSummary } from '@/lib/engine/core/diff/changes';
 
+import { gateIdOf } from './flow-ids';
 import { fieldName } from './issue-text';
 import { nodeTitle } from './node-face';
 
@@ -84,6 +85,19 @@ export function flowNodeChanges(
     });
   }
   return marks;
+}
+
+/** The condition in front of each renamed node, by its new id: the older
+ * id it stands for on a comparison's chart, one box with its node. */
+export function renamedGates(
+  diff: AutomationDiff,
+): ReadonlyMap<string, string> {
+  const gates = new Map<string, string>();
+  for (const node of diff.nodes) {
+    if (node.kind !== 'renamed' || node.renamedFrom === undefined) continue;
+    gates.set(gateIdOf(node.id), gateIdOf(node.renamedFrom));
+  }
+  return gates;
 }
 
 /** How many nodes changed only because they read a renamed node, by the

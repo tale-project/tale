@@ -218,6 +218,12 @@ When **Version** shows an older version than the latest, a band above the canvas
 
 You can still edit the older version. The band then adds **Saving creates v6 from v2.**, and saving does exactly that without asking you to reload. The save dialog says **Saves as v6, based on v2.** and warns that the changes made in v3 to v5 are not in your draft, with a link to compare them. In the version history, the new version carries **Based on v2**. To keep those changes, switch to the latest version before you edit.
 
+<Frame caption="Saving an edit of v2 while v4 is the latest: the dialog says what the save creates and which changes the draft leaves out.">
+
+![The Save a new version dialog says Saves as v5, based on v2, warns that changes made in v3 to v4 are not in this draft with a Compare v2 with v4 link, and under Review changes shows Post changed, its code compared line by line.](/images/platform/automation-version-save-review.webp)
+
+</Frame>
+
 ## Deploy and run live
 
 Choose the tested version under **Version** and click the deploy button beside it, which names that version, such as **Deploy v3**; for a version older than the live one, it reads **Roll back to v2**. The **Live** badge marks the deployed version. The deploy works as on **Versions**: a notice confirms it and offers **Undo**, and if another version went live in the meantime, nothing changes and the notice says who deployed it. You can also deploy any saved version from **Versions**, as [Deploy or roll back in one click](#deploy-in-one-click) describes.
@@ -231,6 +237,12 @@ A trigger also runs the deployed version. Set it up only when you are ready for 
 ## Versions and deployments {#versions}
 
 **Versions** shows what runs live and how the automation got there. Its top card names the live version, when it went live, who deployed it and how, such as **in the app** or **with Claude Code through MCP**, and how many of its runs are still in progress. Those runs finish on the version they started with, whatever goes live next. **Compare v1 with v2** shows what the live version changed against the one it replaced. When no version is live yet, the card offers to deploy the latest one.
+
+<Frame caption="The Versions tab: the live version on top, then every saved version with its message, author, changes and tests.">
+
+![The Versions tab of Weekly digest: a card says v3 is live, since when and by whom, with Compare v2 with v3 and Roll back to v2; below it the Versions table lists v4 to v1 with their messages, You in the app, the date, changes such as 1 changed and 1 renamed, and No result under Tests.](/images/platform/automation-versions.webp)
+
+</Frame>
 
 The **Versions** list below the card shows every saved version, newest first:
 
@@ -269,6 +281,12 @@ Choose how to read the changes:
 - **Graph** draws both versions on one chart. An added box has a green frame and **Added**, a removed one is red and struck through, a changed one is amber with what changed at its foot, and a renamed one says its old name, such as **Was Post**. A line only one version draws carries a plus or a minus. The switch above the chart shows either version's own chart with the changes brought forward. Select a box to see its changes beside the chart: Start shows the inputs that changed, End the output.
 - **Changes** lists every change by where it is: **Start: run inputs**, **Nodes**, **End: output**, **Tests** and **Package data**. Open a row to see its fields before and after; code, prompts and conditions are compared line by line. **Show on the graph** selects the box a change belongs to.
 - **YAML** compares the two versions' source line by line, unified or side by side.
+
+<Frame caption="v4 compared with v3 on Graph: Post renamed Publish and Summarize's code changed, with the renamed step's changes beside the chart.">
+
+![The comparison of v4 with v3 of Weekly digest: chips read 1 changed and 1 renamed; the chart marks Summarize as Changed with Code changed and Publish as Renamed with Was Post, and the Changes of the node panel lists Publish as Renamed, Was Post.](/images/platform/automation-version-compare.webp)
+
+</Frame>
 
 On a phone, the page opens on **Changes**. Two versions with the same content say **No differences between v3 and v5**, and the page adds when only their messages differ. The first version is compared with nothing: everything in it is new. Triggers and projects belong to the automation, not to a version, so a comparison never shows them.
 

@@ -264,6 +264,44 @@ describe('mergeFlowGraphs', () => {
     });
   });
 
+  it('keeps the condition in front of a renamed node as one box, unmarked', () => {
+    const graph = (id: string): FlowGraph => ({
+      nodes: [start, step('a'), gate(`__gate:${id}`, 'only-if'), step(id), end],
+      edges: [
+        edge('__start', 'a', 'entry'),
+        edge('a', `__gate:${id}`, 'order'),
+        edge(`__gate:${id}`, id, 'gate'),
+        edge('a', id, 'data'),
+        edge(id, '__end', 'completion'),
+      ],
+    });
+    const merged = mergeFlowGraphs(
+      graph('post'),
+      graph('publish'),
+      (id) =>
+        id === 'publish'
+          ? { kind: 'renamed', renamedFrom: 'Post', beforeId: 'post' }
+          : undefined,
+      (id) => (id === '__gate:publish' ? '__gate:post' : undefined),
+    );
+    expect(ids(merged.graph)).toEqual([
+      '__start',
+      'a',
+      '__gate:publish',
+      'publish',
+      '__end',
+    ]);
+    // The condition is the renamed node's own: no mark, no line of its
+    // own coming or going.
+    expect(merged.diff).toEqual({
+      nodes: {
+        publish: { kind: 'renamed', renamedFrom: 'Post', beforeId: 'post' },
+      },
+      edges: {},
+    });
+    expect(flowGraphProblems(merged.graph)).toEqual([]);
+  });
+
   it('lets the newer Start and End stand for older ones of another id', () => {
     const before: FlowGraph = {
       nodes: [{ ...start, id: 'begin' }, step('a'), { ...end, id: 'finish' }],

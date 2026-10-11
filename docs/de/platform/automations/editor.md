@@ -218,6 +218,12 @@ Zeigt **Version** eine ältere als die neueste Version, sagt ein Band über dem 
 
 Du kannst die ältere Version trotzdem bearbeiten. Das Band ergänzt dann **Beim Speichern entsteht v6 aus v2.**, und genau das geschieht beim Speichern, ohne dass Tale dich zum Neuladen auffordert. Der Speicherdialog meldet **Wird als v6 gespeichert, basierend auf v2.** und warnt mit einem Link zum Vergleich, dass die Änderungen aus v3 bis v5 nicht in deinem Entwurf sind. Im Versionsverlauf trägt die neue Version **Basiert auf v2**. Willst du diese Änderungen behalten, wechsle vor dem Bearbeiten zur neuesten Version.
 
+<Frame caption="Eine Bearbeitung von v2 wird gespeichert, während v4 die neueste ist: Der Dialog nennt, was beim Speichern entsteht und welche Änderungen der Entwurf auslässt.">
+
+![Der Dialog Save a new version meldet Saves as v5, based on v2, warnt, dass die Änderungen aus v3 bis v4 nicht im Entwurf sind, mit dem Link Compare v2 with v4, und zeigt unter Review changes Post als geändert, den Code Zeile für Zeile verglichen.](/images/platform/automation-version-save-review.webp)
+
+</Frame>
+
 ## Bereitstellen und live ausführen
 
 Wähle die getestete Fassung unter **Version** und klicke auf die Schaltfläche daneben, die diese Version nennt, etwa **v3 live schalten**; bei einer älteren Version als der Live-Version heißt sie **Zurück zu v2**. Die Kennzeichnung **Live** markiert die bereitgestellte Version. Das Live-Schalten funktioniert wie unter **Versionen**: Ein Hinweis bestätigt es und bietet **Rückgängig** an. Ist inzwischen eine andere Version live gegangen, ändert sich nichts, und der Hinweis nennt, wer sie live geschaltet hat. Du kannst jede gespeicherte Version auch unter **Versionen** live schalten, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt.
@@ -231,6 +237,12 @@ Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wi
 ## Versionen und Live-Schaltungen {#versions}
 
 **Versionen** zeigt, was live läuft und wie die Automatisierung dorthin kam. Die Karte oben nennt die Live-Version, seit wann sie live ist, wer sie live geschaltet hat und wie, etwa **in der App** oder **mit Claude Code über MCP**, und wie viele ihrer Läufe noch in Arbeit sind. Diese Läufe enden auf der Version, mit der sie gestartet sind, egal was danach live geht. **v1 mit v2 vergleichen** zeigt, was die Live-Version gegenüber der ersetzten geändert hat. Ist noch keine Version live, bietet die Karte an, die neueste live zu schalten.
+
+<Frame caption="Der Tab Versionen: oben die Live-Version, darunter jede gespeicherte Version mit Notiz, Autor, Änderungen und Tests.">
+
+![Der Tab Versions von Weekly digest: Eine Karte meldet v3 is live, seit wann und von wem, mit Compare v2 with v3 und Roll back to v2; darunter listet die Tabelle Versions v4 bis v1 mit ihren Notizen, You in the app, dem Datum, Änderungen wie 1 changed und 1 renamed sowie No result unter Tests.](/images/platform/automation-versions.webp)
+
+</Frame>
 
 Die Liste **Versionen** unter der Karte zeigt jede gespeicherte Version, die neueste zuerst:
 
@@ -269,6 +281,12 @@ Wähle, wie du die Änderungen liest:
 - **Grafik** zeichnet beide Versionen in eine Grafik. Ein neuer Kasten hat einen grünen Rahmen und **Neu**, ein entfernter ist rot und durchgestrichen, ein geänderter gelb mit den Änderungen in seiner Fußzeile, und ein umbenannter nennt seinen alten Namen, etwa **Vorher Post**. Eine Linie, die nur eine Version zieht, trägt ein Plus oder ein Minus. Der Umschalter über der Grafik zeigt die eigene Grafik jeder Version, mit den Änderungen hervorgehoben. Wähle einen Kasten, um seine Änderungen neben der Grafik zu sehen: Start zeigt die geänderten Eingaben, Ende die Ausgabe.
 - **Änderungen** listet jede Änderung nach ihrem Ort: **Start: Laufeingaben**, **Nodes**, **Ende: Ausgabe**, **Tests** und **Paketdaten**. Öffne eine Zeile, um ihre Felder vorher und nachher zu sehen; Code, Prompts und Bedingungen werden Zeile für Zeile verglichen. **In der Grafik zeigen** wählt den Kasten, zu dem eine Änderung gehört.
 - **YAML** vergleicht den Quelltext beider Versionen Zeile für Zeile, untereinander oder nebeneinander.
+
+<Frame caption="v4 im Vergleich mit v3 als Grafik: Post heißt jetzt Publish, der Code von Summarize hat sich geändert, und die Änderungen des umbenannten Schritts stehen neben dem Diagramm.">
+
+![Der Vergleich von v4 mit v3 von Weekly digest: Die Chips lauten 1 changed und 1 renamed; das Diagramm markiert Summarize als Changed mit Code changed und Publish als Renamed mit Was Post, und das Panel Changes of the node listet Publish als Renamed, Was Post.](/images/platform/automation-version-compare.webp)
+
+</Frame>
 
 Auf dem Smartphone öffnet die Seite mit **Änderungen**. Zwei Versionen mit gleichem Inhalt melden **Keine Unterschiede zwischen v3 und v5**, und die Seite sagt dazu, wenn sich nur ihre Notizen unterscheiden. Die erste Version wird mit nichts verglichen: Alles darin ist neu. Trigger und Projekte gehören zur Automatisierung, nicht zu einer Version; ein Vergleich zeigt sie daher nie.
 

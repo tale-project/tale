@@ -97,6 +97,12 @@ Tale refuse une relance qu’il ne peut pas exécuter fidèlement et dit pourquo
 
 **Comparer avec elle** sur une relance, **Comparer avec l’exécution précédente** dans le menu de **Relancer**, ou deux exécutions sélectionnées dans l’onglet **Exécutions** puis **Comparer** affichent deux exécutions côte à côte. **Ce qui diffère** nomme, le plus parlant d’abord, les versions exécutées, le nombre de champs d’entrée qui diffèrent, l’étape où elles divergent et pourquoi, par exemple une condition qui n’a pas donné le même résultat, comment chacune s’est terminée, ainsi que leur sortie et leurs écritures. Le tableau liste chaque étape, comment chaque exécution l’a laissée et si ses données sont identiques. **Échanger A et B** inverse les deux exécutions. Quand leur entrée ou leur sortie diffère, **Entrée : A → B** et **Sortie : A → B** les montrent côte à côte, chaque champ modifié marqué. **Les deux exécutions sur le graphique** les dessine sur un seul graphique : chaque étape dit comment A et B l’ont laissée, et l’étape où elles divergent est entourée. Les exécutions d’une même version partagent son graphique. Celles de deux versions sont dessinées sur les étapes des deux, et une étape absente de la version d’une exécution est en pointillés et le dit, par exemple **Absent de la version de B**. Sous **Ce qui diffère**, **Voir ce qui a changé entre la v3 et la v4** ouvre la comparaison des deux versions, comme le décrit [Comparer deux versions](/fr/platform/automations/editor#compare).
 
+<Frame caption="Une exécution de la v1 comparée à une exécution de la v2 : Summarize, que seule la v2 possède, est en pointillés pour A.">
+
+![La page Compare runs pour une exécution de la v1 et une de la v2 de Weekly digest : What differs indique que A a exécuté la v1 et B la v2 et propose le lien See what changed between v1 and v2 ; sur le graphique, Collect et Post montrent que les deux exécutions ont réussi, et le bloc en pointillés Summarize indique que B a réussi et Not in A's version.](/images/platform/automation-run-compare-versions.webp)
+
+</Frame>
+
 ## Vérifier les changements déjà effectués
 
 La liste des effets enregistre les écritures des connectors avec leur nœud, leur connector et leurs données. Les essais utilisent des réponses simulées ; les actions réelles peuvent modifier des systèmes externes. L’exécution indique explicitement l’absence d’effets enregistrés.

@@ -127,6 +127,8 @@ const { graph, diff } = mergeFlowGraphs(v4, v5, (id) => changes[id]);
 
 The canvas only knows the two graphs' shapes; whether a node's prompt or model changed is for your app to work out. `changed(id)` answers, for a node, `{ kind, summary }`: `kind` is `changed`, `renamed`, `added` or `removed`, and `summary` your words, such as "Model changed". Leave a node out when nothing changed. A node only one version has is added or removed without your answer, and a node whose kind changed under the same id, such as a step that became a condition, reads as changed. For a rename, answer `{ kind: 'renamed', renamedFrom: 'Answer', beforeId: 'answer' }`: the old name in words and the node's id in the older version. The canvas then draws one box, and the lines the old id had count as its own.
 
+A node whose id moved with a rename while nothing about it changed, such as the condition in front of a renamed step, takes the optional fourth argument instead: `standsFor(id)` answers the id it had in the older version. That node stays one box without a mark, where it would otherwise read as one removed and one added.
+
 Each box says what became of it, and keeps its size, so the layout does not change for the marks:
 
 - An added box has a green frame and an **Added** badge.

@@ -793,6 +793,120 @@ export const DEMO_NOTIFY = {
   },
 } as const;
 
+/** The weekly digest's steps, as its versions write them. */
+const DIGEST_COLLECT = {
+  id: 'collect',
+  type: 'transform',
+  code: "return { tasks: ['Ship the pricing page', 'Review the Q4 plan', 'Fix the invoice export'] };",
+} as const;
+const DIGEST_SUMMARIZE = {
+  id: 'summarize',
+  type: 'transform',
+  input: { tasks: '{{ nodes.collect.output.tasks }}' },
+  code: "return { summary: input.tasks.length + ' tasks this week: ' + input.tasks.join(', ') };",
+} as const;
+/** Posts only when the week brought tasks. */
+const DIGEST_WHEN = '{{ nodes.collect.output.tasks.length > 0 }}';
+
+/** One version of the weekly digest's document. */
+function digest(nodes: readonly object[], output: string) {
+  return {
+    version: 1,
+    name: 'weekly-digest',
+    description: "Sums up the team's week and posts it to the team channel.",
+    nodes,
+    output,
+  };
+}
+
+/**
+ * The versions demo: a weekly digest saved in four versions, each with its
+ * message, then deployed twice — v3 goes live in place of v2 — and a test
+ * run of each of its first two versions, which the step v2 added tells
+ * apart. Pictured: its Versions tab, v4 compared with v3 (Post renamed
+ * Publish, Summarize's code changed), an edit of v2 about to be saved, and
+ * the two runs compared on both versions' steps.
+ */
+export const DEMO_VERSIONS = {
+  automation: 'weekly-digest',
+  name: 'Weekly digest',
+  versions: [
+    {
+      message: "Collect the week's open tasks",
+      document: digest(
+        [
+          DIGEST_COLLECT,
+          {
+            id: 'post',
+            type: 'transform',
+            input: { tasks: '{{ nodes.collect.output.tasks }}' },
+            code: "return { text: 'This week: ' + input.tasks.join(', ') };",
+          },
+        ],
+        '{{ nodes.post.output }}',
+      ),
+    },
+    {
+      message: 'Summarize the tasks before posting',
+      document: digest(
+        [
+          DIGEST_COLLECT,
+          DIGEST_SUMMARIZE,
+          {
+            id: 'post',
+            type: 'transform',
+            input: { summary: '{{ nodes.summarize.output.summary }}' },
+            code: 'return { text: input.summary };',
+          },
+        ],
+        '{{ nodes.post.output }}',
+      ),
+    },
+    {
+      message: 'Post only when the week brought tasks',
+      document: digest(
+        [
+          DIGEST_COLLECT,
+          DIGEST_SUMMARIZE,
+          {
+            id: 'post',
+            type: 'transform',
+            when: DIGEST_WHEN,
+            input: { summary: '{{ nodes.summarize.output.summary }}' },
+            code: 'return { text: input.summary };',
+          },
+        ],
+        '{{ nodes.post.output }}',
+      ),
+    },
+    {
+      message: 'Rename Post to Publish and head the summary',
+      document: digest(
+        [
+          DIGEST_COLLECT,
+          {
+            ...DIGEST_SUMMARIZE,
+            code: "return { summary: '# Weekly digest\\n' + input.tasks.length + ' tasks this week: ' + input.tasks.join(', ') };",
+          },
+          {
+            id: 'publish',
+            type: 'transform',
+            when: DIGEST_WHEN,
+            input: { summary: '{{ nodes.summarize.output.summary }}' },
+            code: 'return { text: input.summary };',
+          },
+        ],
+        '{{ nodes.publish.output }}',
+      ),
+    },
+  ],
+  /** Deployed in this order: v3 goes live in place of v2. */
+  deploys: [2, 3],
+  /** Test runs, the second started first: the runs list shows v1's on
+   * top, so v1's run is A when the two are compared. */
+  runs: [2, 1],
+} as const;
+
 /** The write the pull-request review pack may make without a person:
  * posting its review. */
 export const DEMO_APPROVAL_ALLOWANCE = {
