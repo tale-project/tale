@@ -108,6 +108,12 @@ terms:
   - key: brand_kubernetes
     category: brand
     en: Kubernetes
+  - key: brand_incus
+    category: brand
+    en: Incus
+  - key: brand_chromium
+    category: brand
+    en: Chromium
   - key: brand_prometheus
     category: brand
     en: Prometheus
