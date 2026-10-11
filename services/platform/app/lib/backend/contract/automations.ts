@@ -14,24 +14,6 @@ import type {
 
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 import type { Issue } from '@/lib/engine/core/types';
-/** A write action of an automation, as its General tab lists it: whether a
- * step of the latest version makes it, and who allowed it to run without a
- * person. */
-export interface AutomationApprovalAllowanceRow {
-  /** `<connector>.<action>`. */
-  type: string;
-  used: boolean;
-  /** What the organization's approval policy decides for it whatever the
-   * allowance says; null when the allowance decides. */
-  policy: 'requires' | 'allows' | null;
-  allowance: {
-    grantedBy: string;
-    /** The granter's name or email; null for someone erased or gone. */
-    grantedByName: string | null;
-    grantedAt: number;
-  } | null;
-}
-
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 import type { RunDiff } from '@/lib/engine/core/record/compare';
 import type {
@@ -57,6 +39,24 @@ export type { ReplayKind, ReplayPlan } from '@/lib/engine/core/record/replay';
 
 import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
+
+/** A write action of an automation, as its General tab lists it: whether a
+ * step of the latest version makes it, and who allowed it to run without a
+ * person. */
+export interface AutomationApprovalAllowanceRow {
+  /** `<connector>.<action>`. */
+  type: string;
+  used: boolean;
+  /** What the organization's approval policy decides for it whatever the
+   * allowance says; null when the allowance decides. */
+  policy: 'requires' | 'allows' | null;
+  allowance: {
+    grantedBy: string;
+    /** The granter's name or email; null for someone erased or gone. */
+    grantedByName: string | null;
+    grantedAt: number;
+  } | null;
+}
 
 /** How a run was run again, and from which run. */
 export interface RunReplayOf {
