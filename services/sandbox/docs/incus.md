@@ -229,7 +229,8 @@ root disk without a size or on another pool, a `dir` pool.
 no queries, so a session reaches only the egress proxy, and the spawner sets
 the session's resolver (`oci.dns.nameservers`, default the egress proxy's
 address, whose dnsmasq already serves nested containers; override with
-`SANDBOX_INCUS_DNS`). Therefore:
+`SANDBOX_INCUS_DNS`). Incus ignores the name servers DHCP hands out once that
+key is set, so the bridge's own resolver is not consulted. Therefore:
 
 - **`SANDBOX_EGRESS_PROXY` must be an IPv4 literal** (`http://10.20.0.2:3128`),
   and boot refuses a name. A moved proxy address means a changed variable and a
@@ -263,6 +264,48 @@ Incus otherwise does while the first session starts. **To upgrade, give the new
 version a new alias** (or move the alias) before the spawner restarts; an alias
 that already exists is never re-pulled. A create that finds the image gone tells
 the warm-up, which pulls it again while creates wait.
+
+### An example, for one environment
+
+Names and addresses are examples; the table above is the contract. As an
+administrator:
+
+```
+# the project
+incus project create sandbox-pr \
+  -c features.images=true -c features.profiles=true \
+  -c features.storage.volumes=true -c restricted=true \
+  -c restricted.devices.disk=allow -c restricted.devices.disk.paths=tmpfs:
+
+# the sandbox network's ACL (10.20.0.2 is the egress proxy and its resolver,
+# 10.20.0.3 the LLM gateway, 10.20.0.4 the backend, 10.20.0.5 the spawner)
+incus network acl create sandbox-egress
+incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.2/32 protocol=tcp destination_port=3128
+incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.2/32 protocol=tcp destination_port=53
+incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.2/32 protocol=udp destination_port=53
+incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.3/32 protocol=tcp destination_port=8080
+incus network acl rule add sandbox-egress egress action=allow destination=10.20.0.4/32 protocol=tcp destination_port=3005
+incus network acl rule add sandbox-egress ingress action=allow source=10.20.0.5/32 protocol=tcp destination_port=8200
+
+# the profile every session gets: its network device (with the ACL and port
+# isolation) and its root disk
+incus profile create sandbox --project sandbox-pr
+incus profile device add sandbox eth0 nic network=sbx0 \
+  security.acls=sandbox-egress security.port_isolation=true --project sandbox-pr
+incus profile device add sandbox root disk path=/ pool=tank size=30GiB \
+  --project sandbox-pr
+
+# the spawner's certificate, restricted to that project
+incus config trust add-certificate client.crt --name tale-sandbox-pr \
+  --restricted --projects sandbox-pr
+```
+
+The spawner then runs with `SANDBOX_INCUS_ENDPOINT=https://<node>:8443`,
+`SANDBOX_INCUS_PROJECT=sandbox-pr`, `SANDBOX_INCUS_PROFILE=sandbox`,
+`SANDBOX_INCUS_NETWORK=sbx0`, `SANDBOX_INCUS_STORAGE_POOL=tank`,
+`SANDBOX_INCUS_IMAGE=tale-sandbox-runtime`, the three certificate files, and
+`SANDBOX_EGRESS_PROXY=http://10.20.0.2:3128`. The node's own server certificate
+(`/var/lib/incus/server.crt`) must be the pinnable kind described above.
 
 ## Configuration
 
@@ -414,7 +457,7 @@ documentation it was written from.
 6. **Network.** From a session: the proxy works (an HTTPS fetch through
    `HTTPS_PROXY`, a plain one through transparent egress), the LLM gateway and
    backend answer by name, DNS resolves only through the proxy's resolver
-   (`/etc/resolv.conf` lists it first), and everything else (another session,
+   (`/etc/resolv.conf` lists only it), and everything else (another session,
    the node, the Incus API on 8443, the metadata address) is unreachable. From
    the spawner: runnerd on tcp 8200.
 7. **Workspace across stop and resume.** Write a file, stop the session
