@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
@@ -352,6 +353,7 @@ export function WebsiteViewDialog({
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [pagesError, setPagesError] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   // Failed reads since the list last read, kept until one reads: with no
   // page on screen the list says it could not read them, not that the site
@@ -396,13 +398,16 @@ export function WebsiteViewDialog({
         } else {
           return;
         }
+        setOffset(Math.max(0, shownPages.current - PAGE_SIZE));
+        setPagesError(false);
         setHasMore(data.hasMore);
         setIsFirstLoad(false);
         setReadFailures(0);
       },
       onError: (_error, args) => {
         // A read for a state the reader has left says nothing of this list.
-        if ((args.state ?? 'all') !== pageStateRef.current) return;
+        if ((args?.state ?? 'all') !== pageStateRef.current) return;
+        setPagesError(shownPages.current > 0);
         setIsFirstLoad(false);
         setReadFailures((count) => count + 1);
         // Rows already shown stay, and "Load more" asks for the same window
@@ -423,6 +428,7 @@ export function WebsiteViewDialog({
     if (isOpen) {
       searchRequestId.current += 1;
       shownPages.current = 0;
+      setPagesError(false);
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -487,6 +493,7 @@ export function WebsiteViewDialog({
   // for again, not skipped — its successor's answer did not continue the
   // list, and was dropped.
   const loadMore = useCallback(() => {
+    if (isPending) return;
     const nextOffset = shownPages.current;
     setOffset(nextOffset);
     fetchPages({
@@ -495,7 +502,7 @@ export function WebsiteViewDialog({
       limit: PAGE_SIZE,
       ...pageStateArg(pageState),
     });
-  }, [pageState, website._id, fetchPages]);
+  }, [isPending, pageState, website._id, fetchPages]);
 
   // A retry replaces the control that ran it (with the pages once they are
   // back), so focus moves onto the section first instead of falling back to
@@ -521,6 +528,7 @@ export function WebsiteViewDialog({
       pageStateRef.current = next;
       setPageState(next);
       shownPages.current = 0;
+      setPagesError(false);
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -904,14 +912,22 @@ export function WebsiteViewDialog({
                 </Stack>
               </Skeletonize>
 
-              {hasMore && (
+              {pagesError && (
+                <Alert
+                  variant="destructive"
+                  title={t('toast.fetchPagesError')}
+                />
+              )}
+              {(hasMore || pagesError) && (
                 <Row gap={0} justify="center" className="pt-2">
                   <Button
                     variant="secondary"
                     onClick={loadMore}
                     isLoading={isPending}
                   >
-                    {t('pagesDialog.loadMore')}
+                    {pagesError
+                      ? tCommon('actions.tryAgain')
+                      : t('pagesDialog.loadMore')}
                   </Button>
                 </Row>
               )}
