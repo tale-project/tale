@@ -210,13 +210,21 @@ To check the same cases on every save and before every deploy, write them as tes
 
 <Frame caption="For an input-driven workflow, supply JSON and inspect its schema before starting the test.">
 
-![The Test run dialog shows owner and repo JSON values in the code editor and the expanded input schema as a list of fields.](/images/platform/automation-run-input.webp)
+![The Test run dialog shows Start from above Run input (JSON), owner and repo JSON values in the code editor, and the expanded input schema as a list of fields.](/images/platform/automation-run-input.webp)
 
 </Frame>
 
 ### Try the draft {#try-the-draft}
 
 With unsaved changes, **Test run** first asks **What runs**. **This draft (not saved)** runs your changes once with the same mocks, without saving them: the run is kept nowhere and does not appear under **Runs**. The other choice, such as **Version 3**, runs the saved version on screen, as above. The run input is checked against the input schema of the one you choose.
+
+**Start from**, above **Run input (JSON)**, fills the input from a test, one of the five newest runs, the trigger's input, nothing (**Empty**), or a placeholder for each required field (**Fill the required fields**). The dialog opens on your last choice for the automation. When the test you start from simulates steps, **Use the test's simulated outputs and failures** appears, on by default: the try then stands in for those steps as the test does, and they carry **Simulated output** or **Simulated failure** on the canvas. A saved version's run doesn't use them.
+
+<Frame caption="Start from in the Test run dialog of a draft: the tests and runs to take the input from, nothing, or the required fields.">
+
+![The Test run dialog of Order discounts with This draft (not saved) chosen under What runs and the Start from menu open: under Tests, Small order pays full price, Big order gets 10% off and New test; under Runs, a run that succeeded; under Other, Empty and Fill the required fields.](/images/platform/automation-run-start-from.webp)
+
+</Frame>
 
 The draft's run then lies over the canvas in place of the last run, under an **Unsaved test** strip that says how it ended and when, such as **Succeeded in 12 ms** or **Failed at Score**, and it plays back step by step like a recorded run. Select a node to see what it received and returned on its **Unsaved test** tab. Once you change the draft, the strip says **The draft changed since this try.** **Try again** runs the draft as it is now, with the same input; ⌘⇧Enter (Ctrl+Shift+Enter) does the same while the canvas or the inspector has focus. **Hide result** brings back the last run. A try stops after 20 seconds.
 

@@ -341,7 +341,21 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 1332
+      "height": 1516,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-run-start-from.webp",
+      "shot": "automation-run-start-from",
+      "route": "/dashboard/:orgId/automations/order-discounts/editor?panel=tests",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automation-starter-gallery.webp",

@@ -2443,6 +2443,40 @@ export const SHOTS: readonly Shot[] = [
         ),
   },
   {
+    // The Test run dialog of a draft with Start from open: the tests to
+    // start the input from, and nothing or the required fields.
+    name: 'automation-run-start-from',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TESTS.automation}/editor?panel=tests`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      const dock = page.getByRole('region', {
+        name: t('automations.tests.title'),
+        exact: true,
+      });
+      await dock
+        .getByRole('button', { name: t('automations.tests.add') })
+        .first()
+        .click();
+      await page
+        .getByRole('menuitem', { name: t('automations.tests.addFrom.blank') })
+        .click();
+      await page
+        .getByRole('button', { name: t('automations.detail.runMock') })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await page
+        .getByRole('dialog', { name: t('automations.detail.runMock') })
+        .getByRole('button', { name: t('automations.detail.runSource.button') })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('menu')
+        .getByRole('menuitem', { name: DEMO_TESTS.failing }),
+  },
+  {
     // A test run of v1 and one of v2 of the weekly digest compared: what
     // differs, with the way to the versions' comparison, and both runs on
     // the steps of both versions — Summarize, which v1 lacks, dashed for A.
