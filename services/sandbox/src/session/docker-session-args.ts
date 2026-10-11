@@ -34,6 +34,7 @@ import {
 import {
   DEFAULT_SESSION_PROFILE,
   isAgentSessionProfile,
+  SESSION_NO_PROXY,
   sessionAgentProfile,
   sessionDindEnabled,
   sessionSharesPackageCaches,
@@ -90,23 +91,9 @@ interface DockerSessionRunInput {
   egressAddress?: string;
 }
 
-/**
- * Does a session resolve the egress proxy's address once at boot and keep
- * it? Transparent egress relays the session's public connections and its DNS
- * to that address, and Docker-in-sandbox relays its nested containers' and
- * hands the inner engine the address as their DNS server. A session that does
- * neither reaches the proxy only by name through its proxy environment, and
- * so follows the proxy wherever it moves.
- */
-export function sessionPinsEgressAddress(
-  cfg: Pick<SpawnerConfig, 'transparentEgress' | 'runtimeTier'>,
-  dind: boolean,
-): boolean {
-  return (
-    dind ||
-    (cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier))
-  );
-}
+// Shared with the Incus launcher; the Docker backend and its tests import it
+// from here.
+export { sessionPinsEgressAddress } from './session-profile.ts';
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -473,9 +460,9 @@ export function buildDockerSessionRunArgs(
     // and the bridge calls http://backend-api:3005, so both must be in
     // NO_PROXY or the CONNECT would be denied. If
     // EXTERNAL_AGENT_CONNECTORS_URL overrides the host, this list must
-    // match.
+    // match (SESSION_NO_PROXY, shared with the Incus launcher).
     '--env',
-    `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay`,
+    `NO_PROXY=${SESSION_NO_PROXY}`,
     // Per-org shared dep caches (empty under DinD and for the untrusted
     // `default` profile — see cacheEnv above).
     ...cacheEnv,
