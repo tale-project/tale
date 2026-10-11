@@ -103,20 +103,46 @@ export interface UnchangedField {
   value: unknown;
 }
 
+/** What an expectation names at a place: the expected value there, or
+ * nothing to check when it leaves the place out. */
+type Checked = { value: unknown } | null;
+
+/** The part of an expectation under `key` of `checked`; null when the
+ * expectation does not name it. Lists check every position. */
+function checkedChild(checked: Checked, key: string | number): Checked {
+  if (checked === null) return null;
+  const { value } = checked;
+  if (Array.isArray(value)) {
+    return typeof key === 'number' && key < value.length
+      ? { value: value[key] }
+      : null;
+  }
+  if (isRecord(value)) {
+    return Object.hasOwn(value, String(key))
+      ? { value: value[String(key)] }
+      : null;
+  }
+  return null;
+}
+
 /**
  * The places in `after` no change touches, as large as they come: an
  * unchanged object is one entry, not one per field. Walks only into what
- * changed; at most `limit` entries, `total` counts them all.
+ * changed; at most `limit` entries, `total` counts them all. Given the
+ * `expected` value of an `includes` comparison, a place it does not name
+ * was never compared, so it is not counted as unchanged either.
  */
 export function unchangedFields(
   after: unknown,
   changes: readonly DiffChange[],
   limit = 500,
+  expected?: { value: unknown },
 ): { fields: UnchangedField[]; total: number } {
   const pointers = changes.map((change) => change.pointer);
   const fields: UnchangedField[] = [];
   let total = 0;
-  const walk = (node: unknown, path: (string | number)[]) => {
+  const walk = (node: unknown, path: (string | number)[], checked: Checked) => {
+    if (expected !== undefined && checked === null) return;
     const pointer = pointerOf(path);
     const touched = pointers.some((each) => isWithin(each, pointer));
     if (!touched) {
@@ -137,10 +163,11 @@ export function unchangedFields(
             ? node[String(key)]
             : undefined,
         [...path, key],
+        checkedChild(checked, key),
       );
     }
   };
-  walk(after, []);
+  walk(after, [], expected ?? null);
   return { fields, total };
 }
 

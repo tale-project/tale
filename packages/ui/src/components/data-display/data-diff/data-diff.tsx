@@ -52,7 +52,7 @@ import {
   unchangedFields,
   valueKeysAt,
 } from './rows';
-import { DataDiffSummary } from './summary';
+import { DataDiffSummary, type DataDiffWording } from './summary';
 
 export {
   diffShapes,
@@ -67,6 +67,7 @@ export {
   DataDiffSummary,
   diffSummaryText,
   type DataDiffSummaryProps,
+  type DataDiffWording,
 } from './summary';
 
 export type DataDiffLayout = 'list' | 'split';
@@ -90,6 +91,12 @@ export interface DataDiffProps {
   onLayoutChange?: (layout: DataDiffLayout) => void;
   /** The two sides' names: "Before"/"After", "A"/"B", "Pass 2"/"Pass 3". */
   labels?: { before: string; after: string };
+  /**
+   * `expectation` reads `before` as what was expected and `after` as what
+   * came — a test's expected output and the run's: "total: expected 21,
+   * got 14", "currency: expected "CHF", missing". Values mode only.
+   */
+  wording?: DataDiffWording;
   /** Controlled disclosure of the unchanged fields. */
   showUnchanged?: boolean;
   onShowUnchangedChange?: (show: boolean) => void;
@@ -119,6 +126,25 @@ const KIND_STYLE: Readonly<
   reordered: { icon: ArrowDownUp, className: 'text-muted-foreground' },
   unknown: { icon: CircleHelp, className: 'text-muted-foreground' },
 };
+
+/** The sentence of each kind of change, as a change from one value to the
+ *  other or against what was expected. */
+const ROW_KEYS = {
+  change: {
+    added: 'row.added',
+    removed: 'row.removed',
+    changed: 'row.changed',
+    typeChanged: 'row.typeChanged',
+    reordered: 'row.reordered',
+  },
+  expectation: {
+    added: 'expect.row.added',
+    removed: 'expect.row.removed',
+    changed: 'expect.row.changed',
+    typeChanged: 'expect.row.typeChanged',
+    reordered: 'expect.row.reordered',
+  },
+} as const;
 
 /** A slot the sentence keeps for a rich part: the path, set in mono. */
 const SLOT = '\u0002path\u0003';
@@ -247,6 +273,7 @@ export function DataDiff({
   layout = 'list',
   onLayoutChange,
   labels,
+  wording = 'change',
   showUnchanged: controlledShowUnchanged,
   onShowUnchangedChange,
   'aria-label': ariaLabel,
@@ -299,9 +326,14 @@ export function DataDiff({
   const unchanged = useMemo(
     () =>
       mode === 'values' && !result.identical
-        ? unchangedFields(after, result.changes)
+        ? unchangedFields(
+            after,
+            result.changes,
+            500,
+            options?.mode === 'includes' ? { value: before } : undefined,
+          )
         : { fields: [], total: 0 },
-    [mode, result, after],
+    [mode, result, after, before, options?.mode],
   );
   const split = layout === 'split' && wide;
   const marks = useMemo(() => {
@@ -350,26 +382,27 @@ export function DataDiff({
             : t('shape.required', { path: SLOT });
       }
     }
+    const keys = ROW_KEYS[wording];
     switch (change.kind) {
       case 'added':
-        return t('row.added', { path: SLOT, after: inline(change.after) });
+        return t(keys.added, { path: SLOT, after: inline(change.after) });
       case 'removed':
-        return t('row.removed', { path: SLOT, before: inline(change.before) });
+        return t(keys.removed, { path: SLOT, before: inline(change.before) });
       case 'changed':
-        return t('row.changed', {
+        return t(keys.changed, {
           path: SLOT,
           before: inline(change.before),
           after: inline(change.after),
         });
       case 'type-changed':
-        return t('row.typeChanged', {
+        return t(keys.typeChanged, {
           path: SLOT,
           beforeKind: kindWords(change.before),
           afterKind: kindWords(change.after),
           after: inline(change.after),
         });
       case 'reordered':
-        return t('row.reordered', { path: SLOT });
+        return t(keys.reordered, { path: SLOT });
       default:
         return t('row.unknown', { path: SLOT });
     }
@@ -620,6 +653,11 @@ export function DataDiff({
             {t('more', { count: counted - listed })}
           </p>
         ) : null}
+        {(result.notChecked ?? 0) > 0 ? (
+          <p className="text-muted-foreground text-xs">
+            {t('notChecked', { count: result.notChecked })}
+          </p>
+        ) : null}
       </>
     );
   }
@@ -633,7 +671,9 @@ export function DataDiff({
     >
       {related || mode === 'shape' ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {result.identical ? null : <DataDiffSummary counts={result.counts} />}
+          {result.identical ? null : (
+            <DataDiffSummary counts={result.counts} wording={wording} />
+          )}
           {header}
         </div>
       ) : null}
