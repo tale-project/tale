@@ -4,6 +4,10 @@ import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { hasBodyOrAttachments } from '../../../lib/shared/conversations/outbound-content.ts';
 import { inboundRecipientAddress } from '../../../lib/shared/conversations/reply-from.ts';
+import {
+  hasReplyRecipient,
+  UNKNOWN_CONTACT_EMAIL,
+} from '../../../lib/shared/conversations/reply-recipient.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
 import { buildThreadingHeaders } from '../../core/conversations/build_threading_headers.ts';
@@ -416,8 +420,6 @@ async function sendMessageViaConnectorInTx(
   return messageId;
 }
 
-const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
-
 /** Reply on a conversation. An empty `content` beside files is an
  * attachment-only reply; one with neither is refused before any read. */
 export async function replyToConversation(
@@ -485,7 +487,9 @@ export async function replyToConversation(
       409,
     );
   }
-  if (!row.contactEmail || row.contactEmail === UNKNOWN_CONTACT_EMAIL) {
+  // The API lane returned above; this conversation is answered by email.
+  const contactEmail = row.contactEmail ?? '';
+  if (!hasReplyRecipient({ channel: row.channel, contactEmail })) {
     throw new ConversationError(
       'customer_email_not_found',
       'Conversation has no contact email to reply to',
@@ -519,7 +523,7 @@ export async function replyToConversation(
     connectorName: row.connectorName,
     ...(credentialId !== undefined ? { credentialId } : {}),
     content: args.content,
-    to: [row.contactEmail],
+    to: [contactEmail],
     subject,
     html,
     text,

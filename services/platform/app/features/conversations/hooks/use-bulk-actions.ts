@@ -7,6 +7,7 @@ import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { bulkConversationBatches } from '@/lib/shared/conversations/bulk-limit';
 import { plaintextToEmailHtml } from '@/lib/shared/conversations/plaintext-email';
+import { hasReplyRecipient } from '@/lib/shared/conversations/reply-recipient';
 
 import type { SelectionState } from '../types/selection';
 import { isAllSelection } from '../types/selection';
@@ -18,8 +19,6 @@ import {
   useBulkUnarchiveConversations,
   useSendMessageViaConnector,
 } from './mutations';
-
-const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
 export function getSelectedConversationIds(
   selectionState: SelectionState,
@@ -39,10 +38,36 @@ function getSelectedConversations(
   selectionState: SelectionState,
   conversations: ConversationItem[],
 ) {
+  // The selection keeps each row's `id`, as `getSelectedConversationIds`
+  // reads it.
   return isAllSelection(selectionState)
     ? conversations
-    : conversations.filter((c) => selectionState.selectedIds.has(c._id));
+    : conversations.filter((c) => selectionState.selectedIds.has(c.id));
 }
+
+/** A conversation the last bulk send did not reach, as its dialog names it. */
+export interface RefusedSend {
+  /** The conversation's id in the selection. */
+  id: string;
+  /** Who the conversation is with, as its row is headed. */
+  name: string;
+  /** Why the send was refused, when the refusal says. */
+  reason?: string;
+}
+
+/** The bulk send dialog: open or not, sending or not, and what the last
+ * attempt could not reach. */
+export interface BulkSendDialogState {
+  isOpen: boolean;
+  isSending: boolean;
+  refused: RefusedSend[];
+}
+
+const CLOSED_SEND_DIALOG: BulkSendDialogState = {
+  isOpen: false,
+  isSending: false,
+  refused: [],
+};
 
 /** What the bulk door answers for one batch. */
 interface BulkResult {
@@ -161,17 +186,15 @@ export function useBulkActions({
 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
-  const [bulkSendDialog, setBulkSendDialog] = useState({
-    isOpen: false,
-    isSending: false,
-  });
+  const [bulkSendDialog, setBulkSendDialog] =
+    useState<BulkSendDialogState>(CLOSED_SEND_DIALOG);
 
   const openBulkSendDialog = useCallback(() => {
-    setBulkSendDialog({ isOpen: true, isSending: false });
+    setBulkSendDialog({ isOpen: true, isSending: false, refused: [] });
   }, []);
 
   const closeBulkSendDialog = useCallback(() => {
-    setBulkSendDialog({ isOpen: false, isSending: false });
+    setBulkSendDialog(CLOSED_SEND_DIALOG);
   }, []);
 
   const handleSendMessages = useCallback(
@@ -181,26 +204,31 @@ export function useBulkActions({
       const body = message.trim();
       if (!body) return;
 
+      // Who the message goes to is settled here: a list refresh while it
+      // sends neither adds a recipient nor drops one.
+      const recipients = getSelectedConversations(
+        selectionState,
+        conversations,
+      );
+      if (recipients.length === 0) return;
+
       setIsBulkProcessing(true);
-      setBulkSendDialog({ isOpen: true, isSending: true });
+      setBulkSendDialog((dialog) => ({ ...dialog, isSending: true }));
 
       try {
-        const selectedConversations = getSelectedConversations(
-          selectionState,
-          conversations,
-        );
-
-        // Dispatch a real reply to each contact through the conversation's
-        // connector — mirroring the single-conversation reply path. A
-        // conversation without a usable contact email cannot be delivered, so
-        // it is counted as a failure rather than silently dropped.
+        // One reply per conversation through the reply door, as a single
+        // reply goes. A conversation the door would refuse for want of a
+        // recipient — by the door's own rule, which answers a mirrored
+        // conversation through its source — is counted as refused instead.
         const results = await Promise.allSettled(
-          selectedConversations.map((conversation) => {
-            const contactEmail = conversation.contact.email;
-            if (!contactEmail || contactEmail === UNKNOWN_CONTACT_EMAIL) {
-              return Promise.reject(
-                new Error(tConversations('panel.contactEmailNotFound')),
-              );
+          recipients.map(async (conversation) => {
+            if (
+              !hasReplyRecipient({
+                channel: conversation.channel,
+                contactEmail: conversation.contact.email,
+              })
+            ) {
+              throw new Error(tConversations('panel.contactEmailNotFound'));
             }
 
             // Content only: the reply door derives the connector, recipient
@@ -217,10 +245,13 @@ export function useBulkActions({
         );
 
         // In selection order, so the summary names the first refusal.
-        const reasons = results
-          .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-          .map((r) => r.reason);
-        const failedCount = reasons.length;
+        const refused = recipients.flatMap((conversation, index) => {
+          const result = results[index];
+          if (result?.status !== 'rejected') return [];
+          const reason: unknown = result.reason;
+          return [{ conversation, reason }];
+        });
+        const failedCount = refused.length;
         const successCount = results.length - failedCount;
 
         toast({
@@ -231,20 +262,52 @@ export function useBulkActions({
               successCount,
               failedCount,
             }),
-            failedCount > 0 ? firstFailureDetail(reasons) : undefined,
+            failedCount > 0
+              ? firstFailureDetail(refused.map(({ reason }) => reason))
+              : undefined,
           ),
           variant: successCount > 0 ? 'default' : 'destructive',
         });
 
-        setBulkSendDialog({ isOpen: false, isSending: false });
-        onComplete([]);
+        if (failedCount === 0) {
+          setBulkSendDialog(CLOSED_SEND_DIALOG);
+          onComplete([]);
+          return;
+        }
+
+        // A refusal keeps the decision in front of the person: the dialog
+        // stays open with their message and says whom it did not reach. Once
+        // something went out, only the refused conversations stay selected,
+        // so Send tries those again and never re-sends one that went out;
+        // when nothing went out the selection stays as it was (#3924).
+        setBulkSendDialog((dialog) => ({
+          ...dialog,
+          isSending: false,
+          refused: refused.map(({ conversation, reason }) => {
+            const detail = failureDetail(reason);
+            return {
+              id: conversation.id,
+              name:
+                conversation.contact.name ||
+                conversation.title ||
+                tConversations('unknownContact'),
+              ...(detail !== undefined ? { reason: detail } : {}),
+            };
+          }),
+        }));
+        if (successCount > 0) {
+          onComplete(refused.map(({ conversation }) => conversation.id));
+        }
       } catch (error) {
+        // Every send settles above, so this guards only the bookkeeping after
+        // them. What went out is then unknown, so the dialog closes rather
+        // than offer a retry that could send a message twice.
         console.error('Error sending messages:', error);
         toast({
           title: tConversations('bulk.sendFailed'),
           variant: 'destructive',
         });
-        setBulkSendDialog({ isOpen: false, isSending: false });
+        setBulkSendDialog(CLOSED_SEND_DIALOG);
       } finally {
         setIsBulkProcessing(false);
       }
