@@ -253,11 +253,21 @@ describe('issueNavigation', () => {
   });
 
   it('goes to the Source view for a place without a control', () => {
-    for (const pointer of ['/tests/0', '/name', '', '/nodes']) {
+    for (const pointer of ['/name', '', '/nodes']) {
       expect(
         issueNavigation(issue({ code: 'X', at: { pointer } }), DOC, controlsOf),
       ).toEqual({ kind: 'source', pointer });
     }
+  });
+
+  it('goes to a test in the Tests panel, at the place its pointer names', () => {
+    expect(
+      issueNavigation(
+        issue({ code: 'X', at: { pointer: '/tests/0' } }),
+        DOC,
+        controlsOf,
+      ),
+    ).toEqual({ kind: 'test', testIndex: 0, pointer: '/tests/0' });
     expect(
       issueNavigation(
         issue({
@@ -268,10 +278,19 @@ describe('issueNavigation', () => {
         controlsOf,
       ),
     ).toEqual({
-      kind: 'source',
+      kind: 'test',
+      testIndex: 0,
       pointer: '/tests/0/expect',
       subject: 'missing',
     });
+    // The list of tests itself (too many of them): the panel, no test.
+    expect(
+      issueNavigation(
+        issue({ code: 'TESTS_TOO_MANY', at: { pointer: '/tests' } }),
+        DOC,
+        controlsOf,
+      ),
+    ).toEqual({ kind: 'test', testIndex: null, pointer: '/tests' });
   });
 
   it('cannot go to a node the document on screen no longer has', () => {

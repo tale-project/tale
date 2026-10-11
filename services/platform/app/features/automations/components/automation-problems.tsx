@@ -8,7 +8,7 @@ import {
 } from '@tale/ui/issue-list';
 import { formatIssueCounts, type IssueCounts } from '@tale/ui/issue-summary';
 import { SegmentedControl } from '@tale/ui/segmented-control';
-import { WorkbenchDock, WorkbenchSheet } from '@tale/ui/workbench-dock';
+import { WorkbenchSheet } from '@tale/ui/workbench-dock';
 import { forwardRef, type RefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -31,7 +31,7 @@ function filterItems(
   return items;
 }
 
-interface ProblemsContentProps {
+export interface ProblemsContentProps {
   /** Every problem, errors first, in document order. */
   items: readonly IssueItem[];
   counts: IssueCounts;
@@ -49,7 +49,7 @@ interface ProblemsContentProps {
 
 /** The counts in words — or, while a check runs with none to keep,
  * "Checking…", as the Problems button says. */
-function CountsText({
+export function ProblemsCountsText({
   counts,
   status,
 }: {
@@ -63,7 +63,7 @@ function CountsText({
 }
 
 /** The All / Errors / Warnings switch, sized to its labels in every language. */
-function ProblemsFilterControl({
+export function ProblemsFilterControl({
   value,
   onChange,
 }: {
@@ -87,7 +87,8 @@ function ProblemsFilterControl({
   );
 }
 
-const ProblemsList = forwardRef<
+/** The problems the filter lets through, each a way to where it is fixed. */
+export const ProblemsList = forwardRef<
   IssueListHandle,
   Omit<ProblemsContentProps, 'counts' | 'onFilterChange'>
 >(function ProblemsList({ items, status, activeId, onActivate, filter }, ref) {
@@ -105,65 +106,6 @@ const ProblemsList = forwardRef<
       {...(filter !== 'all' && {
         emptyMessage: t('problems.emptyFiltered', { filter }),
       })}
-    />
-  );
-});
-
-export interface AutomationProblemsDockProps extends ProblemsContentProps {
-  /** The region's id — the Problems button's `aria-controls`. */
-  id: string;
-  /** Hides the dock; the editor returns focus to the Problems button. */
-  onClose: () => void;
-}
-
-/**
- * The Problems panel under the canvas, from `lg` up: the workbench dock
- * with one panel — the counts, the filter and Close over the list.
- */
-export const AutomationProblemsDock = forwardRef<
-  IssueListHandle,
-  AutomationProblemsDockProps
->(function AutomationProblemsDock(
-  {
-    id,
-    items,
-    counts,
-    status,
-    activeId,
-    onActivate,
-    filter,
-    onFilterChange,
-    onClose,
-  },
-  ref,
-) {
-  const { t } = useT('automations');
-  return (
-    <WorkbenchDock
-      id={id}
-      activeId="problems"
-      panels={[
-        {
-          id: 'problems',
-          label: t('problems.title'),
-          badge: <CountsText counts={counts} status={status} />,
-          actions: (
-            <ProblemsFilterControl value={filter} onChange={onFilterChange} />
-          ),
-          content: (
-            <ProblemsList
-              ref={ref}
-              items={items}
-              status={status}
-              activeId={activeId}
-              onActivate={onActivate}
-              filter={filter}
-            />
-          ),
-        },
-      ]}
-      closeLabel={t('problems.hide')}
-      onClose={onClose}
     />
   );
 });
@@ -204,7 +146,7 @@ export function AutomationProblemsSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t('problems.title')}
-      description={<CountsText counts={counts} status={status} />}
+      description={<ProblemsCountsText counts={counts} status={status} />}
       actions={
         <ProblemsFilterControl value={filter} onChange={onFilterChange} />
       }

@@ -219,6 +219,24 @@ export function catalogLabel(node: NodeDef, ctx: NodeFaceContext): string {
 }
 
 /**
+ * An action a run made, as the canvas names its node type: "GitHub ·
+ * Create issue"; a model's or an agent's call by its type's word. The type
+ * as written when it names no connector action.
+ */
+export function effectTitle(
+  connector: string,
+  ctx: Pick<NodeFaceContext, 't' | 'catalog' | 'locale'>,
+): string {
+  if (CORE_TYPES.has(connector)) return coreTypeWord(connector, ctx.t);
+  const parts = connectorParts(connector);
+  if (parts === null) return connector;
+  return ctx.t('canvas.node.catalog.connector', {
+    connector: connectorName(parts.connector, ctx.catalog, ctx.locale),
+    action: actionTitle(connector, ctx.catalog, ctx.locale),
+  });
+}
+
+/**
  * An agent that names a model but not a provider — the same predicate the
  * store uses for `deployedUnpinnedAgentNodes`. The run walks connectors at
  * kick time; the editor's preselect can look pinned.

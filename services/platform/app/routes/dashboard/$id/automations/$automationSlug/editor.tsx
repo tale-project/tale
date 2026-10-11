@@ -3,8 +3,10 @@ import { useCallback } from 'react';
 
 import { AutomationEditor } from '@/app/features/automations/components/automation-editor';
 import {
+  applyEditorSearchChange,
   automationEditorSearchSchema,
-  type AutomationEditorView,
+  editorSearchForVersion,
+  type AutomationEditorSearchChange,
 } from '@/app/features/automations/lib/editor-search';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 
@@ -20,17 +22,14 @@ export const Route = createFileRoute(
 
 function AutomationEditorPage() {
   const { id: organizationId, automationSlug } = Route.useParams();
-  const { version, history, view, node } = Route.useSearch();
+  const { version, history, view, node, panel, test } = Route.useSearch();
   const navigate = Route.useNavigate();
   const onSelectVersion = useCallback(
     (next: number | undefined) => {
       void navigate({
-        // The view and the open node stay with the reader across versions.
-        search: (previous) => ({
-          ...(previous.view !== undefined && { view: previous.view }),
-          ...(previous.node !== undefined && { node: previous.node }),
-          ...(next !== undefined && { version: next }),
-        }),
+        // The view, the open node, the panel and the open test stay with
+        // the reader across versions.
+        search: (previous) => editorSearchForVersion(previous, next),
         // Returning to the latest (after a save appends one) corrects the URL
         // rather than adding a history entry; picking a version is a move.
         replace: next === undefined,
@@ -39,15 +38,9 @@ function AutomationEditorPage() {
     [navigate],
   );
   const onSearchChange = useCallback(
-    (change: { view?: AutomationEditorView; node?: string | null }) => {
+    (change: AutomationEditorSearchChange) => {
       void navigate({
-        search: (previous) => {
-          const next = { ...previous };
-          if (change.view !== undefined) next.view = change.view;
-          if (change.node === null) delete next.node;
-          else if (change.node !== undefined) next.node = change.node;
-          return next;
-        },
+        search: (previous) => applyEditorSearchChange(previous, change),
         // Following the reader's view and selection is no move of its own.
         replace: true,
       });
@@ -63,6 +56,8 @@ function AutomationEditorPage() {
       onSelectVersion={onSelectVersion}
       {...(view !== undefined && { view })}
       {...(node !== undefined && { node })}
+      {...(panel !== undefined && { panel })}
+      {...(test !== undefined && { test })}
       onSearchChange={onSearchChange}
     />
   );

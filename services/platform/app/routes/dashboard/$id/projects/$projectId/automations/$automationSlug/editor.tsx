@@ -3,8 +3,10 @@ import { useCallback } from 'react';
 
 import { AutomationEditor } from '@/app/features/automations/components/automation-editor';
 import {
+  applyEditorSearchChange,
   automationEditorSearchSchema,
-  type AutomationEditorView,
+  editorSearchForVersion,
+  type AutomationEditorSearchChange,
 } from '@/app/features/automations/lib/editor-search';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
@@ -20,31 +22,21 @@ export const Route = createFileRoute(
 
 function ProjectAutomationEditorPage() {
   const { id: organizationId, projectId, automationSlug } = Route.useParams();
-  const { version, history, view, node } = Route.useSearch();
+  const { version, history, view, node, panel, test } = Route.useSearch();
   const navigate = Route.useNavigate();
   const onSelectVersion = useCallback(
     (next: number | undefined) => {
       void navigate({
-        search: (previous) => ({
-          ...(previous.view !== undefined && { view: previous.view }),
-          ...(previous.node !== undefined && { node: previous.node }),
-          ...(next !== undefined && { version: next }),
-        }),
+        search: (previous) => editorSearchForVersion(previous, next),
         replace: next === undefined,
       });
     },
     [navigate],
   );
   const onSearchChange = useCallback(
-    (change: { view?: AutomationEditorView; node?: string | null }) => {
+    (change: AutomationEditorSearchChange) => {
       void navigate({
-        search: (previous) => {
-          const next = { ...previous };
-          if (change.view !== undefined) next.view = change.view;
-          if (change.node === null) delete next.node;
-          else if (change.node !== undefined) next.node = change.node;
-          return next;
-        },
+        search: (previous) => applyEditorSearchChange(previous, change),
         replace: true,
       });
     },
@@ -60,6 +52,8 @@ function ProjectAutomationEditorPage() {
       onSelectVersion={onSelectVersion}
       {...(view !== undefined && { view })}
       {...(node !== undefined && { node })}
+      {...(panel !== undefined && { panel })}
+      {...(test !== undefined && { test })}
       onSearchChange={onSearchChange}
     />
   );

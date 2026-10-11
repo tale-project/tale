@@ -139,3 +139,12 @@ export function useReplayRun() {
     errorToast: false,
   });
 }
+
+/** Run the tests of the draft or of a saved version by hand, all or some.
+ * A saved version's whole suite is recorded as its verdict. The Tests panel
+ * says a refusal itself (a spent budget, a draft the checks refuse). */
+export function useRunAutomationTests() {
+  return useBackendMutation('automations/mutations:runAutomationTests', {
+    errorToast: false,
+  });
+}

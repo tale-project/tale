@@ -186,6 +186,8 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   useAutomationProjects: () => ({ data: [] }),
   useAutomationTriggers: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+  // No version keeps a test report here.
+  useAutomationTestReport: () => ({ data: undefined }),
   // Nothing here is allowed to write without approval.
   useApprovalAllowances: () => ({ data: undefined }),
 }));
@@ -203,6 +205,7 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useSaveAutomation: () => ({ mutateAsync: saved, isPending: false }),
   useStartAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
+  useRunAutomationTests: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-navigation-items', () => ({

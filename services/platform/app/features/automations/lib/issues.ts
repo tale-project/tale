@@ -8,7 +8,8 @@
  * inside it. Node problems are reached through the canvas and the inspector;
  * the run input's schema through Start, the output through End; a problem
  * anywhere else in the document (the tests, the name) in the Source view, at
- * the place it names.
+ * the place it names. A test's problem opens that test in the Tests
+ * panel, at its place in the test's YAML.
  */
 
 import type { IssueItem } from '@tale/ui/issue-list';
@@ -49,8 +50,17 @@ export type IssueNavigation =
       anchor: string;
       range?: readonly [number, number];
     }
-  /** A part of the document without a control (the tests, the name): the
-   *  Source view, at the place `pointer` names. */
+  /** A test (`testIndex`), or the list of tests (null): the Tests panel,
+   *  with the test open at the place `pointer` names in it. */
+  | {
+      kind: 'test';
+      testIndex: number | null;
+      pointer: string;
+      range?: readonly [number, number];
+      subject?: 'value' | 'key' | 'missing';
+    }
+  /** A part of the document without a control (the name): the Source
+   *  view, at the place `pointer` names. */
   | {
       kind: 'source';
       pointer: string;
@@ -228,9 +238,10 @@ export function issueCountsByNode(
  * Where "go to" takes the reader: Start's inspector for the run input's
  * schema, End's for the output; in a node, the field's control when the
  * inspector has one for it, else the node (its own list of problems sits at
- * the top of the inspector); and the Source view for every other part of
- * the document. A member name that should not be there (an unknown field)
- * has no control by definition, so it goes to the node.
+ * the top of the inspector); a test in the Tests panel; and the Source view
+ * for every other part of the document. A member name that should not be
+ * there (an unknown field) has no control by definition, so it goes to the
+ * node.
  */
 export function issueNavigation(
   issue: WireAutomationIssue,
@@ -259,10 +270,24 @@ export function issueNavigation(
   const found = nodeOf(issue, doc);
   if (found !== null) return nodeNavigation(issue, found, controlsOf);
   const tokens = pointerTokens(pointer);
+  const subject = issue.at?.subject;
+  if (section === 'tests') {
+    const place = tokens[1];
+    // The place in the document as written; whether the draft on screen
+    // still has a test there is the editor's to see.
+    const testIndex =
+      place !== undefined && /^\d+$/.test(place) ? Number(place) : null;
+    return {
+      kind: 'test',
+      testIndex,
+      pointer,
+      ...(range !== undefined && { range }),
+      ...(subject !== undefined && { subject }),
+    };
+  }
   // A node the document on screen does not have at that place: the check
   // answered for an older draft, and its pointer names nothing here.
   if (section === 'nodes' && tokens.length > 1) return NO_NAVIGATION;
-  const subject = issue.at?.subject;
   return {
     kind: 'source',
     pointer,

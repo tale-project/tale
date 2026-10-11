@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 220 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 228 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1542,6 +1542,37 @@ output:
       editor's Problems list words it (title, code, how to fix), never the
       server's English sentence; nothing is saved and the dialog stays open
       for another file.
+- [ ] `AUTO-F164` · **In the editor of an automation without tests, select
+      Tests** (`testResults.button`) → the panel under the canvas opens on
+      its Tests tab beside Problems with `automations.tests.empty.title`
+      and **Add test**; the address gains `?panel=tests`, and Hide
+      (`automations.tests.hide`) closes the panel and returns focus to the
+      button.
+- [ ] `AUTO-F165` · **Add a test, give it an expected output the
+      automation does not return, then Run all** → the new test opens
+      beside the canvas on Setup as YAML (`automations.tests.inspector.yaml`)
+      with a placeholder for each required input, and the address gains
+      `?test=`; after the run its row reads Failed with
+      `automations.tests.failure.output`, the Tests button counts the cross,
+      and Result shows each differing field as `dataDiff.expect.row.changed`
+      ("total: expected …, got …").
+- [ ] `AUTO-F166` · **Change the automation, or the test, after a run** →
+      the row turns `testResults.status.stale` and keeps its last reason and
+      duration; **Run** in the open test runs it alone and replaces the
+      result. Editing one test leaves the other tests' results standing.
+- [ ] `AUTO-F167` · **With no unsaved changes, Run all on a saved version
+      whose tests fail** → the line above the list reads
+      `automations.tests.source.checked` (by hand, with the date); reload the
+      page and the rows read the version's kept report, its failures in
+      words, Result saying `automations.tests.result.fromReport`.
+- [ ] `AUTO-F168` · **Write an unknown key into a test's YAML, then open
+      Problems and go to the warning** → the Tests tab opens with that test
+      on Setup, the YAML focused and the key selected; Source still marks the
+      problem at its line.
+- [ ] `AUTO-F169` · **Delete a test from its row's menu, then Discard** →
+      focus moves to the next row and a screen reader hears
+      `automations.tests.deleted`; Discard brings the test back with its
+      result.
 
 ## Boundary & error tests
 
@@ -1700,6 +1731,11 @@ output:
       empty response still shows `automations.runs.empty` or
       `automations.versions.empty`. Repeat in EN/DE/FR and check the control's
       visible focus and wrapping in the narrow layout.
+- [ ] `AUTO-B25` · **Run all again and again, from two tabs, until the
+      bench budget is spent** → `automations.tests.rateLimited` with the
+      seconds to wait, Run all disabled with that reason, and Run all working
+      again once the wait is over; a draft the checks refuse instead reads
+      `automations.tests.invalid` and points at Problems.
 - [ ] `AUTO-B24` · **Versions read failures** — Fail the version history
       read, then the deployments read, then the live card's read → each
       shows an announced error with **Try again** in its place, never an
@@ -1867,6 +1903,13 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       returns focus to the pill; focus shows the tooltip as hovering does.
       At 390 px the run compare cards keep their pills and nothing scrolls
       the page sideways.
+- [ ] `AUTO-A25` · **Tests by keyboard and on a phone** → Tab reaches the
+      Tests button, Enter opens the panel on its tab list; Tab moves into the
+      list, ↑/↓ walk the rows, Enter opens a test and focus moves into the
+      inspector; Escape closes it and returns focus to its row. At 390 px the
+      list opens in a sheet; opening a test replaces it with the test's own
+      sheet, whose close returns focus to the Tests button, and nothing
+      scrolls the page sideways.
 - [ ] `AUTO-A23` · **The old-version band and the save review by keyboard and
       on a phone** → Tab reaches the band's two actions in reading order and
       the save dialog's **Review changes**, which opens with Enter or Space;
