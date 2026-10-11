@@ -422,7 +422,7 @@ See the [Kubernetes deployment contract](docs/kubernetes.md).
 
 ## Incus session instances
 
-With `SANDBOX_BACKEND=incus` each session is an ephemeral Incus OCI application
+With `SANDBOX_BACKEND=incus` each session is an Incus OCI application
 container made from the runtime image, with its workspace in a custom volume
 with a quota that outlives the instance across stop and resume. The spawner
 talks to the node's REST API with a restricted client certificate and pins the

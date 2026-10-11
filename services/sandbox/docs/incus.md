@@ -12,7 +12,7 @@ Kubernetes paths are unaffected, and **the backend is off unless
 > node yet. [Verify a node](#verify-a-node-before-trusting-it) lists exactly
 > what only a real host can prove; run it before putting users on this backend.
 
-## Execution model: one ephemeral OCI container per session
+## Execution model: one OCI container per session
 
 Every sandbox run is a **session** (see [sessions.md](sessions.md)): one
 long-lived Incus instance per session running `runnerd`, and one workspace
@@ -28,8 +28,12 @@ is no Unix socket, no `incus` CLI, no exec and no SSH.
   `/docker-entrypoint.sh daemon`. Incus copies the image's environment, working
   directory and user into the instance; the spawner overrides what a session
   needs differently (the proxy, the limits, the user, the labels, the token).
-- It is **ephemeral**: stopping it deletes it, so dead compute disappears by
-  itself and a node reboot leaves no stopped sessions behind. The workspace is
+- It is deliberately **not ephemeral**. An ephemeral instance deletes itself
+  the moment it stops, console log and all, and the console is the only place a
+  start that failed says why. So an instance that ends stays stopped, with its
+  console, until the spawner removes it: a stop, the next create of the same
+  id, the route layer's removal of ended compute after a restart or a node
+  reboot, or the five-minute sweep. The workspace is
   a **custom storage volume** (`tale-ses-ws-<hash>`) mounted at `/agent`, with
   a quota, `security.shifted` (so every new instance, each with an idmap of its
   own, mounts it without a recursive chown) and the session's owner as its
@@ -359,8 +363,10 @@ defaults to are served from it.
 - **Spawner restart.** Sessions keep running (they are not children of the
   spawner) and are re-adopted from their labels; standbys that still match are
   taken over.
-- **Node reboot.** Sessions do not autostart and ephemeral instances do not
-  survive; workspaces do, and the platform resumes sessions on them.
+- **Node reboot.** Sessions do not autostart: each session instance is found
+  stopped, which the route layer treats as ended compute and removes after
+  adoption (the sweep takes what it misses). Workspaces survive, and the
+  platform resumes sessions on them.
 - **Graceful stop.** A busy session's stop asks the instance to shut down for
   the grace period before the forced stop; whether runnerd's own shutdown
   handler runs on that signal is part of the verification below.
@@ -370,7 +376,7 @@ defaults to are served from it.
   volume is gone.
 - **Not supported:** connected devices (the hub), the shared Docker build cache,
   per-organization package caches, and an out-of-memory report on a dead
-  session (an ephemeral instance has vanished by then).
+  session (the backend does not read one from Incus).
 
 ## Verify a node before trusting it
 
@@ -391,7 +397,7 @@ documentation it was written from.
    `kernel_features` the boot checks read; if the restricted view leaves
    `kernel_features` out, the idmapped-mounts warning is silent by design.
 3. **Cold create.** Create a session, then read it with `incus info` and
-   `incus config show`: ephemeral, the `user.tale.*` labels, the `oci.*` and
+   `incus config show`: not ephemeral, the `user.tale.*` labels, the `oci.*` and
    `limits.*` keys of [the mapping](#how-dockers-limits-and-hardening-map), the
    workspace volume mounted at `/agent` and writable by uid 10001, a `/dev/shm`
    of the configured size, one NIC (the profile's) with its ACL. Time it: the
@@ -420,9 +426,12 @@ documentation it was written from.
 8. **Graceful stop.** Start a long exec, stop with a grace period: runnerd gets
    the signal, passes it to the exec and the exec ends before the force; with
    Docker inside, the inner engine shuts down.
-9. **Ephemeral delete.** After a forced stop the instance is gone within
-   seconds; after `incus stop` from outside, likewise; a node reboot leaves no
-   stopped session instance.
+9. **Removal and diagnosis.** After `stopSession` the instance is gone; after
+   the session's process ends by itself (kill runnerd) the instance stays
+   stopped, its console log readable, until the route layer, the next create of
+   the id or the sweep removes it; a create whose entrypoint cannot start fails
+   with the end of the console in its message, and its instance is removed; a
+   node reboot leaves only stopped instances, all removed after adoption.
 10. **Warm pool.** With `SANDBOX_INCUS_POOL_SIZE=2`: the standby script is
     pushed into the _stopped_ OCI instance (root-owned, mode 0755, which only a
     real node proves), two standbys appear and wait (the ready marker exists);

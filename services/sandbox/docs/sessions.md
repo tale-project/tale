@@ -1022,7 +1022,7 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
 ## Incus specifics
 
 Selected with `SANDBOX_BACKEND=incus` (off by default); the full contract is
-[incus.md](incus.md). One ephemeral Incus **OCI application container** per
+[incus.md](incus.md). One Incus **OCI application container** per
 session, made from the same runtime image through the node's REST API
 (`buildSessionInstance`), with `runnerd` reached at the instance's address on
 `:8200`. Names are deterministic (`tale-sbx-ses-<hash>`); identity, owner,
