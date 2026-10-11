@@ -77,6 +77,17 @@ work and retain the normal idle and lifetime cleanup limits.
 There are no hard refusals: choosing a tier + enabling DinD is the operator's
 explicit decision, informed by these warnings.
 
+**Incus** (`SANDBOX_BACKEND=incus`, see [incus.md](incus.md)) has no tier to
+choose: a session is an unprivileged container in a user namespace of its own,
+which is what `sysbox` means to the entrypoint, so the tier is fixed to it.
+Docker inside is **off by default** there and opt-in
+(`SANDBOX_DOCKER_IN_CONTAINER=true`), because an inner engine in an Incus OCI
+application container has not been proven yet; the project must allow container
+nesting and syscall interception (boot checks it), the session gets
+`security.nesting` and the `mknod`/`setxattr` interception, and
+`SANDBOX_INCUS_DOCKER_CONFIG` can replace that set. Keep it off until the
+[node checks](incus.md#verify-a-node-before-trusting-it) for it pass.
+
 ## Enabling it
 
 `SANDBOX_DOCKER_IN_CONTAINER` has a **tier-aware default**, so the safe path is

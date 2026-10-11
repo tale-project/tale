@@ -32,7 +32,7 @@ agent and script nodes within one execution share that session.
 
 ## Architecture
 
-A session is a long-lived container (Docker) / Pod (K8s) running **runnerd**, a
+A session is a long-lived container (Docker) / Pod (K8s) / instance (Incus) running **runnerd**, a
 small control daemon (`services/sandbox-runtime/daemon`, bundled to a single
 `runnerd.mjs` and run by the image's Node 24), under the image's `tini` init as
 PID 1 on every dispatch path — a long-lived container needs a real reaper: what
@@ -46,6 +46,10 @@ over plain HTTP on `:8200`:
   that would outgrow the 63-character DNS label (a member's workspace session)
   is replaced by the first 16 hex digits of its SHA-1, as the K8s backend does.
 - K8s: the Pod IP (read from `status.podIP`).
+- Incus: the address the instance's DHCP lease gave it on the profile's NIC
+  (read from the instance state), and its PID 1 is the `lxc-init` that
+  `lxc.execute.cmd` puts in front of the image's entrypoint rather than `tini`,
+  which reaps all the same. See [Incus specifics](#incus-specifics).
 
 **An exec's leftover processes are ended.** runnerd starts each exec under
 `tale-exec-shim` (`services/sandbox-runtime/daemon/exec-shim/`), a small shim
@@ -698,8 +702,9 @@ namespace resource bounds.
 ### Stop vs destroy — the data-preservation contract
 
 The reaper **stops** (`backend.stopSession`), it does not destroy: the
-container/Pod is removed to release compute, but the **workspace is preserved**
-(host bind-dir on Docker, per-session PVC on K8s). Neither the idle timeout nor
+container/Pod/instance is removed to release compute, but the **workspace is
+preserved** (host bind-dir on Docker, per-session PVC on K8s, per-session
+storage volume on Incus). Neither the idle timeout nor
 the hard TTL ever deletes data — they only hibernate. The next turn **resumes**
 a stopped session by re-creating against the same deterministic `sessionId`,
 which re-attaches the same workspace (`createSession`'s `mkdir`/PVC-ensure are
@@ -1014,11 +1019,59 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
 - Ingress to session Pods on `:8200` (runnerd) is allowed **from the spawner
   Deployment only**.
 
+## Incus specifics
+
+Selected with `SANDBOX_BACKEND=incus` (off by default); the full contract is
+[incus.md](incus.md). One ephemeral Incus **OCI application container** per
+session, made from the same runtime image through the node's REST API
+(`buildSessionInstance`), with `runnerd` reached at the instance's address on
+`:8200`. Names are deterministic (`tale-sbx-ses-<hash>`); identity, owner,
+incarnation, pin and egress address are `user.tale.*` labels, so a restarted
+spawner re-adopts every session from one listing, and a standby claimed from
+the warm pool, which keeps the name it was made with, is found by its label.
+
+**Trust boundary: a restricted certificate instead of the Docker socket.** The
+spawner authenticates with a client certificate restricted to one project
+(`incus config trust add-certificate --restricted --projects <project>`) and
+pins the node's own server certificate; it can create instances and volumes in
+that project and view, never change, the trust store, the pools and the
+`default` project. It holds no host-root handle: a compromised spawner can ask
+the project only for what a restricted project admits (no privileged
+container, host path, raw LXC key or NIC of its own), and boot refuses a node
+that is not set up that way. One certificate and one project per environment.
+The session itself is an unprivileged container with an isolated idmap of its
+own, and its entrypoint runs under `no_new_privs` (Docker's
+`no-new-privileges`, set through `setpriv` since a restricted project cannot
+use `raw.lxc`); Docker inside, as on Docker, keeps the privileges to grow.
+
+The workspace is a custom **storage volume** with a quota (`security.shifted`,
+so each new instance mounts it without a recursive chown), `ensure`d before the
+instance and mounted at `/agent`: `stopSession` removes the instance and
+**keeps** the volume, only `destroySession` deletes it (synchronously, so its
+`deletion` is `done`). A crawler render's (the `default` profile) scratch volume
+goes with its instance. The volume records its session and organization, and the
+workspace cleanup's inventory lists volumes by their `user.tale.sandbox-workspace`
+label like PVCs, so one whose session nothing owns any more is destroyed like any
+other orphaned workspace.
+
+Admission counts the project's listed instances like a Kubernetes namespace
+(listing is authoritative; one spawner per project), CPU and memory are
+unavailable to a restricted certificate, and the optional **warm pool**
+(`SANDBOX_INCUS_POOL_SIZE`) keeps started standbys that a create claims instead
+of waiting for an instance's DHCP lease, never exceeding `SANDBOX_MAX_SESSIONS`
+together with the sessions. Fenced operations (stop, pin, endpoint) compare the
+instance's creation stamp and Incus's own creation time, because Incus has no
+preconditioned delete. Docker inside is opt-in and unproven on this backend.
+
 ## Testing
 
 - Unit: runnerd (exec stream / timeout / cancel / env deny-list / file ops /
   attach replay), `docker-session-args` + `k8s-session-pod-spec` snapshots,
   the session route layer against a fake runnerd, the agent adapters.
+- Incus (no node): `src/backend/incus/*.test.ts` run every method of both
+  backends, the warm pool and the node checks against `fake-incus.ts`, an
+  in-memory Incus API, and the TLS pinning against a real mutual-TLS server. What
+  only a real node proves is listed in [incus.md](incus.md#verify-a-node-before-trusting-it).
 - Image conformance (no LLM, no cluster): `services/platform/tests/integration/container-sandbox-runtime-test.ts`.
 - E2E on kind (needs a cluster): create → exec → kill-container-restart →
   idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC
