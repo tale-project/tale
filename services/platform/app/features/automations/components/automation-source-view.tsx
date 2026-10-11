@@ -17,23 +17,11 @@ import type { RawDocument } from '../lib/draft-document';
 import type { AutomationIssueView } from '../lib/issues';
 import { engineTemplateScan } from '../lib/template-scanner';
 import {
+  downloadYaml,
   SOURCE_ISSUE_ANCHOR,
   sourceFileName,
   yamlSource,
 } from '../lib/yaml-source';
-
-/** Saves the text as a YAML file under `name`. */
-function downloadYaml(text: string, name: string): void {
-  const blob = new Blob([text], { type: 'application/yaml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
 
 export interface AutomationSourceViewProps {
   /** The document on screen: the draft, or the version shown. */

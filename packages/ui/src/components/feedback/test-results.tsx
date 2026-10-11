@@ -91,10 +91,16 @@ export const TEST_STATUS: Readonly<
   },
 };
 
-/** The status's word in the session's language ("Couldn't run"). */
+/** The status's word in the session's language ("Couldn't run"). The same
+ * function across renders while the language stays, so a table's columns
+ * built from it are not rebuilt — and its rows not remounted — on every
+ * render. */
 export function useTestStatusLabel(): (status: TestStatus) => string {
   const { t } = useT('testResults');
-  return (status) => t(TEST_STATUS[status].labelKey);
+  return useCallback(
+    (status: TestStatus) => t(TEST_STATUS[status].labelKey),
+    [t],
+  );
 }
 
 export interface TestStatusIconProps {

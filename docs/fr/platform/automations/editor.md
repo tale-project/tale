@@ -12,8 +12,9 @@ Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre 
 | **Éditeur** | Lire et modifier le workflow, tester une version enregistrée et choisir celle à mettre en service. |
 | **Général** | Choisir ce qui démarre l’automatisation et les projets qui peuvent l’utiliser. |
 | **Exécutions** | Examiner les derniers lancements et ouvrir le détail d’une exécution. |
+| **Versions** | Voir ce qui est en service, toutes les versions enregistrées et les mises en service, et mettre en service, rétablir ou restaurer une version. |
 
-Le sélecteur **Version** reste à droite des onglets Éditeur, Général et Exécutions, sur ordinateur comme sur téléphone. Il affiche les messages de version, les dates, les résultats des tests et la version en service. Sélectionne une ligne pour ouvrir cette version. Sur ordinateur, les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
+Le sélecteur **Version** reste à droite des onglets Éditeur, Général et Exécutions, sur ordinateur comme sur téléphone. Il affiche les messages de version, les dates, les résultats des tests et la version en service. Sélectionne une ligne pour ouvrir cette version. **Versions** affiche tout l’historique ; consulte [Versions et mises en service](#versions). Sur ordinateur, les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
 
 Sur téléphone, la navigation est compacte à l’ouverture d’une automatisation. Le canevas de l’éditeur occupe la hauteur disponible, et les commandes d’exécution et de mise en service se trouvent dans une barre au bas du canevas. Sélectionne un nœud pour ouvrir ses champs — avec Enregistrer et Abandonner — dans un panneau au bas de l’écran.
 
@@ -213,11 +214,43 @@ Utilise le schéma réel du workflow. Un champ numérique attend un nombre JSON,
 
 ## Mettre en service et exécuter en réel
 
-Choisis la version testée sous **Version** et clique sur le bouton voisin, qui nomme cette version, par exemple **Mettre v3 en service**. Le badge **En service** indique la version déployée. Une version dont les tests enregistrés ont échoué ne peut pas être déployée ; corrige la cause et enregistre une nouvelle version.
+Choisis la version testée sous **Version** et clique sur le bouton voisin, qui nomme cette version, par exemple **Mettre v3 en service**. Le badge **En service** indique la version déployée. Une version dont les tests enregistrés ont échoué ne peut pas être déployée ; corrige la cause et enregistre une nouvelle version. Tu peux aussi mettre en service n’importe quelle version enregistrée depuis **Versions**, comme le décrit [Mettre en service ou revenir en arrière en un clic](#deploy-in-one-click).
 
 **Exécuter en réel** lance la version déployée, même si tu en consultes une autre. La confirmation montre le périmètre et, si nécessaire, les **Données de l’exécution (JSON)** pour cette version déployée. Vérifie les deux avant de confirmer. Les exécutions réelles peuvent agir sur les systèmes connectés et attendre une [approbation](/fr/platform/approvals/concepts).
 
 Un déclencheur utilise aussi la version déployée. Configure-le lorsque tu es prêt pour des exécutions répétées ou démarrées par un système externe ; consulte [Déclencheurs d’automatisation](/fr/platform/automations/triggers).
+
+## Versions et mises en service {#versions}
+
+**Versions** montre ce qui s’exécute en service et comment l’automatisation en est arrivée là. La carte du haut nomme la version en service, depuis quand elle l’est, qui l’a mise en service et comment, par exemple **dans l’app** ou **avec Claude Code via MCP**, et combien de ses exécutions sont encore en cours. Ces exécutions se terminent sur la version avec laquelle elles ont démarré, quelle que soit la version mise en service ensuite. Tant qu’aucune version n’est en service, la carte propose de mettre en service la plus récente.
+
+La liste **Versions** sous la carte affiche chaque version enregistrée, de la plus récente à la plus ancienne :
+
+- **Version** porte le badge **En service** sur la version déployée et indique pour les autres quand elles ont été mises en service pour la dernière fois.
+- **Note** affiche la note de version. **Restaure la v3** signale une version restaurée, et **Basée sur la v1** une version enregistrée à partir d’une version plus ancienne que la précédente.
+- **Enregistrée par** indique qui a enregistré la version et comment. Les versions installées par la plateforme affichent **Tale**.
+- **Modifications** compte les nœuds ajoutés, supprimés et modifiés par rapport à la version précédente, et nomme les autres parties modifiées, par exemple **Sortie** ou **Tests**. La première version porte **Première version** ; les versions enregistrées avant ce résumé affichent **Non enregistré**.
+- **Tests** affiche **Réussi** ou **Échoué** selon le résultat des tests de la version à son enregistrement. **Aucun résultat** signifie qu’aucun verdict n’a été conservé, par exemple parce que la version n’a pas de tests.
+
+Sélectionne une ligne pour ouvrir cette version dans **Éditeur**. Son menu propose aussi **Télécharger le YAML**, qui enregistre la version dans un fichier nommé d’après l’automatisation et la version, par exemple `weekly-digest-v3.yml`.
+
+Choisis **Mises en service** au-dessus de la liste pour voir chaque mise en service : quand, quelle version, s’il s’agissait d’un retour en arrière, quelle version elle a remplacée et qui l’a faite. Une version déjà en service avant que Tale ne tienne cet historique apparaît comme **La v4 était en service**, avec la mention **Enregistré avant le début de l’historique.**
+
+La liste des automatisations mène aussi ici : sélectionne le nombre de versions d’une ligne, ou **Historique des versions** dans son menu.
+
+### Mettre en service ou revenir en arrière en un clic {#deploy-in-one-click}
+
+Il faut les droits Développeur, Admin ou Propriétaire. Sur la carte du haut, **Revenir à la v1** remet en service la version que la version actuelle a remplacée ; après un retour, le même emplacement propose de nouveau la version plus récente, par exemple **Mettre v3 en service**. Dans l’une ou l’autre liste, ouvre le menu d’une ligne et choisis **Mettre v5 en service** ou **Revenir à la v3**.
+
+La version est en service immédiatement : les déclencheurs et les nouvelles exécutions réelles l’utilisent, et les exécutions déjà lancées gardent la leur. Un message le confirme, par exemple **La v3 est en service.**, avec **Annuler**, qui remet la version remplacée en service de la même façon. Si le déclencheur de l’automatisation est désactivé, la page le signale et propose **Activer le déclencheur**.
+
+Tale compare la version en service affichée sur ton écran à celle qui est en service au moment du clic. Si quelqu’un d’autre a mis une version en service entre-temps, rien ne change : le message indique qui a mis quelle version en service et quand, et **Afficher les mises en service** ouvre la liste pour que tu puisses choisir à nouveau. Une version qui ne passe plus les vérifications actuelles, ou dont les tests ont échoué, ne peut pas être mise en service. Une boîte de dialogue liste ce qu’il faut corriger, et **Ouvrir la v4 dans l’éditeur** t’y emmène.
+
+### Restaurer une ancienne version {#restore}
+
+Pour faire d’une ancienne version la plus récente, choisis **Restaurer comme nouvelle version** dans le menu de sa ligne. Tale en enregistre une copie par-dessus la dernière version, et les versions intermédiaires restent dans l’historique. La **Note de version** commence par **Restauration de la v3** ; tu peux la modifier. La version en service ne change pas, sauf si tu coches aussi **Mettre la v5 en service tout de suite**.
+
+Après **Restaurer**, un message confirme la nouvelle version, et **Ouvrir la v5** l’affiche dans l’éditeur. Si la dernière version correspond déjà à celle que tu restaures, rien n’est enregistré. Si quelqu’un enregistre une version pendant que la boîte de dialogue est ouverte, celle-ci indique qui et propose de restaurer par-dessus cette version.
 
 ## Examiner un résultat
 
@@ -227,6 +260,6 @@ Passe à **Exécutions** et ouvre une ligne pour le détail complet. Les onglets
 
 ## Revenir à une version ou supprimer
 
-Pour revenir à une ancienne version, ouvre **Version** à droite des onglets, lis les messages et sélectionne la version souhaitée. Sa ligne ouvre **Éditeur** sur cette version ; clique ensuite sur le bouton qui la met en service, par exemple **Mettre v2 en service**. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
+Pour revenir à une ancienne version, ouvre **Versions** et utilise la carte du haut ou le menu de la ligne d’une version, comme le décrit [Mettre en service ou revenir en arrière en un clic](#deploy-in-one-click). Tu peux aussi sélectionner une version antérieure sous **Version**, à droite des onglets. Sa ligne ouvre **Éditeur** sur cette version ; clique ensuite sur le bouton qui la met en service, par exemple **Mettre v2 en service**. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
 
 Pour supprimer l’automatisation, retourne à la liste, ouvre le menu de sa ligne et choisis **Supprimer**. Lis la confirmation qui la nomme. Les versions, le déploiement, le déclencheur et les liens aux projets sont retirés. Une exécution inachevée bloque la suppression : arrête-la ou attends sa fin. Les anciennes exécutions restent soumises à la conservation. Supprimer l’automatisation n’annule pas les actions déjà réalisées.

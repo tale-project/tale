@@ -38,6 +38,14 @@ export const AUTOMATION_WRITE_VIAS = [
 
 export type AutomationWriteVia = (typeof AUTOMATION_WRITE_VIAS)[number];
 
+const WRITE_VIAS: ReadonlySet<string> = new Set(AUTOMATION_WRITE_VIAS);
+
+/** Whether a door, as stored or answered, is one of those this build
+ * knows. */
+export function isAutomationWriteVia(raw: string): raw is AutomationWriteVia {
+  return WRITE_VIAS.has(raw);
+}
+
 const count = z.number().int().nonnegative();
 const versionNumber = z.number().int().min(1);
 

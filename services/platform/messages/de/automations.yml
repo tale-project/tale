@@ -28,6 +28,7 @@ navigation:
   editor: Editor
   general: Allgemein
   runs: Läufe
+  versions: Versionen
 switcher:
   title: Automatisierung wechseln
   searchPlaceholder: Automatisierungen suchen
@@ -664,6 +665,113 @@ versions:
   testsPassed: Tests bestanden
   testsFailed: Tests fehlgeschlagen
   noMessage: Keine Notiz
+  caption: Versionen dieser Automatisierung
+  description: Jede gespeicherte Version, die live geschaltete und wann welche live ging. Ein Lauf behält die Version, mit der er gestartet ist.
+  tabs:
+    label: Verlauf
+    versions: Versionen
+    deployments: Live-Schaltungen
+  columns:
+    version: Version
+    message: Notiz
+    savedBy: Gespeichert von
+    saved: Gespeichert
+    changes: Änderungen
+    tests: Tests
+  entity:
+    one: Version
+    other: Versionen
+  lastLive: 'Zuletzt live geschaltet am {date}'
+  basedOn: 'Basiert auf v{version}'
+  restores: 'Stellt v{version} wieder her'
+  firstVersion: Erste Version
+  changesNotKept: Nicht erfasst
+  testsNone: Kein Ergebnis
+  flags:
+    inputs: Eingaben
+    output: Ausgabe
+    description: Beschreibung
+    tests: Tests
+    other: Weitere Einstellungen
+    package: Paketdaten
+  via:
+    app: in der App
+    upload: per Paket-Upload
+    mcp: über MCP
+    rest: über die API
+    managed: aus verwalteter Konfiguration
+    system: von Tale
+  author:
+    caption: '{client, select, none {{via}} other {mit {client} {via}}}'
+    you: Du
+    tale: Tale
+    former: Ein ehemaliges Mitglied
+    unknown: Nicht erfasst
+    someone: Jemand
+  actions:
+    menu: 'Aktionen für v{version}'
+    openInEditor: Im Editor öffnen
+    restore: Als neue Version wiederherstellen
+    downloadYaml: YAML herunterladen
+    history: Versionsverlauf
+    downloadFailed: 'v{version} konnte nicht heruntergeladen werden'
+deployments:
+  caption: Wann welche Version live ging
+  empty: Noch keine Version war live.
+  entity:
+    one: Live-Schaltung
+    other: Live-Schaltungen
+  live:
+    title: 'v{version} ist live'
+    since: 'Seit {date}'
+    activeRuns: '{count, plural, =0 {Kein Lauf von v{version} ist in Arbeit.} one {# Lauf von v{version} ist in Arbeit und endet auf v{version}.} other {# Läufe von v{version} sind in Arbeit und enden auf v{version}.}}'
+  none: Noch keine Version ist live. Trigger und Live-Läufe starten erst, wenn du eine live schaltest.
+  kind:
+    deploy: 'v{version} live geschaltet'
+    rollback: 'Zurück zu v{version}'
+    recorded: 'v{version} war live'
+  recordedHint: Erfasst, bevor der Verlauf begann.
+  columns:
+    when: Wann
+    what: Was
+    replaced: Ersetzt
+    by: Von
+  actions:
+    menu: 'Aktionen für die Live-Schaltung von v{version}'
+deploy:
+  rollBack: 'Zurück zu v{version}'
+  toast:
+    live: 'v{version} ist live.'
+    liveAgain: 'v{version} ist wieder live.'
+    keep: Bereits gestartete Läufe behalten ihre Version.
+    undo: Rückgängig
+    undoAltText: 'Rückgängig: v{version} wieder live schalten'
+  refused:
+    title: 'v{version} kann nicht live gehen'
+    invalid: 'v{version} besteht die heutigen Prüfungen nicht. Öffne sie, behebe die aufgeführten Punkte und speichere eine neue Version.'
+    testsFailing: 'Die Tests von v{version} schlagen fehl, deshalb kann sie nicht live gehen.'
+    openInEditor: 'v{version} im Editor öffnen'
+  stale:
+    title: 'v{version} wurde nicht live geschaltet'
+    body: '{who, select, you {Du hast um {time} v{current} live geschaltet.} other {{author} hat um {time} v{current} live geschaltet.}} Es wurde nichts geändert. Sieh dir die Live-Schaltungen an und entscheide dann neu.'
+    changed: Die Live-Version hat sich geändert, während diese Seite offen war. Es wurde nichts geändert. Sieh dir die Live-Schaltungen an und entscheide dann neu.
+    showDeployments: Live-Schaltungen anzeigen
+  failed: 'v{version} konnte nicht live geschaltet werden'
+restore:
+  title: 'v{version} als neue Version wiederherstellen?'
+  body: 'Tale speichert eine Kopie von v{version} als v{next}. {count, plural, one {v{from} bleibt im Verlauf.} other {v{from} bis v{to} bleiben im Verlauf.}}'
+  liveStays: Die Live-Version ändert sich nicht.
+  defaultMessage: 'v{version} wiederhergestellt'
+  deployNow: 'v{next} sofort live schalten'
+  confirm: Wiederherstellen
+  stale: '{who, select, you {Du hast v{latest} gespeichert, während dies offen war.} other {{author} hat v{latest} gespeichert, während dies offen war.}} Auf v{latest} aufbauend wiederherstellen?'
+  staleConfirm: 'Auf v{latest} aufbauend wiederherstellen'
+  invalid: 'v{version} besteht die heutigen Prüfungen nicht und lässt sich so nicht wiederherstellen. Öffne sie, behebe die aufgeführten Punkte und speichere eine neue Version.'
+  failed: 'v{version} konnte nicht wiederhergestellt werden'
+  toast:
+    saved: 'v{next} aus v{version} gespeichert.'
+    unchanged: 'v{latest} entspricht bereits v{version}. Es wurde nichts gespeichert.'
+    open: 'v{next} öffnen'
 upload:
   trigger: Paket hochladen
   title: Paket hochladen

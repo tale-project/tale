@@ -12,8 +12,9 @@ Open **Automations**, then select an automation. It opens on **Editor**. An auto
 | **Editor** | Read and change the workflow, test a saved version and choose what runs live. |
 | **General** | Choose what starts the automation and which projects can use it. |
 | **Runs** | Inspect recent executions and open a run’s full record. |
+| **Versions** | See what is live, every saved version and every deployment, and deploy, roll back or restore a version. |
 
-The **Version** selector stays at the right of the Editor, General and Runs tabs on desktop and mobile. Open it to read version messages, dates, test results and the live marker, then select a row to open that version. On desktop, run actions sit beside the tabs together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+The **Version** selector stays at the right of the Editor, General and Runs tabs on desktop and mobile. Open it to read version messages, dates, test results and the live marker, then select a row to open that version. **Versions** shows the whole history instead; see [Versions and deployments](#versions). On desktop, run actions sit beside the tabs together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
 
 On a phone, opening an automation starts with compact navigation. The editor canvas fills the available height, and its run and deploy controls sit in a toolbar at the bottom of the canvas. Selecting a node opens its fields — and Save and Discard — in a panel at the bottom of the screen.
 
@@ -213,11 +214,43 @@ Use the workflow's actual schema. A field typed as a number must receive a JSON 
 
 ## Deploy and run live
 
-Choose the tested version under **Version** and click the deploy button beside it, which names that version, such as **Deploy v3**. The **Live** badge marks the deployed version. A version whose saved tests failed cannot be deployed; correct the cause and save a new version.
+Choose the tested version under **Version** and click the deploy button beside it, which names that version, such as **Deploy v3**. The **Live** badge marks the deployed version. A version whose saved tests failed cannot be deployed; correct the cause and save a new version. You can also deploy any saved version from **Versions**, as [Deploy or roll back in one click](#deploy-in-one-click) describes.
 
 **Run live** starts the deployed version, even if you are viewing another one. Its confirmation shows the scope and, when required, **Run input (JSON)** for that deployed version. Check both before confirming. Live runs may act on connected systems and may wait for an [approval](/platform/approvals/concepts).
 
 A trigger also runs the deployed version. Set it up only when you are ready for repeated or externally initiated execution; see [Automation triggers](/platform/automations/triggers).
+
+## Versions and deployments {#versions}
+
+**Versions** shows what runs live and how the automation got there. Its top card names the live version, when it went live, who deployed it and how, such as **in the app** or **with Claude Code through MCP**, and how many of its runs are still in progress. Those runs finish on the version they started with, whatever goes live next. When no version is live yet, the card offers to deploy the latest one.
+
+The **Versions** list below the card shows every saved version, newest first:
+
+- **Version** carries the **Live** badge on the deployed version and says when another version last went live.
+- **Message** shows the version message. **Restores v3** marks a restored version, and **Based on v1** marks a version saved from an older version than the one before it.
+- **Saved by** names who saved the version and how. Versions the platform installed show **Tale**.
+- **Changes** counts the nodes the version added, removed and changed compared with the version before it, and names other parts that changed, such as **Output** or **Tests**. **First version** marks the first one; versions saved before Tale kept this summary show **Not recorded**.
+- **Tests** says whether the version’s tests **Passed** or **Failed** when it was saved. **No result** means no verdict was kept, for example because the version has no tests.
+
+Select a row to open that version in **Editor**. Its menu also offers **Download YAML**, which saves the version as a file named after the automation and version, such as `weekly-digest-v3.yml`.
+
+Choose **Deployments** above the list to see every time a version went live: when, which version, whether it was a rollback, which version it replaced and who deployed it. A version that was live before Tale kept this history reads **v4 was live** and is marked **Recorded before the history started.**
+
+The automation list leads here as well: select a row’s version count, or choose **Version history** in its row menu.
+
+### Deploy or roll back in one click {#deploy-in-one-click}
+
+You need Developer, Admin or Owner permissions. On the top card, **Roll back to v1** puts back the version the live one replaced; after a rollback, the same place offers the newer version again, such as **Deploy v3**. In either list, open a row’s menu and choose **Deploy v5** or **Roll back to v3**.
+
+The version goes live at once: triggers and new live runs use it, and runs already started keep theirs. A notice confirms it, such as **v3 is live.**, with **Undo**, which puts the replaced version back the same way. If the automation’s trigger is off, the page says so and offers **Turn on the trigger**.
+
+Tale compares the live version on your screen with the one live when you click. If someone else deployed a version in the meantime, nothing changes: the notice names who deployed which version and when, and **Show deployments** opens the list so you can decide again. A version that no longer passes today’s checks, or whose tests failed, cannot go live. A dialog lists what to fix, and **Open v4 in the editor** takes you there.
+
+### Restore an older version {#restore}
+
+To bring an older version back as the newest, choose **Restore as new version** in its row menu. Tale saves a copy of it on top of the latest version, and the versions in between stay in the history. The **Version message** starts as **Restore v3**; you can change it. The live version stays as it is unless you also tick **Make v5 live right away**.
+
+After **Restore**, a notice confirms the new version, and **Open v5** shows it in the editor. If the latest version already matches the one you restore, nothing is saved. If someone saves a version while the dialog is open, the dialog says who and offers to restore on top of that version instead.
 
 ## Diagnose a result
 
@@ -227,6 +260,6 @@ Switch to **Runs** and open a row for the full record. The tabs remain visible w
 
 ## Roll back or delete
 
-To roll back, open **Version** at the right of the tab strip, read the version messages and select an earlier version. Its row opens **Editor** at that version; click its deploy button there, such as **Deploy v2**. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
+To roll back, open **Versions** and use the top card or a version’s row menu, as [Deploy or roll back in one click](#deploy-in-one-click) describes. You can also open an earlier version in **Editor** with **Version** and click its deploy button there, such as **Deploy v2**. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
 
 To delete the automation, return to the list, open its row menu, and select **Delete**. Read the named confirmation. All versions, deployment, trigger, and project bindings are removed. An unfinished run blocks deletion; stop it or let it finish first. Past runs remain subject to retention. Deleting an automation does not undo the actions its runs already performed.

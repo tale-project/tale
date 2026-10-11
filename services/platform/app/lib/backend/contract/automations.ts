@@ -700,20 +700,25 @@ export interface AutomationsContract {
       header: string | null;
     }>;
   };
-  /** A page of the version history, newest first: `before` is the
-   * `nextBefore` the last page answered. */
+  /** The version history, newest first, a page at a time: who saved each
+   * version and through what, what it was based on and changed, its tests,
+   * whether it is live and when it last went live. */
   'automations/queries:listVersionHistory': {
     kind: 'query';
     args: {
       organizationId: string;
       name: string;
-      limit: number;
-      before?: number;
+      paginationOpts: { numItems: number; cursor: null | string };
     };
-    returns: VersionHistory;
+    returns: {
+      page: VersionHistory['versions'];
+      isDone: boolean;
+      continueCursor: string;
+    };
   };
-  /** When each version went live, newest first, a page at a time, and what
-   * is live now with its runs still going. */
+  /** What is live now, since when, by whom and with how many of its runs
+   * still going, and the deploys before it, newest first — the first
+   * `limit` of them, or the page that starts `before` one. */
   'automations/queries:listDeployments': {
     kind: 'query';
     args: {
@@ -723,6 +728,20 @@ export interface AutomationsContract {
       before?: { at: number; id: string };
     };
     returns: DeploymentHistory;
+  };
+  /** Every time a version went live, newest first, a page at a time. */
+  'automations/queries:listDeploymentsPaginated': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      name: string;
+      paginationOpts: { numItems: number; cursor: null | string };
+    };
+    returns: {
+      page: DeploymentHistory['deployments'];
+      isDone: boolean;
+      continueCursor: string;
+    };
   };
   'automations/queries:listVersions': {
     kind: 'query';

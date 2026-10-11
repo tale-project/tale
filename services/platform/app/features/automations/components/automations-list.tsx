@@ -39,7 +39,10 @@ import {
 
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
-import { automationListTarget } from '../lib/list-target';
+import {
+  automationListTarget,
+  automationVersionsTarget,
+} from '../lib/list-target';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
 import { StarterGalleryDialog } from './starter-gallery-dialog';
@@ -209,10 +212,23 @@ export function AutomationsList({
         header: t('list.columnVersions'),
         size: 120,
         meta: { skeleton: { type: 'badge', badge: { variant: 'slate' } } },
+        // The count opens the version history; the row opens the editor.
         cell: ({ row }) => (
-          <Badge variant="slate">
-            {t('list.versionCount', { count: row.original.latest })}
-          </Badge>
+          <Link
+            {...automationVersionsTarget({
+              organizationId,
+              name: row.original.name,
+              boundProjectIds: row.original.projectIds,
+              ...(projectId !== undefined && { listProjectId: projectId }),
+            })}
+            title={t('versions.actions.history')}
+            onClick={(event) => event.stopPropagation()}
+            className="focus-visible:ring-ring inline-flex rounded-md hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <Badge variant="slate">
+              {t('list.versionCount', { count: row.original.latest })}
+            </Badge>
+          </Link>
         ),
       },
       {
@@ -252,6 +268,18 @@ export function AutomationsList({
               organizationId={organizationId}
               name={row.original.name}
               displayName={row.original.displayName}
+              onOpenVersions={() => {
+                void navigate(
+                  automationVersionsTarget({
+                    organizationId,
+                    name: row.original.name,
+                    boundProjectIds: row.original.projectIds,
+                    ...(projectId !== undefined && {
+                      listProjectId: projectId,
+                    }),
+                  }),
+                );
+              }}
             />
           </HStack>
         ),
@@ -265,6 +293,7 @@ export function AutomationsList({
     canAuthor,
     organizationId,
     projectId,
+    navigate,
   ]);
 
   const list = useListPage<AutomationListRow>({

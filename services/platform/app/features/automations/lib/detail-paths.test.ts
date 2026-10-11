@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   automationDetailPathname,
   automationSwitchPathname,
+  editorVersionLink,
 } from './detail-paths';
 
 describe('automationDetailPathname', () => {
@@ -63,5 +64,37 @@ describe('automationSwitchPathname', () => {
     expect(automationSwitchPathname(`${from}-v2/versions`, from, to)).toBe(
       `${to}/editor`,
     );
+  });
+});
+
+describe('editorVersionLink', () => {
+  it('opens the editor at a version, in the shell the page is shown in', () => {
+    expect(
+      editorVersionLink({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        version: 3,
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/editor',
+      params: { id: 'org-1', automationSlug: 'ops__digest' },
+      search: { version: 3 },
+    });
+    expect(
+      editorVersionLink({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        projectId: 'proj-1',
+        version: 3,
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
+      params: {
+        id: 'org-1',
+        projectId: 'proj-1',
+        automationSlug: 'ops__digest',
+      },
+      search: { version: 3 },
+    });
   });
 });

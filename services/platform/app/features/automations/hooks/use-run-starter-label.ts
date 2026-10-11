@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { parseRunStarter } from '@/lib/shared/run-starter';
+
+import { useActorLabel } from './use-actor-label';
 
 /** The two facts a starter label is read from — the door that started the
  * run and, for a trigger, which kind fired. */
@@ -15,52 +15,40 @@ export interface RunStarterFacts {
 /**
  * The words for who or what started a run. `startedBy` names a DOOR
  * (`user:<id>`, `api-key:<id>`, `trigger:<id>`), which is addressing, never
- * a label: the member's name (or e-mail) for a person, "you" for the reader,
- * "(API)" beside the key's owner, and the trigger's kind for a binding. A
- * raw id never reaches the page — a member the directory (once it has
- * answered) no longer lists reads as a former member, and a starter this
- * reader cannot name at all reads as unknown.
+ * a label: a person as {@link useActorLabel} names them, with "(API)"
+ * beside one who started it with a key, and the trigger's kind for a
+ * binding. A starter this reader cannot name — the directory has not
+ * answered yet, or the value names nobody — reads as not recorded.
  */
 export function useRunStarterLabel(
   organizationId: string,
 ): (run: RunStarterFacts) => string {
   const { t } = useT('automations');
-  const { members } = useMembers(organizationId);
-  const { data: me } = useCurrentMemberContext(organizationId);
-  const currentUserId = me?.userId;
+  const actorLabel = useActorLabel(organizationId);
 
   return useCallback(
     (run: RunStarterFacts): string => {
-      const starter = parseRunStarter(run.startedBy);
-      switch (starter.kind) {
-        case 'user':
-        case 'api-key': {
-          const isApi = starter.kind === 'api-key';
-          if (starter.userId === currentUserId) {
-            return t(isApi ? 'runs.starter.youApi' : 'runs.starter.you');
-          }
-          // Until the directory has answered (loading, or failed) nobody is
-          // a former member yet — the neutral wording, never a verdict.
-          if (members === undefined) return t('runs.starter.unknown');
-          const member = members.find((m) => m.userId === starter.userId);
-          const name = member ? member.displayName || member.email : null;
-          if (name === null || name === '' || name === undefined) {
-            return t(
-              isApi
-                ? 'runs.starter.formerMemberApi'
-                : 'runs.starter.formerMember',
-            );
-          }
-          return t(isApi ? 'runs.starter.apiKey' : 'runs.starter.member', {
-            name,
+      if (parseRunStarter(run.startedBy).kind === 'trigger') {
+        return t(`runs.starter.${run.startedVia ?? 'trigger'}`);
+      }
+      const actor = actorLabel(run.startedBy);
+      switch (actor.kind) {
+        case 'you':
+          return t(actor.api ? 'runs.starter.youApi' : 'runs.starter.you');
+        case 'member':
+          return t(actor.api ? 'runs.starter.apiKey' : 'runs.starter.member', {
+            name: actor.name,
           });
-        }
-        case 'trigger':
-          return t(`runs.starter.${run.startedVia ?? 'trigger'}`);
+        case 'former':
+          return t(
+            actor.api
+              ? 'runs.starter.formerMemberApi'
+              : 'runs.starter.formerMember',
+          );
         default:
           return t('runs.starter.unknown');
       }
     },
-    [currentUserId, members, t],
+    [actorLabel, t],
   );
 }

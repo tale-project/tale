@@ -444,7 +444,10 @@ describe('automation editor workbench in Chromium', () => {
         name: 'Automations navigation',
       });
       expect(strip.contains(picker)).toBe(true);
-      expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
+      // The whole history has its own tab; the picker stays the switcher.
+      expect(
+        strip.contains(screen.getByRole('link', { name: 'Versions' })),
+      ).toBe(true);
       const bounds = picker.getBoundingClientRect();
       expect(bounds.left).toBeGreaterThan(
         screen.getByRole('link', { name: 'Editor' }).getBoundingClientRect()

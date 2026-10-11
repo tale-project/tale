@@ -10,7 +10,7 @@ import { AutomationDetailShell } from './automation-detail-shell';
 
 /**
  * The shell is the automation twin of the project detail layout: breadcrumb
- * row, then a tab strip — Editor, General, Versions, Runs — whose trailing
+ * row, then a tab strip — Editor, General, Runs, Versions — whose trailing
  * slot the open tab fills. These tests pin the strip's shape and where its tabs lead on
  * both route families, and the not-found state that keeps the trail.
  */
@@ -167,7 +167,7 @@ describe('AutomationDetailShell', () => {
       within(strip)
         .getAllByRole('link')
         .map((tab) => tab.textContent),
-    ).toEqual(['Editor', 'General', 'Runs']);
+    ).toEqual(['Editor', 'General', 'Runs', 'Versions']);
     expect(screen.getByRole('link', { name: 'Editor' })).toHaveAttribute(
       'href',
       '/dashboard/org-1/automations/billing__dunning/editor',
@@ -176,16 +176,22 @@ describe('AutomationDetailShell', () => {
       'href',
       '/dashboard/org-1/automations/billing__dunning/general',
     );
-    expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute(
       'href',
       '/dashboard/org-1/automations/billing__dunning/runs',
     );
-    // A run's own page is a sub-view of Runs; the other tabs match exactly.
-    expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute(
-      'data-match',
-      'startsWith',
+    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations/billing__dunning/versions',
     );
+    // A run's own page is a sub-view of Runs, and so is a version's compare
+    // page of Versions; the other tabs match exactly.
+    for (const name of ['Runs', 'Versions']) {
+      expect(screen.getByRole('link', { name })).toHaveAttribute(
+        'data-match',
+        'startsWith',
+      );
+    }
     expect(screen.getByRole('link', { name: 'Editor' })).toHaveAttribute(
       'data-match',
       'exact',
@@ -200,6 +206,7 @@ describe('AutomationDetailShell', () => {
       ['Editor', 'editor'],
       ['General', 'general'],
       ['Runs', 'runs'],
+      ['Versions', 'versions'],
     ] as const) {
       expect(screen.getByRole('link', { name: label })).toHaveAttribute(
         'href',
@@ -227,7 +234,21 @@ describe('AutomationDetailShell', () => {
       'data-dirty',
       'false',
     );
-    expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
+      'data-dirty',
+      'false',
+    );
+  });
+
+  it('keeps the version picker on every tab but Versions, which is the history', () => {
+    fixtures.pathname = '/dashboard/org-1/automations/billing__dunning/runs';
+    const { unmount } = renderShell();
+    expect(screen.getByRole('button', { name: 'Version' })).toBeVisible();
+    unmount();
+    fixtures.pathname =
+      '/dashboard/org-1/automations/billing__dunning/versions';
+    renderShell();
+    expect(screen.queryByRole('button', { name: 'Version' })).toBeNull();
   });
 
   it("lights the General tab's dot for an unsaved trigger or project set", () => {
@@ -309,7 +330,11 @@ describe('AutomationDetailShell — a deleted automation', () => {
       'data-disabled',
       'true',
     );
-    expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
+    // The versions went with the automation, like its document.
+    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
+      'data-disabled',
+      'true',
+    );
     expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute(
       'data-disabled',
       'false',

@@ -29,6 +29,9 @@ automationConfiguration:
 automationRuns:
   title: Automation runs
   description: View the automation's run history.
+automationVersions:
+  title: Automation versions
+  description: See every version of the automation, what is live and when each version went live.
 documents:
   title: Documents
   description: Manage your knowledge base documents.

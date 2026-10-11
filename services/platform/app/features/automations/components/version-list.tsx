@@ -9,8 +9,9 @@ import { useNavigate } from '@tanstack/react-router';
 import { CheckCircle2, GitCommitVertical, Radio, XCircle } from 'lucide-react';
 import { useId } from 'react';
 
-import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+
+import { editorVersionLink } from '../lib/detail-paths';
 
 /** One row of the immutable version history, as the store reports it. */
 export interface AutomationVersionSummary {
@@ -66,28 +67,19 @@ export function VersionList({
     );
   }
 
-  const slugParam = automationSlugToParam(automationSlug);
   const selectVersion = (version: number) => {
     if (onSelectVersion) {
       onSelectVersion(version);
       return;
     }
-    void navigate({
-      ...(projectId
-        ? {
-            to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor' as const,
-            params: {
-              id: organizationId,
-              projectId,
-              automationSlug: slugParam,
-            },
-          }
-        : {
-            to: '/dashboard/$id/automations/$automationSlug/editor' as const,
-            params: { id: organizationId, automationSlug: slugParam },
-          }),
-      search: { version },
-    });
+    void navigate(
+      editorVersionLink({
+        organizationId,
+        automationSlug,
+        projectId: projectId || undefined,
+        version,
+      }),
+    );
   };
   return (
     <RadioGroup
@@ -99,6 +91,11 @@ export function VersionList({
     >
       {ordered.map((entry) => {
         const isDeployed = entry.version === deployedVersion;
+        // A version saved without a message keeps an empty one.
+        const message =
+          entry.message === undefined || entry.message.trim() === ''
+            ? t('versions.noMessage')
+            : entry.message;
         return (
           <label
             key={entry.version}
@@ -121,9 +118,9 @@ export function VersionList({
                 </span>
                 <span
                   className="min-w-0 truncate text-sm font-medium"
-                  title={entry.message ?? t('versions.noMessage')}
+                  title={message}
                 >
-                  {entry.message ?? t('versions.noMessage')}
+                  {message}
                 </span>
               </span>
               <span className="flex w-full min-w-0 items-center gap-2">

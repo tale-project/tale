@@ -113,13 +113,13 @@ import { Route as DashboardIdProjectsProjectIdInstructionsRouteImport } from './
 import { Route as DashboardIdProjectsProjectIdFilesRouteImport } from './routes/dashboard/$id/projects/$projectId/files';
 import { Route as DashboardIdProjectsProjectIdAgentsRouteImport } from './routes/dashboard/$id/projects/$projectId/agents';
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken';
-import { Route as DashboardIdAutomationsAutomationSlugVersionsRouteImport } from './routes/dashboard/$id/automations/$automationSlug/versions';
 import { Route as DashboardIdAutomationsAutomationSlugGeneralRouteImport } from './routes/dashboard/$id/automations/$automationSlug/general';
 import { Route as DashboardIdAutomationsAutomationSlugEditorRouteImport } from './routes/dashboard/$id/automations/$automationSlug/editor';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route';
 import { Route as DashboardIdProjectsProjectIdAutomationsRouteRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/route';
 import { Route as DashboardIdProjectsProjectIdTasksIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/index';
 import { Route as DashboardIdProjectsProjectIdAutomationsIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/index';
+import { Route as DashboardIdAutomationsAutomationSlugVersionsIndexRouteImport } from './routes/dashboard/$id/automations/$automationSlug/versions/index';
 import { Route as DashboardIdAutomationsAutomationSlugRunsIndexRouteImport } from './routes/dashboard/$id/automations/$automationSlug/runs/index';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId';
 import { Route as DashboardIdProjectsProjectIdTasksListRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/list';
@@ -129,9 +129,9 @@ import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteImpo
 import { Route as DashboardIdAutomationsAutomationSlugRunsCompareRouteImport } from './routes/dashboard/$id/automations/$automationSlug/runs/compare';
 import { Route as DashboardIdAutomationsAutomationSlugRunsRunIdRouteImport } from './routes/dashboard/$id/automations/$automationSlug/runs/$runId';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/index';
-import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/general';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/editor';
+import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/index';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/index';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
@@ -731,12 +731,6 @@ const DashboardIdChatSharedShareTokenRoute =
     path: '/shared/$shareToken',
     getParentRoute: () => DashboardIdChatRoute,
   } as any);
-const DashboardIdAutomationsAutomationSlugVersionsRoute =
-  DashboardIdAutomationsAutomationSlugVersionsRouteImport.update({
-    id: '/versions',
-    path: '/versions',
-    getParentRoute: () => DashboardIdAutomationsAutomationSlugRoute,
-  } as any);
 const DashboardIdAutomationsAutomationSlugGeneralRoute =
   DashboardIdAutomationsAutomationSlugGeneralRouteImport.update({
     id: '/general',
@@ -772,6 +766,12 @@ const DashboardIdProjectsProjectIdAutomationsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdProjectsProjectIdAutomationsRouteRoute,
+  } as any);
+const DashboardIdAutomationsAutomationSlugVersionsIndexRoute =
+  DashboardIdAutomationsAutomationSlugVersionsIndexRouteImport.update({
+    id: '/versions/',
+    path: '/versions/',
+    getParentRoute: () => DashboardIdAutomationsAutomationSlugRoute,
   } as any);
 const DashboardIdAutomationsAutomationSlugRunsIndexRoute =
   DashboardIdAutomationsAutomationSlugRunsIndexRouteImport.update({
@@ -829,15 +829,6 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute =
     getParentRoute: () =>
       DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
   } as any);
-const DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute =
-  DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRouteImport.update(
-    {
-      id: '/versions',
-      path: '/versions',
-      getParentRoute: () =>
-        DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
-    } as any,
-  );
 const DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute =
   DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRouteImport.update(
     {
@@ -852,6 +843,15 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute =
     {
       id: '/editor',
       path: '/editor',
+      getParentRoute: () =>
+        DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
+    } as any,
+  );
+const DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute =
+  DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRouteImport.update(
+    {
+      id: '/versions/',
+      path: '/versions/',
       getParentRoute: () =>
         DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
     } as any,
@@ -954,7 +954,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug/editor': typeof DashboardIdAutomationsAutomationSlugEditorRoute;
   '/dashboard/$id/automations/$automationSlug/general': typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
-  '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
@@ -1000,15 +999,16 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
   '/dashboard/$id/automations/$automationSlug/runs/': typeof DashboardIdAutomationsAutomationSlugRunsIndexRoute;
+  '/dashboard/$id/automations/$automationSlug/versions/': typeof DashboardIdAutomationsAutomationSlugVersionsIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
-  '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -1068,7 +1068,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug/editor': typeof DashboardIdAutomationsAutomationSlugEditorRoute;
   '/dashboard/$id/automations/$automationSlug/general': typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
-  '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
@@ -1113,15 +1112,16 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
   '/dashboard/$id/automations/$automationSlug/runs': typeof DashboardIdAutomationsAutomationSlugRunsIndexRoute;
+  '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsIndexRoute;
   '/dashboard/$id/projects/$projectId/automations': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
-  '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -1196,7 +1196,6 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug/editor': typeof DashboardIdAutomationsAutomationSlugEditorRoute;
   '/dashboard/$id/automations/$automationSlug/general': typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
-  '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
   '/dashboard/$id/projects/$projectId/files': typeof DashboardIdProjectsProjectIdFilesRoute;
@@ -1242,15 +1241,16 @@ export interface FileRoutesById {
   '/dashboard/$id/projects/$projectId/tasks/list': typeof DashboardIdProjectsProjectIdTasksListRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
   '/dashboard/$id/automations/$automationSlug/runs/': typeof DashboardIdAutomationsAutomationSlugRunsIndexRoute;
+  '/dashboard/$id/automations/$automationSlug/versions/': typeof DashboardIdAutomationsAutomationSlugVersionsIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
-  '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -1324,7 +1324,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/automations/$automationSlug/editor'
     | '/dashboard/$id/automations/$automationSlug/general'
-    | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
     | '/dashboard/$id/projects/$projectId/files'
@@ -1370,15 +1369,16 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
     | '/dashboard/$id/automations/$automationSlug/runs/'
+    | '/dashboard/$id/automations/$automationSlug/versions/'
     | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/general'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/';
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/'
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -1438,7 +1438,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/automations/$automationSlug/editor'
     | '/dashboard/$id/automations/$automationSlug/general'
-    | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
     | '/dashboard/$id/projects/$projectId/files'
@@ -1483,15 +1482,16 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
     | '/dashboard/$id/automations/$automationSlug/runs'
+    | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations'
     | '/dashboard/$id/projects/$projectId/tasks'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/general'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs';
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs'
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
   id:
     | '__root__'
     | '/'
@@ -1565,7 +1565,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/automations/$automationSlug/editor'
     | '/dashboard/$id/automations/$automationSlug/general'
-    | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
     | '/dashboard/$id/projects/$projectId/files'
@@ -1611,15 +1610,16 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/tasks/list'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
     | '/dashboard/$id/automations/$automationSlug/runs/'
+    | '/dashboard/$id/automations/$automationSlug/versions/'
     | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/general'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/compare'
-    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/';
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/'
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -2364,13 +2364,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdChatSharedShareTokenRouteImport;
       parentRoute: typeof DashboardIdChatRoute;
     };
-    '/dashboard/$id/automations/$automationSlug/versions': {
-      id: '/dashboard/$id/automations/$automationSlug/versions';
-      path: '/versions';
-      fullPath: '/dashboard/$id/automations/$automationSlug/versions';
-      preLoaderRoute: typeof DashboardIdAutomationsAutomationSlugVersionsRouteImport;
-      parentRoute: typeof DashboardIdAutomationsAutomationSlugRoute;
-    };
     '/dashboard/$id/automations/$automationSlug/general': {
       id: '/dashboard/$id/automations/$automationSlug/general';
       path: '/general';
@@ -2412,6 +2405,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/projects/$projectId/automations/';
       preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsIndexRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdAutomationsRouteRoute;
+    };
+    '/dashboard/$id/automations/$automationSlug/versions/': {
+      id: '/dashboard/$id/automations/$automationSlug/versions/';
+      path: '/versions';
+      fullPath: '/dashboard/$id/automations/$automationSlug/versions/';
+      preLoaderRoute: typeof DashboardIdAutomationsAutomationSlugVersionsIndexRouteImport;
+      parentRoute: typeof DashboardIdAutomationsAutomationSlugRoute;
     };
     '/dashboard/$id/automations/$automationSlug/runs/': {
       id: '/dashboard/$id/automations/$automationSlug/runs/';
@@ -2476,13 +2476,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
     };
-    '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': {
-      id: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
-      path: '/versions';
-      fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
-      preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRouteImport;
-      parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
-    };
     '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': {
       id: '/dashboard/$id/projects/$projectId/automations/$automationSlug/general';
       path: '/general';
@@ -2495,6 +2488,13 @@ declare module '@tanstack/react-router' {
       path: '/editor';
       fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor';
       preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
+    };
+    '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/': {
+      id: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/';
+      path: '/versions';
+      fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
     };
     '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/': {
@@ -2538,11 +2538,11 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren);
 interface DashboardIdAutomationsAutomationSlugRouteChildren {
   DashboardIdAutomationsAutomationSlugEditorRoute: typeof DashboardIdAutomationsAutomationSlugEditorRoute;
   DashboardIdAutomationsAutomationSlugGeneralRoute: typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
-  DashboardIdAutomationsAutomationSlugVersionsRoute: typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   DashboardIdAutomationsAutomationSlugIndexRoute: typeof DashboardIdAutomationsAutomationSlugIndexRoute;
   DashboardIdAutomationsAutomationSlugRunsRunIdRoute: typeof DashboardIdAutomationsAutomationSlugRunsRunIdRoute;
   DashboardIdAutomationsAutomationSlugRunsCompareRoute: typeof DashboardIdAutomationsAutomationSlugRunsCompareRoute;
   DashboardIdAutomationsAutomationSlugRunsIndexRoute: typeof DashboardIdAutomationsAutomationSlugRunsIndexRoute;
+  DashboardIdAutomationsAutomationSlugVersionsIndexRoute: typeof DashboardIdAutomationsAutomationSlugVersionsIndexRoute;
 }
 
 const DashboardIdAutomationsAutomationSlugRouteChildren: DashboardIdAutomationsAutomationSlugRouteChildren =
@@ -2551,8 +2551,6 @@ const DashboardIdAutomationsAutomationSlugRouteChildren: DashboardIdAutomationsA
       DashboardIdAutomationsAutomationSlugEditorRoute,
     DashboardIdAutomationsAutomationSlugGeneralRoute:
       DashboardIdAutomationsAutomationSlugGeneralRoute,
-    DashboardIdAutomationsAutomationSlugVersionsRoute:
-      DashboardIdAutomationsAutomationSlugVersionsRoute,
     DashboardIdAutomationsAutomationSlugIndexRoute:
       DashboardIdAutomationsAutomationSlugIndexRoute,
     DashboardIdAutomationsAutomationSlugRunsRunIdRoute:
@@ -2561,6 +2559,8 @@ const DashboardIdAutomationsAutomationSlugRouteChildren: DashboardIdAutomationsA
       DashboardIdAutomationsAutomationSlugRunsCompareRoute,
     DashboardIdAutomationsAutomationSlugRunsIndexRoute:
       DashboardIdAutomationsAutomationSlugRunsIndexRoute,
+    DashboardIdAutomationsAutomationSlugVersionsIndexRoute:
+      DashboardIdAutomationsAutomationSlugVersionsIndexRoute,
   };
 
 const DashboardIdAutomationsAutomationSlugRouteWithChildren =
@@ -2849,11 +2849,11 @@ const DashboardIdSettingsRouteWithChildren =
 interface DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren {
   DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
-  DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute;
+  DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute;
 }
 
 const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren: DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren =
@@ -2862,8 +2862,6 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren: Dashbo
       DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute,
     DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute:
       DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute,
-    DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute:
-      DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute,
     DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute:
       DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute,
     DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute:
@@ -2872,6 +2870,8 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren: Dashbo
       DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsCompareRoute,
     DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute:
       DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRoute,
+    DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute:
+      DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsIndexRoute,
   };
 
 const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteWithChildren =

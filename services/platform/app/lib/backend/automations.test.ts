@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   automationActionQueryAdapters,
+  automationPaginatedAdapters,
   automationReadAdapters,
   automationWriteAdapters,
 } from './automations';
@@ -379,44 +380,53 @@ describe('version history adapters [AUTO-R47]', () => {
         deployedVersion: 4,
       }),
     );
-    const read = automationReadAdapters[
+    const listing = automationPaginatedAdapters[
       'automations/queries:listVersionHistory'
-    ]?.(
-      { organizationId: 'org-1', name: 'ops/greet', limit: 1, before: 5 },
-      {},
+    ]?.({ organizationId: 'org-1', name: 'ops/greet' }, {});
+    // Under the automation's key, so a save's hint refreshes the history.
+    expect(listing?.queryKey).toEqual(
+      backendKey('org-1', 'automation', 'versions', 'ops/greet', 'history'),
     );
-    expect(read?.queryKey).toEqual(
-      backendKey('org-1', 'automation', 'versions', 'ops/greet', {
-        limit: 1,
-        before: 5,
-      }),
-    );
-    const page = (await read?.queryFn()) as {
-      versions: Array<Record<string, unknown>>;
-      nextBefore: number | null;
-    };
+    const page = await listing?.fetchPage('5', 1);
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       '/api/app/automations/ops/greet/versions?limit=1&before=5&orgId=org-1',
     );
     // A field the server left out reads as unknown, never as absent.
-    expect(page.versions[0]).toMatchObject({
+    expect(page?.page[0]).toMatchObject({
       version: 4,
       createdVia: 'mcp',
       message: null,
       testsPassed: null,
       deployed: true,
     });
-    expect(page.nextBefore).toBe(4);
+    expect(page).toMatchObject({ isDone: false, continueCursor: '4' });
+  });
+
+  it('asks for the first page without a cursor and ends on the last', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { versions: [], nextBefore: null }));
+    const page = await automationPaginatedAdapters[
+      'automations/queries:listVersionHistory'
+    ]?.({ organizationId: 'org-1', name: 'ops/greet' }, {})?.fetchPage(
+      null,
+      500,
+    );
+    // A page never asks for more than the server answers.
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/greet/versions?limit=200&orgId=org-1',
+    );
+    expect(page).toEqual({ page: [], isDone: true, continueCursor: '' });
   });
 
   it('refuses a page in a shape it does not read, instead of casting it', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(200, { versions: [{ version: 'four' }] }),
     );
-    const read = automationReadAdapters[
+    const listing = automationPaginatedAdapters[
       'automations/queries:listVersionHistory'
-    ]?.({ organizationId: 'org-1', name: 'ops/greet', limit: 1 }, {});
-    await expect(read?.queryFn()).rejects.toThrow();
+    ]?.({ organizationId: 'org-1', name: 'ops/greet' }, {});
+    await expect(listing?.fetchPage(null, 1)).rejects.toThrow();
   });
 
   it('reads the deployment history from where the last page ended', async () => {
@@ -464,6 +474,41 @@ describe('version history adapters [AUTO-R47]', () => {
       '/api/app/automations/ops/greet/deployments?limit=10&before=9500%3Ae-5&orgId=org-1',
     );
     expect(history.deployments[0]?.kind).toBe('rollback');
+  });
+
+  it('pages the deployment history from where the last page ended', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        live: null,
+        deployments: [
+          {
+            id: 'e-3',
+            version: 3,
+            previousVersion: null,
+            deployedAt: 8_000,
+            deployedBy: 'u2',
+            via: 'mcp',
+            clientName: 'Claude Code',
+          },
+        ],
+        nextBefore: { at: 8_000, id: 'e-3' },
+      }),
+    );
+    const listing = automationPaginatedAdapters[
+      'automations/queries:listDeploymentsPaginated'
+    ]?.({ organizationId: 'org-1', name: 'ops/greet' }, {});
+    expect(listing?.queryKey).toEqual(
+      backendKey('org-1', 'automation', 'deployments', 'ops/greet', 'history'),
+    );
+    const page = await listing?.fetchPage('9500:e-5', 50);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/greet/deployments?limit=50&before=9500%3Ae-5&orgId=org-1',
+    );
+    expect(page).toMatchObject({
+      page: [{ version: 3, kind: 'deploy', clientName: 'Claude Code' }],
+      isDone: false,
+      continueCursor: '8000:e-3',
+    });
   });
 
   it('restores a version through its door', async () => {

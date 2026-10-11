@@ -30,6 +30,9 @@ automationConfiguration:
 automationRuns:
   title: Exécutions d'automatisation
   description: Consulte l'historique des exécutions d'automatisation.
+automationVersions:
+  title: Versions d'automatisation
+  description: Consulte chaque version de l'automatisation, celle qui est en service et quand chacune a été mise en service.
 documents:
   title: Documents
   description: Gère les documents de ta base de connaissances.

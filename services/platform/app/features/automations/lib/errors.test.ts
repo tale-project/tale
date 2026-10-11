@@ -10,8 +10,10 @@ import {
 } from '@/tests/utils/lapsed-session';
 
 import {
+  automationDeploymentStale,
   automationErrorIssues,
   automationErrorMessage,
+  automationVersionStale,
   isMissingAutomationRead,
 } from './errors';
 
@@ -148,5 +150,46 @@ describe('automationErrorIssues', () => {
     ).toBeUndefined();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('a stale deploy or save, in words', () => {
+  it('reads who put another version live, when and through what', () => {
+    const error = new AppError({
+      code: 'AUTOMATION_DEPLOYMENT_STALE',
+      message: 'v6 is live now',
+      deployedVersion: 6,
+      expectedDeployedVersion: 5,
+      deployedBy: 'api-key:user-noah',
+      deployedAt: 1_791_000_000_000,
+      deployedVia: 'mcp',
+      deployedClient: 'Claude Code',
+    });
+    expect(automationDeploymentStale(error)).toEqual({
+      version: 6,
+      by: 'api-key:user-noah',
+      at: 1_791_000_000_000,
+      via: 'mcp',
+      client: 'Claude Code',
+    });
+    expect(automationVersionStale(error)).toBeUndefined();
+  });
+
+  it('reads who saved the newer version, and leaves out what it cannot read', () => {
+    const error = new AppError({
+      code: 'AUTOMATION_VERSION_STALE',
+      message: 'v6 was saved',
+      latestVersion: 6,
+      latestCreatedBy: 'user-ada',
+      latestVia: 'a-door-from-the-future',
+    });
+    expect(automationVersionStale(error)).toEqual({
+      version: 6,
+      by: 'user-ada',
+      at: null,
+      via: null,
+      client: null,
+    });
+    expect(automationDeploymentStale(error)).toBeUndefined();
   });
 });

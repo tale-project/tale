@@ -28,6 +28,7 @@ navigation:
   editor: Éditeur
   general: Général
   runs: Exécutions
+  versions: Versions
 switcher:
   title: Changer d'automatisation
   searchPlaceholder: Rechercher des automatisations
@@ -665,6 +666,113 @@ versions:
   testsPassed: Tests réussis
   testsFailed: Tests en échec
   noMessage: Aucune note
+  caption: Versions de cette automatisation
+  description: Chaque version enregistrée, celle qui est en service et quand chacune a été mise en service. Une exécution garde la version avec laquelle elle a démarré.
+  tabs:
+    label: Historique
+    versions: Versions
+    deployments: Mises en service
+  columns:
+    version: Version
+    message: Note
+    savedBy: Enregistrée par
+    saved: Enregistrée
+    changes: Modifications
+    tests: Tests
+  entity:
+    one: version
+    other: versions
+  lastLive: 'Dernière mise en service le {date}'
+  basedOn: 'Basée sur la v{version}'
+  restores: 'Restaure la v{version}'
+  firstVersion: Première version
+  changesNotKept: Non enregistré
+  testsNone: Aucun résultat
+  flags:
+    inputs: Entrées
+    output: Sortie
+    description: Description
+    tests: Tests
+    other: Autres réglages
+    package: Données du paquet
+  via:
+    app: dans l’app
+    upload: par un paquet téléversé
+    mcp: via MCP
+    rest: via l’API
+    managed: depuis la configuration gérée
+    system: par Tale
+  author:
+    caption: '{client, select, none {{via}} other {avec {client} {via}}}'
+    you: Toi
+    tale: Tale
+    former: Un ancien membre
+    unknown: Non enregistré
+    someone: Quelqu’un
+  actions:
+    menu: 'Actions pour la v{version}'
+    openInEditor: Ouvrir dans l’éditeur
+    restore: Restaurer comme nouvelle version
+    downloadYaml: Télécharger le YAML
+    history: Historique des versions
+    downloadFailed: 'La v{version} n’a pas pu être téléchargée'
+deployments:
+  caption: Quand chaque version a été mise en service
+  empty: Aucune version n’a encore été mise en service.
+  entity:
+    one: mise en service
+    other: mises en service
+  live:
+    title: 'La v{version} est en service'
+    since: 'Depuis le {date}'
+    activeRuns: '{count, plural, =0 {Aucune exécution de la v{version} n’est en cours.} one {# exécution de la v{version} est en cours ; elle se termine sur la v{version}.} other {# exécutions de la v{version} sont en cours ; elles se terminent sur la v{version}.}}'
+  none: Aucune version n’est encore en service. Les déclencheurs et les exécutions réelles ne démarrent qu’après une mise en service.
+  kind:
+    deploy: 'v{version} mise en service'
+    rollback: 'Retour à la v{version}'
+    recorded: 'La v{version} était en service'
+  recordedHint: Enregistré avant le début de l’historique.
+  columns:
+    when: Quand
+    what: Quoi
+    replaced: Remplace
+    by: Par
+  actions:
+    menu: 'Actions pour la mise en service de la v{version}'
+deploy:
+  rollBack: 'Revenir à la v{version}'
+  toast:
+    live: 'La v{version} est en service.'
+    liveAgain: 'La v{version} est de nouveau en service.'
+    keep: Les exécutions déjà lancées gardent leur version.
+    undo: Annuler
+    undoAltText: 'Annuler : remettre la v{version} en service'
+  refused:
+    title: 'La v{version} ne peut pas être mise en service'
+    invalid: 'La v{version} ne passe pas les vérifications actuelles. Ouvre-la, corrige les points listés et enregistre une nouvelle version.'
+    testsFailing: 'Les tests de la v{version} échouent : elle ne peut pas être mise en service.'
+    openInEditor: 'Ouvrir la v{version} dans l’éditeur'
+  stale:
+    title: 'La v{version} n’a pas été mise en service'
+    body: '{who, select, you {Tu as mis la v{current} en service à {time}.} other {{author} a mis la v{current} en service à {time}.}} Rien n’a été modifié. Consulte les mises en service, puis choisis à nouveau.'
+    changed: La version en service a changé pendant que cette page était ouverte. Rien n’a été modifié. Consulte les mises en service, puis choisis à nouveau.
+    showDeployments: Afficher les mises en service
+  failed: 'La v{version} n’a pas pu être mise en service'
+restore:
+  title: 'Restaurer la v{version} comme nouvelle version ?'
+  body: 'Tale enregistre une copie de la v{version} comme v{next}. {count, plural, one {La v{from} reste dans l’historique.} other {Les v{from} à v{to} restent dans l’historique.}}'
+  liveStays: La version en service ne change pas.
+  defaultMessage: 'Restauration de la v{version}'
+  deployNow: 'Mettre la v{next} en service tout de suite'
+  confirm: Restaurer
+  stale: '{who, select, you {Tu as enregistré la v{latest} pendant que ceci était ouvert.} other {{author} a enregistré la v{latest} pendant que ceci était ouvert.}} Restaurer par-dessus la v{latest} ?'
+  staleConfirm: 'Restaurer par-dessus la v{latest}'
+  invalid: 'La v{version} ne passe pas les vérifications actuelles et ne peut pas être restaurée telle quelle. Ouvre-la, corrige les points listés et enregistre une nouvelle version.'
+  failed: 'La v{version} n’a pas pu être restaurée'
+  toast:
+    saved: 'La v{next} a été enregistrée à partir de la v{version}.'
+    unchanged: 'La v{latest} correspond déjà à la v{version}. Rien n’a été enregistré.'
+    open: 'Ouvrir la v{next}'
 upload:
   trigger: Téléverser un paquet
   title: Téléverser un paquet

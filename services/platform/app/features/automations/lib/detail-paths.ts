@@ -58,3 +58,32 @@ export function automationSwitchPathname(
   }
   return `${toRoot}/${firstSegment}`;
 }
+
+/**
+ * The editor at one version of an automation, under its project shell when a
+ * project is given — what a version's "Open in editor" follows.
+ */
+export function editorVersionLink({
+  organizationId,
+  automationSlug,
+  projectId,
+  version,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  projectId?: string | undefined;
+  version: number;
+}) {
+  const slug = automationSlugToParam(automationSlug);
+  return projectId !== undefined
+    ? {
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor' as const,
+        params: { id: organizationId, projectId, automationSlug: slug },
+        search: { version },
+      }
+    : {
+        to: '/dashboard/$id/automations/$automationSlug/editor' as const,
+        params: { id: organizationId, automationSlug: slug },
+        search: { version },
+      };
+}

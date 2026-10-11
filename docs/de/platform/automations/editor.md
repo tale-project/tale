@@ -12,8 +12,9 @@ Im Workflow-Editor liest du, was eine Automatisierung tut, änderst ihre Felder 
 | **Editor** | Den Workflow lesen und ändern, eine gespeicherte Version testen und die Live-Version wählen. |
 | **Allgemein** | Festlegen, was die Automatisierung startet und welche Projekte sie nutzen können. |
 | **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
+| **Versionen** | Sehen, was live ist, alle gespeicherten Versionen und Live-Schaltungen prüfen und eine Version live schalten, zurückholen oder wiederherstellen. |
 
-Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt Versionsnachrichten, Datum, Testergebnisse und die Live-Markierung. Wähle eine Zeile, um diese Version zu öffnen. Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt Versionsnachrichten, Datum, Testergebnisse und die Live-Markierung. Wähle eine Zeile, um diese Version zu öffnen. **Versionen** zeigt stattdessen den ganzen Verlauf; siehe [Versionen und Live-Schaltungen](#versions). Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
 
 Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigation. Der Canvas des Editors nutzt die verfügbare Höhe, und Lauf- und Bereitstellungsaktionen stehen in einer Leiste am unteren Rand des Canvas. Wenn du eine Node auswählst, öffnen sich ihre Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
 
@@ -213,11 +214,43 @@ Maßgeblich ist das tatsächliche Schema des Workflows. Ein Zahlenfeld braucht e
 
 ## Bereitstellen und live ausführen
 
-Wähle die getestete Fassung unter **Version** und klicke auf die Schaltfläche daneben, die diese Version nennt, etwa **v3 live schalten**. Die Kennzeichnung **Live** markiert die bereitgestellte Version. Sind die gespeicherten Tests einer Version fehlgeschlagen, lässt sie sich nicht bereitstellen. Behebe die Ursache und speichere eine neue Version.
+Wähle die getestete Fassung unter **Version** und klicke auf die Schaltfläche daneben, die diese Version nennt, etwa **v3 live schalten**. Die Kennzeichnung **Live** markiert die bereitgestellte Version. Sind die gespeicherten Tests einer Version fehlgeschlagen, lässt sie sich nicht bereitstellen. Behebe die Ursache und speichere eine neue Version. Du kannst jede gespeicherte Version auch unter **Versionen** live schalten, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt.
 
 **Live ausführen** startet die bereitgestellte Version, auch wenn du eine andere ansiehst. Die Bestätigung zeigt den Umfang und bei Bedarf **Eingabe für den Lauf (JSON)** für genau diese Version. Prüfe beides vor dem Bestätigen. Live-Läufe können verbundene Systeme verändern und auf eine [Freigabe](/de/platform/approvals/concepts) warten.
 
 Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wiederholte oder extern ausgelöste Läufe gewünscht sind; siehe [Automatisierungstrigger](/de/platform/automations/triggers).
+
+## Versionen und Live-Schaltungen {#versions}
+
+**Versionen** zeigt, was live läuft und wie die Automatisierung dorthin kam. Die Karte oben nennt die Live-Version, seit wann sie live ist, wer sie live geschaltet hat und wie, etwa **in der App** oder **mit Claude Code über MCP**, und wie viele ihrer Läufe noch in Arbeit sind. Diese Läufe enden auf der Version, mit der sie gestartet sind, egal was danach live geht. Ist noch keine Version live, bietet die Karte an, die neueste live zu schalten.
+
+Die Liste **Versionen** unter der Karte zeigt jede gespeicherte Version, die neueste zuerst:
+
+- **Version** kennzeichnet die Live-Version mit **Live** und sagt bei den anderen, wann sie zuletzt live geschaltet wurden.
+- **Notiz** zeigt die Versionsnotiz. **Stellt v3 wieder her** kennzeichnet eine wiederhergestellte Version, **Basiert auf v1** eine Version, die auf einer älteren als der direkt vorherigen aufbaut.
+- **Gespeichert von** nennt, wer die Version gespeichert hat und wie. Versionen, die die Plattform installiert hat, zeigen **Tale**.
+- **Änderungen** zählt die Nodes, die die Version gegenüber der vorherigen hinzugefügt, entfernt und geändert hat, und nennt weitere geänderte Teile, etwa **Ausgabe** oder **Tests**. Die erste Version trägt **Erste Version**; Versionen von vor dieser Zusammenfassung zeigen **Nicht erfasst**.
+- **Tests** sagt, ob die Tests der Version beim Speichern **Bestanden** haben oder **Fehlgeschlagen** sind. **Kein Ergebnis** bedeutet, dass kein Ergebnis festgehalten wurde, etwa weil die Version keine Tests hat.
+
+Wähle eine Zeile, um diese Version im **Editor** zu öffnen. Ihr Menü bietet außerdem **YAML herunterladen**: Es speichert die Version als Datei mit dem Namen der Automatisierung und der Version, etwa `weekly-digest-v3.yml`.
+
+Wähle über der Liste **Live-Schaltungen**, um jede Live-Schaltung zu sehen: wann, welche Version, ob es eine Rückkehr war, welche Version sie ersetzt hat und wer sie live geschaltet hat. Eine Version, die schon live war, bevor Tale diesen Verlauf führte, erscheint als **v4 war live** mit dem Hinweis **Erfasst, bevor der Verlauf begann.**
+
+Auch die Automatisierungsliste führt hierher: Wähle die Versionsanzahl einer Zeile oder **Versionsverlauf** in ihrem Zeilenmenü.
+
+### Mit einem Klick live schalten oder zurückkehren {#deploy-in-one-click}
+
+Dafür brauchst du Entwickler-, Admin- oder Inhaberrechte. Auf der Karte oben holt **Zurück zu v1** die Version zurück, die die Live-Version ersetzt hat; nach einer Rückkehr bietet dieselbe Stelle die neuere Version wieder an, etwa **v3 live schalten**. In beiden Listen öffnest du das Menü einer Zeile und wählst **v5 live schalten** oder **Zurück zu v3**.
+
+Die Version ist sofort live: Trigger und neue Live-Läufe nutzen sie, bereits gestartete Läufe behalten ihre Version. Ein Hinweis bestätigt das, etwa **v3 ist live.**, mit **Rückgängig**, das die ersetzte Version auf demselben Weg zurückholt. Ist der Trigger der Automatisierung ausgeschaltet, sagt die Seite das und bietet **Trigger einschalten** an.
+
+Tale vergleicht die Live-Version auf deinem Bildschirm mit der, die beim Klick live ist. Hat jemand anderes inzwischen eine Version live geschaltet, ändert sich nichts: Der Hinweis nennt, wer welche Version wann live geschaltet hat, und **Live-Schaltungen anzeigen** öffnet die Liste, damit du neu entscheiden kannst. Eine Version, die die heutigen Prüfungen nicht mehr besteht oder deren Tests fehlgeschlagen sind, kann nicht live gehen. Ein Dialog listet auf, was zu beheben ist, und **v4 im Editor öffnen** führt dich dorthin.
+
+### Eine ältere Version wiederherstellen {#restore}
+
+Um eine ältere Version als neueste zurückzuholen, wähle in ihrem Zeilenmenü **Als neue Version wiederherstellen**. Tale speichert eine Kopie davon auf der neuesten Version, und die Versionen dazwischen bleiben im Verlauf. Die **Notiz zur Version** lautet zunächst **v3 wiederhergestellt**; du kannst sie ändern. Die Live-Version bleibt, wie sie ist, außer du wählst auch **v5 sofort live schalten**.
+
+Nach **Wiederherstellen** bestätigt ein Hinweis die neue Version, und **v5 öffnen** zeigt sie im Editor. Entspricht die neueste Version bereits der wiederhergestellten, wird nichts gespeichert. Speichert jemand eine Version, während der Dialog offen ist, nennt der Dialog, wer es war, und bietet an, auf dieser Version aufbauend wiederherzustellen.
 
 ## Ein Ergebnis untersuchen
 
@@ -227,6 +260,6 @@ Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben 
 
 ## Zu einer früheren Version zurückkehren oder löschen
 
-Öffne für eine Rückkehr **Version** rechts neben den Tabs, lies die Versionsnachrichten und wähle eine frühere Fassung. Die Zeile öffnet den **Editor** mit dieser Version. Klicke dort auf die Schaltfläche, die sie live schaltet, etwa **v2 live schalten**. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
+Für eine Rückkehr öffne **Versionen** und nutze die Karte oben oder das Zeilenmenü einer Version, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt. Du kannst eine frühere Fassung auch über **Version** im **Editor** öffnen und dort auf die Schaltfläche klicken, die sie live schaltet, etwa **v2 live schalten**. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
 
 Zum Löschen gehe zur Liste zurück, öffne das Zeilenmenü und wähle **Löschen**. Lies die Bestätigung mit dem Namen der Automatisierung. Versionen, Bereitstellung, Trigger und Projektzuordnungen werden entfernt. Ein offener Lauf blockiert das Löschen; beende ihn oder warte seinen Abschluss ab. Frühere Läufe unterliegen weiter der Aufbewahrung. Bereits ausgeführte Aktionen werden durch das Löschen nicht rückgängig gemacht.

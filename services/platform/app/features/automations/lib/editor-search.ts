@@ -22,3 +22,12 @@ export const automationEditorSearchSchema = z.object({
 export type AutomationEditorView = NonNullable<
   z.infer<typeof automationEditorSearchSchema>['view']
 >;
+
+/**
+ * The Versions tab's search params: `?tab=deployments` shows when each
+ * version went live instead of the versions themselves. A malformed value
+ * reads as absent.
+ */
+export const automationVersionsSearchSchema = z.object({
+  tab: z.enum(['versions', 'deployments']).optional().catch(undefined),
+});
