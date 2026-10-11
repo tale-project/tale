@@ -515,6 +515,8 @@ export interface NodeInspectorProps {
   runView?: NodeRunView | undefined;
   /** The node's step in the run's record. */
   runRecord?: RunStepRecord | undefined;
+  /** Whose run that is, when not the last run: "Unsaved test". */
+  runLabel?: string | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   /** For the agent node's equipment pickers (skills/connectors/tools/secrets
@@ -636,6 +638,7 @@ export interface NodeFieldsProps {
   catalogUnavailable?: boolean;
   runView?: NodeRunView | undefined;
   runRecord?: RunStepRecord | undefined;
+  runLabel?: string | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   organizationId: string;
@@ -678,12 +681,15 @@ export function InspectorTabs({
   fields,
   shape,
   run,
+  runLabel,
 }: {
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
   fields: React.ReactNode;
   shape?: React.ReactNode;
   run?: React.ReactNode;
+  /** Whose run the run tab shows, when not the last run: "Unsaved test". */
+  runLabel?: string;
 }) {
   const { t } = useT('automations');
   const panel = (content: React.ReactNode) => (
@@ -718,7 +724,7 @@ export function InspectorTabs({
           : [
               {
                 value: 'run',
-                label: t('editor.inspector.tabs.run'),
+                label: runLabel ?? t('editor.inspector.tabs.run'),
                 content: panel(run),
               },
             ]),
@@ -759,6 +765,7 @@ export function NodeFields({
   catalogUnavailable = false,
   runView,
   runRecord,
+  runLabel,
   readOnly,
   onChange,
   organizationId,
@@ -1256,6 +1263,7 @@ export function NodeFields({
             />
           ),
         })}
+        {...(runLabel !== undefined && { runLabel })}
         {...(runView !== undefined && {
           run: (
             <RunStepDetail

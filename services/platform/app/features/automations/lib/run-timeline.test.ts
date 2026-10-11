@@ -232,6 +232,35 @@ describe('realRunOf', () => {
     );
     expect(run.spans).toEqual([]);
   });
+
+  it('marks a step a test stood in for with the chip its words give', () => {
+    const run = realRunOf(
+      record({
+        nodes: [
+          step('fetch', {
+            startedAt: 1000,
+            endedAt: 1100,
+            meta: { bench: 'mocked' },
+          }),
+          step('notify', { startedAt: 1100, endedAt: 1200 }),
+        ],
+        travels: [],
+      }),
+      graph,
+      {
+        substitute: (recorded) =>
+          recorded.meta.bench === 'mocked'
+            ? { kind: 'simulated', label: 'Simulated output' }
+            : undefined,
+      },
+    );
+    expect(run.spans.find((span) => span.nodeId === 'fetch')).toMatchObject({
+      substitute: { kind: 'simulated', label: 'Simulated output' },
+    });
+    expect(
+      run.spans.find((span) => span.nodeId === 'notify'),
+    ).not.toHaveProperty('substitute');
+  });
 });
 
 type Unit = NodeRunPage['units'][number];

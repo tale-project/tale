@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 233 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 236 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1601,6 +1601,25 @@ output:
       paths, each path ending in `automations.paths.clause.tested` with the
       tests' names or `automations.paths.clause.untested`. Editing a test
       drops its path until it runs again.
+- [ ] `AUTO-F174` · **Change a node, then Test run and confirm the draft** →
+      the dialog asks `automations.detail.runTarget.label` with
+      `automations.detail.runTarget.draft` chosen and checks the input
+      against the draft's own schema; the run is not listed under Runs, and
+      the canvas shows it under `automations.try.unsaved` with how it ended
+      and when, playing back like a recorded run. A node's run tab reads
+      `automations.editor.inspector.tabs.runTry`. Edit the draft again →
+      `automations.try.changed`; `automations.try.again` runs the draft as
+      it is now with the same input; `automations.try.clear` brings back the
+      last run.
+- [ ] `AUTO-F175` · **Run all, then Show on the canvas from a test's row or
+      Result** → the strip reads `automations.try.test` with the test's
+      name and whether it passed (`automations.try.passed`, or its first
+      failure in words); each step the test simulates carries
+      `automations.canvas.standIn.mocked` or
+      `automations.canvas.standIn.failed`, and a node's run tab reads
+      `automations.editor.inspector.tabs.runTest`. `automations.tests.run`
+      in the strip runs the test again and shows the new run; switching to
+      another version takes it off the canvas.
 
 ## Boundary & error tests
 
@@ -1943,6 +1962,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       picker opens with Enter or Space and adds the row, whose Remove follows
       it; the comparison switch moves with the arrow keys; every field shows
       its problems under it and focus stays visible.
+- [ ] `AUTO-A27` · **The try strip by keyboard and on a phone** → Tab
+      reaches `automations.try.again` and `automations.try.clear` in order;
+      ⌘⇧Enter (Ctrl+Shift+Enter) in the canvas or the inspector tries
+      again; a screen reader hears "Unsaved test: Failed at …" once per
+      result. At 390 px the strip wraps under its words and the canvas
+      keeps its toolbar.
 - [ ] `AUTO-A23` · **The old-version band and the save review by keyboard and
       on a phone** → Tab reaches the band's two actions in reading order and
       the save dialog's **Review changes**, which opens with Enter or Space;

@@ -44,8 +44,9 @@ export interface StartFieldsProps {
   /** The problems "go to" brings to Start: the run input's schema. */
   issues?: readonly AutomationIssueView[];
   context: InspectorContext;
-  /** The input of the run laid over the canvas, when one is. */
-  run?: { input: unknown };
+  /** The input of the run laid over the canvas, when one is, and whose run
+   * it is when not the last one ("Unsaved test"). */
+  run?: { input: unknown; label?: string };
   onDeselect?: () => void;
   defaultTab?: InspectorTab;
 }
@@ -163,6 +164,7 @@ export function StartFields({
             </div>
           ),
         })}
+        {...(run?.label !== undefined && { runLabel: run.label })}
         {...(run !== undefined && {
           run: (
             <div className="flex flex-col gap-1">

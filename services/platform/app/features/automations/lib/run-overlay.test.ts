@@ -168,4 +168,33 @@ describe('runOverlay', () => {
     expect(result.nodes.triage).toEqual({ state: 'stopped' });
     expect(result.nodes[END_ID]).toEqual({ state: 'stopped' });
   });
+
+  it('marks a step a test stood in for with the chip of how it stood in', () => {
+    const result = overlay(
+      { inbox: 'ok', triage: 'error', quiet: 'skipped', report: 'not_run' },
+      'failed',
+      new Map([
+        ['inbox', { status: 'ok', bench: 'mocked', effects: [] }],
+        [
+          'triage',
+          {
+            status: 'error',
+            error: 'quota exceeded',
+            bench: 'failed',
+            effects: [],
+          },
+        ],
+      ]),
+    );
+    expect(result.nodes.inbox?.substitute).toEqual({
+      kind: 'simulated',
+      label: 'Simulated output',
+    });
+    expect(result.nodes.triage).toMatchObject({
+      state: 'failed',
+      reason: 'quota exceeded',
+      substitute: { kind: 'failure', label: 'Simulated failure' },
+    });
+    expect(result.nodes.report?.substitute).toBeUndefined();
+  });
 });

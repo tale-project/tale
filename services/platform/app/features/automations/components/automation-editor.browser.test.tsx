@@ -206,6 +206,7 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useStartAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
   useRunAutomationTests: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useTryAutomation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-navigation-items', () => ({

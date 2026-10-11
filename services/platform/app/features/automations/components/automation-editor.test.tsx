@@ -28,6 +28,7 @@ const {
   deploy,
   setTriggerMutation,
   runTestsMutation,
+  tryMutation,
   toastSpy,
   refetch,
   validationMock,
@@ -95,6 +96,8 @@ const {
   setTriggerMutation: { mutateAsync: vi.fn(), isPending: false },
   /** Running the document's tests by hand from the Tests panel. */
   runTestsMutation: { mutateAsync: vi.fn(), isPending: false },
+  /** Trying the draft once, from the run dialog or the banner. */
+  tryMutation: { mutate: vi.fn(), isPending: false },
   toastSpy: vi.fn(),
   refetch: vi.fn(),
   /** What the draft check answers. Arrays are set whole per test, so their
@@ -154,6 +157,8 @@ vi.mock('../hooks/use-automation-validation', () => ({
   },
   useInvalidateAutomationValidation: () => invalidateValidation,
   VALIDATION_DEBOUNCE_MS: 400,
+  // Hashed as the check above hashes it.
+  documentHash: (document: unknown) => JSON.stringify(document),
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -348,6 +353,7 @@ vi.mock('../hooks/mutations', () => ({
   useDeployAutomation: () => deploy,
   useSetAutomationTrigger: () => setTriggerMutation,
   useRunAutomationTests: () => runTestsMutation,
+  useTryAutomation: () => tryMutation,
 }));
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -1364,6 +1370,96 @@ describe('AutomationEditor', () => {
       },
       expect.any(Object),
     );
+  });
+
+  it('tries the draft from Test run and lays its run over the canvas until it is hidden', async () => {
+    tryMutation.mutate.mockReset();
+    tryMutation.mutate.mockImplementation(
+      (_args: unknown, callbacks: { onSuccess?: (answer: unknown) => void }) =>
+        callbacks.onSuccess?.({
+          run: {
+            status: 'error',
+            error: { nodeId: 'summary', message: 'model refused' },
+            trace: [
+              {
+                node: 'summary',
+                type: 'llm',
+                status: 'error',
+                error: 'model refused',
+              },
+            ],
+            effects: [],
+            ms: 12,
+            documentHash: 'server-hash',
+          },
+          warnings: [],
+        }),
+    );
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+    const dialog = screen.getByRole('dialog', { name: 'Test run' });
+    expect(
+      within(dialog).getByRole('radio', { name: /This draft \(not saved\)/ }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Test run' }));
+    // The draft is tried, kept nowhere: no run of the version starts.
+    expect(startRun.mutate).not.toHaveBeenCalled();
+    expect(tryMutation.mutate).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+        document: expect.objectContaining({
+          nodes: [expect.objectContaining({ id: 'summary', when: 'x' })],
+        }),
+      },
+      expect.any(Object),
+    );
+    expect(screen.queryByRole('dialog', { name: 'Test run' })).toBeNull();
+
+    const banner = screen.getByRole('region', { name: 'Unsaved test' });
+    expect(within(banner).getByRole('status')).toHaveTextContent(
+      'Failed at Summary',
+    );
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).toHaveAttribute('data-run-status', 'error');
+    // The open node's run tab says whose run it shows.
+    expect(screen.getByRole('tab', { name: 'Unsaved test' })).toBeVisible();
+
+    // Changing the draft says the try no longer matches it; Try again runs
+    // the draft as it is now.
+    await user.type(whenField(), 'y');
+    expect(banner).toHaveTextContent('The draft changed since this try.');
+    await user.click(within(banner).getByRole('button', { name: 'Try again' }));
+    expect(tryMutation.mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        document: expect.objectContaining({
+          nodes: [expect.objectContaining({ when: 'xy' })],
+        }),
+      }),
+      expect.any(Object),
+    );
+    // ⌘⇧Enter on the canvas tries again too — but never while a try is
+    // still running.
+    screen.getByRole('button', { name: 'select summary' }).focus();
+    await user.keyboard('{Control>}{Shift>}{Enter}{/Shift}{/Control}');
+    expect(tryMutation.mutate).toHaveBeenCalledTimes(3);
+    tryMutation.isPending = true;
+    try {
+      await user.keyboard('{Control>}{Shift>}{Enter}{/Shift}{/Control}');
+      expect(tryMutation.mutate).toHaveBeenCalledTimes(3);
+    } finally {
+      tryMutation.isPending = false;
+    }
+
+    await user.click(
+      within(banner).getByRole('button', { name: 'Hide result' }),
+    );
+    expect(screen.queryByRole('region', { name: 'Unsaved test' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).not.toHaveAttribute('data-run-status');
   });
 
   it('collects schema-valid input before scheduling the selected test version', async () => {
@@ -2957,6 +3053,75 @@ describe('AutomationEditor tests', () => {
     expect(
       within(screen.getByRole('region', { name: 'Tests' })).getByText('5 ms'),
     ).toBeVisible();
+  });
+
+  it('lays a test’s run over the canvas from its row, named after the test', async () => {
+    state.document = withTests;
+    runTestsMutation.mutateAsync.mockResolvedValueOnce({
+      report: {
+        passed: 0,
+        failed: 1,
+        results: [
+          {
+            name: 'smoke',
+            index: 0,
+            pass: false,
+            ms: 7,
+            failures: [
+              { kind: 'run_failed', node: 'summary', message: 'model refused' },
+            ],
+            run: {
+              status: 'error',
+              error: { nodeId: 'summary', message: 'model refused' },
+              effects: [],
+              record: {
+                view: {
+                  nodes: [
+                    {
+                      path: 'summary',
+                      nodeId: 'summary',
+                      type: 'llm',
+                      status: 'failed',
+                      activeMs: 3,
+                      failure: { message: 'model refused' },
+                      meta: {},
+                    },
+                  ],
+                },
+                details: [],
+              },
+            },
+          },
+        ],
+      },
+    });
+    const { user } = renderPage({ organizationId: 'org-tests-show' });
+    await user.click(testsButton());
+    await user.click(screen.getByRole('button', { name: 'Run all' }));
+    await waitFor(() =>
+      expect(testsButton()).toHaveAccessibleName('Tests: 1 failed'),
+    );
+    await user.click(screen.getByRole('button', { name: 'More for smoke' }));
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Show on the canvas' }),
+    );
+    const banner = screen.getByRole('region', { name: 'Test: smoke' });
+    // The strip says how the test came out, in its first failure's words.
+    expect(within(banner).getByRole('status')).toHaveTextContent(
+      'The run failed at Summary.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).toHaveAttribute('data-run-status', 'error');
+    // Run takes the test's run again; Hide result takes it off the canvas.
+    await user.click(within(banner).getByRole('button', { name: 'Run' }));
+    expect(runTestsMutation.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tests: [0] }),
+    );
+    await user.click(
+      within(banner).getByRole('button', { name: 'Hide result' }),
+    );
+    expect(screen.queryByRole('region', { name: 'Test: smoke' })).toBeNull();
   });
 
   it('adds a blank test to the draft and opens it on its setup', async () => {

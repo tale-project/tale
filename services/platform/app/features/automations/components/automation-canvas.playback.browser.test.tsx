@@ -192,6 +192,121 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
     );
   });
 
+  it('plays a try that was never stored, with the chip of a step it stood in for', async () => {
+    await page.viewport(1280, 1600);
+    // The test stood in for the first step.
+    const [head, ...rest] = RECORD.nodes;
+    if (head === undefined) throw new Error('a recorded step');
+    const first = head.nodeId;
+    const tried: RunRecordView = {
+      ...RECORD,
+      runId: 'try-1',
+      // A draft that was never saved has no version.
+      version: 0,
+      source: 'transient',
+      nodes: [{ ...head, meta: { bench: 'mocked' } }, ...rest],
+    };
+    const view = render(
+      <div style={{ width: 1180, height: 1500 }}>
+        <AutomationCanvas
+          automation={TRIAGE}
+          layoutKey="triage:try-1"
+          catalog={CATALOG}
+          selectedId={null}
+          onSelect={() => {}}
+          inspectorId="inspector"
+          run={{
+            ...RUN,
+            record: tried,
+            words: {
+              substitute: (recorded) =>
+                recorded.meta.bench === 'mocked'
+                  ? { kind: 'simulated', label: 'Simulated output' }
+                  : undefined,
+            },
+          }}
+        />
+      </div>,
+    );
+    const chart = await waitFor(
+      () => {
+        const element = view.container.querySelector('[data-flow-engine]');
+        if (element === null) throw new Error('no chart yet');
+        return element;
+      },
+      { timeout: 20_000 },
+    );
+    await waitFor(() => expect(chart).toHaveAttribute('aria-busy', 'false'));
+    await viewportAtRest(view.container);
+    // It plays like a stored run, on its own timeline.
+    expect(
+      await screen.findByRole('group', { name: 'Run timeline' }),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(node(first)).toHaveAttribute('data-flow-substitute', 'simulated'),
+    );
+    expect(
+      node(first)?.querySelector('[data-slot="flow-node-substitute"]'),
+    ).toHaveTextContent('Simulated output');
+    const second = TRIAGE.nodes[1]?.id ?? '';
+    expect(node(second)).not.toHaveAttribute('data-flow-substitute');
+  });
+
+  it('opens another run laid in the same place on that run’s own end', async () => {
+    await page.viewport(1280, 1600);
+    const canvas = (run: CanvasRun) => (
+      <div style={{ width: 1180, height: 1500 }}>
+        <AutomationCanvas
+          automation={TRIAGE}
+          layoutKey="triage:runs"
+          catalog={CATALOG}
+          selectedId={null}
+          onSelect={() => {}}
+          inspectorId="inspector"
+          run={run}
+        />
+      </div>
+    );
+    const view = render(canvas(RUN));
+    const chart = await waitFor(
+      () => {
+        const element = view.container.querySelector('[data-flow-engine]');
+        if (element === null) throw new Error('no chart yet');
+        return element;
+      },
+      { timeout: 20_000 },
+    );
+    await waitFor(() => expect(chart).toHaveAttribute('aria-busy', 'false'));
+    const bar = await screen.findByRole('group', { name: 'Run timeline' });
+    const previous = within(bar).getByRole('button', {
+      name: 'Previous event',
+    });
+    for (let index = 0; index < 3; index++) await userEvent.click(previous);
+    const slider = within(bar).getByRole<HTMLInputElement>('slider');
+    expect(Number(slider.value)).toBeLessThan(Number(slider.max));
+
+    // A shorter run of three steps, started long after, takes its place —
+    // the editor's next try does so: it opens on its own end, not on where
+    // the last one rested.
+    const second: RunRecordView = {
+      ...RECORD,
+      runId: 'run-2',
+      startedAt: 50_000,
+      finishedAt: 53_000,
+      nodes: TRIAGE.nodes
+        .slice(0, 3)
+        .map((each, index) => step(each.id, 50_000 + index * 1_000)),
+      cursor: 53_000,
+    };
+    view.rerender(canvas({ ...RUN, record: second }));
+    await waitFor(() => {
+      const shown = within(
+        screen.getByRole('group', { name: 'Run timeline' }),
+      ).getByRole<HTMLInputElement>('slider');
+      expect(Number(shown.value)).toBe(Number(shown.max));
+    });
+  });
+
   it('lists the same run as its steps in time order, and a row opens its step', async () => {
     await page.viewport(1280, 1600);
     const selected: (string | null)[] = [];

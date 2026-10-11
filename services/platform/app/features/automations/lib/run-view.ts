@@ -16,7 +16,12 @@
 import type { FlowShownState } from '@tale/ui/flow/node-status';
 
 import type { RunWaitingFor } from '@/app/lib/backend/contract/automations';
-import type { Effect, NodeStatus, NodeTrace } from '@/lib/engine/core/types';
+import type {
+  BenchMark,
+  Effect,
+  NodeStatus,
+  NodeTrace,
+} from '@/lib/engine/core/types';
 
 /** How a run ended, or where it is. Mirrors the store's `status` union. */
 export type RunStatus =
@@ -206,12 +211,26 @@ export interface NodeRunView {
   error?: string;
   note?: string;
   ms?: number;
+  /** How a test or a try stood in for the node, when one did. */
+  bench?: BenchMark;
   /** Effects this node performed, in execution order. */
   effects: Effect[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const BENCH_MARKS: readonly BenchMark[] = [
+  'mocked',
+  'pinned',
+  'failed',
+  'left-out',
+];
+
+/** How a bench stood in for a step, when `value` names a way it can. */
+export function benchMarkOf(value: unknown): BenchMark | undefined {
+  return BENCH_MARKS.find((mark) => mark === value);
 }
 
 function readTrace(value: unknown): NodeTrace[] {
@@ -235,6 +254,8 @@ function readTrace(value: unknown): NodeTrace[] {
     if (typeof entry.note === 'string') trace.note = entry.note;
     if (typeof entry.error === 'string') trace.error = entry.error;
     if (typeof entry.ms === 'number') trace.ms = entry.ms;
+    const bench = benchMarkOf(entry.bench);
+    if (bench !== undefined) trace.bench = bench;
     out.push(trace);
   }
   return out;
@@ -383,6 +404,7 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
     if (entry.error !== undefined) view.error = entry.error;
     if (entry.note !== undefined) view.note = entry.note;
     if (entry.ms !== undefined) view.ms = entry.ms;
+    if (entry.bench !== undefined) view.bench = entry.bench;
     byNode.set(entry.node, view);
   }
   // A stop leaves the cursor where the stepper was: that node was reached

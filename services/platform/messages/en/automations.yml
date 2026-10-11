@@ -182,6 +182,14 @@ detail:
     invalidJson: Enter valid JSON for the run input.
     invalid: 'The input does not match the schema. Check these fields: {paths}.'
     mockDescription: Test the saved version with mock responses. No external actions run.
+    mockDescriptionDraft: Try your unsaved draft with mock responses. No external actions run, and nothing is kept.
+    descriptionDraft: Input for your draft. It does not change the automation.
+  runTarget:
+    label: What runs
+    draft: This draft (not saved)
+    draftHelp: Runs your unsaved changes once and shows the result on the canvas.
+    version: 'Version {version}'
+    versionHelp: Runs the saved version and keeps the run under Runs.
   runScope:
     label: Project scope
     orgWide: Organization-wide
@@ -491,6 +499,11 @@ canvas:
     noFields: No input fields
     fromTrigger: from the trigger
     description: '{triggers}. Input: {fields}.'
+  standIn:
+    mocked: Simulated output
+    pinned: Pinned data
+    failed: Simulated failure
+    leftOut: Left out of this test
   end:
     returnsNode: 'The output of {node}'
     returnsNothing: Nothing — this automation has no output
@@ -520,6 +533,8 @@ editor:
       fields: Fields
       shape: Shape
       run: Last run
+      runTry: Unsaved test
+      runTest: In this test
   start:
     title: Start
     description: What starts this automation and what each run receives.
@@ -1101,6 +1116,7 @@ tests:
   copyName: '{name} (copy)'
   duplicate: Duplicate
   delete: Delete
+  showOnCanvas: Show on the canvas
   rowActions: 'More for {name}'
   deleted: 'Deleted the test {name}.'
   unnamed: 'Test {number}'
@@ -1302,3 +1318,17 @@ codingAgent:
   nameLabel: Name of this automation
   setUp: Set up MCP
   learnMore: How to connect a coding agent
+try:
+  unsaved: Unsaved test
+  test: 'Test: {name}'
+  running: Trying the draft…
+  runningTest: Running the test…
+  succeeded: 'Succeeded in {duration}'
+  passed: 'Passed in {duration}'
+  failed: Failed
+  invalid: Couldn't run
+  timeLimit: 'Stopped after {seconds} s — a try has a time limit.'
+  stopped: Stopped
+  changed: The draft changed since this try.
+  again: Try again
+  clear: Hide result

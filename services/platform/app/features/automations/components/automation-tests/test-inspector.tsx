@@ -49,6 +49,8 @@ export interface TestFieldsProps {
   lastRunOutputOf?: (nodeId: string) => unknown;
   text: Pick<TestTextContext, 'nodeLabel' | 'effectLabel'>;
   onSelectNode: (nodeId: string) => void;
+  /** Lays the test's latest run over the canvas. */
+  onShowRun?: () => void;
   onDeselect?: () => void;
 }
 
@@ -74,6 +76,7 @@ export function TestFields({
   lastRunOutputOf,
   text,
   onSelectNode,
+  onShowRun,
   onDeselect,
 }: TestFieldsProps) {
   const { t } = useT('automations');
@@ -188,6 +191,7 @@ export function TestFields({
                   test={test}
                   text={text}
                   onSelectNode={onSelectNode}
+                  {...(onShowRun !== undefined && { onShowRun })}
                 />
               </div>
             ),

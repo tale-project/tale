@@ -148,3 +148,11 @@ export function useRunAutomationTests() {
     errorToast: false,
   });
 }
+
+/** One run of the draft (or a saved version), never stored. The run
+ * dialog and the banner of a try say a refusal themselves. */
+export function useTryAutomation() {
+  return useBackendMutation('automations/mutations:tryAutomation', {
+    errorToast: false,
+  });
+}

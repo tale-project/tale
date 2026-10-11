@@ -12,6 +12,7 @@
 import type {
   FlowBuiltTimeline,
   FlowNodeSpan,
+  FlowNodeSubstitute,
   FlowRealRun,
   FlowRealSpan,
   FlowRealTravel,
@@ -39,6 +40,8 @@ export interface TimelineWords {
   failed?: (step: RecordedStep) => string | undefined;
   /** A wait: "Waited 3 h for approval". */
   wait?: (wait: WaitRecord, step: RecordedStep) => string;
+  /** What stood in for a step a test or a try simulated, as its chip. */
+  substitute?: (step: RecordedStep) => FlowNodeSubstitute | undefined;
 }
 
 const FINISHED = new Set(['success', 'failed', 'cancelled']);
@@ -112,6 +115,7 @@ export function realRunOf(
         : (step.counts.passes ?? step.counts.items);
     const open = step.status === 'running' || step.status === 'waiting';
     const endedAt = open ? undefined : (step.endedAt ?? startedAt);
+    const substitute = words.substitute?.(step);
     spans.push({
       nodeId: step.path,
       startedAt,
@@ -120,6 +124,7 @@ export function realRunOf(
       ...(reason !== undefined && { reason }),
       ...(detail !== undefined && { detail }),
       ...(total !== undefined && total > 0 && { total }),
+      ...(substitute !== undefined && { substitute }),
     });
     // A condition decides in the gate drawn above its step.
     const gate = gateIdOf(step.path);

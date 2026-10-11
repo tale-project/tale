@@ -5,6 +5,7 @@ import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { DataDiff, type DiffResult } from '@tale/ui/data-diff';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Eye } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -17,6 +18,7 @@ import {
   type TestFailureView,
   type TestTextContext,
 } from '../../lib/automation-tests/test-text';
+import { testRunOf } from '../../lib/automation-tests/transient-run';
 import { nodeTitle } from '../../lib/node-face';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,6 +78,8 @@ export interface TestResultViewProps {
   text: Pick<TestTextContext, 'nodeLabel' | 'effectLabel'>;
   /** Shows a node on the canvas, with its inspector. */
   onSelectNode: (nodeId: string) => void;
+  /** Lays the test's run over the canvas, step by step. */
+  onShowRun?: () => void;
 }
 
 /**
@@ -90,6 +94,7 @@ export function TestResultView({
   test,
   text,
   onSelectNode,
+  onShowRun,
 }: TestResultViewProps) {
   const { t } = useT('automations');
   const { locale } = useLocale();
@@ -256,6 +261,18 @@ export function TestResultView({
             ),
           })}
         </p>
+      )}
+      {onShowRun !== undefined && testRunOf(outcome) !== null && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon={Eye}
+          className="self-start"
+          onClick={onShowRun}
+        >
+          {t('tests.showOnCanvas')}
+        </Button>
       )}
       {(message !== undefined || failures.length > 0) && (
         <CollapsibleDetails
