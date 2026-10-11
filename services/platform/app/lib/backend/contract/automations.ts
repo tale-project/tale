@@ -279,6 +279,8 @@ export interface AutomationsContract {
       displayName: string;
       answers: TemplateAnswers;
       locale?: string;
+      /** Set the starter's trigger on; off when left out. */
+      enableTrigger?: boolean;
     };
     returns: {
       name: string;

@@ -177,6 +177,17 @@ describe('the starters, at the app door', () => {
     });
   });
 
+  it('sets the trigger on when the create asks', async () => {
+    const response = await create({ ...BODY, enableTrigger: true });
+    expect(response.status).toBe(201);
+    expect(io.setTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        trigger: { ...PREPARED.trigger, enabled: true },
+      }),
+    );
+  });
+
   it('refuses a member, writing nothing', async () => {
     io.role = 'member';
     const response = await create(BODY);

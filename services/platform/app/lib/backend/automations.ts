@@ -739,6 +739,7 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
             displayName: stringArg(args, 'displayName'),
             answers: args.answers ?? {},
             ...(typeof args.locale === 'string' && { locale: args.locale }),
+            ...(args.enableTrigger === true && { enableTrigger: true }),
           },
         },
       ),
