@@ -115,6 +115,19 @@ export function isPoolInstance(
   );
 }
 
+/**
+ * Is this volume a render session's scratch: one this backend made as such,
+ * recording `default` as its profile? Scratch is deleted when its session ends;
+ * a workspace is the user's data. So a volume that does not say, in so many
+ * words, that it is scratch is never taken for one.
+ */
+export function isScratchVolume(config: IncusConfigMap): boolean {
+  return (
+    label(config, LABEL.workspace) === '1' &&
+    label(config, LABEL.profile) === 'default'
+  );
+}
+
 /** The creation stamp a label holds, or undefined when it is not one. */
 export function stampOf(config: IncusConfigMap): number | undefined {
   const raw = label(config, LABEL.created);

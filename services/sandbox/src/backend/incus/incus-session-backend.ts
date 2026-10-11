@@ -73,6 +73,7 @@ import {
 import {
   incusInstanceName,
   incusWorkspaceVolumeName,
+  isScratchVolume,
   isSessionInstance,
   label,
   LABEL,
@@ -407,7 +408,13 @@ export class IncusSessionBackend implements SessionBackend {
         );
       }
       if (durable) return true;
-      // The scratch of an earlier render session under this id.
+      // The scratch of an earlier render session under this id; anything else
+      // under it is a workspace, which a render never replaces.
+      if (!isScratchVolume(existing.config)) {
+        throw new Error(
+          `the volume ${name} is a workspace, not the scratch of a render session`,
+        );
+      }
       await client.deleteVolume(storagePool, name);
     }
     const body = buildWorkspaceVolume(
@@ -724,12 +731,24 @@ export class IncusSessionBackend implements SessionBackend {
   }
 
   /** The scratch volume of a render session; a failure is logged, the
-   * orphan sweep takes it later. */
+   * orphan sweep takes it later. Only a volume that records itself as scratch
+   * is deleted, whatever the caller believes: a workspace is never taken. */
   private async deleteScratch(
     client: IncusClient,
     sessionId: string,
   ): Promise<void> {
     try {
+      const volume = await client.getVolume(
+        this.runtime.incus.storagePool,
+        incusWorkspaceVolumeName(sessionId),
+      );
+      if (volume === undefined) return;
+      if (!isScratchVolume(volume.config)) {
+        console.warn(
+          `[sandbox.session] ${volume.name} is not marked as the scratch of a render session; left in place`,
+        );
+        return;
+      }
       await this.deleteVolumeWhenFree(client, sessionId);
     } catch (error) {
       console.warn(

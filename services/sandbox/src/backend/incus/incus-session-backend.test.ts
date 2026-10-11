@@ -196,6 +196,21 @@ describe('a resume', () => {
     expect(f.fake.instances.size).toBe(0);
   });
 
+  test('a render never replaces a workspace that happens to hold its volume name', async () => {
+    const f = sessionFixture();
+    f.fake.seedVolume(VOLUME, {
+      [LABEL.workspace]: '1',
+      [LABEL.session]: ID,
+      [LABEL.profile]: 'agent',
+    });
+    const error = await rejection(
+      f.backend.createSession(specOf(ID, { profile: 'default' })),
+    );
+    expect(error.message).toContain('is a workspace');
+    expect(f.fake.volumes.has(VOLUME)).toBe(true);
+    expect(f.fake.instances.size).toBe(0);
+  });
+
   test('removes a dead instance that holds the name, then creates', async () => {
     const f = sessionFixture();
     f.fake.seedInstance(

@@ -8,6 +8,7 @@ import {
   incusPoolInstanceName,
   incusWorkspaceVolumeName,
   isPoolInstance,
+  isScratchVolume,
   isSessionInstance,
   LABEL,
   stampOf,
@@ -89,6 +90,22 @@ describe('names and labels', () => {
     expect(isPoolInstance({ ...session, [LABEL.pool]: 'abc' }, '')).toBe(false);
     expect(isPoolInstance({ ...session, [LABEL.pool]: '' }, '')).toBe(false);
     expect(isSessionInstance({ ...session, [LABEL.pool]: '' }, '')).toBe(true);
+  });
+
+  test('a volume is scratch only when it says so: a workspace is never taken for one', () => {
+    const volume = { [LABEL.workspace]: '1', [LABEL.profile]: 'default' };
+    expect(isScratchVolume(volume)).toBe(true);
+    expect(isScratchVolume({ ...volume, [LABEL.profile]: 'agent' })).toBe(
+      false,
+    );
+    expect(isScratchVolume({ ...volume, [LABEL.profile]: 'agent-light' })).toBe(
+      false,
+    );
+    // Saying nothing is not saying scratch.
+    expect(isScratchVolume({ [LABEL.workspace]: '1' })).toBe(false);
+    expect(isScratchVolume({ [LABEL.profile]: 'default' })).toBe(false);
+    expect(isScratchVolume({ ...volume, [LABEL.profile]: '' })).toBe(false);
+    expect(isScratchVolume({})).toBe(false);
   });
 
   test('a creation stamp is read only when it is one', () => {

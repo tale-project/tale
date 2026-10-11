@@ -197,6 +197,26 @@ describe('stopSession', () => {
     expect(f.fake.volumes.has(VOLUME)).toBe(false);
   });
 
+  test('never takes a volume that does not say it is scratch, whatever the instance says', async () => {
+    const f = sessionFixture();
+    // An instance that calls itself a render's, over a volume that is a
+    // workspace (an agent's, or one that says nothing).
+    f.fake.seedInstance(NAME, labels(ID, { [LABEL.profile]: 'default' }));
+    f.fake.seedVolume(VOLUME, {
+      [LABEL.workspace]: '1',
+      [LABEL.session]: ID,
+      [LABEL.profile]: 'agent',
+    });
+    await f.backend.stopSession(ID);
+    expect(f.fake.instances.has(NAME)).toBe(false);
+    expect(f.fake.volumes.has(VOLUME)).toBe(true);
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes('not marked as the scratch'),
+      ),
+    ).toBe(true);
+  });
+
   test('throws when the instance cannot be made to go: the reaper tries again', async () => {
     const f = sessionFixture();
     await f.backend.createSession(specOf(ID));

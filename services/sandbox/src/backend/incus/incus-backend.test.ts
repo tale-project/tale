@@ -337,6 +337,24 @@ describe('sweepOrphans', () => {
     expect(f.fake.volumes.has(incusWorkspaceVolumeName('new'))).toBe(true);
   });
 
+  test('never takes a volume that does not say it is scratch', async () => {
+    const f = hostFixture();
+    for (const [id, profile] of [
+      ['silent', undefined],
+      ['blank', ''],
+      ['light', 'agent-light'],
+    ] as const) {
+      f.fake.seedVolume(incusWorkspaceVolumeName(id), {
+        [LABEL.workspace]: '1',
+        [LABEL.session]: id,
+        ...(profile === undefined ? {} : { [LABEL.profile]: profile }),
+      });
+    }
+    late(f);
+    expect(await f.host.sweepOrphans()).toBe(0);
+    expect(f.fake.volumes.size).toBe(3);
+  });
+
   test('never touches an agent session’s workspace: the platform destroys those', async () => {
     const f = hostFixture();
     f.fake.seedVolume(incusWorkspaceVolumeName('parked'), {

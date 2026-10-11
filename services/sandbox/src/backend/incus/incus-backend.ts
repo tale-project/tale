@@ -6,7 +6,6 @@
 // project, and the periodic sweep of debris.
 
 import { belongsToInstance } from '../../session/session-naming.ts';
-import { isAgentSessionProfile } from '../../session/session-profile.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import type { HealthResult, HostBackend } from '../types.ts';
 import { incusStatus } from './incus-api.ts';
@@ -19,6 +18,7 @@ import {
 } from './incus-lifecycle.ts';
 import {
   incusWarmupInstanceName,
+  isScratchVolume,
   isSessionInstance,
   isWarmupInstanceName,
   label,
@@ -255,8 +255,10 @@ export class IncusBackend implements HostBackend {
       ) {
         continue;
       }
-      // An agent session's workspace is the platform's to destroy.
-      if (isAgentSessionProfile(label(volume.config, LABEL.profile))) continue;
+      // Only a volume that records itself as a render's scratch: an agent
+      // session's workspace is the platform's to destroy, and a volume that
+      // says nothing is never taken for scratch.
+      if (!isScratchVolume(volume.config)) continue;
       const id = label(volume.config, LABEL.session);
       if (id === undefined || sessionIds.has(id) || volume.usedBy.length > 0) {
         continue;
