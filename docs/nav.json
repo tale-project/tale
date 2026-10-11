@@ -259,6 +259,7 @@
         {
           "label": "tutorialsDeveloper",
           "pages": [
+            "tutorials/developer/first-automation",
             "tutorials/developer/call-tale-from-a-script",
             "tutorials/developer/trigger-automation-via-webhook"
           ]

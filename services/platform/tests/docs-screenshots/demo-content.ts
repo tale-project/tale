@@ -742,6 +742,20 @@ export const DEMO_TASK_CREATE = {
 } as const;
 
 /**
+ * The task listing's demo: the Daily task digest created from its starter in
+ * Website relaunch, telling the owner, deployed and run live once — so its
+ * run shows the tasks the `task.list` step read, and the starter path is the
+ * one a reader takes.
+ */
+export const DEMO_TASK_DIGEST = {
+  starter: 'task-digest',
+  automation: 'daily-task-digest',
+  name: 'Daily task digest',
+  node: 'tasks',
+  project: DEMO_PROJECTS[0].name,
+} as const;
+
+/**
  * The notify page's demo: an automation whose one step tells the person who
  * started its run that the weekly report is ready, with a link to it —
  * deployed and run live once, so the run shows whom the step reached and

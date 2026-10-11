@@ -15,7 +15,7 @@ Eine Vorlage ist eine Automatisierung, die Tale einsatzbereit mitliefert. Du bea
 
 <Frame caption="Jede Vorlage sagt in einer Zeile, was sie tut.">
 
-![Der Dialog Choose a starter mit einem Suchfeld und fünf Vorlagen: Answer questions from your documents, Create tasks from a webhook, Summarize the inbox, Tell the reviewer und Triage new tasks, jede mit einer Zeile Beschreibung.](/images/platform/automation-starter-gallery.webp)
+![Der Dialog Choose a starter mit einem Suchfeld und sechs Vorlagen: Answer questions from your documents, Create tasks from a webhook, Daily task digest, Summarize the inbox, Tell the reviewer und Triage new tasks, jede mit einer Zeile Beschreibung.](/images/platform/automation-starter-gallery.webp)
 
 </Frame>
 
@@ -37,8 +37,9 @@ Kann Tale eine Antwort nicht verwenden — ein Projekt, das du nicht öffnen kan
 | --- | --- | --- |
 | **Fragen aus deinen Dokumenten beantworten** | Wenn im Projekt eine Aufgabe erstellt wird | Endet der Titel der Aufgabe mit einem Fragezeichen, durchsucht sie die Dokumente der Organisation und kommentiert eine Antwort, die nur auf dem Gefundenen beruht, mit den Quellen. Andere neue Aufgaben bleiben unberührt. |
 | **Aufgaben per Webhook erstellen** | Bei jeder Lieferung an ihre Webhook-Adresse | Erstellt im Projekt eine Aufgabe: `title` im JSON der Lieferung gibt ihr den Namen, `description` den Text. Eine Lieferung ohne Titel wird abgelehnt und erstellt nichts. |
+| **Tägliche Aufgabenübersicht** | Nach ihrem Zeitplan — jeden Tag um 09:00 in deiner Zeitzone, solange du ihn nicht änderst | Listet die Aufgaben, die in den 24 Stunden vor dem Lauf im Projekt erstellt wurden, und schickt sie dem gewählten Mitglied als eine Nachricht, je eine Zeile, mit einem Link zu den Aufgaben des Projekts. Ein Tag ohne neue Aufgaben sendet nichts. |
 | **Posteingang zusammenfassen** | Nach ihrem Zeitplan — werktags um 08:00 in deiner Zeitzone, solange du ihn nicht änderst | Fasst die Unterhaltungen des gewählten Postfachs, die noch auf eine Antwort warten, in je einer Zeile zusammen, die dringendste zuerst, und schickt die Zusammenfassung an das gewählte Mitglied. |
 | **Reviewer benachrichtigen** | Wenn eine Aufgabe des Projekts ihren Status wechselt | Wechselt die Aufgabe in den Status **In Prüfung**, benachrichtigt sie das gewählte Mitglied, mit einem Link zur Aufgabe. |
 | **Neue Aufgaben einordnen** | Wenn im Projekt eine Aufgabe erstellt wird | Kommentiert die Aufgabe mit einer vorgeschlagenen Priorität und einem ersten Schritt, in der Sprache der Aufgabe. Sonst ändert sich an der Aufgabe nichts. |
 
-Nachrichten von **Posteingang zusammenfassen** und **Reviewer benachrichtigen** kommen in den Benachrichtigungen des Mitglieds an und per E-Mail, wenn seine Einstellungen eine senden; [Mitglieder aus einer Automatisierung benachrichtigen](/de/platform/automations/notify-members) erklärt, wer übersprungen wird. Eine Vorlage nennt ein Modell für ihre Sprachmodell-Schritte: Bedient es keiner deiner Anbieter, bekommt jeder dieser Schritte ein vergleichbares Modell, das sie bedienen, und die Nachricht von Version 1 sagt, welches.
+Nachrichten von **Tägliche Aufgabenübersicht**, **Posteingang zusammenfassen** und **Reviewer benachrichtigen** kommen in den Benachrichtigungen des Mitglieds an und per E-Mail, wenn seine Einstellungen eine senden; [Mitglieder aus einer Automatisierung benachrichtigen](/de/platform/automations/notify-members) erklärt, wer übersprungen wird. Eine Vorlage nennt ein Modell für ihre Sprachmodell-Schritte: Bedient es keiner deiner Anbieter, bekommt jeder dieser Schritte ein vergleichbares Modell, das sie bedienen, und die Nachricht von Version 1 sagt, welches.

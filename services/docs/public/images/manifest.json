@@ -335,11 +335,11 @@
       "route": "/dashboard/:orgId/automations",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1100
       },
       "dpr": 2,
       "width": 1024,
-      "height": 1260,
+      "height": 1540,
       "locale": "en"
     },
     {
@@ -359,6 +359,19 @@
       "file": "images/platform/automation-task-create-run.webp",
       "shot": "automation-task-create-run",
       "route": "/dashboard/:orgId/automations/support-follow-ups/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-task-list-run.webp",
+      "shot": "automation-task-list-run",
+      "route": "/dashboard/:orgId/automations/daily-task-digest/runs",
       "viewport": {
         "width": 1440,
         "height": 900

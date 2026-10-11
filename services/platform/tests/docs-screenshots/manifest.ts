@@ -40,6 +40,7 @@ import {
   DEMO_KNOWLEDGE_SEARCH,
   DEMO_NOTIFY,
   DEMO_TASK_CREATE,
+  DEMO_TASK_DIGEST,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
   DEMO_MEMBERS,
@@ -1646,6 +1647,9 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       starterGallery(page).getByRole('button', { name: /Tell the reviewer/ }),
     capture: starterGallery,
+    // The gallery is 70 % of the viewport tall: this height shows every
+    // starter without the list scrolling.
+    viewport: { width: 1440, height: 1100 },
   },
   {
     // A starter's questions answered: Tell the reviewer, for Website
@@ -2319,6 +2323,25 @@ export const SHOTS: readonly Shot[] = [
       await page
         .locator(
           `[data-flow-node="${DEMO_TASK_CREATE.node}"][data-flow-state="succeeded"]`,
+        )
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The seeded live run of the Daily task digest, created from its
+    // starter in Website relaunch, with its task listing step selected: what
+    // the step asked for, and the tasks it read — newest first, each with its
+    // number, status, assignee and link.
+    name: 'automation-task-list-run',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TASK_DIGEST.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .locator(
+          `[data-flow-node="${DEMO_TASK_DIGEST.node}"][data-flow-state="succeeded"]`,
         )
         .click();
     },
