@@ -485,12 +485,27 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const file = await workflow('release');
     const prepare = step(file, 'prepare', 'Resolve version').run!;
+    const cadenceBin = await mkdtemp(join(tmpdir(), 'tale-release-cadence-'));
+    directories.push(cadenceBin);
+    await writeFile(
+      join(cadenceBin, 'gh'),
+      "#!/usr/bin/env bash\nprintf '\\n'\n",
+      { mode: 0o755 },
+    );
+    await writeFile(
+      join(cadenceBin, 'date'),
+      "#!/usr/bin/env bash\nprintf '2026-10-11\\n'\n",
+      { mode: 0o755 },
+    );
     for (const sites of ['false', 'true']) {
       const result = await execute(prepare, {
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v1.2.3',
         SITES_ONLY: sites,
         SOURCE_SHA: source,
+        GH_TOKEN: 'fixture-token',
+        REPOSITORY: 'synthetic/tale',
+        PATH: `${cadenceBin}:${process.env.PATH}`,
       });
       expect(result.code, result.stderr).toBe(0);
       const services = JSON.parse(result.outputs.service_names!) as string[];
@@ -514,6 +529,45 @@ test.skipIf(process.platform === 'win32')(
     expect(file.jobs.manifest?.needs).toEqual(
       expect.arrayContaining(['prepare', 'build', 'container-test']),
     );
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'release blocks a second full cohort on the same UTC day but permits a same-tag recovery',
+  async () => {
+    const file = await workflow('release');
+    const prepare = step(file, 'prepare', 'Resolve version').run!;
+    const directory = await mkdtemp(join(tmpdir(), 'tale-release-cadence-'));
+    directories.push(directory);
+    await writeFile(
+      join(directory, 'gh'),
+      "#!/usr/bin/env bash\nprintf '2026-10-11T12:00:00Z\\tv0.5.85\\n'\n",
+      { mode: 0o755 },
+    );
+    await writeFile(
+      join(directory, 'date'),
+      "#!/usr/bin/env bash\nprintf '2026-10-11\\n'\n",
+      { mode: 0o755 },
+    );
+    const baseEnv = {
+      EVENT_NAME: 'workflow_dispatch',
+      INPUT_VERSION: 'v0.5.86',
+      SITES_ONLY: 'false',
+      SOURCE_SHA: source,
+      GH_TOKEN: 'fixture-token',
+      REPOSITORY: 'synthetic/tale',
+      PATH: `${directory}:${process.env.PATH}`,
+    };
+    const blocked = await execute(prepare, baseEnv);
+    expect(blocked.code).toBe(1);
+    expect(blocked.stdout).toContain(
+      'A release was already published today (v0.5.85)',
+    );
+    const recovery = await execute(prepare, {
+      ...baseEnv,
+      INPUT_VERSION: 'v0.5.85',
+    });
+    expect(recovery.code, recovery.stderr).toBe(0);
   },
 );
 
