@@ -398,7 +398,10 @@ export interface AccountService {
    * and refreshes only those, so `/api/tokens/anthropic` never spends
    * OpenAI's rate budget.
    */
-  handOutTokens(provider?: ProviderId): Promise<TokenHandout[]>;
+  handOutTokens(
+    provider?: ProviderId,
+    options?: { forceRefresh?: boolean },
+  ): Promise<TokenHandout[]>;
 }
 
 export function createAccountService(
@@ -553,16 +556,20 @@ export function createAccountService(
    * outage — is `error`, the same token is tried again after a short pause,
    * and a refresh storm against a vendor that is already limiting is avoided.
    */
-  function ensureFresh(account: StoredAccount): Promise<StoredAccount> {
-    if (!needsRefresh(account)) return Promise.resolve(account);
+  function ensureFresh(
+    account: StoredAccount,
+    forceRefresh = false,
+  ): Promise<StoredAccount> {
+    if (!forceRefresh && !needsRefresh(account))
+      return Promise.resolve(account);
     const inFlight = refreshing.get(account.id);
     if (inFlight) return inFlight;
-    if (waitsForSpacing(account, now().getTime())) {
+    if (!forceRefresh && waitsForSpacing(account, now().getTime())) {
       return Promise.resolve(account);
     }
     const vendor = account.provider;
     vendorRefreshing.set(vendor, (vendorRefreshing.get(vendor) ?? 0) + 1);
-    const run = refreshStored(account).finally(() => {
+    const run = refreshStored(account, forceRefresh).finally(() => {
       refreshing.delete(account.id);
       vendorRefreshing.set(vendor, (vendorRefreshing.get(vendor) ?? 1) - 1);
     });
@@ -570,11 +577,14 @@ export function createAccountService(
     return run;
   }
 
-  async function refreshStored(held: StoredAccount): Promise<StoredAccount> {
+  async function refreshStored(
+    held: StoredAccount,
+    forceRefresh = false,
+  ): Promise<StoredAccount> {
     const account = await store.getAccount(held.id);
     // Removed while the caller held its copy: nothing to refresh, or to keep.
     if (!account) return held;
-    if (!needsRefresh(account)) return account;
+    if (!forceRefresh && !needsRefresh(account)) return account;
 
     try {
       const exchange = await providerFor(account).refresh(
@@ -1233,7 +1243,8 @@ export function createAccountService(
       );
     },
 
-    async handOutTokens(provider) {
+    async handOutTokens(provider, handOutOptions = {}) {
+      const forceRefresh = handOutOptions.forceRefresh === true;
       const accounts = (await store.listAccounts()).filter(
         (account) => provider === undefined || account.provider === provider,
       );
@@ -1242,8 +1253,8 @@ export function createAccountService(
           // Keep token rotation independent of an already-running usage read.
           // Once it finishes, use the stored row so neither an old token nor a
           // concurrently removed account can escape from a held snapshot.
-          await ensureFresh(account);
-          await refreshUsage(account);
+          await ensureFresh(account, forceRefresh);
+          await refreshUsage(account, { force: forceRefresh });
           const fresh = await store.getAccount(account.id);
           if (!fresh) return null;
           let accessToken: string;

@@ -827,6 +827,20 @@ describe('createAccountService', () => {
     ).toBe('access-2');
   });
 
+  it('force-refreshes a provider handout after a broker-served inference rejection', async () => {
+    await connect();
+    // The access token is still well inside its planned lifetime, so the
+    // ordinary handout would keep it. A platform retry carries the force
+    // signal after the vendor rejected that exact generation.
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const [row] = await service.handOutTokens('anthropic', {
+      forceRefresh: true,
+    });
+
+    expect(anthropic.refreshCount).toBe(1);
+    expect(row?.accessToken).toBe('access-2');
+  });
+
   it('keeps a rejected generation unavailable when its recovery is rate limited', async () => {
     const account = await connect();
     anthropic.refusals.usage = 'rejected';

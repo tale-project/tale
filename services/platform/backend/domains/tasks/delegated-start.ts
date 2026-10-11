@@ -13,6 +13,7 @@ import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import {
   freeCooldownWaits,
+  freeCredentialRotations,
   type AutoRetryRunFacts,
 } from '../../core/tasks/task_auto_retry.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
@@ -111,9 +112,10 @@ import {
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
  *   automations and agents per task in any rolling hour, their automatic
- *   retries included (a broker cooldown after its own 429 spends no second
- *   start), so two agents (or an agent and a schedule) cannot restart one
- *   task in a loop, and failing retries cannot stretch the budget. The refusal
+ *   retries included (a broker cooldown after its own 429 and the first two
+ *   consecutive broker credential rotations spend no second start), so two
+ *   agents (or an agent and a schedule) cannot restart one task in a loop, and
+ *   failing retries cannot stretch the budget. The refusal
  *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
  *   never counted or refused by it.
  *
@@ -144,7 +146,8 @@ export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
 
 /** Starts by automations and agents one task takes in any rolling hour —
  * their automatic retries included, except the existing free cooldown wait
- * after the run's own 429 — before the circuit breaker refuses the next. */
+ * after the run's own 429 and the first two consecutive credential rotations
+ * — before the circuit breaker refuses the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -215,6 +218,10 @@ export async function automatedStartWindow(
   // out first could make an unrelated 429 look adjacent, or charge a wait
   // whose own 429 just aged out. The seq index bounds this to the hour's
   // history plus its predecessor, including any intervening clock rollback.
+  // A broker credential rotation is a recovery handoff, not a second piece of
+  // automated work: the same free-rotation rule used by the retry budget keeps
+  // its first two consecutive 401s out of this circuit. The third rotation is
+  // counted, so a genuinely dead grant still closes the task's circuit.
   const history = await tx<
     (Pick<AutoRetryRunFacts, 'agentId' | 'status'> & {
       startedAt: number;
@@ -249,8 +256,19 @@ export async function automatedStartWindow(
       apiErrorStatus: run.apiErrorStatus ?? undefined,
     })),
   );
+  const rotations = freeCredentialRotations(
+    history.map((run) => ({
+      ...run,
+      failureCode: run.failureCode ?? undefined,
+      apiErrorStatus: run.apiErrorStatus ?? undefined,
+    })),
+  );
   const recent = history.filter(
-    (run, index) => run.automated && run.startedAt > since && !waits[index],
+    (run, index) =>
+      run.automated &&
+      run.startedAt > since &&
+      !waits[index] &&
+      !rotations[index],
   );
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
