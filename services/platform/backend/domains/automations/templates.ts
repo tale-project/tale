@@ -107,6 +107,46 @@ function isPlatformConnector(slug: string): boolean {
   );
 }
 
+/** One starter as the gallery lists it; `connected` holds the connectors
+ * the organization has a credential in service for. */
+function templateCard(
+  template: AutomationTemplate,
+  connected: ReadonlySet<string>,
+): AutomationTemplateCard {
+  const { manifest } = template;
+  const i18n: AutomationTemplateCard['i18n'] = {};
+  for (const locale of new Set([
+    ...Object.keys(manifest.i18n ?? {}),
+    ...Object.keys(manifest.template.i18n ?? {}),
+  ])) {
+    i18n[locale] = {
+      ...manifest.i18n?.[locale],
+      ...manifest.template.i18n?.[locale],
+    };
+  }
+  return {
+    slug: template.slug,
+    name: manifest.name,
+    ...(manifest.description !== undefined && {
+      description: manifest.description,
+    }),
+    ...(manifest.icon !== undefined && { icon: manifest.icon }),
+    details: manifest.template.details,
+    i18n,
+    scope: manifest.scope ?? 'org',
+    fields: manifest.template.fields.map(fieldView),
+    connectors: (manifest.requires?.connectors ?? []).map((slug) => ({
+      slug,
+      connected: isPlatformConnector(slug) || connected.has(slug),
+    })),
+    trigger: triggerView(manifest.triggers?.[0]),
+    steps: template.automation.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+    })),
+  };
+}
+
 /** The starters, as the gallery of `organizationId` lists them. */
 export async function listTemplateCards(
   sql: Sql,
@@ -115,40 +155,9 @@ export async function listTemplateCards(
   const connected = new Set(
     await listConnectedConnectorSlugs(sql, organizationId),
   );
-  return loadAutomationTemplates().map((template) => {
-    const { manifest } = template;
-    const i18n: AutomationTemplateCard['i18n'] = {};
-    for (const locale of new Set([
-      ...Object.keys(manifest.i18n ?? {}),
-      ...Object.keys(manifest.template.i18n ?? {}),
-    ])) {
-      i18n[locale] = {
-        ...manifest.i18n?.[locale],
-        ...manifest.template.i18n?.[locale],
-      };
-    }
-    return {
-      slug: template.slug,
-      name: manifest.name,
-      ...(manifest.description !== undefined && {
-        description: manifest.description,
-      }),
-      ...(manifest.icon !== undefined && { icon: manifest.icon }),
-      details: manifest.template.details,
-      i18n,
-      scope: manifest.scope ?? 'org',
-      fields: manifest.template.fields.map(fieldView),
-      connectors: (manifest.requires?.connectors ?? []).map((slug) => ({
-        slug,
-        connected: isPlatformConnector(slug) || connected.has(slug),
-      })),
-      trigger: triggerView(manifest.triggers?.[0]),
-      steps: template.automation.nodes.map((node) => ({
-        id: node.id,
-        type: node.type,
-      })),
-    };
-  });
+  return loadAutomationTemplates().map((template) =>
+    templateCard(template, connected),
+  );
 }
 
 /** What the organization says about the answers: a project the creator
