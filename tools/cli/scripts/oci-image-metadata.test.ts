@@ -497,8 +497,8 @@ esac
     expect(Object.keys(publication.env ?? {}).toSorted()).toEqual([
       'IMAGE',
       'SERVICE',
-      'SOURCE_SHA',
       'SITES_ONLY',
+      'SOURCE_SHA',
       'VERSION',
     ]);
     const { code, output } = await runScript(publication.run!, directory, {
