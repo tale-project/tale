@@ -85,10 +85,16 @@ vi.mock('@tale/ui/use-format-date', () => ({
 
 // The shared chat renderer pulls chat chrome (images, citations); the plain
 // element map keeps this about the directory, not the markdown.
-vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
-  markdownWrapperStyles: '',
-  markdownComponents: {},
-}));
+vi.mock(
+  '@/app/features/shared/markdown/markdown-renderer',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/shared/markdown/markdown-renderer')
+    >()),
+    markdownWrapperStyles: '',
+    markdownComponents: {},
+  }),
+);
 
 const COMMENTS = Array.from({ length: 40 }, (_, index) => ({
   messageId: `message-${index}`,

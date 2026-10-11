@@ -64,10 +64,16 @@ beforeEach(() => {
 
 // Markdown renderer pulls chat chrome (images, citations) — stub the shared
 // component map to keep this suite focused on MD + mention composition.
-vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
-  markdownWrapperStyles: '',
-  markdownComponents: {},
-}));
+vi.mock(
+  '@/app/features/shared/markdown/markdown-renderer',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/shared/markdown/markdown-renderer')
+    >()),
+    markdownWrapperStyles: '',
+    markdownComponents: {},
+  }),
+);
 
 describe('MentionText — markdown', () => {
   it('loads one directory for a large description and preserves every paragraph', () => {
