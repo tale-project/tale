@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 214 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 220 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1253,8 +1253,8 @@ output:
       on a narrow window) with each changed field marked; when the outputs
       differ too, `automationRuns.compare.diff.output` appears above it; two
       runs with the same input show neither. `automationRuns.compare.canvas`
-      draws both runs on B's version: each strip reads "A … · B …", the
-      step where they part is ringed.
+      draws both runs on one chart, B's version when both ran it: each strip
+      reads "A … · B …", the step where they part is ringed.
 - [ ] `AUTO-F120` · **In `automationRuns.view.steps`, open a step that ran
       once per item** → `flow.timeline.loadingItems` shows while its items
       are read, then each item joins under it with how it ended and how long
@@ -1510,11 +1510,38 @@ output:
       who deployed which version, and **Show deployments** opens the
       Versions tab on Deployments.
 - [ ] `AUTO-F158` · **Open the Version picker** → each row shows its message,
-      who saved it and when on one line, its test result and the live
-      marker, with **Restores v**_n_ or **Based on v**_n_ where they apply;
-      **All versions and changes**
+      with **Restores v**_n_ or **Based on v**_n_ at the end of that line
+      where they apply, then who saved it and when, its test result and the
+      live marker on a second line; every row stays two lines tall, a long
+      message cut short. **All versions and changes**
       (`automations.versions.actions.allVersions`) at its foot opens the
-      Versions tab, and rows stay one compact line each.
+      Versions tab.
+- [ ] `AUTO-F159` · **On Runs, read the Version column** → each run's
+      version is a pill (`automations.runs.versionPill.name`) with a green
+      dot on the live version; pointing at it shows the version's message,
+      who saved it and when; selecting it opens that version in the editor
+      (`?version=N`), not the run, inside the project shell for a project's
+      runs.
+- [ ] `AUTO-F160` · **On a run's page, open the version pill** → a menu with
+      `automations.runs.versionPill.open`,
+      `automations.runs.versionPill.compareWithLive` (only while another
+      version is live; it opens the newer of the two compared with the
+      older) and `automations.versions.actions.history`, each landing on its
+      page.
+- [ ] `AUTO-F161` · **Compare a run of v3 with a run of v4, where v4 dropped
+      a step** → `automationRuns.compare.differs.seeVersions` under What
+      differs opens `…/versions/4?from=3`; the chart holds the steps of both
+      versions, the dropped one dashed with `flow.compare.absent` and A's
+      strip only; each run card's pill names its version, the live one
+      marked.
+- [ ] `AUTO-F162` · **Open a task's run dialog as a Developer, then as a
+      Member** → beside `tasks.run.openFull` the version pill opens that
+      version in the project's editor; the Member sees neither link.
+- [ ] `AUTO-F163` · **Upload a workflow file that reads a node it does not
+      have** → `automations.upload.invalid` with each problem listed as the
+      editor's Problems list words it (title, code, how to fix), never the
+      server's English sentence; nothing is saved and the dialog stays open
+      for another file.
 
 ## Boundary & error tests
 
@@ -1834,6 +1861,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       the chart is reachable and a box opens its changes with Enter. At
       390 px the page opens on Changes, the header's buttons wrap under the
       title, and nothing scrolls the page sideways.
+- [ ] `AUTO-A24` · **The version pill by keyboard and on a phone** → Tab
+      reaches each pill in the Runs table and Enter opens the version; on a
+      run's page Enter opens the pill's menu, ↑/↓ move, Escape closes it and
+      returns focus to the pill; focus shows the tooltip as hovering does.
+      At 390 px the run compare cards keep their pills and nothing scrolls
+      the page sideways.
 - [ ] `AUTO-A23` · **The old-version band and the save review by keyboard and
       on a phone** → Tab reaches the band's two actions in reading order and
       the save dialog's **Review changes**, which opens with Enter or Space;
