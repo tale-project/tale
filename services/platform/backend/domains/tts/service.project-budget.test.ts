@@ -27,7 +27,8 @@ vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember: vi.fn(async () => null),
   getUserTeamIds: vi.fn(async () => []),
 }));
-vi.mock('../../lib/org-config.ts', () => ({
+vi.mock(import('../../lib/org-config.ts'), async (importOriginal) => ({
+  ...(await importOriginal()),
   readGovernancePolicyForOrg: vi.fn(async (_sql: unknown, _org, type) =>
     type === 'budgets' ? mocks.budgets : null,
   ),
