@@ -280,11 +280,28 @@ export class IncusPool {
       console.warn(
         `[sandbox.incus.pool] making a standby (${name}) failed:`,
         error,
+        await this.consoleTail(name),
       );
       await this.discard(name);
       return false;
     } finally {
       this.making.delete(name);
+    }
+  }
+
+  /** What the standby printed last, for the log of a standby that failed: the
+   * instance is not ephemeral, so its console outlives the failure until it is
+   * discarded. Empty when it cannot be read. */
+  private async consoleTail(name: string): Promise<string> {
+    try {
+      const tail = await this.client.getConsoleLog(name, 2_000);
+      return tail.trim() === '' ? '' : `\nlast console lines:\n${tail.trim()}`;
+    } catch (error) {
+      console.warn(
+        `[sandbox.incus.pool] cannot read the console of ${name}:`,
+        error instanceof Error ? error.message : error,
+      );
+      return '';
     }
   }
 

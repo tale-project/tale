@@ -221,6 +221,8 @@ export class FakeIncus {
   deleteDelayMs = 0;
   /** Run when an instance reaches Running. */
   onStarted: ((instance: FakeInstance) => void) | undefined;
+  /** Run once a delete has taken an instance away, before the client hears. */
+  onDeleted: ((instance: FakeInstance) => void) | undefined;
   /** Image pulls fail with this message when set. */
   pullFailure: string | undefined;
 
@@ -1059,6 +1061,7 @@ export class FakeIncus {
       throw new FakeFailure(400, 'Instance is running');
     return this.startOperation(async () => {
       this.instances.delete(instance.name);
+      this.onDeleted?.(instance);
     });
   }
 

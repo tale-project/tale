@@ -89,6 +89,42 @@ describe('removeIncusInstance', () => {
     expect(fake.instances.has(NAME)).toBe(false);
   });
 
+  test('deletes an instance nothing deletes for it at once, without waiting', async () => {
+    const fake = new FakeIncus();
+    fake.seedInstance(NAME, {}, { ephemeral: false });
+    const sleeps: number[] = [];
+    expect(
+      await removeIncusInstance(fake.client(), NAME, {
+        sleep: async (ms) => {
+          sleeps.push(ms);
+        },
+      }),
+    ).toBe('removed');
+    expect(sleeps).toEqual([]);
+    // The reads, the stop and the delete, in that order, apart from the
+    // waits on the operations the last two start.
+    expect(
+      fake.requests
+        .map((r) => `${r.method} ${r.path.split('/').at(-1)}`)
+        .filter((entry) => entry !== 'GET wait'),
+    ).toEqual(['GET ' + NAME, 'PUT state', 'DELETE ' + NAME, 'GET ' + NAME]);
+  });
+
+  test('tries again, from its polls, a delete that failed', async () => {
+    const fake = new FakeIncus();
+    fake.seedInstance(NAME, {}, { ephemeral: false });
+    fake.fail({
+      match: 'DELETE /1.0/instances/*',
+      status: 500,
+      message: 'storage is busy',
+    });
+    expect(
+      await removeIncusInstance(fake.client(), NAME, { sleep: instant }),
+    ).toBe('removed');
+    expect(fake.seen('DELETE /1.0/instances/*')).toHaveLength(2);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('deleting');
+  });
+
   test('removes a stopped instance without stopping it again', async () => {
     const fake = new FakeIncus();
     fake.seedInstance(NAME, {}, { ephemeral: false, status: 'Stopped' });
@@ -125,18 +161,14 @@ describe('removeIncusInstance', () => {
   test('reports a replacement that took the name while the instance went', async () => {
     const fake = new FakeIncus();
     const seeded = fake.seedInstance(NAME, {}, { ephemeral: false });
-    // The deleting is slow; a peer makes the name's next instance meanwhile.
-    let polls = 0;
-    const sleep = async () => {
-      polls += 1;
-      if (polls === 1) {
-        fake.instances.delete(NAME);
-        fake.seedInstance(NAME, {});
-      }
+    // A peer makes the name's next instance the moment this one is gone.
+    fake.onDeleted = () => {
+      fake.onDeleted = undefined;
+      fake.seedInstance(NAME, {});
     };
     expect(
       await removeIncusInstance(fake.client(), NAME, {
-        sleep,
+        sleep: instant,
         createdAt: seeded.createdAt,
       }),
     ).toBe('replaced');

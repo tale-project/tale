@@ -111,7 +111,8 @@ describe('filling the pool', () => {
     }
     expect(fake.seen('POST /1.0/instances')).toHaveLength(3);
     for (const create of fake.seen('POST /1.0/instances')) {
-      expect(create.body).toMatchObject({ start: false, ephemeral: true });
+      // Not ephemeral: its console must outlive a start that failed.
+      expect(create.body).toMatchObject({ start: false, ephemeral: false });
     }
     expect(pool.readyCount()).toBe(3);
   });
@@ -438,33 +439,49 @@ describe('making room', () => {
 });
 
 describe('removing a standby', () => {
-  test('an ephemeral instance goes with its stop and is not deleted again', async () => {
+  test('a standby is stopped by force and then deleted', async () => {
     const { fake, pool } = fixture(1);
     await pool.reconcile();
     const [only] = standbys(fake);
     if (only === undefined) throw new Error('no standby');
+    expect(only.ephemeral).toBe(false);
     only.config[LABEL.pool] = 'stale';
     const report = await pool.reconcile();
     expect(report).toMatchObject({ removed: 1, created: 1 });
     expect(fake.instances.has(only.name)).toBe(false);
-    expect(fake.seen('DELETE /1.0/instances/*')).toHaveLength(0);
-    expect(fake.seen('PUT /1.0/instances/*/state')[1]?.body).toMatchObject({
-      action: 'stop',
-      force: true,
-    });
+    expect(fake.seen('DELETE /1.0/instances/*')).toHaveLength(1);
+    // The stops of the first standby's start and of its removal.
+    expect(
+      fake.seen('PUT /1.0/instances/*/state').map((r) => r.body),
+    ).toContainEqual(expect.objectContaining({ action: 'stop', force: true }));
   });
 
-  test('an instance that stays after its stop is deleted', async () => {
+  test('an ephemeral instance somebody made goes with its stop and is not deleted again', async () => {
     const { fake, pool } = fixture(1);
     await pool.reconcile();
     const [only] = standbys(fake);
     if (only === undefined) throw new Error('no standby');
-    only.ephemeral = false;
+    only.ephemeral = true;
     only.config[LABEL.pool] = 'stale';
+    const deletes = fake.seen('DELETE /1.0/instances/*').length;
     const report = await pool.reconcile();
     expect(report.removed).toBe(1);
     expect(fake.instances.has(only.name)).toBe(false);
-    expect(fake.seen('DELETE /1.0/instances/*')).toHaveLength(1);
+    expect(fake.seen('DELETE /1.0/instances/*')).toHaveLength(deletes);
+  });
+
+  test('a standby that fails to start is quoted from its console before it is discarded', async () => {
+    const { fake, pool } = fixture(1);
+    fake.onStarted = (instance) => {
+      instance.files.delete(STANDBY_READY_FILE);
+      instance.consoleLog = 'standby.sh: mkdir: permission denied';
+    };
+    await pool.reconcile();
+    const quoted = warn.mock.calls.some((call) =>
+      call.some((part) => String(part).includes('mkdir: permission denied')),
+    );
+    expect(quoted).toBe(true);
+    expect(fake.instances.size).toBe(0);
   });
 
   test('gives up on an instance that cannot be removed, and says so', async () => {

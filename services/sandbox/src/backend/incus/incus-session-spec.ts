@@ -360,8 +360,11 @@ export function buildSessionInstance(
     : { uid: shape.uid, gid: shape.gid };
   return {
     name: incusInstanceName(input.sessionId),
-    // A stopped session leaves nothing but its workspace.
-    ephemeral: true,
+    // Not ephemeral, on purpose: an ephemeral instance deletes itself the moment
+    // it stops, console log and all, and the console is the only place a start
+    // that failed says why. The spawner removes a stopped instance itself (a
+    // stop, the next create of the id, the sweep).
+    ephemeral: false,
     profiles: [incus.profile],
     config: {
       ...baseConfig(
@@ -471,7 +474,8 @@ export function poolFingerprint(
 }
 
 /** The create of a standby: stopped, so the standby script can be pushed
- * into it before it first runs. */
+ * into it before it first runs. Not ephemeral, like the session it becomes at
+ * a claim: its console must survive a start that failed. */
 export function buildPoolInstance(
   cfg: SpawnerConfig,
   shape: SessionShape,
@@ -480,7 +484,7 @@ export function buildPoolInstance(
   const spec = standbyStaticSpec(cfg, shape);
   return {
     name: entry.name,
-    ephemeral: true,
+    ephemeral: false,
     profiles: spec.profiles,
     config: {
       ...spec.config,

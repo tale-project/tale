@@ -65,7 +65,8 @@ describe('a cold create', () => {
 
     const instance = f.fake.instances.get(NAME);
     expect(instance).toBeDefined();
-    expect(instance?.ephemeral).toBe(true);
+    // Not ephemeral, so that a start that fails leaves its console to read.
+    expect(instance?.ephemeral).toBe(false);
     expect(instance?.status).toBe('Running');
     expect(instance?.devices.workspace?.source).toBe(VOLUME);
     expect(instance?.config).toMatchObject({
@@ -323,29 +324,60 @@ describe('a create that fails', () => {
     expect(f.fake.volumes.has(VOLUME)).toBe(false);
   });
 
-  test('says why when the instance stopped before runnerd answered, quoting its console', async () => {
+  test('says why when the entrypoint refused to start: the stopped instance keeps its console', async () => {
     const f = sessionFixture();
     f.fake.onStarted = (instance) => {
       instance.consoleLog =
         'entrypoint: refusing to start: uid_map is host root';
     };
-    // The first poll finds runnerd down, and the instance ends.
+    // The first poll finds runnerd down, and the entrypoint has exited.
     let polls = 0;
     const crashing = new IncusSessionBackend(f.cfg, {
       runtime: f.runtime,
       runnerdHealth: async (opts, signal) => {
         polls += 1;
-        if (polls === 1) {
-          f.fake.instances.delete(NAME);
+        const instance = f.fake.instances.get(NAME);
+        if (polls === 1 && instance !== undefined) {
+          instance.status = 'Stopped';
+          instance.bootEnv = undefined;
         }
         return f.runnerd.health(opts, signal);
       },
       runnerdEnvPatch: f.runnerd.envPatch,
     });
     const error = await rejection(crashing.createSession(specOf(ID)));
-    expect(error.message).toContain('before runnerd became ready');
+    expect(error.message).toContain('stopped before runnerd became ready');
     expect(error.message).toContain('uid_map is host root');
+    // The create's own cleanup took the debris away after the console was read.
     expect(f.fake.instances.has(NAME)).toBe(false);
+  });
+
+  test('says so, without a console, when the instance was taken away from under the create', async () => {
+    const f = sessionFixture();
+    let polls = 0;
+    const vanishing = new IncusSessionBackend(f.cfg, {
+      runtime: f.runtime,
+      runnerdHealth: async (opts, signal) => {
+        polls += 1;
+        if (polls === 1) f.fake.instances.delete(NAME);
+        return f.runnerd.health(opts, signal);
+      },
+      runnerdEnvPatch: f.runnerd.envPatch,
+    });
+    const error = await rejection(vanishing.createSession(specOf(ID)));
+    expect(error.message).toContain('is gone before runnerd became ready');
+    expect(error.message).not.toContain('console');
+  });
+
+  test('quotes the console of an instance that runs but never answers', async () => {
+    const f = sessionFixture();
+    f.fake.onStarted = (instance) => {
+      instance.consoleLog = 'runnerd: listening on a port nobody can reach';
+    };
+    f.runnerd.failFirst = 1_000_000;
+    const error = await rejection(f.backend.createSession(specOf(ID)));
+    expect(error.message).toContain('runnerd did not become ready');
+    expect(error.message).toContain('listening on a port nobody can reach');
   });
 
   test('says so when the instance is left stopped rather than gone', async () => {

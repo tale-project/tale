@@ -1,22 +1,23 @@
 // Taking an instance away, for the session backend and the warm pool alike.
 //
-// Instances are ephemeral: a stopped one deletes itself, a moment after the
-// stop answers. The removal therefore stops the instance and waits for it to
-// go, and deletes it explicitly only when it stays (an instance made
-// non-ephemeral by hand, or a deletion that did not run). Incus has no
-// preconditioned stop or delete, so identity is checked by reading: when the
-// caller knows the instance's creation time, a different instance under the
-// name — a replacement made while this one went — is left alone.
+// Session and standby instances are not ephemeral (their console must outlive
+// a start that failed), so the removal stops the instance and deletes it. An
+// instance somebody made ephemeral deletes itself a moment after the stop
+// answers; the removal waits for that instead. Incus has no preconditioned
+// stop or delete, so identity is checked by reading: when the caller knows the
+// instance's creation time, a different instance under the name — a
+// replacement made while this one went — is left alone.
 
 import { INCUS_STATUS, incusStatus } from './incus-api.ts';
 import type { IncusClient } from './incus-client.ts';
 
-/** Polls for the instance to go: the first ones quickly, since an ephemeral
- * instance is usually gone by the time the stop answers. */
+/** Polls for the instance to go: the first ones quickly, since a deletion
+ * is usually done by the time the next look comes. */
 const POLLS = 60;
 const FAST_POLLS = 10;
-/** The poll at which an instance that is still there is deleted by hand, and
- * every this many polls after. */
+/** The poll at which an instance that is still there is deleted again, and
+ * every this many polls after (the first deletion may have failed, or an
+ * instance that was to delete itself did not). */
 const DELETE_FIRST_POLL = 4;
 const DELETE_EVERY_POLLS = 10;
 const OPERATION_WAIT_MS = 60_000;
@@ -92,6 +93,18 @@ export async function removeIncusInstance(
           error instanceof Error ? error.message : error,
         );
       }
+    }
+  }
+
+  if (!found.instance.ephemeral) {
+    // Nothing deletes it but us.
+    try {
+      await client.deleteInstance(name, OPERATION_WAIT_MS);
+    } catch (error) {
+      console.warn(
+        `[sandbox.incus] deleting ${name}:`,
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 

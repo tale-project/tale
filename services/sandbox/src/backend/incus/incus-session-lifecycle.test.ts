@@ -173,16 +173,13 @@ describe('stopSession', () => {
   });
 
   test('does not count a replacement that took the name while it terminated as freed', async () => {
-    let swapped = false;
-    const f = sessionFixture({
-      onSleep: () => {
-        if (swapped) return;
-        swapped = true;
-        f.fake.instances.delete(NAME);
-        f.fake.seedInstance(NAME, labels(ID, { [LABEL.created]: '99' }));
-      },
-    });
+    const f = sessionFixture();
     f.fake.seedInstance(NAME, labels(), { ephemeral: false });
+    // A peer's create takes the name the moment this one is gone.
+    f.fake.onDeleted = () => {
+      f.fake.onDeleted = undefined;
+      f.fake.seedInstance(NAME, labels(ID, { [LABEL.created]: '99' }));
+    };
     const error = await rejection(f.backend.stopSession(ID, START_MS));
     expect(error).toBeInstanceOf(SessionIncarnationChangedError);
     // The replacement runs on.

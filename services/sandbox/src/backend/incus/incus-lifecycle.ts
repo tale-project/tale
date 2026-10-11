@@ -46,8 +46,9 @@ export function isRunning(instance: IncusInstance): boolean {
   return instance.statusCode === INCUS_STATUS.running;
 }
 
-/** Nothing runs or will run in it: stopped (an ephemeral instance deletes
- * itself, so one that lingers stopped is debris) or in error. */
+/** Nothing runs or will run in it: stopped or in error. A session instance
+ * that has ended is debris the spawner removes (it is not ephemeral, so that
+ * its console log survives a start that failed). */
 export function hasEnded(instance: IncusInstance): boolean {
   return (
     instance.statusCode === INCUS_STATUS.stopped ||

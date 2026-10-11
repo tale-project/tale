@@ -1,12 +1,13 @@
 // IncusSessionBackend — persistent sessions on the Incus path.
 //
-// Sibling of the Docker and Kubernetes session backends. One ephemeral OCI
-// container per session (incus-session-spec.ts) running runnerd; the spawner
-// reaches runnerd at the container's address on :8200 over plain HTTP,
-// exec-free. The workspace is a quota'd custom volume that outlives the
-// container: stopping a session removes the container and keeps the volume, a
-// later create with the same id mounts it again (a resume), and only destroy
-// deletes it.
+// Sibling of the Docker and Kubernetes session backends. One OCI container per
+// session (incus-session-spec.ts) running runnerd; the spawner reaches runnerd
+// at the container's address on :8200 over plain HTTP, exec-free. The
+// workspace is a quota'd custom volume that outlives the container: stopping a
+// session removes the container and keeps the volume, a later create with the
+// same id mounts it again (a resume), and only destroy deletes it. The
+// container is not ephemeral, so one whose start failed stays stopped with its
+// console log, which the create's error quotes; the spawner removes it.
 //
 // The objects in Incus are the source of truth and this process's maps only a
 // cache: a session's identity, owner, creation stamp and pin are `user.*`
@@ -100,6 +101,7 @@ const RUNNERD_READY_POLL_MS = 100;
 /** How often it looks at the instance (its address, whether it still runs)
  * while runnerd has not answered: every this many polls. */
 const INSTANCE_LOOK_EVERY_POLLS = 5;
+
 /** Waiting for the address DHCP gives the instance. */
 const ADDRESS_POLL_MS = 250;
 /** A volume an instance has only just let go of is refused for a moment. */
@@ -192,8 +194,10 @@ export class IncusSessionBackend implements SessionBackend {
         : client.getInstance(name);
     const deterministic = incusInstanceName(sessionId);
     const hinted = this.names.get(sessionId);
+    // The name it was last found under first: a claimed standby would cost a
+    // miss on the deterministic name at every look.
     for (const name of new Set(
-      hinted === undefined ? [deterministic] : [deterministic, hinted],
+      hinted === undefined ? [deterministic] : [hinted, deterministic],
     )) {
       const found = await read(name);
       if (found !== undefined && this.isSessionOf(found.instance, sessionId)) {
@@ -506,9 +510,9 @@ export class IncusSessionBackend implements SessionBackend {
    * Poll runnerd's /healthz until it is ready, but fail fast when the
    * instance has ended: a boot crash (the entrypoint's tier assertion, a
    * workspace it cannot write) would otherwise burn the whole create budget
-   * blind-polling an instance that stopped in its first second — and an
-   * ephemeral instance deletes itself the moment it stops, so its console is
-   * read while it still runs and quoted from memory.
+   * blind-polling an instance that stopped in its first second. A session
+   * instance is not ephemeral, so it stays stopped with its console log, which
+   * the error quotes.
    */
   private async waitForRunnerd(
     name: string,
@@ -518,34 +522,25 @@ export class IncusSessionBackend implements SessionBackend {
   ): Promise<{ health: RunnerdHealth; baseUrl: string }> {
     const client = await this.api();
     let baseUrl: string | undefined;
-    let lastLog = '';
-    let logWarned = false;
     for (let poll = 0; ; poll += 1) {
       signal.throwIfAborted();
       if (baseUrl === undefined || poll % INSTANCE_LOOK_EVERY_POLLS === 0) {
         const found = await client.getInstanceFull(name);
-        if (found === undefined || hasEnded(found.instance)) {
+        if (found === undefined) {
           throw new Error(
-            `the session instance ${name} ${found === undefined ? 'is gone' : 'stopped'} before runnerd became ready${quoted(lastLog)}`,
+            `the session instance ${name} is gone before runnerd became ready`,
+          );
+        }
+        if (hasEnded(found.instance)) {
+          // It stays stopped, console log and all, until the cleanup of this
+          // create removes it: what it printed is the reason.
+          throw new Error(
+            `the session instance ${name} stopped before runnerd became ready${quoted(await this.consoleTail(client, name))}`,
           );
         }
         const address = instanceAddress(found.state);
         if (address !== undefined)
           baseUrl = `http://${address}:${RUNNERD_PORT}`;
-        if (isRunning(found.instance)) {
-          try {
-            lastLog = await client.getConsoleLog(name, LOG_TAIL_BYTES);
-          } catch (error) {
-            // A diagnostic only: said once, not at every look.
-            if (!logWarned) {
-              logWarned = true;
-              console.warn(
-                `[sandbox.session] cannot read the console of ${name}:`,
-                error instanceof Error ? error.message : error,
-              );
-            }
-          }
-        }
       }
       if (baseUrl !== undefined) {
         try {
@@ -562,12 +557,29 @@ export class IncusSessionBackend implements SessionBackend {
       }
       if (this.runtime.now() > deadlineMs) {
         throw new Error(
-          `runnerd did not become ready within ${this.cfg.session.createHealthTimeoutMs}ms${baseUrl === undefined ? ' (the instance never got an address)' : ''}${quoted(lastLog)}`,
+          `runnerd did not become ready within ${this.cfg.session.createHealthTimeoutMs}ms${baseUrl === undefined ? ' (the instance never got an address)' : ''}${quoted(await this.consoleTail(client, name))}`,
         );
       }
       await this.runtime.sleep(
         baseUrl === undefined ? ADDRESS_POLL_MS : RUNNERD_READY_POLL_MS,
       );
+    }
+  }
+
+  /** The end of the instance's console, for a failure message; empty when it
+   * cannot be read, which is only worth a line in the log. */
+  private async consoleTail(
+    client: IncusClient,
+    name: string,
+  ): Promise<string> {
+    try {
+      return await client.getConsoleLog(name, LOG_TAIL_BYTES);
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot read the console of ${name}:`,
+        error instanceof Error ? error.message : error,
+      );
+      return '';
     }
   }
 

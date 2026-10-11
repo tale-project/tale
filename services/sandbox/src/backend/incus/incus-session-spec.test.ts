@@ -143,7 +143,8 @@ describe('a session started cold', () => {
   test('an agent without Docker: the whole create body', () => {
     const body = buildSessionInstance(incusTestConfig(), input);
     expect(body.name).toBe(incusInstanceName('sess_one'));
-    expect(body.ephemeral).toBe(true);
+    // Not ephemeral: it stays stopped, console and all, if its start fails.
+    expect(body.ephemeral).toBe(false);
     expect(body.start).toBe(true);
     expect(body.profiles).toEqual(['sandbox']);
     expect(body.source).toEqual({
@@ -439,7 +440,7 @@ describe('the warm pool', () => {
       nowMs: 1_700_000_000_000,
     });
     expect(body.start).toBe(false);
-    expect(body.ephemeral).toBe(true);
+    expect(body.ephemeral).toBe(false);
     expect(body.config).toMatchObject({
       // the waiting script, under no_new_privs like the session it becomes
       'oci.entrypoint': `/usr/bin/setpriv --no-new-privs -- ${STANDBY_COMMAND}`,
