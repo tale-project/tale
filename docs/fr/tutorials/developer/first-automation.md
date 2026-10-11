@@ -1,5 +1,5 @@
 ---
-title: "Ta première automatisation : un récapitulatif quotidien des tâches"
+title: "Ta première automatisation : tâches quotidiennes"
 description: Crée une automatisation à partir du modèle Récapitulatif quotidien des tâches, exécute-la une fois à la main et retrouve le récapitulatif dans tes notifications.
 ---
 
