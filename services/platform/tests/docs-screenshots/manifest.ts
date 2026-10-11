@@ -56,6 +56,7 @@ import {
   DEMO_SSO_EXAMPLE,
   DEMO_TEST_RUN,
   DEMO_TRIGGER_SKIP,
+  DEMO_VERSIONS,
   DEMO_WEBDAV_RETIRED_LABEL,
   DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
@@ -2205,6 +2206,139 @@ export const SHOTS: readonly Shot[] = [
       page.locator(
         `[data-flow-node="${DEMO_FAILED_RUN.failsAt}"][data-flow-state="failed"]`,
       ),
+  },
+  {
+    // The weekly digest's Versions tab: v3 live in place of v2, when it went
+    // live and who deployed it, then every saved version newest first with
+    // its message, who saved it and through what, what it changed and its
+    // tests.
+    name: 'automation-versions',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_VERSIONS.automation}/versions`,
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('heading', {
+          name: t('automations.deployments.live.title').replace(
+            '{version}',
+            String(DEMO_VERSIONS.deploys.at(-1)),
+          ),
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    },
+    // The rows arrive after the card, and their authors after the rows:
+    // gate on the oldest version's row with its author named.
+    readyWhen: (page) =>
+      page
+        .getByRole('row')
+        .filter({ hasText: DEMO_VERSIONS.versions[0].message })
+        .filter({ hasNot: page.locator('[data-slot="author-pending"]') }),
+  },
+  {
+    // v4 of the weekly digest compared with v3 on one chart: Post renamed
+    // Publish, Summarize's code changed, and the renamed step's changes open
+    // beside the chart.
+    name: 'automation-version-compare',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_VERSIONS.automation}/versions/4?from=3`,
+    prepare: async (page) => {
+      const publish = flowNode(page, 'publish');
+      await expect(publish).toHaveAttribute('data-flow-diff', 'renamed', {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      await publish.click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('complementary', {
+        name: t('automations.compare.panel.label'),
+      }),
+  },
+  {
+    // An edit of v2 of the weekly digest about to be saved while v4 is the
+    // latest: the dialog names the version it creates and the one it is
+    // based on, says that v3 and v4 are not in the draft, and reviews the
+    // edit — one line of Post's code.
+    name: 'automation-version-save-review',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_VERSIONS.automation}/editor?version=2`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'post');
+      const code = page.getByRole('textbox', {
+        name: t('automations.editor.fields.code'),
+        exact: true,
+      });
+      await code.click();
+      await page.keyboard.press('ControlOrMeta+End');
+      await page.keyboard.type(' // for the team channel');
+      await page
+        .getByRole('button', { name: t('common.actions.save'), exact: true })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await page
+        .getByRole('dialog', {
+          name: t('automations.detail.saveDialog.title'),
+        })
+        .getByText(t('automations.detail.saveDialog.review'), { exact: true })
+        .click();
+    },
+    // The review's code comparison loads on first use: gate on the line the
+    // edit added, drawn in it.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', {
+          name: t('automations.detail.saveDialog.title'),
+        })
+        .getByText(/for the team channel/)
+        .first(),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.detail.saveDialog.title'),
+      }),
+    viewport: { width: 1440, height: 1000 },
+  },
+  {
+    // A test run of v1 and one of v2 of the weekly digest compared: what
+    // differs, with the way to the versions' comparison, and both runs on
+    // the steps of both versions — Summarize, which v1 lacks, dashed for A.
+    name: 'automation-run-compare-versions',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_VERSIONS.automation}/runs`,
+    prepare: async (page) => {
+      const boxes = page.getByRole('checkbox', {
+        name: t('common.aria.selectRow'),
+      });
+      await expect(boxes).toHaveCount(DEMO_VERSIONS.runs.length, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      await boxes.nth(0).click();
+      await boxes.nth(1).click();
+      await page
+        .getByRole('button', { name: t('automationRuns.list.compare') })
+        .click();
+      // The chart opens on its top at a readable zoom; drag it up from an
+      // empty spot so the step only v2 has is in view.
+      const absent = page
+        .getByText(t('flow.compare.absent').replace('{label}', 'A'))
+        .first();
+      await absent.waitFor({ state: 'attached', timeout: TIMEOUT.FIRST_PAINT });
+      const pane = await page
+        .locator('.react-flow__pane')
+        .first()
+        .boundingBox();
+      if (pane !== null) {
+        const x = pane.x + pane.width - 120;
+        const y = pane.y + pane.height - 40;
+        await page.mouse.move(x, y);
+        await page.mouse.down();
+        await page.mouse.move(x, y - 300, { steps: 12 });
+        await page.mouse.up();
+      }
+    },
+    readyWhen: (page) =>
+      page.getByText(t('flow.compare.absent').replace('{label}', 'A')).first(),
+    // Tall enough for the chart under what differs and the outputs.
+    viewport: { width: 1440, height: 1400 },
   },
   {
     // Settings > Connectors with Add credential open on its first step — the

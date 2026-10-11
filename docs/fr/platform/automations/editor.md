@@ -218,6 +218,12 @@ Quand **Version** affiche une version plus ancienne que la dernière, un bandeau
 
 Tu peux quand même modifier la version plus ancienne. Le bandeau ajoute alors **L’enregistrement crée la v6 à partir de la v2.**, et l’enregistrement fait exactement cela, sans te demander de recharger. La boîte de dialogue d’enregistrement indique **Enregistrée comme v6, à partir de la v2.** et avertit, avec un lien vers la comparaison, que les modifications des v3 à v5 ne sont pas dans ton brouillon. Dans l’historique des versions, la nouvelle version porte **Basée sur la v2**. Pour garder ces modifications, passe à la dernière version avant de modifier.
 
+<Frame caption="L’enregistrement d’une modification de la v2 alors que la v4 est la plus récente : la boîte de dialogue dit ce que l’enregistrement crée et quelles modifications le brouillon laisse de côté.">
+
+![La boîte de dialogue Save a new version indique Saves as v5, based on v2, avertit que les modifications des v3 à v4 ne sont pas dans le brouillon avec un lien Compare v2 with v4, et sous Review changes montre Post modifié, son code comparé ligne par ligne.](/images/platform/automation-version-save-review.webp)
+
+</Frame>
+
 ## Mettre en service et exécuter en réel
 
 Choisis la version testée sous **Version** et clique sur le bouton voisin, qui nomme cette version, par exemple **Mettre v3 en service** ; pour une version plus ancienne que celle en service, il indique **Revenir à la v2**. Le badge **En service** indique la version déployée. La mise en service se passe comme dans **Versions** : un message la confirme et propose **Annuler**, et si une autre version a été mise en service entre-temps, rien ne change et le message indique qui l’a mise en service. Tu peux aussi mettre en service n’importe quelle version enregistrée depuis **Versions**, comme le décrit [Mettre en service ou revenir en arrière en un clic](#deploy-in-one-click).
@@ -231,6 +237,12 @@ Un déclencheur utilise aussi la version déployée. Configure-le lorsque tu es 
 ## Versions et mises en service {#versions}
 
 **Versions** montre ce qui s’exécute en service et comment l’automatisation en est arrivée là. La carte du haut nomme la version en service, depuis quand elle l’est, qui l’a mise en service et comment, par exemple **dans l’app** ou **avec Claude Code via MCP**, et combien de ses exécutions sont encore en cours. Ces exécutions se terminent sur la version avec laquelle elles ont démarré, quelle que soit la version mise en service ensuite. **Comparer la v1 avec la v2** montre ce que la version en service a changé par rapport à celle qu’elle a remplacée. Tant qu’aucune version n’est en service, la carte propose de mettre en service la plus récente.
+
+<Frame caption="L’onglet Versions : la version en service en haut, puis chaque version enregistrée avec sa note, son auteur, ses modifications et ses tests.">
+
+![L’onglet Versions de Weekly digest : une carte indique v3 is live, depuis quand et par qui, avec Compare v2 with v3 et Roll back to v2 ; en dessous, le tableau Versions liste v4 à v1 avec leurs notes, You in the app, la date, des modifications comme 1 changed et 1 renamed, et No result sous Tests.](/images/platform/automation-versions.webp)
+
+</Frame>
 
 La liste **Versions** sous la carte affiche chaque version enregistrée, de la plus récente à la plus ancienne :
 
@@ -269,6 +281,12 @@ Choisis comment lire les modifications :
 - **Graphique** dessine les deux versions sur un même graphique. Un bloc ajouté a un cadre vert et **Ajouté**, un bloc supprimé est rouge et barré, un bloc modifié est orangé avec ce qui a changé à son pied, et un bloc renommé indique son ancien nom, par exemple **Avant : Post**. Un trait que seule une version trace porte un plus ou un moins. Le sélecteur au-dessus du graphique montre le graphique propre à chaque version, avec les modifications mises en avant. Sélectionne un bloc pour voir ses modifications à côté du graphique : Début montre les entrées modifiées, Fin la sortie.
 - **Modifications** liste chaque modification selon son emplacement : **Début : entrées de l’exécution**, **Nœuds**, **Fin : sortie**, **Tests** et **Données du paquet**. Ouvre une ligne pour voir ses champs avant et après ; le code, les prompts et les conditions sont comparés ligne par ligne. **Afficher sur le graphique** sélectionne le bloc auquel une modification appartient.
 - **YAML** compare la source des deux versions ligne par ligne, l’une sous l’autre ou côte à côte.
+
+<Frame caption="La v4 comparée à la v3 en graphique : Post renommé Publish et le code de Summarize modifié, avec les modifications de l’étape renommée à côté du graphique.">
+
+![La comparaison de la v4 avec la v3 de Weekly digest : les puces indiquent 1 changed et 1 renamed ; le graphique marque Summarize comme Changed avec Code changed et Publish comme Renamed avec Was Post, et le panneau Changes of the node liste Publish comme Renamed, Was Post.](/images/platform/automation-version-compare.webp)
+
+</Frame>
 
 Sur un téléphone, la page s’ouvre sur **Modifications**. Deux versions au contenu identique indiquent **Aucune différence entre la v3 et la v5**, et la page précise quand seules leurs notes diffèrent. La première version n’est comparée à rien : tout y est nouveau. Les déclencheurs et les projets appartiennent à l’automatisation, pas à une version ; une comparaison ne les montre donc jamais.
 
