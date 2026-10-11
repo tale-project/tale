@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { ActivityLogView } from './activity-log-view';
 
@@ -94,5 +95,92 @@ describe('ActivityLogView period filter', () => {
     const filter = container.querySelector('button[aria-label="Filter"]');
     expect(filter).not.toBeNull();
     expect(filter).toBeEnabled();
+  });
+});
+
+function LocaleControls() {
+  const { setLocale } = useLocale();
+  return (
+    <>
+      <button onClick={() => setLocale('en')}>English</button>
+      <button onClick={() => setLocale('de')}>Deutsch</button>
+      <button onClick={() => setLocale('fr')}>Français</button>
+    </>
+  );
+}
+
+describe('ActivityLogView count locales', () => {
+  it('updates every count on the mounted view for German, French and English', async () => {
+    read.current = {
+      isLoading: false,
+      data: {
+        totalActions: 5240,
+        successCount: 2620,
+        failureCount: 1310,
+        deniedCount: 1310,
+        byCategory: { data: 1310 },
+        topActors: [
+          { actorId: 'user-1', actorEmail: 'ada@example.com', count: 1310 },
+        ],
+      },
+    };
+    const { user } = render(
+      <>
+        <LocaleControls />
+        <ActivityLogView organizationId="org-1" />
+      </>,
+    );
+
+    for (const [language, total, success, count, categoryTitle, actorTitle] of [
+      [
+        'Deutsch',
+        '5.240',
+        '2.620',
+        '1.310',
+        'Aktivität nach Kategorie',
+        'Aktivste Benutzer',
+      ],
+      [
+        'Français',
+        '5 240',
+        '2 620',
+        '1 310',
+        'Activité par catégorie',
+        'Utilisateurs les plus actifs',
+      ],
+      [
+        'English',
+        '5,240',
+        '2,620',
+        '1,310',
+        'Activity by category',
+        'Most active users',
+      ],
+    ]) {
+      await user.click(screen.getByRole('button', { name: language }));
+      expect(
+        screen.getByText(total, { exact: true, normalizer: (text) => text }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(success, { exact: true, normalizer: (text) => text }),
+      ).toBeInTheDocument();
+      // Both outcome cards and both breakdown surfaces must follow the locale.
+      expect(
+        screen.getAllByText(count, { exact: true, normalizer: (text) => text }),
+      ).toHaveLength(4);
+      for (const title of [categoryTitle, actorTitle]) {
+        const panel = screen.getByRole('heading', {
+          name: title,
+        }).parentElement;
+        expect(panel).not.toBeNull();
+        expect(
+          within(panel ?? document.body).getByText(count, {
+            exact: true,
+            normalizer: (text) => text,
+          }),
+        ).toBeInTheDocument();
+      }
+      expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+    }
   });
 });
