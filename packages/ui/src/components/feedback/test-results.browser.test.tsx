@@ -366,6 +366,61 @@ describe('TestResultList — width', () => {
   });
 });
 
+describe('TestResultList — trailing words by width', () => {
+  const STALE: TestResultItem = {
+    id: 'refund',
+    name: 'A refund reverses the discount',
+    status: 'stale',
+    reason: 'The output differs from what the test expects in 2 places.',
+    meta: '95 ms',
+  };
+
+  function parts() {
+    const row = rowOf(/A refund/);
+    return {
+      row: row.getBoundingClientRect(),
+      name: within(row)
+        .getByText('A refund reverses the discount')
+        .getBoundingClientRect(),
+      reason: within(row)
+        .getByText(/The output differs/)
+        .getBoundingClientRect(),
+      word: within(row)
+        .getByText('Changed since this result')
+        .getBoundingClientRect(),
+      meta: within(row).getByText('95 ms').getBoundingClientRect(),
+    };
+  }
+
+  it('drops the word and the figure under the reason when the list is narrow, so the name keeps the width', () => {
+    render(
+      <div className="w-80">
+        <TestResultList items={[STALE]} onActivate={() => {}} />
+      </div>,
+    );
+    const { row, name, reason, word, meta } = parts();
+    expect(word.top).toBeGreaterThanOrEqual(reason.bottom);
+    expect(word.left).toBeCloseTo(name.left, 0);
+    // On one line: the figure beside the word.
+    expect(meta.top).toBeCloseTo(word.top, -1);
+    // The name runs to the row's padding, not to a trailing column.
+    expect(row.right - name.right).toBeLessThan(48);
+  });
+
+  it('keeps the word over the figure on the trailing edge when the list is wide', () => {
+    render(
+      <div className="w-[40rem]">
+        <TestResultList items={[STALE]} onActivate={() => {}} />
+      </div>,
+    );
+    const { row, name, word, meta } = parts();
+    expect(word.top).toBeLessThan(name.bottom);
+    expect(word.left).toBeGreaterThan(name.right);
+    expect(meta.top).toBeGreaterThanOrEqual(word.bottom);
+    expect(row.right - word.right).toBeCloseTo(12, 0);
+  });
+});
+
 describe('TestResultList — motion', () => {
   /** The status glyph of the row named `name`. */
   function statusGlyph(name: RegExp) {

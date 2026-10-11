@@ -275,10 +275,23 @@ export interface TestResultListProps {
   className?: string;
 }
 
-/** The row grid: status · name and reason · meta. Every row is at least
- * 36px tall. */
+/**
+ * The row grid: status · name and reason · the status's word and the meta.
+ * The list is a size container, and the trailing column needs room: below
+ * 32rem (a phone, a side panel) the word and the meta drop under the
+ * reason instead, so a long name keeps the width to wrap in. Every row is
+ * at least 36px tall.
+ */
 const ROW_GRID =
-  'grid min-h-9 w-full grid-cols-[1rem_minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 px-3 py-2 text-left';
+  'grid min-h-9 w-full grid-cols-[1rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 px-3 py-2 text-left @lg/test-results:grid-cols-[1rem_minmax(0,1fr)_auto]';
+
+/** The grid row the trailing words take in a narrow list: the first one
+ * free under the name, after the reason and the badges. */
+const NARROW_TRAILING_ROW = [
+  'row-start-2',
+  'row-start-3',
+  'row-start-4',
+] as const;
 
 /** A changed status fades its glyph in, on opacity alone; reduced motion
  * shows it at once. The row never moves. */
@@ -335,12 +348,24 @@ function RowContent({
         </span>
       )}
       {(shownWord !== undefined || item.meta !== undefined) && (
-        <span className="text-muted-foreground col-start-3 row-span-2 row-start-1 flex flex-col items-end gap-0.5 pt-0.5 text-xs">
+        // Narrow: one line under the reason and the badges. Wide: stacked
+        // on the trailing edge.
+        <span
+          data-slot="test-result-trailing"
+          className={cn(
+            'text-muted-foreground col-start-2 flex flex-wrap items-baseline gap-x-2 text-xs',
+            NARROW_TRAILING_ROW[
+              (item.reason === undefined ? 0 : 1) +
+                (compact || item.badges === undefined ? 0 : 1)
+            ],
+            '@lg/test-results:col-start-3 @lg/test-results:row-span-2 @lg/test-results:row-start-1 @lg/test-results:flex-col @lg/test-results:flex-nowrap @lg/test-results:items-end @lg/test-results:gap-0.5 @lg/test-results:pt-0.5',
+          )}
+        >
           {shownWord !== undefined && (
             <span
               aria-hidden="true"
               data-slot="test-status-word"
-              className="max-w-36 text-right break-words"
+              className="break-words @lg/test-results:max-w-36 @lg/test-results:text-right"
             >
               {shownWord}
             </span>
@@ -566,7 +591,8 @@ export const TestResultList = forwardRef<
     <div
       data-slot="test-result-list"
       data-status={status}
-      className={className}
+      // Rows lay out by the list's own width, not the window's.
+      className={cn('@container/test-results', className)}
       aria-busy={running || undefined}
     >
       {failed && (
