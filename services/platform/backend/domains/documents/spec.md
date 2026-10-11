@@ -99,6 +99,16 @@ fine and yields the one document.
 - **Example**: A file is uploaded and filed in the project Billing. A second request files the
   same upload in the library → refused.
 
+### DOC-R13 · An upload is filed only in a folder of the place it was uploaded to
+
+A file uploaded to a project goes into one of that project's folders, or to its top level when
+no folder is named. A folder of another project, of the library or of another organization is
+answered as not found (`FOLDER_NOT_FOUND`), and no document is created. A file uploaded to the
+library cannot be filed in a project's folder either.
+
+- **Example**: Noah uploads a file to the project Payroll into a folder of the project Billing
+  → refused, the folder is not found, and no document is created.
+
 ### DOC-R11 · A delete is recorded only once the document is really gone
 
 When removing the document's content could not be completed, the delete is answered as
