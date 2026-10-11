@@ -39,6 +39,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       version_number: ${{ steps.version.outputs.version_number }}
+      source_sha: ${{ steps.version.outputs.source_sha }}
       sites_only: ${{ steps.version.outputs.sites_only }}
       services: ${{ steps.version.outputs.services }}
       service_names: ${{ steps.version.outputs.service_names }}
@@ -50,7 +51,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
           SITES_ONLY: ${{ inputs.sites_only || false }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
+          if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo '::error::The release source must be a full commit SHA'; exit 1
+          fi
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             VERSION="$INPUT_VERSION"
           else
@@ -69,6 +74,7 @@ jobs:
             echo "services=$(jq -c 'map({name:.})' <<< "$SERVICE_NAMES")"
             echo "version=v${VERSION_NUMBER}"
             echo "version_number=${VERSION_NUMBER}"
+            echo "source_sha=$SOURCE_SHA"
           } >> "$GITHUB_OUTPUT"
 
       # Limit the checkout to the notes and their standalone validator.
@@ -192,7 +198,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "revision=${{ needs.prepare.outputs.source_sha }}" >> "$GITHUB_OUTPUT"
           AUTOMATION_PROTOCOL=$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' services/platform/lib/engine/core/protocol.ts)
           case "$AUTOMATION_PROTOCOL" in 1|2) ;; *) echo '::error::Unsupported automation writer protocol'; exit 1;; esac
           echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"
@@ -365,7 +371,7 @@ jobs:
         env:
           SERVICE_NAMES: ${{ needs.prepare.outputs.service_names }}
           REGISTRY_PATH: ${{ env.REGISTRY }}/${{ github.repository }}
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           IMAGE_TAG: ${{ needs.prepare.outputs.version_number }}-amd64
         run: |
           set -euo pipefail
@@ -508,7 +514,7 @@ jobs:
           {
             echo "### ${{ matrix.service }}"
             echo "- **Version**: ${VERSION}"
-            echo "- **Revision**: ${GITHUB_SHA}"
+            echo "- **Revision**: ${{ needs.prepare.outputs.source_sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
@@ -625,7 +631,9 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           set -euo pipefail
           if PUBLISHED="$(gh release view "$TAG" --json isDraft --jq '.isDraft == false' 2>/dev/null)"; then
@@ -633,9 +641,14 @@ jobs:
             echo "Published release already exists, preserving its notes and assets"
           else
             gh release create "$TAG" \
+              --target "$SOURCE_SHA" \
               --title "Tale $TAG" \
               --notes-file /tmp/release-notes.md \
               --generate-notes
+          fi
+          TAG_SHA="$(gh api "repos/${REPOSITORY}/commits/refs%2Ftags/${TAG}" --jq .sha)"
+          if [ "$TAG_SHA" != "$SOURCE_SHA" ]; then
+            echo "::error::Release tag ${TAG} resolves to ${TAG_SHA}, expected ${SOURCE_SHA}"; exit 1
           fi
 
   # ---------------------------------------------------------------------------

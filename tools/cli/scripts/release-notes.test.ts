@@ -172,6 +172,14 @@ describe('authored release notes', () => {
     expect(
       publish.find((step) => step.name === 'Create release')?.run,
     ).toContain('--notes-file /tmp/release-notes.md');
+    expect(
+      publish.find((step) => step.name === 'Create release')?.run,
+    ).toContain('--target "$SOURCE_SHA"');
+    expect(
+      publish.find((step) => step.name === 'Create release')?.run,
+    ).toContain(
+      'TAG_SHA="$(gh api "repos/${REPOSITORY}/commits/refs%2Ftags/${TAG}" --jq .sha)"',
+    );
   });
 
   test.skipIf(process.platform === 'win32')(
@@ -361,6 +369,10 @@ if [ "$1 $2" = 'release create' ]; then
   if [ "$RELEASE_TEST_MODE" = failure ]; then exit 1; fi
   exit 0
 fi
+if [ "$1" = 'api' ]; then
+  echo "$SOURCE_SHA"
+  exit 0
+fi
 exit 99
 `,
       );
@@ -376,6 +388,8 @@ exit 99
             ...process.env,
             PATH: `${directory}${delimiter}${process.env.PATH}`,
             TAG: 'v1.2.3',
+            REPOSITORY: 'tale-project/tale',
+            SOURCE_SHA: '0123456789012345678901234567890123456789',
             RELEASE_TEST_MODE: mode,
             RELEASE_TEST_MARKER: marker,
           },
