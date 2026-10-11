@@ -3,6 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
+import { withOperationBudget } from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { FakeIncus } from './fake-incus.ts';
 import { incusWorkspaceVolumeName, LABEL } from './incus-naming.ts';
@@ -408,6 +409,63 @@ describe('claiming a standby', () => {
     // nobody is booting.
     expect(fake.instances.has(only.name)).toBe(false);
     await pool.reconcile();
+  });
+});
+
+describe('the pool’s own work', () => {
+  test('the refill behind a claim outlives the create it follows from', async () => {
+    const { fake, pool, cfg } = fixture(2);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    // The refill's create is held at the node while the create that started it
+    // ends: its budget is cancelled, as a request that is over is.
+    const release = fake.hold('POST /1.0/instances');
+    const caller = new AbortController();
+    const name = await withOperationBudget(
+      60_000,
+      () => pool.claim(claimInput, sessionShape(cfg, 'agent')),
+      caller.signal,
+    );
+    expect(name).toBeDefined();
+    caller.abort(new Error('the request is over'));
+    release();
+    const report = await pool.reconcile();
+    expect(report.created).toBe(1);
+    expect(standbys(fake)).toHaveLength(2);
+  });
+
+  test('a standby a peer claimed since it was listed is not removed with the rest', async () => {
+    const { fake, pool, poolFor } = fixture(1);
+    await pool.reconcile();
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    // The next pass finds it stale (another config) and means to remove it.
+    const moved = poolFor(
+      incusTestConfig({ poolSize: 1 }, { egressProxy: 'http://10.9.0.3:3128' }),
+    );
+    // Held at the re-read that precedes the removal.
+    const release = fake.hold(`GET /1.0/instances/${only.name}`);
+    const pass = moved.reconcile();
+    const until = Date.now() + 2_000;
+    while (
+      fake.seen(`GET /1.0/instances/${only.name}`).length === 0 &&
+      Date.now() < until
+    ) {
+      await Bun.sleep(5);
+    }
+    // A peer spawner claims it in the meantime.
+    only.config[LABEL.sandboxSession] = '1';
+    only.config[LABEL.session] = 'a_live_session';
+    only.config[LABEL.pool] = '';
+    release();
+    const report = await pass;
+    expect(report.removed).toBe(0);
+    expect(fake.instances.get(only.name)?.status).toBe('Running');
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes('claimed meanwhile'),
+      ),
+    ).toBe(true);
   });
 });
 

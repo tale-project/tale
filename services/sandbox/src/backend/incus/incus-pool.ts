@@ -15,6 +15,7 @@
 // that no longer matches what a session would be made of today (a moved proxy,
 // a new image) or has stood too long is replaced.
 
+import { outsideOperationBudget } from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { INCUS_STATUS, type IncusInstance } from './incus-api.ts';
 import type { IncusClient } from './incus-client.ts';
@@ -119,9 +120,13 @@ export class IncusPool {
     return this.ready.size;
   }
 
+  /** The pass the pool runs by itself: on a timer, at boot and behind a claim.
+   * It is the pool's own work, never bound to the create it follows from (the
+   * claim runs inside that create's budget, and its abort would otherwise
+   * cancel the refill). */
   private async reconcileQuietly(): Promise<void> {
     try {
-      await this.reconcile();
+      await outsideOperationBudget(() => this.reconcile());
     } catch (error) {
       console.warn('[sandbox.incus.pool] reconcile failed:', error);
     }
@@ -210,7 +215,9 @@ export class IncusPool {
 
     let removed = 0;
     for (const standby of doomed) {
-      if (await this.discard(standby.name)) removed += 1;
+      if (await this.discard(standby.name, { unlessClaimed: true })) {
+        removed += 1;
+      }
     }
 
     let created = 0;
@@ -305,10 +312,28 @@ export class IncusPool {
     }
   }
 
-  /** Remove a standby (or the debris of one); false when it could not be. */
-  private async discard(name: string): Promise<boolean> {
+  /**
+   * Remove a standby (or the debris of one); false when it could not be. With
+   * `unlessClaimed`, an instance that has become a session since it was listed
+   * (a peer spawner claimed it) is left alone: a standby chosen for removal
+   * from a listing must not take a live session with it.
+   */
+  private async discard(
+    name: string,
+    options: { unlessClaimed?: boolean } = {},
+  ): Promise<boolean> {
     this.ready.delete(name);
     try {
+      if (options.unlessClaimed === true) {
+        const found = await this.client.getInstance(name);
+        if (found === undefined) return true;
+        if (!isPoolInstance(found.instance.config, this.cfg.instance)) {
+          console.warn(
+            `[sandbox.incus.pool] ${name} is no longer a standby (claimed meanwhile); left in place`,
+          );
+          return false;
+        }
+      }
       await removeIncusInstance(this.client, name, { sleep: this.sleep });
       return true;
     } catch (error) {
@@ -395,7 +420,7 @@ export class IncusPool {
     );
     for (const standby of standbys.slice(0, over)) {
       if (this.claiming.has(standby.name)) continue;
-      await this.discard(standby.name);
+      await this.discard(standby.name, { unlessClaimed: true });
     }
   }
 }
