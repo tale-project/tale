@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 186 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 189 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1371,6 +1371,21 @@ output:
       a developer, the switches are disabled with
       `automations.allowances.readOnly`. Add an `approval_policy` rule
       `slack.send_message: require_approval` → the run waits again.
+- [ ] `AUTO-F136` · **As an owner, open Create automation › From a
+      starter (`automations.createMenu.starter`), pick Tell the reviewer,
+      answer it for a project with yourself as the reviewer, keep Start it
+      now on (`automations.starters.startNow`) and create** → the automation
+      opens in the editor with version 1 live and its event trigger on. Move a
+      task of that project to In review → your notifications show the task's
+      title with the message, and its link opens the task. Create it again
+      under the same name → `automations.blank.nameTaken` under Name, and
+      nothing is created.
+- [ ] `AUTO-F137` · **From a project's Automations list, create Create tasks
+      from a webhook** → its Project question starts on that project; after
+      Create, `automations.starters.webhookTitle` shows the project's webhook
+      address once. POST `{"title":"Server down"}` to it → a task Server down
+      appears in the project. A POST without a title starts no run, and the
+      trigger's last start on the General tab says it was refused.
 
 ## Boundary & error tests
 
@@ -1662,6 +1677,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       is; the retry dialog and Run again's confirm trap focus and Escape
       closes them; condition verdicts and compare rows are words, not
       colours.
+- [ ] `AUTO-A20` · **Starter gallery by keyboard and on a phone** → Tab
+      from the search box reaches each starter row; Enter opens its
+      questions, every question is reachable and labelled, and the back
+      control (`automations.starters.backToGallery`) returns to the gallery.
+      At 375 px the dialog is a sheet whose Create button stays in view, with
+      no sideways scroll.
 
 ## Performance
 
