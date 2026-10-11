@@ -22,12 +22,17 @@ import {
   type TestCertificates,
 } from './test-certificates.ts';
 
-let certs: TestCertificates | null = null;
+let made: TestCertificates | undefined;
 let warn: ReturnType<typeof spyOn<typeof console, 'warn'>>;
 
-beforeAll(() => {
-  certs = makeTestCertificates();
+beforeAll(async () => {
+  made = await makeTestCertificates();
 });
+
+function certificates(): TestCertificates {
+  if (made === undefined) throw new Error('the certificates were not made');
+  return made;
+}
 
 // The fixtures live two days, inside the two-week expiry warning: keep the
 // suite's output to its own findings.
@@ -40,7 +45,7 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  certs?.dispose();
+  made?.dispose();
 });
 
 async function failure(promise: Promise<unknown>): Promise<string> {
@@ -54,7 +59,7 @@ async function failure(promise: Promise<unknown>): Promise<string> {
 
 describe('readIncusTlsMaterial', () => {
   test('hands back the three PEMs of a pinnable setup', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const material = await readIncusTlsMaterial({
       clientCertFile: certs.client.certFile,
       clientKeyFile: certs.client.keyFile,
@@ -68,7 +73,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('refuses the certificate shape Incus makes by default, and says why', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const message = await failure(
       readIncusTlsMaterial({
         clientCertFile: certs.client.certFile,
@@ -83,7 +88,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('names the variable of a file that cannot be read', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const message = await failure(
       readIncusTlsMaterial({
         clientCertFile: join(certs.dir, 'absent.crt'),
@@ -96,7 +101,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('refuses a file that holds no certificate', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const notACertificate = join(certs.dir, 'not-a-cert.pem');
     writeFileSync(notACertificate, 'hello');
     const message = await failure(
@@ -111,7 +116,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('refuses a key that belongs to another certificate', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const message = await failure(
       readIncusTlsMaterial({
         clientCertFile: certs.client.certFile,
@@ -124,7 +129,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('refuses a key file that is not a key', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const message = await failure(
       readIncusTlsMaterial({
         clientCertFile: certs.client.certFile,
@@ -136,7 +141,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('refuses an expired certificate', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const later = Date.now() + 365 * 24 * 60 * 60 * 1000;
     const message = await failure(
       readIncusTlsMaterial(
@@ -152,7 +157,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('refuses a certificate that is not valid yet', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     const earlier = Date.now() - 365 * 24 * 60 * 60 * 1000;
     const message = await failure(
       readIncusTlsMaterial(
@@ -168,7 +173,7 @@ describe('readIncusTlsMaterial', () => {
   });
 
   test('warns, but carries on, when a certificate is close to its end', async () => {
-    if (certs === null) return;
+    const certs = certificates();
     await readIncusTlsMaterial({
       clientCertFile: certs.client.certFile,
       clientKeyFile: certs.client.keyFile,

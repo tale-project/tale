@@ -601,26 +601,31 @@ describe('retries and cancellation', () => {
 
 // The connection itself: a real TLS server that wants a client certificate.
 describe('the pinned mutual-TLS connection', () => {
-  let certs: TestCertificates | null = null;
+  let made: TestCertificates | undefined;
   const servers: Array<{ stop(force?: boolean): void }> = [];
   const silent: Server[] = [];
 
-  beforeAll(() => {
-    certs = makeTestCertificates();
+  beforeAll(async () => {
+    made = await makeTestCertificates();
   });
 
   afterAll(() => {
     for (const server of servers) server.stop(true);
     for (const server of silent) server.close();
-    certs?.dispose();
+    made?.dispose();
   });
+
+  function certificates(): TestCertificates {
+    if (made === undefined) throw new Error('the certificates were not made');
+    return made;
+  }
 
   function serve(
     shape: 'server' | 'otherServer' | 'incusDefault',
     trusted: 'client' | 'otherClient',
     options: { redirectTo?: string; hits?: string[] } = {},
   ): number {
-    if (certs === null) throw new Error('no certificates');
+    const certs = certificates();
     const server = Bun.serve({
       port: 0,
       hostname: '127.0.0.1',
@@ -665,7 +670,7 @@ describe('the pinned mutual-TLS connection', () => {
     identity: 'client' | 'otherClient',
     requestTimeoutMs = 5_000,
   ): IncusClient {
-    if (certs === null) throw new Error('no certificates');
+    const certs = certificates();
     return new IncusClient({
       endpoint: `https://127.0.0.1:${port}`,
       project: 'sandbox-pr',
@@ -680,7 +685,6 @@ describe('the pinned mutual-TLS connection', () => {
   }
 
   test('a pinnable server certificate and the trusted client certificate talk', async () => {
-    if (certs === null) return;
     const port = serve('server', 'client');
     const info = await clientFor(port, 'server', 'client').getServer();
     expect(info.auth).toBe('trusted');
@@ -688,7 +692,6 @@ describe('the pinned mutual-TLS connection', () => {
   });
 
   test('a redirect is an error: the client certificate goes nowhere unpinned', async () => {
-    if (certs === null) return;
     // A second node the pinned certificate would also be good for, and the
     // client certificate trusted there too: if the redirect were followed, it
     // would answer.
@@ -709,7 +712,6 @@ describe('the pinned mutual-TLS connection', () => {
   });
 
   test('a server that does not know the client certificate refuses the handshake', async () => {
-    if (certs === null) return;
     const port = serve('server', 'client');
     const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
@@ -720,7 +722,6 @@ describe('the pinned mutual-TLS connection', () => {
   });
 
   test('a server presenting another certificate than the pinned one is refused', async () => {
-    if (certs === null) return;
     const port = serve('server', 'client');
     const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
@@ -736,7 +737,6 @@ describe('the pinned mutual-TLS connection', () => {
   });
 
   test('Incus’s default certificate shape cannot be pinned, and is refused rather than waved through', async () => {
-    if (certs === null) return;
     const port = serve('incusDefault', 'client');
     const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
@@ -750,7 +750,6 @@ describe('the pinned mutual-TLS connection', () => {
   });
 
   test('a server that accepts the connection and says nothing ends at the timeout', async () => {
-    if (certs === null) return;
     const hole = createServer(() => undefined);
     silent.push(hole);
     await new Promise<void>((resolve) =>

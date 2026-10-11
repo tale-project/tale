@@ -1,12 +1,26 @@
-// Throwaway certificates for the Incus backend's TLS tests, made with openssl
-// into a private temp directory (never committed): the shapes that matter
-// for pinning a server under Bun, and the client certificates that present
-// themselves. Not used by production code.
+// Throwaway certificates for the Incus backend's TLS tests, made in process
+// (WebCrypto and @peculiar/x509, no external binary) into a private temp
+// directory (never committed): the shapes that matter for pinning a server
+// under Bun, and the client certificates that present themselves. Made without
+// an `openssl` on the PATH on purpose: a test of the pinning that quietly
+// skipped itself where the binary is missing would be a green that proves
+// nothing. Not used by production code.
 
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createPrivateKey } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import {
+  BasicConstraintsExtension,
+  ExtendedKeyUsage,
+  ExtendedKeyUsageExtension,
+  KeyUsageFlags,
+  KeyUsagesExtension,
+  SubjectAlternativeNameExtension,
+  X509CertificateGenerator,
+  type Extension,
+} from '@peculiar/x509';
 
 export interface TestCertificate {
   cert: string;
@@ -31,92 +45,98 @@ export interface TestCertificates {
   dispose(): void;
 }
 
-const SERVER_EXTENSIONS = `basicConstraints = critical,CA:TRUE,pathlen:0
-keyUsage = critical,digitalSignature,keyEncipherment,keyCertSign
-extendedKeyUsage = serverAuth
-subjectAltName = IP:127.0.0.1,DNS:localhost`;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
-const INCUS_DEFAULT_EXTENSIONS = `basicConstraints = critical,CA:FALSE
-keyUsage = critical,digitalSignature,keyEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = IP:127.0.0.1,DNS:localhost`;
+const SAN = new SubjectAlternativeNameExtension([
+  { type: 'ip', value: '127.0.0.1' },
+  { type: 'dns', value: 'localhost' },
+]);
 
-const CLIENT_EXTENSIONS = `basicConstraints = critical,CA:TRUE,pathlen:0
-keyUsage = critical,digitalSignature,keyCertSign
-extendedKeyUsage = clientAuth`;
-
-function make(
-  dir: string,
-  name: string,
-  extensions: string,
-): TestCertificate | null {
-  const certFile = join(dir, `${name}.crt`);
-  const keyFile = join(dir, `${name}.key`);
-  const configFile = join(dir, `${name}.cnf`);
-  writeFileSync(
-    configFile,
-    `[req]
-distinguished_name = dn
-x509_extensions = ext
-prompt = no
-[dn]
-CN = ${name}
-[ext]
-${extensions}
-`,
-  );
-  const made = spawnSync(
-    // Ephemeral localhost fixture keys, confined to mkdtemp's private directory and removed after the suite.
-    // nosemgrep: tools.opengrep.rules.trailofbits.generic.openssl-insecure-flags.openssl-insecure-flags
-    'openssl',
-    [
-      'req',
-      '-x509',
-      '-newkey',
-      'ec',
-      '-pkeyopt',
-      'ec_paramgen_curve:prime256v1',
-      '-nodes',
-      '-keyout',
-      keyFile,
-      '-out',
-      certFile,
-      '-days',
-      '2',
-      '-config',
-      configFile,
-    ],
-    { stdio: 'ignore' },
-  );
-  if (made.status !== 0) return null;
-  return {
-    cert: readFileSync(certFile, 'utf8'),
-    key: readFileSync(keyFile, 'utf8'),
-    certFile,
-    keyFile,
-  };
+function serverExtensions(isCa: boolean): Extension[] {
+  return [
+    new BasicConstraintsExtension(isCa, isCa ? 0 : undefined, true),
+    new KeyUsagesExtension(
+      KeyUsageFlags.digitalSignature |
+        KeyUsageFlags.keyEncipherment |
+        (isCa ? KeyUsageFlags.keyCertSign : 0),
+      true,
+    ),
+    new ExtendedKeyUsageExtension([ExtendedKeyUsage.serverAuth], false),
+    SAN,
+  ];
 }
 
-/** The certificates, or null where openssl is missing (the TLS tests then
- * skip, as the Kubernetes client's do). */
-export function makeTestCertificates(): TestCertificates | null {
+const CLIENT_EXTENSIONS: Extension[] = [
+  new BasicConstraintsExtension(true, 0, true),
+  new KeyUsagesExtension(
+    KeyUsageFlags.digitalSignature | KeyUsageFlags.keyCertSign,
+    true,
+  ),
+  new ExtendedKeyUsageExtension([ExtendedKeyUsage.clientAuth], false),
+];
+
+async function make(
+  dir: string,
+  name: string,
+  extensions: Extension[],
+  serialNumber: string,
+): Promise<TestCertificate> {
+  const keys = await crypto.subtle.generateKey(
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    true,
+    ['sign', 'verify'],
+  );
+  const certificate = await X509CertificateGenerator.createSelfSigned({
+    serialNumber,
+    name: `CN=${name}`,
+    // Valid from an hour ago for two days: inside the two-week expiry warning,
+    // which the TLS material tests expect to hear.
+    notBefore: new Date(Date.now() - HOUR_MS),
+    notAfter: new Date(Date.now() + 2 * DAY_MS),
+    signingAlgorithm: { name: 'ECDSA', hash: 'SHA-256' },
+    keys,
+    extensions,
+  });
+  const cert = certificate.toString('pem');
+  const key = createPrivateKey({
+    key: Buffer.from(await crypto.subtle.exportKey('pkcs8', keys.privateKey)),
+    format: 'der',
+    type: 'pkcs8',
+  })
+    .export({ type: 'pkcs8', format: 'pem' })
+    .toString();
+  const certFile = join(dir, `${name}.crt`);
+  const keyFile = join(dir, `${name}.key`);
+  writeFileSync(certFile, cert);
+  writeFileSync(keyFile, key, { mode: 0o600 });
+  return { cert, key, certFile, keyFile };
+}
+
+export async function makeTestCertificates(): Promise<TestCertificates> {
   const dir = mkdtempSync(join(tmpdir(), 'incus-tls-test-'));
-  const server = make(dir, 'server', SERVER_EXTENSIONS);
-  const otherServer = make(dir, 'other-server', SERVER_EXTENSIONS);
-  const incusDefault = make(dir, 'incus-default', INCUS_DEFAULT_EXTENSIONS);
-  const client = make(dir, 'client', CLIENT_EXTENSIONS);
-  const otherClient = make(dir, 'other-client', CLIENT_EXTENSIONS);
-  if (!server || !otherServer || !incusDefault || !client || !otherClient) {
+  try {
+    return {
+      dir,
+      server: await make(dir, 'server', serverExtensions(true), '01'),
+      otherServer: await make(
+        dir,
+        'other-server',
+        serverExtensions(true),
+        '02',
+      ),
+      incusDefault: await make(
+        dir,
+        'incus-default',
+        serverExtensions(false),
+        '03',
+      ),
+      client: await make(dir, 'client', CLIENT_EXTENSIONS, '04'),
+      otherClient: await make(dir, 'other-client', CLIENT_EXTENSIONS, '05'),
+      dispose: () => rmSync(dir, { recursive: true, force: true }),
+    };
+  } catch (error) {
     rmSync(dir, { recursive: true, force: true });
-    return null;
+    throw error;
   }
-  return {
-    dir,
-    server,
-    otherServer,
-    incusDefault,
-    client,
-    otherClient,
-    dispose: () => rmSync(dir, { recursive: true, force: true }),
-  };
 }
