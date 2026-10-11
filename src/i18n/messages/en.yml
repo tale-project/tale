@@ -1,0 +1,774 @@
+languageSwitcher:
+  ariaLabel: Switch language
+markdownCallout:
+  note: Note
+  tip: Tip
+  info: Info
+  warning: Warning
+  danger: Caution
+  check: Success
+markdownCodeGroup:
+  examples: Code examples
+  tab: 'Tab {number}'
+markdownDiagram:
+  preparingLabel: Mermaid diagram (preparing)
+  preparing: Preparing diagram…
+  failedLabel: Mermaid diagram (failed to render)
+  failed: Diagram failed to render
+  showSource: Show source
+  hideSource: Hide source
+  zoomOut: Zoom out
+  zoomIn: Zoom in
+  reset: Reset zoom and pan
+  openFullscreen: Open fullscreen
+  exitFullscreen: Exit fullscreen
+  label: Mermaid diagram
+  fullscreenLabel: Mermaid diagram (fullscreen)
+markdownCopy:
+  copyLink: Copy link to this section
+  linkCopied: Link copied
+  copyCode: Copy code
+  codeCopied: Copied
+markdownImage:
+  zoom: Zoom image
+  close: Close
+skeleton:
+  loading: Loading content
+themeSwitcher:
+  ariaLabel: Switch theme
+  light: Light
+  dark: Dark
+  system: System
+search:
+  title: Search
+  placeholder: Search
+  empty: Start typing to search.
+  emptyHint: Find anything across this workspace.
+  keepTyping: Keep typing to search…
+  noResultsTitle: No results found
+  noResultsHint: Try different keywords.
+  errorTitle: Something went wrong
+  errorHint: Check your connection and try again.
+  resultsGroup: Results
+  loading: Searching…
+  close: Close search
+  recent: Recent searches
+  clearRecent: Clear
+  removeRecent: Remove from recent
+  tipNavigate: to navigate
+  tipSelect: to open
+  tipClose: to dismiss
+  results: '{count, plural, =0 {no results} =1 {# result} other {# results}}'
+docs:
+  skipToMain: Skip to main content
+  openSearch: Open search
+  openMenu: Open navigation menu
+  closeMenu: Close navigation menu
+  searchPlaceholder: Search documentation
+  breadcrumbs: Breadcrumbs
+  onThisPage: On this page
+  previous: Previous
+  next: Next
+  pagination: Page navigation
+  readingTime: '{minutes} min read'
+  lastUpdated: Last updated {date}
+  editOnGithub: Edit on GitHub
+  backToTop: Back to top
+  pageActions:
+    copyPage: Copy page
+    copied: Copied
+    viewMarkdown: View as Markdown
+    openIn: Open in
+    openChatGpt: Open in ChatGPT
+    openClaude: Open in Claude
+    openCursor: Open in Cursor
+  notFound:
+    title: Page not found
+    body: We couldn't find that page. Maybe one of these is what you were looking for, or try the search.
+    suggestions: Did you mean
+    backHome: Back to docs home
+  search:
+    title: Search documentation
+    placeholder: Search documentation
+    empty: Start typing to search the docs.
+    emptyHint: Find guides, references, and concepts across every section.
+    noResultsHint: Try different keywords or browse the navigation.
+auth:
+  userButton:
+    iosInstall:
+      description: Add Tale to your home screen for a full-screen, app-like experience.
+      done: OK
+      step1: Tap the Share button in your browser's toolbar.
+      step2: Choose "Add to Home Screen", then tap "Add".
+      title: Install Tale
+common:
+  actions:
+    archiveSelected: Archive selected
+    cancel: Cancel
+    clearAll: Clear all
+    confirm: Confirm
+    copied: Copied
+    copy: Copy
+    delete: Delete
+    deleteSelected: Delete selected
+    deleting: Deleting...
+    discard: Discard
+    openMenu: Open menu
+    readMore: Read more
+    reset: Reset
+    save: Save
+    saved: Saved
+    showLess: Show less
+    source: Source
+    tryAgain: Try again
+    loading: Loading...
+  aria:
+    back: Back
+    close: Close
+    collapseRow: Collapse row
+    expandRow: Expand row
+    goToPage: Go to page
+    hidePassword: Hide password
+    invalid: invalid
+    moreInfo: More information
+    moreTabs: More tabs
+    nextPage: Next page
+    previousPage: Previous page
+    removeFile: Remove file
+    resizePanel: Resize panel
+    rowActions: Row actions
+    scrollDown: Scroll down
+    selectAll: Select all
+    selectRow: Select row
+    showPassword: Show password
+    unsavedChanges: Unsaved changes
+    valid: valid
+    validationRequirements: Validation requirements
+    validationStatus: "{message}: {status}"
+  bulkActions:
+    archiveFailed: Couldn't archive some items
+    archiveSuccess: Archived {count, plural, one {# item} other {# items}}
+    archiving: Archiving...
+    confirmArchiveDescription: Archive {count, plural, one {this item} other {these {count} items}}? You can restore {count, plural, one {it} other {them}} later.
+    confirmArchiveTitle: Archive {count, plural, one {# item} other {# items}}
+    confirmDeleteDescription: Delete {count, plural, one {this item} other {these {count} items}}? This can't be undone.
+    confirmDeleteTitle: Delete {count, plural, one {# item} other {# items}}
+    deleteFailed: Couldn't delete some items
+    deleteSuccess: Deleted {count, plural, one {# item} other {# items}}
+    deleting: Deleting...
+    itemsSelected: "{count, plural, one {# item selected} other {# items selected}}"
+  confirmDialog:
+    typeToConfirmLabel: Type "{phrase}" to confirm
+  dataTable:
+    dateFilterUnavailable: Date filter unavailable
+  datePicker:
+    chooseDay: Choose
+    unavailableDay: Not available
+    month: Month
+    calendar: Calendar
+    clear: Clear date
+    nextMonth: Next month
+    placeholder: Pick a date
+    presets:
+      custom: Custom
+      today: Today
+      last7Days: Last 7 days
+      last14Days: Last 14 days
+      last30Days: Last 30 days
+      last3Months: Last 3 months
+      last12Months: Last 12 months
+      monthToDate: Month to date
+      quarterToDate: Quarter to date
+      yearToDate: Year to date
+      allTime: All time
+    previousMonth: Previous month
+  dates:
+    today: Today
+    yesterday: Yesterday
+  discardChangesConfirm: Discard unsaved changes?
+  editor:
+    fixHighlightedFields: Fix the highlighted fields and try again.
+  errors:
+    contactSupport: contact support
+    errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
+    hideDetails: Hide details
+    persistsProblem: If this keeps happening,
+    showDetails: Show details
+    somethingWentWrong: Something went wrong. Try again.
+    tryAgain: Try again
+  flow:
+    resetView: Reset view
+    zoomIn: Zoom in
+    zoomOut: Zoom out
+  keyboardShortcuts:
+    ctrlEnter: Ctrl+Enter
+    escape: Esc
+    hintToCancel: to cancel
+    hintToSave: to save,
+  labels:
+    filter: Filter
+    filters: Filters
+    nSelected: "{count} selected"
+  loading:
+    navigating: Loading page
+  localeTabs:
+    default: default
+    untranslated: untranslated
+    autoTranslate: Auto-translate
+    hasError: has an error
+  moreTabs: More
+  numberStepper:
+    decrease: Decrease
+    increase: Increase
+  optional: optional
+  pagination:
+    loadMore: Load more
+    loading: Loading more...
+    noMore: No more items to load
+    rowsPerPage: Rows per page
+    showing: "{start}-{end} of {total}"
+    showingAll: "{count, plural, one {Showing all # {entityOne}} other {Showing all # {entityOther}}}"
+    showingLoaded: "{count, plural, one {Showing the first # {entityOne} — scroll for more} other {Showing the first # {entityOther} — scroll for more}}"
+    showingLoadedFailed: "{count, plural, one {Showing the first # {entityOne} — the rest couldn't be loaded} other {Showing the first # {entityOther} — the rest couldn't be loaded}}"
+    showingFiltered: "{total, plural, one {Showing {filtered} of # {entityOne}} other {Showing {filtered} of # {entityOther}}}"
+    showingRange: "{total, plural, one {Showing {start}-{end} of # {entityOne}} other {Showing {start}-{end} of # {entityOther}}}"
+  search:
+    noLoadedResults: No results among the loaded items
+    noResults: No results found
+    placeholder: Search
+    restNotSearched: "The rest couldn't be loaded, so it wasn't searched."
+    tryAdjusting: Try adjusting your search criteria
+  select:
+    noOptionsHint: Nothing to choose yet.
+  unsavedChanges:
+    description: You have unsaved changes. Leaving now will discard them.
+    discardAndLeave: Discard & Leave
+    stay: Keep editing
+    title: Unsaved changes
+  upload:
+    dropFilesHere: Drop files here to upload
+    pickADate: Pick a date
+  validation:
+    invalidJson: Invalid JSON format
+    schemaValidationFailed: "Schema validation failed{error, select, empty {} other {: {error}}}"
+envEditor:
+  add: Add variable
+  badKey: "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit)."
+  projectSecretBadKey: '"{key}" must start with an uppercase letter and contain only uppercase letters, numbers, or underscores (maximum 64 characters).'
+  confirmRemoveDescription: It will be removed when you save your changes. This can't be undone.
+  confirmRemoveTitle: Remove variable?
+  dupKey: Duplicate variable name — each NAME must be unique.
+  keyPlaceholder: NAME
+  remove: Remove
+  save: Save
+  saveError: Couldn't save environment
+  saved: Environment saved
+  saving: Saving…
+  secret: Secret
+  typeTokenSource: Token source
+  typeValue: Value
+  valuePlaceholder: value
+  valueType: Type
+metrics:
+  period:
+    label: Period
+    last24Hours: Last 24 hours
+    last7Days: Last 7 days
+    last30Days: Last 30 days
+    last90Days: Last 90 days
+    allTime: All time
+pwa:
+  offlineReady: Tale's offline screen is ready.
+  updateAvailableDescription: A new version of Tale is ready.
+  updateAvailableTitle: Update available
+  updateNow: Update now
+  updateLater: Later
+settings:
+  agents:
+    form:
+      addModel: Add model
+      modelSelector:
+        dragHandle: Drag to reorder model
+        moveDown: Move model down
+        moveUp: Move model up
+      noModelsFound: No models found
+      removeModel: Remove
+      searchModels: Search models
+toast:
+  success:
+    deleted:
+      description: Deleted.
+      title: Deleted
+tables:
+  headers:
+    locale: Language
+    description: Description
+recurrence:
+  label: Repeat
+  namePrefix: '{label}:'
+  never: Never
+  presets: Presets
+  custom: Custom
+  back: Back to presets
+  workweekRange: Mon–Fri
+  nextRuns: Next runs
+  scheduleLabel: Schedule
+  customInterval: Custom interval
+  customTimes: Custom times
+  nextDates: Next dates
+  sentence:
+    daily: '{count, plural, one {Daily} other {Every # days}}'
+    weekdays: Every weekday
+    weekly: '{count, plural, one {Weekly on {days}} other {Every # weeks on {days}}}'
+    monthly: '{count, plural, one {Monthly on day {day}} other {Every # months on day {day}}}'
+    yearly: '{count, plural, one {Yearly on {date}} other {Every # years on {date}}}'
+  compact:
+    weekdays: Weekdays
+    weekly: '{count, plural, one {Weekly} other {Every # weeks}}'
+    monthly: '{count, plural, one {Monthly} other {Every # months}}'
+    yearly: '{count, plural, one {Yearly} other {Every # years}}'
+    monthDay: 'day {day}'
+    dayCount: '{count, plural, one {# day} other {# days}}'
+  schedule:
+    sentence:
+      minutely: '{count, plural, one {Every minute} other {Every # minutes}}'
+      hourly: '{count, plural, one {Every hour} other {Every # hours}}'
+      hourlyAt: '{count, plural, one {Every hour} other {Every # hours}} at {minute, plural, one {# minute} other {# minutes}} past the hour'
+      withTimes: '{rule} at {times}'
+      withWindow: '{rule}, {window}'
+    hoursRange: '{from}–{to}'
+    dayRange: '{first}–{last}'
+    compact:
+      at: '{days} at {times}'
+      timeCount: '{count, plural, one {# time} other {# times}}'
+      minutePast: ':{mm}'
+      hoursRange: '{from}–{to}'
+  occurrences:
+    dateTime: '{date}, {time}'
+    inZone: '{label} · {zone}'
+    viewerZone: 'Your time zone is {zone}.'
+    local: '{time} in your time zone'
+    localOtherDay: '{date}, {time} in your time zone'
+    clockChange: Clock change
+    shiftedForward: '{time} doesn''t exist that day, so this run starts at {actual}.'
+    repeatedHour: '{time} happens twice that day; it runs once, at the first.'
+    intervalRepeated: 'Clocks go back: this hour repeats, and runs keep their real-time spacing.'
+    empty: No upcoming runs.
+  editor:
+    unit: Unit
+    units:
+      daily: Day
+      weekly: Week
+      monthly: Month
+      yearly: Year
+    every: '{unit, select, other {{count, plural, other {Every}}}}'
+    unitNoun:
+      daily: '{count, plural, one {day} other {days}}'
+      weekly: '{count, plural, one {week} other {weeks}}'
+      monthly: '{count, plural, one {month} other {months}}'
+      yearly: '{count, plural, one {year} other {years}}'
+    intervalOption:
+      minutely: '{count, plural, one {minute} other {# minutes}}'
+      hourly: '{count, plural, one {hour} other {# hours}}'
+    minutePast: '{count, plural, one {minute} other {minutes}} past the hour'
+    at: At
+    timeName: 'Time {index}'
+    addTime: Add time
+    removeTime: 'Remove {time}'
+    maxTimes: 'Up to {count} times a day.'
+    duplicateTime: Already in the list — it runs once.
+    onlyBetween: Only between
+    and: and
+    windowFrom: From
+    windowUntil: Until
+    windowHint:
+      sameDay: 'Each day, the first run starts at {first} and the last at {last}.'
+      overnight: 'Runs overnight: the first starts at {first}, the last at {last} the next morning.'
+      nextMorning: 'Runs the next morning: the first starts at {first}, the last at {last}.'
+      once: 'Each day, it runs once, at {time}.'
+      onceNextMorning: 'Each day, it runs once, at {time} the next morning.'
+      allDay: The same start and end means all day.
+      none: No run falls between these times. Widen the hours or pick a shorter interval.
+    onWeekdays: 'On'
+    onDay: On day
+    onDate: 'On'
+    month: Month
+    lastDayHint: Shorter months use their last day.
+    leapDayHint: 'In other years, this falls on {date}.'
+  weekdayChip:
+    monday: Mo
+    tuesday: Tu
+    wednesday: We
+    thursday: Th
+    friday: Fr
+    saturday: Sa
+    sunday: Su
+
+timeField:
+  hours: Hours
+  minutes: Minutes
+  dayPeriod: AM/PM
+  minuteValue: '{minute, plural, one {# minute} other {# minutes}}'
+  empty: Empty
+  pasteInvalid: That isn't a time. Paste one like {example}.
+
+siteFooter:
+  copyright: © {year} Tale by Ruler GmbH. MIT licensed.
+
+issues:
+  srPrefix:
+    error: 'Error:'
+    warning: 'Warning:'
+    info: 'Note:'
+  summary: '{errors, plural, =0 {{warnings, plural, =0 {No problems} one {# warning} other {# warnings}}} one {# error{warnings, plural, =0 {} one { and # warning} other { and # warnings}}} other {# errors{warnings, plural, =0 {} one { and # warning} other { and # warnings}}}}'
+  none: No problems
+  listLabel: Problems
+  listFailed: Couldn't check for problems. The list may be out of date.
+  buttonLabel: 'Problems: {summary}'
+  buttonLabelChecking: 'Problems: {summary}. Checking…'
+  buttonLabelFailed: "Problems: couldn't check"
+  checking: Checking…
+  checkFailed: Couldn't check
+  announce: '{context}. {summary}'
+  nodeSummary: '({summary})'
+  fixLabel: 'How to fix:'
+  technicalDetails: Technical details
+  learnMore: Learn more
+  goTo: Go to
+
+codeEditor:
+  roleDescription: code editor
+  loading: Loading the editor…
+  keyboardHint: Tab indents. To leave the editor, press Esc, then Tab.
+  submitHint: 'Shortcut {shortcut}: {action}.'
+  legend:
+    leave: Esc, then Tab to leave
+    submit: '{shortcut}: {action}'
+  leaveArmed: Press Tab to move on.
+  tabFocusOn: Tab now moves focus.
+  tabFocusOff: Tab now indents.
+  expand: Expand editor
+  collapse: Back to the field
+  loadFailed: 'The editor didn''t load. You can keep editing here as plain text.'
+  retry: 'Try the editor again'
+  diagnostics:
+    atCursor: '{severity} on line {line}: {message}'
+    severity:
+      error: Error
+      warning: Warning
+      info: Note
+    fixAvailable: 'Fix available: press {shortcut}.'
+    fixApplied: 'Applied: {label}'
+    fixMenu: Fixes
+    lineItem: 'Line {line}: {message}'
+    more: '{count, plural, one {and # more problem} other {and # more problems}}'
+  syntax:
+    json: This isn't valid JSON here.
+    yaml: This isn't valid YAML here.
+    javascript: This can't be read as JavaScript here. Look for a missing bracket, quote or comma.
+    unterminatedTemplate: "This '{{' has no closing '}}'."
+  typeInfo:
+    label: Type
+    announce: '{title}: {type}'
+    optional: optional
+    sample: 'Last run: {value}'
+  phrases:
+    controlCharacter: Control character
+    close: Close
+    selectionDeleted: Selection deleted
+    foldedCode: folded code
+    unfold: unfold
+    to: to
+    foldedLines: Folded lines
+    unfoldedLines: Unfolded lines
+    foldLine: Fold line
+    unfoldLine: Unfold line
+    completions: Completions
+    find: Find
+    replaceField: Replace
+    next: Next
+    previous: Previous
+    all: All
+    matchCase: Match case
+    regexp: Regex
+    byWord: Whole word
+    replace: Replace
+    replaceAll: Replace all
+    goToLine: Go to line
+    go: Go
+    currentMatch: current match
+    onLine: on line
+    replacedMatches: Replaced $ matches
+    replacedMatchOnLine: Replaced a match on line $
+
+schemaTree:
+  label: Fields
+  kinds:
+    string: text
+    number: a number
+    integer: a whole number
+    boolean: true or false
+    object: an object
+    'null': empty
+    any: anything
+    array: list of {item}
+  kindsPlural:
+    string: texts
+    number: numbers
+    integer: whole numbers
+    boolean: true/false values
+    object: objects
+    array: lists
+    any: values
+  oneOf: one of {values}
+  required: required
+  optional: optional
+  maybeEmpty: may be empty
+  more: '{count, plural, one {# more field} other {# more fields}}'
+  asTypeScript: Show as TypeScript
+  inItems: '{total, plural, one {in {count} of # item} other {in {count} of # items}}'
+  mark:
+    added: not in the expected shape
+    removed: expected, but not there
+    typeChanged: not the expected kind
+    optional: not always there
+
+valueTree:
+  label: Value
+  name: '{key}, {value}'
+  markedName: '{mark}: {name}'
+  keyboardHelp: Arrow keys move and open. Type a field name to jump to it.
+  summary:
+    list: '{count, plural, =0 {an empty list} one {a list of # item} other {a list of # items}}'
+    object: '{count, plural, =0 {an empty object} one {an object with # field} other {an object with # fields}}'
+    longText: '{count, plural, one {a text of # character} other {a text of # characters}}'
+    quote: '"{text}"'
+    'true': 'true'
+    'false': 'false'
+    'null': empty
+    missing: missing
+    redacted: a hidden secret
+    elided: '{size} not kept'
+  showAllText: Show all {count} characters
+  showMore: Show {count} more
+  elided:
+    string: '{count, plural, one {+# character not kept} other {+# characters not kept}}'
+    items: '{count, plural, one {+# item not kept} other {+# items not kept}}'
+    depth: Deeper levels not kept
+    whole: Too large to keep ({size})
+  redacted: Hidden secret
+  redactedHint: Tale hides secrets in recorded values.
+  missing: '{key}: missing'
+  copyValue: Copy value
+  copyPath: Copy path
+  copied: Copied
+  mark:
+    added: Added
+    removed: Removed
+    changed: Changed from {before}
+    changedPlain: Changed
+    typeChanged: Type changed from {before}
+    typeChangedPlain: Type changed
+
+dataView:
+  values: Values
+  shape: Shape
+  modeLabel: Show as
+  copy: Copy JSON
+  download: Download JSON
+  fullScreen: Open full screen
+  closeFullScreen: Close full screen
+  expected:
+    matches: Matches the expected shape
+    differs: '{count, plural, one {Differs from the expected shape in # field} other {Differs from the expected shape in # fields}}'
+    compare: Compare
+  empty: Nothing recorded
+  size: '{size} recorded'
+
+dataDiff:
+  none: No changes
+  count:
+    added: '{count, plural, one {# added} other {# added}}'
+    removed: '{count, plural, one {# removed} other {# removed}}'
+    changed: '{count, plural, one {# changed} other {# changed}}'
+    typeChanged: '{count, plural, one {# changed type} other {# changed type}}'
+    reordered: '{count, plural, one {# reordered} other {# reordered}}'
+    unknown: '{count, plural, one {# not compared} other {# not compared}}'
+  row:
+    added: 'Added {path}: {after}'
+    removed: 'Removed {path} (was {before})'
+    changed: '{path} changed from {before} to {after}'
+    typeChanged: '{path} changed from {beforeKind} to {afterKind}: {after}'
+    reordered: '{path}: the same items in a different order'
+    unknown: "{path}: not compared, part of it wasn't kept"
+  shape:
+    added: '{path} appeared ({kind})'
+    removed: '{path} disappeared'
+    typeChanged: '{path}: {beforeKind} became {afterKind}'
+    optional: '{path} is no longer always there'
+    required: '{path} is now always there'
+  layout:
+    label: Layout
+    list: List
+    split: Side by side
+  before: Before
+  after: After
+  unrelated: They don't share a structure, so there's nothing to compare field by field.
+  wholeValue: the whole value
+  showValue: Show value
+  hideValue: Hide value
+  unchanged: '{count, plural, one {# unchanged field} other {# unchanged fields}}'
+  more: '{count, plural, one {# more change} other {# more changes}}'
+
+codeDiff:
+  added: Added
+  removed: Removed
+  unchanged: Unchanged
+  lineIn: Line in {label}
+  change: Change
+  text: Text
+  showUnchanged: '{count, plural, one {Show # unchanged line} other {Show # unchanged lines}}'
+  hideUnchanged: '{count, plural, one {Hide # unchanged line} other {Hide # unchanged lines}}'
+  hunk: '{count, plural, one {Line {from} in {label}} other {Lines {from}–{to} in {label}}}'
+  next: Next change
+  previous: Previous change
+  position: Change {index} of {count}
+  changes: '{count, plural, one {# change} other {# changes}}'
+  layout:
+    label: Layout
+    unified: Unified
+    split: Side by side
+  copyPatch: Copy patch
+  copied: Copied
+  identical: No differences
+  loading: Loading the comparison…
+  loadFailed: The comparison didn't load.
+  showRemaining: '{count, plural, one {Show the remaining change} other {Show the remaining # changes}}'
+
+changeList:
+  kind:
+    added: Added
+    removed: Removed
+    changed: Changed
+    renamed: Renamed
+  count:
+    added: '{count, plural, one {# added} other {# added}}'
+    removed: '{count, plural, one {# removed} other {# removed}}'
+    changed: '{count, plural, one {# changed} other {# changed}}'
+    renamed: '{count, plural, one {# renamed} other {# renamed}}'
+  before: Before
+  after: After
+  empty: No changes
+
+flow:
+  canvas:
+    roleDescription: flow chart
+    keyboardHelp: Use the arrow keys to follow the connections between nodes, Home and End to jump to Start and End, and Enter to open a node.
+    arranging: Arranging the nodes…
+    arrangeFailed: Couldn't arrange the nodes, so they're shown in one column.
+    touchHint: Use two fingers to move the chart
+  controls:
+    showList: Show as list
+    showChart: Show as chart
+    legend: Legend
+  legend:
+    title: How to read the chart
+  node:
+    entry: Start
+    exit: End
+    triggers: Starts
+    inputs: Input
+    outputs: Returns
+    outcomes: Ends
+    noInput: No input
+    noOutput: Returns nothing
+    more: +{count} more
+    unreachable: Never runs
+    position: Node {index} of {count}
+    section: '{heading}: {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Only if
+    ifElse: If
+    name: 'Condition for {node}: {condition}'
+    branches: Yes leads to {yes}, No leads to {no}
+  branch:
+    'yes': 'Yes'
+    'no': 'No'
+  group:
+    items: '{done} of {total, plural, one {# item} other {# items}}'
+    pass: Pass {pass} of {max}
+  relation:
+    comesFrom: Comes from {list}
+    leadsTo: Leads to {list}
+    onlyIf: Runs only if {condition}
+    otherwise: Runs when the condition of {node} is false
+  state:
+    pending: Not reached yet
+    running: Running
+    waiting: Waiting
+    succeeded: Succeeded
+    failed: Failed
+    skipped: Skipped
+    stopped: Stopped here
+    notRun: Not run
+    reused: Reused
+    decidedYes: Condition was true
+    decidedNo: Condition was false
+    failedHere: The run stopped here
+  list:
+    label: Nodes
+    reads: Reads {list}
+    empty: No nodes yet
+  paths:
+    showAll: Show all
+  playback:
+    label: Run timeline
+    play: Play
+    pause: Pause
+    previous: Previous event
+    next: Next event
+    speed: Playback speed
+    position: '{elapsed} of {total}'
+    valueText: '{position} — {events}'
+    live: Live
+    followLive: Follow live
+  timeline:
+    label: Steps
+    empty: No steps yet
+    keyboardHelp: Use the up and down arrow keys to move between steps, the right and left arrow keys to show or hide a step's items, and Enter to go to a step.
+    columns:
+      step: Step
+      duration: Duration
+    showItems: Show items
+    hideItems: Hide items
+    loadingItems: Loading items…
+    showAll: Show all {count}
+    item: Item {index}
+    pass: Pass {index}
+    itemOf: Item {index} of {total}
+    passOf: Pass {index} of {total}
+  compare:
+    a: A
+    b: B
+    side: '{label}: {state}'
+    differs: Differs
+    only: Only in {label}
+    absent: Not in {label}'s version
+    legend:
+      differs: 'Ring: differs between the runs'
+      onlyOne: 'Label on a line: only one run went this way'
+  diff:
+    nodeState: '{kind, select, added {Added} removed {Removed} renamed {Renamed} other {Changed}}'
+    wasNamed: Was {from}
+    edgeAdded: New connection
+    edgeRemoved: Removed connection
+    legend:
+      added: Added in the newer version
+      removed: Removed in the newer version
+      changed: Changed or renamed
+mentions:
+  listboxLabel: Mention someone
+  empty: No matches
+  inserted: Mentioned {name}
+  removed: Removed the mention of {name}
