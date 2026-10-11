@@ -280,7 +280,14 @@ export interface AutomationsContract {
       answers: TemplateAnswers;
       locale?: string;
     };
-    returns: { name: string; version: number; warnings?: unknown[] };
+    returns: {
+      name: string;
+      version: number;
+      warnings?: unknown[];
+      /** The starter's trigger as it was set: a webhook's token, minted
+       * now and shown once. */
+      trigger?: { token?: string; nextRunAt?: number | null };
+    };
   };
   'automations/mutations:setAutomationProjects': {
     kind: 'mutation';

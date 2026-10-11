@@ -19,6 +19,7 @@ const answerSchema = z.looseObject({
   error: z.string().optional(),
   name: z.string().optional(),
   version: z.number().optional(),
+  trigger: z.looseObject({ token: z.string().optional() }).optional(),
   data: z
     .looseObject({
       fields: z
@@ -51,6 +52,7 @@ export async function checkAutomationTemplates(
   const suffix = randomUUID().slice(0, 8);
   const name = `itest-starter-${suffix}`;
   const stranger = `itest-starter-stranger-${suffix}`;
+  const webhook = `itest-starter-webhook-${suffix}`;
   const request = async (route: string, body?: unknown) => {
     const response = await fetch(
       `${base}/api/app/automation-templates${route}?orgId=${orgId}`,
@@ -131,9 +133,12 @@ export async function checkAutomationTemplates(
         ) &&
         bound.map((row) => row.projectId).join() === projectId &&
         triggers.length === 1 &&
-        triggers[0]?.kind === 'event' &&
-        triggers[0]?.event === 'task.status_changed' &&
-        triggers[0]?.enabled === false,
+        triggers.every(
+          (trigger) =>
+            trigger.kind === 'event' &&
+            trigger.event === 'task.status_changed' &&
+            !trigger.enabled,
+        ),
       `status=${created.status} body=${JSON.stringify(created.body)} message=${first?.message} notify=${JSON.stringify(notify)} bound=${JSON.stringify(bound)} triggers=${JSON.stringify(triggers)}`,
     );
 
@@ -146,19 +151,43 @@ export async function checkAutomationTemplates(
       `status=${again.status} body=${JSON.stringify(again.body)}`,
     );
 
+    const hooked = await request('/webhook-create-task/instantiate', {
+      name: webhook,
+      displayName: 'Tasks from a webhook (itest)',
+      answers: { project: projectId },
+    });
+    const hooks = await sql<
+      { kind: string; enabled: boolean; minted: boolean }[]
+    >`
+      SELECT kind, enabled, token_hash IS NOT NULL AS minted
+      FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = ${webhook}
+    `;
+    record(
+      'starters: a webhook starter answers its address once, minted off',
+      hooked.status === 201 &&
+        typeof hooked.body.trigger?.token === 'string' &&
+        hooked.body.trigger.token.length > 0 &&
+        hooks.length === 1 &&
+        hooks.every(
+          (hook) => hook.kind === 'webhook' && !hook.enabled && hook.minted,
+        ),
+      `status=${hooked.status} token=${hooked.body.trigger?.token === undefined ? 'absent' : 'present'} triggers=${JSON.stringify(hooks)}`,
+    );
+
     const refused = await create(stranger, `nobody-${suffix}`);
     record(
       'starters: an answer naming someone outside the organization is refused, nothing written [AUTO-R45]',
       refused.status === 400 &&
         refused.body.error === 'TEMPLATE_ANSWERS_INVALID' &&
-        refused.body.data?.fields?.some(
+        (refused.body.data?.fields ?? []).some(
           (field) => field.field === 'reviewer' && field.code === 'unknown',
-        ) === true &&
+        ) &&
         (await versions(stranger)).length === 0,
       `status=${refused.status} body=${JSON.stringify(refused.body)}`,
     );
   } finally {
-    for (const automation of [name, stranger]) {
+    for (const automation of [name, stranger, webhook]) {
       await deleteAutomationCascade(sql, {
         organizationId: orgId,
         name: automation,

@@ -114,7 +114,7 @@ beforeEach(() => {
   io.list.mockResolvedValue([{ slug: 'notify-reviewer' }]);
   io.prepare.mockResolvedValue(PREPARED);
   io.save.mockResolvedValue({ name: 'tell-ada', version: 1 });
-  io.setTrigger.mockResolvedValue({});
+  io.setTrigger.mockResolvedValue({ token: 'whk_once' });
 });
 
 describe('the starters, at the app door', () => {
@@ -139,6 +139,8 @@ describe('the starters, at the app door', () => {
     expect(await response.json()).toMatchObject({
       name: 'tell-ada',
       version: 1,
+      // A webhook's address, minted by this create, is shown once.
+      trigger: { token: 'whk_once' },
     });
     expect(io.prepare).toHaveBeenCalledWith(
       expect.anything(),

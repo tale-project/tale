@@ -1653,15 +1653,24 @@ export function createAutomationTemplateRoutes(deps: {
       if (storeError !== undefined) throw storeError;
       const refused = authoringRefusal(c, result);
       if (refused !== null) return refused;
-      if (prepared.trigger !== undefined) {
-        await setTrigger(deps.sql, {
-          organizationId,
-          name: body.data.name,
-          trigger: prepared.trigger,
-          actor,
-        });
-      }
-      return c.json(result, 201);
+      // A webhook's address is minted by this bind and shown once: the
+      // answer carries it, as the trigger route's does.
+      const trigger =
+        prepared.trigger === undefined
+          ? undefined
+          : await setTrigger(deps.sql, {
+              organizationId,
+              name: body.data.name,
+              trigger: prepared.trigger,
+              actor,
+            });
+      return c.json(
+        {
+          ...(isRecord(result) ? result : {}),
+          ...(trigger !== undefined && { trigger }),
+        },
+        201,
+      );
     } catch (error) {
       return handleError(c, error);
     }
