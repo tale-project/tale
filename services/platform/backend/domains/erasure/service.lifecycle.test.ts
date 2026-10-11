@@ -369,6 +369,61 @@ describe('processErasure', () => {
     );
   });
 
+  it('pseudonymises who changed an automation’s definition, in every actor form, and counts the pass [ERASE-R5]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const tables = [
+      ['app.automations', 'created_by'],
+      ['app.automation_deployments', 'deployed_by'],
+      ['app.automation_deployment_events', 'actor'],
+      ['app.automation_triggers', 'created_by'],
+      ['app.automation_project_bindings', 'bound_by'],
+      ['app.automation_tombstones', 'deleted_by'],
+    ] as const;
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.automations SET created_by'))
+        return [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }];
+      if (text.startsWith('UPDATE app.automation_deployment_events'))
+        return [{ id: 'e1' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    for (const [table, column] of tables) {
+      const update = fake.statements.find((s) =>
+        s.text.startsWith(`UPDATE ${table} SET ${column}`),
+      );
+      expect(update?.text).toBe(
+        `UPDATE ${table} SET ${column} = ? WHERE org_id = ? AND ${column} = ANY(?) RETURNING id`,
+      );
+      expect(update?.values).toEqual([
+        'erased-user',
+        'org_1',
+        ['subject', 'user:subject', 'api-key:subject'],
+      ]);
+    }
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[0]).toBe('done');
+    expect(settle?.values[2]).toMatchObject({ automationAuthorship: 4 });
+  });
+
   it('pseudonymises the project-agent runs the subject started and counts the pass on the receipt [ERASE-R5]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text) => {

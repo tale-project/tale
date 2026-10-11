@@ -1513,6 +1513,7 @@ dataSubjectRequests:
     automationRuns: Automation runs
     agentRuns: Agent runs
     automationAllowances: Automation write allowances
+    automationAuthorship: Automation versions and deploys
     reviewDecisions: Review decisions
     mentions: Mentions of them in task text
     authState: Sign-in and two-factor attempts

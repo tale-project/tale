@@ -1385,6 +1385,65 @@ export async function processErasure(
     return changed.length;
   });
 
+  // Who changed an automation's definition: who saved each version, who
+  // put one live (the live pointer and the deployment history), who set its
+  // trigger, installed it in a project or deleted it. The versions and their
+  // history are the organization's work and stay; the person gives way to
+  // the pseudonym in each form an actor takes — a bare id, `user:<id>` and
+  // `api-key:<id>`. Display only: none of these decides who a run starts
+  // as.
+  await pass('automationAuthorship', async () => {
+    const forms = [
+      targetUserId,
+      `user:${targetUserId}`,
+      `api-key:${targetUserId}`,
+    ];
+    let changed = 0;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automations SET created_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND created_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automation_deployments SET deployed_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND deployed_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automation_deployment_events SET actor = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND actor = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automation_triggers SET created_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND created_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automation_project_bindings SET bound_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND bound_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automation_tombstones SET deleted_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND deleted_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    return changed;
+  });
+
   // Other people's task text that mentions the subject stores their name and
   // id in the mention (`[@Ada Lovelace](mention:user/<id>)`). Both give way
   // to the pseudonym wherever such text is kept: comments and their
