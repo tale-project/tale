@@ -850,10 +850,6 @@ function resolveRelease(source: string, sitesOnly: boolean) {
   const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-matrix-'));
   const cadenceBin = resolve(directory, 'bin');
   const output = resolve(directory, 'output');
-  const gh = resolve(directory, 'gh');
-  writeFileSync(gh, "#!/usr/bin/env bash\nprintf '\\n'\n", {
-    mode: 0o755,
-  });
   try {
     mkdirSync(cadenceBin);
     writeFileSync(
@@ -870,8 +866,6 @@ function resolveRelease(source: string, sitesOnly: boolean) {
       encoding: 'utf8',
       env: {
         ...process.env,
-        GH_TOKEN: 'fixture-token',
-        REPOSITORY: 'synthetic/tale',
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v0.5.15-sites.1',
         SITES_ONLY: String(sitesOnly),
@@ -880,7 +874,6 @@ function resolveRelease(source: string, sitesOnly: boolean) {
         REPOSITORY: 'synthetic/tale',
         PATH: `${cadenceBin}${delimiter}${process.env.PATH ?? ''}`,
         GITHUB_OUTPUT: output,
-        PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,
       },
     });
     expect(result.status).toBe(0);
