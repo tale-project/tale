@@ -126,6 +126,9 @@ const defaultFetch: IncusFetch = (url, init) =>
     ...(init.body === undefined ? {} : { body: init.body }),
     signal: init.signal,
     tls: init.tls,
+    // The node answers where it was asked. A redirect would carry the client
+    // certificate to a place nobody pinned.
+    redirect: 'error',
   });
 
 function isRecord(value: unknown): value is Record<string, unknown> {

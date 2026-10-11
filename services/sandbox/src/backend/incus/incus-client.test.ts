@@ -618,6 +618,7 @@ describe('the pinned mutual-TLS connection', () => {
   function serve(
     shape: 'server' | 'otherServer' | 'incusDefault',
     trusted: 'client' | 'otherClient',
+    options: { redirectTo?: string; hits?: string[] } = {},
   ): number {
     if (certs === null) throw new Error('no certificates');
     const server = Bun.serve({
@@ -630,21 +631,29 @@ describe('the pinned mutual-TLS connection', () => {
         requestCert: true,
         rejectUnauthorized: true,
       },
-      fetch: (req) =>
-        new Response(
-          JSON.stringify({
-            type: 'sync',
-            status: 'Success',
-            status_code: 200,
-            metadata: {
-              api_extensions: ['instance_oci'],
-              auth: 'trusted',
-              environment: { server_name: 'node', server_version: '7.5.1' },
-              path: new URL(req.url).pathname,
-            },
-          }),
-          { headers: { 'content-type': 'application/json' } },
-        ),
+      fetch: (req) => {
+        options.hits?.push(new URL(req.url).pathname);
+        return new URL(req.url).pathname === '/1.0/projects/elsewhere' &&
+          options.redirectTo !== undefined
+          ? new Response(null, {
+              status: 302,
+              headers: { location: options.redirectTo },
+            })
+          : new Response(
+              JSON.stringify({
+                type: 'sync',
+                status: 'Success',
+                status_code: 200,
+                metadata: {
+                  api_extensions: ['instance_oci'],
+                  auth: 'trusted',
+                  environment: { server_name: 'node', server_version: '7.5.1' },
+                  path: new URL(req.url).pathname,
+                },
+              }),
+              { headers: { 'content-type': 'application/json' } },
+            );
+      },
     });
     servers.push(server);
     return server.port ?? 0;
@@ -676,6 +685,27 @@ describe('the pinned mutual-TLS connection', () => {
     const info = await clientFor(port, 'server', 'client').getServer();
     expect(info.auth).toBe('trusted');
     expect(info.serverVersion).toBe('7.5.1');
+  });
+
+  test('a redirect is an error: the client certificate goes nowhere unpinned', async () => {
+    if (certs === null) return;
+    // A second node the pinned certificate would also be good for, and the
+    // client certificate trusted there too: if the redirect were followed, it
+    // would answer.
+    const elsewhere: string[] = [];
+    const other = serve('server', 'client', { hits: elsewhere });
+    const port = serve('server', 'client', {
+      redirectTo: `https://127.0.0.1:${other}/1.0/projects/elsewhere-too`,
+    });
+    const client = clientFor(port, 'server', 'client');
+    const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const error = await rejection(client.getProject('elsewhere'));
+      expect(error.message.length).toBeGreaterThan(0);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(elsewhere).toEqual([]);
   });
 
   test('a server that does not know the client certificate refuses the handshake', async () => {
