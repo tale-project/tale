@@ -4,7 +4,9 @@ import { render, screen } from '@/tests/utils/render';
 
 import { EnterpriseSsoSettings } from './enterprise-sso-settings';
 
-const read = vi.hoisted(() => ({ isLoading: true, error: undefined }));
+const read = vi.hoisted((): { isLoading: boolean; error?: Error } => ({
+  isLoading: true,
+}));
 
 vi.mock('../hooks/use-enterprise-sso', () => ({
   useEnterpriseSso: () => ({
