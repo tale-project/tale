@@ -1,5 +1,5 @@
 ---
-title: Créer des fichiers et utiliser des skills dans le chat
+title: Créer des fichiers et utiliser des skills
 description: Demande à l’assistant un document, un tableur, une présentation, un graphique ou une image, et laisse-le suivre un skill de ta bibliothèque, sans quitter la conversation.
 ---
 
