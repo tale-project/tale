@@ -42,6 +42,7 @@ import {
   DEMO_TASK_CREATE,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
+  DEMO_MEMBERS,
   DEMO_ORG_NAME,
   DEMO_OWNER,
   DEMO_PASSKEY_NAME,
@@ -399,6 +400,21 @@ const projectRoute = (
   project = RELAUNCH_PROJECT,
 ): string =>
   `/dashboard/${ctx.orgId}/projects/${seededProjectId(ctx, project)}${sub}`;
+
+/** Create automation › From a starter, from the automations list. */
+async function openStarterGallery(page: Page): Promise<void> {
+  await page
+    .getByRole('button', { name: t('automations.list.createButton') })
+    .click();
+  await page
+    .getByRole('menuitem', { name: t('automations.createMenu.starter') })
+    .click();
+}
+
+/** The starter gallery's dialog. */
+function starterGallery(page: Page): Locator {
+  return page.getByRole('dialog', { name: t('automations.starters.title') });
+}
 
 /** Keep catalog examples reproducible when the local organization also has
  * manual-test automations. Filter through the real search control; never
@@ -1619,6 +1635,48 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByRole('heading', { name: t('automations.upload.title') }),
+  },
+  {
+    // The starter gallery — Create automation › From a starter: each
+    // starter with its icon, its name and what it does in one line.
+    name: 'automation-starter-gallery',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations',
+    prepare: openStarterGallery,
+    readyWhen: (page) =>
+      starterGallery(page).getByRole('button', { name: /Tell the reviewer/ }),
+    capture: starterGallery,
+  },
+  {
+    // A starter's questions answered: Tell the reviewer, for Website
+    // relaunch, telling Priya, with its message and Start it now on.
+    // Nothing is created.
+    name: 'automation-starter-setup',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations',
+    prepare: async (page) => {
+      await openStarterGallery(page);
+      await starterGallery(page)
+        .getByRole('button', { name: /Tell the reviewer/ })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Tell the reviewer' });
+      await dialog.getByRole('button', { name: /^Project/ }).click();
+      await page
+        .getByRole('option', { name: DEMO_PROJECTS[0].name, exact: true })
+        .click();
+      await dialog.getByRole('button', { name: /^Reviewer/ }).click();
+      await page
+        .getByRole('option', { name: new RegExp(DEMO_MEMBERS[0].name) })
+        .click();
+    },
+    // Ready once every question is answered: Create stops waiting.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: 'Tell the reviewer' })
+        .locator('button[type="submit"]:not([aria-disabled="true"])'),
+    capture: (page) => page.getByRole('dialog', { name: 'Tell the reviewer' }),
+    // The questions run below the fold of a 900 px viewport.
+    viewport: { width: 1440, height: 1100 },
   },
   {
     // The Editor tab — the saved version laid out between Start (the
