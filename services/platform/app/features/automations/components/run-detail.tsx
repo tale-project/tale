@@ -577,6 +577,22 @@ function RunDetailBody({
             canStartLive={canStartLive}
             writes={writes}
             href={`${runsPath}/${run.id}`}
+            {...(canStartLive && {
+              // The test joins the editor's draft: the editor opens with
+              // the run, asking how to save it.
+              onSaveAsTest: () => {
+                void navigate({
+                  to: `${automationDetailPathname({
+                    organizationId,
+                    automationSlug,
+                    ...(run.projectId !== undefined && {
+                      projectId: run.projectId,
+                    }),
+                  })}/editor`,
+                  search: { panel: 'tests', saveRun: run.id },
+                });
+              },
+            })}
             {...(previousRunId !== undefined && {
               onComparePrevious: () => {
                 void navigate({

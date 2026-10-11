@@ -291,12 +291,30 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       ],
     }),
     useAutomationRuns: () => ({ data: runsData }),
-    // A run's own read: what Start's and End's Last run tabs show.
+    // A run's own read: what Start's and End's Last run tabs show, and what
+    // a run saved as a test is made from.
     useAutomationRun: (_organizationId: string, runId?: string) => ({
       data:
         runId === undefined
           ? undefined
-          : { id: runId, input: { owner: 'acme' }, output: { sent: 2 } },
+          : {
+              id: runId,
+              name: 'billing/dunning',
+              version: 2,
+              status: 'success',
+              mode: 'mock',
+              startedAt: Date.UTC(2026, 9, 11, 15, 2),
+              input: { owner: 'acme' },
+              output: { sent: 2 },
+              trace: [
+                {
+                  node: 'summary',
+                  type: 'llm',
+                  status: 'ok',
+                  output: { sent: 2 },
+                },
+              ],
+            },
     }),
     useAutomationProjects: () => ({ data: projectsData.bound }),
     // Nothing is allowed to write without approval unless a test says so.
@@ -1453,6 +1471,21 @@ describe('AutomationEditor', () => {
     } finally {
       tryMutation.isPending = false;
     }
+
+    // The try can become a test: it failed at Summary, so the test may
+    // expect it to fail there.
+    await user.click(
+      within(banner).getByRole('button', { name: 'Save as test' }),
+    );
+    const saveDialog = screen.getByRole('dialog', {
+      name: 'Save the run as a test',
+    });
+    expect(
+      within(saveDialog).getByRole('radio', { name: 'It fails at Summary' }),
+    ).toBeInTheDocument();
+    await user.click(
+      within(saveDialog).getByRole('button', { name: 'Cancel' }),
+    );
 
     await user.click(
       within(banner).getByRole('button', { name: 'Hide result' }),
@@ -3159,6 +3192,59 @@ describe('AutomationEditor tests', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('saves a recent run as a test from Add test, into the draft', async () => {
+    state.document = withTests;
+    runsData.push({
+      id: 'run-7',
+      name: 'billing/dunning',
+      version: 2,
+      status: 'success',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: Date.UTC(2026, 9, 11, 15, 2),
+    });
+    const { user } = renderPage({ organizationId: 'org-tests-save-run' });
+    await user.click(testsButton());
+    await user.click(
+      within(screen.getByRole('region', { name: 'Tests' })).getByRole(
+        'button',
+        { name: 'Add test' },
+      ),
+    );
+    // The submenu opens from the keyboard, as a pointer's hover does.
+    screen.getByRole('menuitem', { name: 'From a run' }).focus();
+    await user.keyboard('{ArrowRight}');
+    await user.click(
+      await screen.findByRole('menuitem', { name: /^Succeeded ·/ }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Save the run as a test',
+    });
+    expect(
+      within(dialog).getByRole('radio', { name: 'It returns this output' }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Add test' }));
+    const name = await within(openInspector()).findByRole('textbox', {
+      name: 'Name',
+    });
+    expect((name as HTMLInputElement).value).toMatch(/^From the run of /);
+    expect(within(openInspector()).getByText('Test 2 of 2')).toBeVisible();
+  });
+
+  it('opens a run the route names to save as a test, once', async () => {
+    state.document = withTests;
+    const onSearchChange = vi.fn();
+    renderPage({
+      organizationId: 'org-tests-save-route',
+      saveRun: 'run-9',
+      onSearchChange,
+    });
+    expect(
+      await screen.findByRole('dialog', { name: 'Save the run as a test' }),
+    ).toBeVisible();
+    expect(onSearchChange).toHaveBeenCalledWith({ saveRun: null });
   });
 
   it('adds a blank test to the draft and opens it on its setup', async () => {

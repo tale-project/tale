@@ -18,6 +18,7 @@ again:
   idCopied: ID de l’exécution copié
   copyLink: Copier le lien
   linkCopied: Lien copié
+  saveAsTest: Enregistrer comme test…
 failure:
   title: L’exécution a échoué à l’étape {step}
   titleRun: L’exécution a échoué

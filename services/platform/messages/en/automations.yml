@@ -1161,6 +1161,38 @@ tests:
     allTested: Every path has a test
     pathName: 'Takes path {number}'
     pathItem: '{path}: {clauses}'
+    run: From a run
+  fromRun:
+    title: Save the run as a test
+    description: The test runs with this run's input and checks what you choose below.
+    defaultName: 'From the run of {when}'
+    confirm: Add test
+    expect:
+      label: The test expects
+      equals: It returns this output
+      includes: Its output includes this
+      succeeds: It succeeds
+      succeedsHelp: The run failed, so the test fails until that is fixed.
+      failsHere: 'It fails at {node}'
+      none: Nothing yet
+    simulate:
+      label: Simulate with this run's data
+      output: Answers with the output it returned in the run.
+      failure: Fails as it did in the run.
+      code: Your code is what the test checks.
+      tooLarge: 'Too large to keep in the automation ({size}).'
+      notInDocument: Not in this version.
+    actions: Also expect the same actions
+    actionsHelp: Each action the run took, without its input.
+    warnings:
+      redacted: '{count, plural, one {# value looked like a secret and is left out.} other {# values looked like secrets and are left out.}}'
+      liveRun: 'This was a live run: in the test, {nodes} answer with stand-ins, not as they did here.'
+      tooLarge: '{part, select, input {The input} output {The output} other {The test}} is large ({size}).'
+      dropped: '{nodes} can''t answer as in this run, so the test runs them as usual.'
+    target: Adds the test to your draft.
+    targetOtherVersion: 'This run used version {run}; the test is added to your draft of version {version}.'
+    privacy: The run's input and the outputs you keep become part of the automation. Anyone who can open the automation can read them.
+    readFailed: Couldn't read that run. Try again from the runs list.
   pathNeed:
     when: "{value, select, true {Make the condition of {node} true, so it runs.} other {Make the condition of {node} false, so it is skipped.}}"
   fields:
@@ -1348,3 +1380,4 @@ try:
   changed: The draft changed since this try.
   again: Try again
   clear: Hide result
+  saveAsTest: Save as test

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 237 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 238 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1631,6 +1631,18 @@ output:
       shows the simulated step with its chip, and choosing the version
       instead reads `automations.detail.runSource.standInsDraftOnly`.
       Reopening the dialog starts from the last choice.
+- [ ] `AUTO-F177` · **Save a run as a test: from Add test ›
+      `automations.tests.addFrom.run`, from a run page's
+      `automationRuns.again.saveAsTest`, and from a try's
+      `automations.try.saveAsTest`** → the dialog
+      `automations.tests.fromRun.title` expects by how the run ended (a
+      succeeded run: `automations.tests.fromRun.expect.equals`; a failed one:
+      `automations.tests.fromRun.expect.succeeds` with its help, and
+      `automations.tests.fromRun.expect.failsHere`), lists the steps it can
+      simulate with code steps off and saying why, and says how many values
+      it left out as secrets; from the run page the editor opens with the
+      dialog and the address forgets the run. **Add test** opens the new
+      test on Setup in the draft, with the run's input.
 
 ## Boundary & error tests
 

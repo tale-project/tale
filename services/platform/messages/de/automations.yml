@@ -1170,6 +1170,38 @@ tests:
     allTested: Jeder Pfad hat einen Test
     pathName: 'Nimmt Pfad {number}'
     pathItem: '{path}: {clauses}'
+    run: Aus einem Lauf
+  fromRun:
+    title: Lauf als Test speichern
+    description: Der Test läuft mit der Eingabe dieses Laufs und prüft, was du unten wählst.
+    defaultName: 'Aus dem Lauf vom {when}'
+    confirm: Test hinzufügen
+    expect:
+      label: Der Test erwartet
+      equals: Er gibt diese Ausgabe zurück
+      includes: Seine Ausgabe enthält das
+      succeeds: Er ist erfolgreich
+      succeedsHelp: Der Lauf ist fehlgeschlagen, also schlägt der Test fehl, bis das behoben ist.
+      failsHere: 'Er schlägt bei {node} fehl'
+      none: Noch nichts
+    simulate:
+      label: Mit den Daten dieses Laufs simulieren
+      output: Antwortet mit der Ausgabe, die er im Lauf zurückgab.
+      failure: Schlägt fehl wie im Lauf.
+      code: Dein Code ist das, was der Test prüft.
+      tooLarge: 'Zu groß, um ihn in der Automatisierung zu behalten ({size}).'
+      notInDocument: Nicht in dieser Version.
+    actions: Auch dieselben Aktionen erwarten
+    actionsHelp: Jede Aktion des Laufs, ohne ihre Eingabe.
+    warnings:
+      redacted: '{count, plural, one {# Wert sah wie Zugangsdaten aus und wird weggelassen.} other {# Werte sahen wie Zugangsdaten aus und werden weggelassen.}}'
+      liveRun: 'Das war ein Live-Lauf: Im Test antworten {nodes} mit Platzhaltern, nicht wie hier.'
+      tooLarge: '{part, select, input {Die Eingabe} output {Die Ausgabe} other {Der Test}} ist groß ({size}).'
+      dropped: '{nodes} können nicht wie in diesem Lauf antworten, also führt der Test sie wie gewohnt aus.'
+    target: Fügt den Test deinem Entwurf hinzu.
+    targetOtherVersion: 'Dieser Lauf verwendete Version {run}; der Test wird deinem Entwurf von Version {version} hinzugefügt.'
+    privacy: Die Eingabe des Laufs und die Ausgaben, die du behältst, werden Teil der Automatisierung. Alle, die die Automatisierung öffnen können, können sie lesen.
+    readFailed: Dieser Lauf konnte nicht gelesen werden. Versuche es in der Liste der Läufe erneut.
   pathNeed:
     when: '{value, select, true {Mach die Bedingung von {node} wahr, damit sie läuft.} other {Mach die Bedingung von {node} falsch, damit sie übersprungen wird.}}'
   fields:
@@ -1357,3 +1389,4 @@ try:
   changed: Der Entwurf hat sich seit diesem Versuch geändert.
   again: Erneut ausprobieren
   clear: Ergebnis ausblenden
+  saveAsTest: Als Test speichern

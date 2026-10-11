@@ -1,8 +1,8 @@
 /**
  * Save a run as a test — the one builder behind every way a run becomes a
- * test: the run page and the runs list, the banner of a try, a test's own
- * result, the app's `GET …/runs/:runId/as-test` and the agent tool's
- * `get_run {include: ['test']}`.
+ * test. The editor makes one in the browser from a stored run's detail (the
+ * run page's Save as test, Add test's From a run) or from a try of the
+ * draft; what it reads is what the reader may already see.
  *
  * The test takes the run's input. What it expects follows how the run
  * ended: by default the output a run that succeeded returned, and success

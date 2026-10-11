@@ -18,6 +18,7 @@ again:
   idCopied: Run ID copied
   copyLink: Copy link
   linkCopied: Link copied
+  saveAsTest: Save as test…
 failure:
   title: The run failed at {step}
   titleRun: The run failed
