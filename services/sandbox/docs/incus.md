@@ -350,7 +350,7 @@ it, so unset it stays `8`, and boot says so.
 | Docker / Kubernetes                       | Incus                                                                                                                                                                                                                                                     |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--cpus N`                                | `limits.cpu.allowance=<N*100>ms/100ms`, a hard CFS quota                                                                                                                                                                                                  |
-| `--cpu-shares` (`SANDBOX_AGENT_CPU_SHARES`) | **not mapped.** Incus's `limits.cpu.allowance` is either a hard quota or a soft weight, never both, and a quota leaves the weight at the default, so this backend takes the quota. To keep the platform's own instances ahead of sessions under contention, give _them_ a larger weight, for instance `limits.cpu.allowance=400%` (cgroup `cpu.weight` 400 against a session's 100) |
+| `--cpu-shares` (`SANDBOX_AGENT_CPU_SHARES`) | **not mapped**: see [CPU under contention](#cpu-under-contention). A session keeps the default scheduler weight (100) |
 | `--memory`                                | `limits.memory` (a hard limit). Swap and the OOM priority are low-level keys a restricted project forbids, so they stay the node's; runnerd still raises every exec's OOM score above its own                                                              |
 | `--pids-limit`                            | `limits.processes`                                                                                                                                                                                                                                        |
 | ulimits `nofile`, `fsize`, `core`         | `limits.kernel.nofile`, `limits.kernel.fsize`, `limits.kernel.core`                                                                                                                                                                                       |
@@ -376,26 +376,70 @@ unavailable because a restricted certificate does not see the node's resources,
 so admission has no memory or disk floor here: size `SANDBOX_MAX_SESSIONS` and
 the per-session limits so that the sum of the limits fits the node.
 
+### CPU under contention
+
+A session's CPU limit is a hard quota, `limits.cpu.allowance=<N*100>ms/100ms`,
+and an instance with a quota keeps the default scheduler weight (100). Incus
+takes `limits.cpu.allowance` either as a time quota or as a percentage, which
+sets only the weight, never both, so there is no equivalent of
+`SANDBOX_AGENT_CPU_SHARES`. On the Docker backend a session runs at a quarter
+of the weight of the platform's containers, so that a saturated host keeps the
+database and the backend responsive; here a session weighs what a default
+Docker container weighs, or more.
+
+On a node that also runs the platform's own services, keep them ahead of the
+sessions by giving them the higher weight instead: for an Incus instance,
+`incus config set <instance> limits.cpu.allowance=400%` (a weight of 400 and no
+quota), for a Docker container a `--cpu-shares` value whose cgroup weight is
+above 100. Better still, keep the sum of `SANDBOX_MAX_SESSIONS` times
+`SANDBOX_AGENT_CPUS` within the node's cores plus the headroom you accept, so
+that contention is the exception.
+
 ## The warm pool
 
 `SANDBOX_INCUS_POOL_SIZE` keeps that many **started standby instances** of the
 shape an agent session has. A standby runs the runtime image with a standby
 script (`/usr/local/lib/tale/standby.sh`, pushed into the instance before its
-first start) that signals it is waiting. Handing one out is a claim: the
-instance is relabelled as the session and the workspace volume is hot-plugged,
-both in one write guarded by the ETag the standby was read with (a standby
-changed by someone else is refused), and the claim file (the session's runnerd
-token and incarnation, never in the instance config) is pushed, whereupon the
-script drops privileges and `exec`s the entrypoint. What is left of the
-handout is runnerd's own start. Any claim failure removes that standby and the
-create starts cold.
+first start, under `no_new_privs` like a session) that signals it is waiting.
+Handing one out is a claim: the instance is relabelled as the session and the
+workspace volume is hot-plugged, both in one write guarded by the ETag the
+standby was read with, and the claim file (the session's runnerd token and
+incarnation, never in the instance config) is pushed, whereupon the script
+drops privileges and `exec`s the entrypoint. What is left of the handout is
+runnerd's own start.
+
+When a claim cannot be made the session starts cold, and what the claim did not
+make is never removed by it:
+
+- A standby that is gone, not running, retired or changed by someone else
+  since it was read (the write is refused, `412`) is passed over; the next one
+  is tried, up to three.
+- A claim the node itself refuses (the workspace volume is missing, say)
+  leaves the standby a standby.
+- Only an instance the claim had already turned into this session's, whose
+  claim file then could not be delivered, is removed, and only while it still
+  carries the claim's own attempt label.
+
+**Removal and claims never race to a live session.** The pool removes a
+standby (a stale one, a surplus one, one a cold start needs the slot of) by
+first marking it retired (`user.tale.pool-retired`) under the ETag it read, and
+only then stopping and deleting it. A claim and a mark each write under the ETag
+of what they read, and Incus lets only the first through: the claim that loses
+passes the standby over, and the removal that loses finds a session and leaves
+it alone. A removal interrupted after its mark is finished by the next pass.
 
 The pool refills in the background (every 30 seconds and after each claim),
 makes up to four standbys at a time, replaces a standby that no longer matches
 what a session would be made of today (a moved proxy, a new limit, a moved
-image alias) or that has stood six hours, and takes over the standbys a previous
-spawner left. Only agent sessions with the Docker capability the deployment
-defaults to are served from it.
+image alias, another standby script) or that has stood six hours, and takes
+over the standbys a previous spawner left. Only agent sessions with the Docker
+capability the deployment defaults to are served from it.
+
+**A draining spawner stops its pool** (`POST /v1/drain`, and shutdown): its
+replacement keeps the pool, and two spawners each filling it to the target
+would pass `SANDBOX_MAX_SESSIONS` between them. The standbys stay for the
+replacement to take over; creates the draining spawner had already admitted
+still claim from them.
 
 ## Operations
 
@@ -403,9 +447,11 @@ defaults to are served from it.
   line with what it found, and starts the pool. `/health` is an authenticated
   `GET /1.0` and fails when the node is unreachable or does not trust the
   certificate.
-- **Spawner restart.** Sessions keep running (they are not children of the
-  spawner) and are re-adopted from their labels; standbys that still match are
-  taken over.
+- **Spawner restart and rollout.** Sessions keep running (they are not
+  children of the spawner) and are re-adopted from their labels; standbys that
+  still match are taken over. A rollout drains the old spawner (`POST
+  /v1/drain`): it refuses new sessions, serves its own, and stops keeping the
+  warm pool, which the new spawner keeps from its boot.
 - **Node reboot.** Sessions do not autostart: each session instance is found
   stopped, which the route layer treats as ended compute and removes after
   adoption (the sweep takes what it misses). Workspaces survive, and the
@@ -452,8 +498,13 @@ documentation it was written from.
 5. **Privileges.** In the running session, runnerd's `/proc/<pid>/status` shows
    `NoNewPrivs: 1`, `Uid` 10001 and an empty `CapEff`; `su` and `newuidmap` do
    not lift the session user; an exec that tries to remove the egress firewall
-   rules fails. With Docker inside, `NoNewPrivs` is 0 and `docker run
-   hello-world` works.
+   rules fails. Nothing in the image, a browser and the coding agents' tools
+   included, may fail to start: util-linux warns that a Linux security module
+   such as AppArmor can make some programs fail to execute under
+   `no_new_privs`, so a failure to exec that shows up only here is its first
+   suspect. Report it rather than working around it: the backend has no switch
+   for the bit, as Docker's `no-new-privileges` has none. With Docker inside,
+   `NoNewPrivs` is 0 and `docker run hello-world` works.
 6. **Network.** From a session: the proxy works (an HTTPS fetch through
    `HTTPS_PROXY`, a plain one through transparent egress), the LLM gateway and
    backend answer by name, DNS resolves only through the proxy's resolver
@@ -480,7 +531,10 @@ documentation it was written from.
     real node proves), two standbys appear and wait (the ready marker exists);
     a create takes one in well under the cold time; the pool refills; killing a
     standby's script mid-claim falls back to a cold start; the script refuses to
-    start a session whose workspace is not mounted.
+    start a session whose workspace is not mounted. Through a rollout (`POST
+    /v1/drain` on the old spawner while the new one boots) the old one makes no
+    standby, the new one takes the existing ones over without recreating them,
+    and a create admitted before the drain still claims.
 11. **Restricted-project refusals.** The tmpfs `/dev/shm` device is admitted
     under `restricted.devices.disk=allow` and `paths=tmpfs:`; a host-path disk
     device is refused; the spawner never sends `raw.*`, swap or OOM keys.
