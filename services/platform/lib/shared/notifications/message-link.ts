@@ -4,8 +4,10 @@
  * email puts it behind its button.
  *
  * Two kinds, nothing else: a page of the organization's own Tale
- * (`/dashboard/<organization>/…`), which opens in place, or a public `https://`
- * address, which opens in a new tab and says which site it is. Anything that
+ * (`/dashboard/<organization>/…`, or the same path without that prefix —
+ * `/tasks/<id>` — so one document reads alike in every organization), which
+ * opens in place, or a public `https://` address, which opens in a new tab
+ * and says which site it is. Anything that
  * could leave the page somewhere unexpected is refused rather than mended: a
  * protocol-relative or backslashed path, a `.`/`..` segment, an empty
  * segment, a path into another organization, credentials in the address, a
@@ -85,7 +87,12 @@ export function classifyMessageLink(
   const trimmed = link.trim();
   if (trimmed === '' || trimmed.length > MESSAGE_LINK_MAX_LENGTH) return null;
   if (trimmed.startsWith('/')) {
-    return trimmed.startsWith('//') ? null : appLink(trimmed, organizationId);
+    if (trimmed.startsWith('//')) return null;
+    const inOrganization =
+      trimmed === '/dashboard' || trimmed.startsWith('/dashboard/')
+        ? trimmed
+        : `/dashboard/${organizationId}${trimmed}`;
+    return appLink(inOrganization, organizationId);
   }
   return webLink(trimmed);
 }

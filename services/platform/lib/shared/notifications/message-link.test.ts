@@ -37,6 +37,27 @@ describe('the link an automation message may carry', () => {
         search: { q: 'a b', doc: 'd2' },
       },
     ],
+    // A page of the organization without its prefix reads in the run's own
+    // organization, so a document travels between organizations.
+    [
+      '/tasks/t1',
+      {
+        kind: 'app',
+        path: '/dashboard/org_1/tasks/t1',
+        splat: 'tasks/t1',
+        search: {},
+      },
+    ],
+    [
+      '/projects/p1/tasks?task=t1',
+      {
+        kind: 'app',
+        path: '/dashboard/org_1/projects/p1/tasks?task=t1',
+        splat: 'projects/p1/tasks',
+        search: { task: 't1' },
+      },
+    ],
+    ['/', { kind: 'app', path: '/dashboard/org_1', splat: '', search: {} }],
     [
       'https://reports.example.com/weekly?week=41',
       {
@@ -59,7 +80,8 @@ describe('the link an automation message may carry', () => {
 
   it.each([
     ['another organization', '/dashboard/org_2/projects'],
-    ['outside the dashboard', '/api/v1/automations'],
+    ['a path climbing out of the organization', '/../dashboard/org_2'],
+    ['an escaped climb out of the organization', '/%2e%2e/org_2/projects'],
     ['a protocol-relative address', '//evil.example.com/x'],
     ['a backslashed path', '/dashboard/org_1\\..\\api'],
     ['a dot segment', '/dashboard/org_1/../org_2/projects'],

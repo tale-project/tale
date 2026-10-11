@@ -23,7 +23,7 @@ nodes:
 | `to`      | Jusqu’à 20 membres, par e-mail ou identifiant, ou `run-starter` pour la personne qui a lancé l’exécution.                                                                                                 |
 | `title`   | Le sujet du message, sur une ligne d’au plus 120 caractères. Il coiffe la notification et sert d’objet à l’e-mail.                                                                                        |
 | `message` | Le texte sous le titre, en texte brut, au plus 2000 caractères.                                                                                                                                           |
-| `link`    | Une page de ton organisation, par son chemin qui commence par `/dashboard/`, ou une adresse `https://`. Une page s’ouvre dans Tale, une adresse dans un nouvel onglet, et la notification nomme son site. |
+| `link`    | Une page de ton organisation, par son chemin — `/tasks/<id de la tâche>`, `/conversations` — ou une adresse `https://`. Une page s’ouvre dans Tale, une adresse dans un nouvel onglet, et la notification nomme son site. |
 
 Un `message` ou un `link` vide — un modèle qui n’a rien trouvé — est laissé de côté.
 

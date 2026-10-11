@@ -23,7 +23,7 @@ nodes:
 | `to`      | Bis zu 20 Mitglieder, per E-Mail-Adresse oder Benutzer-ID, oder `run-starter` für die Person, die den Lauf gestartet hat.                                                                                            |
 | `title`   | Worum es geht, in einer Zeile mit höchstens 120 Zeichen. Er steht über der Benachrichtigung und ist der Betreff der E-Mail.                                                                                          |
 | `message` | Der Text unter dem Titel, als reiner Text, höchstens 2000 Zeichen.                                                                                                                                                   |
-| `link`    | Eine Seite deiner Organisation, als Pfad, der mit `/dashboard/` beginnt, oder eine `https://`-Adresse. Eine Seite öffnet sich in Tale, eine Adresse in einem neuen Tab, und die Benachrichtigung nennt ihre Website. |
+| `link`    | Eine Seite deiner Organisation, als ihr Pfad — `/tasks/<Aufgaben-ID>`, `/conversations` — oder eine `https://`-Adresse. Eine Seite öffnet sich in Tale, eine Adresse in einem neuen Tab, und die Benachrichtigung nennt ihre Website. |
 
 Eine leere `message` oder ein leerer `link` — eine Vorlage, die nichts gefunden hat — wird weggelassen.
 
