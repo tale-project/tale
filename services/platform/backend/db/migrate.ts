@@ -1,13 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises';
 
 import { isMigrationFile } from '@tale/shared/db/migration-files';
-import { withRetry } from '@tale/shared/db/retry';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
 import { installAuthInvalidationTriggers } from './auth-invalidation-triggers.ts';
+import { createBootDatabaseWait, type BootDatabaseWait } from './boot-wait.ts';
 import { resolvePostgresConnection } from './ssl.ts';
-import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
+import { isDatabaseUnavailable } from './unavailable.ts';
 
 export { isMigrationFile } from '@tale/shared/db/migration-files';
 
@@ -48,27 +48,24 @@ export interface BootMigrationOptions {
   authOptions?: BetterAuthOptions;
   log?: (message: string) => void;
   /**
+   * The boot's wait for an unavailable database (`db/boot-wait.ts`), shared
+   * with the boot steps that follow, so the whole boot runs on one outage
+   * clock. Without it the step makes its own from the three options below.
+   */
+  wait?: BootDatabaseWait;
+  /**
    * How long an unavailable database is waited out, timed from its first
-   * refusal, before the step gives up; {@link ROUTINE_RESTART_MS} by default.
+   * refusal, before the step gives up; `ROUTINE_RESTART_MS` by default.
    */
   databaseWaitMs?: number;
   /** The pause between two attempts (injectable for deterministic tests). */
   sleep?: (ms: number) => Promise<void>;
   /**
    * The outage's clock, in milliseconds: monotonic `performance.now()` by
-   * default, so a wall-clock step as the host syncs its time at boot neither
-   * cuts the wait short nor stretches it (injectable for deterministic tests).
+   * default (injectable for deterministic tests).
    */
   now?: () => number;
 }
-
-/** The first pause after an attempt the database was unavailable for; it
- * doubles from here up to {@link DATABASE_RETRY_MAX_DELAY_MS}. */
-const DATABASE_RETRY_BASE_DELAY_MS = 1_000;
-
-/** The longest pause between two attempts — how late a booting process at
- * most notices that the database is back. */
-const DATABASE_RETRY_MAX_DELAY_MS = 5_000;
 
 /**
  * Give Better Auth's `team.memberCount` a SQL default.
@@ -303,14 +300,11 @@ export async function applyMigrationFileInTx(
  *
  * A database that is unavailable meanwhile — restarting, still starting, a
  * container restarted while `db` restarts, a host boot racing it — is waited
- * out like a restart anywhere else (`db/unavailable.ts`): the whole step runs
- * again with backoff while it fails that way, until `databaseWaitMs` has
- * passed since the first refusal. Time spent queued behind another process's
- * lock, or applying migrations, before that refusal does not count. The
- * clock is one per boot, deliberately: a second outage in the same boot
- * shares it, the time between the two included, so a database that keeps
- * going away cannot hold the boot without it ever being reported. Running
- * the step again is what a restarted process did anyway: the advisory lock
+ * out through the boot's wait (`db/boot-wait.ts`): the whole step runs again
+ * with backoff while it fails that way, until the wait has passed since the
+ * first refusal. Time spent queued behind another process's lock, or
+ * applying migrations, before that refusal does not count. Running the step
+ * again is what a restarted process did anyway: the advisory lock
  * belongs to the session, each app migration commits together with its
  * tracking row or not at all, and Better Auth's migrator adds the tables and
  * columns still missing. Any other failure (rejected credentials, a missing
@@ -321,25 +315,16 @@ export async function runBootMigrations(
   options: BootMigrationOptions,
 ): Promise<void> {
   const log = options.log ?? ((message: string) => console.log(message));
-  const waitMs = options.databaseWaitMs ?? ROUTINE_RESTART_MS;
-  const clock = options.now ?? (() => performance.now());
-  let outageSince: number | null = null;
-  await withRetry(() => migrateOnce(options, log), {
-    // The outage's clock below, not a count or a budget, ends the retries.
-    attempts: Number.POSITIVE_INFINITY,
-    timeoutMs: Number.POSITIVE_INFINITY,
-    baseDelayMs: DATABASE_RETRY_BASE_DELAY_MS,
-    maxDelayMs: DATABASE_RETRY_MAX_DELAY_MS,
-    isTransient: (error) => {
-      // Every client this step opens is a database client, so a bare socket
-      // error from Better Auth's node-postgres migrator is the database's too.
-      if (!isDatabaseUnavailable(error, { fromDatabase: true })) return false;
-      const now = clock();
-      outageSince ??= now;
-      return now - outageSince < waitMs;
-    },
-    ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
-  });
+  const wait =
+    options.wait ??
+    createBootDatabaseWait({
+      ...(options.databaseWaitMs === undefined
+        ? {}
+        : { waitMs: options.databaseWaitMs }),
+      ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+      ...(options.now === undefined ? {} : { now: options.now }),
+    });
+  await wait(() => migrateOnce(options, log));
 }
 
 async function migrateOnce(

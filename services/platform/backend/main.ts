@@ -14,6 +14,7 @@ import {
   closeKnowledgePools,
   knowledgePoolMax,
 } from './core/knowledge/pool.ts';
+import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import {
@@ -36,7 +37,7 @@ import {
   reportError,
 } from './error-reporting.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
-import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
+import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules, sweepRunsAtBoot } from './jobs/schedules.ts';
@@ -88,15 +89,20 @@ async function main(): Promise<void> {
     });
   }
 
+  // A database that is restarting as this process boots is waited out for
+  // up to a minute from its first refusal, not reported: by the migrations,
+  // pg-boss's start and the schedules alike, on one clock for the whole boot
+  // (db/boot-wait.ts). Only an outage past that fails the boot below.
+  const databaseWait = createBootDatabaseWait();
+
   // App migrations (numbered .sql files and .ts data migrations) run in every
   // role (workers write app tables too); auth-table migrations run wherever
   // auth is configured. The migrator's advisory lock serializes concurrently
-  // booting containers. A database that is restarting as this process boots
-  // is waited out for up to a minute from its first refusal, not reported
-  // (db/migrate.ts); only an outage past that fails the boot below.
+  // booting containers.
   await runBootMigrations({
     databaseUrl: env.DATABASE_URL,
     ...(auth ? { authOptions: auth.options } : {}),
+    wait: databaseWait,
   });
 
   // Metrics collectors need the pool and read app tables, so they register
@@ -106,9 +112,10 @@ async function main(): Promise<void> {
   // pg-boss migrates its own `pgboss` schema on start (advisory-locked).
   // Every role sends jobs, so every role starts an instance; queue
   // maintenance (supervise) runs on workers only.
-  const boss = createBoss(env.DATABASE_URL, { supervise: env.ROLE !== 'api' });
-  await boss.start();
-  await ensureQueues(boss);
+  const boss = await startBoss(env.DATABASE_URL, {
+    supervise: env.ROLE !== 'api',
+    wait: databaseWait,
+  });
   await alignQueuePolicies(sql);
   setEnqueueBoss(boss);
 
@@ -169,7 +176,7 @@ async function main(): Promise<void> {
       ),
       sql,
     });
-    await registerSchedules(boss);
+    await databaseWait(() => registerSchedules(boss));
     await sweepRunsAtBoot(sql);
     auditSealer = startAuditSealer(sql);
   }
