@@ -29,6 +29,9 @@ const io = vi.hoisted(() => ({
   systemPrompt: null as unknown,
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
+  reservation: { allowed: true, budgetCents: 500 } as
+    | { allowed: true; budgetCents: number }
+    | { allowed: false; reason: string },
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -194,7 +197,7 @@ function makeCtx(cursor: unknown) {
       const name = functionRefName(ref);
       mutations.push({ name, args });
       if (name === 'sandbox/session_mutations:reserveTurnBudget') {
-        return { allowed: true, budgetCents: 500 };
+        return io.reservation;
       }
       if (name === 'automations/human_asks:retargetAgentCursor') {
         return { retargeted: true };
@@ -223,6 +226,7 @@ beforeEach(() => {
   io.prompts = [];
   io.systemPrompt = null;
   io.sessionRefusal = undefined;
+  io.reservation = { allowed: true, budgetCents: 500 };
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -261,6 +265,7 @@ describe('an automation agent turn', () => {
       targetEnvVar,
       endpointUrl,
     }) => {
+      io.reservation = { allowed: true, budgetCents: 0 };
       vi.mocked(resolveProviderCredential).mockResolvedValue({
         authMethod: 'subscription-broker',
         credentialId: 'credential-1',

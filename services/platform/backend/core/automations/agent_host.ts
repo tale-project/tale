@@ -1267,6 +1267,7 @@ async function mintWorkflowTurnAuth(
         harness: args.harness,
       },
     ),
+    { allowZero: true },
   );
   if (!reservation.allowed) {
     throw new TurnBudgetExceededError(reservation.reason);
