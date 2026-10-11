@@ -807,6 +807,15 @@ services:
   # regexes so a malformed input never reaches `docker run`. Future hardening:
   # SANDBOX_RUNTIME=runsc opt-in (gVisor), `opa-docker-authz` daemon plugin
   # for HostConfig body filtering, dockerd userns-remap.
+  #
+  # INCUS BACKEND: with SANDBOX_BACKEND=incus (services/sandbox/docs/incus.md)
+  # the spawner needs neither the docker socket nor the session root below. It
+  # reaches one restricted project of an Incus node with a restricted client
+  # certificate, pinned to the node's server certificate, and sessions are
+  # Incus instances, not sibling containers. This file keeps the Docker shape;
+  # an Incus deployment overrides this service to drop the socket mount, mount
+  # the three PEM files (SANDBOX_INCUS_*_FILE) read-only and join a network the
+  # node's API is reachable from.
   # ============================================================================
   sandbox:
     image: ghcr.io/tale-project/tale/tale-sandbox:${VERSION:-latest}
