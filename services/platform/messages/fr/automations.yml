@@ -191,6 +191,22 @@ detail:
     draftHelp: Exécute une fois tes modifications non enregistrées et affiche le résultat sur le canevas.
     version: 'Version {version}'
     versionHelp: Exécute la version enregistrée et conserve l’exécution sous Exécutions.
+  runSource:
+    button: À partir de
+    tests: Tests
+    runs: Exécutions
+    trigger: Déclencheur
+    other: Autre
+    runLabel: '{status} · {time}'
+    triggerInput: L’entrée du déclencheur
+    empty: Vide
+    required: Remplir les champs obligatoires
+    replaced: 'Entrée remplacée depuis {source}.'
+    reading: Lecture de l’entrée de l’exécution…
+    readFailed: Impossible de lire l’entrée de cette exécution. Réessaie ou saisis l’entrée.
+    standIns: Utiliser les sorties et échecs simulés du test
+    standInsHelp: 'Simule {nodes}.'
+    standInsDraftOnly: L’exécution d’une version enregistrée n’utilise pas les sorties et échecs simulés d’un test ; essaie le brouillon pour les utiliser.
   runScope:
     label: Portée du projet
     orgWide: Toute l’organisation

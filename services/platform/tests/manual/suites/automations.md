@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 236 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 237 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1620,6 +1620,17 @@ output:
       `automations.editor.inspector.tabs.runTest`. `automations.tests.run`
       in the strip runs the test again and shows the new run; switching to
       another version takes it off the canvas.
+- [ ] `AUTO-F176` · **In Test run, open `automations.detail.runSource.button`
+      and choose a test that simulates a step, then a recent run** → the
+      menu groups `automations.detail.runSource.tests`,
+      `automations.detail.runSource.runs`, the trigger's input when one is
+      bound, and `automations.detail.runSource.other`; each choice replaces
+      the input and a screen reader hears
+      `automations.detail.runSource.replaced`. The test adds
+      `automations.detail.runSource.standIns`, checked: trying the draft
+      shows the simulated step with its chip, and choosing the version
+      instead reads `automations.detail.runSource.standInsDraftOnly`.
+      Reopening the dialog starts from the last choice.
 
 ## Boundary & error tests
 

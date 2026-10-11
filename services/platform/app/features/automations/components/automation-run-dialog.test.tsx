@@ -1,8 +1,49 @@
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
-import { AutomationRunDialog } from './automation-run-dialog';
+import { runInputSources } from '../lib/automation-tests/run-sources';
+import { AutomationRunDialog, type RunSources } from './automation-run-dialog';
+
+// A run chosen to start from is read once it is chosen.
+vi.mock('../hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/queries')>()),
+  useAutomationRun: (_organizationId: string, runId: string | undefined) =>
+    runId === undefined
+      ? { data: undefined, isError: false }
+      : { data: { input: { quantity: 7, unitPrice: 9 } }, isError: false },
+}));
+
+beforeEach(() => {
+  window.sessionStorage.clear();
+});
+
+const SOURCES: RunSources = {
+  organizationId: 'org-1',
+  memoryKey: 'tale.runSource.org-1.orders',
+  items: runInputSources({
+    tests: [
+      { name: 'small order', input: { quantity: 3, unitPrice: 20 } },
+      {
+        name: 'big order',
+        input: { quantity: 120, unitPrice: 20 },
+        mocks: { rates: { chf: 1 } },
+        failures: { notify: 'quota exceeded' },
+      },
+    ],
+    runs: [{ id: 'run-1', label: 'Succeeded · Oct 11, 5:02 PM' }],
+    trigger: null,
+    schema: undefined,
+    words: {
+      unnamedTest: (number) => `Test ${number}`,
+      empty: 'Empty',
+      required: 'Fill the required fields',
+    },
+  }),
+};
+
+const runInput = () =>
+  screen.getByRole('textbox', { name: 'Run input (JSON)' }).textContent ?? '';
 
 const schemaFor = (source: 'github' | 'glitchtip') => ({
   type: 'object',
@@ -386,4 +427,90 @@ it('tries the draft with the input it takes', async () => {
   ).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Test run' }));
   expect(onConfirm).toHaveBeenLastCalledWith({}, 'draft');
+});
+
+it('starts the input from a test, and tries the draft with its stand-ins', async () => {
+  const onConfirm = vi.fn();
+  const { user } = render(
+    <AutomationRunDialog
+      request={{ mode: 'mock', version: 3, draft: {}, scopeText: '' }}
+      sources={SOURCES}
+      onClose={() => {}}
+      onConfirm={onConfirm}
+    />,
+  );
+  await user.click(screen.getByRole('button', { name: 'Start from' }));
+  await user.click(screen.getByRole('menuitem', { name: 'big order' }));
+  await waitFor(() => expect(runInput()).toContain('"quantity": 120'));
+  expect(
+    screen.getByText('Input replaced from big order.'),
+  ).toBeInTheDocument();
+  expect(window.sessionStorage.getItem(SOURCES.memoryKey)).toBe(
+    'test:big order',
+  );
+  const standIns = screen.getByRole('checkbox', {
+    name: "Use the test's simulated outputs and failures",
+  });
+  expect(standIns).toBeChecked();
+  expect(screen.getByText('Simulates Rates and Notify.')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Test run' }));
+  expect(onConfirm).toHaveBeenLastCalledWith(
+    { quantity: 120, unitPrice: 20 },
+    'draft',
+    {
+      mocks: { rates: { chf: 1 } },
+      failures: { notify: 'quota exceeded' },
+    },
+  );
+  // Without the stand-ins, the try calls out as a plain one does.
+  await user.click(standIns);
+  await user.click(screen.getByRole('button', { name: 'Test run' }));
+  expect(onConfirm).toHaveBeenLastCalledWith(
+    { quantity: 120, unitPrice: 20 },
+    'draft',
+  );
+  // A saved version's run takes no stand-ins, and says so.
+  await user.click(screen.getByRole('radio', { name: /Version 3/ }));
+  expect(
+    screen.queryByRole('checkbox', {
+      name: "Use the test's simulated outputs and failures",
+    }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/A saved version's run doesn't use a test's/),
+  ).toBeInTheDocument();
+});
+
+it('reads the input of a run chosen to start from', async () => {
+  const { user } = render(
+    <AutomationRunDialog
+      request={{ mode: 'mock', version: 3, scopeText: '' }}
+      sources={SOURCES}
+      onClose={() => {}}
+      onConfirm={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole('button', { name: 'Start from' }));
+  const menu = screen.getByRole('menu');
+  expect(within(menu).getByText('Runs')).toBeInTheDocument();
+  await user.click(
+    within(menu).getByRole('menuitem', {
+      name: 'Succeeded · Oct 11, 5:02 PM',
+    }),
+  );
+  await waitFor(() => expect(runInput()).toContain('"quantity": 7'));
+  expect(window.sessionStorage.getItem(SOURCES.memoryKey)).toBe('run');
+});
+
+it('opens on the input it last started from for the automation', () => {
+  window.sessionStorage.setItem(SOURCES.memoryKey, 'test:small order');
+  render(
+    <AutomationRunDialog
+      request={{ mode: 'mock', version: 3, scopeText: '' }}
+      sources={SOURCES}
+      onClose={() => {}}
+      onConfirm={() => {}}
+    />,
+  );
+  expect(runInput()).toContain('"quantity": 3');
 });
