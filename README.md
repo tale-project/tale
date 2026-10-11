@@ -1,0 +1,139 @@
+# @tale/marketing-ui
+
+Reusable layouts and components for Tale’s marketing pages: site headers and footers, calls to
+action, feature sections, and product-demo frames. This package layers its visual language on
+[`@tale/ui`](https://github.com/tale-project/tale/blob/main/packages/ui/README.md). The host supplies copy, routes, product data, and demo scenarios.
+
+## Choose a component
+
+Start with the [marketing component guides](https://ui.tale.dev/docs/marketing-ui/overview). Read the [marketing design contract](https://github.com/tale-project/tale/blob/main/design/docs/web.md), then browse the
+[`exports` map](package.json) and the stories before adding a new pattern.
+
+| Need | Example imports |
+| --- | --- |
+| Site layout | `site-header`, `site-footer`, `site-container`, `page-section`, `section-heading` |
+| Calls to action and surfaces | `button`, `link`, `external-link`, `cta-group`, `card`, `panel`, `stack` |
+| Feature pages | `feature-hero`, `feature-capability`, `feature-steps`, `feature-faq`, `feature-cta`, `related-pages`, `docs-links` |
+| Comparison and pricing blocks | `compare-table`, `tier-card`, `segmented-radio`, `logo-cloud-section` |
+| Product illustrations | `demo-shell`, `demo-stage`, `demo-chrome`, `demo-tour-row`, `demo-tour-section` |
+| Motion and host integration | `reveal`, `entrance`, `use-demo-timeline`, `routing`, `i18n/messages` |
+
+From a Tale source checkout:
+
+```bash
+bun run --filter @tale/marketing-ui storybook # http://localhost:6012
+```
+
+These are source exports: the consuming application compiles their TypeScript and JSX. Shared app
+controls and utilities stay in `@tale/ui`; marketing tokens and compositions live here. Keep
+organization permissions, backend calls, and product registries in the host service.
+
+## Connect the host’s routes, styles, and labels
+
+Import the package stylesheet once from the site’s stylesheet:
+
+```css
+@import '@tale/marketing-ui/globals.css';
+```
+
+It includes `@tale/ui/globals.css`, the marketing tokens, and Tailwind source paths for this
+package. Use these tokens for surfaces, text, borders, and motion examples.
+
+For a marketing front page inside an application or documentation site, keep the application
+stylesheet and add `@import '@tale/marketing-ui/landing.css';`. Wrap only that front page in
+`<div className="marketing-surface">`. This supplies the same marketing typography and surfaces,
+but scopes its foreground, border, and action palette to the wrapper. Article routes retain
+their application theme. Use `globals.css` for sites whose entire surface is marketing.
+
+Internal links use TanStack Router by default. A host with typed or localized routes mounts
+`MarketingRouterProvider` with its link adapter. The adapter receives a site-relative `to`
+path and anchor props; it owns locale prefixes and route validation. Tale’s implementation is
+[`MarketingRouterLink`](https://github.com/tale-project/tale/blob/main/services/web/app/components/layout/localized-link.tsx).
+
+Merge `marketingUiMessages` after `uiMessages` when initializing the service’s i18n instance.
+This excerpt uses catalogs already loaded by the host:
+
+```tsx
+import { marketingUiMessages } from '@tale/marketing-ui/i18n/messages';
+import { MarketingRouterProvider } from '@tale/marketing-ui/routing';
+import { initServiceI18n } from '@tale/ui/i18n/init-service';
+import { uiMessages } from '@tale/ui/i18n/messages';
+
+const i18n = initServiceI18n({
+  bundles, regional, global,
+  packages: [uiMessages, marketingUiMessages],
+});
+
+<MarketingRouterProvider link={MarketingRouterLink}>
+  <Application />
+</MarketingRouterProvider>;
+```
+
+The host supplies `MarketingRouterLink` and `Application`, and passes `i18n` to its `AppShell`.
+Package catalogs own labels rendered by shared components, such as the demo window’s **Share**
+action. Keep those labels in `src/i18n/messages/{en,de,fr}.yml`; page copy belongs to the host.
+Service keys override package keys individually. Verify the resolved labels and links in each
+supported locale.
+
+## Install from another repository
+
+Use the Git snapshot dependency `github:tale-project/tale#dist/marketing-ui`, or a published
+`marketing-ui-v<version>` tag. Install the matching `@tale/ui` snapshot plus `react`, `react-dom`,
+and `tailwindcss`, which are peers rather than bundled app dependencies.
+
+Follow [`@tale/ui`’s consumer setup](https://github.com/tale-project/tale/blob/main/packages/ui/README.md#install-from-another-repository) for the Bun,
+Vite, TypeScript, and YAML configuration. Import the marketing stylesheet shown above. The
+[publishing workflow](https://github.com/tale-project/tale/blob/main/.github/workflows/publish-packages.yml) creates `dist/marketing-ui`
+and `dist/ui` branches and versioned tags. Each snapshot includes the [MIT license](https://github.com/tale-project/tale/blob/main/LICENSE). These are Git dependencies, not npm registry releases.
+
+## Build a demo that remains understandable
+
+Use `DemoShell` and `DemoStage` for labelled product illustrations. Interactive component
+examples belong in the [design-system documentation](https://github.com/tale-project/tale/blob/main/services/ui-docs/content/README.md).
+Keep the real information readable with animation disabled; `useDemoTimeline` and `Reveal` are
+the shared motion entry points. Test reduced motion and the static rendered state as well as the
+animated sequence.
+
+For motion inside a demo, import `useReducedMotion` from `@tale/marketing-ui/entrance`.
+It returns `true` during server rendering and follows live browser preference changes, so
+`initial={reducedMotion ? false : ...}` preserves the visible final scene before JavaScript.
+`useDemoTimeline` completes the scene when reduced motion is enabled and does not replay it
+when the preference is restored. `Reveal` also reveals focused content immediately, so keyboard
+navigation never waits for a scroll entrance.
+
+`DemoShell domain` coordinates a theme-aware illustration palette with its surrounding `DemoStage`: mint projects/governance, coral agents, violet chat, gold automations, and sky knowledge. It defaults to `activeNav`; override it for stories such as agent workspaces inside chat. The stage stays still and has no decorative accent line.
+
+`DemoStage` is a named `demo` query container. Size the illustration's internals with container
+variants such as `@lg/demo:` instead of viewport variants: a window beside copy can be narrow on
+a wide screen. Reserve a minimum height along with its aspect ratio so the final translated
+content fits before playback starts. Keep the complete story visible at 320px and at the
+1024px transition to split tour rows.
+
+`SiteContainer` grows from 20px phone gutters to 32px on tablets and 48px on desktop, within a
+1360px frame. `SectionHeading` uses fluid type sizes. Let these shared components own the page
+rhythm; avoid adding fixed desktop padding or duplicate heading scales in the host.
+
+`FeatureHero` keeps the existing heading pair and visual below by default (`layout="stacked"`).
+Use `layout="split"` to place the title, description, actions, and optional `proof` beside the
+visual on desktop; phones read the introduction before the visual. `visualTreatment="plain"`
+lets a visual own its frame, while the default `"stage"` wraps it in `DemoStage`. A plain visual
+that uses demo container variants must provide its own `@container/demo` ancestor.
+
+For section introductions, `SectionHeading layout="editorial"` places the description beside
+the title at desktop widths. `PageSection pad="compact"` suits short proof strips and navigation
+bands. Its `surface="contrast"` supplies a local ink palette without changing neighboring
+sections. Give one main destination `MarketingCard surface="featured"`, with `surface="quiet"`
+for supporting destinations; both retain the host router and shared `Card` surface primitive.
+
+## Verify a change
+
+```bash
+bun run --filter @tale/marketing-ui typecheck
+bun run --filter @tale/marketing-ui lint
+bun run --filter @tale/marketing-ui test
+```
+
+The unit project covers components, translations, and dependency boundaries. Use the relevant
+stories, then test the consuming page in both themes and at a narrow width. Check links,
+keyboard focus, headings, reduced motion, and the meaning of translated labels. For a content
+or component example, follow the [writing skill](https://github.com/tale-project/tale/blob/main/.agents/skills/write-docs/SKILL.md).
