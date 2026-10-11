@@ -62,7 +62,13 @@ function configOf(env: Record<string, string | undefined> = {}, port = 18003) {
     { name: 'test', port, token: newToken(), env },
     '/tmp/home',
   );
-  for (const [key, value] of Object.entries(built)) process.env[key] = value;
+  // Only the spawner's own variables: the process's HOME, TMPDIR and PATH are
+  // shared with every other test file of the run.
+  for (const [key, value] of Object.entries(built)) {
+    if (key.startsWith('SANDBOX_') || key.startsWith('TALE_')) {
+      process.env[key] = value;
+    }
+  }
   return loadConfig();
 }
 

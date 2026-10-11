@@ -116,6 +116,9 @@ export interface StageFile {
   /** Text, sent as base64. */
   content?: string;
   contentBase64?: string;
+  /** Fetched by runnerd from this URL instead (the way large files travel). */
+  url?: string;
+  sha256?: string;
 }
 
 function decode(base64: unknown): string {
@@ -346,9 +349,14 @@ export class SpawnerApi {
       body: {
         files: files.map((file) => ({
           path: file.path,
-          contentBase64:
-            file.contentBase64 ??
-            Buffer.from(file.content ?? '', 'utf8').toString('base64'),
+          ...(file.url === undefined
+            ? {
+                contentBase64:
+                  file.contentBase64 ??
+                  Buffer.from(file.content ?? '', 'utf8').toString('base64'),
+              }
+            : { url: file.url }),
+          ...(file.sha256 === undefined ? {} : { sha256: file.sha256 }),
         })),
       },
       timeoutMs: 120_000,

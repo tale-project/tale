@@ -2,28 +2,102 @@
 
 The unit tests of the Incus backend (`src/backend/incus`) run it against an
 in-memory imitation of the Incus API. This directory is what shows the
-imitation right: the same spawner, driven through its signed HTTP API, against
-a real Incus node built the way [docs/incus.md](../../docs/incus.md) tells an
-operator to build one.
+imitation right: the same spawner, started from the same checkout, driven
+through its signed HTTP API the way the platform drives it, against a real
+Incus node built the way [docs/incus.md](../../docs/incus.md) tells an operator
+to build one.
 
 It runs in CI (`.github/workflows/sandbox-incus-e2e.yml`) on a hosted Linux
-runner. It reconfigures its host (packages, a ZFS pool, the firewall, Incus
-itself), so it is only ever run on a throwaway machine.
+runner, on pull requests that touch the spawner, the runtime image or the egress
+proxy, and on demand. It reconfigures its host (packages, a ZFS pool, the
+firewall, Incus itself), so it is only ever run on a throwaway machine: CI, or a
+VM you can lose, with `TALE_INCUS_E2E_THROWAWAY_HOST=1`.
 
 ## The lab
 
-`lab.sh` builds the node, one subcommand per workflow step:
+`lab.sh` builds the node, one subcommand per workflow step. Each leaves its
+duration in `phases.tsv`, which the job summary reports.
 
-| Step       | What it makes                                                                                                                                                         |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `install`  | Incus from Zabbly's stable channel (key fingerprint and exact build pinned), skopeo, ZFS                                                                              |
-| `storage`  | a ZFS pool on a sparse file, registered as the Incus pool `tank`                                                                                                      |
-| `api`      | the server certificate Bun can pin (self-signed, `CA:TRUE`, `pathlen:0`, `keyCertSign`), the API bound to it, the spawner's client key, and two foreign certificates   |
-| `registry` | a local OCI registry, which the two images are pushed to and Incus pulls from                                                                                         |
-| `operator` | the block of docs/incus.md that follows `<!-- e2e:operator-setup -->`, run verbatim: the sandbox bridge, the restricted project, the ACL, the profile, the certificate |
-| `egress`   | Tale's own `sandbox-egress` image as an instance on the sandbox bridge, and the addresses of the LLM gateway and backend stand-ins                                    |
+| Step       | What it makes                                                                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `install`  | Incus from Zabbly's stable channel (key fingerprint and exact build pinned), skopeo, ZFS                                                                                       |
+| `storage`  | a ZFS pool on a sparse file, registered as the Incus pool `tank`                                                                                                               |
+| `api`      | the server certificate Bun can pin (self-signed, `CA:TRUE`, `pathlen:0`, `keyCertSign`), the API bound to it, the spawner's client key, and two foreign certificates           |
+| `registry` | a local OCI registry, which the two images are pushed to and Incus pulls from                                                                                                  |
+| `operator` | the block of docs/incus.md that follows `<!-- e2e:operator-setup -->`, run verbatim: the sandbox bridge, the restricted project, the ACL, the profile, the client certificate |
+| `egress`   | Tale's own `sandbox-egress` image as an instance on the sandbox bridge, and the addresses the LLM gateway and backend stand-ins listen on                                       |
 
 The runtime and egress images are built from the checkout by the workflow
-(BuildKit, as a release builds them) and pushed to the registry; the spawner
-pulls the runtime image itself (`SANDBOX_INCUS_IMAGE_SOURCE`), so the pull the
-unit tests cannot vouch for is part of every run.
+(BuildKit, as a release builds them: zstd layers, OCI media types) and pushed to
+the registry. The spawner pulls the runtime image itself
+(`SANDBOX_INCUS_IMAGE_SOURCE`), so the pull the unit tests cannot vouch for is
+part of every run; the egress image goes in the way docs/incus.md tells an
+administrator to import one (`incus remote add --protocol=oci`, `incus image
+copy`).
+
+Because the operator's block is the document's own text, the example an
+operator copies is the one the backend was tested against. `operator-block.test.ts`
+(an ordinary unit test) keeps `lab.sh`'s names and the document in step.
+
+## The suites
+
+Each suite starts its own spawner (or two, for a rollout) from this checkout and
+leaves the node clean. A step that fails first prints what the node and the
+spawners looked like.
+
+| Suite       | What it proves on a real node                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `boot`      | the pinned server certificate is the only trust anchor (a wrong one, and Incus's own `CA:FALSE` one, are refused before or without a request), an untrusted client, a key that does not match, no node, a foreign project, a missing profile and a project `limits.cpu` are each refused in words; the restricted certificate sees only its project and cannot make a project, change a pool or the network, or reach another project; the restricted project refuses a privileged container, `raw.lxc`, swap, a host path and a NIC of its own |
+| `lifecycle` | create (cold, render profile), exec (output, exit codes, env, cwd, stdin, streaming, deadline, cancel), files (stage, list, read, delete, binary), env, the instance's labels, limits, devices and hardening (`no_new_privs`, no capabilities, a user namespace of its own, the cgroup limits), `/dev/shm`, the workspace quota, stop and resume with the workspace intact under a new idmap, a duplicate, a race, a pin, destroy       |
+| `network`   | a session resolves through the proxy alone, goes out through Tale's egress proxy and nowhere else (UDP and non-443 TCP stopped, the metadata address, the node's API and the spawner, another session and its runnerd), reaches the gateway and backend stand-ins on the ACL's ports only, and the proxy refuses private destinations                                                                                                  |
+| `pool`      | standbys fill and wait, a create is a claim (relabelled, workspace hot-plugged under an isolated idmap, token by file), the refill, the capacity bound with sessions and standbys together, a standby that vanished, and a rollout: a draining spawner stops keeping the pool and its replacement takes the standbys over                                                                                                             |
+| `reaping`   | the sweep stops a session past its lifetime and an idle one (workspace kept, resumable), and leaves a pinned one alone                                                                                                                                                                                                                                                                                                              |
+| `adoption`  | a crashed or restarted spawner re-adopts its sessions from the labels (pin, incarnation, env), ended compute found after a restart is removed with the workspace kept, and a peer that replaced a session under its name is never undone by a spawner still holding the old incarnation                                                                                                                                              |
+| `limits`    | `SANDBOX_MAX_SESSIONS` refuses with a place in the line; a project memory limit refuses the create that would pass it in Incus's own words and leaves the workspace volume                                                                                                                                                                                                                                                           |
+| `docker`    | Docker inside a session (opt-in): nesting and interception allowed for it alone, the inner engine comes up, `docker run` and `docker build` work, and a nested container is no freer than the session                                                                                                                                                                                                                                 |
+
+The job summary and the `report/*.json` artifacts hold the timings: boot and
+image pull, a cold create, a create from the warm pool, a resume, a destroy, the
+pool's fill and refill, an exec round trip, a request through the proxy.
+
+## Running it
+
+In CI it is the workflow. By hand, on a throwaway Ubuntu 24.04 VM with passwordless
+`sudo`, Docker, Bun and a checkout:
+
+```sh
+export TALE_INCUS_E2E_THROWAWAY_HOST=1 INCUS_E2E_DIR=/mnt/tale-incus-e2e
+eval "$(bash services/sandbox/e2e/incus/lab.sh env | sed 's/^/export /')"
+for step in install storage api registry; do bash services/sandbox/e2e/incus/lab.sh $step; done
+# build the two images and push them to 127.0.0.1:5000, as the workflow does
+for step in operator egress lab-file; do bash services/sandbox/e2e/incus/lab.sh $step; done
+cd services/sandbox && bun test --timeout 1800000 ./e2e/incus/suites/lifecycle.e2e.ts
+```
+
+`bun test` does not pick the suites up by itself (their names end in `.e2e.ts`),
+so the workspace's ordinary test run never needs a node.
+
+## Pins
+
+Everything third-party is pinned in `lab.sh`: Zabbly's signing key by
+fingerprint, the exact Incus build (Zabbly keeps two builds per channel, so a
+pin ages out in weeks and `install` then lists what the index has), and the
+registry image by digest. The runner's own Ubuntu decides which of the two
+Incus builds applies. A bump is a change to those lines and a green run.
+
+## What it does not prove
+
+The topology of the production node (the spawner and the stacks in containers of
+their own, the real hostkit), a node reboot, a different kernel or storage
+driver than a hosted runner's (ZFS on a file), a long soak, many concurrent
+sessions, and a restricted certificate against a node with other tenants. The
+manual list in docs/incus.md names what is left for a first real node.
+
+## Making it a required check
+
+It is a standalone workflow on purpose: it takes the better part of an hour and
+depends on a third party's package index. To require it: add the job
+("Sandbox on Incus") to the repository's branch protection, and add the
+workflow to CI ready's lists (`.github/actions/ci-ready`, the candidate
+contract) the way the other validation workflows are listed. Until then it
+reports on the pull request and blocks nothing.

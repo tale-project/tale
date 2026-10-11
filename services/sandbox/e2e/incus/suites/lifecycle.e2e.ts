@@ -360,6 +360,51 @@ describe('a session on a real Incus node', () => {
     ).toBe(new Bun.CryptoHasher('sha256').update(big).digest('hex'));
   });
 
+  step(
+    'a file past the inline limit comes by URL, and arrives intact',
+    async () => {
+      // Large files travel as a URL runnerd fetches (the platform presigns one):
+      // here the node serves it on the address the ACL lets a session reach.
+      const big = Buffer.alloc(6 * 1024 * 1024);
+      for (let i = 0; i < big.length; i += 1) big[i] = (i * 131 + 17) & 0xff;
+      const digest = new Bun.CryptoHasher('sha256').update(big).digest('hex');
+      const server = Bun.serve({
+        hostname: lab.gatewayAddress,
+        port: 8080,
+        fetch: () => new Response(big),
+      });
+      try {
+        const started = performance.now();
+        expectStatus(
+          await api.stage(S1, [
+            {
+              path: 'e2e/large.bin',
+              url: `http://${lab.gatewayAddress}:8080/large.bin`,
+              sha256: digest,
+            },
+          ]),
+          200,
+          'stage large.bin by URL',
+        );
+        report.add('stage a 6 MiB file by URL', performance.now() - started);
+      } finally {
+        await server.stop(true);
+      }
+      expect(
+        (
+          await sh(api, S1, 'sha256sum < /agent/e2e/large.bin | cut -d" " -f1')
+        ).trim(),
+      ).toBe(digest);
+      const readStarted = performance.now();
+      const read = await api.readFile(S1, 'e2e/large.bin');
+      report.add('read a 6 MiB file back', performance.now() - readStarted);
+      expect(Buffer.from(read.bytes ?? new Uint8Array()).equals(big)).toBe(
+        true,
+      );
+      await sh(api, S1, 'rm -f /agent/e2e/large.bin');
+    },
+  );
+
   step('env set and unset reach the next exec', async () => {
     const patched = await api.patchEnv(S1, { set: { E2E_PATCHED: 'yes' } });
     expectStatus(patched, 200, 'PATCH env');
