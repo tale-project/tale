@@ -41,9 +41,23 @@ export interface IncusConfigResult {
 const OBJECT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/;
 /** Image aliases may also carry a path and a tag. */
 const IMAGE_ALIAS_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,126}$/;
-/** An instance config key an operator may add to a Docker-capable session. */
-const DOCKER_CONFIG_KEY_RE =
-  /^(security\.nesting|security\.syscalls\.intercept\.[a-z_]+|security\.idmap\.size)$/;
+/**
+ * The instance keys an operator may add to a Docker-capable session: nesting,
+ * and the syscall interceptions Incus lists as ones a restricted project can
+ * allow. Every other key is either one a restricted project refuses outright
+ * (`security.idmap.size`, `raw.*`, the other interceptions) or one this backend
+ * sets itself. All are booleans.
+ */
+const DOCKER_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'security.nesting',
+  'security.syscalls.intercept.bpf',
+  'security.syscalls.intercept.bpf.devices',
+  'security.syscalls.intercept.mknod',
+  'security.syscalls.intercept.mount',
+  'security.syscalls.intercept.mount.fuse',
+  'security.syscalls.intercept.setxattr',
+  'security.syscalls.intercept.sysinfo',
+]);
 const MAX_POOL_SIZE = 256;
 
 const REQUIRED = [
@@ -208,23 +222,22 @@ function dockerConfig(env: Env): Readonly<Record<string, string>> {
   }
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(parsed)) {
-    if (!DOCKER_CONFIG_KEY_RE.test(key)) {
+    if (!DOCKER_CONFIG_KEYS.has(key)) {
       throw new Error(
-        `Env var ${name}: ${JSON.stringify(key)} is not a key this backend lets you set (security.nesting, security.syscalls.intercept.*, security.idmap.size)`,
+        `Env var ${name}: ${JSON.stringify(key)} is not a key this backend lets you set; the keys are ${[...DOCKER_CONFIG_KEYS].join(', ')}`,
       );
     }
-    const asText =
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean'
-        ? String(value)
-        : undefined;
-    if (asText === undefined || !/^[A-Za-z0-9._:-]{1,64}$/.test(asText)) {
+    if (
+      value !== true &&
+      value !== false &&
+      value !== 'true' &&
+      value !== 'false'
+    ) {
       throw new Error(
-        `Env var ${name}: the value of ${key} must be a short plain word or number; got: ${JSON.stringify(value)}`,
+        `Env var ${name}: the value of ${key} must be true or false; got: ${JSON.stringify(value)}`,
       );
     }
-    out[key] = asText;
+    out[key] = String(value);
   }
   return out;
 }

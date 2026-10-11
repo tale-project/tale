@@ -269,10 +269,38 @@ describe('Docker inside', () => {
     });
   });
 
+  test('admits exactly the keys a restricted project can allow', () => {
+    for (const key of [
+      'security.nesting',
+      'security.syscalls.intercept.bpf',
+      'security.syscalls.intercept.bpf.devices',
+      'security.syscalls.intercept.mknod',
+      'security.syscalls.intercept.mount',
+      'security.syscalls.intercept.mount.fuse',
+      'security.syscalls.intercept.setxattr',
+      'security.syscalls.intercept.sysinfo',
+    ]) {
+      expect(
+        read({
+          SANDBOX_INCUS_DOCKER_CONFIG: JSON.stringify({ [key]: 'false' }),
+        }).config.dockerConfig,
+      ).toEqual({ [key]: 'false' });
+    }
+  });
+
   test.each([
     ['{"security.privileged":"true"}', 'security.privileged'],
     ['{"raw.lxc":"lxc.cap.drop="}', 'raw.lxc'],
+    // Low-level keys a restricted project forbids outright.
+    ['{"security.idmap.size":"131072"}', 'security.idmap.size'],
+    ['{"security.syscalls.intercept.mount.allowed":"ext4"}', 'mount.allowed'],
+    [
+      '{"security.syscalls.intercept.sched_setscheduler":"true"}',
+      'sched_setscheduler',
+    ],
     ['{"security.nesting":{"a":1}}', 'security.nesting'],
+    ['{"security.nesting":"yes"}', 'true or false'],
+    ['{"security.nesting":1}', 'true or false'],
     ['["security.nesting"]', 'JSON object'],
     ['not json', 'not valid JSON'],
   ])('refuses %j', (value, mention) => {
