@@ -48,7 +48,7 @@ Tale erneuert ein eingefügtes Token nicht. Läuft es ab oder wechselst du zu ei
 
 ## Einen OpenAI-ChatGPT-Abonnement-Token einfügen
 
-Wähle **Abo-Schlüssel**, füge den Zugriffstoken ein und trage die ChatGPT-**Konto-ID** aus dem Anspruch `chatgpt_account_id` ein. Tale übergibt beide Werte als `TALE_SUBSCRIPTION_TOKEN` und `TALE_SUBSCRIPTION_ACCOUNT_ID` an Codex. Beschränke die Modelle auf dein ChatGPT-Abo; die Zugangsdaten funktionieren nur in Aufgaben und Automatisierungen.
+Wähle **Abo-Schlüssel**, füge den Zugriffstoken ein und trage die **ChatGPT-Konto-ID** aus dem Anspruch `chatgpt_account_id` ein. Codex verwendet beide Werte. Beschränke die Modelle auf dein ChatGPT-Abo; die Zugangsdaten funktionieren nur in Aufgaben und Automatisierungen.
 
 ## Einen Abo-Broker verbinden
 

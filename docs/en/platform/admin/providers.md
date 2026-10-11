@@ -48,7 +48,7 @@ Tale does not refresh a pasted token. When it expires, or you move to another Cl
 
 ## Paste an OpenAI ChatGPT subscription token
 
-Choose **Subscription key**, paste the access token, and enter the ChatGPT **account ID** from its `chatgpt_account_id` claim. Tale delivers these as `TALE_SUBSCRIPTION_TOKEN` and `TALE_SUBSCRIPTION_ACCOUNT_ID` to Codex. Limit the credential to models your ChatGPT plan supports; it works in tasks and automations, never chat.
+Choose **Subscription key**, paste the access token, and enter the **ChatGPT account ID** from its `chatgpt_account_id` claim. Codex uses both values. Limit the credential to models your ChatGPT plan supports; it works in tasks and automations, never chat.
 
 ## Connect a subscription broker
 

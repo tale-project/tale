@@ -48,7 +48,7 @@ Tale ne renouvelle pas un jeton collé. Quand il expire, ou quand tu passes à u
 
 ## Coller un jeton d’abonnement OpenAI ChatGPT
 
-Choisis **Clé d'abonnement**, colle le jeton d’accès et saisis l’**ID du compte** ChatGPT indiqué par la revendication `chatgpt_account_id`. Tale transmet ces valeurs à Codex sous `TALE_SUBSCRIPTION_TOKEN` et `TALE_SUBSCRIPTION_ACCOUNT_ID`. Limite les modèles à ceux pris en charge par ton abonnement; ces identifiants servent uniquement aux tâches et aux automatisations.
+Choisis **Clé d'abonnement**, colle le jeton d’accès et saisis l’**ID du compte ChatGPT** indiqué par la revendication `chatgpt_account_id`. Codex utilise ces deux valeurs. Limite les modèles à ceux pris en charge par ton abonnement ; ces identifiants servent uniquement aux tâches et aux automatisations.
 
 ## Connecter un courtier d’abonnement
 
