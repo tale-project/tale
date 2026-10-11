@@ -115,6 +115,7 @@ import {
 import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { testsOf } from '../lib/automation-tests/test-draft';
+import { formOwnsPlace } from '../lib/automation-tests/test-form';
 import {
   automationDetailPathname,
   compareVersionLink,
@@ -187,6 +188,7 @@ import {
   TestFields,
   TestInspector,
   type TestInspectorTab,
+  type TestSetupMode,
 } from './automation-tests/test-inspector';
 import { testIssueAnchor, testYaml } from './automation-tests/test-yaml-editor';
 import { AutomationVersionPicker } from './automation-version-picker';
@@ -1009,6 +1011,8 @@ function AutomationEditorScope({
     testParam ?? null,
   );
   const [testTab, setTestTab] = useState<TestInspectorTab>('setup');
+  /** Setup as the form, or as YAML for what the form has no control for. */
+  const [testSetupMode, setTestSetupMode] = useState<TestSetupMode>('form');
   useEffect(() => {
     if (selectedId !== null) setSelectedTest(null);
   }, [selectedId]);
@@ -1187,6 +1191,14 @@ function AutomationEditorScope({
         setSelectedId(null);
         setSelectedTest(index);
         setTestTab('setup');
+        // A place the form has a control for opens there; the control finds
+        // the place inside its own value.
+        if (formOwnsPlace(navigation.pointer, index)) {
+          setTestSetupMode('form');
+          requestIssueFocus(navigation.pointer, navigation.range);
+          return;
+        }
+        setTestSetupMode('yaml');
         // The range in the test's YAML on screen: the text the request's
         // offsets index into.
         const located = locateYamlPointer(
@@ -1358,6 +1370,10 @@ function AutomationEditorScope({
     readOnly: !canAuthor,
     tab: testTab,
     onTabChange: setTestTab,
+    setupMode: testSetupMode,
+    onSetupModeChange: setTestSetupMode,
+    doc: automation ?? { name: automationSlug, nodes: [] },
+    lastRunOutputOf: sampleOf,
     text: testText,
     onSelectNode: (nodeId: string) => {
       setSelectedTest(null);

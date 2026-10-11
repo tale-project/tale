@@ -6,7 +6,11 @@ import type {
   AutomationTests,
   TestRow,
 } from '../../hooks/use-automation-tests';
-import { TestFields, type TestInspectorTab } from './test-inspector';
+import {
+  TestFields,
+  type TestInspectorTab,
+  type TestSetupMode,
+} from './test-inspector';
 import { testYaml } from './test-yaml-editor';
 
 const TEST = {
@@ -85,11 +89,25 @@ function controller(
   };
 }
 
+/** The automation the tests run: rates fetched, then a total. */
+const DOC = {
+  name: 'invoice-total',
+  nodes: [
+    { id: 'fetch_rates', type: 'http.get' },
+    { id: 'total', type: 'transform', code: 'return {};' },
+  ],
+};
+
 function renderFields(
   row: TestRow,
-  options: { tab?: TestInspectorTab; replace?: Replace } = {},
+  options: {
+    tab?: TestInspectorTab;
+    replace?: Replace;
+    setupMode?: TestSetupMode;
+  } = {},
 ) {
   const onTabChange = vi.fn();
+  const onSetupModeChange = vi.fn();
   const onSelectNode = vi.fn();
   const tests = controller(row, options.replace);
   const view = render(
@@ -103,11 +121,14 @@ function renderFields(
       readOnly={false}
       tab={options.tab ?? 'result'}
       onTabChange={onTabChange}
+      setupMode={options.setupMode ?? 'form'}
+      onSetupModeChange={onSetupModeChange}
+      doc={DOC}
       text={{}}
       onSelectNode={onSelectNode}
     />,
   );
-  return { ...view, tests, onTabChange, onSelectNode };
+  return { ...view, tests, onTabChange, onSelectNode, onSetupModeChange };
 }
 
 describe('the test inspector', () => {
@@ -140,7 +161,11 @@ describe('the test inspector', () => {
 
   it('takes the test as YAML, as written, once it parses', async () => {
     const replace = vi.fn<Replace>();
-    const { user } = renderFields(FAILED, { tab: 'setup', replace });
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      setupMode: 'yaml',
+    });
     const yaml = screen.getByRole<HTMLTextAreaElement>('textbox', {
       name: 'Test as YAML',
     });
@@ -159,6 +184,45 @@ describe('the test inspector', () => {
         note: 'kept',
       }),
     );
+  });
+
+  it('edits the test as a form, keeping every key the form does not show', async () => {
+    const replace = vi.fn<Replace>();
+    const { user, onSetupModeChange } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+    });
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    await user.type(name, '!');
+    expect(replace).toHaveBeenLastCalledWith(0, {
+      ...TEST,
+      name: 'triples seven!',
+    });
+    // Each simulated output is its own field, by the node's name.
+    expect(screen.getByText('Fetch rates')).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Fetch rates' }),
+    );
+    const { mocks: _gone, ...withoutMocks } = TEST;
+    expect(replace).toHaveBeenLastCalledWith(0, withoutMocks);
+    // The output's comparison switches without losing the value.
+    await user.click(screen.getByRole('radio', { name: 'Includes' }));
+    expect(replace).toHaveBeenLastCalledWith(0, {
+      ...TEST,
+      expect: { outputIncludes: { total: 21, currency: 'CHF' } },
+    });
+    await user.click(screen.getByRole('switch', { name: 'Edit as YAML' }));
+    expect(onSetupModeChange).toHaveBeenCalledWith('yaml');
+  });
+
+  it('turns on a run that must fail, dropping the output it cannot have', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, { tab: 'setup', replace });
+    await user.click(screen.getByRole('switch', { name: /The run must fail/ }));
+    expect(replace).toHaveBeenLastCalledWith(0, {
+      ...TEST,
+      expect: { failure: {} },
+    });
   });
 
   it('keeps the result tab closed until the test has a result', () => {
