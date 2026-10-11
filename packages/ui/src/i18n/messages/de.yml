@@ -436,6 +436,36 @@ issues:
   learnMore: Mehr erfahren
   goTo: Zur Stelle
 
+testResults:
+  status:
+    passed: Bestanden
+    failed: Fehlgeschlagen
+    error: Konnte nicht laufen
+    running: Läuft
+    queued: Wartet
+    notRun: Noch nicht ausgeführt
+    stale: Seit diesem Ergebnis geändert
+  statusPrefix: '{status}:'
+  counts:
+    passed: '{count, plural, one {# bestanden} other {# bestanden}}'
+    failed: '{count, plural, one {# fehlgeschlagen} other {# fehlgeschlagen}}'
+    error: '{count, plural, one {# konnte nicht laufen} other {# konnten nicht laufen}}'
+    notRun: '{count, plural, one {# noch nicht ausgeführt} other {# noch nicht ausgeführt}}'
+    stale: '{count, plural, one {# seitdem geändert} other {# seitdem geändert}}'
+    total: '{count, plural, one {# Test} other {# Tests}}'
+  none: Keine Tests
+  listLabel: Testergebnisse
+  listFailed: Die Tests konnten nicht laufen. Die Ergebnisse sind möglicherweise nicht aktuell.
+  running: Tests werden ausgeführt…
+  button: Tests
+  buttonLabel: 'Tests: {summary}'
+  buttonLabelRunning: 'Tests: {summary}. Tests werden ausgeführt…'
+  buttonLabelFailed: 'Tests: konnten nicht laufen'
+  announce:
+    running: '{count, plural, one {# Test wird ausgeführt…} other {# Tests werden ausgeführt…}}'
+    done: '{context}. {summary}'
+  coverage: '{total, plural, one {Deckt {covered} von # Pfad ab} other {Deckt {covered} von # Pfaden ab}}'
+
 codeEditor:
   roleDescription: Code-Editor
   loading: Editor wird geladen…

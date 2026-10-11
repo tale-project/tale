@@ -436,6 +436,36 @@ issues:
   learnMore: Learn more
   goTo: Go to
 
+testResults:
+  status:
+    passed: Passed
+    failed: Failed
+    error: Couldn't run
+    running: Running
+    queued: Waiting
+    notRun: Not run yet
+    stale: Changed since this result
+  statusPrefix: '{status}:'
+  counts:
+    passed: '{count, plural, one {# passed} other {# passed}}'
+    failed: '{count, plural, one {# failed} other {# failed}}'
+    error: "{count, plural, one {# couldn't run} other {# couldn't run}}"
+    notRun: '{count, plural, one {# not run yet} other {# not run yet}}'
+    stale: '{count, plural, one {# changed since} other {# changed since}}'
+    total: '{count, plural, one {# test} other {# tests}}'
+  none: No tests
+  listLabel: Test results
+  listFailed: Couldn't run the tests. The results may be out of date.
+  running: Running the tests…
+  button: Tests
+  buttonLabel: 'Tests: {summary}'
+  buttonLabelRunning: 'Tests: {summary}. Running…'
+  buttonLabelFailed: "Tests: couldn't run"
+  announce:
+    running: '{count, plural, one {Running # test…} other {Running # tests…}}'
+    done: '{context}. {summary}'
+  coverage: '{total, plural, one {Covers {covered} of # path} other {Covers {covered} of # paths}}'
+
 codeEditor:
   roleDescription: code editor
   loading: Loading the editor…

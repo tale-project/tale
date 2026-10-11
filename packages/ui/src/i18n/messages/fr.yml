@@ -436,6 +436,36 @@ issues:
   learnMore: En savoir plus
   goTo: Y aller
 
+testResults:
+  status:
+    passed: Réussi
+    failed: Échoué
+    error: N'a pas pu s'exécuter
+    running: En cours
+    queued: En attente
+    notRun: Pas encore exécuté
+    stale: Modifié depuis ce résultat
+  statusPrefix: '{status} :'
+  counts:
+    passed: '{count, plural, one {# réussi} many {# réussis} other {# réussis}}'
+    failed: '{count, plural, one {# échoué} many {# échoués} other {# échoués}}'
+    error: "{count, plural, one {# n'a pas pu s'exécuter} many {# n'ont pas pu s'exécuter} other {# n'ont pas pu s'exécuter}}"
+    notRun: '{count, plural, one {# pas encore exécuté} many {# pas encore exécutés} other {# pas encore exécutés}}'
+    stale: '{count, plural, one {# modifié depuis} many {# modifiés depuis} other {# modifiés depuis}}'
+    total: '{count, plural, one {# test} many {# tests} other {# tests}}'
+  none: Aucun test
+  listLabel: Résultats des tests
+  listFailed: Les tests n'ont pas pu s'exécuter. Les résultats ne sont peut-être plus à jour.
+  running: Exécution des tests…
+  button: Tests
+  buttonLabel: 'Tests : {summary}'
+  buttonLabelRunning: 'Tests : {summary}. Exécution en cours…'
+  buttonLabelFailed: 'Tests : exécution impossible'
+  announce:
+    running: '{count, plural, one {Exécution de # test…} many {Exécution de # tests…} other {Exécution de # tests…}}'
+    done: '{context}. {summary}'
+  coverage: '{covered, plural, one {Couvre # chemin sur {total}} many {Couvre # chemins sur {total}} other {Couvre # chemins sur {total}}}'
+
 codeEditor:
   roleDescription: éditeur de code
   loading: Chargement de l'éditeur…

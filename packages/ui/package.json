@@ -399,6 +399,7 @@
     "./table-date-cell": "./src/components/data-display/table-date-cell.tsx",
     "./tabs": "./src/components/navigation/tabs.tsx",
     "./tailwind-preset": "./tailwind-preset.ts",
+    "./test-results": "./src/components/feedback/test-results.tsx",
     "./testing/filters": "./src/testing/filters.ts",
     "./testing/flow": "./src/testing/flow.ts",
     "./text": "./src/components/typography/text.tsx",
