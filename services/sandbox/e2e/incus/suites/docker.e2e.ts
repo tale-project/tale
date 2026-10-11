@@ -66,7 +66,7 @@ describe('Docker inside a session on a real node', () => {
     async () => {
       const created = await api.create({
         sessionId: ID,
-        organizationId: 'e2e-docker',
+        organizationId: ORG,
         profile: 'agent',
         docker: true,
       });

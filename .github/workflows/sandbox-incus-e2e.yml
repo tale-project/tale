@@ -172,14 +172,52 @@ jobs:
         run: bash services/sandbox/e2e/incus/lab.sh egress
 
       - name: Write the lab file
+        id: lab
         run: bash services/sandbox/e2e/incus/lab.sh lab-file
 
-      - name: Smoke the restricted client certificate
-        run: |
-          set -euo pipefail
-          pki="$INCUS_E2E_DIR/pki"
-          curl -sS --cacert "$pki/server.crt" --cert "$pki/client.crt" --key "$pki/client.key" \
-            "https://127.0.0.1:8443/1.0" | jq '{auth: .metadata.auth, api_extensions: (.metadata.api_extensions | length), server_version: .metadata.environment.server_version}'
+      # Each suite starts its own spawner(s) from this checkout and leaves the
+      # node clean. They run whatever came before, so one finding does not hide
+      # the next, but only on a lab that came up.
+
+      - name: Boot refusals and the restricted certificate
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/boot.e2e.ts
+
+      - name: The session contract
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/lifecycle.e2e.ts
+
+      - name: Network containment
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/network.e2e.ts
+
+      - name: The warm pool
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/pool.e2e.ts
+
+      - name: Reaping
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/reaping.e2e.ts
+
+      - name: Re-adoption and fencing
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/adoption.e2e.ts
+
+      - name: Capacity and project limits
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/limits.e2e.ts
+
+      - name: Docker inside a session
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: bun test --timeout 1800000 ./e2e/incus/suites/docker.e2e.ts
 
       - name: Collect diagnostics
         if: always()

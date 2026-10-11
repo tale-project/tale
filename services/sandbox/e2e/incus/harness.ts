@@ -15,7 +15,7 @@ import {
 import { Admin, type AdminInstance } from './admin.ts';
 import { loadLab, reportDir } from './lab-config.ts';
 import { Report } from './report.ts';
-import { field, type Reply, type SpawnerApi } from './spawner-api.ts';
+import type { Reply, SpawnerApi } from './spawner-api.ts';
 import { Spawner, type SpawnerSettings } from './spawner.ts';
 import { describeError } from './util.ts';
 
@@ -123,12 +123,6 @@ export async function sh(
     );
   }
   return outcome.stdout;
-}
-
-/** The text of a field of a JSON answer, for messages. */
-export function show(value: unknown, ...path: string[]): string {
-  const found = field(value, ...path);
-  return typeof found === 'string' ? found : JSON.stringify(found);
 }
 
 async function dumpState(why: string): Promise<void> {
