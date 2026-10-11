@@ -4,10 +4,11 @@
 
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { IncusConfig, SpawnerConfig } from '../../types.ts';
+import { DEFAULT_INCUS_DOCKER_CONFIG } from './incus-config.ts';
 
 export const INCUS_TEST_ADDRESS = '10.9.0.2';
 
-export const INCUS_TEST_DEFAULTS: IncusConfig = {
+const INCUS_TEST_DEFAULTS: IncusConfig = {
   endpoint: 'https://incus.test:8443',
   project: 'sandbox-pr',
   profile: 'sandbox',
@@ -21,11 +22,7 @@ export const INCUS_TEST_DEFAULTS: IncusConfig = {
   workspaceSize: '10GiB',
   shmDevice: true,
   dns: [INCUS_TEST_ADDRESS],
-  dockerConfig: {
-    'security.nesting': 'true',
-    'security.syscalls.intercept.mknod': 'true',
-    'security.syscalls.intercept.setxattr': 'true',
-  },
+  dockerConfig: DEFAULT_INCUS_DOCKER_CONFIG,
   allowUnfilteredNetwork: false,
   apiTimeoutMs: 15_000,
 };

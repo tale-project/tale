@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { readIncusConfig } from './backend/incus/incus-config.ts';
 import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
 import { DEFAULT_CPU_PRESSURE_PERCENT } from './host-memory.ts';
 import { parseDindInnerPool } from './network-address.ts';
@@ -20,7 +21,12 @@ import {
   type RuntimeTier,
 } from './runtime-tier.ts';
 import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
-import type { HubConfig, K8sToleration, SpawnerConfig } from './types.ts';
+import type {
+  HubConfig,
+  K8sToleration,
+  SandboxBackendKind,
+  SpawnerConfig,
+} from './types.ts';
 
 // Parse a boolean env, returning undefined when UNSET/empty so a caller can
 // distinguish "operator didn't set it" (apply a default) from an explicit
@@ -470,6 +476,19 @@ function dockerWorkloadsEnv(): readonly ('project' | 'workflow')[] | undefined {
 }
 
 export function loadConfig(): SpawnerConfig {
+  // The backend decides how the tier and Docker-inside defaults resolve, so
+  // it is read first.
+  const rawBackend = process.env.SANDBOX_BACKEND ?? 'docker';
+  if (
+    rawBackend !== 'docker' &&
+    rawBackend !== 'kubernetes' &&
+    rawBackend !== 'incus'
+  ) {
+    throw new Error(
+      `SANDBOX_BACKEND must be 'docker', 'kubernetes' or 'incus'; got: ${JSON.stringify(rawBackend)}`,
+    );
+  }
+  const backend: SandboxBackendKind = rawBackend;
   const dockerDataRoot =
     process.env.SANDBOX_DOCKER_DATA_ROOT?.trim() || undefined;
   const dockerDataPath =
@@ -502,7 +521,20 @@ export function loadConfig(): SpawnerConfig {
       `SANDBOX_RUNTIME must be one of ${RUNTIME_TIERS.join(', ')} (or 'runsc' for gvisor); got: ${JSON.stringify(rawRuntime)}`,
     );
   }
-  const runtimeTier: RuntimeTier = aliased;
+  // Incus runs a session as an unprivileged container in a user namespace of
+  // its own, which is what the 'sysbox' tier means to the entrypoint: the tier
+  // is not a choice there.
+  if (
+    backend === 'incus' &&
+    aliased !== 'sysbox' &&
+    rawRuntime.length > 0 &&
+    (deployment.tier !== undefined || process.env.SANDBOX_RUNTIME !== undefined)
+  ) {
+    console.warn(
+      `[sandbox.config] the '${aliased}' runtime tier (SANDBOX_RUNTIME or the deployment config) has no effect with SANDBOX_BACKEND=incus: sessions are unprivileged containers in their own user namespace (the 'sysbox' tier)`,
+    );
+  }
+  const runtimeTier: RuntimeTier = backend === 'incus' ? 'sysbox' : aliased;
   // Native docker-in-container inside session containers. NOT policy-blocked on
   // any tier — the operator chooses the host posture; we surface the trade-offs
   // as loud warnings. Resolution precedence: deployment.json > explicit env >
@@ -512,10 +544,12 @@ export function loadConfig(): SpawnerConfig {
   //   runc  → PRIVILEGED inner daemon, no boundary (host-root): trusted-only.
   //   gvisor→ contained by runsc but nested docker networking is unreliable.
   //   sysbox/kata → the recommended, isolated paths.
+  //   incus → opt-in only: Docker inside an Incus OCI container is not yet
+  //           proven, so it is never on by default there.
   const dockerInContainer =
     deployment.dockerInContainer ??
     boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
-    dindDefaultEnabled(runtimeTier);
+    (backend === 'incus' ? false : dindDefaultEnabled(runtimeTier));
   const dockerWorkloads = dockerWorkloadsEnv();
   const rawDindInnerPool = process.env.SANDBOX_DIND_INNER_POOL?.trim();
   const k8sCpuRequest = k8sQuantityEnv(
@@ -614,10 +648,18 @@ export function loadConfig(): SpawnerConfig {
   // improvement (a failed daemon falls back to the inner builder), so there's no
   // reason to make the operator opt in twice. Explicit SANDBOX_DOCKER_BUILD_CACHE
   // (or deployment.json) always wins — set it false to keep the extra daemons off.
-  const dockerBuildCache =
+  const requestedBuildCache =
     deployment.dockerBuildCache ??
     boolEnvOpt('SANDBOX_DOCKER_BUILD_CACHE') ??
     dockerInContainer;
+  // The shared build cache is per-organization buildkitd containers on the
+  // Docker daemon: the Incus backend has none.
+  const dockerBuildCache = backend === 'incus' ? false : requestedBuildCache;
+  if (backend === 'incus' && requestedBuildCache) {
+    console.warn(
+      '[sandbox.config] the shared Docker build cache has no effect with SANDBOX_BACKEND=incus: builds use the inner Docker of their own session',
+    );
+  }
   if (dockerBuildCache && !dockerInContainer) {
     console.warn(
       `[sandbox.config] WARNING: SANDBOX_DOCKER_BUILD_CACHE is on but docker-in-container is OFF — ` +
@@ -649,13 +691,6 @@ export function loadConfig(): SpawnerConfig {
   const sessionRootBase =
     process.env.SANDBOX_HOST_SESSION_ROOT ?? '/var/lib/tale-sandbox/sessions';
 
-  const rawBackend = process.env.SANDBOX_BACKEND ?? 'docker';
-  if (rawBackend !== 'docker' && rawBackend !== 'kubernetes') {
-    throw new Error(
-      `SANDBOX_BACKEND must be 'docker' or 'kubernetes'; got: ${JSON.stringify(rawBackend)}`,
-    );
-  }
-  const backend: 'docker' | 'kubernetes' = rawBackend;
   // SANDBOX_TOKEN is REQUIRED — fail closed. The spawner holds the host docker
   // socket and is reachable from every session container on the shared sandbox
   // network, so it must never boot with HMAC verification off; an unset secret
@@ -696,17 +731,64 @@ export function loadConfig(): SpawnerConfig {
     'SANDBOX_HOST_SESSION_ROOT',
     'SANDBOX_EGRESS_NETWORK',
   ];
+  // Incus keeps a session's files in a volume of its own and its processes in
+  // an instance with no host paths, so it reads neither the Docker host's
+  // paths and probes nor the Kubernetes API's settings.
+  const INCUS_INERT_ENVS = [
+    ...K8S_ONLY_ENVS,
+    ...DOCKER_ONLY_ENVS,
+    'SANDBOX_RUNTIME_CLASS',
+    'SANDBOX_DOCKER_DATA_ROOT',
+    'SANDBOX_DOCKER_DATA_PATH',
+    'SANDBOX_AGENT_CPU_SHARES',
+    'SANDBOX_AGENT_TMP_SIZE',
+  ];
   const inert =
     backend === 'docker'
       ? K8S_ONLY_ENVS
       : backend === 'kubernetes'
         ? DOCKER_ONLY_ENVS
-        : [];
+        : INCUS_INERT_ENVS;
   for (const name of inert) {
     const v = process.env[name];
     if (v !== undefined && v.trim() !== '') {
       console.warn(
         `[sandbox.config] ${name} is set but has no effect with SANDBOX_BACKEND=${backend}`,
+      );
+    }
+  }
+  if (backend !== 'incus') {
+    for (const [name, v] of Object.entries(process.env)) {
+      if (
+        name.startsWith('SANDBOX_INCUS_') &&
+        v !== undefined &&
+        v.trim() !== ''
+      ) {
+        console.warn(
+          `[sandbox.config] ${name} is set but has no effect with SANDBOX_BACKEND=${backend}`,
+        );
+      }
+    }
+  }
+  const maxSessions = numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 });
+  const egressProxy =
+    process.env.SANDBOX_EGRESS_PROXY ?? 'http://sandbox-egress:3128';
+  let incus: ReturnType<typeof readIncusConfig> | undefined;
+  if (backend === 'incus') {
+    incus = readIncusConfig(process.env, { egressProxy, maxSessions });
+    for (const warning of incus.warnings) {
+      console.warn(`[sandbox.config] ${warning}`);
+    }
+    // The capacity is not sized from the node here (only a Docker host's
+    // memory is read), so the default is what an unset variable gets.
+    if ((process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '') {
+      console.warn(
+        `[sandbox.config] SANDBOX_MAX_SESSIONS is unset, so the Incus backend admits at most ${maxSessions} sessions (and a warm pool within them); set it to what the node can hold`,
+      );
+    }
+    if (dockerInContainer) {
+      console.warn(
+        '[sandbox.config] WARNING: Docker inside a session runs on an Incus OCI container, which this backend has not proven yet; check the manual test box for it (docs/incus.md) before relying on it',
       );
     }
   }
@@ -835,6 +917,7 @@ export function loadConfig(): SpawnerConfig {
         ? { priorityClassName: k8sPriorityClassName }
         : {}),
     },
+    ...(incus === undefined ? {} : { incus: incus.config }),
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
     // The shared HMAC secret every state-changing route is verified against
     // (request-auth.ts). Always set — validated above.
@@ -895,8 +978,7 @@ export function loadConfig(): SpawnerConfig {
         process.env.SANDBOX_BUN_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-bun-cache',
     },
     egressNetwork: process.env.SANDBOX_EGRESS_NETWORK ?? 'tale-sandbox-net',
-    egressProxy:
-      process.env.SANDBOX_EGRESS_PROXY ?? 'http://sandbox-egress:3128',
+    egressProxy,
     stdoutMaxBytes: numEnv('SANDBOX_STDOUT_MAX_BYTES', 5 * 1024 * 1024, {
       min: 1024,
     }),
@@ -909,7 +991,7 @@ export function loadConfig(): SpawnerConfig {
       // namespace inventory. Separate from the platform's project/workflow/
       // render allocation budgets (defaults 2/2/2), and not a CPU or memory
       // reservation. Operators size this against the host and session profiles.
-      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
+      maxSessions,
       autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
       ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
       cpuPressurePercent: numEnv(
