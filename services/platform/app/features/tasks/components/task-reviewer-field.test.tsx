@@ -300,10 +300,9 @@ describe('TaskReviewerField', () => {
         screen.queryByText('Project default · person'),
       ).not.toBeInTheDocument();
       if (canEdit) {
-        await user.click(screen.getByRole('button', { name: 'Reviewer' }));
-        expect(
-          screen.getByRole('button', { name: 'Reviewer' }),
-        ).toHaveTextContent('Alice');
+        const trigger = screen.getByRole('button', { name: 'Reviewer' });
+        await user.click(trigger);
+        expect(trigger).toHaveTextContent('Alice');
         expect(
           screen.getByRole('option', { name: 'Project default · person' }),
         ).toBeInTheDocument();
