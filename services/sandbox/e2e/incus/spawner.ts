@@ -57,6 +57,8 @@ export function spawnerEnv(
     SANDBOX_INCUS_CLIENT_KEY_FILE: lab.clientKeyFile,
     SANDBOX_INCUS_SERVER_CERT_FILE: lab.serverCertFile,
     SANDBOX_EGRESS_PROXY: lab.egressProxy,
+    // Until the shm device is gone from the backend (a restricted project cannot admit it).
+    SANDBOX_INCUS_SHM_DEVICE: 'false',
     SANDBOX_MAX_SESSIONS: '6',
     SANDBOX_INCUS_WORKSPACE_SIZE: '512MiB',
     ...settings.env,

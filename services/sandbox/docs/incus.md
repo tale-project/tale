@@ -290,8 +290,7 @@ incus network create sbx0 ipv4.address=10.20.0.1/24 ipv4.nat=true \
 # the project
 incus project create sandbox-pr \
   -c features.images=true -c features.profiles=true \
-  -c features.storage.volumes=true -c restricted=true \
-  -c restricted.devices.disk=allow -c restricted.devices.disk.paths=tmpfs:
+  -c features.storage.volumes=true -c restricted=true
 
 # the sandbox network's ACL (10.20.0.2 is the egress proxy and its resolver,
 # 10.20.0.3 the LLM gateway, 10.20.0.4 the backend, 10.20.0.1 the spawner)

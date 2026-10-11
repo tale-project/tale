@@ -147,11 +147,12 @@ describe('docs/incus.md operator block', () => {
       'features.profiles=true',
       'features.storage.volumes=true',
       'restricted=true',
-      'restricted.devices.disk=allow',
-      'restricted.devices.disk.paths=tmpfs:',
     ]) {
       expect(text).toContain(`-c ${setting}`);
     }
+    // Disk devices stay at the default (pool-backed only): `allow` without a
+    // path list admits every host path, and no path list admits `tmpfs:`.
+    expect(text).not.toContain('restricted.devices.disk');
     // Docker inside is the suite's own opt-in, never the baseline.
     expect(text).not.toContain('restricted.containers.nesting');
     expect(text).not.toContain('restricted.containers.lowlevel');
