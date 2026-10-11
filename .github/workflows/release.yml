@@ -195,10 +195,12 @@ jobs:
 
       - name: Resolve build metadata
         id: meta
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           set -euo pipefail
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "revision=${{ needs.prepare.outputs.source_sha }}" >> "$GITHUB_OUTPUT"
+          echo "revision=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
           AUTOMATION_PROTOCOL=$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' services/platform/lib/engine/core/protocol.ts)
           case "$AUTOMATION_PROTOCOL" in 1|2) ;; *) echo '::error::Unsupported automation writer protocol'; exit 1;; esac
           echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"

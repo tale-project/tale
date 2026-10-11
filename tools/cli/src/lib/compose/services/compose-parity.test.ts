@@ -56,6 +56,7 @@ const config = {
   version: '0.0.0-test',
   registry: 'ghcr.io/tale-project',
 } satisfies ServiceConfig;
+const CI_SOURCE = 'b'.repeat(40);
 
 const composePath = fileURLToPath(
   new URL('../../../../../../compose.yml', import.meta.url),
@@ -856,6 +857,7 @@ function resolveRelease(source: string, sitesOnly: boolean) {
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v0.5.15-sites.1',
         SITES_ONLY: String(sitesOnly),
+        SOURCE_SHA: CI_SOURCE,
         GITHUB_OUTPUT: output,
       },
     });
@@ -925,7 +927,6 @@ describe('release artifact identity', () => {
    * pulls its version tags. Either way the stand-in `docker` logs the pulls
    * and tags, and answers an inspect with the source commit. */
   const CI_DIGEST = `sha256:${'a'.repeat(64)}`;
-  const CI_SOURCE = 'b'.repeat(40);
   const CI_REGISTRY = 'ghcr.io/tale-project/tale';
   const revisionFormat =
     '{{ index .Config.Labels "org.opencontainers.image.revision" }}';
@@ -994,6 +995,7 @@ fi
             outputs: {
               version_number: '0.5.43',
               service_names: JSON.stringify(services),
+              source_sha: CI_SOURCE,
             },
           },
           changes: { outputs: { source_sha: CI_SOURCE, candidate_sha: '' } },

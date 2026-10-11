@@ -490,6 +490,7 @@ test.skipIf(process.platform === 'win32')(
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v1.2.3',
         SITES_ONLY: sites,
+        SOURCE_SHA: source,
       });
       expect(result.code, result.stderr).toBe(0);
       const services = JSON.parse(result.outputs.service_names!) as string[];
