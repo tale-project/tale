@@ -34,6 +34,8 @@ export interface TransientRunBannerProps {
    * since a try, the automation or the test since a test's run; trying
    * again shows it as it is now. */
   changed?: string;
+  /** A word on how the run went that its status does not say. */
+  note?: string;
   /** Runs it again, as it ran; left out, the banner offers no Try again. */
   onTryAgain?: () => void;
   /** The words of that action, when not "Try again" (a test's "Run"). */
@@ -55,6 +57,7 @@ export function TransientRunBanner({
   title,
   state,
   changed,
+  note,
   onTryAgain,
   againLabel,
   onSaveAsTest,
@@ -94,6 +97,9 @@ export function TransientRunBanner({
           </span>
         )}
       </span>
+      {note !== undefined && (
+        <span className="text-muted-foreground text-xs">{note}</span>
+      )}
       {changed !== undefined && (
         <span className="text-muted-foreground text-xs">{changed}</span>
       )}

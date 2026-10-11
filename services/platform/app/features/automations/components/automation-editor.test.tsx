@@ -1496,6 +1496,51 @@ describe('AutomationEditor', () => {
     ).not.toHaveAttribute('data-run-status');
   });
 
+  it('tests a node alone, and the draft up to it, from the node’s Test node menu', async () => {
+    tryMutation.mutate.mockReset();
+    tryMutation.mutate.mockImplementation(
+      (_args: unknown, callbacks: { onSuccess?: (answer: unknown) => void }) =>
+        callbacks.onSuccess?.({
+          run: {
+            status: 'success',
+            output: { text: 'ok' },
+            trace: [{ node: 'summary', type: 'llm', status: 'ok' }],
+            effects: [],
+            ms: 3,
+            documentHash: 'server-hash',
+          },
+          warnings: [],
+        }),
+    );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    await user.click(screen.getByRole('button', { name: 'Test node' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Test this node' }));
+    const dialog = screen.getByRole('dialog', { name: 'Test Summary' });
+    await user.click(within(dialog).getByRole('button', { name: 'Test node' }));
+    // The node runs alone on the data it reads — it reads none here.
+    expect(tryMutation.mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ bench: { only: 'summary', mocks: {} } }),
+      expect.any(Object),
+    );
+    expect(
+      screen.getByRole('region', { name: 'Node test: Summary' }),
+    ).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Node test' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Test node' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Test up to here' }));
+    const upTo = screen.getByRole('dialog', { name: 'Test up to Summary' });
+    // The draft is what runs: there is nothing to choose.
+    expect(within(upTo).queryByRole('radiogroup')).toBeNull();
+    await user.click(within(upTo).getByRole('button', { name: 'Test run' }));
+    expect(tryMutation.mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ bench: { upTo: 'summary' } }),
+      expect.any(Object),
+    );
+    expect(screen.getByRole('region', { name: 'Up to Summary' })).toBeVisible();
+  });
+
   it('collects schema-valid input before scheduling the selected test version', async () => {
     const previous = state.document;
     state.document = {

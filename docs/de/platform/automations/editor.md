@@ -234,6 +234,21 @@ Der Lauf des Entwurfs liegt danach anstelle des letzten Laufs auf dem Canvas, un
 
 </Frame>
 
+### Eine Node testen oder bis zu einer Node {#step-tests}
+
+Um einen Schritt ohne den Rest auszuprobieren, wähle seine Node und öffne **Node testen** neben ihrem Namen:
+
+- **Diese Node testen** führt die Node allein aus, so wie der Entwurf sie hat, mit den Daten, die du ihr gibst. Unter **Verwendet Daten von** bekommt jede Node, die sie liest, ihre Ausgabe als JSON: aus dem Lauf auf dem Canvas, wenn es einen gibt, so wie du die Node zuletzt getestet hast, oder leer zum Ausfüllen. **Eingabe für den Lauf (JSON)** erscheint, wenn die Node die Eingabe des Laufs liest, und **Element**, wenn sie einmal pro Element läuft. Auf dem Canvas tragen die Nodes, die sie liest, **Vorgegebene Daten** und die übrigen **In diesem Test ausgelassen**; der Tab **Node-Test** der Node zeigt, was sie erhalten und zurückgegeben hat. Ist ihre Bedingung mit diesen Daten falsch, sagt der Streifen, dass der Test sie trotzdem ausgeführt hat.
+- **Bis hierher testen** führt den Entwurf bis zu der Node aus: alles, was sie braucht, und nichts danach. Es fragt wie **Testlauf** nach der Eingabe, und der Streifen lautet **Bis Review**.
+
+Agent-Nodes werden in Tests simuliert. Wie ein Versuch behält ein Schritttest keinen Lauf; die Daten, die du einer Node gibst, bleiben für die Sitzung erhalten, sodass ein erneuter Test damit beginnt.
+
+<Frame caption="Total allein getestet: Discount auf einen Rabatt von 20 % festgelegt, der Rest des Entwurfs ausgelassen, und was Total erhalten und zurückgegeben hat.">
+
+![Der Editor von Order discounts mit einem Streifen Node test: Total, der Succeeded in 3 ms zeigt. Auf dem Canvas trägt Discount Pinned data und ist erfolgreich, Total ist erfolgreich, und Review und End sind gestrichelt und Left out of this test. Neben dem Canvas zeigt der Tab Node test von Total die aufgelöste Eingabe rate 0.2, quantity 1000 und unitPrice 2 und die Ausgabe gross 2000, discount 400 und total 1600.](/images/platform/automation-step-test.webp)
+
+</Frame>
+
 ### Von einer älteren Version ausgehen {#older-version}
 
 Zeigt **Version** eine ältere als die neueste Version, sagt ein Band über dem Canvas das, etwa **Du siehst v2. Die neueste ist v5.** **v5 anzeigen** wechselt zur neuesten Version, und **v2 mit v5 vergleichen** zeigt, was sich seither geändert hat.

@@ -152,7 +152,10 @@ export function ancestorsOf(
 
 /** The nodes `node` reads in its expressions — data and conditions — but
  * not its `elseOf` partner, which a node run alone does not consult. */
-function readsOf(node: NodeDef, byId: ReadonlyMap<string, NodeDef>): string[] {
+export function readsOf(
+  node: NodeDef,
+  byId: ReadonlyMap<string, NodeDef>,
+): string[] {
   const { elseOf: _elseOf, ...withoutElse } = node;
   return [...refsOf(withoutElse).order].filter(
     (ref) => ref !== node.id && byId.has(ref),

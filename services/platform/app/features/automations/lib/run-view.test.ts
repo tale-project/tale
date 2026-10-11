@@ -115,11 +115,19 @@ describe('projectRun', () => {
       status: 'success',
       trace: [
         { node: 'fetch', type: 'http.get', status: 'ok', bench: 'mocked' },
-        { node: 'score', type: 'llm', status: 'ok', bench: 'guessed' },
+        {
+          node: 'score',
+          type: 'llm',
+          status: 'ok',
+          bench: 'guessed',
+          whenWouldSkip: true,
+        },
       ],
     });
     expect(projection.byNode.get('fetch')?.bench).toBe('mocked');
     expect(projection.byNode.get('score')).not.toHaveProperty('bench');
+    // Run alone, a node whose condition read false still ran: it says so.
+    expect(projection.byNode.get('score')?.whenWouldSkip).toBe(true);
   });
 });
 

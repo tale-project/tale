@@ -557,6 +557,7 @@ editor:
       run: Letzter Lauf
       runTry: Ungespeicherter Test
       runTest: In diesem Test
+      runNodeTest: Node-Test
   start:
     title: Start
     description: Was diese Automatisierung startet und was jeder Lauf erhält.
@@ -1390,3 +1391,22 @@ try:
   again: Erneut ausprobieren
   clear: Ergebnis ausblenden
   saveAsTest: Als Test speichern
+  nodeTest: 'Node-Test: {node}'
+  upTo: 'Bis {node}'
+stepTest:
+  menu: Node testen
+  this: Diese Node testen
+  upTo: Bis hierher testen
+  agentNote: Agent-Nodes werden in Tests simuliert.
+  title: '{node} testen'
+  description: Führt diese Node allein aus, so wie der Entwurf sie hat, mit den Daten, die du ihr gibst. Nichts wird gespeichert.
+  usesData: Verwendet Daten von
+  fromRun: Aus dem Lauf auf dem Canvas. Ändere sie, um andere Daten auszuprobieren.
+  fromRemembered: So, wie du diese Node zuletzt getestet hast.
+  missing: '{node} hat noch keine Ausgabe, die sich verwenden lässt. Schreib, was sie zurückgeben würde.'
+  item: Element
+  itemHelp: Welches Element der Liste sie ausführt, ab 1 gezählt.
+  run: Node testen
+  upToTitle: 'Bis {node} testen'
+  upToDescription: Führt den Entwurf bis zu dieser Node aus – was sie braucht, und nichts danach. Nichts wird gespeichert.
+  whenWouldSkip: Ihre Bedingung ist mit diesen Daten falsch; der Test hat sie trotzdem ausgeführt.

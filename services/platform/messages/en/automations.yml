@@ -551,6 +551,7 @@ editor:
       run: Last run
       runTry: Unsaved test
       runTest: In this test
+      runNodeTest: Node test
   start:
     title: Start
     description: What starts this automation and what each run receives.
@@ -1381,3 +1382,22 @@ try:
   again: Try again
   clear: Hide result
   saveAsTest: Save as test
+  nodeTest: 'Node test: {node}'
+  upTo: 'Up to {node}'
+stepTest:
+  menu: Test node
+  this: Test this node
+  upTo: Test up to here
+  agentNote: Agent nodes are simulated in tests.
+  title: 'Test {node}'
+  description: Runs this node alone, as the draft has it, on the data you give it. Nothing is kept.
+  usesData: Uses data from
+  fromRun: From the run on the canvas. Change it to try other data.
+  fromRemembered: As you last tested this node.
+  missing: '{node} has no output to use yet. Write what it would return.'
+  item: Item
+  itemHelp: Which item of the list it runs, counted from 1.
+  run: Test node
+  upToTitle: 'Test up to {node}'
+  upToDescription: Runs the draft up to this node — what it needs, and nothing after it. Nothing is kept.
+  whenWouldSkip: Its condition is false with this data; the test ran it anyway.

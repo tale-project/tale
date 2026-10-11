@@ -397,6 +397,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-step-test.webp",
+      "shot": "automation-step-test",
+      "route": "/dashboard/:orgId/automations/order-discounts/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-task-create-run.webp",
       "shot": "automation-task-create-run",
       "route": "/dashboard/:orgId/automations/support-follow-ups/runs",

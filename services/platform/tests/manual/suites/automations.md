@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 238 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 239 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1643,6 +1643,20 @@ output:
       it left out as secrets; from the run page the editor opens with the
       dialog and the address forgets the run. **Add test** opens the new
       test on Setup in the draft, with the run's input.
+- [ ] `AUTO-F178` · **Select a node that reads others, open
+      `automations.stepTest.menu` › `automations.stepTest.this`, change a
+      node's data and run it; then `automations.stepTest.upTo` on another
+      node** → the dialog asks for each node it reads under
+      `automations.stepTest.usesData` (from the run on the canvas, or
+      `automations.stepTest.missing`), the run input only when it reads that,
+      and `automations.stepTest.item` for a node that runs per item; the
+      strip reads `automations.try.nodeTest`, the nodes read carry
+      `automations.canvas.standIn.pinned`, the rest
+      `automations.canvas.standIn.leftOut`, and the node's
+      `automations.editor.inspector.tabs.runNodeTest` tab shows what it got
+      and returned. Testing it again starts from the data last used. Up to
+      a node: the dialog `automations.stepTest.upToTitle` runs the draft up
+      to it, the strip reads `automations.try.upTo`.
 
 ## Boundary & error tests
 

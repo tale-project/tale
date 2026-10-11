@@ -687,12 +687,15 @@ export interface AutomationsContract {
       limit?: number;
       organizationId: string;
     };
+    /** The full rows, as a run's own read answers each: the editor lays the
+     * newest over its canvas, and a step test starts from its input. */
     returns: Array<{
       finishedAt?: number;
       startedAt: number;
       detail?: string;
       /** Why a `failed` run failed, as a stable code (`Run.failureCode`). */
       failureCode?: string;
+      input?: unknown;
       id: string;
       name: string;
       version: number;

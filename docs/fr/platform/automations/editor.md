@@ -234,6 +234,21 @@ L’exécution du brouillon s’affiche ensuite sur le canevas à la place de la
 
 </Frame>
 
+### Tester un nœud, ou jusqu’à un nœud {#step-tests}
+
+Pour essayer une étape sans le reste, sélectionne son nœud et ouvre **Tester le nœud** à côté de son nom :
+
+- **Tester ce nœud** exécute le nœud seul, tel que le brouillon l’a, avec les données que tu lui donnes. Sous **Utilise les données de**, chaque nœud qu’il lit reçoit sa sortie en JSON : depuis l’exécution sur le canevas quand il y en a une, comme tu as testé le nœud la dernière fois, ou vide pour que tu l’écrives. **Données de l’exécution (JSON)** apparaît quand le nœud lit l’entrée de l’exécution, et **Élément** quand il s’exécute une fois par élément. Sur le canevas, les nœuds qu’il lit portent **Données fixées** et les autres **Exclu de ce test** ; l’onglet **Test du nœud** du nœud montre ce qu’il a reçu et renvoyé. Quand sa condition est fausse avec ces données, la bande indique que le test l’a exécuté quand même.
+- **Tester jusqu’ici** exécute le brouillon jusqu’au nœud : tout ce dont il a besoin, et rien après. Il demande l’entrée comme **Essai**, et la bande indique **Jusqu’à Review**.
+
+Les nœuds d’agent sont simulés dans les tests. Comme un essai, un test d’étape ne garde aucune exécution ; les données que tu donnes à un nœud sont gardées pour la session, si bien qu’un nouveau test part d’elles.
+
+<Frame caption="Total testé seul : Discount fixé à une remise de 20 %, le reste du brouillon exclu, et ce que Total a reçu et renvoyé.">
+
+![L’éditeur d’Order discounts avec une bande Node test: Total qui indique Succeeded in 3 ms. Sur le canevas, Discount porte Pinned data et a réussi, Total a réussi, et Review et End sont en pointillés et Left out of this test. À côté du canevas, l’onglet Node test de Total montre l’entrée résolue rate 0.2, quantity 1000 et unitPrice 2, et la sortie gross 2000, discount 400 et total 1600.](/images/platform/automation-step-test.webp)
+
+</Frame>
+
 ### Partir d’une version plus ancienne {#older-version}
 
 Quand **Version** affiche une version plus ancienne que la dernière, un bandeau au-dessus du canevas le signale, par exemple **Tu consultes la v2. La plus récente est la v5.** **Afficher la v5** passe à la dernière version, et **Comparer la v2 avec la v5** montre ce qui a changé depuis.
