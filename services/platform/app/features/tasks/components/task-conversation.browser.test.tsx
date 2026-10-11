@@ -93,15 +93,21 @@ vi.mock('../lib/mention-actor-options', async (original) => ({
   useMentionActorOptions: () => [],
 }));
 vi.mock('./mention-trigger-chips', () => ({ MentionTriggerChips: () => null }));
-vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
-  markdownWrapperStyles: '',
-  markdownComponents: {
-    strong: ({ children }: { children: ReactNode }) => {
-      reads.markdown();
-      return <strong>{children}</strong>;
+vi.mock(
+  '@/app/features/shared/markdown/markdown-renderer',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/shared/markdown/markdown-renderer')
+    >()),
+    markdownWrapperStyles: '',
+    markdownComponents: {
+      strong: ({ children }: { children: ReactNode }) => {
+        reads.markdown();
+        return <strong>{children}</strong>;
+      },
     },
-  },
-}));
+  }),
+);
 
 function renderHistory(reverse = true) {
   const rendered = render(

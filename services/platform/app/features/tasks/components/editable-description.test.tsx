@@ -68,10 +68,16 @@ vi.mock('../hooks/use-actor-directory', () => ({
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({ members: [], agents: [], automations: [] }),
 }));
-vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
-  markdownWrapperStyles: '',
-  markdownComponents: {},
-}));
+vi.mock(
+  '@/app/features/shared/markdown/markdown-renderer',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/shared/markdown/markdown-renderer')
+    >()),
+    markdownWrapperStyles: '',
+    markdownComponents: {},
+  }),
+);
 
 import { EditableDescription } from './editable-description';
 

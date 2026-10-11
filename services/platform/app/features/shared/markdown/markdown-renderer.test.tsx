@@ -1,13 +1,42 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
-import { MarkdownContent, markdownComponents } from './markdown-renderer';
+import {
+  MarkdownContent,
+  MarkdownLinkOverridesContext,
+  markdownComponents,
+} from './markdown-renderer';
 
 afterEach(() => vi.restoreAllMocks());
+
+const OUTPUT_LINK_OVERRIDES = {
+  '/agent/output/task-1/report.md': '/api/app/files/file-1/url',
+};
+
+function ActionOverrideMarkdown({
+  path,
+  onClick,
+}: {
+  path: string;
+  onClick: () => void;
+}) {
+  const overrides = useMemo(
+    () => ({ [path]: { href: path, onClick } }),
+    [path, onClick],
+  );
+  return (
+    <MarkdownLinkOverridesContext.Provider value={overrides}>
+      <ReactMarkdown components={markdownComponents}>
+        {`[report](${path})`}
+      </ReactMarkdown>
+    </MarkdownLinkOverridesContext.Provider>
+  );
+}
 
 describe('MarkdownContent', () => {
   it('keeps large content parsed across unrelated parent and styling updates', () => {
@@ -30,6 +59,33 @@ describe('MarkdownContent', () => {
 });
 
 describe('markdownComponents', () => {
+  it('replaces a surface-owned file link with its stored browser URL', () => {
+    const path = '/agent/output/task-1/report.md';
+    const { container } = render(
+      <MarkdownLinkOverridesContext.Provider value={OUTPUT_LINK_OVERRIDES}>
+        <ReactMarkdown components={markdownComponents}>
+          {`[report](${path})`}
+        </ReactMarkdown>
+      </MarkdownLinkOverridesContext.Provider>,
+    );
+    expect(container.querySelector('a')).toHaveAttribute(
+      'href',
+      '/api/app/files/file-1/url',
+    );
+  });
+
+  it('runs an action override without navigating', () => {
+    const path = '/agent/output/task-1/report.md';
+    const onClick = vi.fn();
+    const { container } = render(
+      <ActionOverrideMarkdown path={path} onClick={onClick} />,
+    );
+    const link = container.querySelector('a');
+    expect(link).toHaveAttribute('href', path);
+    link?.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it('lets lists inherit the answer’s text colour', () => {
     // The shared map draws lists in the muted docs-prose tone; in an answer
     // whose paragraphs are full contrast that read as a de-emphasised aside.
