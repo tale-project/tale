@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 239 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 240 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1657,6 +1657,20 @@ output:
       and returned. Testing it again starts from the data last used. Up to
       a node: the dialog `automations.stepTest.upToTitle` runs the draft up
       to it, the strip reads `automations.try.upTo`.
+- [ ] `AUTO-F179` · **On a version whose tests fail, deploy it; then change
+      the draft, save it and open the version picker** → the deploy is
+      refused once: the alert reads `automations.versions.deployRefused` with
+      `automations.tests.deployRefused`, the Tests dock opens with focus on
+      the first test that failed, and no dialog shows (on a phone the sheet
+      opens instead, and its description repeats the refusal for a screen
+      reader, which cannot reach the alert behind it); deployed with a draft
+      on screen, the dialog `automations.deploy.refused.testsFailing` says it
+      instead. While the save runs the tests, its button reads
+      `automations.detail.saveVersionTesting`; a screen reader then hears
+      `automations.tests.savedWithTests`, and no error toast shows even when
+      a test fails. The picker's tests icon and the Versions table's Tests
+      column read `automations.versions.testsCount` with
+      `automations.versions.testsChecked`.
 
 ## Boundary & error tests
 

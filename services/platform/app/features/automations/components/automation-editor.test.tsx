@@ -58,6 +58,10 @@ const {
     detailError: undefined as Error | undefined,
     deployedDetailError: undefined as Error | undefined,
     realDetailRead: false,
+    /** The version's kept test check, when the test wants one. */
+    testReport: undefined as unknown,
+    /** The workbench is below `lg`: its panels are sheets. */
+    compact: false,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -323,7 +327,7 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
     // No version has a kept test report unless a test says so.
-    useAutomationTestReport: () => ({ data: undefined }),
+    useAutomationTestReport: () => ({ data: state.testReport }),
     // The stored trigger the deploy notice turns on: a weekday schedule.
     useAutomationTriggers: () => ({
       data: [
@@ -355,6 +359,20 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       isPending: false,
       isError: false,
     }),
+  };
+});
+
+// Only the workbench's own query is forced; every other query answers as it
+// would without the mock.
+vi.mock('@tale/ui/use-media-query', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@tale/ui/use-media-query')>();
+  return {
+    ...actual,
+    useMediaQuery: (query: string) =>
+      query === '(width < 64rem)' && state.compact
+        ? true
+        : actual.useMediaQuery(query),
   };
 });
 
@@ -619,6 +637,8 @@ beforeEach(() => {
   state.detailError = undefined;
   state.deployedDetailError = undefined;
   state.realDetailRead = false;
+  state.testReport = undefined;
+  state.compact = false;
   refetch.mockClear();
   validationMock.status = 'ready';
   validationMock.errors = [];
@@ -3072,6 +3092,279 @@ describe('AutomationEditor tests', () => {
     tests: [{ name: 'smoke', input: {}, expect: { output: 'ok' } }],
   };
   const testsButton = () => screen.getByRole('button', { name: /^Tests/ });
+
+  /** Two tests, the second of which the deploy gate found failing. */
+  const twoTests = {
+    ...withTests,
+    tests: [
+      { name: 'smoke', input: {}, expect: { output: 'ok' } },
+      {
+        name: 'big order',
+        input: { quantity: 1000 },
+        expect: { output: 'ok' },
+      },
+    ],
+  };
+  const gateReport = {
+    passed: 1,
+    failed: 1,
+    results: [
+      { name: 'smoke', index: 0, pass: true, ms: 4 },
+      { name: 'big order', index: 1, pass: false, ms: 6 },
+    ],
+  };
+  const testsRefusal = {
+    data: {
+      code: 'AUTOMATION_TESTS_FAILING',
+      message: 'deploy gate: the automation has failing tests',
+      report: gateReport,
+    },
+  };
+
+  it('opens Tests on a deploy its tests refused, with focus on the first that failed', async () => {
+    state.document = twoTests;
+    deploy.mutateAsync.mockImplementationOnce(() => {
+      // The gate keeps its check on the version; the write's hint brings it
+      // to the page.
+      state.testReport = {
+        report: { checkedAt: 1, ...gateReport },
+        testsPassed: false,
+        testsCheckedAt: 1,
+        via: 'deploy',
+        by: 'user-me',
+      };
+      return Promise.reject(testsRefusal);
+    });
+    const { user } = renderPage({ organizationId: 'org-tests-gate' });
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      await screen.findByText('One of its tests fails. Tests shows which.'),
+    ).toBeVisible();
+    expect(screen.getByText('This version was not deployed')).toBeVisible();
+    const dock = screen.getByRole('region', { name: 'Tests' });
+    const failed = within(dock).getByRole('button', {
+      name: /^Failed: big order/,
+    });
+    await waitFor(() => expect(failed).toHaveFocus());
+    expect(testsButton()).toHaveAccessibleName(/1 failed/);
+    // The refusal is said on the page, not again in a dialog.
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  /** A deploy that waits for the gate's answer, which the test gives. */
+  function pendingDeploy() {
+    let refuse: (error: unknown) => void = () => undefined;
+    deploy.mutateAsync.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+    return (error: unknown) => refuse(error);
+  }
+  /** The check the gate keeps on the version, as the report read answers. */
+  const keptCheck = (report: typeof gateReport) => ({
+    report: { checkedAt: 1, ...report },
+    testsPassed: false,
+    testsCheckedAt: 1,
+    via: 'deploy',
+    by: 'user-me',
+  });
+
+  it('moves focus to the failing test once the check is listed, not before', async () => {
+    state.document = twoTests;
+    deploy.mutateAsync.mockRejectedValueOnce(testsRefusal);
+    const props = { organizationId: 'org-tests-late' };
+    const { user, rerender } = renderPage(props);
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    const dock = await screen.findByRole('region', { name: 'Tests' });
+    // The panel is open and the check has not come in: nothing to focus yet.
+    expect(within(dock).queryByRole('button', { name: /^Failed:/ })).toBeNull();
+    state.testReport = keptCheck(gateReport);
+    rerender(page(props));
+    const failed = await within(dock).findByRole('button', {
+      name: /^Failed: big order/,
+    });
+    await waitFor(() => expect(failed).toHaveFocus());
+  });
+
+  it('counts a test that could not run among those the gate refused', async () => {
+    state.document = twoTests;
+    state.testReport = keptCheck({
+      passed: 0,
+      failed: 2,
+      results: [
+        { name: 'smoke', index: 0, pass: true, ms: 4 },
+        {
+          name: 'big order',
+          index: 1,
+          pass: false,
+          ms: 6,
+          // Refused by the check: the test never ran.
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fixture's result carries a failure the gate's report type leaves out
+          failures: [{ kind: 'refused', issues: [] }],
+        } as (typeof gateReport.results)[number],
+      ],
+    });
+    deploy.mutateAsync.mockRejectedValueOnce(testsRefusal);
+    const { user } = renderPage({ organizationId: 'org-tests-error' });
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    const dock = await screen.findByRole('region', { name: 'Tests' });
+    const row = await within(dock).findByRole('button', {
+      name: /^Couldn't run: big order/,
+    });
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it('leaves the reader typing where they are, with Tests open', async () => {
+    state.document = twoTests;
+    state.testReport = keptCheck(gateReport);
+    const refuse = pendingDeploy();
+    const { user } = renderPage({ organizationId: 'org-tests-typing' });
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    act(() => whenField().focus());
+    act(() => refuse(testsRefusal));
+    const dock = await screen.findByRole('region', { name: 'Tests' });
+    await within(dock).findByRole('button', { name: /^Failed: big order/ });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(whenField()).toHaveFocus();
+  });
+
+  it('says a refusal as the page is when the answer comes: a draft begun meanwhile gets the dialog', async () => {
+    state.document = twoTests;
+    const refuse = pendingDeploy();
+    const { user } = renderPage({ organizationId: 'org-tests-draft' });
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    // The gate is still running the tests: the reader begins an edit.
+    await editTheNode(user);
+    act(() => refuse(testsRefusal));
+    expect(
+      await screen.findByText("The tests of v3 fail, so it can't go live."),
+    ).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Tests' })).toBeNull();
+  });
+
+  it('drops the alert with the version it refused', async () => {
+    state.document = twoTests;
+    deploy.mutateAsync.mockRejectedValueOnce(testsRefusal);
+    const props = { organizationId: 'org-tests-version' };
+    const { user, rerender } = renderPage(props);
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      await screen.findByText('One of its tests fails. Tests shows which.'),
+    ).toBeVisible();
+    // The reader saves a fixed version: it is not the one refused.
+    state.version = 4;
+    rerender(page(props));
+    await waitFor(() =>
+      expect(
+        screen.queryByText('One of its tests fails. Tests shows which.'),
+      ).toBeNull(),
+    );
+  });
+
+  it('puts the refusal into the Tests sheet a phone opens, which hides the alert behind it', async () => {
+    state.compact = true;
+    state.document = twoTests;
+    state.testReport = keptCheck(gateReport);
+    deploy.mutateAsync.mockRejectedValueOnce(testsRefusal);
+    const { user } = renderPage({ organizationId: 'org-tests-phone' });
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Tests' });
+    expect(sheet).toHaveAccessibleDescription(
+      /This version was not deployed\. One of its tests fails\. Tests shows which\./,
+    );
+    const failed = await within(sheet).findByRole('button', {
+      name: /^Failed: big order/,
+    });
+    await waitFor(() => expect(failed).toHaveFocus());
+  });
+
+  it('says it without a count when the refusal names none', async () => {
+    state.document = twoTests;
+    deploy.mutateAsync.mockRejectedValueOnce({
+      data: { code: 'AUTOMATION_TESTS_FAILING', message: 'tests fail' },
+    });
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      await screen.findByText('Its tests fail. Tests shows which.'),
+    ).toBeVisible();
+  });
+
+  it('counts the tests the gate found failing in the alert', async () => {
+    state.document = twoTests;
+    deploy.mutateAsync.mockRejectedValueOnce({
+      data: {
+        ...testsRefusal.data,
+        report: {
+          passed: 0,
+          failed: 2,
+          results: [
+            { name: 'smoke', index: 0, pass: false, ms: 4 },
+            { name: 'big order', index: 1, pass: false, ms: 6 },
+          ],
+        },
+      },
+    });
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      await screen.findByText('2 of its tests fail. Tests shows which.'),
+    ).toBeVisible();
+  });
+
+  it('leaves a deploy its tests refused to the dialog while a draft is on screen', async () => {
+    state.document = twoTests;
+    deploy.mutateAsync.mockRejectedValueOnce(testsRefusal);
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      await screen.findByText("The tests of v3 fail, so it can't go live."),
+    ).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Tests' })).toBeNull();
+  });
+
+  it('says politely how the tests a save ran went, failing ones too, with no toast', async () => {
+    state.document = twoTests;
+    saveMutation.mutateAsync = vi.fn().mockResolvedValue({
+      name: 'billing/dunning',
+      version: 4,
+      testsPassed: false,
+      tests: { passed: 1, failed: 1, total: 2 },
+    });
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    const announcer = () =>
+      screen
+        .getAllByRole('status')
+        .find((element) => element.dataset.slot === 'tests-announcer');
+    await waitFor(() =>
+      expect(announcer()).toHaveTextContent(
+        'Saved version 4 · 1 of 2 tests passed',
+      ),
+    );
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it('says a save waits for its tests too', async () => {
+    state.document = twoTests;
+    saveMutation.mutateAsync = vi.fn(() => new Promise(() => {}));
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    saveMutation.isPending = true;
+    rerender(page());
+    expect(
+      screen.getByRole('button', { name: 'Saving and running tests…' }),
+    ).toHaveAttribute('aria-busy', 'true');
+  });
 
   it('opens the Tests tab beside Problems, and a test from its row', async () => {
     state.document = withTests;

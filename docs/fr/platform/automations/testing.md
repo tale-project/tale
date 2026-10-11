@@ -9,7 +9,7 @@ Un test exécute une automatisation avec une entrée de ton choix et vérifie ce
 
 Dans l’[éditeur de workflow](/fr/platform/automations/editor), sélectionne **Tests** à côté de **Problèmes**. Le bouton compte les résultats, par exemple deux coches vertes et une croix rouge, et ouvre l’onglet **Tests** du panneau sous le canevas ; l’autre onglet est **Problèmes**. Sur un téléphone, la liste s’ouvre dans un panneau à part.
 
-Chaque ligne est un test, dans l’ordre du document : son statut, son nom et, pour un test en échec, la première chose qui n’allait pas. La ligne au-dessus de la liste dit d’où viennent les résultats : **Exécuté sur ton brouillon**, ou la dernière vérification de la version, par exemple **Vérifié au déploiement de la version 3** avec la date. Un test affiche **Pas encore exécuté** tant qu’il n’a pas de résultat, **N'a pas pu s'exécuter** quand l’automatisation elle-même n’a pas pu s’exécuter, et **Modifié depuis ce résultat** dès que l’automatisation ou le test a changé après son exécution ; ce résultat reste affiché, pour que tu voies ce qui l’a changé.
+Chaque ligne est un test, dans l’ordre du document : son statut, son nom et, pour un test en échec, la première chose qui n’allait pas. La ligne au-dessus de la liste dit d’où viennent les résultats : **Exécuté sur ton brouillon**, ou la dernière vérification de la version, par exemple **Vérifié à la mise en service de la version 3** avec la date. Un test affiche **Pas encore exécuté** tant qu’il n’a pas de résultat, **N'a pas pu s'exécuter** quand l’automatisation elle-même n’a pas pu s’exécuter, et **Modifié depuis ce résultat** dès que l’automatisation ou le test a changé après son exécution ; ce résultat reste affiché, pour que tu voies ce qui l’a changé.
 
 <Frame caption="Tout exécuter sur les remises de commande : le test de la grosse commande échoue, et son résultat dit ce que la sortie aurait dû être.">
 
@@ -83,6 +83,8 @@ Une fois des tests exécutés, la ligne au-dessus de la liste indique combien de
 ## Exécuter les tests
 
 **Tout exécuter** exécute chaque test, et **Exécuter** dans le menu d’une ligne ou dans le test ouvert en exécute un seul. Avec des modifications non enregistrées, les tests s’exécutent sur ton brouillon. Sans, ils s’exécutent sur la version affichée, et une exécution de tous ses tests devient le résultat des tests de cette version, marqué **Vérifié manuellement**.
+
+Chaque version garde sa dernière vérification, et [Versions](/fr/platform/automations/editor#versions) l’affiche, par exemple **2 tests sur 3 réussis · vérifié à la mise en service**. Quand des tests en échec bloquent une mise en service, **Tests** s’ouvre avec le focus sur le premier test en échec.
 
 Les tests s’exécutent toujours en simulation : un connecteur, un modèle ou un agent répond par une réponse de substitution, et rien n’est envoyé ni modifié hors de Tale. Un test s’arrête au bout de 10 secondes, et une exécution de tous les tests au bout de 60 secondes. Si beaucoup de tests viennent de s’exécuter dans ton organisation, Tale te demande d’attendre quelques secondes et indique combien.
 

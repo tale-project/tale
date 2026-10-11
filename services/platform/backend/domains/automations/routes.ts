@@ -1231,6 +1231,8 @@ export function createAutomationRoutes(deps: {
       const store = pgAutomationStore(deps.sql, scope);
       let storeError: unknown;
       let saved: SavedVersion | undefined;
+      /** How the tests the save ran went, for the editor to say. */
+      let checked: { passed: number; failed: number } | undefined;
       const result = await dispatch(
         'save_automation',
         {
@@ -1240,8 +1242,14 @@ export function createAutomationRoutes(deps: {
         {
           store: {
             ...store,
-            save: (automation, message, options) =>
-              saveVersion(deps.sql, {
+            save: (automation, message, options) => {
+              if (options?.testReport !== undefined) {
+                checked = {
+                  passed: options.testReport.passed,
+                  failed: options.testReport.failed,
+                };
+              }
+              return saveVersion(deps.sql, {
                 ...scope,
                 name: nameFrom(c, 'save'),
                 document: automation,
@@ -1282,17 +1290,28 @@ export function createAutomationRoutes(deps: {
                   storeError = error;
                   throw error;
                 },
-              ),
+              );
+            },
           },
         },
       );
       if (storeError !== undefined) throw storeError;
-      // What the new version changed, beside the engine's answer.
+      // What the new version changed, and how many of its tests passed,
+      // beside the engine's answer.
       return (
         authoringRefusal(c, result) ??
         c.json(
-          isRecord(result) && saved?.changes !== undefined
-            ? { ...result, changes: saved.changes }
+          isRecord(result)
+            ? {
+                ...result,
+                ...(saved?.changes !== undefined && { changes: saved.changes }),
+                ...(checked !== undefined && {
+                  tests: {
+                    ...checked,
+                    total: checked.passed + checked.failed,
+                  },
+                }),
+              }
             : result,
           201,
         )

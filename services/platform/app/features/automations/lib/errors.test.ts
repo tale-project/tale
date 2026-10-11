@@ -11,6 +11,7 @@ import {
 
 import {
   automationDeploymentStale,
+  automationErrorFailedTests,
   automationErrorIssues,
   automationErrorMessage,
   automationVersionStale,
@@ -150,6 +151,36 @@ describe('automationErrorIssues', () => {
     ).toBeUndefined();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('automationErrorFailedTests', () => {
+  const refusal = (report: unknown) =>
+    new AppError({
+      code: 'AUTOMATION_TESTS_FAILING',
+      message: 'deploy gate: the automation has failing tests',
+      report,
+    });
+
+  it('reads how many tests the gate found failing', () => {
+    expect(
+      automationErrorFailedTests(
+        refusal({ passed: 3, failed: 2, results: [] }),
+      ),
+    ).toBe(2);
+  });
+
+  it('answers nothing for a refusal that names no count', () => {
+    expect(automationErrorFailedTests(refusal(undefined))).toBeUndefined();
+    expect(automationErrorFailedTests(refusal({ passed: 3 }))).toBeUndefined();
+    expect(automationErrorFailedTests(refusal({ failed: 0 }))).toBeUndefined();
+    expect(
+      automationErrorFailedTests(refusal({ failed: 1.5 })),
+    ).toBeUndefined();
+    expect(
+      automationErrorFailedTests(refusal({ failed: '2' })),
+    ).toBeUndefined();
+    expect(automationErrorFailedTests(new Error('boom'))).toBeUndefined();
   });
 });
 

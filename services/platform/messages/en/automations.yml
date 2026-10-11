@@ -146,6 +146,7 @@ detail:
   deployVersion: 'Deploy v{version}'
   runMock: Test run
   saveVersion: Save version
+  saveVersionTesting: Saving and running tests…
   saveMessageLabel: Version message
   saveMessageDescription: What changed, so the version list stays readable.
   saveDialog:
@@ -701,6 +702,8 @@ versions:
   deployRefused: This version was not deployed
   testsPassed: Tests passed
   testsFailed: Tests failed
+  testsCount: '{total, plural, one {{passed} of # test passed} other {{passed} of # tests passed}}'
+  testsChecked: '{via, select, save {checked on save} deploy {checked on deploy} manual {checked by hand} other {checked}} · {date}'
   noMessage: No message
   caption: Versions of this automation
   description: Every saved version, the one that is live, and when each went live. A run keeps the version it started with.
@@ -1136,6 +1139,9 @@ tests:
   showOnCanvas: Show on the canvas
   rowActions: 'More for {name}'
   deleted: 'Deleted the test {name}.'
+  deployRefused: '{count, plural, one {One of its tests fails. Tests shows which.} other {# of its tests fail. Tests shows which.}}'
+  deployRefusedNoCount: Its tests fail. Tests shows which.
+  savedWithTests: '{total, plural, one {Saved version {version} · {passed} of # test passed} other {Saved version {version} · {passed} of # tests passed}}'
   unnamed: 'Test {number}'
   empty:
     title: No tests yet
@@ -1143,7 +1149,7 @@ tests:
   source:
     notRun: Not run yet
     draft: Run on your draft
-    checked: '{via, select, save {Checked when version {version} was saved} deploy {Checked when version {version} was deployed} other {Checked by hand}} · {date}'
+    checked: '{via, select, save {Checked when version {version} was saved} deploy {Checked when deploying version {version}} manual {Checked by hand} other {Checked}} · {date}'
   runFailed: "Couldn't run the tests."
   invalid: "{count, plural, one {The tests run once the automation passes its checks. Problems lists the # problem to fix.} other {The tests run once the automation passes its checks. Problems lists the # problems to fix.}}"
   rateLimited: '{seconds, plural, one {Many tests ran just now. Try again in # second.} other {Many tests ran just now. Try again in # seconds.}}'

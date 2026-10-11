@@ -34,6 +34,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAutomationVersionHistory } from '../../hooks/queries';
 import type { DeployVersion } from '../../hooks/use-deploy-version';
+import { versionTestsWords } from '../../lib/automation-tests/version-tests';
 import { compareVersionLink, editorVersionLink } from '../../lib/detail-paths';
 import { changeFlags } from '../../lib/version-changes';
 import { VersionAuthor } from './version-author';
@@ -232,17 +233,29 @@ export function VersionHistoryTable({
       {
         id: 'tests',
         header: t('versions.columns.tests'),
-        size: 130,
+        size: 190,
         cell: ({ row }) => {
           const status = testStatusOf(row.original);
+          const words = versionTestsWords(row.original, {
+            t,
+            formatDate: (date) => formatDate(date, 'long'),
+            verdict: (passed) => testStatusLabel(passed ? 'passed' : 'failed'),
+          });
           return (
-            <span className="flex items-center gap-1.5 text-sm">
-              <TestStatusIcon status={status} />
-              {/* No verdict was kept: the version may have no tests at all,
-                  so it is no promise that they will run. */}
-              {status === 'not-run'
-                ? t('versions.testsNone')
-                : testStatusLabel(status)}
+            <span className="flex flex-col gap-0.5 text-sm">
+              <span className="flex items-center gap-1.5">
+                <TestStatusIcon status={status} />
+                {/* No verdict was kept: the version may have no tests at
+                    all, so it is no promise that they will run. */}
+                {words === null ? t('versions.testsNone') : words.summary}
+              </span>
+              {words?.checked !== undefined && (
+                // Balanced, so a narrow column breaks after the act rather
+                // than inside the date.
+                <span className="text-muted-foreground text-xs text-balance">
+                  {words.checked}
+                </span>
+              )}
             </span>
           );
         },

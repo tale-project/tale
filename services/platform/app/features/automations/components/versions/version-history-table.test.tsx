@@ -163,6 +163,28 @@ describe('VersionHistoryTable', () => {
     expect(within(row(/^v5/)).getByText('No result')).toBeVisible();
   });
 
+  it('counts the tests a check ran, and says which act made it and when', () => {
+    page.results = [
+      version(2, {
+        testsPassed: false,
+        testsCheckedAt: 1_791_300_000_000,
+        tests: { passed: 2, failed: 1, total: 3, via: 'save' },
+      }),
+      version(1, {
+        testsCheckedAt: 1_791_000_000_000,
+        tests: { passed: 1, failed: 0, total: 1 },
+      }),
+    ];
+    renderTable({ latestVersion: 2, liveVersion: 1 });
+    const second = row(/^v2/);
+    expect(within(second).getByText('2 of 3 tests passed')).toBeVisible();
+    expect(
+      within(second).getByText(/^checked on save · \w+ \d+, 2026/),
+    ).toBeVisible();
+    // A check from before the act was kept claims none.
+    expect(within(row(/^v1/)).getByText(/^checked · /)).toBeVisible();
+  });
+
   it('opens what a version changed from its row, and compares it with live from its menu', async () => {
     const { user } = renderTable();
     await user.click(within(row(/^v2/)).getByText('Change 2'));

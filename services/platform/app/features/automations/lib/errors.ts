@@ -84,6 +84,17 @@ export function automationErrorIssues(
   return { errors, warnings };
 }
 
+/** How many tests failed in the check that refused a deploy
+ * (`AUTOMATION_TESTS_FAILING`); undefined when the refusal says no count. */
+export function automationErrorFailedTests(error: unknown): number | undefined {
+  const report = errorData(error)?.report;
+  if (typeof report !== 'object' || report === null) return undefined;
+  const failed = (report as { failed?: unknown }).failed;
+  return typeof failed === 'number' && Number.isInteger(failed) && failed > 0
+    ? failed
+    : undefined;
+}
+
 /** One problem a refused trigger save named (`AUTOMATION_TRIGGER_INVALID`). */
 export interface TriggerRefusalIssue {
   path: string;

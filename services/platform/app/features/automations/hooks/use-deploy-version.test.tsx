@@ -204,6 +204,40 @@ describe('useDeployVersion', () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
+  it('asks the page about a refusal as the page is when the answer comes', async () => {
+    cleanup();
+    const first = vi.fn(() => true);
+    const second = vi.fn(() => true);
+    function Late({ onRefused }: { onRefused: () => boolean }) {
+      const deployer = useDeployVersion({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        onRefused,
+      });
+      useLayoutEffect(() => {
+        api = deployer;
+      });
+      return null;
+    }
+    const { rerender } = render(<Late onRefused={first} />);
+    let refuse: (error: unknown) => void = () => undefined;
+    mutateAsync.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+    await deploy(3, 2);
+    // The reader began an edit while the gate ran the tests.
+    rerender(<Late onRefused={second} />);
+    const refusal = { data: { code: 'AUTOMATION_TESTS_FAILING' } };
+    await act(async () => {
+      refuse(refusal);
+      await Promise.resolve();
+    });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(refusal, 3);
+  });
+
   it('says any other failure in a toast with the reason', async () => {
     mutateAsync.mockRejectedValueOnce({
       data: { code: 'SOMETHING', message: 'The store is read-only.' },

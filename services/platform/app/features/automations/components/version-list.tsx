@@ -20,6 +20,10 @@ import { useId } from 'react';
 import { useT } from '@/lib/i18n/client';
 import type { AutomationWriteVia } from '@/lib/shared/schemas/automation-versions';
 
+import {
+  versionTestsWords,
+  type VersionTests,
+} from '../lib/automation-tests/version-tests';
 import { editorVersionLink, versionsTabLink } from '../lib/detail-paths';
 import { VersionAuthor } from './versions/version-author';
 
@@ -30,6 +34,9 @@ export interface AutomationVersionSummary {
   version: number;
   message: string | null;
   testsPassed: boolean | null;
+  /** When its tests were last checked, and how many passed of how many. */
+  testsCheckedAt?: number | null;
+  tests?: VersionTests['tests'];
   createdBy: string;
   createdAt: number;
   createdVia?: AutomationWriteVia | null;
@@ -111,6 +118,19 @@ export function VersionList({
       >
         {ordered.map((entry) => {
           const isDeployed = entry.version === deployedVersion;
+          // How its tests went: how many passed, and how and when checked.
+          const words = versionTestsWords(entry, {
+            t,
+            formatDate: (date) => formatDate(date, 'long'),
+            verdict: (passed) =>
+              t(passed ? 'versions.testsPassed' : 'versions.testsFailed'),
+          });
+          const testWords =
+            words === null
+              ? null
+              : words.checked === undefined
+                ? words.summary
+                : `${words.summary} · ${words.checked}`;
           // A version saved without a message keeps an empty one.
           const message =
             entry.message === null || entry.message.trim() === ''
@@ -205,21 +225,11 @@ export function VersionList({
                       </span>
                     </Tooltip>
                   )}
-                  {entry.testsPassed !== null && (
-                    <Tooltip
-                      content={t(
-                        entry.testsPassed
-                          ? 'versions.testsPassed'
-                          : 'versions.testsFailed',
-                      )}
-                    >
+                  {testWords !== null && (
+                    <Tooltip content={testWords}>
                       <span
                         role="img"
-                        aria-label={t(
-                          entry.testsPassed
-                            ? 'versions.testsPassed'
-                            : 'versions.testsFailed',
-                        )}
+                        aria-label={testWords}
                         className={
                           entry.testsPassed
                             ? 'shrink-0 text-green-800 dark:text-green-300'

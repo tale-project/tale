@@ -10,6 +10,7 @@ import type {
   TestRow,
 } from '../../hooks/use-automation-tests';
 import {
+  AutomationTestsSheet,
   TestsPanelActions,
   TestsPanelContent,
   type AddTestSources,
@@ -108,6 +109,49 @@ const RECORD = {
   view: { nodes: [] },
   details: [],
 } as unknown as TransientRecord;
+
+describe('the Tests sheet', () => {
+  it('carries what the page said behind it in its own description, which a modal sheet hides the page from', () => {
+    render(
+      <AutomationTestsSheet
+        open
+        onOpenChange={() => {}}
+        tests={controller()}
+        canEdit
+        activeIndex={null}
+        onOpen={() => {}}
+        onAdd={() => {}}
+        onDeleted={() => {}}
+        listRef={createRef<TestResultListHandle>()}
+        notice="This version was not deployed. One of its tests fails. Tests shows which."
+      />,
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Tests' }),
+    ).toHaveAccessibleDescription(
+      /1 passed, 1 failed This version was not deployed\. One of its tests fails\./,
+    );
+  });
+
+  it('describes only its counts when nothing stands behind it', () => {
+    render(
+      <AutomationTestsSheet
+        open
+        onOpenChange={() => {}}
+        tests={controller()}
+        canEdit
+        activeIndex={null}
+        onOpen={() => {}}
+        onAdd={() => {}}
+        onDeleted={() => {}}
+        listRef={createRef<TestResultListHandle>()}
+      />,
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Tests' }),
+    ).not.toHaveAccessibleDescription(/not deployed/);
+  });
+});
 
 describe('the Tests panel', () => {
   it('lays a test’s run over the canvas from its row, when its result keeps the steps', async () => {

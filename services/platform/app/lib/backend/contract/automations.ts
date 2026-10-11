@@ -344,12 +344,16 @@ export interface AutomationsContract {
     };
     /** `warnings` are the problems the save let through — they never
      * refuse one (`lib/shared/schemas/automation-issues.ts` reads them);
-     * `changes`, what the version changed against the one before it. */
+     * `changes`, what the version changed against the one before it;
+     * `tests`, how the document's tests went when the save ran them —
+     * absent for a document without tests. */
     returns: {
       name: string;
       version: number;
       warnings?: unknown[];
       changes?: VersionHistory['versions'][number]['changes'];
+      testsPassed?: boolean;
+      tests?: { passed: number; failed: number; total: number };
     };
   };
   'automations/mutations:setApprovalAllowances': {

@@ -21,6 +21,7 @@ import {
   nodeTypeCatalogSchema,
   type NodeTypeCatalog,
 } from '@/lib/shared/schemas/node-type-catalog';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import type {
   ActionQueryAdapter,
@@ -845,6 +846,11 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         },
       ),
     invalidate: invalidateAutomations,
+    // The gate writes the version's test verdict and report before it
+    // refuses for failing tests, so the reads that show them are stale; the
+    // write's hint says so too, but a refusal must not wait for the stream.
+    refusalInvalidates: (error) =>
+      backendErrorCode(error) === 'AUTOMATION_TESTS_FAILING',
   },
   // A try stores nothing, so it invalidates nothing.
   'automations/mutations:tryAutomation': {

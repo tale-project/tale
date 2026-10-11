@@ -280,6 +280,6 @@ describe('useAutomationTests', () => {
     };
     render(<Harness slug="ops/with-report" />);
     expect(api.rows.map((row) => row.status)).toEqual(['passed', 'not-run']);
-    expect(api.source).toMatch(/^Checked when version 4 was deployed · /);
+    expect(api.source).toMatch(/^Checked when deploying version 4 · /);
   });
 });

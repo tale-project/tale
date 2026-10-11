@@ -431,6 +431,10 @@ export interface TestsSheetProps extends TestsPanelProps {
   /** The sheet is closing because the reader opened a test: focus moves
    * on to the test's own sheet, not back to the Tests button. */
   handingOn?: boolean;
+  /** What the page said that this sheet now stands over — a refused deploy:
+   * the sheet is modal, so a screen reader cannot reach the alert behind
+   * it, and the sentence is part of the sheet's own description instead. */
+  notice?: string;
 }
 
 /** The Tests panel below `lg`, where there is no room under the canvas: a
@@ -439,6 +443,7 @@ export function AutomationTestsSheet({
   open,
   onOpenChange,
   handingOn = false,
+  notice,
   ...panel
 }: TestsSheetProps) {
   const { t } = useT('automations');
@@ -447,7 +452,19 @@ export function AutomationTestsSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t('tests.title')}
-      description={<TestsCountsText tests={panel.tests} />}
+      description={
+        <>
+          <TestsCountsText tests={panel.tests} />
+          {/* The space keeps the two sentences apart in the description's
+              text, whether or not an engine spaces its block children. */}
+          {notice !== undefined && (
+            <>
+              {' '}
+              <span className="block">{notice}</span>
+            </>
+          )}
+        </>
+      }
       actions={
         <TestsPanelActions
           tests={panel.tests}
