@@ -104,6 +104,15 @@ function start(f: ReturnType<typeof fixture>) {
   });
 }
 
+// Skipped where there is no bash 4+ to run the script (a Mac with only its
+// /bin/bash 3.2); where the suite is expected to run it, that is a failure, so
+// a missing bash cannot turn the three runs below into a green that ran nothing.
+test('a bash that can run the script is there wherever CI runs this suite', () => {
+  if (process.env.CI !== undefined && process.env.CI !== '') {
+    expect(modernBash).toBe(true);
+  }
+});
+
 describe('the standby script', () => {
   test.skipIf(!modernBash)(
     'waits for a complete claim, then becomes the entrypoint',
