@@ -294,8 +294,10 @@ older tag also force-moves `dist/ui` and `dist/marketing-ui` back to the tagged 
     ghcr.io/tale-project/tale/tale-platform:X.Y.Z
   ```
 - The Publish packages run for `vX.Y.Z` concluded `success`, and `ui-vX.Y.Z` and
-  `marketing-ui-vX.Y.Z` exist. Each names a snapshot whose commit message ends with
-  `from <sha>`.
+  `marketing-ui-vX.Y.Z` exist. A newly created snapshot records `from <sha>` at the end
+  of its commit message. A preserved existing tag may have an older message: the publisher
+  accepts it only when its snapshot tree exactly matches the selected release's package.
+  Use that run's source binding and tree comparison to verify a no-op publication.
 
 CLI publication dispatched on a tag requires the exact `release_tag` input to match that ref,
 and its resolved commit (including annotated tags) to match the dispatch commit before building.
