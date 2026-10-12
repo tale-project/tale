@@ -270,10 +270,15 @@ as if it did not exist, so its existence never leaks.
 
 An image is booked to the person chatting and to the chat's project, if it has one. A budget
 limit that applies to them refuses the image before the image model is called, and holds
-nothing.
+nothing. While an admitted image is being made it holds its estimate on the reply it belongs
+to, and gives the hold back there: an image that finishes after its reply has ended lowers
+nothing on the next reply, and is still booked.
 
 - **Example**: Mia's monthly cap is spent. Her chat asks for an image → refused with the cap's
   reason; the image model is not called.
+- **Example**: Mia stops a reply while an image is being made and sends a new message at once.
+  The image finishes after the new reply began → it is booked to Mia, and the new reply's hold
+  is unchanged.
 
 ### CHAT-R23 · One reply creates at most 16 images
 
@@ -297,7 +302,9 @@ again, and every file stays in the sandbox for the next run.
 However many tools the assistant asks for in one step, at most 16 run and the rest answer that
 they did not. A step's tools run for at most five minutes. While they run, the reply stays
 alive and Stop is heard: Stop, or the end of the five minutes, tells every running tool to
-stop, and code is cut off in its sandbox.
+stop, and code is cut off in its sandbox — asked again a few times if the sandbox does not
+know the program yet. Files a stopped program had already written stay in its output folder
+and are attached by the next run.
 
 - **Example**: Mia's assistant asks for 20 files in one step → 16 are made and the other four
   answer that they did not run; it can ask again in the next step.
@@ -315,8 +322,10 @@ files, skills and code off until it is repaired, rather than back on.
 
 ### CHAT-R27 · What a code run reports back is bounded however many files it wrote
 
-At most ten new or changed files attach, as ever. Of the others, a short list is named and the
-rest are counted; the sandbox keeps them all.
+At most ten new or changed files attach, as ever. A run looks at the 200 files of the output
+folder written most recently; of the others, a short list is named and the rest are counted,
+and the sandbox keeps them all. A file already delivered stays recorded as delivered while it
+is out of view.
 
 - **Example**: Mia's code writes 3,000 files to its output folder → the reply attaches ten,
   names twenty of the others and says how many more there are.
