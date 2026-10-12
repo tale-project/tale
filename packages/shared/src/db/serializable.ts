@@ -13,6 +13,8 @@
  * within the same transaction (see services/backend `addJobInTx`).
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import type { ReservedSql, TransactionSql } from 'postgres';
 
 import { isTransientDbError, withRetry, type RetryOptions } from './retry.ts';
@@ -90,6 +92,20 @@ function jitteredSleep(ms: number): Promise<void> {
  */
 
 const RETRY_QUEUE_KEY = Symbol.for('tale.db.retryQueueKey');
+const attemptQueueKeys = new AsyncLocalStorage<string[]>();
+
+/**
+ * Remember a queue whose lock this callback takes, in acquisition order.
+ * PostgreSQL can reject COMMIT after the callback has returned successfully;
+ * that failure cannot pass through the callback's error markers. The wrapper
+ * retains these keys until COMMIT, including locks acquired in a savepoint,
+ * so the next snapshot is queued on them too. Outside this wrapper, no keys
+ * are retained. A statement failure keeps its existing, more specific marks.
+ */
+export function registerRetryQueueKey(key: string): void {
+  const keys = attemptQueueKeys.getStore();
+  if (keys !== undefined && !keys.includes(key)) keys.push(key);
+}
 
 /**
  * Advisory-lock class shared by every retry queue: the session lock the
@@ -331,10 +347,21 @@ export function transactSerializable<T>(
 ): Promise<T> {
   let queueKeys: readonly string[] | undefined;
   const reserve = sql.reserve?.bind(sql);
-  const attempt = (): Promise<T> =>
-    queueKeys !== undefined && reserve !== undefined
-      ? beginQueued(reserve, queueKeys, callback)
-      : sql.begin('isolation level serializable', callback);
+  const attempt = async (): Promise<T> => {
+    const keys: string[] = [];
+    const work = (tx: TransactionSql): Promise<T> =>
+      attemptQueueKeys.run(keys, () => callback(tx));
+    try {
+      return await (queueKeys !== undefined && reserve !== undefined
+        ? beginQueued(reserve, queueKeys, work)
+        : sql.begin('isolation level serializable', work));
+    } catch (error) {
+      if (retryQueueKeysOf(error).length === 0) {
+        for (const key of [...keys].reverse()) markRetryQueueKey(error, key);
+      }
+      throw error;
+    }
+  };
   const isTransient =
     options.isTransient ??
     ((error: unknown) =>

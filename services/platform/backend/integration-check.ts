@@ -157,6 +157,7 @@ import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts'
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
+import { checkTaskCommentCommitRetry } from './domains/tasks/comments-commit.integration.ts';
 import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
@@ -64642,6 +64643,10 @@ async function main(): Promise<void> {
       [
         'checkTaskCommentCrossTaskBurst',
         () => checkTaskCommentCrossTaskBurst(sql, authCtx),
+      ],
+      [
+        'checkTaskCommentCommitRetry',
+        () => checkTaskCommentCommitRetry(sql, authCtx, record),
       ],
       [
         'checkRateLimitShapes',

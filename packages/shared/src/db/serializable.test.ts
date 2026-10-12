@@ -6,6 +6,7 @@ import {
   localQueueDepth,
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
+  registerRetryQueueKey,
   retryQueueKeyOf,
   retryQueueKeysOf,
   transactSerializable,
@@ -241,6 +242,138 @@ describe('markRetryQueueKey', () => {
 });
 
 describe('transactSerializable — retry queues', () => {
+  function commitFailureRunner(failure: Error) {
+    const state = createQueueRunner([]);
+    const begin = state.runner.begin.bind(state.runner);
+    state.runner.begin = async <T>(
+      options: string,
+      callback: (tx: TransactionSql) => Promise<T>,
+    ): Promise<T> => {
+      const result = await begin(options, callback);
+      if (state.beginAttempts() === 1) throw failure;
+      return result;
+    };
+    return state;
+  }
+
+  it('retains acquired keys in order across awaits until a rejected COMMIT', async () => {
+    const failure = sqlstateError('40001');
+    const state = commitFailureRunner(failure);
+    const result = await transactSerializable(
+      state.runner,
+      async () => {
+        registerRetryQueueKey('task-comment:t_commit');
+        await Promise.resolve();
+        registerRetryQueueKey('task-comments:org_commit');
+        registerRetryQueueKey('task-comment:t_commit');
+        return 'done';
+      },
+      { sleep: noSleep },
+    );
+    expect(result).toBe('done');
+    expect(state.beginAttempts()).toBe(1);
+    expect(state.reservations).toHaveLength(1);
+    expect(retryQueueKeysOf(failure)).toEqual([
+      'task-comment:t_commit',
+      'task-comments:org_commit',
+    ]);
+    expect(
+      state.reservations[0]?.statements
+        .filter((statement) =>
+          statement.text.startsWith('SELECT pg_advisory_lock'),
+        )
+        .map((statement) => statement.values[1]),
+    ).toEqual(['task-comment:t_commit', 'task-comments:org_commit']);
+  });
+
+  it('does not mark a terminal COMMIT failure or reserve a retry', async () => {
+    const failure = sqlstateError('23505');
+    const state = commitFailureRunner(failure);
+    await expect(
+      transactSerializable(
+        state.runner,
+        () => {
+          registerRetryQueueKey('task-comment:t_commit');
+          return Promise.resolve('never');
+        },
+        { sleep: noSleep },
+      ),
+    ).rejects.toBe(failure);
+    expect(retryQueueKeysOf(failure)).toEqual([]);
+    expect(state.beginAttempts()).toBe(1);
+    expect(state.reservations).toHaveLength(0);
+  });
+
+  it('keeps callback failure marks instead of replacing them with acquired keys', async () => {
+    const state = createQueueRunner([]);
+    let calls = 0;
+    await transactSerializable(
+      state.runner,
+      () => {
+        calls++;
+        registerRetryQueueKey('outer');
+        return calls === 1
+          ? Promise.reject(markRetryQueueKey(sqlstateError('40001'), 'inner'))
+          : Promise.resolve('done');
+      },
+      { sleep: noSleep },
+    );
+    expect(state.reservations[0]?.statements[0]?.values[1]).toBe('inner');
+    expect(
+      state.reservations[0]?.statements.filter((statement) =>
+        statement.text.startsWith('SELECT pg_advisory_lock'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('never carries keys from a completed transaction or an outside registration', async () => {
+    await transactSerializable(createRunner([]).runner, () => {
+      registerRetryQueueKey('previous');
+      return Promise.resolve();
+    });
+    registerRetryQueueKey('outside');
+    const state = commitFailureRunner(sqlstateError('40001'));
+    await transactSerializable(state.runner, () => Promise.resolve('done'), {
+      sleep: noSleep,
+    });
+    expect(state.beginAttempts()).toBe(2);
+    expect(state.reservations).toHaveLength(0);
+  });
+
+  it('keeps concurrent callbacks acquired keys separate', async () => {
+    let initialCallbacks = 0;
+    let release = () => {};
+    const bothEntered = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const states = ['first', 'second'].map((key) => ({
+      key,
+      state: commitFailureRunner(sqlstateError('40001')),
+    }));
+    await Promise.all(
+      states.map(({ key, state }) =>
+        transactSerializable(
+          state.runner,
+          async () => {
+            registerRetryQueueKey(key);
+            if (state.beginAttempts() === 1) {
+              initialCallbacks++;
+              if (initialCallbacks === 2) release();
+              await bothEntered;
+            }
+            return 'done';
+          },
+          { sleep: noSleep },
+        ),
+      ),
+    );
+    for (const { key, state } of states) {
+      expect(state.beginAttempts()).toBe(1);
+      expect(state.reservations).toHaveLength(1);
+      expect(state.reservations[0]?.statements[0]?.values[1]).toBe(key);
+    }
+  });
+
   it('runs the retry after a marked failure queued on the key', async () => {
     const { runner, beginAttempts, reservations } = createQueueRunner([
       markRetryQueueKey(sqlstateError('40001'), queueKey),
