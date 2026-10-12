@@ -99,6 +99,30 @@ describe('automated start budget after a broker cooldown [TASK-R12]', () => {
     ).resolves.toEqual({ admitted: false, retryAfter: NOW - 4_000 + HOUR_MS });
   });
 
+  it('does not spend the circuit on the first two consecutive credential rotations', async () => {
+    await expect(
+      admit([
+        run(NOW - 1_000, { failureCode: 'credential_rotated' }),
+        run(NOW - 2_000, { failureCode: 'credential_rotated' }),
+        run(NOW - 3_000),
+        run(NOW - 4_000),
+        run(NOW - 5_000),
+      ]),
+    ).resolves.toEqual({ admitted: false, retryAfter: NOW - 5_000 + HOUR_MS });
+  });
+
+  it('counts a third consecutive credential rotation so a dead grant still closes the circuit', async () => {
+    await expect(
+      admit([
+        run(NOW - 1_000, { failureCode: 'credential_rotated' }),
+        run(NOW - 2_000, { failureCode: 'credential_rotated' }),
+        run(NOW - 3_000, { failureCode: 'credential_rotated' }),
+        run(NOW - 4_000),
+        run(NOW - 5_000),
+      ]),
+    ).resolves.toEqual({ admitted: false, retryAfter: NOW - 5_000 + HOUR_MS });
+  });
+
   it('keeps three actual starts counted and bases retryAfter on the oldest counted start', async () => {
     await expect(
       admit([

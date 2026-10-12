@@ -373,6 +373,7 @@ async function fetchBrokerJson(
   row: CredentialRow,
   broker: BrokerCredentialData,
   transport?: BrokerTransport,
+  options: { forceRefresh?: boolean } = {},
 ): Promise<unknown> {
   let response;
   try {
@@ -381,7 +382,10 @@ async function fetchBrokerJson(
       return safeFetch(broker.endpoint, {
         allowPrivateAddresses: privateProviderHostsAllowed(),
         method: broker.httpMethod,
-        headers: buildBrokerAuthHeaders(broker.auth, brokerAuthSecret(broker)),
+        headers: {
+          ...buildBrokerAuthHeaders(broker.auth, brokerAuthSecret(broker)),
+          ...(options.forceRefresh ? { 'x-tale-force-refresh': '1' } : {}),
+        },
         timeoutMs: Math.min(broker.timeoutMs, remainingMs),
         ...(signal !== undefined ? { signal } : {}),
         maxResponseBytes: broker.maxResponseBytes,
@@ -481,7 +485,11 @@ async function resolveBrokerPool(
   broker: BrokerCredentialData,
   transport?: BrokerTransport,
 ): Promise<ResolvedProviderCredential> {
-  const json = await fetchBrokerJson(row, broker, transport);
+  const json = await fetchBrokerJson(row, broker, transport, {
+    // A retry after a broker-served 401 must give the gateway a chance to
+    // rotate the grant even when its expiry and usage cache look fresh.
+    forceRefresh: (args.excludeBrokerTokenHashes?.length ?? 0) > 0,
+  });
   const diagnostics = diagnoseTokenMapping(
     json,
     broker.responseMapping,

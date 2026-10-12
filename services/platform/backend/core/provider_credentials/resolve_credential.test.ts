@@ -575,6 +575,25 @@ describe('resolveProviderCredential — subscription-broker host policy', () => 
     const [, options] = mockedFetch.mock.calls[0] ?? [];
     expect(options).not.toHaveProperty('allowedHosts');
   });
+
+  it('asks the gateway to refresh after a broker-served retry', async () => {
+    mockedFetch.mockResolvedValue(poolResponse());
+    await resolveProviderCredential(
+      ctxServingBroker('https://broker.example/pool'),
+      {
+        organizationId: ORG,
+        providerSlug: 'anthropic',
+        excludeBrokerTokenHashes: ['previous-account'],
+      },
+    );
+
+    const [, options] = mockedFetch.mock.calls[0] ?? [];
+    expect(options).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-tale-force-refresh': '1' }),
+      }),
+    );
+  });
 });
 
 describe('credentialRetryAtMs', () => {

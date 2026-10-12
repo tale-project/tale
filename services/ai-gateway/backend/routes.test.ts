@@ -464,6 +464,20 @@ describe('the token endpoints', () => {
     expect(handOutTokens).toHaveBeenCalledWith('openai');
   });
 
+  it('passes the broker retry refresh signal only to the token door', async () => {
+    const { call, handOutTokens } = build();
+    await call('/api/tokens/openai', {
+      headers: {
+        ...withKey,
+        'x-tale-force-refresh': '1',
+      },
+    });
+
+    expect(handOutTokens).toHaveBeenCalledWith('openai', {
+      forceRefresh: true,
+    });
+  });
+
   it('never leaks one vendor’s token through the other’s endpoint', async () => {
     const { call } = build();
     const anthropic = await (

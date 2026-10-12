@@ -97,6 +97,13 @@ curl localhost:3004/api/tokens/anthropic -H "Authorization: Bearer $AI_GATEWAY_A
 curl localhost:3004/api/tokens/openai    -H "Authorization: Bearer $AI_GATEWAY_API_KEY"
 ```
 
+The platform adds `X-Tale-Force-Refresh: 1` when retrying a broker-served
+inference after a vendor 401. The API-key token door then refreshes the stored
+grant before handing the pool back, even when the cached expiry and usage
+reading still look fresh; ordinary handouts keep the normal staggered refresh
+policy. Forced handouts retain terminal re-authentication states and the
+retry pause after a transient refresh failure.
+
 ```json
 {
   "tokens": [

@@ -207,7 +207,11 @@ export function createApi(options: ApiOptions) {
    */
   api.get('/tokens', requireApiKey, async (c) =>
     c.json({
-      tokens: (await accounts.handOutTokens()).map(serializeToken),
+      tokens: (
+        await (c.req.header('x-tale-force-refresh') === '1'
+          ? accounts.handOutTokens(undefined, { forceRefresh: true })
+          : accounts.handOutTokens())
+      ).map(serializeToken),
     }),
   );
 
@@ -229,7 +233,14 @@ export function createApi(options: ApiOptions) {
         404,
       );
     }
-    const tokens = await accounts.handOutTokens(provider);
+    // A platform retry after a broker-served 401 asks the gateway to rotate
+    // the stored grant before it vends again. The header is deliberately
+    // narrow and only honored on the API-key token door; ordinary handouts
+    // keep the normal expiry/usage refresh policy.
+    const tokens =
+      c.req.header('x-tale-force-refresh') === '1'
+        ? await accounts.handOutTokens(provider, { forceRefresh: true })
+        : await accounts.handOutTokens(provider);
     return c.json({ tokens: tokens.map(serializeToken) });
   });
 
