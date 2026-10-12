@@ -1,0 +1,37 @@
+'use client';
+
+import { Text } from '@tale/ui/text';
+import { type ComponentType, type ReactNode } from 'react';
+
+import { cn } from '../../lib/cn';
+
+interface EmptyPlaceholderProps {
+  icon?: ComponentType<{ className?: string }>;
+  children: ReactNode;
+  className?: string;
+}
+
+export function EmptyPlaceholder({
+  icon: Icon,
+  children,
+  className,
+}: EmptyPlaceholderProps) {
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-dashed p-8 text-center',
+        className,
+      )}
+    >
+      {Icon && (
+        <Icon
+          className="text-muted-foreground/50 mx-auto mb-2 size-8"
+          aria-hidden="true"
+        />
+      )}
+      <Text as="div" variant="muted">
+        {children}
+      </Text>
+    </div>
+  );
+}
