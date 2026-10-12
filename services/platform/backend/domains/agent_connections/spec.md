@@ -4,10 +4,60 @@
 
 A person can connect a coding agent to an organization by signing in from the agent on Tale's
 MCP endpoint. The organization keeps one record of each connection: who connected which app, with
-which access, and when and why it ended; the endpoint's own count of calls says when it was last
-used. These rules cover who sees a connection and who ends it, what ending one takes away, and what
-ends one without anyone asking. How an agent signs in, what the consent page offers and what a call
-may do with the access it was given are left to Not yet.
+which access, and when and why it ended; the endpoint's own count of calls says when it was last used.
+These rules cover who may connect an agent and with which access, who sees a connection and who ends
+it, what ending one takes away, and what ends one without anyone asking. What the consent page looks
+like and what a call may do with the access it was given are left to Not yet.
+
+## Connecting an agent
+
+|                                            | Owner, admin or developer | Member with a key-using competence | Any other member |
+| ------------------------------------------ | ------------------------- | ---------------------------------- | ---------------- |
+| Connect an agent to this organization      | yes                       | yes                                | no               |
+| Allow "Edit" and "Edit and deploy"         | yes                       | no                                 | no               |
+| Allow reading, testing and reading settings | yes                       | yes                                | no               |
+
+### AGCONN-R7 · A person connects an agent only to an organization they may hold an API key in
+
+Connecting an agent takes what holding a personal API key takes, read for that one organization: the
+Owner, Admin or Developer role there, or a live competence there whose door is reached with a key.
+The person chooses the organization on the consent page (`AGENT_CONSENT_ORG_REQUIRED`), must be an
+active member of it (`ORG_FORBIDDEN`) and may connect an agent there (`AGENT_CONNECT_FORBIDDEN`); an
+unverified address or a two-factor enrollment that is due refuses it too (`IDENTITY_NOT_ELIGIBLE`).
+Another organization's role or competence never counts.
+
+- **Example**: Noah is a member of Acme with no such competence, and a developer at Beta. He connects
+  Cursor to Acme → refused. He connects it to Beta → connected.
+
+### AGCONN-R8 · A connection never gets more access than the person's role allows
+
+The consent offers only the access the role allows in that organization, and an agent is always
+allowed to read and test. Asking to allow more than the role allows is refused
+(`AGENT_SCOPE_NOT_ALLOWED`, naming it), and so is allowing access that leaves out reading and
+testing (`AGENT_SCOPE_MCP_REQUIRED`). Staying signed in is not a choice: an agent that asked for it
+keeps it.
+
+- **Example**: Mia, a member, asks to let Claude Code edit automations → refused, naming the edit
+  access. She allows reading and settings reading → connected.
+
+### AGCONN-R9 · Access beyond reading needs a sign-in from the last day
+
+Allowing an agent to edit, deploy, change settings or connect a subscription takes a session that
+began within the last day (`SESSION_NOT_FRESH`); the person confirms their password first. Reading
+and testing, and reading settings, do not.
+
+- **Example**: Ada signed in two days ago and picks "Edit" → she confirms her password first. Picking
+  "Read and test" needs nothing more.
+
+### AGCONN-R10 · The connection is recorded before the agent's code is handed over
+
+When the person allows an agent, the connection is recorded first, for the organization they chose,
+with the app, where it came from, the access allowed and the host Tale sends them back to. If it cannot
+be recorded, the agent gets no code and the person is told to try again
+(`AGENT_CONNECTION_UNAVAILABLE`).
+
+- **Example**: Ada allows Claude Code while the database is unreachable → she is told to try again, and
+  Claude Code never receives a code to sign in with.
 
 ## Who sees and ends a connection
 
@@ -65,7 +115,7 @@ the platform, with the reason.
 - **Example**: Ada connects Claude Code with "Edit", later allows "Edit and deploy", then Olav
   disconnects it → three rows: connected, access changed, disconnected by an admin.
 
-### AGCONN-R6 · An app is connected once for a person and an organization; allowing again changes its access
+### AGCONN-R6 · Allowing an app again changes its access; it never adds a second connection
 
 When a person allows an app that is already connected to this organization, the same connection takes
 the access they allow now, rather than a second connection appearing. Two consents at once leave one.
@@ -77,8 +127,8 @@ An app that was disconnected and is allowed again makes a new connection.
 
 ## Not yet
 
-- How an agent signs in and what the consent page offers, the organization a connection is made for
-  and the access it is given, and what a call may do with that access are not covered yet.
+- What the consent page shows and how it reads, and what a call may do with the access a connection was
+  given (the MCP door checking the connection on every call), are not covered yet.
 - A password change or reset, an admin's sign-out of every session, and an account's deletion should
   disconnect the person's agents too; only leaving an organization does today.
 - A refresh token that is used twice, which should disconnect the agent and tell the person, is not

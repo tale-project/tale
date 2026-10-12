@@ -323,14 +323,16 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     // an unsupported grant).
     const early = await oauthTokenPrecheck(c.req.raw);
     if (early !== null) return early;
-    // A coding agent's registration and authorization are checked before
-    // the provider sees them, and a failed token request is charged to its
-    // source (`auth/agent-oauth.ts`); everything else passes as it came.
+    // A coding agent's registration, authorization and consent are checked
+    // before the provider sees them, and a failed token request is charged
+    // to its source (`auth/agent-oauth.ts`); everything else passes as it
+    // came.
     const answer = await withAgentOAuth(
       requestWithMintedCookie(c.req.raw),
       {
         sql: deps.sql,
         options: agentOAuth,
+        session: (headers) => deps.auth.api.getSession({ headers }),
         clientIp: async () =>
           getClientIp(c.req.raw.headers, await loadTrustedProxies(), {
             peer: nodePeerAddress(c.env),

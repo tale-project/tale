@@ -270,7 +270,7 @@ export async function listAgentConnections(
   return { connections, canSeeEveryone };
 }
 
-/** The signed-in person ending a connection here, as the audit rows name
+/** The signed-in person acting on a connection here, as the audit rows name
  * them. */
 export interface AgentConnectionViewer {
   userId: string;
@@ -278,6 +278,34 @@ export interface AgentConnectionViewer {
   email?: string;
   ip?: string;
   userAgent?: string;
+}
+
+/** The person as an audit row names its actor: their address and the
+ * network they came from, in the form the organization's audit policy
+ * keeps. */
+export async function agentConnectionActor(
+  viewer: AgentConnectionViewer,
+): Promise<AgentConnectionAuditActor> {
+  const emailParts =
+    viewer.email === undefined ? {} : await splitEmailForAudit(viewer.email);
+  const ipParts =
+    viewer.ip === undefined ? {} : await splitIpForAudit(viewer.ip);
+  return {
+    actorId: viewer.userId,
+    actorType: 'user',
+    actorRole: viewer.role,
+    ...(emailParts.plaintext === undefined
+      ? {}
+      : { actorEmail: emailParts.plaintext }),
+    ...(emailParts.hash === undefined
+      ? {}
+      : { actorEmailHash: emailParts.hash }),
+    ...(ipParts.plaintext === undefined
+      ? {}
+      : { ipAddress: ipParts.plaintext }),
+    ...(ipParts.hash === undefined ? {} : { actorIpHash: ipParts.hash }),
+    ...(viewer.userAgent === undefined ? {} : { userAgent: viewer.userAgent }),
+  };
 }
 
 /**
@@ -295,12 +323,7 @@ export async function disconnectAgent(
     viewer: AgentConnectionViewer;
   },
 ): Promise<{ id: string }> {
-  const emailParts =
-    args.viewer.email === undefined
-      ? {}
-      : await splitEmailForAudit(args.viewer.email);
-  const ipParts =
-    args.viewer.ip === undefined ? {} : await splitIpForAudit(args.viewer.ip);
+  const actor = await agentConnectionActor(args.viewer);
   return sql.begin(async (tx) => {
     const row = (
       await tx<{ id: string; userId: string }[]>`
@@ -323,24 +346,7 @@ export async function disconnectAgent(
       connectionIds: [row.id],
       reason: own ? 'user' : 'admin',
       revokedBy: args.viewer.userId,
-      actor: {
-        actorId: args.viewer.userId,
-        actorType: 'user',
-        actorRole: args.viewer.role,
-        ...(emailParts.plaintext === undefined
-          ? {}
-          : { actorEmail: emailParts.plaintext }),
-        ...(emailParts.hash === undefined
-          ? {}
-          : { actorEmailHash: emailParts.hash }),
-        ...(ipParts.plaintext === undefined
-          ? {}
-          : { ipAddress: ipParts.plaintext }),
-        ...(ipParts.hash === undefined ? {} : { actorIpHash: ipParts.hash }),
-        ...(args.viewer.userAgent === undefined
-          ? {}
-          : { userAgent: args.viewer.userAgent }),
-      },
+      actor,
     });
     return { id: row.id };
   });

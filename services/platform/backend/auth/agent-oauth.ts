@@ -27,6 +27,11 @@ import {
   checkKeyedRateLimit,
   RateLimitExceededError,
 } from '../lib/rate-limit.ts';
+import {
+  type AgentConsentDeps,
+  agentConsentGate,
+  CONSENT_PATH,
+} from './agent-consent.ts';
 import { type AgentOAuthOptions, agentSignInOn } from './agent-oauth-config.ts';
 
 /**
@@ -55,6 +60,10 @@ const AUTH_MOUNT = '/api/auth';
 const REGISTER_PATH = `${AUTH_MOUNT}/oauth2/register`;
 const AUTHORIZE_PATH = `${AUTH_MOUNT}/oauth2/authorize`;
 const TOKEN_PATH = `${AUTH_MOUNT}/oauth2/token`;
+
+/** A token request is a handful of form fields; a body past this is not one
+ * this can read, and the provider's own limits apply. */
+const TOKEN_REQUEST_BYTES = 64 * 1024;
 
 /** Where a protected resource's metadata lives (RFC 9728 §3). */
 export const PROTECTED_RESOURCE_METADATA_PATH =
@@ -678,19 +687,84 @@ export async function chargeTokenFailure(
 
 // ------------------------------------------------------------ the mount
 
+/** The grant a token request names, or null when it names none or is not
+ * one this can read. */
+async function grantTypeOf(request: Request): Promise<string | null> {
+  const declared = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(declared) && declared > TOKEN_REQUEST_BYTES) return null;
+  const text = await request.clone().text();
+  if (text.length > TOKEN_REQUEST_BYTES) return null;
+  const media = (request.headers.get('content-type') ?? '')
+    .split(';')[0]
+    ?.trim()
+    .toLowerCase();
+  if (
+    media !== undefined &&
+    /^application\/([a-z0-9.+-]*\+)?json$/.test(media)
+  ) {
+    try {
+      const parsed: unknown = JSON.parse(text);
+      return isRecord(parsed) && typeof parsed.grant_type === 'string'
+        ? parsed.grant_type
+        : null;
+    } catch (error) {
+      console.warn(
+        '[agent-oauth] a token request whose body is not the JSON it claims to be:',
+        error instanceof Error ? error.name : 'unknown',
+      );
+      return null;
+    }
+  }
+  return new URLSearchParams(text).get('grant_type');
+}
+
+/**
+ * A refresh the provider refused as an identity that is no longer eligible
+ * — the person left the organization the agent was connected to, or the
+ * organization has since blocked them — answered as the RFC says: the grant
+ * is no longer valid (`invalid_grant`), which an agent reads as "sign in
+ * again", rather than the 403 the provider's claims hook raises. A code
+ * exchange keeps its refusal as it was; so does every other answer.
+ */
+async function refreshRefusal(
+  request: Request,
+  response: Response,
+): Promise<Response> {
+  if (response.status !== 403) return response;
+  if ((await grantTypeOf(request)) !== 'refresh_token') return response;
+  let body: unknown;
+  try {
+    body = JSON.parse(await response.clone().text());
+  } catch (error) {
+    console.warn(
+      '[agent-oauth] a refused refresh whose answer is not JSON:',
+      error instanceof Error ? error.name : 'unknown',
+    );
+    return response;
+  }
+  if (!isRecord(body) || body.message !== 'IDENTITY_NOT_ELIGIBLE') {
+    return response;
+  }
+  return oauthErrorAnswer(
+    400,
+    'invalid_grant',
+    'the person can no longer use the organization this connection was made for',
+  );
+}
+
 /**
  * The agent sign-in steps around the provider's handler at the auth mount:
  * registration and authorization are checked (and rewritten) before it, a
- * failed token request is charged after it, and every other request passes
- * through untouched.
+ * consent for agent access is made only for an organization the person may
+ * connect an agent to, a refused refresh is answered as an invalid grant and
+ * a failed token request is charged to its source after it, and every other
+ * request passes through untouched.
  */
 export async function withAgentOAuth(
   request: Request,
   deps: {
-    readonly sql: Sql;
-    readonly clientIp: () => Promise<string>;
     readonly options: AgentOAuthOptions;
-  },
+  } & AgentConsentDeps,
   handle: (request: Request) => Promise<Response>,
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
@@ -704,8 +778,12 @@ export async function withAgentOAuth(
   ) {
     return handle(await authorizePrecheck(request, deps));
   }
+  if (request.method === 'POST' && path === CONSENT_PATH) {
+    return agentConsentGate(request, deps, handle);
+  }
   if (request.method === 'POST' && path === TOKEN_PATH) {
-    return chargeTokenFailure(deps.sql, deps.clientIp, await handle(request));
+    const answer = await refreshRefusal(request, await handle(request));
+    return chargeTokenFailure(deps.sql, deps.clientIp, answer);
   }
   return handle(request);
 }

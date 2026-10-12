@@ -47,6 +47,7 @@ import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { checkAuditEventOrder } from './audit-order.integration.ts';
+import { checkAgentConsent } from './auth/agent-consent-integration.ts';
 import {
   agentLaneMetadataFetch,
   checkAgentOAuth,
@@ -65621,6 +65622,7 @@ async function main(): Promise<void> {
         () => checkNativeIdentity(sql, baseUrl, auth, record),
       ],
       ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
+      ['checkAgentConsent', () => checkAgentConsent(sql, baseUrl, record)],
       [
         'checkAgentConnections',
         () => checkAgentConnections(sql, baseUrl, record),

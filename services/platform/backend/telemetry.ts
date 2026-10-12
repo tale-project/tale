@@ -73,6 +73,7 @@ export const httpDuration = new client.Histogram({
 /** Mounted app domains only. Unknown paths share one series; an arbitrary
  * first path segment is just as unbounded as a document id further down. */
 const APP_ROUTE_DOMAINS: ReadonlySet<string> = new Set([
+  'agent-connections',
   'agent-secrets',
   'api-keys',
   'approvals',

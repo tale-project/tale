@@ -746,7 +746,12 @@ describe('the agent sign-in steps at the auth mount', () => {
           : new Response('ok'),
       );
     };
-    const deps = { sql, clientIp, options: OPTIONS };
+    const deps = {
+      sql,
+      clientIp,
+      options: OPTIONS,
+      session: () => Promise.resolve(null),
+    };
     const refused = await withAgentOAuth(
       registration({ redirect_uris: ['https://evil.example/cb'] }),
       deps,
@@ -780,5 +785,94 @@ describe('the agent sign-in steps at the auth mount', () => {
     const session = new Request(`${SITE}/api/auth/get-session`);
     await withAgentOAuth(session, deps, handle);
     expect(seen.at(-1)).toBe(session);
+  });
+});
+describe('a refresh the provider refused as an ineligible identity [AGCONN-R7]', () => {
+  const ineligible = () =>
+    Response.json({ message: 'IDENTITY_NOT_ELIGIBLE' }, { status: 403 });
+  const run = (
+    body: string,
+    contentType: string,
+    answer: () => Response = ineligible,
+  ) => {
+    const { sql } = fakeSql({});
+    return withAgentOAuth(
+      new Request(`${SITE}/api/auth/oauth2/token`, {
+        method: 'POST',
+        headers: { 'content-type': contentType },
+        body,
+      }),
+      {
+        sql,
+        clientIp,
+        options: OPTIONS,
+        session: () => Promise.resolve(null),
+      },
+      () => Promise.resolve(answer()),
+    );
+  };
+
+  it.each([
+    [
+      'a form',
+      'grant_type=refresh_token&refresh_token=r',
+      'application/x-www-form-urlencoded',
+    ],
+    [
+      'JSON',
+      JSON.stringify({ grant_type: 'refresh_token', refresh_token: 'r' }),
+      'application/json',
+    ],
+  ])(
+    'is answered as an invalid grant, whether it came as %s',
+    async (_form, body, type) => {
+      const answered = await run(body, type);
+      expect(answered.status).toBe(400);
+      expect(answered.headers.get('cache-control')).toBe('no-store');
+      expect(await answered.json()).toEqual({
+        error: 'invalid_grant',
+        error_description:
+          'the person can no longer use the organization this connection was made for',
+      });
+    },
+  );
+
+  it('keeps the refusal of a code exchange as it was', async () => {
+    const answered = await run(
+      'grant_type=authorization_code&code=c',
+      'application/x-www-form-urlencoded',
+    );
+    expect(answered.status).toBe(403);
+    expect(await answered.json()).toEqual({ message: 'IDENTITY_NOT_ELIGIBLE' });
+  });
+
+  it.each([
+    [
+      'another refusal',
+      () => Response.json({ message: 'FORBIDDEN' }, { status: 403 }),
+    ],
+    ['an answer that is not JSON', () => new Response('no', { status: 403 })],
+    [
+      'another status',
+      () =>
+        Response.json({ message: 'IDENTITY_NOT_ELIGIBLE' }, { status: 401 }),
+    ],
+  ])('keeps %s as it was', async (_what, answer) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const answered = await run(
+      'grant_type=refresh_token&refresh_token=r',
+      'application/x-www-form-urlencoded',
+      answer,
+    );
+    expect(answered.status).not.toBe(400);
+    warn.mockRestore();
+  });
+
+  it('reads no grant from a body that is not what its media type says', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const answered = await run('{oops', 'application/json');
+    expect(answered.status).toBe(403);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
