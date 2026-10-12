@@ -125,7 +125,7 @@ Pass `baseVersion`, the version your edit started from. When someone saved a new
 
 #### Compare, restore and roll back {#versions}
 
-Every save adds a version and no version changes afterwards, so an older one is always there to read, compare and bring back. `list_versions` pages through the history, newest first: `limit` asks for a page and `nextBefore` is the `before` of the next one. Each row says who saved the version through which door and client, which version it was based on and restored from, what it changed, how its tests went and whether it is live.
+Every save adds a version whose document and package data stay unchanged while it is retained. Automation deletion or a governance retention policy can remove versions; only a retained version can be read, compared and brought back. `list_versions` answers all retained versions, newest first, when `limit` is left out. With `limit` it answers a page, and `nextBefore` is the `before` of the next one. Each row says who saved the version through which door and client, which version it was based on and restored from, what it changed, how its tests went and whether it is live.
 
 Look at what a version changes before you deploy it. `get_automation` with `against` answers the version and, beside it, a `diff` against another one: `"previous"` (the version saved before it, the default), `"deployed"` (the live version), `"latest"` or a number. The diff lists what changed node by node, in the input schema, the output, the description and the tests; `diffFormat: "unified"` answers a patch over the two versions' YAML instead, and `"both"` answers both.
 

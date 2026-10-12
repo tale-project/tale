@@ -919,23 +919,51 @@ export function pgAutomationStore(
           deployedVersion: null,
         };
       }
-      const history = await listVersionHistory(
-        sql,
-        organizationId,
-        name,
-        page ?? {},
-      );
+      // MCP has always answered the complete history without a limit. The
+      // app reader still defaults to 50; exhaust its bounded cursor pages
+      // here instead of silently applying that default to an agent's read.
+      const history = await listVersionHistory(sql, organizationId, name, {
+        ...page,
+        limit: page?.limit ?? 200,
+      });
+      const versions = [...history.versions];
+      let batch = history;
+      let before = page?.before;
+      if (page?.limit === undefined) {
+        while (batch.nextBefore !== null) {
+          const next = batch.nextBefore;
+          if (
+            !Number.isInteger(next) ||
+            next < 1 ||
+            next !== batch.versions.at(-1)?.version ||
+            (before !== undefined && next >= before)
+          ) {
+            // A broken reader is a fault, not a complete or partial history.
+            throw new Error('the automation version history did not advance');
+          }
+          before = next;
+          batch = await listVersionHistory(sql, organizationId, name, {
+            limit: 200,
+            before,
+          });
+          versions.push(...batch.versions);
+        }
+      }
       const names = await memberNamesOf(
         sql,
         organizationId,
-        history.versions.map((row) => row.createdBy),
+        versions.map((row) => row.createdBy),
       );
       return {
-        versions: history.versions.map((row) => ({
-          ...versionHistoryWire(row),
-          createdByName: names.get(row.createdBy) ?? null,
-        })),
-        nextBefore: history.nextBefore,
+        versions: versions.map((row) =>
+          Object.assign(versionHistoryWire(row), {
+            // All rows use the live pointer answered beside the history, even
+            // if a deploy lands while a complete read advances its cursor.
+            deployed: row.version === history.deployedVersion,
+            createdByName: names.get(row.createdBy) ?? null,
+          }),
+        ),
+        nextBefore: page?.limit === undefined ? null : history.nextBefore,
         latestVersion: history.latestVersion,
         deployedVersion: history.deployedVersion,
       };

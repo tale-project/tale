@@ -102,8 +102,9 @@ version again rolls back.
 
 ## Reading and bringing back versions
 
-A version never changes once it is saved, so an older one is always there to read, compare and
-bring back. What an agent reads here is what the version screens show the person (`AUTO-R47`,
+A retained version's document and package data do not change after saving. Governance retention
+or automation deletion can remove versions; only retained versions can be read, compared and
+brought back. What an agent reads here is what the version screens show the person (`AUTO-R47`,
 `AUTO-R48`), and it reaches only the automations the person may see (MCP-R9).
 
 ### MCP-R30 · An agent reads the version history a page at a time
