@@ -172,6 +172,11 @@ describe('run_code', () => {
     const exec = vi.mocked(drainSessionExecResilient).mock.calls[0]?.[1];
     expect(exec?.command).toEqual(['python3', `/agent/${staged[0]?.path}`]);
     expect(exec?.cwd).toBe('/agent/workspace');
+    // Charts keep their font cache in the workspace and draw without a screen.
+    expect(exec?.env).toEqual({
+      MPLCONFIGDIR: '/agent/workspace/.cache/matplotlib',
+      MPLBACKEND: 'Agg',
+    });
     expect(exec?.timeoutMs).toBe(60_000);
     expect(stored).toEqual([
       expect.objectContaining({
