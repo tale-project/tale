@@ -23,6 +23,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { getScimStatus } from '../scim/service.ts';
 import {
   readSsoConnection,
+  readSsoConnectionForDiscovery,
   readSsoSecrets,
   SsoConnectionReadError,
 } from './config.ts';
@@ -455,7 +456,7 @@ async function otherOrgsHaveEnabledConnections(
     SELECT "id" FROM "organization" WHERE "id" <> ${organizationId}
   `;
   for (const org of orgs) {
-    const conn = await readSsoConnection(sql, org.id);
+    const conn = await readSsoConnectionForDiscovery(sql, org.id);
     if (conn !== null && conn.config.enabled) return true;
   }
   return false;
