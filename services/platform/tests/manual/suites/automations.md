@@ -1962,7 +1962,9 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       Start reads its triggers and fields
       (`automations.canvas.start.description`); the condition reads
       `flow.gate.name` then `flow.gate.branches`; End reads what it returns
-      and how a run ends.
+      and how a run ends. The headings list (the rotor, or H) reads the
+      automation's name, **Editor** and the open box's title, with nothing
+      missing between them.
 - [ ] `AUTO-A17` · **Times of day by keyboard and screen reader** → In
       **Custom times**, keyboard only and with VoiceOver: Tab reaches each
       time's hour and minute (and, in English, AM/PM) in turn, named by its
