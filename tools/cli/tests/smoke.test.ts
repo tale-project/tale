@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import pkg from '../package.json';
+import { generateProjectId } from '../src/lib/project/generate-project-id';
 import { SCAFFOLD_DOMAINS } from '../src/lib/project/org-dirs';
+import { CURRENT_PROJECT_VERSION } from '../src/lib/project/types';
+import { writeProject } from '../src/lib/project/write-project';
 
 /**
  * Smoke tests for the compiled `tale` binary. Skipped unless TALE_BINARY
@@ -168,11 +179,18 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
   test(
     'dev from a parent dir points at the child project, not a re-init',
     async () => {
-      // init scaffolds into ./proj; running `tale dev` from the parent must
-      // guide the user to cd into it — NOT silently initialize a second
-      // project on top (the "No Tale project found. Initializing…" footgun).
-      const init = await run(['init', 'proj', '--force', '--no-env'], dir);
-      expect(init.exitCode).toBe(0);
+      // The child-project guard needs a valid descriptor, not the full
+      // embedded catalog. Keep scaffold work in the init smoke cases so it
+      // cannot consume this test's deadline before `dev` is exercised.
+      const child = join(dir, 'proj');
+      const project = {
+        version: CURRENT_PROJECT_VERSION,
+        cliVersion: pkg.version,
+        createdAt: new Date().toISOString(),
+        id: generateProjectId('proj'),
+      };
+      await mkdir(child);
+      await writeProject(join(child, 'tale.json'), project);
 
       const result = await run(['dev'], dir);
       expect(result.exitCode).toBe(1);
@@ -180,6 +198,11 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       expect(`${result.stdout}${result.stderr}`).not.toContain(
         'Initializing in current directory',
       );
+      expect(await readdir(dir)).toEqual(['proj']);
+      expect(await readdir(child)).toEqual(['tale.json']);
+      expect(
+        JSON.parse(await readFile(join(child, 'tale.json'), 'utf8')),
+      ).toEqual(project);
     },
     SMOKE_TIMEOUT,
   );

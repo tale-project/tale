@@ -638,6 +638,13 @@ expecting both binaries at that path. Linux x64 CPUs without AVX2 need
 complete `build` script regenerates inputs, builds the backend-local bundle and
 release targets, then checks the compiled bundle.
 
+`TALE_BINARY` selects the compiled executable for `tests/smoke.test.ts`; CI sets
+it on each native target. The parent-directory `dev` case uses a valid child
+project descriptor so only its guidance guard consumes that case's deadline.
+The separate `init` cases still exercise full embedded scaffolding. The source
+fixture regression runs that actual smoke case with owned subprocesses; it does
+not establish native Windows performance or compiled-binary acceptance.
+
 Generated embedded files are build inputs, not hand-authored configuration. Change
 the source catalog or template and regenerate them. Run the repository gate before
 submitting a CLI change, and verify any changed command against an isolated
