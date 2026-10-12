@@ -521,6 +521,34 @@ export const versionTestReportSchema = z.object({
 });
 
 /**
+ * What running a saved version's tests answers on the machine doors (`POST
+ * /automations/{name}/versions/{version}/tests`, `test_automation` over
+ * MCP): the report, the version it ran and — when it ran the whole suite to
+ * its end — the verdict it recorded on it.
+ */
+export const versionTestsRunSchema = testReportSchema.extend({
+  name: z.string(),
+  version: z.number().int().min(1),
+  recorded: z
+    .object({
+      version: z.number().int().min(1),
+      testsPassed: z.boolean(),
+    })
+    .optional(),
+});
+
+/**
+ * A saved version's latest test check as the REST API reads it: the app's
+ * answer (`versionTestReportSchema`) with the version it belongs to and the
+ * name of the member behind the check, while they are one.
+ */
+export const versionTestsReadSchema = versionTestReportSchema.extend({
+  name: z.string(),
+  version: z.number().int().min(1),
+  byName: z.string().nullable(),
+});
+
+/**
  * The report a saved version keeps of a run of its tests, made at
  * `checkedAt`: each result without its run, its first-failure sentence and
  * its unused stand-ins, and with its path's id only. A report past {@link

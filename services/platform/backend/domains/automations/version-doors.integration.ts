@@ -10,6 +10,9 @@
  * by name (MCP-R33, MCP-R34): the whole suite of a saved version is recorded
  * on it, a part is not, and what the runs draw from the organization's
  * budget for runs that are never stored is refused with the wait once spent.
+ * A release pipeline does the same over REST (AUTO-R55, AUTO-R56): it runs a
+ * saved version's tests, all or by name, reads the verdict the version
+ * carries and who made it, and a member's key may run them.
  * The lane deletes what it wrote before it ends. */
 import { randomUUID } from 'node:crypto';
 
@@ -120,22 +123,38 @@ export async function checkVersionDoors(
   /** One REST call on the automation, with the key's own door. */
   const rest = async (
     path: string,
-    init: { method?: string; body?: unknown; key?: string } = {},
-  ): Promise<{ status: number; body: Record<string, unknown> }> => {
-    const res = await fetch(`${base}/api/v1/automations/${slug}${path}`, {
-      method: init.method ?? 'GET',
-      headers: {
-        authorization: `Bearer ${init.key ?? ownerKey}`,
-        'x-organization-slug': orgSlug,
-        ...(init.body === undefined
-          ? {}
-          : { 'content-type': 'application/json' }),
+    init: {
+      method?: string;
+      body?: unknown;
+      key?: string;
+      slug?: string;
+    } = {},
+  ): Promise<{
+    status: number;
+    body: Record<string, unknown>;
+    retryAfter: string | null;
+  }> => {
+    const res = await fetch(
+      `${base}/api/v1/automations/${init.slug ?? slug}${path}`,
+      {
+        method: init.method ?? 'GET',
+        headers: {
+          authorization: `Bearer ${init.key ?? ownerKey}`,
+          'x-organization-slug': orgSlug,
+          ...(init.body === undefined
+            ? {}
+            : { 'content-type': 'application/json' }),
+        },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       },
-      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-    });
+    );
     const text = await res.text();
     const parsed = json.safeParse(text === '' ? {} : JSON.parse(text));
-    return { status: res.status, body: parsed.success ? parsed.data : {} };
+    return {
+      status: res.status,
+      body: parsed.success ? parsed.data : {},
+      retryAfter: res.headers.get('retry-after'),
+    };
   };
   const versionsOf = (value: Record<string, unknown>): number[] => {
     const parsed = z
@@ -681,6 +700,135 @@ export async function checkVersionDoors(
       `tests=${String(spentTests.value.code)}/${JSON.stringify(spentTests.value.data)}, run=${String(spentRun.value.code)}, after=${String(refilled.value.passed)}`,
     );
 
+    // AUTO-R55 and AUTO-R56: the same automation's second version, saved with
+    // a test that fails, run and read over REST with keys.
+    const benchSlug = benchName.replaceAll('/', '__');
+    const benchRest = (
+      path: string,
+      init: { method?: string; body?: unknown; key?: string } = {},
+    ) => rest(path, { ...init, slug: benchSlug });
+    const savedSecond = await tool('save_automation', {
+      automation: {
+        ...benchDoc,
+        description: 'with a test that fails',
+        tests: [
+          ...benchDoc.tests,
+          {
+            name: 'expects too little',
+            input: { n: 1 },
+            expect: { output: 'n=0' },
+          },
+        ],
+      },
+      message: 'a fourth test, wrong on purpose',
+      baseVersion: 1,
+    });
+    const restChecked = async () => {
+      const read = await benchRest('/versions/2/tests');
+      return read;
+    };
+    const bySaveRest = await restChecked();
+    const partRest = await benchRest('/versions/2/tests', {
+      method: 'POST',
+      body: { tests: ['doubles 2'] },
+    });
+    const afterPartRest = await restChecked();
+    const wholeRest = await benchRest('/versions/2/tests', {
+      method: 'POST',
+      body: { detail: ['output'] },
+    });
+    const afterWholeRest = await restChecked();
+    const wholeRestResults = Array.isArray(wholeRest.body.results)
+      ? wholeRest.body.results
+      : [];
+    const failingRest = wholeRestResults.find((result) =>
+      isRecordWith(result, 'name', 'expects too little'),
+    );
+    const unknownRest = await benchRest('/versions/2/tests', {
+      method: 'POST',
+      body: { tests: ['expects to little'] },
+    });
+    const byMember = await benchRest('/versions/2/tests', {
+      method: 'POST',
+      body: { tests: ['doubles 5'] },
+      key: memberKey,
+    });
+    const noSuchVersion = await benchRest('/versions/99/tests', {
+      method: 'POST',
+    });
+    const readNoSuchVersion = await benchRest('/versions/99/tests');
+    record(
+      'over REST the tests of a saved version run all or by name, the whole suite is recorded on the version as made by hand with the key and read back with who, and a member’s key may run them [AUTO-R55]',
+      !savedSecond.isError &&
+        bySaveRest.status === 200 &&
+        bySaveRest.body.testsPassed === false &&
+        bySaveRest.body.via === 'save' &&
+        partRest.status === 200 &&
+        partRest.body.passed === 1 &&
+        partRest.body.failed === 0 &&
+        !('recorded' in partRest.body) &&
+        isRecordWith(afterPartRest.body, 'via', 'save') &&
+        wholeRest.status === 200 &&
+        wholeRest.body.passed === 3 &&
+        wholeRest.body.failed === 1 &&
+        isRecordWith(wholeRest.body.recorded, 'version', 2) &&
+        isRecordWith(wholeRest.body.recorded, 'testsPassed', false) &&
+        isRecordWith(
+          isRecordOf(isRecordOf(failingRest)?.run),
+          'status',
+          'success',
+        ) &&
+        afterWholeRest.status === 200 &&
+        afterWholeRest.body.via === 'manual' &&
+        afterWholeRest.body.testsPassed === false &&
+        afterWholeRest.body.by === `api-key:${userId}` &&
+        afterWholeRest.body.byName === ownerName &&
+        unknownRest.status === 400 &&
+        unknownRest.body.code === 'INVALID_BODY' &&
+        byMember.status === 200 &&
+        byMember.body.passed === 1 &&
+        noSuchVersion.status === 404 &&
+        noSuchVersion.body.code === 'AUTOMATION_VERSION_UNKNOWN' &&
+        readNoSuchVersion.status === 404,
+      `save=${bySaveRest.status}/${String(bySaveRest.body.via)}, part=${partRest.status}/${String(partRest.body.passed)}/${String(partRest.body.recorded)}, after part=${String(afterPartRest.body.via)}, whole=${wholeRest.status}/${JSON.stringify(wholeRest.body.recorded)}, after whole=${String(afterWholeRest.body.via)}/${String(afterWholeRest.body.by)}/${String(afterWholeRest.body.byName)}, unknown=${unknownRest.status}/${String(unknownRest.body.code)}, member=${byMember.status}, v99=${noSuchVersion.status}/${String(noSuchVersion.body.code)}`,
+    );
+    const storedReport = isRecordOf(afterWholeRest.body.report);
+    const storedResults = Array.isArray(storedReport?.results)
+      ? storedReport.results
+      : [];
+    const storedFailing = storedResults.find((result) =>
+      isRecordWith(result, 'name', 'expects too little'),
+    );
+    const storedFailures = isRecordOf(storedFailing)?.failures;
+    record(
+      'over REST the version’s latest check reads with its report, a failing test named with what differed and no run kept [AUTO-R56]',
+      isRecordWith(storedReport, 'passed', 3) &&
+        isRecordWith(storedReport, 'failed', 1) &&
+        Array.isArray(storedFailures) &&
+        isRecordWith(storedFailures[0], 'kind', 'output') &&
+        !('run' in (isRecordOf(storedFailing) ?? {})),
+      `report=${JSON.stringify(storedReport).slice(0, 300)}`,
+    );
+
+    // The same budget over REST: spent, the call is refused with the wait.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+    (await admitBenchRuns(sql, orgId, 240))();
+    const spentRest = await benchRest('/versions/2/tests', { method: 'POST' });
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+    const refilledRest = await benchRest('/versions/2/tests', {
+      method: 'POST',
+    });
+    record(
+      'over REST a suite is refused 429 with the wait once the organization’s budget for runs that are never stored is spent, and is served again after [AUTO-R55]',
+      spentRest.status === 429 &&
+        spentRest.body.code === 'RATE_LIMITED' &&
+        spentRest.retryAfter !== null &&
+        Number(spentRest.retryAfter) >= 1 &&
+        refilledRest.status === 200 &&
+        refilledRest.body.passed === 3,
+      `spent=${spentRest.status}/${String(spentRest.body.code)}/retry-after ${String(spentRest.retryAfter)}, after=${refilledRest.status}/${String(refilledRest.body.passed)}`,
+    );
+
     // An automation installed only in a project a member cannot read is not
     // found to them on every one of these reads.
     await sql`
@@ -699,15 +847,16 @@ export async function checkVersionDoors(
       name,
       add: [projectId ?? ''],
     });
-    const hidden = await Promise.all(
-      ['/versions', '/deployments', '/compare'].map((path) =>
-        rest(path, { key: memberKey }),
+    const hidden = await Promise.all([
+      ...['/versions', '/deployments', '/compare', '/versions/1/tests'].map(
+        (path) => rest(path, { key: memberKey }),
       ),
-    );
+      rest('/versions/1/tests', { method: 'POST', key: memberKey }),
+    ]);
     const visible = await rest('/deployments');
     const hiddenMcp = await tool('list_versions', { name }, memberKey);
     record(
-      'an automation installed only in a project the member cannot read is not found to them: versions, deployments, comparison and the MCP history',
+      'an automation installed only in a project the member cannot read is not found to them: versions, deployments, comparison, tests and the MCP history',
       !installed.isError &&
         hidden.every(
           (answer) =>

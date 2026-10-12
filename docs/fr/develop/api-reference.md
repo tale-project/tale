@@ -698,6 +698,26 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/
 
 `POST /api/v1/automations/{name}/versions/{version}/restore` remet une ancienne version en place comme la plus récente, restaurée depuis elle, après les vérifications et les tests de tout enregistrement : **201** avec la nouvelle `version`, ou **200** avec `unchanged: true` quand la dernière version a déjà ce contenu et que rien n’a été enregistré. Il ne déploie jamais ; la version en service le reste. `baseVersion` est la dernière version que tu as lue, et une version enregistrée depuis refuse la restauration avec **409**, `AUTOMATION_VERSION_STALE` et `data.latestVersion`.
 
+### Exécuter les tests d’une version
+
+`POST /api/v1/automations/{name}/versions/{version}/tests` exécute avec les mocks déterministes les tests du document d’une version enregistrée, ceux que [l’éditeur exécute](/fr/platform/automations/testing). Rien ne quitte Tale et rien n’est conservé : la clé de n’importe quel membre peut donc les exécuter. Le corps est facultatif :
+
+```bash
+# Exécuter deux tests de v7 et lire ce que chaque exécution a renvoyé
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/versions/7/tests" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "tests": ["late invoice", "paid in full"], "detail": ["output"] }'
+# → 200 { "name": "billing/dunning", "version": 7, "passed": 1, "failed": 1, "results": [ … ] }
+```
+
+`tests` liste les tests à exécuter, par le nom que le document donne à chacun ; sans `tests`, tous s’exécutent. Un nom qu’aucun test ne porte, ou que deux tests portent, reçoit **400** `INVALID_BODY` et nomme les tests qui existent. Chaque entrée de `results` dit si son test a réussi et combien de temps il a pris et, pour un test qui a échoué, liste dans `failures` ce qui différait et où : chaque entrée a un `kind` (`output`, `effect_missing`, `node_state`, `run_failed`, `timeout`, etc.) et les faits qui vont avec, avec la première phrase du moteur en `message`. `detail` ajoute à chaque résultat ce que son exécution a renvoyé (`output`), aurait fait (`effects`) et traversé (`trace`, l’exécution étape par étape sous `run.record`) ; une exécution de plus de 256 Ko, ou des exécutions de plus de 384 Ko ensemble, sont omises et marquées `detailOmitted` : lance alors ce test seul pour la lire. Un test s’arrête au bout de 10 secondes et une suite au bout de 60 ; les tests que le temps de la suite n’a pas atteints sont nommés dans `notRun` et comptent comme échoués.
+
+Quand toute la suite va jusqu’au bout, le résultat est noté sur la version comme son verdict, établi à la main avec la clé : la réponse porte `recorded` (`version`, `testsPassed`) et `GET …/tests` le relit. Une partie de la suite, une version sans test (un rapport vide) et une suite dont le temps est écoulé ne notent rien. Une version qui ne passe plus les vérifications reçoit **409** `AUTOMATION_INVALID` (`data.errors` liste les problèmes). L’appel consomme une requête du budget d’exécution, avant que quoi que ce soit soit cherché, et une unité par test du budget de l’organisation pour les exécutions jamais conservées ; quand l’un des deux est épuisé, il répond **429** `RATE_LIMITED` avec `Retry-After`.
+
+`GET /api/v1/automations/{name}/versions/{version}/tests` lit ce que les tests d’une version ont trouvé en dernier : le verdict (`testsPassed`, `null` tant qu’aucun n’est noté), quand (`testsCheckedAt`), par quel acte (`via` : `save`, `deploy` ou `manual`) et qui (`by`, et `byName` tant que la personne est membre), et le `report` de cette vérification — chaque test, s’il a réussi et, pour un test qui a échoué, ce qui différait. Un rapport de plus de 64 Ko ne garde de chaque entrée de `failures` que son `kind` (`trimmed: true`). Une version jamais vérifiée répond des `null`, pas une erreur.
+
 ## Déclencheurs
 
 Un déclencheur lance une automatisation selon une planification, un appel webhook ou un événement de la plateforme. Configure-le avec `PUT /api/v1/automations/{name}/triggers`. Une automatisation possède au maximum un déclencheur : `PUT` remplace celui qui existe.

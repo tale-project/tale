@@ -714,5 +714,19 @@
  * budget, or a server with every place taken, answers `RATE_LIMITED` with
  * `data.retryAfterMs`. The refusal code `BENCH_INVALID` (`data.issue` is the
  * engine's own) joins the MCP vocabulary.
+ *
+ * 3.40.0 — 2026-10-12: a saved version's tests on the REST API, as the app
+ * and MCP run them. `POST /automations/{name}/versions/{version}/tests` runs
+ * the tests in the version's document on the mocks — all of them, or those
+ * named in `tests` — and answers the report (`passed`, `failed`, one result
+ * for each test with its typed `failures`, `notRun`); `detail` (`output`,
+ * `effects`, `trace`) adds what each run returned, did and went through. The
+ * whole suite, run to its end, is recorded on the version as its verdict, made
+ * by hand with the key (`recorded`). It draws one execution from the key
+ * holder and one unit for each test from the organization's budget for runs
+ * that are never stored (`RATE_LIMITED`, `Retry-After`); any member's key may
+ * run them. `GET /automations/{name}/versions/{version}/tests` reads the
+ * version's latest check: the verdict, when, which act made it and who, and
+ * the report. No error code joins the registry.
  */
-export const API_CONTRACT_VERSION = '3.39.0';
+export const API_CONTRACT_VERSION = '3.40.0';

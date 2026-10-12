@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.39.0",
+    "version": "3.40.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -22912,6 +22912,552 @@
         }
       }
     },
+    "/api/v1/automations/{name}/versions/{version}/tests": {
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Run a saved version’s tests",
+        "description": "Runs the tests in the version’s document on the deterministic mocks — nothing leaves Tale and nothing is stored — all of them, or those named in `tests`, by the name the document gives each (a name no test bears answers 400 `INVALID_BODY`, naming the tests there are and the nearest). Each result says whether its test passed and, for one that did not, what differed and where. `detail` adds to each result what its run returned (`output`), would have done (`effects`) and went through (`trace`, the run step by step); a run larger than 256 KB, or runs larger than 384 KB together, are left out and marked `detailOmitted`. The whole suite, run to its end, is recorded on the version as its verdict, as made by hand with this key (`recorded` says so, and `GET …/tests` reads it back); a part of the suite records nothing, nor does a suite the time ran out on (`notRun`). A test stops after 10 seconds, a suite after 60. A version with no tests answers an empty report. Any member’s key may run them. Charges the execute bucket on top of the general REST bucket — before anything is looked up — and one unit for each test from the organization’s budget for runs that are never stored, the one the app’s own tries and test runs draw from.",
+        "operationId": "runAutomationVersionTests",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The saved version whose tests to run"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "tests": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "description": "Run only these tests, by name; omitted, all of them. A name no test bears, or several do, is refused."
+                  },
+                  "detail": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                      "type": "string",
+                      "enum": ["output", "effects", "trace"]
+                    },
+                    "description": "What of each test’s run to answer beside its verdict: `output`, `effects`, `trace`. Omitted, the verdicts alone."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationTestRun"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "The version no longer passes today’s checks (`AUTOMATION_INVALID` — `data.errors` lists the problems)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request or execution budget is spent, or the organization’s budget for runs that are never stored is, or the server is already running as many as it can (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Automations"],
+        "summary": "Read a saved version’s latest test check",
+        "description": "The verdict the version carries — from its save, the deploy gate or someone running its tests — when it was judged, by which act and whom, and the report of that check. A version never checked answers nulls, not a refusal. `POST …/tests` runs the tests and records a new check.",
+        "operationId": "getAutomationVersionTests",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The saved version to read"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The version’s latest test check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationTestCheck"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{id}/automations": {
       "get": {
         "tags": ["Automations"],
@@ -44076,7 +44622,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.39.0"
+          "example": "3.40.0"
         }
       },
       "Location": {
@@ -48660,6 +49206,903 @@
             }
           }
         }
+      },
+      "AutomationTestRun": {
+        "type": "object",
+        "properties": {
+          "passed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "pass": {
+                  "type": "boolean"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "failures": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AutomationTestFailure"
+                  }
+                },
+                "ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "path": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "assignment": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "required": ["id", "assignment"]
+                },
+                "unusedMocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "run": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["success", "error", "invalid"]
+                    },
+                    "output": {},
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "nodeId": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "hint": {
+                          "type": "string"
+                        },
+                        "failure": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "params": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [null],
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "hint": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "object",
+                              "properties": {
+                                "pointer": {
+                                  "type": "string"
+                                },
+                                "range": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ]
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                }
+                              },
+                              "required": ["pointer"]
+                            },
+                            "trace": {}
+                          },
+                          "required": ["code", "reason", "params", "message"]
+                        }
+                      },
+                      "required": ["message"]
+                    },
+                    "effects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node": {
+                            "type": "string"
+                          },
+                          "connector": {
+                            "type": "string"
+                          },
+                          "input": {},
+                          "item": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "pass": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["node", "connector", "input"]
+                      }
+                    },
+                    "stoppedBy": {
+                      "type": "string",
+                      "enum": ["time_limit", "cancelled"]
+                    },
+                    "record": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "The run step by step, read as a stored run’s record is: `view` (every step in order, its status and decisions) and `details` (each step read whole)."
+                    }
+                  },
+                  "required": ["status"]
+                },
+                "detailOmitted": {
+                  "type": "boolean",
+                  "enum": [true]
+                }
+              },
+              "required": ["name", "index", "pass", "ms"]
+            }
+          },
+          "notRun": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "recorded": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "testsPassed": {
+                "type": "boolean"
+              }
+            },
+            "required": ["version", "testsPassed"]
+          }
+        },
+        "required": ["passed", "failed", "results", "name", "version"],
+        "description": "What running a saved version’s tests answers: how many passed and failed, one result for each test run — whether it passed, how long it took, and for one that did not the typed `failures` (`kind` says what differed and where) with the engine’s first sentence as `message` — the tests a suite’s time did not reach (`notRun`) and, when the whole suite ran to its end, the verdict recorded on the version (`recorded`). With `detail`, a result’s `run` holds the parts of its run that were asked for; a run too large for the answer is left out and marked `detailOmitted`."
+      },
+      "AutomationTestCheck": {
+        "type": "object",
+        "properties": {
+          "report": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "checkedAt": {
+                    "type": "number"
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "notRun": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "pass": {
+                          "type": "boolean"
+                        },
+                        "ms": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "failures": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AutomationTestFailure"
+                          }
+                        }
+                      },
+                      "required": ["name", "index", "pass", "ms"]
+                    }
+                  }
+                },
+                "required": ["checkedAt", "passed", "failed", "results"],
+                "nullable": true
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "checkedAt": {
+                    "type": "number"
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "notRun": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "trimmed": {
+                    "type": "boolean",
+                    "enum": [true]
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "pass": {
+                          "type": "boolean"
+                        },
+                        "ms": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "failures": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "refused",
+                                  "run_failed",
+                                  "run_succeeded",
+                                  "failed_elsewhere",
+                                  "failure_message",
+                                  "output",
+                                  "effect_missing",
+                                  "effect_present",
+                                  "node_state",
+                                  "timeout"
+                                ]
+                              }
+                            },
+                            "required": ["kind"]
+                          }
+                        }
+                      },
+                      "required": ["name", "index", "pass", "ms"]
+                    }
+                  }
+                },
+                "required": [
+                  "checkedAt",
+                  "passed",
+                  "failed",
+                  "trimmed",
+                  "results"
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "testsPassed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "testsCheckedAt": {
+            "type": "number",
+            "nullable": true
+          },
+          "via": {
+            "type": "string",
+            "enum": ["save", "deploy", "manual", null],
+            "nullable": true
+          },
+          "by": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "byName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "report",
+          "testsPassed",
+          "testsCheckedAt",
+          "via",
+          "by",
+          "name",
+          "version",
+          "byName"
+        ],
+        "description": "What a saved version’s tests found the last time they ran: the verdict (`testsPassed`, null while none was recorded), when (`testsCheckedAt`), which act made it (`via`: the save, the deploy gate, or someone running the tests) and who (`by`, and `byName` while that person is a member), and the `report` of that check — each test, whether it passed and how long it took, and for one that failed what differed; null when the verdict has no report of its own. A report past 64 KB keeps each failure’s `kind` alone (`trimmed`). A check is judged by the same tests `POST …/tests` runs."
+      },
+      "AutomationTestFailure": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["refused"]
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "type": "string",
+                      "enum": ["error", "warning"]
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "object",
+                      "properties": {
+                        "pointer": {
+                          "type": "string"
+                        },
+                        "range": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            ]
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "subject": {
+                          "type": "string",
+                          "enum": ["value", "key", "missing"]
+                        }
+                      },
+                      "required": ["pointer"]
+                    },
+                    "params": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "string",
+                            "enum": [null],
+                            "nullable": true
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["level", "code", "message"]
+                }
+              }
+            },
+            "required": ["kind", "issues"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["run_failed"]
+              },
+              "node": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "failure": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string",
+                          "enum": [null],
+                          "nullable": true
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["code", "reason", "params"]
+              }
+            },
+            "required": ["kind", "message"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["run_succeeded"]
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": ["kind", "expected"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["failed_elsewhere"]
+              },
+              "expectedNode": {
+                "type": "string"
+              },
+              "actualNode": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "expectedNode", "message"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["failure_message"]
+              },
+              "expected": {
+                "type": "string"
+              },
+              "actual": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "expected", "actual"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["output"]
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["exact", "includes"]
+              },
+              "mismatches": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pointer": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "added",
+                        "removed",
+                        "changed",
+                        "type-changed",
+                        "reordered",
+                        "unknown"
+                      ]
+                    },
+                    "before": {},
+                    "after": {},
+                    "beforeKind": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null",
+                        "undefined",
+                        "array",
+                        "object"
+                      ]
+                    },
+                    "afterKind": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null",
+                        "undefined",
+                        "array",
+                        "object"
+                      ]
+                    }
+                  },
+                  "required": ["pointer", "path", "kind"]
+                }
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["kind", "mode", "mismatches", "total"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["effect_missing"]
+              },
+              "entry": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "connector": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              },
+              "closest": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "mismatches": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "pointer": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          }
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "added",
+                            "removed",
+                            "changed",
+                            "type-changed",
+                            "reordered",
+                            "unknown"
+                          ]
+                        },
+                        "before": {},
+                        "after": {},
+                        "beforeKind": {
+                          "type": "string",
+                          "enum": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null",
+                            "undefined",
+                            "array",
+                            "object"
+                          ]
+                        },
+                        "afterKind": {
+                          "type": "string",
+                          "enum": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null",
+                            "undefined",
+                            "array",
+                            "object"
+                          ]
+                        }
+                      },
+                      "required": ["pointer", "path", "kind"]
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["node", "mismatches", "total"]
+              },
+              "actual": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "node": {
+                      "type": "string"
+                    },
+                    "connector": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["node", "connector"]
+                }
+              }
+            },
+            "required": ["kind", "entry", "connector", "actual"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["effect_present"]
+              },
+              "entry": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "connector": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "entry", "connector", "node"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["node_state"]
+              },
+              "node": {
+                "type": "string"
+              },
+              "expected": {
+                "type": "string",
+                "enum": ["ran", "skipped", "failed"]
+              },
+              "actual": {
+                "type": "string",
+                "enum": ["ran", "skipped", "failed", "not_run"]
+              }
+            },
+            "required": ["kind", "node", "expected", "actual"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["timeout"]
+              },
+              "limitMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["kind", "limitMs"]
+          }
+        ],
+        "description": "Why a test did not pass, by `kind`: the run could not start (`refused`, with the `issues`), it failed where the test expects success (`run_failed`), succeeded where it expects failure (`run_succeeded`), failed at another step (`failed_elsewhere`) or with another message (`failure_message`), its output differs (`output`, the first few `mismatches` and how many there are in `total`), an expected effect did not happen (`effect_missing`, with the closest effect and what happened) or one that must not did (`effect_present`), a step did not do what the test expects (`node_state`), or the test ran past its time limit (`timeout`)."
       },
       "Trigger": {
         "type": "object",

@@ -10,11 +10,13 @@ import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { compareVersions, dispatch } from '../../lib/engine/api/dispatch.ts';
+import { REPORT_DETAILS } from '../../lib/engine/api/report-details.ts';
 import { RUN_STATUSES } from '../../lib/engine/api/run-statuses.ts';
 import {
   NODE_PAGE_DEFAULT,
   NODE_PAGE_MAX,
 } from '../../lib/engine/core/record/read.ts';
+import { MAX_TESTS } from '../../lib/engine/core/test-limits.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
@@ -76,9 +78,13 @@ import {
   unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
-import { listVersionHistory } from '../domains/automations/versions.ts';
+import {
+  listVersionHistory,
+  readTestReport,
+} from '../domains/automations/versions.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
 import { requestIdOf } from '../error-reporting.ts';
+import { RateLimitExceededError } from '../lib/rate-limit.ts';
 import { runInRequestChannel } from '../lib/request-channel.ts';
 import {
   requestChannelOf,
@@ -115,6 +121,7 @@ import {
   readSignedCursor,
   requireDeveloper,
   restApiKeyId,
+  restRateLimited,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -843,6 +850,155 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         },
         unchanged ? 200 : 201,
       );
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** The 404 for a version the automation never saved. */
+  const unknownVersion = (c: Context<RestEnv>, name: string): Response =>
+    notFound(
+      c,
+      `Automation "${name}" has no version "${c.req.param('version') ?? ''}"`,
+      'AUTOMATION_VERSION_UNKNOWN',
+    );
+
+  const versionTestsBody = z
+    .object({
+      tests: z.array(nonBlank(1_000)).min(1).max(MAX_TESTS).optional(),
+      detail: z
+        .array(z.enum(REPORT_DETAILS))
+        .max(REPORT_DETAILS.length)
+        .optional(),
+    })
+    .strict();
+
+  /** Run the tests of a saved version on the mocks — all of them, or those
+   * named by their name — and answer each with whether it passed and, for
+   * one that did not, what differed (`detail` adds what each run returned,
+   * did and went through). The whole suite, run to its end, is recorded on
+   * the version as its verdict, made by hand with this key; a part of it is
+   * not. The runs happen here and draw from the organization's budget for
+   * runs that are never stored, beside the key holder's execution budget. */
+  app.post('/automations/:name/versions/:version/tests', async (c) => {
+    try {
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      const body = await parseBody(c, versionTestsBody, { optional: true });
+      if (body instanceof Response) return body;
+      // Charged once the body passed, before anything is looked up, as
+      // every request that starts work is.
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited !== null) return limited;
+      if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+        return automationNotFound(c);
+      }
+      const version = versionOfPath(c);
+      if (version === null) return unknownVersion(c, name);
+      assembleAutomationAuthoringHost();
+      const saved = await engineStore(c, keyOrigin(c)).get(name, version);
+      if (saved === null) return unknownVersion(c, name);
+      // A version with no tests has nothing to run, charge or record.
+      const tests = isRecord(saved.automation) ? saved.automation.tests : null;
+      if (!Array.isArray(tests) || tests.length === 0) {
+        return c.json({ name, version, passed: 0, failed: 0, results: [] });
+      }
+      const result = await asKeyWrite(c, (origin) =>
+        dispatch(
+          'test_automation',
+          {
+            name,
+            version,
+            ...(body.tests !== undefined && { tests: body.tests }),
+            ...(body.detail !== undefined && { detail: body.detail }),
+          },
+          { store: engineStore(c, origin) },
+        ),
+      );
+      if (!isRecord(result)) {
+        throw new Error('the tests ran but answered nothing');
+      }
+      if (result.code === 'RATE_LIMITED') {
+        const data = isRecord(result.data) ? result.data : {};
+        return restRateLimited(
+          c,
+          new RateLimitExceededError(
+            String(result.error),
+            typeof data.retryAfterMs === 'number' ? data.retryAfterMs : 1_000,
+          ),
+        );
+      }
+      if (
+        result.code === 'INVALID_PARAMS' &&
+        typeof result.error === 'string'
+      ) {
+        const message =
+          typeof result.hint === 'string'
+            ? `${result.error} — ${result.hint}`
+            : result.error;
+        return c.json(
+          {
+            error: `invalid body: "tests" ${message}`,
+            code: 'INVALID_BODY',
+            data: { issues: [{ path: 'tests', message }] },
+          },
+          400,
+        );
+      }
+      // A version that no longer passes today's checks cannot be tested: the
+      // problems are the answer, as a deploy's are.
+      const refusal = authoringRefusal(
+        c,
+        result.status === 'invalid'
+          ? {
+              error: 'The automation does not pass the checks.',
+              code: 'AUTOMATION_INVALID',
+              errors: result.errors,
+              warnings: result.warnings,
+            }
+          : result,
+      );
+      if (refusal !== null) return refusal;
+      return c.json(result);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** What a saved version's tests found the last time they ran: the
+   * verdict, when, which act made it and who (a member's name while they
+   * are one), and the report — null when the verdict has none of its own. */
+  app.get('/automations/:name/versions/:version/tests', noQuery, async (c) => {
+    try {
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+        return automationNotFound(c);
+      }
+      const version = versionOfPath(c);
+      if (version === null) return unknownVersion(c, name);
+      const organizationId = c.get('organizationId');
+      const found = await readTestReport(
+        deps.sql,
+        organizationId,
+        name,
+        version,
+      );
+      if (found === undefined) return unknownVersion(c, name);
+      const names =
+        found.by === null
+          ? new Map<string, string | null>()
+          : await memberNamesOf(deps.sql, organizationId, [found.by]);
+      return c.json({
+        name,
+        version,
+        testsPassed: found.testsPassed,
+        testsCheckedAt: found.testsCheckedAt,
+        via: found.via,
+        by: found.by,
+        byName: found.by === null ? null : (names.get(found.by) ?? null),
+        report: found.report,
+      });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
