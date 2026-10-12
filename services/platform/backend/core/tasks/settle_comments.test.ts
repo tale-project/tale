@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSettleComments } from './agent_run_host.ts';
 import { TASK_COMMENT_MAX } from './helpers.ts';
+import { buildSettleComments } from './settle_comments.ts';
 
 /** Reports stay in the ticket's language; runtime notices follow the reader. */
 describe('buildSettleComments', () => {

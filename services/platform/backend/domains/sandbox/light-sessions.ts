@@ -329,6 +329,45 @@ export async function touchLightSession(
 }
 
 /**
+ * Give an owner's light sandbox back now, when its work is over — a task run
+ * that settled has no later call to reuse it, so it must not hold the
+ * organization's light budget for the idle window. Destroys it unless it is
+ * running code (the watchdog's idle release takes it then) and settles its
+ * row. Best-effort: the idle release and the spawner's own stop are the
+ * backstops, so a spawner that cannot be asked costs minutes, never the
+ * caller. Returns whether a sandbox was destroyed.
+ */
+export async function releaseLightSession(
+  sql: Sql,
+  owner: Pick<LightSessionOwner, 'organizationId' | 'ownerKey'>,
+  spawner: Pick<LightSessionSpawner, 'destroyIfIdle'> = DEFAULT_SPAWNER,
+): Promise<boolean> {
+  const sessionId = lightSessionId(owner.organizationId, owner.ownerKey);
+  try {
+    // Most runs never start one: ask the spawner only when a row says there
+    // is a sandbox to give back.
+    const live = await sql<{ id: string }[]>`
+      SELECT id FROM app.sandbox_sessions
+      WHERE session_id = ${sessionId} AND org_id = ${owner.organizationId}
+        AND owner_type = ${LIGHT_SESSION_OWNER_TYPE}
+        AND status IN ('creating', 'active', 'degraded')
+      LIMIT 1
+    `;
+    if (live.length === 0) return false;
+    const outcome = await spawner.destroyIfIdle(sessionId);
+    if (outcome.busy) return false;
+    await markSessionDestroyed(sql, {
+      organizationId: owner.organizationId,
+      sessionId,
+    });
+    return outcome.destroyed;
+  } catch (error) {
+    console.warn(`[light-session] releasing ${sessionId} failed:`, error);
+    return false;
+  }
+}
+
+/**
  * The sandbox watchdog's light lane: destroy every light sandbox unused for
  * `idleMs`, when it runs no code — one the sweep expired at its lifetime cap
  * or whose create failed included, since nothing of a light sandbox is kept.

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { putOrgBlobBytes } from '../files/service.ts';
 import {
-  CHAT_ARTIFACT_MAX_BYTES,
+  ARTIFACT_MAX_BYTES,
   readThreadFiles,
   storeThreadArtifact,
 } from './artifacts.ts';
@@ -94,7 +94,7 @@ describe('storeThreadArtifact', () => {
       storeThreadArtifact(sql, SCOPE, {
         name: 'big.bin',
         mediaType: 'application/octet-stream',
-        bytes: new Uint8Array(CHAT_ARTIFACT_MAX_BYTES + 1),
+        bytes: new Uint8Array(ARTIFACT_MAX_BYTES + 1),
       }),
     ).rejects.toThrow(/at most/);
     expect(putOrgBlobBytes).not.toHaveBeenCalled();

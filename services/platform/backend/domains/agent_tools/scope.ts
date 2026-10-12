@@ -88,6 +88,11 @@ export interface WorkToolScope {
   /** The key of the light sandbox the turn's code runs in: a
    * conversation's lineage root, a run's id. */
   readonly sandboxOwnerKey: string;
+  /** How long a call waits for a light sandbox when every one of the
+   * organization's is running code. Absent, a call answers busy at once: a
+   * chat's person is watching and can ask again. A task run has no one to
+   * ask, so its lane gives it patience. */
+  readonly lightSandboxWaitMs?: number;
   /** Which work tools the turn offers. */
   readonly loadout: WorkLoadout;
   readonly artifacts: ArtifactSink;

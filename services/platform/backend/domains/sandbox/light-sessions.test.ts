@@ -17,6 +17,7 @@ import {
   LightSandboxBusyError,
   lightSessionId,
   releaseIdleLightSessions,
+  releaseLightSession,
   type LightSessionSpawner,
 } from './light-sessions.ts';
 import {
@@ -344,5 +345,93 @@ describe('releaseIdleLightSessions', () => {
       organizationId: ORG,
       sessionId: 'lt-idle',
     });
+  });
+});
+
+describe('releaseLightSession', () => {
+  /** A pool whose one question — is there a live light sandbox row for the
+   * owner? — is answered `live`. */
+  function poolWith(live: boolean): Sql {
+    const fn = (strings: TemplateStringsArray) =>
+      Promise.resolve(
+        strings.join('?').includes('SELECT id FROM app.sandbox_sessions') &&
+          live
+          ? [{ id: 'row-0' }]
+          : [],
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tagged-template fake standing in for the pool
+    return fn as unknown as Sql;
+  }
+
+  it('gives a finished owner’s sandbox back at once and settles its row', async () => {
+    const sql = poolWith(true);
+    const destroyIfIdle = vi.fn(() =>
+      Promise.resolve({ destroyed: true, busy: false }),
+    );
+
+    await expect(
+      releaseLightSession(
+        sql,
+        { organizationId: ORG, ownerKey: 'run-1' },
+        {
+          destroyIfIdle,
+        },
+      ),
+    ).resolves.toBe(true);
+
+    expect(destroyIfIdle).toHaveBeenCalledExactlyOnceWith(
+      lightSessionId(ORG, 'run-1'),
+    );
+    expect(markSessionDestroyed).toHaveBeenCalledExactlyOnceWith(sql, {
+      organizationId: ORG,
+      sessionId: lightSessionId(ORG, 'run-1'),
+    });
+  });
+
+  it('does not ask the spawner for an owner that never started one', async () => {
+    const destroyIfIdle = vi.fn();
+
+    await expect(
+      releaseLightSession(
+        poolWith(false),
+        { organizationId: ORG, ownerKey: 'run-1' },
+        { destroyIfIdle },
+      ),
+    ).resolves.toBe(false);
+
+    expect(destroyIfIdle).not.toHaveBeenCalled();
+  });
+
+  it('leaves a sandbox that is still running code to the idle release', async () => {
+    const destroyIfIdle = vi.fn(() =>
+      Promise.resolve({ destroyed: false, busy: true }),
+    );
+
+    await expect(
+      releaseLightSession(
+        poolWith(true),
+        { organizationId: ORG, ownerKey: 'run-1' },
+        { destroyIfIdle },
+      ),
+    ).resolves.toBe(false);
+
+    expect(markSessionDestroyed).not.toHaveBeenCalled();
+  });
+
+  it('never fails its caller when the spawner cannot be asked', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const destroyIfIdle = vi.fn(() => Promise.reject(new Error('down')));
+
+    await expect(
+      releaseLightSession(
+        poolWith(true),
+        { organizationId: ORG, ownerKey: 'run-1' },
+        { destroyIfIdle },
+      ),
+    ).resolves.toBe(false);
+
+    expect(warn).toHaveBeenCalled();
+    expect(markSessionDestroyed).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

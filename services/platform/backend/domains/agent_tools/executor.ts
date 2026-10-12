@@ -1,4 +1,5 @@
 import { offersWork } from '../../../lib/agent/ladder.ts';
+import type { SkillCatalogEntry } from '../../../lib/agent/skills-block.ts';
 import {
   workToolDoc,
   workWireTool,
@@ -9,6 +10,7 @@ import type {
   ChatToolExecutor,
   ToolCallRequest,
 } from '../../../lib/chat/tools.ts';
+import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
 import { runCreateFile } from './create-file.ts';
 import { runGenerateImage } from './image.ts';
 import { runRunCode } from './run-code.ts';
@@ -56,6 +58,27 @@ function offeredWorkTools(scope: WorkToolScope): WorkToolName[] {
 /** The system prompt's lines for the work tools `scope` offers. */
 export function workToolDocs(scope: WorkToolScope): ToolDoc[] {
   return offeredWorkTools(scope).map(workToolDoc);
+}
+
+/**
+ * What a turn takes from a work-tool scope: the executor, the lines its
+ * system prompt lists for the tools, the loadout its persona's ladder is
+ * written for, and the skills it may load. One assembly for every lane that
+ * offers work tools — a chat reply, a task run — so the turn pipeline reads
+ * the same shape from both. `undefined` when the scope offers no tool at all.
+ */
+export function turnWorkToolsFor(
+  scope: WorkToolScope,
+  skillCatalog: readonly SkillCatalogEntry[],
+): TurnWorkTools | undefined {
+  const executor = createWorkToolExecutor(scope);
+  if (executor === undefined) return undefined;
+  return {
+    executor,
+    toolDocs: workToolDocs(scope),
+    loadout: scope.loadout,
+    skillCatalog,
+  };
 }
 
 export function createWorkToolExecutor(

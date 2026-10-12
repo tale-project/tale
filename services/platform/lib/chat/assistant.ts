@@ -60,7 +60,7 @@ const INTRO =
 const INTRO_WITH_WORK =
   "You are the workspace's chat assistant: you answer questions, search the organization's knowledge when a question needs it, cite what you used, and make the files the person asks for. Answer directly from the conversation or your own knowledge when that is enough.";
 
-const NO_FABRICATION =
+export const NO_FABRICATION =
   "**NO FABRICATION** — never invent facts, figures, or citations. When the answer depends on the organization's data or a live page, read it with a tool before asserting it; if you could not read it, say so.";
 
 const WORK_LIVES_HERE =
@@ -74,7 +74,7 @@ const TASK_WORK =
 
 const QUESTIONS_ABOUT_TALE = `**QUESTIONS ABOUT TALE** — this workspace runs on Tale. For how to use Tale itself, never guess a docs URL: read the index ${TALE_DOCS_INDEX_URL}, then a page it lists (German: /de/ after the host, French: /fr/). The docs describe the latest release; this workspace may differ.`;
 
-const NO_RAW_CONTEXT =
+export const NO_RAW_CONTEXT =
   '**NO RAW CONTEXT OUTPUT** — never output internal formats ("Tool[", "[Tool Result]", XML tags, raw JSON dumps); report results in natural language.';
 
 const RESPONSE_STYLE =

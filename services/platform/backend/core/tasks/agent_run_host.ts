@@ -32,7 +32,6 @@ import {
   agentLanguageGuidance,
   type AgentLanguageContext,
 } from '../../../lib/shared/agent-language';
-import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
 import {
   liveProgressSink,
   releaseTurnKey,
@@ -127,9 +126,9 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
-import { TASK_COMMENT_MAX } from './helpers';
 import type { MentionSource } from './mentions';
 import { runParkReason } from './run_park_reason';
+import { buildSettleComments } from './settle_comments';
 import { classifyStartFailure } from './start_failure';
 import {
   isCredentialRotation,
@@ -1163,6 +1162,9 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
   mentionSource?: MentionSource;
   /** Who started the run when no person did — named in the prompt. */
   requester?: KickRequester;
+  /** The brief a native pass of this run wrote when it handed the task to
+   * this harness — read at the start from the run row. */
+  handoff?: TaskHandoff;
   resume?: string;
   resumeSessionCreatedAt?: number;
   resumeDiscussionSince?: number;
@@ -1574,6 +1576,7 @@ export async function startTaskAgentTurnImpl(
           ? { mentionSource: args.mentionSource }
           : {}),
         ...(args.requester !== undefined ? { requester: args.requester } : {}),
+        ...(args.handoff !== undefined ? { handoff: args.handoff } : {}),
         outputDir,
         inputs,
         ...(args.resumeDiscussionSince !== undefined
@@ -2093,86 +2096,6 @@ async function continueOrSettle(
       : {}),
     ...(window.exited ? { execExited: true } : {}),
   });
-}
-
-/** Keep the agent report in its own language. Runtime delivery facts are a
- * separate, translated system comment, never English appended to that report. */
-export function buildSettleComments(args: {
-  resultText: string;
-  fileNames: readonly string[];
-  skipped: readonly HarvestSkippedOutput[];
-}): { body?: string; noticeByLocale?: TaskCommentBodies } {
-  const report = args.resultText.trim();
-  const reportTruncated = report.length > TASK_COMMENT_MAX;
-  const body = reportTruncated
-    ? `${report.slice(0, TASK_COMMENT_MAX - 1)}…`
-    : report;
-  const labels = {
-    en: {
-      delivered: 'Deliverables:',
-      skipped: 'Not delivered:',
-      noReport: 'The agent finished without a report.',
-      truncated: 'The report was shortened. The full text is on the run.',
-      listTruncated:
-        'The file list was shortened. The task keeps the full list of delivered files.',
-    },
-    de: {
-      delivered: 'Ergebnisse:',
-      skipped: 'Nicht bereitgestellt:',
-      noReport: 'Der Agent hat den Lauf ohne Bericht beendet.',
-      truncated:
-        'Der Bericht wurde gekürzt. Der vollständige Text ist beim Lauf verfügbar.',
-      listTruncated:
-        'Die Dateiliste wurde gekürzt. Die vollständige Liste der bereitgestellten Dateien bleibt an der Aufgabe erhalten.',
-    },
-    fr: {
-      delivered: 'Livrables :',
-      skipped: 'Fichiers non remis :',
-      noReport: 'L’agent a terminé sans compte rendu.',
-      truncated:
-        'Le compte rendu a été abrégé. Le texte intégral reste disponible dans l’exécution.',
-      listTruncated:
-        'La liste des fichiers a été abrégée. La tâche conserve la liste complète des fichiers remis.',
-    },
-  };
-  const render = (locale: keyof typeof labels): string => {
-    const text = labels[locale];
-    const parts = [
-      ...(report === '' ? [text.noReport] : []),
-      ...(reportTruncated ? [text.truncated] : []),
-      ...(args.fileNames.length > 0
-        ? [
-            [text.delivered, ...args.fileNames.map((name) => `- ${name}`)].join(
-              '\n',
-            ),
-          ]
-        : []),
-      ...(args.skipped.length > 0
-        ? [
-            [
-              text.skipped,
-              ...args.skipped.map(
-                (skip) =>
-                  `- ${skip.path.split('/').at(-1) ?? skip.path} — ${skip.reasonByLocale?.[locale] ?? skip.reason}`,
-              ),
-            ].join('\n'),
-          ]
-        : []),
-    ];
-    const full = parts.join('\n\n');
-    if (full.length <= TASK_COMMENT_MAX) return full;
-    const tail = `\n\n… ${text.listTruncated}`;
-    return `${full.slice(0, TASK_COMMENT_MAX - tail.length)}${tail}`;
-  };
-  const noticeByLocale = {
-    en: render('en'),
-    de: render('de'),
-    fr: render('fr'),
-  };
-  return {
-    ...(body !== '' ? { body } : {}),
-    ...(noticeByLocale.en !== '' ? { noticeByLocale } : {}),
-  };
 }
 
 /** Whether a live run has moved on to another exec of the same session (a

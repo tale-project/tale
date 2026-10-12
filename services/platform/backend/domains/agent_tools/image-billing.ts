@@ -1,8 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { CHAT_ASSISTANT_SLUG } from '../../../lib/chat/assistant.ts';
 import { SANDBOX_IMAGE_HOLD_CENTS } from '../../core/sandbox/session_constants.ts';
-import type { ImageBilling } from '../agent_tools/scope.ts';
 import {
   budgetPolicyActive,
   findBudgetViolation,
@@ -14,48 +12,57 @@ import {
   readInFlightReservations,
 } from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
+import type { ImageBilling } from './scope.ts';
 
 /**
- * How a chat turn's images are admitted and booked: as part of the turn.
+ * How an agent turn's images are admitted and booked: as part of the turn.
+ * One implementation for a chat reply and a task run — the run's transcript
+ * thread carries its generation row like a chat's.
  *
  * The turn's generation row already carries its hold — what its model
  * rounds may still spend — which every budget admission of the organization
  * counts. An image raises that hold by its estimate before the provider is
  * called, measured against every cap that binds the person (their own,
- * their teams', the chat's project's, the organization's, an API key's)
+ * their teams', the turn's project's, the organization's, an API key's)
  * beside everything else in flight, this turn's own hold included. The
- * settle books each billed request in the usage ledger under the person,
- * on the chat's project too, and lowers the hold again — in one
- * transaction, so the spend never counts as neither.
+ * settle books each billed request in the usage ledger under the person
+ * and the turn's agent, on the project too, and lowers the hold again — in
+ * one transaction, so the spend never counts as neither.
  *
  * With no budget policy on, nothing binds and nothing is held; the spend is
  * still booked.
  */
 
-/** Images one chat turn may create — the ceiling a managed agent turn has. */
-export const CHAT_TURN_MAX_GENERATED_IMAGES = 16;
+/** Images one turn may create — the ceiling a managed agent turn has. */
+export const TURN_MAX_GENERATED_IMAGES = 16;
 
-export function chatImageBilling(
+export function turnImageBilling(
   sql: Sql,
   turn: {
     organizationId: string;
     userId: string;
     apiKeyId?: string;
+    /** The thread the turn writes into — where its generation row lives. */
     threadId: string;
     projectIds: readonly string[];
+    /** The agent the spend is booked under: the chat assistant's slug, or a
+     * project agent's id. */
+    agentSlug: string;
+    /** What the ceiling's message calls one turn. */
+    unit: 'reply' | 'run';
   },
 ): ImageBilling {
   let admitted = 0;
   return {
     async admit(images) {
-      if (admitted + images > CHAT_TURN_MAX_GENERATED_IMAGES) {
-        const left = CHAT_TURN_MAX_GENERATED_IMAGES - admitted;
+      if (admitted + images > TURN_MAX_GENERATED_IMAGES) {
+        const left = TURN_MAX_GENERATED_IMAGES - admitted;
         return {
           admitted: false,
           message:
             left <= 0
-              ? `This reply has created the ${CHAT_TURN_MAX_GENERATED_IMAGES} images one reply may create.`
-              : `This reply may create ${left} more ${left === 1 ? 'image' : 'images'}, not ${images}.`,
+              ? `This ${turn.unit} has created the ${TURN_MAX_GENERATED_IMAGES} images one ${turn.unit} may create.`
+              : `This ${turn.unit} may create ${left} more ${left === 1 ? 'image' : 'images'}, not ${images}.`,
         };
       }
       const holdCents = images * SANDBOX_IMAGE_HOLD_CENTS;
@@ -104,7 +111,7 @@ export function chatImageBilling(
           await incrementUsageLedger(tx, {
             organizationId: turn.organizationId,
             userId: turn.userId,
-            agentSlug: CHAT_ASSISTANT_SLUG,
+            agentSlug: turn.agentSlug,
             ...(turn.apiKeyId !== undefined ? { apiKeyId: turn.apiKeyId } : {}),
             ...(turn.projectIds.length > 0
               ? { projectIds: turn.projectIds }

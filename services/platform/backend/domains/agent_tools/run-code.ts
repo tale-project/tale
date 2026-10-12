@@ -31,12 +31,13 @@ import {
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { stageUrlForBlobRef } from '../../core/node_only/sandbox/helpers/stage_url.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
-import { CHAT_ARTIFACT_MAX_BYTES } from '../chat/artifacts.ts';
 import {
   acquireLightSession,
   LightSandboxBusyError,
+  type LightSessionLease,
   touchLightSession,
 } from '../sandbox/light-sessions.ts';
+import { ARTIFACT_MAX_BYTES } from './artifacts.ts';
 import {
   failure,
   isArgsRecord,
@@ -111,6 +112,35 @@ const PROGRAM_ENV = {
   MPLCONFIGDIR: `${LIGHT_SANDBOX_PATHS.workspace}/.cache/matplotlib`,
   MPLBACKEND: 'Agg',
 };
+
+/** How often a call that waits for a light sandbox asks again, when the host
+ * named no time of its own. */
+const BUSY_POLL_MS = 3_000;
+
+/**
+ * The owner's light sandbox, waiting up to the scope's patience when none can
+ * be had now. Every sandbox of the organization running code frees within
+ * the three minutes one call may take, so a lane with nobody to ask again
+ * (a task run) waits for one rather than giving up on its first refusal.
+ */
+async function acquireLeased(scope: WorkToolScope): Promise<LightSessionLease> {
+  const deadline = Date.now() + (scope.lightSandboxWaitMs ?? 0);
+  for (;;) {
+    try {
+      return await acquireLightSession(scope.sql, {
+        organizationId: scope.organizationId,
+        ownerKey: scope.sandboxOwnerKey,
+        createdBy: scope.userId,
+      });
+    } catch (error) {
+      if (!(error instanceof LightSandboxBusyError)) throw error;
+      const left = deadline - Date.now();
+      if (left <= 0) throw error;
+      const pause = Math.min(error.retryAfterMs ?? BUSY_POLL_MS, left);
+      await new Promise((resolve) => setTimeout(resolve, pause));
+    }
+  }
+}
 
 interface RunCodeArgs {
   language: RunCodeLanguage;
@@ -230,7 +260,7 @@ export async function runRunCode(
     return file === undefined ? [] : [file];
   });
   const oversized = inputFiles.find(
-    (file) => file.sizeBytes > CHAT_ARTIFACT_MAX_BYTES * 2,
+    (file) => file.sizeBytes > ARTIFACT_MAX_BYTES * 2,
   );
   if (oversized !== undefined) {
     return failure(
@@ -268,13 +298,9 @@ export async function runRunCode(
     }
   }
 
-  let lease: { sessionId: string; created: boolean };
+  let lease: LightSessionLease;
   try {
-    lease = await acquireLightSession(scope.sql, {
-      organizationId: scope.organizationId,
-      ownerKey: scope.sandboxOwnerKey,
-      createdBy: scope.userId,
-    });
+    lease = await acquireLeased(scope);
   } catch (error) {
     if (error instanceof LightSandboxBusyError) {
       return failure(
@@ -495,17 +521,17 @@ async function harvestOutputs(
       });
       continue;
     }
-    if (entry.size > CHAT_ARTIFACT_MAX_BYTES) {
+    if (entry.size > ARTIFACT_MAX_BYTES) {
       skipped.push({
         name: entry.name,
-        reason: `${Math.ceil(entry.size / (1024 * 1024))} MB is over the ${CHAT_ARTIFACT_MAX_BYTES / (1024 * 1024)} MB a file may have`,
+        reason: `${Math.ceil(entry.size / (1024 * 1024))} MB is over the ${ARTIFACT_MAX_BYTES / (1024 * 1024)} MB a file may have`,
       });
       continue;
     }
     let read: Awaited<ReturnType<typeof sessionReadFile>>;
     try {
       read = await sessionReadFile(sessionId, path, {
-        maxBytes: CHAT_ARTIFACT_MAX_BYTES,
+        maxBytes: ARTIFACT_MAX_BYTES,
       });
     } catch (error) {
       if (!(error instanceof SessionFileTooLargeError)) throw error;
