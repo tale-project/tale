@@ -36,6 +36,18 @@ interface CallOptions {
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+/** A create unanswered this long is slow enough to look at. */
+const SLOW_CREATE_MS = 40_000;
+
+type SlowCreateWatch = (sessionId: string, elapsedMs: number) => Promise<void>;
+let slowCreateWatch: SlowCreateWatch | undefined;
+
+/** Have `watch` called, once, for each create still unanswered after
+ * SLOW_CREATE_MS (the harness reads the node then). */
+export function watchSlowCreates(watch: SlowCreateWatch | undefined): void {
+  slowCreateWatch = watch;
+}
+
 function parseJson(text: string): unknown {
   if (text === '') return undefined;
   try {
@@ -240,10 +252,27 @@ export class SpawnerApi {
     };
     let imageWaits = 0;
     for (;;) {
-      const reply = await this.call('POST', '/v1/sessions', {
-        body,
-        timeoutMs: 240_000,
-      });
+      const attempt = performance.now();
+      const watch = slowCreateWatch;
+      const slow =
+        watch === undefined
+          ? undefined
+          : setTimeout(() => {
+              watch(options.sessionId, performance.now() - attempt).catch(
+                (error: unknown) => {
+                  console.error('the slow-create look failed:', error);
+                },
+              );
+            }, SLOW_CREATE_MS);
+      let reply: Reply;
+      try {
+        reply = await this.call('POST', '/v1/sessions', {
+          body,
+          timeoutMs: 240_000,
+        });
+      } finally {
+        clearTimeout(slow);
+      }
       const waiting =
         reply.status === 429 && field(reply.json, 'error') === 'runtime_image';
       if (waiting && performance.now() - started < imageWaitMs) {

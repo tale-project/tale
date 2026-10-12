@@ -221,8 +221,12 @@ describe('re-adoption and fencing on a real node', () => {
       expect(await sh(b.api, FENCED, 'cat /agent/marker')).toBe(
         'replacement\n',
       );
-      // Asked for it, the first spawner finds its entry stale and drops it.
-      expect((await a.api.get(FENCED)).status).toBe(404);
+      // The first spawner's own sweeps registered the replacement within an
+      // interval (a peer's create is adopted like any), so what it answers for
+      // the id now is the new incarnation, not the one it created.
+      const known = await a.api.get(FENCED);
+      expectStatus(known, 200, 'the first spawner asked for the id');
+      expect(field(known.json, 'session', 'createdAtMs')).toBe(freshStamp);
       expect((await sessionInstance(FENCED))?.status).toBe('Running');
       expectStatus(await b.api.destroy(FENCED), 200, 'destroy');
     },

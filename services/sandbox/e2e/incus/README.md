@@ -66,8 +66,25 @@ pool's fill and refill, an exec round trip, a request through the proxy.
 
 ## Running it
 
-In CI it is the workflow. By hand, on a throwaway Ubuntu 24.04 VM with passwordless
-`sudo`, Docker, Bun and a checkout:
+In CI it is the workflow. To try a branch (a draft pull request is held, so
+this is how a draft runs it), dispatch it there:
+
+```sh
+gh workflow run sandbox-incus-e2e.yml --ref <branch>                      # every suite
+gh workflow run sandbox-incus-e2e.yml --ref <branch> -f suites=pool,failures
+gh workflow run sandbox-incus-e2e.yml --ref <branch> -f runner=ubuntu-latest
+```
+
+On a Ubicloud 4-vCPU runner the first suite starts about three minutes after the
+dispatch (Incus and ZFS install in 30 s, the node's own setup in 15 s, the two
+image builds in under two minutes with warm layer caches) and all ten take about
+twenty minutes, so a run of a suite or two is short. `runner` is the label the
+node is built on: a Ubicloud label by default, GitHub's own for a pull request.
+Each suite leaves its log and report as an artifact the moment it ends, so a run
+in progress can be read.
+
+By hand, on a throwaway Ubuntu 24.04 VM with passwordless `sudo`, Docker, Bun and
+a checkout:
 
 ```sh
 export TALE_INCUS_E2E_THROWAWAY_HOST=1 INCUS_E2E_DIR=/mnt/tale-incus-e2e

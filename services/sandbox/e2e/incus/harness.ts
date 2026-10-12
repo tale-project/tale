@@ -15,7 +15,11 @@ import {
 import { Admin, type AdminInstance } from './admin.ts';
 import { loadLab, reportDir } from './lab-config.ts';
 import { Report } from './report.ts';
-import type { Reply, SpawnerApi } from './spawner-api.ts';
+import {
+  type Reply,
+  type SpawnerApi,
+  watchSlowCreates,
+} from './spawner-api.ts';
 import { Spawner, type SpawnerSettings } from './spawner.ts';
 import { describeError } from './util.ts';
 
@@ -125,6 +129,74 @@ export async function sh(
   return outcome.stdout;
 }
 
+/** The last lines of a block of text. */
+function tail(text: string, lines: number): string {
+  return text.trim().split('\n').slice(-lines).join('\n');
+}
+
+/**
+ * What the node can say about itself: its instances (with their consoles and
+ * LXC logs), the DHCP leases of the sandbox bridge, the operations under way,
+ * the volumes, and what the daemon logged lately. Read while a create is stuck
+ * (a failed create removes what it made) and after a step failed.
+ */
+async function describeNode(): Promise<string[]> {
+  const lines: string[] = [];
+  const note = async (title: string, read: () => Promise<string>) => {
+    try {
+      lines.push(`-- ${title}:\n${await read()}`);
+    } catch (error) {
+      lines.push(`-- ${title}: unreadable (${describeError(error)})`);
+    }
+  };
+  const instances = await admin.instances();
+  for (const instance of instances) {
+    lines.push(
+      `-- instance ${instance.name}: ${instance.status}, ${instance.addresses.join(' ') || 'no address'}, session ${label(instance.config, LABEL.session) ?? '-'}`,
+    );
+  }
+  // What each instance said on its console and in its LXC log: the end of it,
+  // for the first few.
+  for (const instance of instances.slice(0, 6)) {
+    await note(`console of ${instance.name}`, async () =>
+      tail(await admin.consoleLog(instance.name), 25),
+    );
+    await note(`LXC log of ${instance.name}`, async () =>
+      tail(await admin.instanceLog(instance.name), 25),
+    );
+  }
+  await note('DHCP leases of the sandbox bridge', async () =>
+    (await admin.run(['network', 'list-leases', lab.network])).stdout.trim(),
+  );
+  await note('operations under way', async () =>
+    (
+      await admin.run(['operation', 'list', '--project', lab.project])
+    ).stdout.trim(),
+  );
+  await note('the Incus daemon, the last three minutes', async () =>
+    tail(
+      (
+        await admin.host(
+          [
+            'journalctl',
+            '-u',
+            'incus',
+            '--no-pager',
+            '--since',
+            '3 minutes ago',
+          ],
+          { allowFailure: true },
+        )
+      ).stdout,
+      60,
+    ),
+  );
+  for (const volume of await admin.volumes()) {
+    lines.push(`-- volume ${volume.name}: ${JSON.stringify(volume.config)}`);
+  }
+  return lines;
+}
+
 async function dumpState(why: string): Promise<void> {
   const lines = [`\n==== the lab after a failed step: ${why}`];
   for (const spawner of spawners) {
@@ -134,28 +206,26 @@ async function dumpState(why: string): Promise<void> {
     );
   }
   try {
-    for (const instance of await admin.instances()) {
-      lines.push(
-        `-- instance ${instance.name}: ${instance.status}, ${instance.addresses.join(' ') || 'no address'}, session ${label(instance.config, LABEL.session) ?? '-'}`,
-      );
-    }
-    // What each instance said on its console: the end of it, for the first few.
-    for (const instance of (await admin.instances()).slice(0, 6)) {
-      const tail = (await admin.consoleLog(instance.name))
-        .trim()
-        .split('\n')
-        .slice(-25)
-        .join('\n');
-      lines.push(`-- console of ${instance.name}:\n${tail}`);
-    }
-    for (const volume of await admin.volumes()) {
-      lines.push(`-- volume ${volume.name}: ${JSON.stringify(volume.config)}`);
-    }
+    lines.push(...(await describeNode()));
   } catch (error) {
     lines.push(`(the node could not be read: ${describeError(error)})`);
   }
   console.error(lines.join('\n'));
 }
+
+// A create that has not answered in this long is looked at while it is stuck:
+// when it fails, the instance it made is gone, and so is the evidence.
+watchSlowCreates(async (creating, elapsedMs) => {
+  const lines = [
+    `\n==== a create of ${creating} has not answered after ${Math.round(elapsedMs / 1000)} s`,
+  ];
+  try {
+    lines.push(...(await describeNode()));
+  } catch (error) {
+    lines.push(`(the node could not be read: ${describeError(error)})`);
+  }
+  console.error(lines.join('\n'));
+});
 
 /** A test that, when it fails, first says what the lab looked like. */
 export function step(

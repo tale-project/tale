@@ -63,8 +63,17 @@ export class Admin {
   }
 
   /** `incus <args>` as the administrator. */
-  async run(args: readonly string[], options: RunOptions = {}) {
-    const proc = Bun.spawn([...this.prefix, 'incus', ...args], {
+  run(args: readonly string[], options: RunOptions = {}) {
+    return this.spawn(['incus', ...args], options);
+  }
+
+  /** Any command on the host, as root: the journal, the leases, the links. */
+  host(command: readonly string[], options: RunOptions = {}) {
+    return this.spawn(command, options);
+  }
+
+  private async spawn(command: readonly string[], options: RunOptions) {
+    const proc = Bun.spawn([...this.prefix, ...command], {
       stdout: 'pipe',
       stderr: 'pipe',
       stdin: options.stdin === undefined ? 'ignore' : new Blob([options.stdin]),
@@ -78,7 +87,7 @@ export class Admin {
     const result: AdminResult = { stdout, stderr, code };
     if (code !== 0 && options.allowFailure !== true) {
       throw new Error(
-        `incus ${args.join(' ')} exited ${code}: ${(stderr || stdout).trim()}`,
+        `${command.join(' ')} exited ${code}: ${(stderr || stdout).trim()}`,
       );
     }
     return result;
