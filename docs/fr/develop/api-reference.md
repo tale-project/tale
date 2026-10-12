@@ -1003,7 +1003,7 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 ### Suivre le message accepté
 
-Les messages de chat acceptés partagent une file commune aux organisations et aux clés de l’instance, traitée des plus anciens aux plus récents. Le worker prend des lots de `WORKER_CONCURRENCY` tours au maximum, 5 par défaut ; le lot suivant attend la fin du précédent. Une acceptation ne signifie donc pas une exécution immédiate : ton fil peut attendre derrière d’autres clients. L’API ne donne ni position dans la file ni heure de démarrage estimée.
+Les messages de chat acceptés partagent une file commune aux organisations et aux clés de l’instance, traitée des plus anciens aux plus récents. Chaque worker exécute jusqu’à 16 tours en même temps (davantage si `WORKER_CONCURRENCY` est plus élevé) et prend le suivant dès qu’un tour se termine. Une acceptation ne signifie donc pas une exécution immédiate : ton fil peut attendre derrière d’autres clients, d’autant plus longtemps qu’ils sont nombreux à envoyer en même temps. L’API ne donne ni position dans la file ni heure de démarrage estimée.
 
 Conserve le `messageId` reçu dans la réponse **202** : il identifie le message d’assistant qui recevra le résultat. Le suivi de génération expose trois états :
 

@@ -857,7 +857,7 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 Keep the `messageId` returned by the send's `202`: this is the assistant message that will contain your result. Poll generation every two to five seconds and inspect its state:
 
-Accepted chat messages share one oldest-first queue across the deployment’s organizations and keys. The background worker processes batches of up to `WORKER_CONCURRENCY` turns (default 5), and the next batch waits for the current batch to settle. Acceptance is not immediate execution; a quiet thread can wait behind work from other clients. The API does not expose queue position or an estimated start time.
+Accepted chat messages share one oldest-first queue across the deployment’s organizations and keys. Each background worker replica runs up to 16 turns at once, or `WORKER_CONCURRENCY` turns when that is higher, and takes the next one as soon as a turn settles. Acceptance is not immediate execution; a quiet thread can wait behind work from other clients, for longer the more clients send at once. The API does not expose queue position or an estimated start time.
 
 | Generation state | Meaning and next action |
 | --- | --- |

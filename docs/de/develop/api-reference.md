@@ -880,7 +880,7 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 ### Die angenommene Nachricht verfolgen
 
-Angenommene Chatnachrichten teilen sich eine Warteschlange für alle Organisationen und Schlüssel der Instanz; ältere Aufträge kommen zuerst. Der Hintergrund-Worker verarbeitet pro Durchgang bis zu `WORKER_CONCURRENCY` Antwortläufe, standardmäßig 5. Sein nächster Durchgang beginnt erst, wenn der aktuelle abgeschlossen ist. Eine angenommene Nachricht kann deshalb hinter Aufträgen anderer Clients warten. Die API liefert weder Warteschlangenposition noch voraussichtlichen Startzeitpunkt.
+Angenommene Chatnachrichten teilen sich eine Warteschlange für alle Organisationen und Schlüssel der Instanz; ältere Aufträge kommen zuerst. Jeder Hintergrund-Worker führt bis zu 16 Antwortläufe gleichzeitig aus, bei höherem `WORKER_CONCURRENCY` entsprechend mehr, und nimmt den nächsten Lauf an, sobald einer abgeschlossen ist. Eine angenommene Nachricht kann deshalb hinter Aufträgen anderer Clients warten, umso länger, je mehr Clients gleichzeitig senden. Die API liefert weder Warteschlangenposition noch voraussichtlichen Startzeitpunkt.
 
 Bewahre die `messageId` aus der `202`-Antwort auf. Unter dieser ID wird die Assistentenantwort gespeichert. Frage die Generierung alle zwei bis fünf Sekunden ab und werte ihren Zustand aus:
 
