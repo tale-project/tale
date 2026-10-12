@@ -530,10 +530,16 @@ describe('listSessions', () => {
     f.fake.seedInstance('tale-sbx-ses-starting', labels('s1'), {
       status: 'Starting',
     });
-    f.fake.seedInstance('tale-sbx-ses-dead', labels('s2'), {
+    const dead = f.fake.seedInstance('tale-sbx-ses-dead', labels('s2'), {
       status: 'Error',
       ephemeral: false,
     });
+    // Long dead: past its create's budget and slack.
+    f.clock.now =
+      Math.max(Date.parse(dead.createdAt), START_MS) +
+      f.cfg.session.createHealthTimeoutMs +
+      60_000 +
+      1_000;
     const sessions = new Map(
       (await f.backend.listSessions()).map((s) => [s.sessionId, s]),
     );
@@ -545,6 +551,25 @@ describe('listSessions', () => {
       state: 'degraded',
       ended: true,
     });
+  });
+
+  test('does not call a stopped instance ended while its creator may still be starting it', async () => {
+    // Between its creation and its start an instance is stopped, and a peer
+    // spawner (a rollout overlaps two) lists it then: reaping it would delete
+    // a create in flight.
+    const f = sessionFixture();
+    const young = f.fake.seedInstance(NAME, labels(ID), {
+      status: 'Stopped',
+      ephemeral: false,
+    });
+    const born = Math.max(Date.parse(young.createdAt), START_MS);
+    f.clock.now = born + 1_000;
+    const [during] = await f.backend.listSessions();
+    expect(during).toMatchObject({ state: 'degraded', ended: false });
+
+    f.clock.now = born + f.cfg.session.createHealthTimeoutMs + 60_000 + 1_000;
+    const [after] = await f.backend.listSessions();
+    expect(after).toMatchObject({ state: 'degraded', ended: true });
   });
 
   test('lists only the sessions of this spawner: no standbys, no strangers, no other spawner’s', async () => {

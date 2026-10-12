@@ -1021,7 +1021,17 @@ export class IncusSessionBackend implements SessionBackend {
         idleTimeoutMs: this.cfg.session.maxIdleMs,
         state: isRunning(instance) ? 'ready' : 'degraded',
         pinned: label(instance.config, LABEL.pinned) === 'true',
-        ended: hasEnded(instance),
+        // Stopped is also how an instance looks for the moment between its
+        // creation and its start, and a peer spawner (a rollout overlaps two)
+        // may be making it: it has ended only once its creator's startup
+        // deadline and slack are past.
+        ended:
+          hasEnded(instance) &&
+          startupExpired(
+            instance,
+            this.runtime.now(),
+            this.cfg.session.createHealthTimeoutMs,
+          ),
         ...(isIpv4Address(egress) ? { egressAddress: egress } : {}),
       });
     }
