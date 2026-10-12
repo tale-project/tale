@@ -1,8 +1,9 @@
 // The objects in Incus are the source of truth and the spawner's registry a
 // cache: a spawner that crashes or restarts re-adopts its sessions from their
 // labels, compute that ended while it was away is removed with the workspace
-// kept, and a peer that replaced a session under its name is never undone by
-// a spawner still holding the old incarnation.
+// kept, a peer that replaced a session under its name is never undone by a
+// spawner still holding the old incarnation, and a peer that lists the
+// project while a create is under way does not take it for compute that ended.
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
@@ -230,5 +231,60 @@ describe('re-adoption and fencing on a real node', () => {
       expect((await sessionInstance(FENCED))?.status).toBe('Running');
       expectStatus(await b.api.destroy(FENCED), 200, 'destroy');
     },
+  );
+  step(
+    'a peer that boots again and again never reaps a create in flight',
+    async () => {
+      // An instance is stopped between its creation and its start, and a
+      // spawner that boots lists the project and adopts what it finds: if it
+      // read that moment as compute that ended it would delete a create under
+      // way. A rollout overlaps two spawners; here the peer boots a dozen
+      // times while the first spawner makes sessions five at a time.
+      await b.stop();
+      const failures: string[] = [];
+      const progress = { creating: true };
+      const bursts = (async () => {
+        try {
+          for (let round = 1; round <= 4; round += 1) {
+            const ids = Array.from({ length: 5 }, () => sessionId('peer'));
+            const results = await Promise.all(
+              ids.map((id) =>
+                a.api.create({
+                  sessionId: id,
+                  organizationId: ORG,
+                  profile: 'agent-light',
+                }),
+              ),
+            );
+            for (const [index, result] of results.entries()) {
+              if (result.reply.status !== 201) {
+                failures.push(
+                  `round ${round}: ${ids[index]} answered HTTP ${result.reply.status}: ${result.reply.text.slice(0, 240)}`,
+                );
+              }
+            }
+            await Promise.all(ids.map((id) => a.api.destroy(id)));
+          }
+        } finally {
+          progress.creating = false;
+        }
+      })();
+      let boots = 0;
+      const peers = (async () => {
+        while (progress.creating || boots < 12) {
+          b.start();
+          await b.ready();
+          await b.stop();
+          boots += 1;
+        }
+      })();
+      await Promise.all([bursts, peers]);
+      report.fact(
+        'boots of the peer while the sessions were made',
+        String(boots),
+      );
+      expect(failures).toEqual([]);
+    },
+    15 * 60_000,
   );
 });
