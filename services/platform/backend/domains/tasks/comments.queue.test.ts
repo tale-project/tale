@@ -13,8 +13,9 @@ import {
   RETRY_QUEUE_LOCK_CLASS,
   markRetryQueueKey,
   retryQueueKeysOf,
+  transactSerializable,
 } from '@tale/shared/db/serializable';
-import type { TransactionSql } from 'postgres';
+import type { ReservedSql, TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -56,6 +57,48 @@ function sqlstateError(code: string): Error {
 }
 
 describe('queuedOnTask', () => {
+  it('queues a serialization failure raised by COMMIT after the work returned', async () => {
+    let plainAttempts = 0;
+    let reservations = 0;
+    const { tx, statements } = fakeTx();
+    const reserved = Object.assign(tx, {
+      unsafe: (text: string) =>
+        Promise.resolve({ command: text.split(' ')[0] }),
+      release: () => undefined,
+    });
+    const runner = {
+      async begin<T>(
+        _options: string,
+        callback: (transaction: TransactionSql) => Promise<T>,
+      ): Promise<T> {
+        plainAttempts += 1;
+        const result = await callback(tx);
+        if (plainAttempts === 1) throw sqlstateError('40001');
+        return result;
+      },
+      reserve() {
+        reservations += 1;
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the recorded tag, unsafe and release surface are exercised
+        return Promise.resolve(reserved as unknown as ReservedSql);
+      },
+    };
+    const result = await transactSerializable(
+      runner,
+      (transaction) =>
+        queuedOnTask(transaction, 't_commit', () => Promise.resolve('done')),
+      { sleep: () => Promise.resolve() },
+    );
+    expect(result).toBe('done');
+    expect(plainAttempts).toBe(1);
+    expect(reservations).toBe(1);
+    expect(statements.map((statement) => statement.text)).toEqual([
+      'SELECT pg_advisory_xact_lock(?, hashtext(?))',
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'SELECT pg_advisory_xact_lock(?, hashtext(?))',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+  });
+
   it("takes the task's queue lock before the work runs", async () => {
     const { tx, statements } = fakeTx();
     const order: string[] = [];

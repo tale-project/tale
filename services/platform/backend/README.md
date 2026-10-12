@@ -85,6 +85,12 @@ mutation transactions. Serialization conflicts and deadlocks can rerun the
 entire callback. Keep network calls, timers and other non-transactional effects
 outside that callback.
 
+Comment queue locks register their keys with the transaction wrapper before
+the write. PostgreSQL can reject COMMIT after a successful callback, including
+a comment written inside a savepoint; that retry takes the same task and
+organization keys before opening its next snapshot. Callback failures keep
+their existing queue marks and every retry keeps the normal attempt budget.
+
 Enqueue durable work with `addJobInTx` in the transaction that records the state
 change. A rollback must not leave a queued effect. Job delivery can repeat, so
 handlers must use durable identities and idempotent processing; queue singleton
