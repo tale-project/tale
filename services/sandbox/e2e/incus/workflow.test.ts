@@ -58,19 +58,6 @@ const declared = (() => {
   return match[1].trim().split(/\s+/);
 })();
 
-/** The suites `all` leaves out: they run only when named. */
-const optIn = new Set(
-  (() => {
-    const match = /^readonly OPT_IN_SUITES=\(([^)]*)\)$/m.exec(
-      readFileSync(LAB, 'utf8'),
-    );
-    if (match?.[1] === undefined)
-      throw new Error('lab.sh declares no OPT_IN_SUITES');
-    return match[1].trim().split(/\s+/);
-  })(),
-);
-const byDefault = new Set(declared.filter((name) => !optIn.has(name)));
-
 /** The suites the workflow runs, in its order, with the step that runs each. */
 const runs = steps.flatMap((step, index) => {
   const run = typeof step.run === 'string' ? step.run : '';
@@ -188,20 +175,11 @@ describe('lab.sh suites', () => {
     };
   }
 
-  test('no choice, empty and "all" run every suite but the opt-in ones', () => {
-    const everything = declared.map((name) => `${name}=${byDefault.has(name)}`);
+  test('no choice, empty and "all" run everything', () => {
+    const everything = declared.map((name) => `${name}=true`);
     expect(pick().out).toEqual(everything);
     expect(pick('').out).toEqual(everything);
     expect(pick('all').out).toEqual(everything);
-    expect(optIn.size).toBeGreaterThan(0);
-  });
-
-  test('an opt-in suite runs when it is named, alone or with others', () => {
-    for (const name of optIn) {
-      expect(pick(name).out).toContain(`${name}=true`);
-      expect(pick(`pool,${name}`).out).toContain(`${name}=true`);
-      expect(pick(`pool,${name}`).out).toContain('pool=true');
-    }
   });
 
   test('a list picks those, with spaces and stray commas forgiven', () => {

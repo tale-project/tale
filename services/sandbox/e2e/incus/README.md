@@ -60,7 +60,7 @@ spawners looked like.
 | `limits`    | `SANDBOX_MAX_SESSIONS` refuses with a place in the line; a project memory limit refuses the create that would pass it in Incus's own words and leaves the workspace volume                                                                                                                                                                                                                                                           |
 | `docker`    | Docker inside a session (opt-in): nesting and interception allowed for it alone, the inner engine comes up, `docker run` and `docker build` work, and a nested container is no freer than the session                                                                                                                                                                                                                                 |
 | `upgrade`   | the event of every Tale release: the next version of the runtime image (the current one and a file more, built by the workflow) is pulled under a new alias when the spawner restarts with it, an alias that exists is never pulled again whatever source it is given, the session that runs is adopted and stays on the version it began with, the pool rotates to the new version (old standbys out, new ones waiting), and new sessions, claimed and cold, run the new one |
-| `soak`      | opt-in (`suites=soak`; `soak_rounds` sets the number of rounds, default 6): rounds of eight creates at once against a spawner whose warm pool is on, so that starts, claims, refills and removals overlap on the node; each session answers a command and is destroyed, no create may fail or hang, and the node is left clean. The create times under that load are the result                                                                     |
+| `soak`      | rounds of eight creates at once (`soak_rounds` sets how many, default 6) against a spawner whose warm pool is on, so that starts, claims, refills and removals overlap on the node; each session answers a command and is destroyed, no create may fail or hang, and the node is left clean. The create times under that load are the result                                                                     |
 
 The job summary and the `report/*.json` artifacts hold the timings: boot and
 image pull, a cold create, a create from the warm pool, a resume, a destroy, the
@@ -78,7 +78,6 @@ gh workflow run sandbox-incus-e2e.yml --ref <branch> -f runner=ubuntu-latest
 gh workflow run sandbox-incus-e2e.yml --ref <branch> -f suites=soak -f soak_rounds=40   # hunt for something rare
 ```
 
-`all` is every suite but `soak`, which runs only when it is named.
 
 On a Ubicloud 4-vCPU runner the first suite starts about four minutes after the
 dispatch (Incus and ZFS install in under a minute, the node's own setup in 15 s,

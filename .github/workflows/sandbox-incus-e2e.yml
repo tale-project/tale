@@ -43,7 +43,7 @@ on:
           - ubuntu-latest
         default: ubicloud-standard-4
       suites:
-        description: 'The suites to run: all (every suite but soak), or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker, upgrade, soak'
+        description: 'The suites to run: all, or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker, upgrade, soak'
         type: string
         default: all
       soak_rounds:

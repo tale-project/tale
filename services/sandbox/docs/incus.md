@@ -250,10 +250,12 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
   node is unreachable (its own address is the node's, so the spawner's calls to
   runnerd never leave the node) and its create waits out its budget; the lab
   measured it at about one create in a hundred when two such addresses lay in
-  the pool. Give the pool its own range (`ipv4.dhcp.ranges`) in the part of the
-  subnet that holds no service, and size it for `SANDBOX_MAX_SESSIONS` plus the
-  pool and the image warm-ups, with room for the leases of instances that were
-  removed a moment ago.
+  the pool, and saw none in 640 creates once the pool left them out. Give the
+  pool its own range (`ipv4.dhcp.ranges`) in the part of the subnet that holds
+  no service, and size it for `SANDBOX_MAX_SESSIONS` plus the pool and the
+  image warm-ups. Leases do not pile up behind removed instances: the lab's
+  DHCP server held 4 to 6 leases after every round of its soak, 640 creates
+  and removals in.
 - The ACL on the sandbox network admits, from a session: tcp 3128 and udp/tcp 53
   to the egress proxy; tcp 8080 to the LLM gateway and tcp 3005 to the backend
   (reached directly, since the proxy refuses private destinations); and, to a
@@ -688,9 +690,14 @@ storage driver, a reboot, many tenants.
     `docker compose up`.
 15. **Fencing under load.** Two creates of one session id at once: one wins and
     the other is answered a duplicate; a stop with a stale stamp is refused.
-    **Lab (`lifecycle`, `fencing`, `adoption`):** two creates of one id at once,
-    a stale ETag (412), a different incarnation, and a peer that replaced a
-    session under its name never being undone by the old holder.
+    Then load: rounds of eight creates at once with the warm pool on, each
+    session answered and destroyed, none failed or hung.
+    **Lab (`lifecycle`, `fencing`, `adoption`, `soak`):** two creates of one id
+    at once, a stale ETag (412), a different incarnation, a peer that replaced a
+    session under its name never being undone by the old holder, and eight
+    creates at once, over and over: 640 creates in two long runs, none failed,
+    each in 6 s at the median and 10 s at the 90th percentile (17.7 s at most)
+    on a 4-vCPU runner.
 16. **Capacity UI.** Settings > Sandboxes names the Incus project scope and
     leaves CPU and memory unavailable. **Not in the lab** (the platform's UI).
 

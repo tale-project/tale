@@ -6,8 +6,8 @@
 // that an instance without an address makes wait out its budget, is a finding;
 // the timings say how the node behaves while it is busy.
 //
-// Opt-in (`suites=soak`): the number of rounds is `INCUS_E2E_SOAK_ROUNDS`
-// (default 6, a minute or two; raise it to hunt for something rare).
+// The number of rounds is `INCUS_E2E_SOAK_ROUNDS` (default 6, a minute or two;
+// the dispatch's `soak_rounds` raises it to hunt for something rare).
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
