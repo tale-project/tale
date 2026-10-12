@@ -22,11 +22,9 @@ import {
 } from '../agent_tools/executor.ts';
 import type { WorkToolScope } from '../agent_tools/scope.ts';
 import { listSkillCatalog } from '../agent_tools/skills.ts';
-import { governanceShimHandlers } from '../governance/shim.ts';
-import { orgAdapterShimHandlers } from '../knowledge/service.ts';
-import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { readThreadFiles, storeThreadArtifact } from './artifacts.ts';
 import { chatImageBilling } from './image-billing.ts';
+import { chatShimHandlers } from './shim.ts';
 
 /**
  * The chat assistant's work tools for one turn — what lets a chat make the
@@ -67,11 +65,9 @@ async function chatImageModel(
     'image_generation',
   );
   if (policy?.enabled !== true) return undefined;
-  const shim = createCtxShim({
-    ...credentialShimHandlers(sql),
-    ...orgAdapterShimHandlers(sql),
-    ...governanceShimHandlers(sql),
-  });
+  // The turn's own ctx: the same handlers that resolve the chat's model
+  // resolve the image model, whichever module hosts each of them.
+  const shim = createCtxShim(chatShimHandlers(sql));
   try {
     const model = await resolveImageGenerationModel(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver reads org slugs, provider credentials and one policy, all served by these handlers

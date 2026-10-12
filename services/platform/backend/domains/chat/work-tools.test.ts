@@ -29,15 +29,7 @@ vi.mock('../agent_tools/skills.ts', async (importOriginal) => ({
     Promise.resolve([{ slug: 'docx', description: 'Word documents' }]),
   ),
 }));
-vi.mock('../governance/shim.ts', () => ({
-  governanceShimHandlers: () => ({}),
-}));
-vi.mock('../knowledge/service.ts', () => ({
-  orgAdapterShimHandlers: () => ({}),
-}));
-vi.mock('../provider_credentials/service.ts', () => ({
-  credentialShimHandlers: () => ({}),
-}));
+vi.mock('./shim.ts', () => ({ chatShimHandlers: () => ({}) }));
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the builder only hands the pool on
 const sql = {} as unknown as Sql;
