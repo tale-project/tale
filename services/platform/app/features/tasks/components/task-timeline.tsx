@@ -44,6 +44,7 @@ import {
   TASK_RUN_REFUSAL_LABEL_KEY,
   isTaskStatus,
 } from '../lib/display';
+import { LAZY_EVENT_LAYOUT } from '../lib/lazy-layout';
 import { useTaskRepeatLabel } from '../lib/task-repeat-label';
 import {
   isPreviewableTaskActor,
@@ -205,7 +206,7 @@ function TaskTimelineEntryContent({
     return (
       <>
         <ThreadEvent
-          className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+          className={LAZY_EVENT_LAYOUT}
           glyph={
             <span
               className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
@@ -394,7 +395,7 @@ function TaskTimelineEntryContent({
 
   return (
     <ThreadEvent
-      className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+      className={LAZY_EVENT_LAYOUT}
       {...(statusGlyph !== undefined ? { glyph: statusGlyph } : { icon: Icon })}
       time={<ThreadTime value={entry.createdAt} format={timeFormat} />}
     >
