@@ -169,9 +169,11 @@ client.crt --restricted --projects <project>`. A restricted certificate has
 - **The network containment is the profile's NIC.** An instance device of the
   profile's NIC name would replace it wholesale (ACL and port isolation with
   it), so the backend never adds a NIC to an instance. Boot refuses a profile
-  whose NIC is not on `SANDBOX_INCUS_NETWORK`, or without a network ACL
-  (`SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK=true` is a lab escape hatch that
-  warns).
+  whose NIC is not on `SANDBOX_INCUS_NETWORK`, or without a network ACL it can
+  see: Incus shows a network's own configuration to administrators only, so the
+  spawner's restricted certificate sees an ACL named on the NIC and cannot see
+  one attached to the bridge alone (name it on the NIC too: Incus applies both).
+  `SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK=true` is an escape hatch that warns.
 
 ## What the operator creates on the node
 
@@ -227,10 +229,9 @@ a missing API extension (`instance_oci`, `instance_oci_entrypoint`,
 its own storage volumes, a restricted project that does not allow, with Docker
 inside, nesting and interception, a project that sets `limits.cpu`, or a disk
 limit while the profile's root disk has no size, an unmanaged network, a
-profile without a NIC on the configured network and without an ACL, and a
+profile without a NIC on the configured network and without an ACL on that NIC, and a
 `SANDBOX_AGENT_SHM_SIZE` the entrypoint cannot mount. Everything allowed but
-worth knowing is a warning: a network that offers its whole subnet to DHCP, an
-unrestricted project, a project without its own
+worth knowing is a warning: an unrestricted project, a project without its own
 images, disk devices allowed from any host path, low-level keys allowed, project
 count, memory or process limits below what `SANDBOX_MAX_SESSIONS` can add up
 to, a kernel that reports no idmapped mounts, a NIC without port isolation, a
@@ -257,9 +258,17 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
   the pool, and saw none in 640 creates once the pool left them out. Give the
   pool its own range (`ipv4.dhcp.ranges`) in the part of the subnet that holds
   no service, and size it for `SANDBOX_MAX_SESSIONS` plus the pool and the
-  image warm-ups. Leases do not pile up behind removed instances: the lab's
+  image warm-ups. Boot cannot check this for you (a restricted certificate is
+  shown no network configuration). Leases do not pile up behind removed instances: the lab's
   DHCP server held 4 to 6 leases after every round of its soak, 640 creates
   and removals in.
+- **Name the ACL on the profile's NIC**, as the example does. You may attach it
+  to the bridge as well (every port of the bridge, the egress proxy's and any
+  other instance's, then falls under it, and needs rules of its own), but the
+  spawner's certificate is shown no network configuration, so only the NIC can
+  tell it an ACL applies. If the ACL is on the bridge alone, boot refuses with
+  that explanation; `SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK=true` is for the one
+  who knows it applies.
 - The ACL on the sandbox network admits, from a session: tcp 3128 and udp/tcp 53
   to the egress proxy; tcp 8080 to the LLM gateway and tcp 3005 to the backend
   (reached directly, since the proxy refuses private destinations); and, to a
@@ -383,7 +392,7 @@ variables are named at once.
 | `SANDBOX_INCUS_WORKSPACE_SIZE`          | `10GiB`            | Quota of a workspace volume (`10g`, `512m` and Incus sizes).                                                                         |
 | `SANDBOX_INCUS_DNS`                     | the egress proxy   | Comma-separated IPv4 resolvers handed to a session.                                                                                  |
 | `SANDBOX_INCUS_DOCKER_CONFIG`           | nesting + intercept | A JSON object of instance config added to a session with Docker inside, replacing the default (`security.nesting`, and the `mknod` and `setxattr` interceptions). Only `security.nesting` and the interceptions a restricted project can allow (`security.syscalls.intercept.` plus `bpf`, `bpf.devices`, `mknod`, `mount`, `mount.fuse`, `setxattr` or `sysinfo`), each `true` or `false`; the other low-level keys, such as `security.idmap.size`, a restricted project refuses. |
-| `SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK` | `false`           | Lab only: do not require a network ACL.                                                                                              |
+| `SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK` | `false` | Do not require an ACL on the profile's NIC (a lab, or an ACL attached to the network alone, which the certificate cannot see). |
 | `SANDBOX_INCUS_API_TIMEOUT_MS`          | `15000`            | Budget of one API request (long-poll waits for operations excepted).                                                                 |
 
 Under this backend the runtime tier is fixed at `sysbox` (an unprivileged

@@ -39,7 +39,7 @@ const BURST = 8;
 const POOL_SIZE = 3;
 const spawner = spawnerOf({
   name: 'soak',
-  port: 18050,
+  port: 18070,
   token: newToken(),
   env: {
     SANDBOX_MAX_SESSIONS: String(BURST + POOL_SIZE + 1),

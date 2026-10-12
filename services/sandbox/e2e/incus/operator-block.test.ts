@@ -137,6 +137,7 @@ describe('docs/incus.md operator block', () => {
       `ingress action=allow source=${lab.BRIDGE_ADDRESS}/32 protocol=tcp destination_port=8200`,
     );
     expect(text).toContain(`ipv4.address=${lab.BRIDGE_ADDRESS}/24`);
+
     expect(text).toContain('raw.dnsmasq=no-resolv');
   });
 

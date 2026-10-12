@@ -2,7 +2,7 @@
 // and to find a session's objects on the node, and a `step` that says what the
 // node and the spawners looked like when a step failed.
 
-import { setDefaultTimeout, test } from 'bun:test';
+import { afterAll, setDefaultTimeout, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
 import type { IncusVolume } from '../../src/backend/incus/incus-api.ts';
@@ -41,6 +41,12 @@ export function spawnerOf(settings: SpawnerSettings): Spawner {
   spawners.push(spawner);
   return spawner;
 }
+
+// A spawner that a failed step left running would hold its port and answer for
+// the next suite's: whatever a suite did, none outlives it.
+afterAll(async () => {
+  await Promise.all(spawners.map((spawner) => spawner.kill()));
+});
 
 export function reportFor(suite: string): Report {
   return new Report(suite, reportDir(lab));

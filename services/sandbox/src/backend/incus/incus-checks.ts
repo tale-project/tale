@@ -248,24 +248,6 @@ export function inspectIncus(
       `network ${incus.network} is not managed by Incus, so no network ACL can apply to it; point SANDBOX_INCUS_NETWORK at the managed bridge sessions are meant to use`,
     );
   }
-  // Incus keeps DHCP from handing out the address it gave an instance of the
-  // network, not one a host, another network or the node holds: with no range
-  // of its own, a service that shares the subnet (the LLM gateway, the
-  // backend, the node) can be handed to a session, which is then unreachable
-  // and waits out its create.
-  const subnet = network.config['ipv4.address'];
-  if (
-    network.managed &&
-    subnet !== undefined &&
-    subnet !== '' &&
-    subnet !== 'none' &&
-    network.config['ipv4.dhcp'] !== 'false' &&
-    list(network.config['ipv4.dhcp.ranges']).length === 0
-  ) {
-    warnings.push(
-      `network ${incus.network} offers its whole subnet (${subnet}) to DHCP, so an address that the LLM gateway, the backend or the node holds in it can be handed to a session, which is then unreachable and waits out its create. Give the network a range of its own in the part of the subnet that holds no service: incus network set ${incus.network} ipv4.dhcp.ranges=<first>-<last>`,
-    );
-  }
   const nics = Object.entries(profile.devices).filter(
     ([, device]) => device.type === 'nic',
   );
@@ -285,19 +267,26 @@ export function inspectIncus(
     // The instance has no NIC of its own (an instance device of the profile's
     // name would replace the profile's wholesale, ACL and isolation with it),
     // so this NIC is the whole of a session's network containment.
-    const [, nic] = onNetwork[0] ?? [];
+    const [nicName, nic] = onNetwork[0] ?? [];
+    // Incus shows a network's configuration to administrators only ("sensitive
+    // info can be stored there"): the restricted certificate this backend runs
+    // with gets none, so an ACL attached to the network alone cannot be seen,
+    // however well it works. Only the profile's NIC can vouch for one.
+    const networkHidden = Object.keys(network.config).length === 0;
     const acls =
       list(nic?.['security.acls']).length > 0 ||
       list(network.config['security.acls']).length > 0;
     if (!acls) {
-      const text = `no network ACL applies to sessions: neither network ${incus.network} nor profile ${incus.profile}'s NIC sets security.acls, so a session could reach every address its bridge can. Attach an ACL that admits only the egress proxy, the resolver and the platform (services/sandbox/docs/incus.md has an example)`;
+      const text = networkHidden
+        ? `no network ACL is visible to the spawner: profile ${incus.profile}'s NIC sets no security.acls, and this certificate cannot read network ${incus.network}'s configuration (Incus shows it to administrators only), so an ACL attached to the network alone cannot be seen. Name the ACL on the profile's NIC as well, which Incus applies together with the network's: incus profile device set ${incus.profile} ${nicName ?? 'eth0'} security.acls=<acl> --project ${projectName} (services/sandbox/docs/incus.md has an example)`
+        : `no network ACL applies to sessions: neither network ${incus.network} nor profile ${incus.profile}'s NIC sets security.acls, so a session could reach every address its bridge can. Attach an ACL that admits only the egress proxy, the resolver and the platform (services/sandbox/docs/incus.md has an example)`;
       if (incus.allowUnfilteredNetwork) {
         warnings.push(
           `${text} — SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK is set, so this is allowed`,
         );
       } else {
         errors.push(
-          `${text}. (Set SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK=true only for a lab.)`,
+          `${text}. (Set SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK=true only for a lab, or when you know the network's ACL applies.)`,
         );
       }
     }

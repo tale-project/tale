@@ -24,7 +24,7 @@ import { newToken } from '../spawner.ts';
 import { asText, describeError } from '../util.ts';
 
 const report = reportFor('boot');
-let port = 18010;
+let port = 18100;
 
 /** A spawner that must not come up: the exit code and what it said. */
 async function refusedBoot(
@@ -220,48 +220,78 @@ describe('boot refusals against the real node', () => {
   );
 
   step(
-    'a bridge that offers its whole subnet to DHCP is warned about, and the operator block’s is not',
+    'the restricted certificate is shown no network configuration, so only the NIC can vouch for an ACL, and a NIC without one is refused with the fix',
     async () => {
-      // The block's network has a pool of its own: no warning at a normal boot.
-      port += 1;
-      // These boots are about the network, not the image: no pull is started.
-      const noPull = { SANDBOX_INCUS_IMAGE_SOURCE: undefined };
-      const quiet = spawnerOf({
-        name: 'dhcp-range-set',
-        port,
-        token: newToken(),
-        env: noPull,
-      });
-      quiet.start();
-      await quiet.ready();
-      expect(quiet.logTail(200)).not.toContain('whole subnet');
-      await quiet.stop();
+      // What Incus 7.5.1 does: the configuration of a network is shown to
+      // administrators only.
+      const asRestricted = await asSpawner(
+        'GET',
+        `/1.0/networks/${lab.network}`,
+      );
+      expectStatus(asRestricted, 200, 'GET the network as the spawner');
+      const seen = field(asRestricted.json, 'metadata', 'config');
+      report.fact(
+        'network configuration shown to the restricted certificate',
+        JSON.stringify(seen ?? null),
+      );
+      expect(seen).toEqual({});
+      // The administrator sees it: the bridge has a configuration.
+      const asAdmin = await admin.query(`/1.0/networks/${lab.network}`);
+      expect(field(asAdmin, 'config', 'ipv4.address')).toBe(
+        `${lab.bridgeAddress}/24`,
+      );
 
-      const ranges = (
-        await admin.run(['network', 'get', lab.network, 'ipv4.dhcp.ranges'])
-      ).stdout.trim();
-      expect(ranges).not.toBe('');
-      await admin.run(['network', 'unset', lab.network, 'ipv4.dhcp.ranges']);
+      // What the spawner can see of an ACL is the profile's NIC alone: take
+      // the NIC's away and nothing is left to see, whatever the bridge has.
+      await admin.run([
+        'profile',
+        'device',
+        'unset',
+        lab.profile,
+        'eth0',
+        'security.acls',
+        '--project',
+        lab.project,
+      ]);
       try {
+        const refused = await refusedBoot('acl-not-on-nic', {
+          SANDBOX_INCUS_IMAGE_SOURCE: undefined,
+        });
+        expect(refused.code).toBe(1);
+        expect(refused.log).toContain('no network ACL is visible');
+        expect(refused.log).toContain('administrators only');
+        expect(refused.log).toContain('security.acls=<acl>');
+
+        // Whoever knows the bridge's ACL applies can say so.
         port += 1;
-        const loud = spawnerOf({
-          name: 'dhcp-range-unset',
+        const allowed = spawnerOf({
+          name: 'acl-not-on-nic-allowed',
           port,
           token: newToken(),
-          env: noPull,
+          env: {
+            SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK: 'true',
+            SANDBOX_INCUS_IMAGE_SOURCE: undefined,
+          },
         });
-        loud.start();
-        await loud.ready();
-        const log = loud.logTail(200);
-        expect(log).toContain('whole subnet');
-        expect(log).toContain('ipv4.dhcp.ranges');
-        await loud.stop();
+        allowed.start();
+        await allowed.ready();
+        try {
+          expect(allowed.logTail(200)).toContain(
+            'SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK is set',
+          );
+        } finally {
+          await allowed.stop();
+        }
       } finally {
         await admin.run([
-          'network',
+          'profile',
+          'device',
           'set',
-          lab.network,
-          `ipv4.dhcp.ranges=${ranges}`,
+          lab.profile,
+          'eth0',
+          `security.acls=${lab.acl}`,
+          '--project',
+          lab.project,
         ]);
       }
     },

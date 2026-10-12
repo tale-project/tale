@@ -275,7 +275,10 @@ describe('the warm pool on a real node', () => {
 
       // The replacement boots beside the old one and adopts what is there.
       peer.start();
-      await peer.ready();
+      // A new spawner holds creates (429 `runtime_image`) until its image
+      // warm-up is done, which the client waits out five seconds at a time:
+      // that wait is the spawner's rollout, not the claim being measured.
+      await peer.ready({ image: true });
       await until(
         'the replacement to count the standbys',
         async () => (await warm(peer.api)).ready === POOL_SIZE || undefined,
@@ -297,7 +300,11 @@ describe('the warm pool on a real node', () => {
       report.add(
         'create from the warm pool, on a replacement spawner',
         result.elapsedMs,
+        result.imageWaits > 0
+          ? `after ${result.imageWaits} wait(s) on the image`
+          : '',
       );
+      expect(result.imageWaits).toBe(0);
       expect(result.elapsedMs).toBeLessThan(CLAIM_BUDGET_MS);
       expect(waiting.has((await sessionInstance(id))?.name ?? '')).toBe(true);
       await waitForPool(POOL_SIZE, 'the replacement to refill');

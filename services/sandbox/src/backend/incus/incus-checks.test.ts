@@ -363,6 +363,41 @@ describe('the network and the profile', () => {
     expect(errors[0]).toContain('SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK');
   });
 
+  test('says, when the network’s configuration is hidden from the certificate, that only the NIC can vouch for an ACL', async () => {
+    // A restricted certificate is shown an empty configuration for a network
+    // (Incus shows it to administrators only): an ACL on the network alone
+    // cannot be seen.
+    const fake = new FakeIncus();
+    fake.networkConfig = {};
+    const nic = fake.profileDevices.eth0;
+    if (nic === undefined) throw new Error('no NIC');
+    delete nic['security.acls'];
+    const { errors } = await inspect(fake);
+    const refused = matching(errors, 'no network ACL is visible');
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).toContain('administrators only');
+    expect(refused[0]).toContain(
+      'incus profile device set sandbox eth0 security.acls=<acl>',
+    );
+    expect(refused[0]).toContain('SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK');
+
+    // An ACL on the NIC is seen, whatever the network shows.
+    const named = new FakeIncus();
+    named.networkConfig = {};
+    expect(matching((await inspect(named)).errors, 'ACL')).toEqual([]);
+  });
+
+  test('says which network a visible configuration without an ACL is', async () => {
+    const fake = new FakeIncus();
+    fake.networkConfig = { 'ipv4.address': '10.20.0.1/24' };
+    const nic = fake.profileDevices.eth0;
+    if (nic === undefined) throw new Error('no NIC');
+    delete nic['security.acls'];
+    const { errors } = await inspect(fake);
+    expect(matching(errors, 'neither network sbx0')).toHaveLength(1);
+    expect(matching(errors, 'is visible')).toEqual([]);
+  });
+
   test('takes an ACL on the network as enough, or on the NIC', async () => {
     const onNetwork = new FakeIncus();
     const nic = onNetwork.profileDevices.eth0;
@@ -397,42 +432,6 @@ describe('the network and the profile', () => {
     expect(
       matching((await inspect(fake)).warnings, 'port_isolation'),
     ).toHaveLength(1);
-  });
-
-  test('warns about a network that offers its whole subnet to DHCP, and not about one with a range of its own', async () => {
-    const whole = new FakeIncus();
-    whole.networkConfig = {
-      'security.acls': 'sandbox-egress',
-      'ipv4.address': '10.20.0.1/24',
-    };
-    const warned = matching((await inspect(whole)).warnings, 'whole subnet');
-    expect(warned).toHaveLength(1);
-    expect(warned[0]).toContain('10.20.0.1/24');
-    expect(warned[0]).toContain('ipv4.dhcp.ranges');
-
-    const ranged = new FakeIncus();
-    ranged.networkConfig = {
-      'security.acls': 'sandbox-egress',
-      'ipv4.address': '10.20.0.1/24',
-      'ipv4.dhcp.ranges': '10.20.0.100-10.20.0.254',
-    };
-    expect(matching((await inspect(ranged)).warnings, 'whole subnet')).toEqual(
-      [],
-    );
-
-    // No IPv4 on the bridge, or no DHCP on it: nothing is handed out.
-    const nothingHandedOut: Record<string, string>[] = [
-      { 'ipv4.address': 'none' },
-      { 'ipv4.address': '10.20.0.1/24', 'ipv4.dhcp': 'false' },
-      {},
-    ];
-    for (const config of nothingHandedOut) {
-      const other = new FakeIncus();
-      other.networkConfig = { 'security.acls': 'sandbox-egress', ...config };
-      expect(matching((await inspect(other)).warnings, 'whole subnet')).toEqual(
-        [],
-      );
-    }
   });
 
   test('warns about a root disk on another pool, and one without a size', async () => {
