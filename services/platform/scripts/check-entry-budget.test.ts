@@ -81,6 +81,7 @@ describe('forbiddenPackagesIn', () => {
         '../../../../node_modules/cron-parser/dist/index.js',
         '../../../../node_modules/@tanstack/table-core/build/lib/index.mjs',
         '../../../../node_modules/dompurify/dist/purify.es.mjs',
+        '../../../../node_modules/diff/libesm/index.js',
       ]),
     ).toEqual([
       'recharts',
@@ -95,6 +96,7 @@ describe('forbiddenPackagesIn', () => {
       'cron-parser',
       '@tanstack/table-core',
       'dompurify',
+      'diff',
     ]);
   });
 
@@ -123,6 +125,7 @@ describe('forbiddenPackagesIn', () => {
       forbiddenPackagesIn([
         '../../../../node_modules/rehype-katex/lib/index.js',
         '../../../../node_modules/recharts-scale/es6/index.js',
+        '../../../../node_modules/diff-match-patch/index.js',
         '../../app/features/analytics/usage/usage-metrics-search.ts',
       ]),
     ).toEqual([]);
@@ -156,6 +159,74 @@ describe('forbiddenSourcesIn', () => {
         root,
       ),
     ).toEqual(['messages/en/settings.yml', 'messages/en/governance.yml']);
+  });
+
+  it("names the automation editor's own screens, topics and engine a chunk carries", () => {
+    expect(
+      forbiddenSourcesIn(
+        [
+          '../../app/features/automations/components/automation-tests/automation-tests-panel.tsx',
+          '../../app/features/automations/components/versions/version-compare-page.tsx',
+          '../../messages/en/automations.yml',
+          '../../messages/en/automationRuns.yml',
+          '../../messages/en/automationIssues.yml',
+          '../../lib/engine/api/expect.ts',
+          '../../lib/engine/core/diff/automation.ts',
+        ],
+        mapDir,
+        root,
+      ),
+    ).toEqual([
+      'messages/en/automations.yml',
+      'messages/en/automationRuns.yml',
+      'messages/en/automationIssues.yml',
+      'app/features/automations/components/',
+      'lib/engine/',
+    ]);
+  });
+
+  it('names the diffs, the test results, the dock and the flow components of @tale/ui a chunk carries', () => {
+    const ui = '../../../../packages/ui/src';
+    expect(
+      forbiddenSourcesIn(
+        [
+          `${ui}/data/value-diff.ts`,
+          `${ui}/components/data-display/code-diff/code-diff.tsx`,
+          `${ui}/components/data-display/data-diff/data-diff.tsx`,
+          `${ui}/components/feedback/test-results.tsx`,
+          `${ui}/components/editor/workbench-dock.tsx`,
+          `${ui}/components/flow/playback/flow-playback-bar.tsx`,
+        ],
+        mapDir,
+        root,
+      ),
+    ).toEqual([
+      '../../packages/ui/src/data/value-diff.ts',
+      '../../packages/ui/src/components/data-display/code-diff/',
+      '../../packages/ui/src/components/data-display/data-diff/',
+      '../../packages/ui/src/components/feedback/test-results.tsx',
+      '../../packages/ui/src/components/editor/workbench-dock.tsx',
+      '../../packages/ui/src/components/flow/',
+    ]);
+  });
+
+  it('passes what a route needs to match its address and the shared pieces the shell reads', () => {
+    const ui = '../../../../packages/ui/src';
+    expect(
+      forbiddenSourcesIn(
+        [
+          '../../app/features/automations/lib/editor-search.ts',
+          '../../app/features/automations/hooks/use-can-use-automations.ts',
+          '../../lib/shared/schemas/automation-tests.ts',
+          '../../lib/shared/utils/storable-text.ts',
+          `${ui}/data/stable-stringify.ts`,
+          `${ui}/components/data-display/value-tree/value-tree.tsx`,
+          `${ui}/components/feedback/test-results-helpers.ts`,
+        ],
+        mapDir,
+        root,
+      ),
+    ).toEqual([]);
   });
 
   it("passes the English the first pages read and a package's catalog of the same name", () => {

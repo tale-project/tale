@@ -431,11 +431,18 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
             {t('submitHint', { shortcut, action: submitLabel })}
           </span>
         ) : null}
-        {capturesTab && keyboardFocus ? (
+        {capturesTab ? (
+          // Always mounted, shown and hidden by opacity: a node removed while
+          // the field blurs makes a modal's focus scope put focus on the dialog
+          // itself, so Tab out of the field would never reach the next control.
           <span
             aria-hidden="true"
             data-code-editor-legend=""
-            className="bg-background text-muted-foreground border-border motion-safe:animate-in motion-safe:fade-in pointer-events-none absolute right-2 -bottom-2.5 hidden h-5 items-center gap-2 rounded-sm border px-1.5 text-xs whitespace-nowrap motion-safe:duration-[var(--duration-short)] @min-[16rem]:inline-flex"
+            data-shown={keyboardFocus}
+            className={cn(
+              'bg-background text-muted-foreground border-border pointer-events-none absolute right-2 -bottom-2.5 hidden h-5 items-center gap-2 rounded-sm border px-1.5 text-xs whitespace-nowrap opacity-0 motion-safe:transition-opacity motion-safe:duration-[var(--duration-short)] @min-[16rem]:inline-flex',
+              keyboardFocus && 'opacity-100',
+            )}
           >
             {canSubmit ? (
               <span>

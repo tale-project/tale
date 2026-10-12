@@ -70,8 +70,10 @@ export interface WorkbenchDockProps {
 const ENTER =
   'animate-in fade-in slide-in-from-bottom-2 duration-[var(--duration-standard)] ease-[var(--ease-out-quint)] motion-reduce:animate-none';
 
+// A contrast theme shows a transparent border: an idle tab's line takes the
+// page's own colour, the open tab's the system's selection colour.
 const TAB_TRIGGER =
-  'text-muted-foreground hover:text-foreground data-[state=active]:text-foreground data-[state=active]:border-primary focus-visible:ring-ring inline-flex min-h-9 items-center gap-2 border-b-2 border-transparent px-1 text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset';
+  'text-muted-foreground hover:text-foreground data-[state=active]:text-foreground data-[state=active]:border-primary focus-visible:ring-ring inline-flex min-h-9 items-center gap-2 border-b-2 border-transparent px-1 text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset forced-colors:[border-bottom-color:Canvas] forced-colors:data-[state=active]:[border-bottom-color:Highlight]';
 
 /**
  * A panel docked under an editor's canvas — Problems, Tests — spanning the

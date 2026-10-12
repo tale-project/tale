@@ -100,9 +100,13 @@ const triggerVariants = cva(
   {
     variants: {
       variant: {
-        pill: 'data-[state=active]:bg-tab data-[state=active]:text-foreground rounded-md px-3 py-1 transition-all data-[state=active]:shadow-sm',
+        // A contrast theme repaints every tint and shows a transparent
+        // border: the open tab takes its colours back, in the system's
+        // selection pair (it would otherwise get a backplate behind its
+        // text), and an idle tab's line takes the page's own colour.
+        pill: 'data-[state=active]:bg-tab data-[state=active]:text-foreground rounded-md px-3 py-1 transition-all data-[state=active]:shadow-sm forced-colors:data-[state=active]:[background-color:Highlight] forced-colors:data-[state=active]:[color:HighlightText] forced-colors:data-[state=active]:[forced-color-adjust:none]',
         underline:
-          'data-[state=active]:border-primary data-[state=active]:text-foreground relative border-b-2 border-transparent px-1 pb-2 transition-colors',
+          'data-[state=active]:border-primary data-[state=active]:text-foreground relative border-b-2 border-transparent px-1 pb-2 transition-colors forced-colors:[border-bottom-color:Canvas] forced-colors:data-[state=active]:[border-bottom-color:Highlight]',
       },
     },
     defaultVariants: { variant: 'pill' },

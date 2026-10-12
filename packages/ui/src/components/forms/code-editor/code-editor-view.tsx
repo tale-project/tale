@@ -315,7 +315,10 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
     ...(required ? { 'aria-required': 'true' } : {}),
     ...(readOnly ? { 'aria-readonly': 'true', inputmode: 'none' } : {}),
     ...(disabled ? { 'aria-disabled': 'true' } : {}),
-    ...(softDisabled || (readOnly && !disabled) ? { tabindex: '0' } : {}),
+    // A field Tab can reach says so: a contenteditable without a tabindex is
+    // taken for no stop by a modal's focus scope and by axe, which then flags
+    // a scrolling dialog body that holds only fields.
+    ...(!disabled || softDisabled ? { tabindex: '0' } : {}),
     'aria-multiline': singleLine ? 'false' : 'true',
     'aria-roledescription': t('roleDescription'),
     spellcheck: font === 'prose' ? 'true' : 'false',

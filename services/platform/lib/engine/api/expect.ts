@@ -17,9 +17,9 @@ import { diffValues, type DiffChange } from '@tale/ui/data/value-diff';
 
 import { stableStringify } from '../../shared/utils/stable-stringify';
 import {
-  cutText,
+  REPORT_CHARS,
+  reportText,
   storableJson,
-  storableText,
 } from '../../shared/utils/storable-text';
 import type { Json } from '../core/types';
 
@@ -107,19 +107,6 @@ export function compareIncludes(
   cap = DEFAULT_CAP,
 ): DiffChange[] {
   return mismatchesOf('includes', expected, actual, cap).changes;
-}
-
-/** How many characters of a value a report quotes. */
-const REPORT_CHARS = 200;
-
-/**
- * Text as a test report keeps it: storable, and past `chars` characters cut
- * there with "…" (never through a character that takes two units).
- */
-export function reportText(text: string, chars = REPORT_CHARS): string {
-  return text.length > chars
-    ? `${storableText(cutText(text, chars))}…`
-    : storableText(text);
 }
 
 /**

@@ -23,7 +23,6 @@
  * run's input, output, checkpoints and effects, or a try's result.
  */
 
-import { reportText } from '../../engine/api/expect';
 import { redactValue, utf8Bytes } from '../../engine/core/record/value';
 import { ptr } from '../../engine/core/syntax/pointer';
 import type {
@@ -41,7 +40,7 @@ import {
   type DroppedStandIn,
   type TestFromRunWarning,
 } from '../../shared/schemas/automation-tests';
-import { storableText } from '../../shared/utils/storable-text';
+import { reportText, storableText } from '../../shared/utils/storable-text';
 import { isRecord } from '../../utils/type-utils';
 
 /** What a test made from a run expects: the run's output exactly, or what
