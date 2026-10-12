@@ -42,14 +42,17 @@ export const MOCK_TRIGGERS = {
   cloudRegion: 'e2e:cloud-region',
   makeFile: 'e2e:make-file',
   makeSpreadsheet: 'e2e:make-spreadsheet',
+  runLongCode: 'e2e:run-long-code',
   useWorkspace: 'e2e:use-workspace',
 } as const;
 
 /**
  * The work-tool scenarios (`MOCK_TRIGGERS.makeFile` / `makeSpreadsheet` /
- * `useWorkspace`): a first turn that calls the tool — `create_file` with a
- * small CSV, `run_code` with a Python program that writes a spreadsheet to
- * the light sandbox's output box, or `use_workspace` handing a task to the
+ * `runLongCode` / `useWorkspace`): a first turn that calls the tool —
+ * `create_file` with a small CSV, `run_code` with a Python program that
+ * writes a spreadsheet to the light sandbox's output box, `run_code` with a
+ * program that waits almost three minutes before it writes anything (what a
+ * Stop must be able to cut off), or `use_workspace` handing a task to the
  * full workspace — and, once the tool result is in, a closing reply.
  * They prove the plumbing (the call, the sandbox, the attached file), never
  * a model's judgment of which tool to use.
@@ -70,6 +73,13 @@ export const MOCK_WORK_TOOLS = {
     '    ws.append(row)',
     'wb.save("/agent/output/planets.xlsx")',
     'print("wrote planets.xlsx")',
+  ].join('\n'),
+  longCodeIntro: "I'll run the long program in the light sandbox.",
+  longCode: [
+    'import time',
+    'time.sleep(170)',
+    'open("/agent/output/done.txt", "w").write("done")',
+    'print("finished")',
   ].join('\n'),
   workspaceIntro: 'This needs the full workspace.',
   workspaceReason:

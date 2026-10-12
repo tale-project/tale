@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   drainSessionExecResilient,
+  sessionCancelExec,
   sessionListFiles,
   sessionReadFile,
   sessionStageFiles,
@@ -23,6 +24,7 @@ vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => {
   return {
     SessionFileTooLargeError,
     drainSessionExecResilient: vi.fn(),
+    sessionCancelExec: vi.fn(() => Promise.resolve(true)),
     sessionListFiles: vi.fn(),
     sessionReadFile: vi.fn(),
     sessionStageFiles: vi.fn(),
@@ -46,6 +48,9 @@ vi.mock('../sandbox/light-sessions.ts', () => {
     touchLightSession: vi.fn(() => Promise.resolve()),
   };
 });
+
+/** How many skipped files a run names before it counts the rest. */
+const HARVEST_NAMED = 20;
 
 const b64 = (text: string) => Buffer.from(text).toString('base64');
 
@@ -150,6 +155,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ sessionId: 'lt-1', created: true });
   vi.mocked(touchLightSession).mockClear();
+  vi.mocked(sessionCancelExec).mockReset().mockResolvedValue(true);
 });
 
 describe('run_code', () => {
@@ -476,6 +482,291 @@ describe('run_code', () => {
 
       expect(acquireLightSession).toHaveBeenCalledTimes(1);
     });
+  });
+
+  describe('when the reply is stopped or the step runs out of time [CHAT-R25]', () => {
+    const PROGRAM = {
+      language: 'python',
+      code: 'import time; time.sleep(170)',
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('starts nothing for a call that was already told to stop', async () => {
+      const { scope } = testScope();
+      const stop = new AbortController();
+      stop.abort();
+
+      await expect(
+        runRunCode(scope, PROGRAM, { signal: stop.signal }),
+      ).resolves.toMatchObject({ status: 'cancelled' });
+
+      expect(acquireLightSession).not.toHaveBeenCalled();
+      expect(drainSessionExecResilient).not.toHaveBeenCalled();
+    });
+
+    it('cuts the program off in its sandbox, and answers that it was stopped', async () => {
+      const stop = new AbortController();
+      vi.mocked(drainSessionExecResilient).mockImplementation(
+        (_sessionId, _body, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+      const { scope, stored } = testScope();
+      sandbox.write('half.csv', 'a,b', 1_000);
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      stop.abort();
+
+      await expect(running).resolves.toMatchObject({
+        status: 'cancelled',
+        message: expect.stringContaining('stopped'),
+      });
+      // What it had written stays, and the model is told where.
+      await expect(running).resolves.toMatchObject({
+        message: expect.stringContaining('/agent/output/'),
+      });
+      // The program must not run on in a sandbox nobody waits for.
+      const execId = vi.mocked(drainSessionExecResilient).mock.calls[0]?.[1]
+        .execId;
+      expect(sessionCancelExec).toHaveBeenCalledExactlyOnceWith('lt-1', execId);
+      // And the half-written output is not attached to a stopped reply.
+      expect(stored).toEqual([]);
+    });
+
+    it('still answers when the spawner cannot be asked to cancel', async () => {
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const stop = new AbortController();
+      vi.mocked(drainSessionExecResilient).mockImplementation(
+        (_sessionId, _body, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+      vi.mocked(sessionCancelExec).mockRejectedValue(new Error('spawner down'));
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      stop.abort();
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('stopping the program'),
+        expect.any(Error),
+      );
+    });
+
+    it('asks again when the sandbox does not know the program yet: the cancel can overtake its start', async () => {
+      vi.useFakeTimers();
+      const stop = new AbortController();
+      vi.mocked(drainSessionExecResilient).mockImplementation(
+        (_sessionId, _body, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+      // The first two cancels reach the sandbox before the program is
+      // registered there; the third finds it.
+      vi.mocked(sessionCancelExec)
+        .mockReset()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true);
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      stop.abort();
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      expect(sessionCancelExec).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('gives up asking after a few tries when the program is already gone', async () => {
+      vi.useFakeTimers();
+      const stop = new AbortController();
+      vi.mocked(drainSessionExecResilient).mockImplementation(
+        (_sessionId, _body, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+      vi.mocked(sessionCancelExec).mockReset().mockResolvedValue(false);
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      stop.abort();
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      expect(sessionCancelExec).toHaveBeenCalledTimes(4);
+    });
+
+    it('records nothing as delivered when a Stop ends the harvest between two files, so no file is lost to a reply that never got it', async () => {
+      const stop = new AbortController();
+      sandbox.write('a.csv', 'a', 2_000);
+      sandbox.write('b.csv', 'b', 1_000);
+      const { scope, stored } = testScope();
+      // The newest file is being read when the Stop arrives.
+      const read = vi.mocked(sessionReadFile).getMockImplementation();
+      vi.mocked(sessionReadFile).mockImplementation((...args) => {
+        if (args[1].endsWith('/a.csv')) stop.abort();
+        return read?.(...args) ?? Promise.resolve(null);
+      });
+
+      await runRunCode(scope, PROGRAM, { signal: stop.signal });
+
+      // What was stored is stored, but the record of delivered files was not
+      // touched: the next call offers every file again.
+      expect(stored.map((file) => file.name)).toEqual(['a.csv']);
+      expect(sandbox.delivered()).toBeUndefined();
+
+      vi.mocked(sessionReadFile).mockImplementation(
+        (...args) => read?.(...args) ?? Promise.resolve(null),
+      );
+      await runRunCode(scope, { language: 'python', code: 'print(1)' });
+      expect(stored.map((file) => file.name)).toContain('b.csv');
+    });
+
+    it('stops waiting for a sandbox the moment it is told to', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession).mockRejectedValue(
+        new LightSandboxBusyError('All light sandboxes are in use.'),
+      );
+      const { scope } = testScope({ lightSandboxWaitMs: 90_000 });
+      const stop = new AbortController();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.advanceTimersByTimeAsync(4_000);
+      stop.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      // Not the 90 seconds it would have waited, and no timer left behind.
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('starts nothing for a call that waited its turn behind another program and was told to stop meanwhile', async () => {
+      const stop = new AbortController();
+      let finishFirst: (() => void) | undefined;
+      vi.mocked(drainSessionExecResilient).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = () => resolve(execResult());
+          }),
+      );
+      const { scope } = testScope();
+
+      const first = runRunCode(scope, { language: 'python', code: 'print(1)' });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      const second = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      // The second call is parked behind the first in the sandbox's queue.
+      await vi.waitFor(() =>
+        expect(acquireLightSession).toHaveBeenCalledTimes(2),
+      );
+      stop.abort();
+      finishFirst?.();
+
+      await expect(first).resolves.toMatchObject({ status: 'ok' });
+      await expect(second).resolves.toMatchObject({ status: 'cancelled' });
+      expect(drainSessionExecResilient).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('keeps the answer small when a program floods its output box [CHAT-R27]', async () => {
+    // A program can write as many files as it likes; the tool result, the
+    // reply's record and the next prompt must not grow with them.
+    for (let index = 0; index < 150; index += 1) {
+      sandbox.write(`file-${String(index).padStart(3, '0')}.txt`, 'x', 1_000);
+    }
+    for (let index = 0; index < 120; index += 1)
+      sandbox.dirs.add(`dir-${index}`);
+    const { scope, stored } = testScope();
+
+    const result = await runRunCode(scope, {
+      language: 'python',
+      code: 'print(1)',
+    });
+
+    // Ten files attach, as always; of the rest only a short list is named, and
+    // the others are counted.
+    expect(stored).toHaveLength(10);
+    const skipped = (result as { skippedOutputs: { name: string }[] })
+      .skippedOutputs;
+    expect(skipped.length).toBeLessThanOrEqual(21);
+    expect(skipped.at(-1)?.name).toMatch(/^\d+ more$/);
+    // 270 entries: 200 looked at (10 attached, 190 skipped), 70 never looked at.
+    expect(Number.parseInt(skipped.at(-1)?.name ?? '0', 10)).toBe(
+      270 - 10 - HARVEST_NAMED,
+    );
+    expect(JSON.stringify(result).length).toBeLessThan(6_000);
+  });
+
+  it('looks at the newest files first, so what the program just wrote is never behind a window of old files [CHAT-R27]', async () => {
+    // The sandbox lists in its own order; the fresh file comes last.
+    for (let index = 0; index < 250; index += 1) {
+      sandbox.write(`old-${String(index).padStart(3, '0')}.txt`, 'x', 1_000);
+    }
+    sandbox.write('fresh.txt', 'fresh', 5_000);
+    const { scope, stored } = testScope();
+
+    await runRunCode(scope, { language: 'python', code: 'print(1)' });
+
+    expect(stored.map((file) => file.name)).toContain('fresh.txt');
+    expect(stored).toHaveLength(10);
+  });
+
+  it('keeps a delivered file recorded while it is beyond the window, so it is not attached again when it is back in view [CHAT-R24]', async () => {
+    const { scope, stored } = testScope();
+    const run = () =>
+      runRunCode(scope, { language: 'python', code: 'print(1)' });
+    sandbox.write('keep.csv', 'a,b', 1_000);
+    await run();
+
+    // A program writes more new files than one call looks at; the sandbox
+    // lists the delivered one last, and it is the oldest.
+    sandbox.output.delete('keep.csv');
+    for (let index = 0; index < 205; index += 1) {
+      sandbox.write(`new-${String(index).padStart(3, '0')}.txt`, 'n', 2_000);
+    }
+    sandbox.write('keep.csv', 'a,b', 1_000);
+    await run();
+    expect(sandbox.delivered()).toHaveProperty(['keep.csv']);
+
+    // The new files go; the delivered one is the whole box again.
+    for (const name of sandbox.output.keys()) {
+      if (name !== 'keep.csv') sandbox.output.delete(name);
+    }
+    await expect(run()).resolves.toMatchObject({ artifacts: [] });
+    expect(stored.filter((file) => file.name === 'keep.csv')).toHaveLength(1);
   });
 
   it('notes when a successful program attached nothing', async () => {

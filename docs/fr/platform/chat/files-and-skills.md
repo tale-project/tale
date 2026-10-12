@@ -52,7 +52,7 @@ Un skill guide l’assistant ; il ne change pas ce que l’assistant a le droit
 ## Connaître les limites
 
 - Une sandbox légère appartient à une seule conversation. Elle garde ses fichiers entre les étapes de l’assistant et tes messages de suivi ; après environ cinq minutes sans utilisation, elle est supprimée et la demande suivante en démarre une nouvelle. Quand toutes les sandboxes légères de ton organisation sont occupées, une sandbox inutilisée cède sa place ; si aucune n’est inutilisée, l’assistant t’invite à réessayer dans une minute.
-- Une exécution de code dure au plus trois minutes. Elle joint jusqu’à 10 fichiers, de 20 Mo chacun au plus.
+- Une exécution de code dure au plus trois minutes, et les outils d’une étape disposent ensemble de cinq minutes au plus. Au plus 16 outils s’exécutent dans une étape. Si tu appuies sur **Arrêter la génération**, un programme en cours est interrompu en quelques secondes. Une exécution joint jusqu’à 10 fichiers, de 20 Mo chacun au plus ; quand un programme en écrit beaucoup plus, la réponse en nomme quelques-uns et compte les autres.
 - Un fichier que l’assistant rédige lui-même contient au plus 1 Mo de texte.
 - Une demande crée jusqu’à 4 images, et une réponse jusqu’à 16. Les images sont facturées à ton organisation et comptent pour toi, comme la réponse elle-même.
 

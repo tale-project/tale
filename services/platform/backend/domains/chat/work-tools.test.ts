@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { findActingMember } from '../../auth/membership.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import { resolveImageGenerationModel } from '../../core/lib/providers/resolve_image_model.ts';
 import {
   readGovernancePolicyForOrg,
@@ -97,6 +98,89 @@ describe('chatWorkTools', () => {
     ]);
     expect(tools?.skillCatalog).toEqual([]);
     expect(listSkillCatalog).not.toHaveBeenCalled();
+  });
+
+  describe('a Chat tools policy that cannot be read [CHAT-R26]', () => {
+    function unreadable(
+      error: unknown,
+      imageGeneration: unknown = { enabled: false },
+    ): void {
+      vi.mocked(readGovernancePolicyForOrg).mockImplementation(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the two policies this builder reads
+        (async (_sql: unknown, _org: unknown, type: string) => {
+          if (type === 'chat_tools') throw error;
+          return imageGeneration;
+        }) as never,
+      );
+    }
+    const broken = () =>
+      new ConfigurationError(
+        'GOVERNANCE_POLICY_INVALID',
+        'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+        400,
+      );
+
+    it('reads the policy strictly: the cached default of a file that failed to parse is no answer', async () => {
+      await chatWorkTools(sql, TURN);
+
+      expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+        sql,
+        'org_1',
+        'chat_tools',
+        { strict: true },
+      );
+    });
+
+    it.each([
+      ['a file that fails to parse', broken],
+      [
+        'a configuration root that is not set or readable',
+        () =>
+          new ConfigurationError(
+            'GOVERNANCE_POLICY_UNAVAILABLE',
+            'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+            409,
+          ),
+      ],
+    ])(
+      'offers no tool for %s, rather than the defaults an admin may have switched off',
+      async (_cause, makeError) => {
+        const warn = vi
+          .spyOn(console, 'warn')
+          .mockImplementation(() => undefined);
+        unreadable(makeError());
+
+        await expect(chatWorkTools(sql, TURN)).resolves.toBeUndefined();
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('chat_tools policy of org_1 cannot be read'),
+          expect.stringContaining('unavailable or invalid'),
+        );
+      },
+    );
+
+    it('still offers images, which follow their own policy', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      unreadable(broken(), { enabled: true });
+      vi.mocked(resolveImageGenerationModel).mockResolvedValue(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a resolved model's shape is all the builder hands on
+        { providerSlug: 'openrouter', modelId: 'img' } as never,
+      );
+
+      const tools = await chatWorkTools(sql, TURN);
+
+      expect(tools?.executor.wireTools.map((tool) => tool.name)).toEqual([
+        'generate_image',
+      ]);
+    });
+
+    it('lets any other failure through: only an unreadable policy turns the tools off', async () => {
+      unreadable(new Error('the database went away'));
+
+      await expect(chatWorkTools(sql, TURN)).rejects.toThrow(
+        'the database went away',
+      );
+    });
   });
 
   it('offers no work tool at all when every switch is off', async () => {

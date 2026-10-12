@@ -26,11 +26,13 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { ChatToolsPolicyEditor } from './chat-tools-policy-editor';
 
-const { state, saved } = vi.hoisted(() => ({
+const { state, saved, refetch } = vi.hoisted(() => ({
   saved: vi.fn(),
+  refetch: vi.fn(),
   state: {
     config: null as unknown,
     canEdit: true,
+    readFailed: false,
   },
 }));
 
@@ -42,8 +44,14 @@ vi.mock('../hooks/mutations', () => ({
 }));
 vi.mock('../hooks/queries', () => ({
   useGovernancePolicy: () => ({
-    data: state.config === null ? null : { config: state.config },
+    data: state.readFailed
+      ? undefined
+      : state.config === null
+        ? null
+        : { config: state.config },
     isLoading: false,
+    isError: state.readFailed,
+    refetch,
   }),
 }));
 
@@ -52,7 +60,7 @@ function HeaderActions() {
   return editor ? <EditorActions controller={editor} /> : null;
 }
 
-async function renderEditor() {
+async function renderEditor({ unreadable = false } = {}) {
   const root = createRootRoute({ component: Outlet });
   const route = createRoute({
     getParentRoute: () => root,
@@ -75,7 +83,10 @@ async function renderEditor() {
     }),
   });
   const result = render(<RouterProvider router={router} />);
-  await screen.findByRole('heading', { name: 'Chat tools' });
+  // A policy that cannot be read puts the read-failure alert in the editor's
+  // place until it can be.
+  if (unreadable) await screen.findByRole('alert');
+  else await screen.findByRole('heading', { name: 'Chat tools' });
   return result;
 }
 
@@ -83,11 +94,26 @@ const toolSwitch = (name: string) => screen.getByRole('switch', { name });
 
 beforeEach(() => {
   saved.mockReset().mockResolvedValue(null);
+  refetch.mockReset();
   state.config = null;
   state.canEdit = true;
+  state.readFailed = false;
 });
 
 describe('ChatToolsPolicyEditor', () => {
+  it('says the policy could not be read, with Retry, instead of showing every tool on [CHAT-R26]', async () => {
+    state.readFailed = true;
+    const { user } = await renderEditor({ unreadable: true });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Editing is unavailable until the policy can be read.',
+    );
+    // The switches the chat is not using must not be shown as in force.
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('reads a missing policy as every tool on', async () => {
     await renderEditor();
     expect(toolSwitch('Files')).toBeChecked();

@@ -935,7 +935,11 @@ These estimates are admission headroom, not memory limits. The actual
 capability is returned as `session.docker` and recorded on the container or Pod
 so a spawner restart preserves that session's behavior.
 
-`default` uses uid 65534 with the hardened code/render profile. `agent` uses
+`default` uses uid 65534 with the hardened code/render profile. Because it runs
+untrusted code, it mounts none of the shared per-organization dependency caches
+(pip, npm, bun): a cache that code could write and an agent session later reads
+would carry whatever it wrote into a more privileged session. An install inside
+a `default` session lands in its own workspace. `agent` uses
 uid 10001, a named non-root account for git/ssh and coding CLIs. Its defaults
 are 2 CPU, 4 GiB memory (8 GiB with DinD), 512 pids, 512 MB `/dev/shm`, and
 512 MB `/tmp`; the `SANDBOX_AGENT_*` settings override these limits. The memory

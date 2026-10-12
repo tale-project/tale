@@ -8,6 +8,7 @@ import {
 import type { ToolDoc } from '../../../lib/chat/context.ts';
 import type {
   ChatToolExecutor,
+  ToolCallOptions,
   ToolCallRequest,
 } from '../../../lib/chat/tools.ts';
 import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
@@ -28,7 +29,11 @@ import { runUseWorkspace } from './use-workspace.ts';
  * read and recover from, not the end of the turn.
  */
 
-type Handler = (scope: WorkToolScope, input: unknown) => Promise<unknown>;
+type Handler = (
+  scope: WorkToolScope,
+  input: unknown,
+  options: ToolCallOptions,
+) => Promise<unknown>;
 
 const HANDLERS: Record<WorkToolName, Handler> = {
   create_file: runCreateFile,
@@ -90,7 +95,10 @@ export function createWorkToolExecutor(
   const names = new Set<string>(offered);
   return {
     wireTools: offered.map(workWireTool),
-    async execute(call: ToolCallRequest): Promise<unknown> {
+    async execute(
+      call: ToolCallRequest,
+      options: ToolCallOptions = {},
+    ): Promise<unknown> {
       if (!names.has(call.name)) {
         return failure('error', `There is no tool named "${call.name}".`);
       }
@@ -103,7 +111,7 @@ export function createWorkToolExecutor(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership checked above against the offered names
       const handler = HANDLERS[call.name as WorkToolName];
       try {
-        return await handler(scope, call.input);
+        return await handler(scope, call.input, options);
       } catch (error) {
         console.error(`[agent-tools] ${call.name} failed:`, error);
         return failure(

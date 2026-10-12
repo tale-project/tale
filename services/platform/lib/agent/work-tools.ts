@@ -34,6 +34,20 @@ export function isWorkToolName(name: string): name is WorkToolName {
   return (WORK_TOOL_NAMES as readonly string[]).includes(name);
 }
 
+/** The statuses a work tool answers a call it could not carry out with: the
+ * executors' failure type and a run's log, which shows a result carrying one
+ * as an error entry, both read this one list. */
+export const WORK_TOOL_FAILURE_STATUSES = [
+  'invalid_args',
+  'not_found',
+  'unavailable',
+  'busy',
+  'error',
+  'cancelled',
+] as const;
+
+export type WorkToolFailureStatus = (typeof WORK_TOOL_FAILURE_STATUSES)[number];
+
 // ------------------------------------------------------------------ limits
 
 /** The largest file `create_file` stores, in UTF-8 bytes. */

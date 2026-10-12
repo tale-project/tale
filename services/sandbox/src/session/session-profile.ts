@@ -34,6 +34,25 @@ export function sessionDindEnabled(
   return cfg.dockerInContainer && profile === 'agent' && requested !== false;
 }
 
+/**
+ * Whether a session mounts the organization's shared dependency caches (pip,
+ * npm, bun): an agent session without Docker inside. Never under DinD, where
+ * a cross-session shared volume's ownership is unsafe (sysbox userns
+ * shifting). And never the `default` profile, which runs UNTRUSTED code: a
+ * cache that code can write and an agent session later reads would carry
+ * whatever it wrote into a more privileged session — pip serves the bytes of a
+ * cached URL without checking them, and npm's index is as writable as its
+ * content. Cold caches are the safe default there; installs still work, just
+ * uncached across sessions. The argv builder, the volume setup and the cache
+ * retention all ask this one question.
+ */
+export function sessionSharesPackageCaches(
+  profile: SandboxSessionProfile,
+  dind: boolean,
+): boolean {
+  return !dind && profile !== 'default';
+}
+
 /** Resolve once at creation and record it on the backend object. A caller
  * can narrow the deployment's capability, never enable a disabled one.
  * Untagged callers keep the legacy default only while all workloads are

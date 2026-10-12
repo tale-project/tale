@@ -330,6 +330,40 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
   });
 
+  describe('the shared per-org dependency caches', () => {
+    test('are mounted for an agent session, which installs its own tools', () => {
+      const args = buildDockerSessionRunArgs(cfg, goodInput);
+
+      expect(args).toContain('type=volume,src=pip-org_456,dst=/cache/pip');
+      expect(args).toContain('type=volume,src=npm-org_456,dst=/cache/npm');
+      expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
+      expect(args).toContain('PIP_CACHE_DIR=/cache/pip');
+    });
+
+    test('are never mounted into the default profile, whose code is untrusted: a cache it could write, an agent session would read', () => {
+      const args = buildDockerSessionRunArgs(cfg, {
+        ...goodInput,
+        profile: 'default',
+      });
+
+      // Neither the volumes nor the environment that points installs at them:
+      // an install inside the sandbox lands in its own workspace.
+      expect(args.some((a) => a.includes('dst=/cache/'))).toBe(false);
+      for (const name of [
+        'PIP_CACHE_DIR=',
+        'UV_CACHE_DIR=',
+        'NPM_CONFIG_CACHE=',
+        'BUN_INSTALL_CACHE_DIR=',
+      ]) {
+        expect(args.some((a) => a.startsWith(name))).toBe(false);
+      }
+      // The rest of the profile is untouched: still its own workspace.
+      expect(args).toContain(
+        'type=bind,src=/var/lib/tale-sandbox/sessions/ses-ses-abc-123,dst=/agent',
+      );
+    });
+  });
+
   describe('transparent egress (SANDBOX_TRANSPARENT_EGRESS)', () => {
     test('off (default): no NET_ADMIN, no signal, runs as the profile uid', () => {
       const args = buildDockerSessionRunArgs(cfg, goodInput);
@@ -730,13 +764,13 @@ describe('buildDockerSessionRunArgs', () => {
         expect(args).toContain('TALE_DROP_GID=65534');
         const userIdx = args.indexOf('--user');
         expect(args[userIdx + 1]).toBe('0:0');
-        // No inner-docker store, no shared build cache; per-org dep caches ON
-        // (the DinD userns-shifting concern doesn't apply).
+        // No inner-docker store, no shared build cache — and no per-org dep
+        // caches either: this profile runs untrusted code (see below).
         expect(args.some((a) => a.includes('dst=/var/lib/docker'))).toBe(false);
         expect(args.some((a) => a.startsWith('TALE_BUILDKITD_ENDPOINT='))).toBe(
           false,
         );
-        expect(args.some((a) => a.startsWith('PIP_CACHE_DIR='))).toBe(true);
+        expect(args.some((a) => a.startsWith('PIP_CACHE_DIR='))).toBe(false);
       });
 
       test('sysbox DinD cfg, no egress: runs as 65534 directly, fully hardened', () => {

@@ -19,9 +19,10 @@ import {
   RUN_CODE_OUTPUT_TAIL_CHARS,
   type RunCodeLanguage,
 } from '../../../lib/agent/work-tools.ts';
-import type { ToolArtifact } from '../../../lib/chat/tools.ts';
+import type { ToolArtifact, ToolCallOptions } from '../../../lib/chat/tools.ts';
 import {
   drainSessionExecResilient,
+  sessionCancelExec,
   sessionListFiles,
   sessionReadFile,
   SessionFileTooLargeError,
@@ -117,15 +118,77 @@ const PROGRAM_ENV = {
  * named no time of its own. */
 const BUSY_POLL_MS = 3_000;
 
+/** The reply was stopped, or the round's tools ran out of time, while this
+ * call waited. */
+class StoppedWhileWaiting extends Error {}
+
+/** What the model reads when its call was cut off. */
+function stopped(): ReturnType<typeof failure> {
+  return failure(
+    'cancelled',
+    `The program was stopped before it finished: the reply was stopped or the step ran out of time. Files it had already written stay in ${LIGHT_SANDBOX_PATHS.output}/ and are attached by the next run.`,
+  );
+}
+
+/** How often the sandbox is asked to cancel a program it does not know yet,
+ * and how long between the asks. */
+const CANCEL_ATTEMPTS = 4;
+const CANCEL_RETRY_MS = 300;
+
+/**
+ * Cut a program off in its sandbox. The cancel can overtake the request that
+ * starts the program, and the sandbox then answers it knows no such program —
+ * the same answer it gives for one that already ended. So the ask is repeated
+ * a few times: a program left running holds a sandbox nobody waits for.
+ */
+async function cancelProgram(sessionId: string, execId: string): Promise<void> {
+  for (let attempt = 1; attempt <= CANCEL_ATTEMPTS; attempt += 1) {
+    try {
+      if (await sessionCancelExec(sessionId, execId)) return;
+    } catch (error) {
+      console.warn(
+        `[run_code] stopping the program of ${sessionId} failed:`,
+        error,
+      );
+    }
+    if (attempt < CANCEL_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, CANCEL_RETRY_MS));
+    }
+  }
+}
+
+/** Wait `ms`, or less when `signal` aborts. */
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted === true) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /**
  * The owner's light sandbox, waiting up to the scope's patience when none can
  * be had now. Every sandbox of the organization running code frees within
  * the three minutes one call may take, so a lane with nobody to ask again
  * (a task run) waits for one rather than giving up on its first refusal.
  */
-async function acquireLeased(scope: WorkToolScope): Promise<LightSessionLease> {
+async function acquireLeased(
+  scope: WorkToolScope,
+  signal?: AbortSignal,
+): Promise<LightSessionLease> {
   const deadline = Date.now() + (scope.lightSandboxWaitMs ?? 0);
   for (;;) {
+    if (signal?.aborted === true) throw new StoppedWhileWaiting();
     try {
       return await acquireLightSession(scope.sql, {
         organizationId: scope.organizationId,
@@ -136,8 +199,7 @@ async function acquireLeased(scope: WorkToolScope): Promise<LightSessionLease> {
       if (!(error instanceof LightSandboxBusyError)) throw error;
       const left = deadline - Date.now();
       if (left <= 0) throw error;
-      const pause = Math.min(error.retryAfterMs ?? BUSY_POLL_MS, left);
-      await new Promise((resolve) => setTimeout(resolve, pause));
+      await pause(Math.min(error.retryAfterMs ?? BUSY_POLL_MS, left), signal);
     }
   }
 }
@@ -240,12 +302,23 @@ interface SkippedOutput {
   reason: string;
 }
 
+/** The most files of the output box one call looks at, and the most skipped
+ * ones it names; the rest are counted. */
+const HARVEST_MAX_ENTRIES = 200;
+const HARVEST_MAX_SKIPPED_LISTED = 20;
+
 export async function runRunCode(
   scope: WorkToolScope,
   input: unknown,
+  options: ToolCallOptions = {},
 ): Promise<unknown> {
+  const { signal } = options;
+  // Read through a function: the signal's state changes under the awaits below,
+  // which a narrowing of `signal.aborted` would not know.
+  const toldToStop = (): boolean => signal?.aborted === true;
   const args = readArgs(input);
   if ('error' in args) return failure('invalid_args', args.error);
+  if (toldToStop()) return stopped();
 
   const resolved = await scope.inputs.resolve(args.files);
   const missing = args.files.filter((ref) => !resolved.has(ref));
@@ -300,8 +373,9 @@ export async function runRunCode(
 
   let lease: LightSessionLease;
   try {
-    lease = await acquireLeased(scope);
+    lease = await acquireLeased(scope, signal);
   } catch (error) {
+    if (error instanceof StoppedWhileWaiting) return stopped();
     if (error instanceof LightSandboxBusyError) {
       return failure(
         'busy',
@@ -312,6 +386,9 @@ export async function runRunCode(
   }
 
   return serialized(lease.sessionId, async () => {
+    // The batch may have given up on this call while it waited its turn behind
+    // another program of the sandbox: it starts nothing then.
+    if (toldToStop()) return stopped();
     const execId = randomUUID().replace(/-/g, '');
     const codePath = `code/run-${execId.slice(0, 12)}.${EXTENSIONS[args.language]}`;
     const paths = inputPaths(inputFiles);
@@ -348,21 +425,35 @@ export async function runRunCode(
       );
     }
     const startedAt = Date.now();
-    const result: SessionExecResult = await drainSessionExecResilient(
-      lease.sessionId,
-      {
-        execId,
-        command: [INTERPRETERS[args.language], `/agent/${codePath}`],
-        cwd: LIGHT_SANDBOX_PATHS.workspace,
-        env: PROGRAM_ENV,
-        collectOutput: true,
-        timeoutMs: args.timeoutSeconds * 1000,
-      },
-      AbortSignal.timeout((args.timeoutSeconds + 60) * 1000),
-    );
+    const deadline = AbortSignal.timeout((args.timeoutSeconds + 60) * 1000);
+    let result: SessionExecResult;
+    try {
+      result = await drainSessionExecResilient(
+        lease.sessionId,
+        {
+          execId,
+          command: [INTERPRETERS[args.language], `/agent/${codePath}`],
+          cwd: LIGHT_SANDBOX_PATHS.workspace,
+          env: PROGRAM_ENV,
+          collectOutput: true,
+          timeoutMs: args.timeoutSeconds * 1000,
+        },
+        signal === undefined ? deadline : AbortSignal.any([signal, deadline]),
+      );
+    } catch (error) {
+      if (!toldToStop()) throw error;
+      // Stopped, or out of time: the program must not run on in a sandbox
+      // nobody is waiting for.
+      await cancelProgram(lease.sessionId, execId);
+      return stopped();
+    }
     const elapsedMs = Date.now() - startedAt;
 
-    const { artifacts, skipped } = await harvestOutputs(scope, lease.sessionId);
+    const { artifacts, skipped } = await harvestOutputs(
+      scope,
+      lease.sessionId,
+      signal,
+    );
     await touchLightSession(
       scope.sql,
       scope.organizationId,
@@ -483,25 +574,70 @@ async function readDelivered(
 async function harvestOutputs(
   scope: WorkToolScope,
   sessionId: string,
+  signal?: AbortSignal,
 ): Promise<{ artifacts: ToolArtifact[]; skipped: SkippedOutput[] }> {
   const artifacts: ToolArtifact[] = [];
+  // Set when a Stop (or the step's time) ended the harvest between two files:
+  // what it stored stays stored and is returned, but it is not recorded as
+  // delivered — the batch may already have given up on this call, and a file
+  // recorded for a reply that never got it would be lost. Unrecorded, a later
+  // call attaches it: a duplicate at worst.
+  let interrupted = false;
   const skipped: SkippedOutput[] = [];
-  const entries =
+  /** Files left out of the answer's list, not out of the sandbox. */
+  let unlisted = 0;
+  // What the model reads back is bounded however many files a program wrote:
+  // a program can fill the box with thousands, and every name would ride the
+  // tool result, the reply's record and the next round's prompt.
+  const skip = (name: string, reason: string) => {
+    if (skipped.length < HARVEST_MAX_SKIPPED_LISTED) {
+      skipped.push({ name, reason });
+    } else {
+      unlisted += 1;
+    }
+  };
+  const listing =
     (await sessionListFiles(sessionId, LIGHT_SANDBOX_PATHS.output)) ?? [];
+  // Newest first, whatever order the sandbox listed them in: what the program
+  // just wrote has the latest modification times, so the entries this call
+  // looks at are the ones it is for.
+  const ordered = [...listing].sort(
+    (a, b) =>
+      b.mtimeMs - a.mtimeMs || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+  );
+  const entries = ordered.slice(0, HARVEST_MAX_ENTRIES);
+  const beyond = ordered.slice(HARVEST_MAX_ENTRIES);
+  unlisted += beyond.length;
   const before = await readDelivered(sessionId);
   // Rebuilt from the listing: a file that left the output box is forgotten,
-  // and comes back as new if it is written again.
+  // and comes back as new if it is written again. A delivered file the window
+  // did not reach is still there, unchanged, and stays delivered — else it
+  // would be attached again the day it comes back into view.
   const after = new Map<string, Delivered>();
+  for (const entry of beyond) {
+    const previous = before.get(entry.name);
+    if (
+      previous !== undefined &&
+      entry.type === 'file' &&
+      previous.size === entry.size &&
+      previous.mtimeMs === entry.mtimeMs
+    ) {
+      after.set(entry.name, previous);
+    }
+  }
   const names = new Set<string>();
   for (const entry of entries) {
+    if (signal?.aborted === true) {
+      interrupted = true;
+      break;
+    }
     if (entry.type !== 'file') {
-      skipped.push({
-        name: entry.name,
-        reason:
-          entry.type === 'dir'
-            ? 'a folder — only files directly in the output box are attached'
-            : 'not a regular file',
-      });
+      skip(
+        entry.name,
+        entry.type === 'dir'
+          ? 'a folder — only files directly in the output box are attached'
+          : 'not a regular file',
+      );
       continue;
     }
     const previous = before.get(entry.name);
@@ -515,17 +651,17 @@ async function harvestOutputs(
     }
     const path = `${LIGHT_SANDBOX_PATHS.output}/${entry.name}`;
     if (artifacts.length >= RUN_CODE_MAX_OUTPUT_FILES) {
-      skipped.push({
-        name: entry.name,
-        reason: `over the ${RUN_CODE_MAX_OUTPUT_FILES} files one call attaches`,
-      });
+      skip(
+        entry.name,
+        `over the ${RUN_CODE_MAX_OUTPUT_FILES} files one call attaches`,
+      );
       continue;
     }
     if (entry.size > ARTIFACT_MAX_BYTES) {
-      skipped.push({
-        name: entry.name,
-        reason: `${Math.ceil(entry.size / (1024 * 1024))} MB is over the ${ARTIFACT_MAX_BYTES / (1024 * 1024)} MB a file may have`,
-      });
+      skip(
+        entry.name,
+        `${Math.ceil(entry.size / (1024 * 1024))} MB is over the ${ARTIFACT_MAX_BYTES / (1024 * 1024)} MB a file may have`,
+      );
       continue;
     }
     let read: Awaited<ReturnType<typeof sessionReadFile>>;
@@ -535,11 +671,11 @@ async function harvestOutputs(
       });
     } catch (error) {
       if (!(error instanceof SessionFileTooLargeError)) throw error;
-      skipped.push({ name: entry.name, reason: 'grew too large to attach' });
+      skip(entry.name, 'grew too large to attach');
       continue;
     }
     if (read === null) {
-      skipped.push({ name: entry.name, reason: 'could not be read' });
+      skip(entry.name, 'could not be read');
       continue;
     }
     const bytes = new Uint8Array(read.bytes);
@@ -569,16 +705,16 @@ async function harvestOutputs(
       after.set(entry.name, version);
     } catch (error) {
       console.warn(`[run_code] storing ${entry.name} failed:`, error);
-      skipped.push({
-        name: entry.name,
-        reason: error instanceof Error ? error.message : 'could not be stored',
-      });
+      skip(
+        entry.name,
+        error instanceof Error ? error.message : 'could not be stored',
+      );
     }
   }
   const changed =
     before.size !== after.size ||
     [...after].some(([name, entry]) => before.get(name) !== entry);
-  if (changed) {
+  if (changed && !interrupted) {
     await sessionStageFiles(sessionId, [
       {
         path: DELIVERED_MANIFEST,
@@ -591,6 +727,12 @@ async function harvestOutputs(
       // The files are stored; without the record a later call attaches an
       // unchanged one again — a duplicate, never a loss.
       console.warn('[run_code] recording the delivered files failed:', error);
+    });
+  }
+  if (unlisted > 0) {
+    skipped.push({
+      name: `${unlisted} more`,
+      reason: 'files of the output box left out of this list',
     });
   }
   return { artifacts, skipped };

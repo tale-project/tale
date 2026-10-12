@@ -374,6 +374,11 @@ export async function releaseLightSession(
  * A busy one waits for a later tick; a spawner that cannot be asked leaves
  * the row for a later tick too, so the row never settles ahead of its
  * container.
+ *
+ * A session id names every incarnation of one owner's sandbox, each its own
+ * row, and the spawner and the settle both act on the id. So a stale row is
+ * a candidate only when no newer incarnation of its id is live: the failed
+ * start of a minute ago must not take the working sandbox its retry made.
  */
 export async function releaseIdleLightSessions(
   sql: Sql,
@@ -388,11 +393,19 @@ export async function releaseIdleLightSessions(
   const horizon = args.now - (args.idleMs ?? LIGHT_SESSION_IDLE_MS);
   const candidates = await sql<{ sessionId: string; orgId: string }[]>`
     SELECT session_id AS "sessionId", org_id AS "orgId"
-    FROM app.sandbox_sessions
+    FROM app.sandbox_sessions stale
     WHERE owner_type = ${LIGHT_SESSION_OWNER_TYPE}
       AND status IN ('creating', 'active', 'failed', 'expired')
       AND destroyed_at_ms IS NULL
       AND coalesce(last_activity_at_ms, created_at_ms) < ${horizon}
+      AND NOT EXISTS (
+        SELECT 1 FROM app.sandbox_sessions newer
+        WHERE newer.org_id = stale.org_id
+          AND newer.session_id = stale.session_id
+          AND newer.created_at_ms > stale.created_at_ms
+          AND newer.status IN ('creating', 'active', 'degraded')
+          AND newer.destroyed_at_ms IS NULL
+      )
     ORDER BY coalesce(last_activity_at_ms, created_at_ms) ASC
     LIMIT ${args.batch ?? 50}
   `;

@@ -13,9 +13,11 @@ const INTERRUPTED_TURN_ERROR = encodeChatError({
 /**
  * How long a generation's heartbeat may stand still before the sweep below
  * takes the turn for dead. The heartbeat moves with streamed text and stored
- * parts, not while a tool call runs — so every tool a turn waits on must end
- * well inside this window (the knowledge search's embedding ceiling is held
- * to at most half of it, `watchdogs.test.ts`).
+ * parts, and every few seconds while a round of tools runs (`lib/chat/tool-batch.ts`),
+ * which also bounds that round to five minutes. A tool that waits on a call
+ * the batch cannot interrupt must still end well inside this window (the
+ * knowledge search's embedding ceiling is held to at most half of it,
+ * `watchdogs.test.ts`).
  */
 export const CHAT_GENERATION_STALE_MS = 10 * 60_000;
 

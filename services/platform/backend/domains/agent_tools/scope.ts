@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
+import type { WorkToolFailureStatus } from '../../../lib/agent/work-tools.ts';
 import type { ToolArtifact } from '../../../lib/chat/tools.ts';
 import type { SkillViewer } from '../../../lib/skills/visibility.ts';
 import type { ResolvedImageModel } from '../../core/lib/providers/resolve_image_model.ts';
@@ -117,7 +118,7 @@ export function skillReachable(scope: WorkToolScope, slug: string): boolean {
 /** A structured failure the model reads and can act on — every work tool
  * answers one instead of throwing. */
 export interface WorkToolFailure {
-  status: 'invalid_args' | 'not_found' | 'unavailable' | 'busy' | 'error';
+  status: WorkToolFailureStatus;
   message: string;
 }
 

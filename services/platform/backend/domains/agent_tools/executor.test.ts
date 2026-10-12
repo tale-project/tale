@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createWorkToolExecutor, workToolDocs } from './executor.ts';
+import { runRunCode } from './run-code.ts';
 import { FULL_LOADOUT, testScope } from './test-helpers.ts';
 
 vi.mock('./run-code.ts', () => ({
@@ -94,6 +95,23 @@ describe('createWorkToolExecutor', () => {
       expect.any(Error),
     );
     error.mockRestore();
+  });
+
+  it('hands the turn’s abort signal to the tool it runs [CHAT-R25]', async () => {
+    vi.mocked(runRunCode).mockResolvedValueOnce({ status: 'ok' });
+    const { scope } = testScope();
+    const stop = new AbortController();
+
+    await createWorkToolExecutor(scope)?.execute(
+      { id: '1', name: 'run_code', input: { language: 'python', code: '1' } },
+      { signal: stop.signal },
+    );
+
+    expect(runRunCode).toHaveBeenLastCalledWith(
+      scope,
+      { language: 'python', code: '1' },
+      { signal: stop.signal },
+    );
   });
 
   it('offers use_workspace only to a turn that may hand over and has somewhere to', () => {

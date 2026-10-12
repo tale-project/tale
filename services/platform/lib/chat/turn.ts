@@ -64,6 +64,7 @@ import {
 } from './guardrails';
 import type { TaskHandover } from './handover';
 import { createServingTally, mergeServedBy } from './serving';
+import { runToolBatch } from './tool-batch';
 import {
   toolOutputArtifacts,
   type ChatToolExecutor,
@@ -1269,26 +1270,6 @@ async function recordUsage(
 
 // ----------------------------------------------------------------- the turn
 
-/** Order-insensitive spelling of one call's arguments, for the same-round
- * dedup key: object keys sorted at every depth, so two spellings of the same
- * arguments compare equal. An undefined input keys like null — both read as
- * "no arguments". */
-function canonicalArgs(value: unknown): string {
-  return JSON.stringify(sortKeysDeep(value) ?? null);
-}
-
-function sortKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeysDeep);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, entry]) => [key, sortKeysDeep(entry)]),
-    );
-  }
-  return value;
-}
-
 /**
  * Put a produced file on the reply. A document the reply already carries
  * under the same name was revised by a later call: the new version takes
@@ -1690,35 +1671,45 @@ export async function runTurn(
         break;
       }
 
-      // Execute the round's calls CONCURRENTLY, deduplicated: the model
-      // sometimes asks the same question twice in one round, and an
-      // identical (name, arguments) pair cannot answer differently — one
-      // execution serves every duplicate. Every callId still settles its
-      // own tool-result (both wire dialects pair each call with a result;
-      // a missing one fails the next round), duplicates sharing the one
-      // output. The executor's contract is to never throw — a failed call
+      // Execute the round's calls CONCURRENTLY, deduplicated and
+      // supervised (`runToolBatch`): at most a round's worth of calls run,
+      // the turn's heartbeat is written and its Stop read while they do, and
+      // a Stop, the round's time or the turn's own end tells every call to
+      // stop. Every callId still settles its own tool-result (both wire
+      // dialects pair each call with a result; a missing one fails the next
+      // round). The executor's contract is to never throw — a failed call
       // comes back as a structured result the model reads and can recover
-      // from — and the pipeline enforces it once more here, so no executor
-      // bug (or test fake) can end the whole turn over one call.
-      const runCall = async (call: ToolCallRequest): Promise<unknown> => {
-        try {
-          return await executor.execute(call);
-        } catch (error) {
-          console.warn(
-            `[chat] tool executor broke its never-throws contract on ${call.name}: ${error instanceof Error ? error.message : 'unknown'}`,
-          );
-          return {
-            status: 'error',
-            message: 'The tool failed unexpectedly. Tell the user.',
-          };
-        }
-      };
-      const outputByKey = new Map<string, Promise<unknown>>();
+      // from — and the batch enforces it once more, so no executor bug (or
+      // test fake) can end the whole turn over one call.
       // A round the output cap cut does not run its calls: the cap fell in
       // the middle of what the model was asking, so every call of the round
       // settles `CAP_CUT_CALL_OUTPUT` instead — the record still pairs each
       // call with a result, and the loop's budget decides whether another
       // round follows.
+      let stoppedByBatch = false;
+      const runBatch = async (): Promise<readonly unknown[]> => {
+        const batch = await runToolBatch({
+          calls,
+          execute: (call, options) => executor.execute(call, options),
+          signal: request.signal,
+          poll: async () => {
+            // The same write that keeps a streaming reply alive and reads
+            // its Stop, with nothing new to store: between the tools' start
+            // and their end it is the turn's only sign of life.
+            const verdict = await deps.store.streamProgress({
+              organizationId: request.organizationId,
+              threadId: request.threadId,
+              messageId: placeholder.id,
+              text: '',
+              reasoning: '',
+              poll: true,
+            });
+            return verdict?.cancelRequested === true;
+          },
+        });
+        stoppedByBatch = batch.stopped;
+        return batch.outputs;
+      };
       const outputs: readonly unknown[] =
         streamed.finishReason === 'length'
           ? // `rawInput` is kept only when the arguments failed to parse —
@@ -1729,16 +1720,7 @@ export async function runTurn(
                 ? CAP_WITHHELD_CALL_OUTPUT
                 : CAP_CUT_CALL_OUTPUT,
             )
-          : await Promise.all(
-              calls.map((call) => {
-                // A call that failed to parse keys on its raw text — two broken
-                // calls are only "the same" when they broke identically.
-                const key = `${call.name} ${call.rawInput ?? canonicalArgs(call.input)}`;
-                const pending = outputByKey.get(key) ?? runCall(call);
-                outputByKey.set(key, pending);
-                return pending;
-              }),
-            );
+          : await runBatch();
       for (const [index, call] of calls.entries()) {
         const output = outputs[index];
         settledParts.push({
@@ -1779,7 +1761,9 @@ export async function runTurn(
         text: '',
         reasoning: '',
       });
-      if (verdict?.cancelRequested === true) {
+      // A Stop the batch itself heard ended its tools already; it stands
+      // whether or not the row's flag reads true again here.
+      if (verdict?.cancelRequested === true || stoppedByBatch) {
         streamed = { ...streamed, cancelled: true };
       }
       if (streamed.cancelled === true) break;

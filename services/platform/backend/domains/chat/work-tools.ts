@@ -1,4 +1,7 @@
-import { DEFAULT_CHAT_TOOLS } from '@tale/shared/schemas/governance';
+import {
+  type ChatToolsConfig,
+  DEFAULT_CHAT_TOOLS,
+} from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
@@ -7,6 +10,7 @@ import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { UserSkillViewer } from '../../../lib/skills/visibility.ts';
 import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -46,19 +50,55 @@ export interface ChatWorkTurn {
   readonly threadId: string;
 }
 
+/** Every switch off: what a policy that cannot be read is held to. */
+const NO_CHAT_TOOLS: ChatToolsConfig = {
+  files: false,
+  skills: false,
+  code: false,
+};
+
+/**
+ * The organization's chat tool switches: the policy as written, the defaults
+ * when no file says otherwise, and every switch OFF when the policy cannot be
+ * read — a file that exists and fails to parse, a configuration root that is
+ * not set or not readable, a read that failed. A switch an admin turned off
+ * is a decision about what code may run; a policy that cannot be read must
+ * not quietly turn the decision back on — the Governance page names the
+ * problem, and the tools return once it can be read. Only an absent file is
+ * the defaults.
+ */
+async function readChatToolSwitches(
+  sql: Sql,
+  organizationId: string,
+): Promise<ChatToolsConfig> {
+  try {
+    return (
+      (await readGovernancePolicyForOrg(sql, organizationId, 'chat_tools', {
+        strict: true,
+      })) ?? DEFAULT_CHAT_TOOLS
+    );
+  } catch (error) {
+    if (!(error instanceof ConfigurationError)) throw error;
+    console.warn(
+      `[chat] the chat_tools policy of ${organizationId} cannot be read, so no chat tool is offered until it is repaired:`,
+      error.message,
+    );
+    return NO_CHAT_TOOLS;
+  }
+}
+
 export async function chatWorkTools(
   sql: Sql,
   turn: ChatWorkTurn,
 ): Promise<TurnWorkTools | undefined> {
-  const [policy, orgSlug, member, teamIds, imageModel] = await Promise.all([
-    readGovernancePolicyForOrg(sql, turn.organizationId, 'chat_tools'),
+  const [switches, orgSlug, member, teamIds, imageModel] = await Promise.all([
+    readChatToolSwitches(sql, turn.organizationId),
     resolveOrgSlug(sql, turn.organizationId),
     findActingMember(sql, turn.organizationId, turn.userId),
     getUserTeamIds(sql, turn.organizationId, turn.userId),
     offeredImageModel(sql, turn.organizationId),
   ]);
   if (orgSlug === null || member === null) return undefined;
-  const switches = policy ?? DEFAULT_CHAT_TOOLS;
   const loadout: WorkLoadout = {
     createFile: switches.files,
     generateImage: imageModel !== undefined,

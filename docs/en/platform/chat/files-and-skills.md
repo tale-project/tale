@@ -52,7 +52,7 @@ A skill guides the assistant; it does not change what the assistant is allowed t
 ## Know the limits
 
 - A light sandbox belongs to one conversation. It keeps its files between the assistant’s steps and your follow-up messages, and after about five minutes without use it is removed; the next request starts a fresh one. When your organization’s light sandboxes are all in use, an idle one gives way; when none is idle, the assistant tells you to try again in a minute.
-- One run of code may take up to three minutes. It attaches up to 10 files, each up to 20 MB.
+- One run of code may take up to three minutes, and the tools of one step may run for at most five minutes together. At most 16 tools run in one step. Press **Stop generating** and a running program is cut off within seconds. A run attaches up to 10 files, each up to 20 MB; when a program writes many more, the reply names a few and counts the rest.
 - A file the assistant writes itself holds up to 1 MB of text.
 - One request creates up to 4 images, and one reply up to 16. Images are billed to your organization and count against you, like the reply itself.
 

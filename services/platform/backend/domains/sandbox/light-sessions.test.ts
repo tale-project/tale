@@ -346,6 +346,29 @@ describe('releaseIdleLightSessions', () => {
       sessionId: 'lt-idle',
     });
   });
+
+  it('spares a working sandbox whose conversation had an older start fail [SBX-R26]', async () => {
+    const { sql, statements } = fakeSql();
+
+    await releaseIdleLightSessions(
+      sql,
+      { now: 1_760_000_000_000 },
+      { destroyIfIdle: vi.fn() },
+    );
+
+    const select = statements.find((s) =>
+      s.text.includes('SELECT session_id AS "sessionId"'),
+    );
+    // The stale failed row is a candidate only while no newer incarnation of
+    // the same session id is live: the spawner and the settle both act on
+    // the id, so reaping the old row would take the sandbox its retry made.
+    expect(select?.text).toContain('NOT EXISTS');
+    expect(select?.text).toContain('newer.created_at_ms > stale.created_at_ms');
+    expect(select?.text).toContain(
+      "newer.status IN ('creating', 'active', 'degraded')",
+    );
+    expect(select?.text).toContain('newer.session_id = stale.session_id');
+  });
 });
 
 describe('releaseLightSession', () => {

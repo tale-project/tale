@@ -358,11 +358,14 @@ cold cache; session workspaces and package-cache volumes are separate.
 
 ## Organization package caches
 
-On Docker, every session without Docker inside mounts its organization's
-pip (shared with uv), npm and bun cache volumes,
+On Docker, every agent session without Docker inside mounts its
+organization's pip (shared with uv), npm and bun cache volumes,
 `tale-sandbox-{pip,npm,bun}-cache-<organization>` with the
-`tale.sandbox-cache=1` label; sessions with Docker inside start with cold
-caches instead. None of these tools evicts on its own, so each create records
+`tale.sandbox-cache=1` label; sessions with Docker inside, and the `default`
+profile that runs untrusted code (a chat's `run_code`, page rendering), start
+with cold caches instead and never create the volumes: a cache that code can
+write and an agent session reads would carry whatever it wrote into a more
+privileged session. None of these tools evicts on its own, so each create records
 the organization's last use under the session root, in
 `.package-caches/<organization>.used` beside `.pins/` and `.owners/`. Once an
 hour the host sweep removes an organization's three volumes when no session
