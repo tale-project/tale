@@ -92,6 +92,31 @@ export function expectStatus(reply: Reply, status: number, what: string): void {
   }
 }
 
+/** The standbys on the node: pool instances nobody has claimed. */
+export async function standbys(): Promise<AdminInstance[]> {
+  return (await admin.instances()).filter(
+    (instance) =>
+      label(instance.config, LABEL.pool) !== undefined &&
+      label(instance.config, LABEL.sandboxSession) !== '1',
+  );
+}
+
+/** The standbys that wait for a claim, as the node shows them: running, with
+ * the ready marker their script writes. */
+export async function readyStandbys(): Promise<AdminInstance[]> {
+  const waiting: AdminInstance[] = [];
+  for (const standby of await standbys()) {
+    if (standby.status !== 'Running') continue;
+    const marker = await admin.exec(
+      standby.name,
+      ['test', '-f', '/run/tale-standby/ready'],
+      { allowFailure: true },
+    );
+    if (marker.code === 0) waiting.push(standby);
+  }
+  return waiting;
+}
+
 /** The session's instance: by its deterministic name, or, when it was claimed
  * from the warm pool and so kept the standby's name, by its label. */
 export async function sessionInstance(

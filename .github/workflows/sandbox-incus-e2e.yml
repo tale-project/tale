@@ -42,7 +42,7 @@ on:
           - ubuntu-latest
         default: ubicloud-standard-4
       suites:
-        description: 'The suites to run: all (every suite but soak), or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker, soak'
+        description: 'The suites to run: all (every suite but soak), or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker, upgrade, soak'
         type: string
         default: all
       soak_rounds:
@@ -82,6 +82,12 @@ jobs:
 
       - name: Name the lab's files and images
         run: bash services/sandbox/e2e/incus/lab.sh env >> "$GITHUB_ENV"
+
+      - name: Choose the suites
+        id: pick
+        env:
+          SUITES: ${{ inputs.suites }}
+        run: bash services/sandbox/e2e/incus/lab.sh suites "$SUITES" | tee -a "$GITHUB_OUTPUT"
 
       # The image builds need the room the Build workflow's runtime build does.
       - name: Reclaim disk space
@@ -188,6 +194,24 @@ jobs:
             type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-egress-buildcache:amd64
           provenance: false
 
+      # The upgrade suite's "next version": the current runtime image and one
+      # file more, a layer on layers the local registry already holds.
+      - name: Prepare the next version's build context
+        if: ${{ steps.pick.outputs.upgrade == 'true' }}
+        run: bash services/sandbox/e2e/incus/lab.sh next-context
+
+      - name: Build the next sandbox runtime version
+        if: ${{ steps.pick.outputs.upgrade == 'true' }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: ${{ env.INCUS_E2E_NEXT_CONTEXT }}
+          platforms: linux/amd64
+          push: true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          tags: ${{ env.E2E_RUNTIME_IMAGE_NEXT }}
+          build-args: BASE=${{ env.E2E_RUNTIME_IMAGE }}
+          provenance: false
+
       - name: Run the operator's setup from docs/incus.md
         run: bash services/sandbox/e2e/incus/lab.sh operator
 
@@ -197,12 +221,6 @@ jobs:
       - name: Write the lab file
         id: lab
         run: bash services/sandbox/e2e/incus/lab.sh lab-file
-
-      - name: Choose the suites
-        id: pick
-        env:
-          SUITES: ${{ inputs.suites }}
-        run: bash services/sandbox/e2e/incus/lab.sh suites "$SUITES" | tee -a "$GITHUB_OUTPUT"
 
       # Each suite starts its own spawner(s) from this checkout and leaves the
       # node clean. They run whatever came before, so one finding does not hide
@@ -365,6 +383,22 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-docker-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upgrading the runtime image
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.upgrade == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/upgrade.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/upgrade.log"
+
+      - name: Keep the output of upgrading the runtime image
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.upgrade == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-upgrade-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.INCUS_E2E_DIR }}/logs
           retention-days: 14
           if-no-files-found: warn

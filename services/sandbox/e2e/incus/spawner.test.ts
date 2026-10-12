@@ -17,6 +17,7 @@ const LAB: LabConfig = {
   acl: 'sandbox-egress',
   image: 'tale-sandbox-runtime',
   imageSource: '127.0.0.1:5000/tale-sandbox-runtime:e2e',
+  imageSourceNext: '127.0.0.1:5000/tale-sandbox-runtime:e2e-next',
   clientCertFile: '/mnt/tale-incus-e2e/pki/client.crt',
   clientKeyFile: '/mnt/tale-incus-e2e/pki/client.key',
   serverCertFile: '/mnt/tale-incus-e2e/pki/server.crt',

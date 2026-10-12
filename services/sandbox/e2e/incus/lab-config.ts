@@ -18,6 +18,8 @@ export interface LabConfig {
   image: string;
   /** Where the spawner pulls the runtime image from (the local registry). */
   imageSource: string;
+  /** The same image and one file more: the "next version" of the upgrade. */
+  imageSourceNext: string;
   clientCertFile: string;
   clientKeyFile: string;
   /** The node's pinnable server certificate. */
@@ -49,6 +51,7 @@ const FIELDS = [
   'acl',
   'image',
   'imageSource',
+  'imageSourceNext',
   'clientCertFile',
   'clientKeyFile',
   'serverCertFile',
@@ -85,6 +88,7 @@ export function parseLab(raw: unknown): LabConfig {
     acl: read('acl'),
     image: read('image'),
     imageSource: read('imageSource'),
+    imageSourceNext: read('imageSourceNext'),
     clientCertFile: read('clientCertFile'),
     clientKeyFile: read('clientKeyFile'),
     serverCertFile: read('serverCertFile'),

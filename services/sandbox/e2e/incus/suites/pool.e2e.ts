@@ -13,12 +13,14 @@ import {
   expectStatus,
   lab,
   pause,
+  readyStandbys,
   reportFor,
   sessionId,
   sessionInstance,
   sessionVolume,
   sh,
   spawnerOf,
+  standbys,
   step,
   until,
 } from '../harness.ts';
@@ -51,31 +53,6 @@ async function warm(
   if (match === null)
     throw new Error(`no warm count in ${JSON.stringify(reply.text)}`);
   return { ready: Number(match[1]), target: Number(match[2]) };
-}
-
-/** The standbys on the node: unclaimed pool instances. */
-async function standbys() {
-  return (await admin.instances()).filter(
-    (instance) =>
-      label(instance.config, LABEL.pool) !== undefined &&
-      label(instance.config, LABEL.sandboxSession) !== '1',
-  );
-}
-
-/** The standbys that wait for a claim, as the node shows them: running, with
- * the ready marker their script writes. */
-async function readyStandbys() {
-  const waiting = [];
-  for (const standby of await standbys()) {
-    if (standby.status !== 'Running') continue;
-    const marker = await admin.exec(
-      standby.name,
-      ['test', '-f', '/run/tale-standby/ready'],
-      { allowFailure: true },
-    );
-    if (marker.code === 0) waiting.push(standby);
-  }
-  return waiting;
 }
 
 async function occupied(): Promise<number> {

@@ -125,6 +125,27 @@ describe('the suites', () => {
     );
     const pickIndex = steps.indexOf(pick);
     for (const { index } of runs) expect(index).toBeGreaterThan(pickIndex);
+    // Whatever else reads the choice (the build of the upgrade's next version)
+    // comes after it too.
+    for (const [index, step] of steps.entries()) {
+      if (typeof step.if === 'string' && step.if.includes('steps.pick.')) {
+        expect(index).toBeGreaterThan(pickIndex);
+      }
+    }
+  });
+
+  test('what only a suite needs is built only when the suite is chosen', () => {
+    const builds = steps.filter(
+      (step) =>
+        typeof step.name === 'string' &&
+        /next .*(version|context)/i.test(step.name),
+    );
+    expect(builds.length).toBeGreaterThan(0);
+    for (const step of builds) {
+      expect(text(step.if, `the if of ${String(step.name)}`)).toContain(
+        "steps.pick.outputs.upgrade == 'true'",
+      );
+    }
   });
 
   test('a dispatch can choose the suites, and the input names every one of them', () => {

@@ -18,6 +18,8 @@
 #   operator   the operator's block of docs/incus.md, verbatim
 #   egress     Tale's own sandbox-egress image as an instance on the sandbox
 #              bridge, and the stand-ins for the LLM gateway and the backend
+#   next-context  the build context of the "next version" of the runtime image
+#              (the current image and one file more), for the upgrade suite
 #   lab-file   writes lab.json, which the suites read
 #   facts      host facts and phase durations, as Markdown
 #   diagnose   what a failed run needs to be read afterwards
@@ -65,6 +67,7 @@ readonly BACKEND_ADDRESS=10.20.0.4
 readonly API_PORT=8443
 readonly REGISTRY_ADDRESS=127.0.0.1:5000
 readonly RUNTIME_IMAGE="${REGISTRY_ADDRESS}/tale-sandbox-runtime:e2e"
+readonly RUNTIME_IMAGE_NEXT="${REGISTRY_ADDRESS}/tale-sandbox-runtime:e2e-next"
 readonly EGRESS_IMAGE="${REGISTRY_ADDRESS}/tale-sandbox-egress:e2e"
 readonly EGRESS_INSTANCE=egress
 readonly EGRESS_ALIAS=tale-sandbox-egress
@@ -73,7 +76,7 @@ readonly POOL_SIZE="${INCUS_E2E_POOL_SIZE:-48G}"
 # The suites of ./suites, in the order the workflow runs them (workflow.test.ts
 # keeps the three in step), and the ones `all` leaves out: they run only when
 # named.
-readonly SUITES=(boot lifecycle fencing network pool reaping adoption failures limits docker soak)
+readonly SUITES=(boot lifecycle fencing network pool reaping adoption failures limits docker upgrade soak)
 readonly OPT_IN_SUITES=(soak)
 
 dir="${INCUS_E2E_DIR:-/mnt/tale-incus-e2e}"
@@ -368,6 +371,24 @@ start_egress() {
   ip -br addr show dev "$NETWORK"
 }
 
+# ---- the next version -----------------------------------------------------------------------
+
+# The build context of the runtime image's "next version": the current image and
+# one file more, so that it is another image to Incus (another fingerprint) with
+# everything else the same. The workflow builds it into the local registry
+# beside the current one, a layer on layers the registry already holds.
+next_context() {
+  local context="$dir/next"
+  mkdir -p "$context"
+  cat >"$context/Dockerfile" <<'DOCKERFILE'
+ARG BASE
+FROM ${BASE}
+COPY version /usr/share/tale-e2e-version
+DOCKERFILE
+  printf 'next\n' >"$context/version"
+  echo "the next version's context is $context"
+}
+
 # ---- the files ----------------------------------------------------------------------------
 
 write_lab_file() {
@@ -377,7 +398,7 @@ write_lab_file() {
     --arg endpoint "https://127.0.0.1:${API_PORT}" \
     --arg project "$PROJECT" --arg profile "$PROFILE" --arg network "$NETWORK" \
     --arg pool "$POOL" --arg acl "$ACL" --arg image "$IMAGE_ALIAS" \
-    --arg imageSource "$RUNTIME_IMAGE" \
+    --arg imageSource "$RUNTIME_IMAGE" --arg imageSourceNext "$RUNTIME_IMAGE_NEXT" \
     --arg clientCertFile "$pki/client.crt" --arg clientKeyFile "$pki/client.key" \
     --arg serverCertFile "$pki/server.crt" \
     --arg defaultServerCertFile "$pki/incus-default-server.crt" \
@@ -388,7 +409,8 @@ write_lab_file() {
     --arg egressInstance "$EGRESS_INSTANCE" --arg egressImage "$EGRESS_ALIAS" \
     '{stateDir: $stateDir, endpoint: $endpoint, project: $project, profile: $profile,
       network: $network, pool: $pool, acl: $acl, image: $image,
-      imageSource: $imageSource, clientCertFile: $clientCertFile,
+      imageSource: $imageSource, imageSourceNext: $imageSourceNext,
+      clientCertFile: $clientCertFile,
       clientKeyFile: $clientKeyFile, serverCertFile: $serverCertFile,
       defaultServerCertFile: $defaultServerCertFile,
       otherServerCertFile: $otherServerCertFile, egressProxy: $egressProxy,
@@ -475,6 +497,8 @@ print_env() {
   printf 'INCUS_E2E_DIR=%s\n' "$dir"
   printf 'INCUS_E2E_LAB=%s\n' "$dir/lab.json"
   printf 'E2E_RUNTIME_IMAGE=%s\n' "$RUNTIME_IMAGE"
+  printf 'E2E_RUNTIME_IMAGE_NEXT=%s\n' "$RUNTIME_IMAGE_NEXT"
+  printf 'INCUS_E2E_NEXT_CONTEXT=%s\n' "$dir/next"
   printf 'E2E_EGRESS_IMAGE=%s\n' "$EGRESS_IMAGE"
 }
 
@@ -518,7 +542,7 @@ main() {
   case "$command" in
     env) print_env ;;
     suites) pick_suites "${2:-}" ;;
-    install | storage | api | registry | operator | egress | lab-file | facts | diagnose)
+    install | storage | api | registry | operator | egress | next-context | lab-file | facts | diagnose)
       guard
       ensure_dir
       case "$command" in
@@ -528,12 +552,13 @@ main() {
         registry) phase registry start_registry ;;
         operator) phase operator operator_setup ;;
         egress) phase egress start_egress ;;
+        next-context) next_context ;;
         lab-file) write_lab_file ;;
         facts) facts ;;
         diagnose) diagnose ;;
       esac
       ;;
-    *) die "usage: lab.sh install|storage|api|registry|operator|egress|lab-file|facts|diagnose|env|suites" ;;
+    *) die "usage: lab.sh install|storage|api|registry|operator|egress|next-context|lab-file|facts|diagnose|env|suites" ;;
   esac
 }
 

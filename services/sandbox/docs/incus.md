@@ -656,10 +656,14 @@ storage driver, a reboot, many tenants.
 13. **Image.** `warmImage` pulls the OCI image through the API into the
     restricted project (the pull is the one call the unit tests cannot vouch
     for), and the unpack warm-up makes the first session start as fast as the
-    second.
-    **Lab (every run):** the first boot pulls the runtime image from the lab's
-    registry into the restricted project through the API and unpacks it (two to
-    three minutes), and every later create is fast.
+    second. Then upgrade: restart the spawner with the next version under a new
+    alias; it pulls it, sessions that run stay on the old version and are
+    adopted, the pool rotates to the new one, and new sessions run it.
+    **Lab (every run, and `upgrade`):** the first boot pulls the runtime image
+    from the lab's registry into the restricted project through the API and
+    unpacks it (two to three minutes), and every later create is fast. The
+    `upgrade` suite does the restart above with a next version that is the
+    current image and one file more.
 14. **Docker inside** (only if you enable it). `docker run hello-world`,
     `docker build` and `docker compose up` work in a session, and its nested
     containers still cannot reach what the session cannot; if they cannot,
