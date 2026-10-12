@@ -7,6 +7,7 @@ import { transcribeAudioImpl } from '../../core/file_metadata/transcribe_audio.t
 import { pickExtensionFromMime } from '../../core/file_metadata/transcribe_dictation.ts';
 import { requestTranscription } from '../../core/file_metadata/transcription_request.ts';
 import { resolveTranscriptionModel } from '../../core/lib/providers/resolve_transcription_model.ts';
+import { logDetail } from '../../db/unavailable.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   createCtxShim,
@@ -555,7 +556,7 @@ export async function transcribeDictation(
     lease: admission.lease,
     audioDurationSec: durationSec,
   }).catch((error: unknown) => {
-    console.warn('[dictation] usage write failed:', error);
+    console.warn('[dictation] usage write failed:', logDetail(error));
   });
   return { text };
 }

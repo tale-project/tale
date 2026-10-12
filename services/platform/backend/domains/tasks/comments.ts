@@ -132,7 +132,7 @@ export async function lockTaskCommentQueue(
  * the same rows — the task's `comment_count` and the discussion thread's
  * next message slot — so serializable writers that overlap all lose but the
  * first, and a plain retry loses again whenever another commits first: the
- * storm `withRetry`'s five attempts cannot outlast. Two pieces make a retry
+ * storm `withRetry`'s eight attempts cannot outlast. Two pieces make a retry
  * deterministic instead: the transaction-level advisory lock on the task's
  * queue key, taken before the write's first read, queues this transaction
  * behind a retry that holds the same key as a session lock from before its

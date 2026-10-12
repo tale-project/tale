@@ -10,6 +10,7 @@ import {
   databaseUnavailableCause,
   describeDatabaseError,
   isDatabaseUnavailable,
+  logDetail,
   noteSwallowedDatabaseError,
   runWithSwallowedDatabaseErrors,
 } from './unavailable.ts';
@@ -276,5 +277,51 @@ describe('a database error a library swallowed', () => {
     expect(databaseUnavailableCause(refused, { fromDatabase: true })).toBe(
       refused,
     );
+  });
+});
+
+describe('logDetail', () => {
+  it('is the one line that says the database is away, not its stack', () => {
+    const restart = coded(
+      '57P01',
+      'terminating connection due to administrator command',
+    );
+
+    expect(logDetail(restart)).toBe(
+      '57P01 terminating connection due to administrator command',
+    );
+    // The code is not said twice when the message names it already.
+    expect(
+      logDetail(coded('ECONNREFUSED', 'connect ECONNREFUSED 10.0.0.5:5432'), {
+        fromDatabase: true,
+      }),
+    ).toBe('connect ECONNREFUSED 10.0.0.5:5432');
+  });
+
+  it('reads a refused socket postgres.js rejected a statement with as the database’s', () => {
+    const refused = Object.assign(
+      coded('ECONNREFUSED', 'connect ECONNREFUSED 10.0.0.5:5432'),
+      { query: 'select 1', parameters: [] },
+    );
+
+    expect(logDetail(refused)).toBe('connect ECONNREFUSED 10.0.0.5:5432');
+  });
+
+  it('keeps the evidence of a provider’s refused socket, which is not the database’s', () => {
+    // What `fetch` raises when a model provider refuses the connection.
+    const providerDown = new TypeError('fetch failed', {
+      cause: coded('ECONNREFUSED', 'connect ECONNREFUSED 203.0.113.9:443'),
+    });
+
+    expect(logDetail(providerDown)).toBe(providerDown);
+  });
+
+  it('is the error itself for anything else, so a defect keeps its stack', () => {
+    const defect = new TypeError('cannot read properties of undefined');
+    const constraint = coded('23505', 'duplicate key value');
+
+    expect(logDetail(defect)).toBe(defect);
+    expect(logDetail(constraint)).toBe(constraint);
+    expect(logDetail('a thrown string')).toBe('a thrown string');
   });
 });
