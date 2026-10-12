@@ -749,11 +749,15 @@ function failureMessage(
       detail = parsed.error;
     }
   } catch (error) {
-    // A body that is not JSON (a gateway's page): the status tells enough.
-    console.warn(
-      `[sandbox.incus] ${method} ${path} answered ${status} with a body that is not JSON:`,
-      error instanceof Error ? error.message : error,
-    );
+    // A body that is not JSON (a gateway's page): the status tells enough. An
+    // empty one is no news: a HEAD has no body, and the pool's readiness poll
+    // is a HEAD that is answered 404 until the standby is up.
+    if (payload.byteLength > 0) {
+      console.warn(
+        `[sandbox.incus] ${method} ${path} answered ${status} with a body that is not JSON:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
   return `Incus ${method} ${path} answered ${status}${detail === '' ? '' : `: ${detail}`}`;
 }

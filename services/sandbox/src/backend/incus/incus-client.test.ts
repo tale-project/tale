@@ -237,6 +237,26 @@ describe('how an answer is read', () => {
     }
   });
 
+  test('a file that is not there is false, without a warning: a HEAD has no body', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { client, seen } = scripted([
+        new Response(null, { status: 404 }),
+        new Response(null, { status: 200 }),
+      ]);
+      expect(
+        await client.fileExists('standby', '/run/tale-standby/ready'),
+      ).toBe(false);
+      expect(
+        await client.fileExists('standby', '/run/tale-standby/ready'),
+      ).toBe(true);
+      expect(seen.map((call) => call.init.method)).toEqual(['HEAD', 'HEAD']);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('an answer that is not an envelope is refused', async () => {
     const { client } = scripted([new Response('not json', { status: 200 })]);
     const error = await rejection(client.getServer());
