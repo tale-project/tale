@@ -91,11 +91,24 @@ function PolicyReadBoundary({
 
 export function withGovernancePolicyReadBoundary<
   Props extends { organizationId: string },
->(Editor: ComponentType<Props>, policyType: PolicyType) {
+>(
+  Editor: ComponentType<Props>,
+  policyType: PolicyType,
+  isReadable?: (
+    policy: ReturnType<typeof useGovernancePolicy>['data'],
+  ) => boolean,
+) {
   return function PolicyEditor(props: Props) {
     const query = useGovernancePolicy(props.organizationId, policyType);
+    // A policy-specific reader can refuse saved data it cannot preserve.
+    // Reuse the same retry surface and write fence as a failed HTTP read.
+    const unreadable =
+      query.data !== undefined && isReadable?.(query.data) === false;
     return (
-      <PolicyReadBoundary key={props.organizationId} query={query}>
+      <PolicyReadBoundary
+        key={props.organizationId}
+        query={unreadable ? { ...query, isError: true } : query}
+      >
         <Editor {...props} />
       </PolicyReadBoundary>
     );

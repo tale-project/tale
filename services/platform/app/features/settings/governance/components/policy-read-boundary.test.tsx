@@ -95,6 +95,43 @@ describe('governance policy read safety', () => {
     );
   });
 
+  it('fences portalled writes when a successful cached read becomes unreadable', async () => {
+    function PortalEditor() {
+      const available = usePolicyReadAvailable();
+      return available
+        ? createPortal(<button>Portal write</button>, document.body)
+        : null;
+    }
+    let readable = true;
+    const PortalPolicy = withGovernancePolicyReadBoundary(
+      PortalEditor,
+      'password_policy',
+      () => readable,
+    );
+    state.data = { config: { minLength: 24 } };
+    state.isError = false;
+    const { rerender } = render(<PortalPolicy organizationId="org-1" />);
+    expect(
+      screen.getByRole('button', { name: 'Portal write' }),
+    ).toBeInTheDocument();
+    readable = false;
+    rerender(<PortalPolicy organizationId="org-1" />);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Portal write' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+    expect(mutateAsync).not.toHaveBeenCalled();
+    readable = true;
+    rerender(<PortalPolicy organizationId="org-1" />);
+    expect(
+      screen.getByRole('button', { name: 'Portal write' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('preserves loaded values during a background refetch', () => {
     state.data = { config: { minLength: 24, rotationDays: 30 } };
     state.isError = false;
