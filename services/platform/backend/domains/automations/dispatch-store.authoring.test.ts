@@ -14,6 +14,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { mintCursorFor } from '../../core/lib/signed_cursor.ts';
 import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { mcpOrigin } from '../../lib/write-origin.ts';
@@ -286,7 +287,7 @@ describe('listVersionHistory', () => {
     viaInferred: false,
     apiKeyId: 'key-1',
     clientName: 'Claude Code',
-    basedOnVersion: version - 1,
+    basedOnVersion: version > 1 ? version - 1 : null,
     restoredFromVersion: null,
     changes: { nodes: { added: 0, removed: 0, changed: 1 } },
     testsPassed: true,
@@ -350,7 +351,7 @@ describe('listVersionHistory', () => {
     });
   });
 
-  it('asks for the whole first page when the call names none', async () => {
+  it('reads a bounded batch even when the complete history is empty', async () => {
     vi.mocked(listVersionHistory).mockResolvedValue({
       versions: [],
       nextBefore: null,
@@ -363,8 +364,220 @@ describe('listVersionHistory', () => {
       expect.anything(),
       ORG,
       NAME,
-      {},
+      { limit: 200 },
     );
+  });
+
+  /** The maintained database reader's defaults: 50 rows unless a bounded
+   * page is named, and the last row as the cursor while older rows remain.
+   * The production adapter and actual dispatch run over this reader double. */
+  function historyOf(count: number) {
+    const all = Array.from({ length: count }, (_, index) =>
+      record(count - index, index % 2 === 0 ? 'api-key:user-1' : 'system:pack'),
+    );
+    vi.mocked(listVersionHistory).mockImplementation(
+      async (_sql, _organization, _name, page = {}) => {
+        const older = all.filter(
+          (row) => page.before === undefined || row.version < page.before,
+        );
+        const versions = older.slice(0, page.limit ?? 50);
+        return {
+          versions,
+          nextBefore:
+            versions.length < older.length ? versions.at(-1)!.version : null,
+          latestVersion: count,
+          deployedVersion: 6,
+        };
+      },
+    );
+    vi.mocked(memberNamesOf).mockResolvedValue(
+      new Map([
+        ['api-key:user-1', 'Ada Lovelace'],
+        ['system:pack', null],
+      ]),
+    );
+    return all;
+  }
+
+  it.each([51, 205])(
+    'actual dispatch over the PG adapter returns all %i retained versions when limit is omitted [MCP-R30]',
+    async (count) => {
+      const all = historyOf(count);
+      const result = await dispatch(
+        'list_versions',
+        { name: NAME },
+        {
+          store: store(),
+        },
+      );
+      expect(result).toMatchObject({
+        latestVersion: count,
+        deployedVersion: 6,
+        nextBefore: null,
+        versions: all.map((row) => ({
+          version: row.version,
+          createdByName:
+            row.createdBy === 'system:pack' ? null : 'Ada Lovelace',
+          basedOnVersion: row.basedOnVersion,
+          changes: row.changes,
+          tests: row.tests,
+          deployed: row.live,
+          lastDeployedAt: row.lastDeployedAt,
+        })),
+      });
+      expect(listVersionHistory).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        ORG,
+        NAME,
+        { limit: 200 },
+      );
+      expect(listVersionHistory).toHaveBeenCalledTimes(Math.ceil(count / 200));
+      if (count > 200) {
+        expect(listVersionHistory).toHaveBeenNthCalledWith(
+          2,
+          expect.anything(),
+          ORG,
+          NAME,
+          { limit: 200, before: 6 },
+        );
+      }
+    },
+  );
+
+  it('returns every older retained version when before is given without a limit', async () => {
+    const all = historyOf(240);
+    const result = await dispatch(
+      'list_versions',
+      { name: NAME, before: 211 },
+      {
+        store: store(),
+      },
+    );
+    expect(result).toMatchObject({
+      latestVersion: 240,
+      deployedVersion: 6,
+      nextBefore: null,
+      versions: all
+        .filter((row) => row.version < 211)
+        .map((row) => ({ version: row.version })),
+    });
+    expect(listVersionHistory).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      ORG,
+      NAME,
+      { limit: 200, before: 211 },
+    );
+    expect(listVersionHistory).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      ORG,
+      NAME,
+      { limit: 200, before: 11 },
+    );
+    expect(listVersionHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([1, 200])(
+    'an explicit limit of %i remains one page with its next cursor',
+    async (limit) => {
+      const all = historyOf(205);
+      const result = await dispatch(
+        'list_versions',
+        { name: NAME, limit },
+        {
+          store: store(),
+        },
+      );
+      expect(result).toMatchObject({
+        latestVersion: 205,
+        nextBefore: 206 - limit,
+        versions: all.slice(0, limit).map((row) => ({ version: row.version })),
+      });
+      expect(listVersionHistory).toHaveBeenCalledTimes(1);
+      expect(listVersionHistory).toHaveBeenCalledWith(
+        expect.anything(),
+        ORG,
+        NAME,
+        { limit },
+      );
+    },
+  );
+
+  it('keeps the latest and live pointers of the first page while exhausting the history', async () => {
+    historyOf(205);
+    const reader = vi.mocked(listVersionHistory).getMockImplementation()!;
+    vi.mocked(listVersionHistory).mockImplementation(async (...args) => {
+      const page = await reader(...args);
+      return args[3]?.before === undefined
+        ? page
+        : {
+            ...page,
+            latestVersion: 206,
+            deployedVersion: 3,
+            versions: page.versions.map((row) =>
+              Object.assign(row, {
+                live: row.version === 3,
+              }),
+            ),
+          };
+    });
+    const result = await store().listVersionHistory?.(NAME);
+    expect(result).toMatchObject({
+      latestVersion: 205,
+      deployedVersion: 6,
+      nextBefore: null,
+    });
+    expect(result?.versions.find((row) => row.version === 6)?.deployed).toBe(
+      true,
+    );
+    expect(result?.versions.find((row) => row.version === 3)?.deployed).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    ['an empty page with a cursor', [], 6],
+    ['a cursor outside the page', [record(7, 'system:pack')], 6],
+    ['a cursor that repeats the boundary', [record(7, 'system:pack')], 7],
+  ] as const)(
+    'refuses %s instead of claiming a complete history',
+    async (_what, versions, nextBefore) => {
+      vi.mocked(listVersionHistory).mockResolvedValue({
+        versions: [...versions],
+        nextBefore,
+        latestVersion: 7,
+        deployedVersion: null,
+      });
+      vi.mocked(memberNamesOf).mockResolvedValue(new Map());
+      await expect(
+        store().listVersionHistory?.(NAME, { before: 7 }),
+      ).rejects.toThrow('version history did not advance');
+      expect(listVersionHistory).toHaveBeenCalledTimes(1);
+      expect(memberNamesOf).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a repeated cursor on a later page', async () => {
+    vi.mocked(listVersionHistory)
+      .mockResolvedValueOnce({
+        versions: [record(6, 'system:pack')],
+        nextBefore: 6,
+        latestVersion: 7,
+        deployedVersion: null,
+      })
+      .mockResolvedValueOnce({
+        versions: [record(5, 'system:pack')],
+        nextBefore: 6,
+        latestVersion: 7,
+        deployedVersion: null,
+      });
+    vi.mocked(memberNamesOf).mockResolvedValue(new Map());
+    await expect(store().listVersionHistory?.(NAME)).rejects.toThrow(
+      'version history did not advance',
+    );
+    expect(listVersionHistory).toHaveBeenCalledTimes(2);
   });
 });
 
