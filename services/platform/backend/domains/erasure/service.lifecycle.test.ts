@@ -369,10 +369,11 @@ describe('processErasure', () => {
     );
   });
 
-  it('pseudonymises who changed an automation’s definition, in every actor form, and counts the pass [ERASE-R5]', async () => {
+  it('pseudonymises who changed an automation’s definition or checked its tests, in every actor form, and counts the pass [ERASE-R5]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const tables = [
       ['app.automations', 'created_by'],
+      ['app.automations', 'tests_checked_by'],
       ['app.automation_deployments', 'deployed_by'],
       ['app.automation_deployment_events', 'actor'],
       ['app.automation_triggers', 'created_by'],
@@ -394,6 +395,8 @@ describe('processErasure', () => {
         ];
       if (text.startsWith('UPDATE app.automations SET created_by'))
         return [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }];
+      if (text.startsWith('UPDATE app.automations SET tests_checked_by'))
+        return [{ id: 'v1' }, { id: 'v4' }, { id: 'v5' }];
       if (text.startsWith('UPDATE app.automation_deployment_events'))
         return [{ id: 'e1' }];
       if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
@@ -421,7 +424,7 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[0]).toBe('done');
-    expect(settle?.values[2]).toMatchObject({ automationAuthorship: 4 });
+    expect(settle?.values[2]).toMatchObject({ automationAuthorship: 7 });
   });
 
   it('pseudonymises the project-agent runs the subject started and counts the pass on the receipt [ERASE-R5]', async () => {

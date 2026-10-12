@@ -1410,8 +1410,8 @@ export async function processErasure(
     return changed.length;
   });
 
-  // Who changed an automation's definition: who saved each version, who
-  // put one live (the live pointer and the deployment history), who set its
+  // Who changed an automation's definition: who saved each version, checked
+  // its tests, put one live (the live pointer and deployment history), set its
   // trigger, installed it in a project or deleted it. The versions and their
   // history are the organization's work and stay; the person gives way to
   // the pseudonym in each form an actor takes — a bare id, `user:<id>` and
@@ -1428,6 +1428,13 @@ export async function processErasure(
       await sql<{ id: string }[]>`
         UPDATE app.automations SET created_by = ${ERASED_SUBJECT}
         WHERE org_id = ${organizationId} AND created_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automations SET tests_checked_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND tests_checked_by = ANY(${forms})
         RETURNING id
       `
     ).length;
