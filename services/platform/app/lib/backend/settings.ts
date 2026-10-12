@@ -7,6 +7,7 @@
  */
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { i18n } from '@/lib/i18n/i18n';
 import {
   API_KEY_HINT_ENTITY,
   CONNECTOR_CREDENTIAL_HINT_ENTITY,
@@ -1723,12 +1724,13 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then((result) => {
         if (result.refused > 0) {
           throw new Error(
-            result.cancelled > 0
-              ? `${result.refused} sandbox task(s) could not be stopped`
-              : 'Sandbox task could not be stopped',
+            i18n.t('toast.stopRefused', {
+              ns: 'sandboxes',
+              count: result.refused,
+            }),
           );
         }
-        return null;
+        return result;
       }),
     invalidate: invalidateSandboxSessions,
   },

@@ -137,7 +137,7 @@ describe('sandbox task stop adapter', () => {
       if (fails) {
         await expect(result).rejects.toThrow('could not be stopped');
       } else {
-        await expect(result).resolves.toBeNull();
+        await expect(result).resolves.toEqual(response);
       }
     },
   );

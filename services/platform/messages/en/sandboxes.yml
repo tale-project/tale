@@ -118,6 +118,7 @@ destroyConfirm:
   confirm: Destroy
 toast:
   stopped: Task stopped
+  stopRefused: '{count, plural, one {One sandbox task could not be stopped} other {# sandbox tasks could not be stopped}}'
   pinned: Sandbox pinned
   unpinned: Sandbox unpinned
   destroying: Destroying sandbox
