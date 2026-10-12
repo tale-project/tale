@@ -39,18 +39,32 @@ export async function runChatGenerationWatchdog(
     RETURNING thread_id AS "threadId"
   `;
   for (const row of cleared) {
-    await sql`
-      UPDATE app.thread_metadata SET
-        generation_status = 'idle', stream_id = NULL,
-        generation_start_ms = NULL, generation_heartbeat_at_ms = NULL,
-        generation_queued_since_ms = NULL
-      WHERE thread_id = ${row.threadId}
-    `;
-    await sql`
-      UPDATE app.messages SET status = 'failed',
-        error = coalesce(error, ${INTERRUPTED_TURN_ERROR})
-      WHERE thread_id = ${row.threadId} AND status = 'pending'
-    `;
+    await settleInterruptedThread(sql, row.threadId);
   }
   return cleared.length;
+}
+
+/**
+ * The rest of an interrupted turn, once its generation row is gone: the
+ * thread's sidecar back to idle and its still-pending placeholder failed with
+ * the interrupted-turn envelope. One definition for both ways a turn is found
+ * dead — the sweep above, and a stopping process settling its own turns
+ * (`live-turns.ts`).
+ */
+export async function settleInterruptedThread(
+  sql: Sql,
+  threadId: string,
+): Promise<void> {
+  await sql`
+    UPDATE app.thread_metadata SET
+      generation_status = 'idle', stream_id = NULL,
+      generation_start_ms = NULL, generation_heartbeat_at_ms = NULL,
+      generation_queued_since_ms = NULL
+    WHERE thread_id = ${threadId}
+  `;
+  await sql`
+    UPDATE app.messages SET status = 'failed',
+      error = coalesce(error, ${INTERRUPTED_TURN_ERROR})
+    WHERE thread_id = ${threadId} AND status = 'pending'
+  `;
 }

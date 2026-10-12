@@ -14,6 +14,13 @@ import { NODE_SHUTDOWN_GRACE_MS, type ShutdownState } from './lib/shutdown.ts';
  * takes it at once instead of after its lease lapses. Only then does it
  * wait out its other jobs, up to the drain budget, and close its stores.
  *
+ * Last, whatever chat turns the process is still running (a reply for the
+ * app runs in the api process, one for an API key in a worker) get the rest
+ * of the drain budget to finish, and the ones still going are settled as
+ * interrupted before the stores close (`domains/chat/live-turns.ts`): the
+ * person sees the failed reply at once, instead of a spinner until the
+ * generation sweep takes the turn for dead ten minutes on.
+ *
  * A container's stop grace must leave room for all of it: at least the
  * drain budget and 15 seconds more (compose.yml, the CLI's compose
  * services).
@@ -75,14 +82,23 @@ export interface ShutdownSteps {
   settleLiveTurns: (timeoutMs: number) => Promise<number>;
   /** Hand on every run this process still holds; answers how many. */
   releaseOwnedRunLeases: () => Promise<number>;
+  /** Let this process's chat turns finish for up to the given milliseconds,
+   * then settle the ones still running as interrupted; answers how many it
+   * interrupted. */
+  settleChatTurns: (timeoutMs: number) => Promise<number>;
   /** Close the database pools. */
   closeStores: () => Promise<void>;
+  /** The clock the drain budget is measured on; `Date.now` unless a test
+   * brings its own. */
+  now?: () => number;
 }
 
 export async function runShutdownSequence(
   reason: string,
   steps: ShutdownSteps,
 ): Promise<void> {
+  const now = steps.now ?? Date.now;
+  const startedAt = now();
   const graceMs = shutdownGraceMs(steps.drainMs);
   steps.shutdown.begin(reason, graceMs);
   if (steps.closeServer !== null) await steps.closeServer();
@@ -118,5 +134,18 @@ export async function runShutdownSequence(
     }
   }
   await stopping;
+  try {
+    const interrupted = await steps.settleChatTurns(
+      Math.max(0, steps.drainMs - (now() - startedAt)),
+    );
+    if (interrupted > 0) {
+      console.warn(
+        `[backend] ${interrupted} chat turn(s) still running at shutdown — settled as interrupted`,
+      );
+    }
+  } catch (error) {
+    // The generation sweep takes whatever this could not settle.
+    console.warn('[backend] could not settle the running chat turns:', error);
+  }
   await steps.closeStores();
 }

@@ -76,3 +76,21 @@ export function createBootDatabaseWait(
       ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
     });
 }
+
+/**
+ * One write that must land, run through a database restart on a clock of its
+ * own: the settle of a chat turn, say, which has no boot to share a clock
+ * with. A reply that had streamed for half a minute lost its settle to a
+ * three-second restart — `transactSerializable` reruns a dropped connection
+ * eight times, about two and a half seconds in all, which ends before a
+ * restarting container answers — and its placeholder stayed `pending`, with
+ * nothing left to write the failure, until the generation sweep took the turn
+ * for dead ten minutes on. Only an unavailable database is waited out; any
+ * other failure, and an outage that outlasts the wait, rejects at once.
+ */
+export function waitOutDatabaseOutage<T>(
+  write: () => Promise<T>,
+  options: BootDatabaseWaitOptions = {},
+): Promise<T> {
+  return createBootDatabaseWait(options)(write);
+}

@@ -61881,6 +61881,109 @@ async function checkWatchdogs(
       (msgAfter[0].error ?? '') !== '',
     `gen=${genGone[0]?.count} meta=${metaAfter[0]?.generationStatus} msg=${msgAfter[0]?.status}`,
   );
+
+  // Lane 4b: a process that is stopping settles ITS OWN live turns at once —
+  // their heartbeats are fresh, so the sweep above would leave each for ten
+  // minutes — and touches no turn it did not run.
+  const openTurn = async (
+    stream: string,
+  ): Promise<{ threadId: string; messageId: string }> => {
+    const created = await sql<{ id: string }[]>`
+      INSERT INTO app.threads (org_id, kind, created_at_ms, updated_at_ms)
+      VALUES (${orgId}, 'chat', ${now}, ${now}) RETURNING id
+    `;
+    const id = created[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.thread_metadata (
+        thread_id, org_id, user_id, chat_type, status, generation_status,
+        stream_id, generation_heartbeat_at_ms, created_at_ms
+      ) VALUES (
+        ${id}, ${orgId}, 'itest:wd', 'assistant', 'active', 'generating',
+        ${stream}, ${now}, ${now}
+      )
+    `;
+    const placeholder = await sql<{ id: string }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, text, status,
+        created_at_ms
+      ) VALUES (${id}, ${orgId}, 1, 0, 'assistant', '', 'pending', ${now})
+      RETURNING id
+    `;
+    const messageId = placeholder[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.generations (
+        thread_id, org_id, message_id, text, started_at_ms, heartbeat_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${id}, ${orgId}, ${messageId}, 'streaming…', ${now}, ${now}, ${now}
+      )
+    `;
+    return { threadId: id, messageId };
+  };
+  const own = await openTurn('stream-own');
+  const foreign = await openTurn('stream-foreign');
+  // A turn this process still tracks whose row another turn has taken over.
+  const successor = await openTurn('stream-successor');
+  const ownTurnId = own.threadId;
+  const foreignTurnId = foreign.threadId;
+  const successorTurnId = successor.threadId;
+  const liveTurns = await import('./domains/chat/live-turns.ts');
+  liveTurns.trackLiveTurn({
+    organizationId: orgId,
+    threadId: ownTurnId,
+    messageId: own.messageId,
+  });
+  liveTurns.trackLiveTurn({
+    organizationId: orgId,
+    threadId: successorTurnId,
+    messageId: 'a-turn-this-process-ran-before',
+  });
+  const interrupted = await liveTurns.settleLiveChatTurns(sql, 0);
+  const turnState = async (id: string) => {
+    const generation = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.generations WHERE thread_id = ${id}
+    `;
+    const meta = await sql<{ generationStatus: string | null }[]>`
+      SELECT generation_status AS "generationStatus"
+      FROM app.thread_metadata WHERE thread_id = ${id}
+    `;
+    const message = await sql<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM app.messages WHERE thread_id = ${id}
+    `;
+    return {
+      generations: generation[0]?.count,
+      meta: meta[0]?.generationStatus,
+      message: message[0]?.status,
+      error: message[0]?.error ?? '',
+    };
+  };
+  const ownState = await turnState(ownTurnId);
+  const foreignState = await turnState(foreignTurnId);
+  const successorState = await turnState(successorTurnId);
+  record(
+    'a stopping process settles its own live turns as interrupted, and no other',
+    interrupted === 1 &&
+      ownState.generations === '0' &&
+      ownState.meta === 'idle' &&
+      ownState.message === 'failed' &&
+      ownState.error !== '' &&
+      foreignState.generations === '1' &&
+      foreignState.meta === 'generating' &&
+      foreignState.message === 'pending' &&
+      successorState.generations === '1' &&
+      successorState.meta === 'generating' &&
+      successorState.message === 'pending',
+    `interrupted=${interrupted} own=${JSON.stringify({ ...ownState, error: ownState.error !== '' })} foreign=${JSON.stringify({ ...foreignState, error: foreignState.error !== '' })} successor=${JSON.stringify({ ...successorState, error: successorState.error !== '' })}`,
+  );
+  // The foreign and successor turns were never this process's: leave no live
+  // row behind for the lanes after this one (budget holds count live
+  // generations).
+  liveTurns.untrackLiveTurn(ownTurnId);
+  liveTurns.untrackLiveTurn(successorTurnId);
+  await sql`
+    DELETE FROM app.generations
+    WHERE thread_id IN (${foreignTurnId}, ${successorTurnId})
+  `;
 }
 
 /**
