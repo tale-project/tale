@@ -71,16 +71,47 @@ type Dependencies = {
   observeRuntime?: typeof observeReadyRuntime;
 };
 
-/** Native configuration is the only field a hot apply may change. The source
- * commit is carried separately by the immutable bundle, never folded into
- * this comparison of destination, identity, runtime and config-pack inputs. */
-function configurationBasis(bundle: DeploymentBundle): string {
+/** Recovery declarations are transient intent, not runtime or identity inputs.
+ * The optional bundle is used only to reconstruct a legacy Ready basis from
+ * its recorded final takeover; new receipts always use the normalized basis.
+ * Source commits remain bound separately by the immutable bundle. */
+function configurationBasis(
+  bundle: DeploymentBundle,
+  legacySupersededBundle?: string,
+): string {
   const {
     configuration: _configuration,
-    supersedesPendingConfigurationPlan: _recovery,
+    supersedesPendingConfigurationPlan: _configurationRecovery,
+    supersedesPendingBundle: _bundleRecovery,
     ...basis
   } = bundle.spec;
-  return valueHash(basis);
+  return valueHash({
+    ...basis,
+    ...(legacySupersededBundle
+      ? { supersedesPendingBundle: legacySupersededBundle }
+      : {}),
+  });
+}
+
+function matchesConfigurationBasis(
+  bundle: DeploymentBundle,
+  ready: {
+    bundleSha256: string;
+    configurationBasisSha256?: string;
+    supersededBundles?: string[];
+  },
+): boolean {
+  if (ready.configurationBasisSha256 === configurationBasis(bundle))
+    return true;
+  // Released CLIs included the outer takeover declaration in this hash.
+  // Only this Ready's final takeover can reconstruct it: a generic mismatch,
+  // absent history or a changed protected input must never admit a hot apply.
+  const superseded = ready.supersededBundles?.at(-1);
+  return (
+    superseded !== undefined &&
+    superseded !== ready.bundleSha256 &&
+    ready.configurationBasisSha256 === configurationBasis(bundle, superseded)
+  );
 }
 
 const recoverySnapshotSchema = z.object({
@@ -660,6 +691,7 @@ async function applyVerifiedDeployment(
             bundleSha256: sha,
             snapshotId: z.string().refine(isValidSnapshotId).optional(),
             configurationBasisSha256: sha.optional(),
+            supersededBundles: z.array(sha).max(64).optional(),
             native: nativeProvisionProofSchema.optional(),
           })
           .parse(JSON.parse(readRegular(receiptPath).toString('utf8')))
@@ -669,7 +701,7 @@ async function applyVerifiedDeployment(
         intent ||
         bundle.spec.supersedesPendingBundle ||
         !previous?.native ||
-        previous.configurationBasisSha256 !== configurationBasis(bundle) ||
+        !matchesConfigurationBasis(bundle, previous) ||
         !bundle.spec.configuration ||
         !preview.existing ||
         preview.changed ||

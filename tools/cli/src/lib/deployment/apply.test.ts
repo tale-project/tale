@@ -2048,6 +2048,266 @@ describePosix('configuration-only managed deployment', () => {
     return { directory, proof };
   }
 
+  async function recoveredDeployment(legacyBasis = false) {
+    const run = await create(true);
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    const intentPath = join(
+      run.fixture.options.stateDirectory,
+      '.tale/deployment-pending.json',
+    );
+    const pendingBytes = readFileSync(intentPath);
+    const pending = JSON.parse(pendingBytes.toString());
+    const original = await verifyDeploymentBundle(run.bundle);
+    const spec = {
+      ...original.spec,
+      supersedesPendingBundle: pending.bundleSha256,
+    };
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      ...original,
+      spec,
+      deploymentRef: 'd'.repeat(40),
+    });
+    run.nativeFailure(false);
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      snapshotId: pending.snapshot.id,
+      supersededBundles: [pending.bundleSha256],
+    });
+    expect(existsSync(intentPath)).toBe(false);
+    if (legacyBasis) {
+      // The released writer hashes the parsed specification with only native
+      // configuration and native-plan recovery removed. Keep outer takeover.
+      const {
+        configuration: _configuration,
+        supersedesPendingConfigurationPlan: _configurationRecovery,
+        ...legacy
+      } = spec;
+      const ready = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+      ready.configurationBasisSha256 = valueHash(legacy);
+      writeFileSync(run.receiptPath, JSON.stringify(ready));
+    }
+    return { run, pending, pendingBytes, intentPath };
+  }
+
+  test.each([false, true])(
+    'recovery then removal admits hot configuration (legacy basis: %s) without replacing Ready or snapshot',
+    async (legacyBasis) => {
+      const { run, pending } = await recoveredDeployment(legacyBasis);
+      const ready = readFileSync(run.receiptPath);
+      const beforeIds = run.docker.containers.map((container) => container.Id);
+      const hot = await hotBundle(run);
+      expect(
+        (await verifyDeploymentBundle(hot.directory)).spec,
+      ).not.toHaveProperty('supersedesPendingBundle');
+      run.events.length = 0;
+      run.docker.calls = [];
+      expect(
+        await applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).toMatchObject({ phase: 'configuration-ready', runtimeChanged: false });
+      expect(run.events).toEqual(['provision', 'cleanup']);
+      expect(run.nativeCommands.at(-1)).toContain('--configuration-only');
+      expect(readFileSync(run.receiptPath)).toEqual(ready);
+      expect(JSON.parse(ready.toString()).snapshotId).toBe(pending.snapshot.id);
+      expect(run.docker.containers.map((container) => container.Id)).toEqual(
+        beforeIds,
+      );
+      expect(
+        run.docker.calls.some(
+          ({ args }) =>
+            args.includes('compose') ||
+            args.includes('pause') ||
+            args.includes('pull'),
+        ),
+      ).toBe(false);
+      // A second hot apply must work from the same immutable full Ready,
+      // including when it still carries the released writer's legacy basis.
+      expect(
+        await applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).toMatchObject({ phase: 'configuration-ready' });
+      expect(readFileSync(run.receiptPath)).toEqual(ready);
+    },
+  );
+
+  test.each([
+    'missing',
+    'empty',
+    'wrong',
+    'wrong-last',
+    'self',
+    'generic-hash',
+    'no-native',
+    'pending',
+    'stale-declaration',
+  ] as const)(
+    'legacy recovery refuses %s without native writes or changing history',
+    async (reason) => {
+      const { run, pending, pendingBytes, intentPath } =
+        await recoveredDeployment(true);
+      const hot = await hotBundle(run);
+      const ready = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+      if (reason === 'missing') delete ready.supersededBundles;
+      if (reason === 'empty') ready.supersededBundles = [];
+      if (reason === 'wrong') ready.supersededBundles = ['e'.repeat(64)];
+      if (reason === 'wrong-last')
+        ready.supersededBundles = [pending.bundleSha256, 'e'.repeat(64)];
+      if (reason === 'self') ready.supersededBundles = [ready.bundleSha256];
+      if (reason === 'generic-hash')
+        ready.configurationBasisSha256 = 'e'.repeat(64);
+      if (reason === 'no-native') delete ready.native;
+      writeFileSync(run.receiptPath, JSON.stringify(ready));
+      if (reason === 'pending') writeFileSync(intentPath, pendingBytes);
+      if (reason === 'stale-declaration') {
+        const metadata = await verifyDeploymentBundle(hot.directory);
+        rmSync(join(hot.directory, 'deployment.json'));
+        await writeDeploymentBundle(hot.directory, {
+          ...metadata,
+          spec: {
+            ...metadata.spec,
+            supersedesPendingBundle: pending.bundleSha256,
+          },
+        });
+      }
+      const readyBytes = readFileSync(run.receiptPath);
+      run.events.length = 0;
+      await expect(
+        applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).rejects.toThrow();
+      expect(run.events).toEqual([]);
+      expect(readFileSync(run.receiptPath)).toEqual(readyBytes);
+      if (reason === 'pending')
+        expect(readFileSync(intentPath)).toEqual(pendingBytes);
+      expect(
+        existsSync(
+          join(
+            run.fixture.options.stateDirectory,
+            '.tale/configuration-ready.json',
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test.each(['identity', 'environment', 'runtime', 'config-pack'] as const)(
+    'legacy compatibility cannot hide changed %s inputs',
+    async (reason) => {
+      const { run } = await recoveredDeployment(true);
+      const ready = readFileSync(run.receiptPath);
+      const hot = await hotBundle(run, reason === 'identity');
+      const metadata = await verifyDeploymentBundle(hot.directory);
+      if (reason === 'environment') {
+        metadata.spec.environment.SENTRY_ENVIRONMENT = {
+          env: 'TALE_TEST_UNUSED_SECRET',
+        };
+      } else if (reason === 'runtime') {
+        metadata.spec.runtime.revision = 'e'.repeat(40);
+      } else if (reason === 'config-pack') {
+        const source = commandFixture('north-labs');
+        const configDirectory = join(
+          hot.directory,
+          'configs/north-labs',
+          source.name,
+        );
+        try {
+          await prepareDeploymentConfig({
+            repoRoot: source.root,
+            descriptorPath: relative(source.root, source.descriptorPath),
+            automationName: source.name,
+            configRef: source.options.sourceCommit,
+            catalogueRepository: source.descriptor.sourceRepository,
+            clientId: 'north-labs',
+            deploymentRef: metadata.deploymentRef,
+            output: configDirectory,
+            lateOwner: true,
+          });
+          metadata.spec.configs = [
+            {
+              repository: source.descriptor.sourceRepository,
+              revision: source.options.sourceCommit,
+              client: 'north-labs',
+              descriptor: relative(source.root, source.descriptorPath),
+              automation: source.name,
+              project: { key: 'NORTH', name: 'North document desk' },
+              skillOwner: 'operator',
+            },
+          ];
+        } finally {
+          rmSync(source.root, { recursive: true, force: true });
+        }
+      }
+      rmSync(join(hot.directory, 'deployment.json'));
+      await writeDeploymentBundle(hot.directory, metadata);
+      run.events.length = 0;
+      await expect(
+        applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).rejects.toThrow();
+      expect(run.events).toEqual([]);
+      expect(readFileSync(run.receiptPath)).toEqual(ready);
+      expect(
+        existsSync(
+          join(
+            run.fixture.options.stateDirectory,
+            '.tale/configuration-ready.json',
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test.each(['image', 'source-bytes'] as const)(
+    'legacy recovery retains runtime and frozen source guards for %s drift',
+    async (reason) => {
+      const { run } = await recoveredDeployment(true);
+      const ready = readFileSync(run.receiptPath);
+      const hot = await hotBundle(run);
+      if (reason === 'image') {
+        const backend = run.docker.containers.find(
+          (container) =>
+            (container.Config as { Labels: Record<string, string> }).Labels[
+              'com.docker.compose.service'
+            ] === 'backend-api',
+        )!;
+        (backend.Config as { Image: string }).Image =
+          'foreign@sha256:' + 'e'.repeat(64);
+      } else {
+        writeFileSync(
+          join(hot.directory, 'runtime/compose.yml'),
+          'changed source',
+        );
+      }
+      run.events.length = 0;
+      await expect(
+        applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).rejects.toThrow();
+      expect(run.events).toEqual([]);
+      expect(readFileSync(run.receiptPath)).toEqual(ready);
+      expect(
+        existsSync(
+          join(
+            run.fixture.options.stateDirectory,
+            '.tale/configuration-ready.json',
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+
   test('a dry run verifies runtime admission without native or receipt writes', async () => {
     const run = await create();
     await run.apply();

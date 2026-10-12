@@ -135,7 +135,9 @@ const deploymentFields = z.strictObject({
   /** Take over the recovery point a deployment was left pending with by
    * that bundle — its exact `bundleSha256`, which the refusal names — after
    * review, instead of replaying it. The ready receipt lists every bundle
-   * superseded this way under `supersededBundles`. */
+   * superseded this way under `supersededBundles`. Remove this transient
+   * declaration after recovery before a configuration-only apply; it is not
+   * part of the stable runtime/identity basis. */
   supersedesPendingBundle: sha.optional(),
   /** Explicit review of the native configuration journal's complete plan hash.
    * Bundle supersession alone never replaces a partially applied native plan. */

@@ -253,6 +253,16 @@ pack sources or other deployment inputs requires a full deployment. An older rec
 without this capability proof must first complete one normal deployment with the
 updated CLI. A refusal never falls back to a full deployment automatically.
 
+After a successful bundle takeover, remove `supersedesPendingBundle` and prepare
+again before using this mode. Removing that transient recovery declaration does
+not change the stable runtime and identity basis. A legacy Ready receipt whose
+basis included the declaration is accepted only when its recorded final
+`supersededBundles` entry reconstructs that exact hash with all other protected
+inputs unchanged. Missing or mismatched history still refuses the apply. Keep
+the historical Ready receipt and recovery snapshot intact; no receipt editing or
+extra rollout is needed solely to remove the declaration. A pending rollout or
+a declaration that still requests a takeover remains ineligible.
+
 The CLI reuses its existing deployment lock, private native provisioning session,
 configuration plan, journal and readback. It changes only managed instruction and
 automation resources; every declared branding, governance, provider, embedding or
