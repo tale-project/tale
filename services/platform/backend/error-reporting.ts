@@ -5,6 +5,7 @@ import type { Context, ErrorHandler } from 'hono';
 import {
   databaseUnavailableCause,
   describeDatabaseError,
+  swallowedDatabaseError,
   type DatabaseErrorOrigin,
 } from './db/unavailable.ts';
 import { methodClass, routeClass } from './telemetry.ts';
@@ -218,6 +219,29 @@ export function databaseUnavailableResponse(
       'Retry-After': String(DATABASE_RETRY_AFTER_SECONDS),
       'Cache-Control': 'no-store',
     },
+  );
+}
+
+/**
+ * `response` — an answer a library built for a request — or, when the database
+ * failed while the request ran, the 503 {@link databaseUnavailableResponse}
+ * instead.
+ *
+ * Better Auth reads the session in its middleware and, when the read throws,
+ * logs the database error and carries on without a session: the endpoint
+ * answers a 401 `UNAUTHORIZED` for a session that is perfectly good. The app
+ * reads that answer as "this session ended" and takes the tab to sign-in, so a
+ * database restart signed people out. Its `get-session` throws a 500 the
+ * same way. The logger notes the database error for the request
+ * (`auth/auth.ts`), so a 401 or a 5xx with one noted is the outage speaking.
+ * Any other answer, and any request that met no database error, passes.
+ */
+export function outageInsteadOf(response: Response, c: Context): Response {
+  if (response.status !== 401 && response.status < 500) return response;
+  const noted = swallowedDatabaseError();
+  if (noted === undefined) return response;
+  return (
+    databaseUnavailableResponse(noted, c, { fromDatabase: true }) ?? response
   );
 }
 

@@ -99,7 +99,7 @@ import {
   createWebdavProtocolRoutes,
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
-import { appErrorHandler } from './error-reporting.ts';
+import { appErrorHandler, outageInsteadOf } from './error-reporting.ts';
 import { appJsonBody } from './lib/app-json-body.ts';
 import { conditionalGet } from './lib/conditional-get.ts';
 import {
@@ -312,10 +312,13 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     // an unsupported grant).
     const early = await oauthTokenPrecheck(c.req.raw);
     if (early !== null) return early;
-    return withOAuthConformance(
-      c.req.raw,
-      await deps.auth.handler(requestWithMintedCookie(c.req.raw)),
-      oidcRealm(),
+    return outageInsteadOf(
+      await withOAuthConformance(
+        c.req.raw,
+        await deps.auth.handler(requestWithMintedCookie(c.req.raw)),
+        oidcRealm(),
+      ),
+      c,
     );
   });
   app.route('/api/app/identity', createIdentityRoutes(deps));

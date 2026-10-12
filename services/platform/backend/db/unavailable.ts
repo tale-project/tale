@@ -164,6 +164,16 @@ export function noteSwallowedDatabaseError(error: unknown): void {
 }
 
 /**
+ * The database error a library swallowed while this request ran, if any —
+ * what {@link noteSwallowedDatabaseError} kept. For an answer the library
+ * built itself from a failed read, such as Better Auth's 401 for a session it
+ * could not look up, which no error handler ever sees.
+ */
+export function swallowedDatabaseError(): unknown {
+  return swallowed.getStore()?.error;
+}
+
+/**
  * The database error behind `error`, or `undefined` when the database is not
  * why the request failed: `error` itself when it says the database is
  * unavailable, else — when `error` is a library's cause-less 500 — the
