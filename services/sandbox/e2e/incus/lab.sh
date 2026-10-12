@@ -361,7 +361,8 @@ start_egress() {
   sudo ip link set lab-stand up
   sudo ip addr add "${GATEWAY_ADDRESS}/32" dev lab-stand
   sudo ip addr add "${BACKEND_ADDRESS}/32" dev lab-stand
-  ip -br addr show lab-stand "$NETWORK"
+  ip -br addr show dev lab-stand
+  ip -br addr show dev "$NETWORK"
 }
 
 # ---- the files ----------------------------------------------------------------------------
