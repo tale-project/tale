@@ -572,6 +572,19 @@ describe('listSessions', () => {
     expect(after).toMatchObject({ state: 'degraded', ended: true });
   });
 
+  test('calls an instance that started and stopped ended at once: no creator is starting it', async () => {
+    // A session whose process died shortly after it came up, as a killed
+    // runnerd does: the next create of the id must be able to replace it.
+    const f = sessionFixture();
+    f.fake.seedInstance(NAME, labels(ID), { ephemeral: false });
+    const instance = f.fake.instances.get(NAME);
+    if (instance === undefined) throw new Error('no instance');
+    instance.status = 'Stopped';
+    f.clock.now = Date.parse(instance.createdAt) + 1_000;
+    const [session] = await f.backend.listSessions();
+    expect(session).toMatchObject({ state: 'degraded', ended: true });
+  });
+
   test('lists only the sessions of this spawner: no standbys, no strangers, no other spawner’s', async () => {
     const f = sessionFixture();
     f.fake.seedInstance('tale-sbx-pool-x', { [LABEL.pool]: 'fp' });

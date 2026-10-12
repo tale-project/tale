@@ -66,6 +66,7 @@ import {
 } from './incus-client.ts';
 import {
   hasEnded,
+  hasStarted,
   instanceAddress,
   isRunning,
   isStartingOrRunning,
@@ -1023,15 +1024,17 @@ export class IncusSessionBackend implements SessionBackend {
         pinned: label(instance.config, LABEL.pinned) === 'true',
         // Stopped is also how an instance looks for the moment between its
         // creation and its start, and a peer spawner (a rollout overlaps two)
-        // may be making it: it has ended only once its creator's startup
-        // deadline and slack are past.
+        // may be making it. One that has started and stopped has ended; one
+        // that never started has only once its creator's startup deadline and
+        // slack are past.
         ended:
           hasEnded(instance) &&
-          startupExpired(
-            instance,
-            this.runtime.now(),
-            this.cfg.session.createHealthTimeoutMs,
-          ),
+          (hasStarted(instance) ||
+            startupExpired(
+              instance,
+              this.runtime.now(),
+              this.cfg.session.createHealthTimeoutMs,
+            )),
         ...(isIpv4Address(egress) ? { egressAddress: egress } : {}),
       });
     }

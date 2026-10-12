@@ -45,6 +45,8 @@ export interface FakeInstance {
   devices: IncusDevices;
   profiles: string[];
   createdAt: string;
+  /** When it last started: the epoch until it has, as Incus has it. */
+  lastUsedAt: string;
   address: string | undefined;
   files: Map<string, { content: string; mode: string }>;
   consoleLog: string;
@@ -173,6 +175,9 @@ function parseStateBody(raw: unknown): StateBody {
   }
   return { action, force: body.force === true };
 }
+
+/** Incus's last-used time of an instance that has never started. */
+const NEVER_STARTED = '1970-01-01T00:00:00Z';
 
 const STATUS_CODE: Record<FakeInstance['status'], number> = {
   Running: INCUS_STATUS.running,
@@ -698,6 +703,7 @@ export class FakeIncus {
       devices: structuredClone(input.devices),
       profiles: input.profiles ?? [this.options.profile],
       createdAt: this.timestamp(),
+      lastUsedAt: NEVER_STARTED,
       address: undefined,
       files: new Map(),
       consoleLog: '',
@@ -716,6 +722,7 @@ export class FakeIncus {
       devices: instance.devices,
       profiles: instance.profiles,
       created_at: instance.createdAt,
+      last_used_at: instance.lastUsedAt,
     };
   }
 
@@ -995,6 +1002,7 @@ export class FakeIncus {
 
   private boot(instance: FakeInstance): void {
     instance.status = 'Running';
+    instance.lastUsedAt = this.timestamp();
     if (this.assignAddresses) {
       instance.address = `10.9.0.${this.nextAddress++}`;
     }

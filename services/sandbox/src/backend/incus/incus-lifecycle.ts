@@ -56,6 +56,16 @@ export function hasEnded(instance: IncusInstance): boolean {
   );
 }
 
+/** Has it ever started? Incus keeps the time of the last start, and the epoch
+ * for an instance that has none: what an instance is between its creation and
+ * its start. A server that does not say reads as started, so that nothing is
+ * held back on a guess. */
+export function hasStarted(instance: IncusInstance): boolean {
+  if (instance.lastUsedAt === '') return true;
+  const at = Date.parse(instance.lastUsedAt);
+  return !Number.isFinite(at) || at > Date.UTC(2000, 0, 1);
+}
+
 /** Running, or on its way to it: a start another create is still making. */
 export function isStartingOrRunning(instance: IncusInstance): boolean {
   return (

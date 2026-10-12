@@ -90,6 +90,10 @@ export interface IncusInstance {
   /** Immutable for the life of the instance: Incus's own creation time, which
    * a replacement under the same name cannot share. */
   createdAt: string;
+  /** When it last started (Incus sets it at every start); the epoch for an
+   * instance that never has, which is what an instance is between its
+   * creation and its start. Empty where the server does not say. */
+  lastUsedAt: string;
 }
 
 export interface IncusNetworkAddress {
@@ -247,6 +251,7 @@ export function parseInstance(raw: unknown): IncusInstance {
     devices: devicesOf(obj.devices),
     profiles: stringList(obj.profiles),
     createdAt: optionalText(obj, 'created_at'),
+    lastUsedAt: optionalText(obj, 'last_used_at'),
   };
 }
 
