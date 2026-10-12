@@ -128,10 +128,22 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
       },
     },
   ),
-  // Current CLI adds the request-channel push path; the entire job graph is unchanged.
+  // CLI adds the request-channel push path; the entire job graph is unchanged.
   profile(
     'CLI',
     '198109738040873a9e17e658897962c82de63cdff45546f35115db8484ae3a64',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+  ),
+  // Current CLI adds the org-adapter type dependency; jobs and verdict closure are identical.
+  profile(
+    'CLI',
+    '1b38b1fa42147c5dad232fe0f12b6ed5d981913b23030511590b752837958989',
     {
       build: {
         variable: 'platform',
