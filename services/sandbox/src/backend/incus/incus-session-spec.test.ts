@@ -181,6 +181,8 @@ describe('a session started cold', () => {
       'environment.HOME': '/agent/.runtime/home',
       'environment.TALE_EXEC_STALL_MS': '2700000',
       'environment.TALE_EXEC_ADMISSION_MEMORY_PERCENT': '90',
+      // the entrypoint ends the instance with runnerd (Incus's init would not)
+      'environment.TALE_END_WITH_RUNNERD': '1',
       'environment.TALE_TRANSPARENT_EGRESS': '1',
       // a /dev/shm of the profile's size, mounted by the entrypoint as root
       'environment.TALE_SHM_SIZE': '512m',

@@ -22,6 +22,8 @@
 #   HTTPS_PROXY / HTTP_PROXY  -> http://sandbox-egress:3128
 #   TALE_DIND / TALE_TRANSPARENT_EGRESS  -> feature signals
 #   TALE_SHM_SIZE  -> size of a tmpfs mounted on /dev/shm while still root (Incus)
+#   TALE_END_WITH_RUNNERD  -> end the whole container when runnerd's supervisor
+#                     ends (Incus: its init waits for every orphan)
 #   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
 #   TALE_RUNNERD_INCARNATION  -> creation stamp runnerd names in its answers
 #
@@ -1111,6 +1113,30 @@ mount_session_shm() {
 # process group; runnerd passes it on to every live exec (each runs in a
 # group of its own) before it exits.
 # ---------------------------------------------------------------------------
+# The container ends with runnerd. On Docker and Kubernetes the process this
+# script finally execs (tini) is the container's PID 1, so when runnerd goes the
+# container goes, and the kernel ends everything else with it. Incus runs a
+# command that is not an init system under LXC's lxc-init as PID 1, which keeps
+# the container up for as long as ANY process of it lives (it waits until wait()
+# says it has no children left: lxc_container_init). An agent's `pkill node`
+# ends runnerd, being the same user; the daemons started below (redsocks, the
+# inner dockerd) would then keep an instance up that nobody answers for, and a
+# pinned session would never be recreated. So, under TALE_END_WITH_RUNNERD=1
+# (which the Incus backend sets), the dispatch below runs as a child of this
+# shell, and when it ends this shell ends every other process it may signal
+# (all of them: its own, or root's), and lxc-init with them. The variable is
+# gone from the child's environment, so it reaches neither runnerd nor an exec.
+if [ "$1" = "daemon" ] && [ "${TALE_END_WITH_RUNNERD:-}" = "1" ]; then
+  _daemon_status=0
+  (
+    unset TALE_END_WITH_RUNNERD
+    # By the shell, not by the file: it needs no execute bit to be run again.
+    exec /bin/sh "$0" "$@"
+  ) || _daemon_status=$?
+  kill -s KILL -- -1 2>/dev/null || true
+  exit "$_daemon_status"
+fi
+
 if [ "$1" = "daemon" ]; then
   # Both DinD and transparent egress boot the container as root (DinD to run the
   # inner dockerd; transparent egress so the entrypoint can install the iptables

@@ -182,6 +182,12 @@ function sharedEnvironment(
     TALE_EXEC_ADMISSION_MEMORY_PERCENT: String(
       cfg.session.execAdmissionMemoryPercent,
     ),
+    // Incus keeps an instance up while any process of it lives (lxc-init, its
+    // PID 1, waits for every orphan), so a runnerd that ended (an agent's
+    // `pkill node` ends it) would leave a running instance nobody answers for.
+    // The entrypoint ends everything itself when runnerd's supervisor ends, as
+    // Docker's PID 1 does by exiting.
+    TALE_END_WITH_RUNNERD: '1',
   };
   if (shape.dind) {
     env.TALE_DIND = '1';
