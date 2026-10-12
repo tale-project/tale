@@ -307,6 +307,48 @@ describe('the project’s aggregate limits', () => {
     ).toHaveLength(1);
   });
 
+  test('warns about a CPU cap below the capacity times the profile’s count', async () => {
+    const fake = new FakeIncus();
+    // 10 sessions of the profile's 2 CPUs.
+    fake.profileConfig['limits.cpu'] = '2';
+    fake.projectConfig['limits.cpu'] = '19';
+    const { errors, warnings } = await inspect(fake);
+    expect(errors).toEqual([]);
+    expect(matching(warnings, 'limits.cpu')).toHaveLength(1);
+    expect(warnings[0]).toContain(
+      "SANDBOX_MAX_SESSIONS (10) times profile sandbox's 2",
+    );
+    fake.projectConfig['limits.cpu'] = '20';
+    expect((await inspect(fake)).warnings).toEqual([]);
+    // A range pins CPUs and is not a count Incus adds up: nothing to compare.
+    fake.profileConfig['limits.cpu'] = '0-3';
+    fake.projectConfig['limits.cpu'] = '1';
+    expect(matching((await inspect(fake)).warnings, 'limits.cpu')).toEqual([]);
+  });
+
+  test('warns about a disk cap below the capacity times a session’s root disk and workspace', async () => {
+    const fake = new FakeIncus();
+    // 10 sessions of a 30 GiB root disk and a 10 GiB workspace.
+    fake.projectConfig['limits.disk'] = '399GiB';
+    const { errors, warnings } = await inspect(fake);
+    expect(errors).toEqual([]);
+    expect(matching(warnings, 'limits.disk')).toHaveLength(1);
+    expect(warnings[0]).toContain('SANDBOX_MAX_SESSIONS (10)');
+    expect(warnings[0]).toContain('root disk (30GiB) and workspace (10GiB)');
+    fake.projectConfig['limits.disk'] = '400GiB';
+    expect((await inspect(fake)).warnings).toEqual([]);
+    // The same cap on the sessions' pool.
+    fake.projectConfig['limits.disk'] = '';
+    fake.projectConfig['limits.disk.pool.tank'] = '399GiB';
+    expect(
+      matching((await inspect(fake)).warnings, 'limits.disk.pool.tank'),
+    ).toHaveLength(1);
+    // Another pool's cap is not the sessions' business.
+    fake.projectConfig['limits.disk.pool.tank'] = '';
+    fake.projectConfig['limits.disk.pool.bulk'] = '1GiB';
+    expect((await inspect(fake)).warnings).toEqual([]);
+  });
+
   test('says nothing about limits it cannot read', async () => {
     const fake = new FakeIncus();
     fake.projectConfig['limits.memory'] = '50%';

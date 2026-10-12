@@ -61,6 +61,13 @@ function countOf(value: string | undefined): number | undefined {
   return Number(value);
 }
 
+/** The profile's root disk, which every instance of it inherits. */
+function rootDeviceOf(profile: IncusProfile) {
+  return Object.values(profile.devices).find(
+    (device) => device.type === 'disk' && device.path === '/',
+  );
+}
+
 /**
  * Incus refuses a create once the instances of a project would pass one of the
  * project's own limits, and the spawner admits by its session capacity alone.
@@ -72,9 +79,11 @@ function countOf(value: string | undefined): number | undefined {
 function warnProjectCapacity(
   cfg: SpawnerConfig,
   projectConfig: Record<string, string>,
+  profile: IncusProfile,
   projectName: string,
   warnings: string[],
 ): void {
+  const incus = incusOf(cfg);
   const capacity = cfg.session.maxSessions;
   const shape = sessionShape(cfg, 'agent');
   const instances = countOf(projectConfig['limits.instances']);
@@ -110,6 +119,40 @@ function warnProjectCapacity(
     warnings.push(
       `project ${projectName} caps the sessions' process limits at ${processes} (limits.processes), less than SANDBOX_MAX_SESSIONS (${capacity}) times ${pids}: a create fails once their limits add up to it`,
     );
+  }
+  // A session does not set limits.cpu itself: it holds the profile's count,
+  // which is what a project limits.cpu adds up (boot refuses a project limit
+  // while the profile has none, and a range is not a count).
+  const cpus = countOf(projectConfig['limits.cpu']);
+  const perSessionCpus = countOf(profile.config['limits.cpu']);
+  if (
+    cpus !== undefined &&
+    perSessionCpus !== undefined &&
+    cpus < capacity * perSessionCpus
+  ) {
+    warnings.push(
+      `project ${projectName} caps the sessions' CPU counts at ${cpus} (limits.cpu), less than SANDBOX_MAX_SESSIONS (${capacity}) times profile ${profile.name}'s ${perSessionCpus}: a create fails once their counts add up to it`,
+    );
+  }
+  // The disk a session holds is its root disk quota (the profile's) and its
+  // workspace volume's; the images the project holds count as well, so the
+  // limit needs room beyond this sum.
+  const rootSize = rootDeviceOf(profile)?.size;
+  const root = rootSize === undefined ? undefined : incusSizeBytes(rootSize);
+  const workspace = incusSizeBytes(incus.workspaceSize);
+  if (root !== undefined && workspace !== undefined) {
+    for (const key of [
+      'limits.disk',
+      `limits.disk.pool.${incus.storagePool}`,
+    ]) {
+      const limit = projectConfig[key];
+      const bytes = limit === undefined ? undefined : incusSizeBytes(limit);
+      if (bytes !== undefined && bytes < capacity * (root + workspace)) {
+        warnings.push(
+          `project ${projectName} caps its disk at ${limit} (${key}), less than SANDBOX_MAX_SESSIONS (${capacity}) times a session's root disk (${rootSize}) and workspace (${incus.workspaceSize}): a create fails once their quotas add up to it, and the images the project holds count too`,
+        );
+      }
+    }
   }
 }
 
@@ -214,9 +257,7 @@ export function inspectIncus(
   // does not define it itself or through its profile. Sessions define
   // limits.memory and limits.processes (and the volumes their size), and limit
   // CPU through limits.cpu.allowance, not limits.cpu.
-  const rootDevice = Object.values(profile.devices).find(
-    (device) => device.type === 'disk' && device.path === '/',
-  );
+  const rootDevice = rootDeviceOf(profile);
   const cpuLimit = project.config['limits.cpu'];
   if (
     cpuLimit !== undefined &&
@@ -240,7 +281,7 @@ export function inspectIncus(
       `project ${projectName} sets ${diskLimit}, so Incus refuses every instance whose root disk has no size, and profile ${incus.profile}'s root disk has none. Run: incus profile device set ${incus.profile} root size=30GiB --project ${projectName}`,
     );
   }
-  warnProjectCapacity(cfg, project.config, projectName, warnings);
+  warnProjectCapacity(cfg, project.config, profile, projectName, warnings);
 
   // ---- the network and the profile that owns the NIC -----------------------
   if (!network.managed) {

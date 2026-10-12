@@ -235,10 +235,12 @@ unmanaged network, a profile without a NIC on the configured network and
 without an ACL on that NIC, and a `SANDBOX_AGENT_SHM_SIZE` the entrypoint
 cannot mount. Everything allowed but worth knowing is a warning: an
 unrestricted project, a project without its own images, disk devices allowed
-from any host path, low-level keys allowed, project count, memory or process
-limits below what `SANDBOX_MAX_SESSIONS` can add up to, a kernel that reports no
-idmapped mounts, a NIC without port isolation, a root disk without a size or on
-another pool, a `dir` pool.
+from any host path, low-level keys allowed, project count, memory, process, CPU
+or disk limits below what `SANDBOX_MAX_SESSIONS` can add up to (a session's CPU
+count is the profile's `limits.cpu`; its disk is the profile's root disk plus
+`SANDBOX_INCUS_WORKSPACE_SIZE`, and the images the project holds come on top), a
+kernel that reports no idmapped mounts, a NIC without port isolation, a root
+disk without a size or on another pool, a `dir` pool.
 
 **Network.** Sessions resolve nothing themselves: the bridge's resolver forwards
 no queries, so a session reaches only the egress proxy, and the spawner sets
