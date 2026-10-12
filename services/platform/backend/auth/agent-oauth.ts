@@ -654,7 +654,10 @@ export async function authorizePrecheck(
       body: params.toString(),
     });
   }
-  return new Request(url, { method: request.method, headers: request.headers });
+  return new Request(url.toString(), {
+    method: request.method,
+    headers: request.headers,
+  });
 }
 
 // ------------------------------------------------------------ token

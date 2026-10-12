@@ -116,6 +116,7 @@ async function nativeFixture() {
               typeof createOidcProvider
             >[0],
             'https://native.example.invalid',
+            { dynamicRegistration: false, clientDiscovery: null },
           );
           const context = {
             session: {
