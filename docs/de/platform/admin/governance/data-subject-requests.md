@@ -24,6 +24,8 @@ Die Kategorie **Modellanfragen** umfasst Anfragen an die Modell-API und direkte 
 
 Aufgaben, die die Person als **Reviewer** nennen, verlieren diese Zuweisung. Eine Prüfanfrage, die noch auf sie wartet, geht an die erste berechtigte Person der Ersatzfolge: den Ersteller der Aufgabe oder des Projekts. Diese Person wird benachrichtigt. Bei einer archivierten Aufgabe geht die Prüfanfrage ohne Benachrichtigung weiter. Prüfentscheidungen, die die Person bereits getroffen hat, bleiben ohne ihren Namen erhalten.
 
+Bei der Löschung bleiben die Inhalte gespeicherter Automatisierungsversionen und ihre Testberichte unverändert. Die Löschung ersetzt die Kennung der Person durch ein Pseudonym, wenn sie eine Version gespeichert oder deren Tests geprüft, sie live geschaltet, ihren Trigger eingerichtet, sie in einem Projekt installiert oder sie gelöscht hat.
+
 ## Vorher die Richtlinie prüfen
 
 | Einstellung | Wirkung |

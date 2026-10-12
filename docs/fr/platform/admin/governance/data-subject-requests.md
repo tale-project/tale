@@ -24,6 +24,8 @@ La catégorie **Requêtes aux modèles** couvre les requêtes à l’API des mod
 
 Les tâches qui désignent la personne comme **Relecteur** perdent cette désignation. Une demande de revue qui l’attend encore passe à la première personne autorisée parmi celle qui a créé la tâche, puis celle qui a créé le projet. Cette personne reçoit une notification. Pour une tâche archivée, la demande passe sans notification. Les décisions de revue que la personne a déjà prises restent enregistrées sans son nom.
 
+Le contenu des versions enregistrées d’automatisation et leurs rapports de tests restent inchangés lors de l’effacement. L’effacement remplace l’identité de la personne par un pseudonyme lorsqu’elle a enregistré une version ou exécuté ses tests, l’a déployée, a configuré son déclencheur, l’a installée dans un projet ou l’a supprimée.
+
 ## Vérifier la règle avant le dépôt
 
 | Réglage | Effet |
