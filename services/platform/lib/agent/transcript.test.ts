@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MessagePart } from '../chat/types';
 import { messagePartsToTimeline } from './transcript';
+import { WORK_TOOL_FAILURE_STATUSES } from './work-tools';
 
 describe('messagePartsToTimeline [TASK-R32]', () => {
   it('shows the text and each tool call with its result, in the order they were authored', () => {
@@ -80,6 +81,31 @@ describe('messagePartsToTimeline [TASK-R32]', () => {
     });
     expect(entry).not.toHaveProperty('output');
   });
+
+  it.each(WORK_TOOL_FAILURE_STATUSES)(
+    'reads a %s result as an error entry, so a program stopped with its reply is never shown as a success',
+    (status) => {
+      const [entry] = messagePartsToTimeline([
+        {
+          type: 'tool-call',
+          callId: 'c1',
+          capabilityId: 'run_code',
+          input: {},
+        },
+        {
+          type: 'tool-result',
+          callId: 'c1',
+          capabilityId: 'run_code',
+          output: { status, message: 'It did not finish.' },
+          structured: true,
+        },
+      ]);
+      expect(entry).toMatchObject({
+        state: 'output-error',
+        errorText: 'It did not finish.',
+      });
+    },
+  );
 
   it('leaves out reasoning, empty text and a result with no call', () => {
     expect(

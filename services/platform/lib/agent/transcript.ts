@@ -13,16 +13,13 @@
 
 import type { MessagePart } from '../chat/types';
 import type { TimelinePart } from '../harnesses/timeline';
+import { WORK_TOOL_FAILURE_STATUSES } from './work-tools';
 
-/** The statuses a work tool answers a call it could not carry out with
- * (`agent_tools/scope.ts`). A result carrying one is an error entry. */
-const FAILURE_STATUSES: ReadonlySet<string> = new Set([
-  'invalid_args',
-  'not_found',
-  'unavailable',
-  'busy',
-  'error',
-]);
+/** A result carrying a status a work tool answers a failed call with is an
+ * error entry. */
+const FAILURE_STATUSES: ReadonlySet<string> = new Set(
+  WORK_TOOL_FAILURE_STATUSES,
+);
 
 /** The error a tool result states, or `undefined` when it is not one. */
 function resultError(output: unknown): string | undefined {
