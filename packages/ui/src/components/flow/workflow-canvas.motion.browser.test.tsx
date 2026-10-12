@@ -91,44 +91,100 @@ const wrapper = (container: HTMLElement, id: string) =>
     `.react-flow__node[data-id="${CSS.escape(id)}"]`,
   );
 
+interface ExitObservation {
+  element: HTMLElement;
+  attached: boolean;
+  animationName: string;
+  ariaHidden: string | null;
+  inert: boolean;
+  edgeAttached: boolean;
+}
+
+/** The exit lasts 150 ms. Copy its values at a DOM commit, before an async
+ * test continuation can resume with an already detached element. */
+function observeExit(container: HTMLElement, id: string, edgeId: string) {
+  let observation: ExitObservation | null = null;
+  const observer = new MutationObserver(() => {
+    const element = container.querySelector<HTMLElement>(
+      `[data-flow-leaving="${CSS.escape(id)}"]`,
+    );
+    if (element === null || !element.isConnected) return;
+    const edge = container.querySelector(
+      `[data-flow-edge-leaving="${CSS.escape(edgeId)}"]`,
+    );
+    // React Flow commits the node and its edge separately. Observe the
+    // complete exit while both are on the page, never a detached remnant.
+    if (edge === null || !edge.isConnected) return;
+    observation = {
+      element,
+      attached: element.isConnected,
+      animationName: getComputedStyle(element).animationName,
+      ariaHidden: element.getAttribute('aria-hidden'),
+      inert: element.hasAttribute('inert'),
+      edgeAttached: edge.isConnected,
+    };
+    observer.disconnect();
+  });
+  observer.observe(container, {
+    childList: true,
+    attributes: true,
+    subtree: true,
+  });
+  return {
+    read: () => {
+      if (observation === null) throw new Error('no attached exit observed');
+      return observation;
+    },
+    disconnect: () => observer.disconnect(),
+  };
+}
+
+function expectExit(observation: ExitObservation) {
+  expect(observation.attached).toBe(true);
+  expect(observation.animationName).toBe('flow-exit');
+  expect(observation.ariaHidden).toBe('true');
+  expect(observation.inert).toBe(true);
+  // Its lines fade out along their old routes.
+  expect(observation.edgeAttached).toBe(true);
+}
+
 describe('WorkflowCanvas live relayout', () => {
   it('glides what stays, grows in what joins and fades new lines in last', async () => {
     const { container, layouts, swap } = await renderLive(triageFlowGraph());
     const next = withStep('glide');
     swap(next);
     await waitFor(() => expect(layouts).toHaveLength(2), { timeout: 20_000 });
-    await waitFor(() =>
-      expect(chart(container)).toHaveAttribute('data-flow-transition', 'move'),
-    );
-
-    // Every node that stays carries the move: 300 ms, out-quint.
-    const issues = getComputedStyle(wrapper(container, 'issues') as Element);
-    expect(issues.transitionProperty).toBe('transform');
-    expect(issues.transitionDuration).toBe('0.3s');
-    expect(issues.transitionTimingFunction).toBe(
-      'cubic-bezier(0.22, 1, 0.36, 1)',
-    );
+    await waitFor(() => {
+      expect(chart(container)).toHaveAttribute('data-flow-transition', 'move');
+      // Every node that stays carries the move: 300 ms, out-quint.
+      const issues = getComputedStyle(wrapper(container, 'issues') as Element);
+      expect(issues.transitionProperty).toBe('transform');
+      expect(issues.transitionDuration).toBe('0.3s');
+      expect(issues.transitionTimingFunction).toBe(
+        'cubic-bezier(0.22, 1, 0.36, 1)',
+      );
+    });
 
     // The new node grows in once the glide is under way.
-    const probe = await waitFor(() => {
+    await waitFor(() => {
       const button = container.querySelector('[data-flow-node="probe_glide"]');
       if (button === null) throw new Error('not drawn yet');
-      return getComputedStyle(button);
+      const probe = getComputedStyle(button);
+      expect(probe.animationName).toBe('flow-enter');
+      expect(probe.animationDuration).toBe('0.2s');
+      expect(probe.animationDelay).toBe('0.15s');
     });
-    expect(probe.animationName).toBe('flow-enter');
-    expect(probe.animationDuration).toBe('0.2s');
-    expect(probe.animationDelay).toBe('0.15s');
 
     // Its lines fade in last, once the boxes are nearly there.
-    const line = await waitFor(() => {
+    await waitFor(() => {
       const group = container.querySelector(
         '[data-flow-edge-group="report>probe_glide"]',
       );
       if (group === null) throw new Error('not drawn yet');
-      return getComputedStyle(group);
+      const line = getComputedStyle(group);
+      expect(line.animationName).toBe('fade-in');
+      expect(line.animationDelay).toBe('0.25s');
     });
-    expect(line.animationName).toBe('fade-in');
-    expect(line.animationDelay).toBe('0.25s');
 
     // Settled after 450 ms: plain again, nothing moves on a later pan.
     await waitFor(
@@ -145,29 +201,74 @@ describe('WorkflowCanvas live relayout', () => {
   it('shrinks a removed node out at its old place, then lets it go', async () => {
     const start = withStep('leave');
     const { container, layouts, swap } = await renderLive(start);
-    swap(triageFlowGraph());
-    await waitFor(() => expect(layouts).toHaveLength(2), { timeout: 20_000 });
-    const leaving = await waitFor(() => {
-      const button = container.querySelector(
-        '[data-flow-leaving="probe_leave"]',
+    const exit = observeExit(container, 'probe_leave', 'report>probe_leave');
+    try {
+      swap(triageFlowGraph());
+      await waitFor(() => expect(layouts).toHaveLength(2), {
+        timeout: 20_000,
+      });
+      expectExit(await waitFor(exit.read));
+      await waitFor(
+        () =>
+          expect(
+            container.querySelector('[data-flow-leaving="probe_leave"]'),
+          ).toBeNull(),
+        { timeout: 2_000 },
       );
-      if (button === null) throw new Error('not leaving yet');
-      return button;
-    });
-    expect(getComputedStyle(leaving).animationName).toBe('flow-exit');
-    expect(leaving).toHaveAttribute('aria-hidden', 'true');
-    expect(leaving.hasAttribute('inert')).toBe(true);
-    // Its lines fade out along their old routes.
-    expect(
-      container.querySelector('[data-flow-edge-leaving="report>probe_leave"]'),
-    ).not.toBeNull();
-    await waitFor(
-      () =>
-        expect(
-          container.querySelector('[data-flow-leaving="probe_leave"]'),
-        ).toBeNull(),
-      { timeout: 2_000 },
+    } finally {
+      exit.disconnect();
+    }
+  });
+
+  it('keeps the exit observation when the test driver resumes after removal', async () => {
+    const { container, layouts, swap } = await renderLive(withStep('delayed'));
+    const exit = observeExit(
+      container,
+      'probe_delayed',
+      'report>probe_delayed',
     );
+    try {
+      swap(triageFlowGraph());
+      await waitFor(() => expect(layouts).toHaveLength(2), {
+        timeout: 20_000,
+      });
+      const observation = await waitFor(exit.read);
+      // Resume the assertion only after the actual exit lifecycle has ended.
+      await waitFor(() => expect(observation.element.isConnected).toBe(false), {
+        timeout: 2_000,
+      });
+      expect(getComputedStyle(observation.element).animationName).toBe('');
+      expectExit(observation);
+    } finally {
+      exit.disconnect();
+    }
+  });
+
+  it('rejects a missing animation in the attached exit observation', async () => {
+    const { container, layouts, swap } = await renderLive(
+      withStep('no_motion'),
+    );
+    const style = document.createElement('style');
+    style.textContent =
+      '[data-flow-leaving="probe_no_motion"] { animation: none !important; }';
+    document.head.append(style);
+    const exit = observeExit(
+      container,
+      'probe_no_motion',
+      'report>probe_no_motion',
+    );
+    try {
+      swap(triageFlowGraph());
+      await waitFor(() => expect(layouts).toHaveLength(2), {
+        timeout: 20_000,
+      });
+      const observation = await waitFor(exit.read);
+      expect(observation.animationName).toBe('none');
+      expect(() => expectExit(observation)).toThrow('flow-exit');
+    } finally {
+      exit.disconnect();
+      style.remove();
+    }
   });
 
   it('rings nodes changed outside this tab once, and only then', async () => {
@@ -182,17 +283,16 @@ describe('WorkflowCanvas live relayout', () => {
       changed: { ids: new Set(['probe_ring', 'report']), key: 1 },
     });
     await waitFor(() => expect(layouts).toHaveLength(2), { timeout: 20_000 });
-    const ring = await waitFor(() => {
+    await waitFor(() => {
       const element = container.querySelector(
         '[data-flow-node="report"] [data-slot="flow-node-changed"]',
       );
       if (element === null) throw new Error('no ring yet');
-      return element;
+      const style = getComputedStyle(element);
+      expect(style.animationName).toBe('flow-ring');
+      expect(style.animationDelay).toBe('0s');
+      expect(style.animationDuration).toBe('1.2s');
     });
-    const style = getComputedStyle(ring);
-    expect(style.animationName).toBe('flow-ring');
-    expect(style.animationDelay).toBe('0s');
-    expect(style.animationDuration).toBe('1.2s');
     await waitFor(
       () =>
         expect(
