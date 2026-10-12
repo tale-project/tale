@@ -352,11 +352,16 @@ start_egress() {
     -w 'through the proxy: %{http_code}\n' https://github.com ||
     die 'the egress proxy did not carry a request to the internet'
 
-  # The LLM gateway and the backend are the node's own addresses on the bridge
-  # in this lab: the suites serve the two ports the ACL names on them.
-  sudo ip addr add "${GATEWAY_ADDRESS}/32" dev "$NETWORK"
-  sudo ip addr add "${BACKEND_ADDRESS}/32" dev "$NETWORK"
-  ip -br addr show "$NETWORK"
+  # The LLM gateway and the backend are the node's own addresses in this lab:
+  # the suites serve the two ports the ACL names on them. They sit on a dummy
+  # link of their own (the host answers ARP for them on the bridge all the
+  # same), so that the bridge keeps the one address a real node's has: when it
+  # releases a lease, Incus sends the release to the last address of the bridge.
+  sudo ip link add lab-stand type dummy
+  sudo ip link set lab-stand up
+  sudo ip addr add "${GATEWAY_ADDRESS}/32" dev lab-stand
+  sudo ip addr add "${BACKEND_ADDRESS}/32" dev lab-stand
+  ip -br addr show lab-stand "$NETWORK"
 }
 
 # ---- the files ----------------------------------------------------------------------------

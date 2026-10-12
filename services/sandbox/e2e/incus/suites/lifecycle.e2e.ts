@@ -500,14 +500,21 @@ describe('a session on a real Incus node', () => {
           expect(asText(filled.streamError)).toContain('REPLAY_');
         }
         // What the node says, however the exec ended: the volume is full, and
-        // no fuller.
-        const usage = await admin.volumeUsage(incusWorkspaceVolumeName(S1));
+        // no fuller. ZFS accounts a write when its transaction group commits,
+        // a few seconds on, and holds a quota to within the group in flight.
+        const usage = await until(
+          'the volume to account for the write',
+          async () => {
+            const now = await admin.volumeUsage(incusWorkspaceVolumeName(S1));
+            return now.used > quota * 0.9 ? now : undefined;
+          },
+          { timeoutMs: 60_000, intervalMs: 2_000 },
+        );
         report.fact(
           'the workspace volume after the write',
           `${usage.used} of ${usage.total ?? '?'} bytes`,
         );
-        expect(usage.used).toBeGreaterThan(quota * 0.9);
-        expect(usage.used).toBeLessThanOrEqual(quota);
+        expect(usage.used).toBeLessThanOrEqual(quota + 8 * 1024 ** 2);
         if (usage.total !== undefined) expect(usage.total).toBe(quota);
       } finally {
         // The files API needs no journal: it frees the space, and the session
@@ -672,52 +679,69 @@ describe('a session on a real Incus node', () => {
   });
 
   step(
-    'three sessions created at once each get an address, a workspace and a host uid range of their own',
+    'bursts of sessions created at once each get an address, a workspace and a host uid range of their own',
     async () => {
-      const ids = [sessionId('par'), sessionId('par'), sessionId('par')];
-      const started = performance.now();
-      const results = await Promise.all(
-        ids.map((id) =>
-          api.create({
-            sessionId: id,
-            organizationId: ORG,
-            profile: 'agent-light',
-          }),
-        ),
-      );
-      for (const [index, result] of results.entries()) {
-        expectStatus(result.reply, 201, `create ${ids[index]}`);
+      // The main session still holds one of the spawner's six.
+      const burst = 5;
+      const rounds = 3;
+      let slowest = 0;
+      for (let round = 1; round <= rounds; round += 1) {
+        const ids = Array.from({ length: burst }, () => sessionId('par'));
+        const started = performance.now();
+        const results = await Promise.all(
+          ids.map((id) =>
+            api.create({
+              sessionId: id,
+              organizationId: ORG,
+              profile: 'agent-light',
+            }),
+          ),
+        );
+        for (const [index, result] of results.entries()) {
+          expectStatus(
+            result.reply,
+            201,
+            `round ${round}: create ${ids[index]}`,
+          );
+          slowest = Math.max(slowest, result.elapsedMs);
+        }
+        report.add(
+          `${burst} creates at once, round ${round} (wall time)`,
+          performance.now() - started,
+          results
+            .map((result) => `${Math.round(result.elapsedMs)} ms`)
+            .join(', '),
+        );
+        const addresses = await Promise.all(
+          ids.map(async (id) => (await sessionInstance(id))?.addresses[0]),
+        );
+        expect(new Set(addresses).size).toBe(burst);
+        await Promise.all(
+          ids.map((id, index) => sh(api, id, `echo ${index} > /agent/who`)),
+        );
+        for (const [index, id] of ids.entries()) {
+          expect(await sh(api, id, 'cat /agent/who')).toBe(`${index}\n`);
+        }
+        // Isolated idmaps: no two sessions share a range of host uids.
+        const bases = await Promise.all(
+          ids.map((id) =>
+            sh(api, id, "awk '$1 == 0 { print $2 }' /proc/self/uid_map"),
+          ),
+        );
+        expect(new Set(bases.map((base) => base.trim())).size).toBe(burst);
+        if (round === 1) {
+          report.fact(
+            'host uid bases of one burst',
+            bases.map((base) => base.trim()).join(', '),
+          );
+        }
+        for (const id of ids)
+          expectStatus(await api.destroy(id), 200, `destroy ${id}`);
       }
-      report.add(
-        'three creates at once (wall time)',
-        performance.now() - started,
-        results
-          .map((result) => `${Math.round(result.elapsedMs)} ms`)
-          .join(', '),
-      );
-      const addresses = await Promise.all(
-        ids.map(async (id) => (await sessionInstance(id))?.addresses[0]),
-      );
-      expect(new Set(addresses).size).toBe(3);
-      await Promise.all(
-        ids.map((id, index) => sh(api, id, `echo ${index} > /agent/who`)),
-      );
-      for (const [index, id] of ids.entries()) {
-        expect(await sh(api, id, 'cat /agent/who')).toBe(`${index}\n`);
-      }
-      // Isolated idmaps: no two sessions share a range of host uids.
-      const bases = await Promise.all(
-        ids.map((id) =>
-          sh(api, id, "awk '$1 == 0 { print $2 }' /proc/self/uid_map"),
-        ),
-      );
-      expect(new Set(bases.map((base) => base.trim())).size).toBe(3);
       report.fact(
-        'host uid bases of three sessions',
-        bases.map((base) => base.trim()).join(', '),
+        'the slowest create of the bursts',
+        `${Math.round(slowest)} ms`,
       );
-      for (const id of ids)
-        expectStatus(await api.destroy(id), 200, `destroy ${id}`);
     },
   );
 

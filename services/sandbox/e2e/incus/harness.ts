@@ -164,6 +164,22 @@ async function describeNode(): Promise<string[]> {
     await note(`LXC log of ${instance.name}`, async () =>
       tail(await admin.instanceLog(instance.name), 25),
     );
+    // An OCI container has no DHCP client of its own: Incus runs one beside
+    // it (`forknet dhcp`), and its log says why an instance has no address.
+    await note(`DHCP client log of ${instance.name}`, async () =>
+      tail(
+        (
+          await admin.host(
+            [
+              'cat',
+              `/var/log/incus/${lab.project}_${instance.name}/forknet-dhcp.log`,
+            ],
+            { allowFailure: true },
+          )
+        ).stdout,
+        30,
+      ),
+    );
   }
   await note('DHCP leases of the sandbox bridge', async () =>
     (await admin.run(['network', 'list-leases', lab.network])).stdout.trim(),
