@@ -30,7 +30,10 @@ bun tools/cli/scripts/release-notes.ts --version vX.Y.Z
 ```
 
 The release workflow validates the same file again in Prepare, before building images, and the
-package workflow validates it before pinning `ui-vX.Y.Z` and `marketing-ui-vX.Y.Z`. At
+package workflow validates it at the released commit before pinning `ui-vX.Y.Z` and
+`marketing-ui-vX.Y.Z`. Its maintained validator runs from `main` with
+`--source-root <released checkout>`; it reads that checkout's notes without executing its
+scripts or Bun configuration. At
 publication it puts the authored sections first, then generated API contract notes and GitHub's
 PR list. Release names remain version-based. Follow [Releasing Tale](../RELEASING.md) for candidate
 validation, tagging and recovery.

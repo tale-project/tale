@@ -351,7 +351,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
   `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
-  `LICENSE`, both published packages’ manifests and READMEs, and `publish-packages.yml`.
+  `LICENSE`, both published packages’ manifests and READMEs, `publish-packages.yml` and
+  `release.yml`.
   The image metadata suite reads every service `Dockerfile`, both plop service Dockerfile
   templates and `.github/renovate.json`.
   Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.

@@ -847,15 +847,46 @@ jobs:
             --field "release_tag=$RELEASE_TAG"
 
   # ---------------------------------------------------------------------------
+  # Pin the design-system packages at the release commit. A tag that
+  # create-release writes with GITHUB_TOKEN starts no push workflow, so
+  # dispatch Publish packages on main with this tag and the commit it names;
+  # it adds only the version tags and never moves the dist branches.
+  # ---------------------------------------------------------------------------
+  publish-packages:
+    if: needs.prepare.outputs.sites_only != 'true'
+    name: Publish package tags
+    needs: [prepare, create-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Dispatch package publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: |
+          gh workflow run publish-packages.yml \
+            --repo "$REPO" \
+            --ref main \
+            --field "release_tag=$RELEASE_TAG" \
+            --field "source_sha=$SOURCE_SHA"
+
+  # ---------------------------------------------------------------------------
   # Final summary for the release.
   # ---------------------------------------------------------------------------
   summary:
     if: >-
       always() && needs.manifest.result == 'success' &&
       (needs.prepare.outputs.sites_only == 'true' ||
-       (needs.create-release.result == 'success' && needs.trigger-cli.result == 'success'))
+       (needs.create-release.result == 'success' && needs.trigger-cli.result == 'success' &&
+        needs.publish-packages.result == 'success'))
     name: Summary
-    needs: [prepare, create-release, manifest, trigger-cli]
+    needs: [prepare, create-release, manifest, trigger-cli, publish-packages]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -884,6 +915,7 @@ jobs:
               echo 'Content-site release: platform, CLI, GitHub releases and latest tags were preserved.'
             else
               echo "CLI build triggered for \`v${VERSION}\`."
+              echo "Package tags \`ui-v${VERSION}\` and \`marketing-ui-v${VERSION}\` dispatched to Publish packages."
               echo
               echo '```bash'
               echo "./scripts/deploy.sh deploy v${VERSION}"

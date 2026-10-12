@@ -110,9 +110,9 @@ remain the host’s responsibility.
 ## Install from another repository
 
 The [package publishing workflow](https://github.com/tale-project/tale/blob/main/.github/workflows/publish-packages.yml) exports each
-package as a repository-root snapshot. Install the `dist/ui` branch with
-`github:tale-project/tale#dist/ui`, or select a published `ui-v<version>` tag for a reproducible
-release. Each snapshot includes the [MIT license](https://github.com/tale-project/tale/blob/main/LICENSE). These are Git dependencies, not npm registry releases. Install the required peers
+package as a repository-root snapshot. Install the `dist/ui` branch, which follows `main`, with
+`github:tale-project/tale#dist/ui`, or select a published `ui-v<version>` tag, built from that
+release's own commit, for a reproducible release. Each snapshot includes the [MIT license](https://github.com/tale-project/tale/blob/main/LICENSE). These are Git dependencies, not npm registry releases. Install the required peers
 `react`, `react-dom`, and `tailwindcss` as well; see `peerDependencies` in `package.json`.
 
 The consuming build must process TypeScript, React JSX, CSS, and YAML. Tale uses Vite and

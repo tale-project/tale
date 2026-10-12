@@ -83,8 +83,8 @@ and `tailwindcss`, which are peers rather than bundled app dependencies.
 
 Follow [`@tale/ui`’s consumer setup](https://github.com/tale-project/tale/blob/main/packages/ui/README.md#install-from-another-repository) for the Bun,
 Vite, TypeScript, and YAML configuration. Import the marketing stylesheet shown above. The
-[publishing workflow](https://github.com/tale-project/tale/blob/main/.github/workflows/publish-packages.yml) creates `dist/marketing-ui`
-and `dist/ui` branches and versioned tags. Each snapshot includes the [MIT license](https://github.com/tale-project/tale/blob/main/LICENSE). These are Git dependencies, not npm registry releases.
+[publishing workflow](https://github.com/tale-project/tale/blob/main/.github/workflows/publish-packages.yml) updates the `dist/marketing-ui`
+and `dist/ui` branches from `main` and adds versioned tags built from each release's own commit. Each snapshot includes the [MIT license](https://github.com/tale-project/tale/blob/main/LICENSE). These are Git dependencies, not npm registry releases.
 
 ## Build a demo that remains understandable
 

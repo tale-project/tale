@@ -49,6 +49,7 @@ if (import.meta.main) {
   const { values } = parseArgs({
     options: {
       version: { type: 'string' },
+      'source-root': { type: 'string' },
       contract: { type: 'string' },
       out: { type: 'string' },
     },
@@ -57,9 +58,12 @@ if (import.meta.main) {
   if (Boolean(values.contract) !== Boolean(values.out)) {
     throw new Error('--contract and --out must be supplied together');
   }
+  if (values['source-root'] === '') {
+    throw new Error('--source-root takes a checkout directory');
+  }
   const path = releaseNotesPath(values.version ?? '');
   const authored = validateReleaseNotes(
-    await readFile(resolve(ROOT, path), 'utf8'),
+    await readFile(resolve(values['source-root'] ?? ROOT, path), 'utf8'),
   );
   if (values.contract && values.out) {
     await writeFile(
