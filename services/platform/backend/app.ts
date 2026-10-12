@@ -7,6 +7,12 @@ import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
 
+import { agentOAuthOptionsFromEnv } from './auth/agent-oauth-config.ts';
+import {
+  PROTECTED_RESOURCE_METADATA_PATH,
+  protectedResourceMetadataAnswer,
+  withAgentOAuth,
+} from './auth/agent-oauth.ts';
 import { API_KEY_HEADER, loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
 import { requestWithMintedCookie } from './auth/minted-cookie.ts';
@@ -16,6 +22,7 @@ import {
   withOAuthConformance,
 } from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
+import { getClientIp, nodePeerAddress } from './core/lib/utils/client_ip.ts';
 import { runWithSwallowedDatabaseErrors } from './db/unavailable.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApiKeyRoutes } from './domains/api_keys/routes.ts';
@@ -305,6 +312,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   );
   const oidcRealm = () =>
     `${(deps.auth.options.baseURL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')}/api/auth`;
+  // How coding agents may sign in to the MCP endpoint, read once like the
+  // provider's own configuration (`auth/agent-oauth-config.ts`).
+  const agentOAuth = agentOAuthOptionsFromEnv();
   app.on(['GET', 'POST'], '/api/auth/*', async (c) => {
     // A token request without a grant_type is judged on a clone of the
     // request BEFORE the handler consumes its body (RFC 6749 §5.2:
@@ -312,20 +322,45 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     // an unsupported grant).
     const early = await oauthTokenPrecheck(c.req.raw);
     if (early !== null) return early;
+    // A coding agent's registration and authorization are checked before
+    // the provider sees them, and a failed token request is charged to its
+    // source (`auth/agent-oauth.ts`); everything else passes as it came.
+    const answer = await withAgentOAuth(
+      requestWithMintedCookie(c.req.raw),
+      {
+        sql: deps.sql,
+        options: agentOAuth,
+        clientIp: async () =>
+          getClientIp(c.req.raw.headers, await loadTrustedProxies(), {
+            peer: nodePeerAddress(c.env),
+          }),
+      },
+      (request) => deps.auth.handler(request),
+    );
     return outageInsteadOf(
-      await withOAuthConformance(
-        c.req.raw,
-        await deps.auth.handler(requestWithMintedCookie(c.req.raw)),
-        oidcRealm(),
-      ),
+      await withOAuthConformance(c.req.raw, answer, oidcRealm()),
       c,
     );
   });
   app.route('/api/app/identity', createIdentityRoutes(deps));
-  app.get('/.well-known/oauth-authorization-server/api/auth', async (c) =>
-    withDiscoveryConformance(
-      await oauthProviderAuthServerMetadata(deps.auth)(c.req.raw),
-    ),
+  // RFC 8414 §3.1: the issuer's metadata at the issuer's path inserted after
+  // the well-known prefix — under a subpath deployment that path carries
+  // the base path, and the edge routes the host root here.
+  const issuer = oidcRealm();
+  app.get(
+    `/.well-known/oauth-authorization-server${URL.canParse(issuer) ? new URL(issuer).pathname : '/api/auth'}`,
+    async (c) =>
+      withDiscoveryConformance(
+        await oauthProviderAuthServerMetadata(deps.auth)(c.req.raw),
+      ),
+  );
+  // RFC 9728: where a coding agent learns that the MCP endpoint signs in
+  // with this issuer — at the endpoint's own path and at the root.
+  app.get(PROTECTED_RESOURCE_METADATA_PATH, (c) =>
+    protectedResourceMetadataAnswer(c.req.raw, oidcRealm(), agentOAuth),
+  );
+  app.get(`${PROTECTED_RESOURCE_METADATA_PATH}/*`, (c) =>
+    protectedResourceMetadataAnswer(c.req.raw, oidcRealm(), agentOAuth),
   );
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
   // The remote images an email draws, fetched by the backend so the sender

@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@better-auth/api-key": "1.7.5",
+    "@better-auth/cimd": "1.7.5",
     "@better-auth/oauth-provider": "1.7.5",
     "@better-auth/passkey": "1.7.5",
     "@casl/ability": "6.8.0",

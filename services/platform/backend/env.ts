@@ -6,7 +6,25 @@ import {
   totpEnvironmentSchema,
 } from '../lib/shared/authenticator-name.ts';
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
+import { invalidHostEntries } from './auth/agent-oauth-config.ts';
 import { invalidAllowedOrigins } from './domains/mcp/origin.ts';
+
+/** A comma- or space-separated list of host names, validated so a typo
+ * fails boot instead of silently matching nothing. */
+function hostListSchema(name: string) {
+  return z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      const invalid = invalidHostEntries(value);
+      if (invalid.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${name} must list host names (no scheme, port or path), got: ${invalid.join(', ')}`,
+        });
+      }
+    });
+}
 
 /**
  * Process roles: `api` serves HTTP/SSE, `worker` runs pg-boss task queues,
@@ -148,6 +166,25 @@ const envSchema = z.object({
    * whose `Origin` it does not accept, rather than only logging it.
    */
   TALE_MCP_ORIGIN_ENFORCE: z.enum(['true', 'false']).optional(),
+  /**
+   * Whether a coding agent may sign in to the MCP endpoint identifying
+   * itself by a client metadata document it publishes on its own HTTPS host
+   * (off unless `true`). Read by `auth/agent-oauth-config.ts`.
+   */
+  TALE_MCP_CLIENT_METADATA_DOCUMENTS: z.enum(['true', 'false']).optional(),
+  /** The hosts such a document may come from (comma- or space-separated);
+   * unset, any public HTTPS host. */
+  TALE_MCP_CLIENT_METADATA_HOSTS: hostListSchema(
+    'TALE_MCP_CLIENT_METADATA_HOSTS',
+  ),
+  /** Whether a coding agent may register itself at the sign-in server
+   * (open dynamic client registration, restricted; off unless `true`). */
+  TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: z.enum(['true', 'false']).optional(),
+  /** The web hosts a self-registered agent may send a person back to; unset,
+   * the hosted agents' own (`DEFAULT_DCR_WEB_REDIRECT_HOSTS`). */
+  TALE_MCP_DCR_WEB_REDIRECT_HOSTS: hostListSchema(
+    'TALE_MCP_DCR_WEB_REDIRECT_HOSTS',
+  ),
   /**
    * Sentry-compatible error reporting (Sentry, GlitchTip, Bugsink), opt-in —
    * unset disables it entirely. See `error-reporting.ts`.

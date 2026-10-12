@@ -232,6 +232,21 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 60,
   },
+  // Coding agents that register themselves with the sign-in server (open
+  // dynamic client registration, `auth/agent-oauth.ts`): a source registers
+  // at most ten clients an hour, and the deployment 500 a day, before the
+  // provider sees the request.
+  'oauth:register-ip': { kind: 'fixed window', rate: 10, period: HOUR },
+  'oauth:register-global': { kind: 'fixed window', rate: 500, period: DAY },
+  // A token request the provider refused, charged to its source after the
+  // answer: hosted agents share egress addresses, so a token request that
+  // works costs nothing.
+  'oauth:token-fail-ip': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
   // The sandbox-device door: a join token or device secret that matches
   // nothing is charged to its source IP — the trusted-headers posture.
   'sandbox-devices:auth-fail-ip': {

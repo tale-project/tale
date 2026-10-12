@@ -36,6 +36,33 @@ describe('loadEnv', () => {
       loadEnv({ ...BASE, TALE_MCP_ORIGIN_ENFORCE: 'yes' }),
     ).toThrow();
   });
+  it('refuses a coding-agent sign-in host list that holds something other than host names', () => {
+    const env = loadEnv({
+      ...BASE,
+      TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'false',
+      TALE_MCP_CLIENT_METADATA_HOSTS: 'claude.ai, Agents.Example.com',
+      TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'true',
+      TALE_MCP_DCR_WEB_REDIRECT_HOSTS: 'vscode.dev insiders.vscode.dev',
+    });
+    expect(env.TALE_MCP_CLIENT_METADATA_HOSTS).toBe(
+      'claude.ai, Agents.Example.com',
+    );
+    for (const [name, value] of [
+      ['TALE_MCP_CLIENT_METADATA_HOSTS', 'https://claude.ai'],
+      ['TALE_MCP_DCR_WEB_REDIRECT_HOSTS', 'claude.ai:443'],
+      ['TALE_MCP_DCR_WEB_REDIRECT_HOSTS', 'claude.ai/callback'],
+    ] as const) {
+      expect(() => loadEnv({ ...BASE, [name]: value })).toThrow(
+        new RegExp(name),
+      );
+    }
+    for (const name of [
+      'TALE_MCP_CLIENT_METADATA_DOCUMENTS',
+      'TALE_MCP_DYNAMIC_CLIENT_REGISTRATION',
+    ]) {
+      expect(() => loadEnv({ ...BASE, [name]: 'yes' })).toThrow();
+    }
+  });
   it('validates and normalizes the authenticator environment', () => {
     expect(loadEnv(BASE).TOTP_ENVIRONMENT).toBeUndefined();
     expect(

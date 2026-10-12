@@ -11,12 +11,19 @@ import {
   OIDC_CLAIMS_SUPPORTED,
   OIDC_ORGANIZATION_CLAIM,
   OIDC_PROMPT_VALUES_SUPPORTED,
+  OIDC_SCOPES,
   oauthRefusalFor,
   oidcScopeClaims,
   tokenRequestRefusal,
 } from './oidc.ts';
 
 const REALM = 'https://tale.example.com/api/auth';
+
+/** Coding agents as a deployment on one origin lets them sign in. */
+const AGENTS = {
+  dynamicRegistration: true,
+  clientDiscovery: null,
+};
 
 /** The serialized answer the mount sees: a status and its JSON body. */
 function refusal(
@@ -142,7 +149,7 @@ describe('oauthRefusalFor — the RFC 6749 envelope', () => {
       body: {
         error: 'unsupported_grant_type',
         error_description:
-          'this server supports the authorization_code grant only',
+          'this server supports the authorization_code and refresh_token grants',
       },
       headers: {},
     });
@@ -270,6 +277,7 @@ describe('createOidcProvider — discovery', () => {
     const plugin: unknown = createOidcProvider(
       null as unknown as Sql,
       'https://tale.example.com',
+      AGENTS,
     );
     const options = isRecord(plugin) ? plugin.options : undefined;
     const advertised = isRecord(options) ? options.advertisedMetadata : null;
@@ -298,6 +306,7 @@ describe('createOidcProvider — discovery', () => {
     const plugin: unknown = createOidcProvider(
       null as unknown as Sql,
       'https://tale.example.com',
+      AGENTS,
     );
     const options = isRecord(plugin) ? plugin.options : undefined;
     expect(isRecord(options) ? options.codeExpiresIn : null).toBe(300);
@@ -308,6 +317,68 @@ describe('createOidcProvider — discovery', () => {
     // `create` lands on the ordinary sign-in continuation, not a
     // registration page — advertising either misleads a relying party.
     expect(OIDC_PROMPT_VALUES_SUPPORTED).toEqual(['none', 'login', 'consent']);
+  });
+});
+
+describe('createOidcProvider — coding agents', () => {
+  const optionsOf = (agents: Parameters<typeof createOidcProvider>[2]) => {
+    const plugin: unknown = createOidcProvider(
+      null as unknown as Sql,
+      'https://tale.example.com',
+      agents,
+    );
+    const options = isRecord(plugin) ? plugin.options : undefined;
+    return isRecord(options) ? options : {};
+  };
+
+  it('offers the agent scopes beside the OIDC ones, and the refresh grant beside the code grant', () => {
+    const options = optionsOf(AGENTS);
+    expect(options.scopes).toEqual([
+      ...OIDC_SCOPES,
+      'offline_access',
+      'tale:mcp',
+      'tale:automations.write',
+      'tale:automations.deploy',
+      'tale:settings.read',
+      'tale:settings.write',
+      'tale:subscriptions.connect',
+    ]);
+    expect(options.grantTypes).toEqual(['authorization_code', 'refresh_token']);
+    expect(options.refreshTokenExpiresIn).toBe(30 * 86_400);
+    expect(options.refreshTokenReuseInterval).toBe(10);
+    // The validAudiences option of the 1.6 provider is gone: resources
+    // decide what a token may name.
+    expect(options).not.toHaveProperty('validAudiences');
+  });
+
+  it('leaves the MCP endpoint’s resource rows to Tale and links no client to a resource', () => {
+    const options = optionsOf(AGENTS);
+    // The provider would read the database at start-up to seed its own
+    // rows; `seedMcpResources` writes them after the boot migrations.
+    expect(options).not.toHaveProperty('resources');
+    expect(options.enforcePerClientResources).toBe(false);
+    expect(options).not.toHaveProperty('clientRegistrationDefaultResources');
+    expect(options.clientRegistrationDefaultScopes).toEqual([
+      'tale:mcp',
+      'tale:automations.write',
+      'tale:automations.deploy',
+      'tale:settings.read',
+      'tale:settings.write',
+      'tale:subscriptions.connect',
+      'offline_access',
+    ]);
+  });
+
+  it('lets an agent register itself only while the operator leaves it on', () => {
+    expect(optionsOf(AGENTS)).toMatchObject({
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      extensions: [],
+    });
+    expect(optionsOf({ ...AGENTS, dynamicRegistration: false })).toMatchObject({
+      allowDynamicClientRegistration: false,
+      allowUnauthenticatedClientRegistration: false,
+    });
   });
 });
 
@@ -429,7 +500,11 @@ function membershipSql(member: {
 describe('createOidcProvider — the ID token claims hook', () => {
   const organization = { id: 'org-1', slug: 'acme', role: 'member' };
   const sql = membershipSql({ userId: 'user-1', organization });
-  const plugin: unknown = createOidcProvider(sql, 'https://tale.example.com');
+  const plugin: unknown = createOidcProvider(
+    sql,
+    'https://tale.example.com',
+    AGENTS,
+  );
   const options = isRecord(plugin) ? plugin.options : undefined;
   const hook = isRecord(options) ? options.customIdTokenClaims : undefined;
   const claimsFor = (user: Record<string, unknown>, scopes: string[]) => {

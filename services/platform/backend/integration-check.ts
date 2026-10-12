@@ -47,6 +47,10 @@ import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { checkAuditEventOrder } from './audit-order.integration.ts';
+import {
+  agentLaneMetadataFetch,
+  checkAgentOAuth,
+} from './auth/agent-oauth-integration.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
@@ -64431,11 +64435,17 @@ async function main(): Promise<void> {
   process.env.TALE_PROVISIONING_DISABLED ??= '1';
   // WebDAV app-password HMAC (64 hex chars, the boot rule).
   process.env.WEBDAV_APP_PASSWORD_HMAC_KEY ??= 'ab'.repeat(32);
+  // Coding agents' ways in to the MCP endpoint are off unless the operator
+  // opens them; the agent sign-in lane exercises both, with its own client
+  // metadata document served by a stub instead of a host that does not exist.
+  process.env.TALE_MCP_CLIENT_METADATA_DOCUMENTS ??= 'true';
+  process.env.TALE_MCP_DYNAMIC_CLIENT_REGISTRATION ??= 'true';
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
     baseUrl,
     sql,
+    cimdFetch: agentLaneMetadataFetch,
   });
 
   console.log('[itest] starting pg-boss (installs its own schema)…');
@@ -65609,6 +65619,7 @@ async function main(): Promise<void> {
         'checkNativeIdentity',
         () => checkNativeIdentity(sql, baseUrl, auth, record),
       ],
+      ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
       [
         'checkConversationApi',
         async () => {
