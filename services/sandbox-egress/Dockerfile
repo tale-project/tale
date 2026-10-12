@@ -22,7 +22,7 @@
 # allowlist is opt-in.
 
 # trivy:ignore:AVD-DS-0002 -- entrypoint needs root to install iptables and bind :53; tinyproxy drops privs at bind time
-FROM alpine:3.20
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 # - tinyproxy:      the proxy daemon
 # - gettext:        provides envsubst for the conf template
@@ -42,6 +42,17 @@ COPY services/sandbox-egress/tinyproxy.conf.template /etc/tinyproxy/tinyproxy.co
 COPY services/sandbox-egress/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-egress/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-sandbox-egress" \
+      org.opencontainers.image.description="Tale sandbox egress proxy — HTTPS forward proxy and DNS forwarder behind an SSRF firewall" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 
 EXPOSE 3128
 EXPOSE 53/udp

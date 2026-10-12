@@ -36,7 +36,7 @@ FROM moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd
 # docker-entrypoint.sh. Trivy AVD-DS-0002 (root) + AVD-DS-0026 (no HEALTHCHECK,
 # the spawner owns liveness) are suppressed by path in .trivyignore.yaml — the
 # same single source the other sandbox-tier images use.
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
 # The buildkit daemon + buildctl + the bundled OCI runtime, copied verbatim from
 # the official image (static Go binaries, so they run on debian unchanged).
@@ -63,6 +63,17 @@ COPY services/sandbox-buildkitd/buildkitd.toml /etc/buildkit/buildkitd.base.toml
 COPY services/sandbox-buildkitd/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-buildkitd/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-sandbox-buildkitd" \
+      org.opencontainers.image.description="Tale sandbox BuildKit daemon — one organization's shared build cache for its sandbox sessions" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 
 # gRPC endpoint sessions connect their remote buildx builder to (on the internal
 # sandbox network only — never published to the host).

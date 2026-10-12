@@ -17,12 +17,12 @@
 #   docker build -f services/sandbox/Dockerfile .
 
 ARG VERSION=dev
-ARG DOCKER_CLI_VERSION=27
 
-# docker CLI stage — aliased so the runner stage can `COPY --from=docker-cli`
-# without variable expansion in `--from=` (BuildKit forbids that and fails the
-# build; the workaround is a global-ARG-referencing FROM with a named stage).
-FROM docker:${DOCKER_CLI_VERSION}-cli AS docker-cli
+# docker CLI stage — the runner stage copies the binary out of it. The tag names
+# the CLI's major line and the digest is what BuildKit pulls. The line takes no
+# build argument: it used to, but beside a digest a changed argument would
+# silently change nothing. Renovate moves tag and digest together.
+FROM docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c AS docker-cli
 
 # =============================================================================
 # Stage 1: BUILDER — install full deps (incl. devDeps) for typecheck/tests
@@ -90,6 +90,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-sandbox" \
       org.opencontainers.image.description="Tale Sandbox Spawner — stateless docker-run service for artifact_run" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 

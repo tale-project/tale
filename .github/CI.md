@@ -375,6 +375,17 @@ labels before tagging. Candidate image gates fetch only that helper from the exa
 trusted workflow commit into an isolated sparse checkout, preserving an older
 candidate's source and image receipts.
 
+Every image Build or Release pushes repeats its `org.opencontainers.image.*` labels
+(and the platform's writer protocol) as annotations on its manifest. The final stage
+of the service's Dockerfile declares title, description and links once; `Resolve image
+annotations` reads them from there, and `Verify image annotations` reads the pushed
+manifest back by digest and fails the job unless every annotation equals the image
+config's label. A buildx older than 0.12 drops `annotations` and still reports a green
+build, which is why the read-back exists. Release then writes one OCI image index per
+service with `docker buildx imagetools create`, annotated the same way.
+`tools/cli/scripts/oci-image-metadata.test.ts` runs both steps against every
+Dockerfile and a stand-in registry, and holds the Dockerfiles to the label set.
+
 Image vulnerability reporting uses Trivy 0.70.0 JSON and local SARIF conversion,
 retaining every finding severity and the existing suppressions. CycloneDX publication
 uses a separate direct image analysis: this engine computes Node and Python package

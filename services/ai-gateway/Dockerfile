@@ -6,7 +6,7 @@ FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1
 # ============================================================================
 # Stage 1: workspace deps
 # ============================================================================
-FROM debian:bookworm-slim AS workspace-deps
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS workspace-deps
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
@@ -94,7 +94,12 @@ RUN mkdir -p /data && chown app:app /data
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-ai-gateway" \
-      org.opencontainers.image.description="Multi-provider AI subscription credential gateway"
+      org.opencontainers.image.description="Multi-provider AI subscription credential gateway" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 ENV TALE_VERSION=${VERSION}
 
 VOLUME ["/data"]
