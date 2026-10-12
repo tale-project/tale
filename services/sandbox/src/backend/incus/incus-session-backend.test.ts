@@ -380,6 +380,40 @@ describe('a create that fails', () => {
     expect(error.message).toContain('listening on a port nobody can reach');
   });
 
+  test('logs what the create was doing when it failed', async () => {
+    const f = sessionFixture();
+    f.runnerd.failFirst = 1_000_000;
+    await rejection(f.backend.createSession(specOf(ID)));
+    const logged = warn.mock.calls.map((call) => call.map(String).join(' '));
+    expect(
+      logged.some(
+        (line) =>
+          line.includes(`create of ${ID} failed while waiting for`) &&
+          line.includes('runnerd did not become ready'),
+      ),
+    ).toBe(true);
+  });
+
+  test('a duplicate is not a failure worth a line in the log', async () => {
+    const f = sessionFixture();
+    await f.backend.createSession(specOf(ID));
+    warn.mockClear();
+    await rejection(f.backend.createSession(specOf(ID)));
+    expect(
+      warn.mock.calls.some((call) => String(call[0]).includes('failed while')),
+    ).toBe(false);
+  });
+
+  test('the wait for runnerd ends a little before the create budget, which would otherwise end it first', async () => {
+    const f = sessionFixture();
+    await f.backend.createSession(specOf(ID));
+    const declared = Number(
+      f.fake.instances.get(NAME)?.config[LABEL.startupDeadline],
+    );
+    // 5 s of budget in the test config: a fifth of it is the margin.
+    expect(declared).toBe(START_MS + 5_000 - 1_000);
+  });
+
   test('says so when the instance is left stopped rather than gone', async () => {
     const f = sessionFixture();
     f.fake.onStarted = (instance) => {

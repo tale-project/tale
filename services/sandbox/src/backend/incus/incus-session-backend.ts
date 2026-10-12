@@ -96,6 +96,10 @@ import {
 const LOG_TAIL_BYTES = 2_000;
 /** A failed create's cleanup runs outside the create's spent budget. */
 const CLEANUP_BUDGET_MS = 30_000;
+/** The wait for runnerd gives up this long before the create's budget does
+ * (at most a fifth of it): the budget's own abort says only that time ran
+ * out, where the wait can say what the instance printed. */
+const READY_MARGIN_MS = 5_000;
 /** How often a create asks runnerd whether it is ready, as on Docker. */
 const RUNNERD_READY_POLL_MS = 100;
 /** How often it looks at the instance (its address, whether it still runs)
@@ -121,6 +125,9 @@ interface CreateOwnership {
   volumeCreated: boolean;
   /** Set once an instance may exist because of this attempt. */
   instanceMade: boolean;
+  /** What the attempt is doing, for the log of a failure: a create that ran
+   * out of budget otherwise says only that it did. */
+  phase: string;
 }
 
 interface Holder {
@@ -223,6 +230,7 @@ export class IncusSessionBackend implements SessionBackend {
     const ownership: CreateOwnership = {
       volumeCreated: false,
       instanceMade: false,
+      phase: 'starting',
     };
     this.runtime.inFlight.add(spec.sessionId);
     try {
@@ -242,6 +250,10 @@ export class IncusSessionBackend implements SessionBackend {
             // A live session under the id is the caller's to adopt: nothing
             // was made here, and nothing of it is ours to remove.
             if (!(error instanceof SessionExistsError)) {
+              console.warn(
+                `[sandbox.session] create of ${spec.sessionId} failed while ${ownership.phase}:`,
+                error instanceof Error ? error.message : error,
+              );
               await this.cleanupFailedCreate(
                 client,
                 spec,
@@ -266,16 +278,21 @@ export class IncusSessionBackend implements SessionBackend {
     ownership: CreateOwnership,
   ): Promise<CreateSessionResult> {
     const { client, pool } = await this.runtime.connect();
+    const budgetMs = this.cfg.session.createHealthTimeoutMs;
     const deadline =
-      this.runtime.now() + this.cfg.session.createHealthTimeoutMs;
+      this.runtime.now() +
+      budgetMs -
+      Math.min(READY_MARGIN_MS, Math.floor(budgetMs / 5));
     const durable = isAgentSessionProfile(spec.profile);
     const shape = sessionShape(this.cfg, spec.profile, spec.docker);
     const token = this.tokenFor(spec.sessionId);
 
     // A live session under the id is a duplicate; a dead one is debris.
+    ownership.phase = 'looking for the instance that holds the id';
     await this.settleHolder(client, spec.sessionId);
     signal.throwIfAborted();
 
+    ownership.phase = 'making the workspace volume';
     const preexisting = await this.ensureWorkspace(
       client,
       spec,
@@ -302,11 +319,13 @@ export class IncusSessionBackend implements SessionBackend {
       // The claim labels the standby with this attempt: from here on a
       // failure removes it like any instance this create made.
       ownership.instanceMade = true;
+      ownership.phase = 'claiming a warm standby';
       name = await pool.claim(input, shape);
       if (name === undefined) ownership.instanceMade = false;
     }
     if (name === undefined) {
       // A cold start takes a slot of its own: standbys give theirs back.
+      ownership.phase = 'making room in the warm pool';
       await pool.makeRoom(0).catch((error: unknown) => {
         console.warn(
           `[sandbox.session] making room in the warm pool for ${spec.sessionId} failed:`,
@@ -314,6 +333,7 @@ export class IncusSessionBackend implements SessionBackend {
         );
       });
       signal.throwIfAborted();
+      ownership.phase = 'creating the instance';
       name = await this.createCold(client, input, deadline, signal, ownership);
     }
     if (name !== incusInstanceName(spec.sessionId)) {
@@ -322,6 +342,7 @@ export class IncusSessionBackend implements SessionBackend {
 
     // Poll runnerd until ready; on failure the caller removes only this
     // attempt's instance and keeps the workspace volume.
+    ownership.phase = `waiting for ${name} to get an address and runnerd to answer`;
     const { health: readiness, baseUrl } = await this.waitForRunnerd(
       name,
       token,
@@ -333,6 +354,7 @@ export class IncusSessionBackend implements SessionBackend {
     // fails the create. It never reaches the instance config, which anyone
     // who can read the instance could read.
     if (Object.keys(spec.env).length > 0) {
+      ownership.phase = 'seeding the session env';
       const denied = await this.envPatch(
         { baseUrl, token },
         { set: spec.env },

@@ -481,6 +481,11 @@ still claim from them.
 - **Graceful stop.** A busy session's stop asks the instance to shut down for
   the grace period before the forced stop; whether runnerd's own shutdown
   handler runs on that signal is part of the verification below.
+- **A create that fails** is logged as `create of <id> failed while <phase>`
+  (making the workspace volume, claiming a standby, creating the instance,
+  waiting for the address and for runnerd), and the answer to the platform says
+  why: an instance that stopped, or never answered, has the end of its console
+  quoted. The failed create removes what it made and keeps a durable workspace.
 - **Cleanup.** The periodic sweep (every five minutes) removes the debris
   listed above. A workspace whose session the platform destroys is deleted
   synchronously with the instance: `workspaceDeletion` answers `done` once its
