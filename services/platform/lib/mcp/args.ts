@@ -10,8 +10,15 @@ import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import { z } from 'zod';
 
 import type { Method } from '../engine/api/methods';
+import { REPORT_DETAILS } from '../engine/api/report-details';
 import { RUN_STATUSES } from '../engine/api/run-statuses';
+import { MAX_TESTS } from '../engine/core/test-limits';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
+import {
+  BENCH_LIMITS,
+  benchOversize,
+  runBenchSchema,
+} from '../shared/schemas/automation-bench';
 import { automationPresentationSchema } from '../shared/schemas/automation_presentation';
 import { unstorableTextProblem } from '../shared/utils/storable-text';
 import { MCP_DOC_TOPICS } from './docs/topics';
@@ -101,6 +108,56 @@ const versionOrDeployed = (description: string) =>
     })
     .optional()
     .describe(description);
+
+/**
+ * What stands in for some of a document's nodes in a run, and the narrower
+ * scope of a step test: the grammar a test's bench and the app's step test
+ * share (`runBenchSchema`). Which nodes it may name, and how its scopes
+ * combine, the engine's bench plan decides, with a refusal of its own for
+ * each.
+ */
+const BENCH = runBenchSchema.shape;
+const benchFields = {
+  mocks: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      'Stand-ins by node id: that node does not make its call (its connector, model, agent, called automation or code), and the value given is its output. Its input is still resolved and its effect recorded. A forEach node takes a list, one output per item.',
+    ),
+  failures: BENCH.failures.describe(
+    'Node id → a message: that node fails with it once its input is resolved, to see what the rest does (onError, the failure path).',
+  ),
+  upTo: BENCH.upTo.describe(
+    'Run this node and everything it needs, and leave the rest out: the run’s output is this node’s output.',
+  ),
+  only: BENCH.only.describe(
+    'Run this node alone on pinned data: every node it reads must be in mocks and is not run. The run’s output is this node’s output.',
+  ),
+  item: BENCH.item.describe(
+    'With only on a forEach node: run this item alone (from 0).',
+  ),
+};
+
+/** The arguments of a run that name a bench too large for a door to take. */
+const benchSize = crossField((args) => {
+  const bench = Object.fromEntries(
+    Object.keys(benchFields).flatMap((field) =>
+      args[field] === undefined ? [] : [[field, args[field]]],
+    ),
+  );
+  const over = benchOversize(bench);
+  if (over === null) return [];
+  return [
+    {
+      path: over.node === undefined ? ['mocks'] : ['mocks', over.node],
+      code: 'too_large',
+      message:
+        over.node === undefined
+          ? `the stand-ins together are larger than ${BENCH_LIMITS.benchBytes} bytes`
+          : `is larger than ${BENCH_LIMITS.mockBytes} bytes`,
+    },
+  ];
+});
 
 /**
  * One of the version fields a save sends beside the document: an object,
@@ -247,16 +304,19 @@ export const ENGINE_TOOL_ARGS = {
         'What to answer beside the errors and warnings: "analysis" (which nodes run on which ways a run can go) and "types" (the shape of every value). Left out, both; [] answers the issues alone — the types of a large document run to tens of KB.',
       ),
   }),
-  run_automation: z.strictObject({
-    automation: automationDocument,
-    input: runInput,
-    mode: z
-      .enum(['mock'])
-      .optional()
-      .describe(
-        'Always "mock" here: the document runs against deterministic mocks, and nothing leaves Tale. To run it for real, save and deploy it, then run_deployed or start_run.',
-      ),
-  }),
+  run_automation: z
+    .strictObject({
+      automation: automationDocument,
+      input: runInput,
+      mode: z
+        .enum(['mock'])
+        .optional()
+        .describe(
+          'Always "mock" here: the document runs against deterministic mocks, and nothing leaves Tale. To run it for real, save and deploy it, then run_deployed or start_run.',
+        ),
+      ...benchFields,
+    })
+    .check(benchSize),
   test_automation: z
     .strictObject({
       automation: automationDocument
@@ -270,6 +330,21 @@ export const ENGINE_TOOL_ARGS = {
       version: versionOrDeployed(
         'Which saved version of name to test — the latest when omitted, "deployed" for the live one.',
       ),
+      tests: z
+        .array(nonBlank())
+        .min(1)
+        .max(MAX_TESTS)
+        .optional()
+        .describe(
+          'Run only these tests, by the name the document’s tests: block gives each — all of them when left out. A name no test bears, or several do, is refused with where to look. Only the whole suite of a saved version is recorded as its verdict.',
+        ),
+      detail: z
+        .array(z.enum(REPORT_DETAILS))
+        .max(REPORT_DETAILS.length)
+        .optional()
+        .describe(
+          'What of each test’s run to answer beside its verdict: "output" (what it returned), "effects" (what it would have done) and "trace" (the run step by step, as get_run reads a record). Left out, the verdicts alone: a failing test’s failures say what differed. A run too large for the answer is left out and marked detailOmitted: run that test alone with tests.',
+        ),
     })
     .check(
       crossField((args) => [

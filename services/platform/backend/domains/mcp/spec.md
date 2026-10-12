@@ -152,6 +152,54 @@ already holds that content, and a version that no longer validates is refused
   agent restores v3 naming `baseVersion: 7` → v8 is saved, restored from v3, and v6 stays live; Ada
   reads v8 against v6, agrees, and the agent deploys v8.
 
+## Testing a draft or a version
+
+A draft is tried before it is saved, and a saved version is tested before it goes live. What an
+agent tries here runs in Tale, on the mocks: nothing leaves Tale, and nothing it runs is stored.
+
+### MCP-R33 · An agent runs the tests it names, and sees what each run did when it asks
+
+`test_automation` runs the tests of a draft (`automation`) or of a saved version (`name`,
+`version`). With `tests` it runs only the tests named, by the name the document gives each; a name
+no test bears is refused (`INVALID_PARAMS`) with the names there are, and so is a name that several
+tests bear, with the places they stand at. Each result says whether its test passed and, for one
+that did not, what differed and where. With `detail` (`output`, `effects`, `trace`) each result
+also carries what its run returned, did and went through; a run too large for the answer (256 KB
+for one, 384 KB together) is left out and marked `detailOmitted`, and its test is run alone. The
+whole suite of a saved version, run to its end, is recorded on the version as its verdict, as made
+by hand, and the answer says so (`recorded`); a part of the suite, a draft, and a suite the time
+ran out on record nothing. The runs happen in Tale and draw from the organization's budget for
+runs that are never stored, one execution per test — the budget the app's own tries and test runs
+draw from, beside the key holder's run-start budget (MCP-R5): when it is spent, or the server is
+running as many as it can, the call is refused (`RATE_LIMITED`, `data.retryAfterMs`) before
+anything runs.
+
+- **Example**: `billing/dunning` has three tests. Ada's agent changed one, so it runs that test
+  by name with `detail: ["trace"]` → one result with the steps of that run, and the version's
+  verdict is as it was. It then runs all three on v8 → all pass, and the answer says the verdict is
+  recorded on v8 as made by hand; the version history shows it. The same call with a budget spent
+  by a test script is refused with the wait, and no test runs.
+
+### MCP-R34 · An agent runs an automation on stand-ins, one step at a time
+
+`run_automation` takes, beside the document and its input, the stand-ins and the scope a test and
+the app's step test give a run: `mocks` (the node does not make its call, and the value given is
+its output), `failures` (the node fails with the message given), `upTo` (a node and what it needs),
+`only` (one node, on the data pinned in `mocks` for what it reads) and `item` (with `only`, one
+item of a forEach). A stand-in replaces a node's call, never the node: its input is still resolved
+and its effect recorded. The answer says where the run stood in (`focus`) and which stand-ins it
+never used (`unusedMocks`). A bench the document cannot take — a node it does not have, with the
+nearest it does, or scopes that cannot combine — is refused as the request's fault
+(`BENCH_INVALID`, `data.issue` the engine's own), and stand-ins past 64 KB each or 512 KB together
+are refused as invalid arguments. A run on the mocks stops at its next step after 20 seconds
+(`stoppedBy: "time_limit"`), and draws one execution from the budget MCP-R33 names.
+
+- **Example**: Ada's agent wants to know what `billing/dunning` does when the mail server is down.
+  It runs the draft with `failures: {send_reminder: "the mail server is down"}` → the run ends in
+  error at `send_reminder`, the way the document says; it then runs `only: "format_amount"` with
+  the data that step reads pinned in `mocks` → the answer is that step's output alone, `focus` says
+  so, and nothing else ran.
+
 ## Running
 
 ### MCP-R4 · A mock start runs any saved version for any member; a live one needs a developer
@@ -353,7 +401,8 @@ A tool that executes an automation — a run on the mocks (`run_automation`), it
 REST API's run starts and run answers draw from, once its role check has passed.
 When the budget is spent, the call is refused (`RATE_LIMITED`) with how long to wait
 (`data.retryAfterMs`) and nothing runs. Reads, validation and saving never draw from it, and
-neither does a call refused for its arguments or its role.
+neither does a call refused for its arguments or its role. A run on the mocks and a suite of tests
+also draw from the organization's budget for runs that are never stored (MCP-R33).
 
 - **Example**: Ada's agent starts its 41st run inside a minute → refused with the wait, and no run
   starts; it reads the runs it started meanwhile → they are listed.

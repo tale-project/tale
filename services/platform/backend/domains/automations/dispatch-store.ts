@@ -25,6 +25,7 @@ import {
   verifyCursorFor,
 } from '../../core/lib/signed_cursor.ts';
 import { toJson } from '../../db/sql.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -35,6 +36,7 @@ import {
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
 import { memberNamesOf } from './author-names.ts';
+import { admitBenchRuns } from './bench.ts';
 import { recentDeployments } from './deployments.ts';
 import { walkLlmServingForOrganization } from './llm-serving.ts';
 import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
@@ -535,6 +537,16 @@ export function pgAutomationStore(
           },
         }),
       }),
+    admitBench: async (executions) => {
+      try {
+        return await admitBenchRuns(sql, organizationId, executions);
+      } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return { retryAfterMs: error.retryAfter };
+        }
+        throw error;
+      }
+    },
     deploy: (name, version, options) =>
       deployVersion(sql, {
         organizationId,

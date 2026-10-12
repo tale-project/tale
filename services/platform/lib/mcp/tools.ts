@@ -116,6 +116,7 @@ const MAX_RESULT_CHARS: Readonly<Record<string, number>> = {
   get_catalog: 250_000,
   validate_automation: 200_000,
   run_automation: 200_000,
+  test_automation: 500_000,
   get_automation: 200_000,
   run_deployed: 200_000,
   get_run: 500_000,
@@ -307,9 +308,9 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   validate_automation:
     'Validate an automation document without saving it: its errors and warnings, each with a code, a location and params, plus the flow analysis and the inferred types.',
   run_automation:
-    'Run an automation document directly against the deterministic mocks.',
+    'Run an automation document directly against the deterministic mocks. mocks and failures stand in for nodes, and upTo or only runs one step on its own: the answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).',
   test_automation:
-    "Run an automation's own acceptance tests — of a draft (automation), or of a saved version (name, version), whose verdict is then recorded on it.",
+    "Run an automation's own acceptance tests — all of them, or those named in tests — of a draft (automation), or of a saved version (name, version), whose whole-suite verdict is then recorded on it. detail adds what each run returned, did and went through.",
   save_automation:
     'Save an automation document as a new immutable version; the answer lists its warnings. Pass baseVersion (the version you read) so a version saved meanwhile is never overwritten. Settings, task contract and presentation you leave out are kept from the latest version (carried names them). With name and restoreVersion instead of a document, an older version is brought back as the newest — the live version stays live.',
   get_automation:

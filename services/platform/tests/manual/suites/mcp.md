@@ -145,6 +145,18 @@ earlier boxes left.
   before; asked to restore the same version again, the agent reports that nothing was saved
   because the newest version already holds that content.
 
+- [ ] `MCP-F16` · **Try a draft and run chosen tests through the agent** — With `billing/dunning`
+  at a version that has three or more tests, none of them run by hand yet, ask the agent to run
+  only the second test by name and show you the steps of that run, then to run all of its tests,
+  then to run the document with the mail step made to fail with "the mail server is down" → the
+  agent names the one test it ran and quotes the steps it went through; after the first run, the
+  version's **Tests** tab still reads **Checked when version {version} was saved**
+  (`automations.tests.source.checked`); after the second it reads **Checked by hand** with the
+  time, and the **Versions** tab's row for that version says **checked by hand**
+  (`automations.versions.testsChecked`); the third run ends in error at the mail step with your
+  message, and the automation's **Runs** list gains no run; asked to run a test the document does
+  not have, the agent reports that none has that name and lists the ones that do.
+
 ## Settings through the agent
 
 These boxes reuse `MCP-F1`'s Claude Code connection. They change the organization's branding and

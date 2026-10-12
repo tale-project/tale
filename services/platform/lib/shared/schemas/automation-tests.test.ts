@@ -38,6 +38,7 @@ import { memoryStore } from '../../engine/selftest/memory-store';
 import {
   automationTestSchema,
   BENCH_LIMITS,
+  benchOversize,
   diffChangeSchema,
   runBenchSchema,
   STORED_TEST_REPORT_MAX_BYTES,
@@ -383,6 +384,30 @@ describe('the test grammar', () => {
     ]) {
       expect(runBenchSchema.safeParse(refused).success).toBe(false);
     }
+  });
+});
+
+describe('the size of a bench', () => {
+  const long = (n: number) => 'x'.repeat(n);
+
+  it('takes what fits, and names the stand-in or the bench that does not', () => {
+    expect(benchOversize({})).toBeNull();
+    expect(
+      benchOversize({ mocks: { a: long(1000), b: { rows: [1, 2, 3] } } }),
+    ).toBeNull();
+    expect(
+      benchOversize({ mocks: { fits: 1, big: long(BENCH_LIMITS.mockBytes) } }),
+    ).toEqual({ node: 'big', limitBytes: BENCH_LIMITS.mockBytes });
+    // Each of these fits its own limit; together they do not fit the bench's.
+    const many = Object.fromEntries(
+      Array.from({ length: 12 }, (_, i) => [
+        `n${i}`,
+        long(BENCH_LIMITS.mockBytes - 100),
+      ]),
+    );
+    expect(benchOversize({ mocks: many })).toEqual({
+      limitBytes: BENCH_LIMITS.benchBytes,
+    });
   });
 });
 

@@ -700,5 +700,19 @@
  * `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING` and
  * `AUTOMATION_VERSION_STALE` join the registry. A deploy answered over MCP
  * now says `kind: "unchanged"` for a version that was live already.
+ *
+ * 3.39.0 — 2026-10-12: over MCP, `test_automation` takes `tests` (run only
+ * the tests named, by the name the document gives each) and `detail`
+ * (`output`, `effects`, `trace`: what each test's run returned, did and went
+ * through), answers `recorded` when the whole suite of a saved version left
+ * its verdict on it, and leaves out a run too large for the answer
+ * (`detailOmitted`); `run_automation` takes `mocks`, `failures`, `upTo`,
+ * `only` and `item` — stand-ins for nodes and a narrower scope, as a test
+ * and the app's step test give them — and answers `focus` and `unusedMocks`.
+ * Both run in the API process, so they draw from the organization's budget
+ * for runs that are never stored, one execution per run or per test: a spent
+ * budget, or a server with every place taken, answers `RATE_LIMITED` with
+ * `data.retryAfterMs`. The refusal code `BENCH_INVALID` (`data.issue` is the
+ * engine's own) joins the MCP vocabulary.
  */
-export const API_CONTRACT_VERSION = '3.38.0';
+export const API_CONTRACT_VERSION = '3.39.0';
