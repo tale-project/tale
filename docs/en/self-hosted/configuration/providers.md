@@ -99,7 +99,7 @@ instructions: |
   Write in the house style. Deliver every document as a Word file.
 ```
 
-`harness` takes the slug of a runtime a project agent can use, such as `claude-code` or `codex`; the Models page refuses one that isn't. A model pin needs both `providerSlug` and `modelId`. A partial pin, an unknown field, or instructions longer than 20,000 characters are invalid. An invalid or unreadable file stops every standard agent from starting, and the Models page names the problem; it is never read as on. An unavailable pin never falls back to another model, and neither does a pin that a person's model access denies. The policy is read whenever a run starts, so an edit applies to the next run. With `enabled: false`, the standard agents already set up stay in their projects, but none of them starts.
+`harness` takes the slug of a runtime a project agent can use, such as `claude-code` or `codex`; the Models page refuses one that isn't. Leave it out and a run a person starts works with the chat's own tools, handing over to the default runtime only when a task needs a full workspace; set it and every run uses that runtime from the start. A model pin needs both `providerSlug` and `modelId`. A partial pin, an unknown field, or instructions longer than 20,000 characters are invalid. An invalid or unreadable file stops every standard agent from starting, and the Models page names the problem; it is never read as on. An unavailable pin never falls back to another model, and neither does a pin that a person's model access denies. The policy is read whenever a run starts, so an edit applies to the next run. With `enabled: false`, the standard agents already set up stay in their projects, but none of them starts.
 
 ## Verify sandbox model access
 
