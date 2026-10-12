@@ -1093,12 +1093,15 @@ describe('CodeEditor completion', () => {
       await userEvent.click(box);
       await userEvent.keyboard('nodes.');
       const list = await listbox();
-      // The list sits inside the sheet.
+      // The list sits inside the sheet. CodeMirror places it a frame after it
+      // appears, so a busy machine can read it still unplaced.
       const sheet = box.closest('[role="dialog"]') as HTMLElement;
-      const listBox = list.getBoundingClientRect();
-      const sheetBox = sheet.getBoundingClientRect();
-      expect(listBox.top).toBeGreaterThanOrEqual(sheetBox.top);
-      expect(listBox.bottom).toBeLessThanOrEqual(sheetBox.bottom + 1);
+      await waitFor(() => {
+        const listBox = list.getBoundingClientRect();
+        const sheetBox = sheet.getBoundingClientRect();
+        expect(listBox.top).toBeGreaterThanOrEqual(sheetBox.top);
+        expect(listBox.bottom).toBeLessThanOrEqual(sheetBox.bottom + 1);
+      });
       await userEvent.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
       expect(screen.getByText('sheet open')).toBeInTheDocument();
