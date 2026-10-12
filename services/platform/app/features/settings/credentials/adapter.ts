@@ -103,12 +103,16 @@ export function looseMutation<Args>(mutation: {
  * per surface. Connectors carry a token or a username/password pair; providers
  * carry an API key, an env-var name, or a whole broker document.
  */
-export interface CredentialSecretModule<Method extends string, Draft> {
+export interface CredentialSecretModule<
+  Method extends string,
+  Draft,
+  V extends CredentialVendor = CredentialVendor,
+> {
   empty: () => Draft;
   /** Whether anything has been typed — drives the discard-on-close prompt. */
   isDirty: (draft: Draft) => boolean;
   /** Whether the method's required fields are filled — the submit gate. */
-  isComplete: (method: Method, draft: Draft) => boolean;
+  isComplete: (method: Method, draft: Draft, vendor?: V) => boolean;
   /**
    * The mutation arguments for this method.
    *
@@ -148,7 +152,7 @@ export interface CredentialSecretModule<Method extends string, Draft> {
     replacing?: boolean;
     /** The vendor being authored, when the dialog knows it — connectors use
      * this to offer vendor-specific secret extras (imap-smtp's SMTP relay). */
-    vendor?: CredentialVendor;
+    vendor?: V;
   }>;
 }
 
@@ -320,7 +324,7 @@ export interface CredentialAdapter<
     t: Translator,
     vendor: V,
   ) => { label: string; placeholder?: string; description?: string };
-  secret: CredentialSecretModule<Method, Draft>;
+  secret: CredentialSecretModule<Method, Draft, V>;
   extra: CredentialExtraModule<V, Cred, Extra>;
   /** The vendor-identifying create argument: `{connectorSlug}` / `{providerSlug}`. */
   vendorArg: (vendor: V) => Record<string, string>;

@@ -11,6 +11,40 @@ import { resolveGovernanceDir } from '../core/governance/file_utils.ts';
 import { ConfigurationError } from '../core/lib/config_store/precondition.ts';
 import { readDomainConfigFile } from '../core/lib/config_store/read_domain_file.ts';
 import { getConfigRoot } from '../core/lib/file_io.ts';
+import type { ShimHandlers } from './ctx-shim.ts';
+
+const ADAPTER_FIND_ONE = '_reference/childComponent/betterAuth/adapter/findOne';
+
+/** The Better Auth org-adapter read needed by reused modules resolving an
+ * organization's on-disk provider tree. */
+export function orgAdapterShimHandlers(sql: Sql): ShimHandlers {
+  return {
+    [ADAPTER_FIND_ONE]: async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: adapter.findOne's argument shape
+      const { model, where } = raw as {
+        model: string;
+        where: { field: string; value: unknown }[];
+      };
+      if (model !== 'organization') {
+        throw new Error(`[knowledge-shim] unexpected adapter model: ${model}`);
+      }
+      const clauseValue = (field: string): string | null => {
+        const clause = where.find((entry) => entry.field === field);
+        return typeof clause?.value === 'string' ? clause.value : null;
+      };
+      const byId = clauseValue('_id');
+      const bySlug = clauseValue('slug');
+      const rows = await sql<{ id: string; slug: string | null }[]>`
+        SELECT "id", "slug" FROM "organization"
+        WHERE (${byId}::text IS NULL OR "id" = ${byId})
+          AND (${bySlug}::text IS NULL OR "slug" = ${bySlug})
+        LIMIT 1
+      `;
+      const row = rows[0];
+      return row ? { _id: row.id, slug: row.slug ?? undefined } : null;
+    },
+  };
+}
 
 /**
  * Per-org config reads for the 0.5 backend — files, read DIRECTLY.

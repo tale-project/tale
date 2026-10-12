@@ -226,6 +226,24 @@ describe('assertCredentialEndpointUrl [PCRED-R3]', () => {
 });
 
 describe('createCredential — refusals land before any statement', () => {
+  it.each(['api-key', 'env', 'subscription-broker'] as const)(
+    'refuses an account ID on a %s credential',
+    async (authMethod) => {
+      const error = await caught(
+        createCredential(refusingTx(), SCOPE, {
+          providerSlug: 'openai',
+          authMethod,
+          name: 'API key',
+          secret: 'sk-test',
+          envName: 'TALE_PROVIDER_KEY_ITEST',
+          accountId: 'chatgpt-account',
+        }),
+      );
+      expect(error.code).toBe('CREDENTIAL_ACCOUNT_ID_INVALID');
+      expect(error.status).toBe(400);
+    },
+  );
+
   it('refuses an invalid broker document with a 400', async () => {
     const error = await caught(
       createCredential(refusingTx(), SCOPE, {

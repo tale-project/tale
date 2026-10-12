@@ -90,7 +90,11 @@ import { credentialRefusalMessage } from '../../core/provider_credentials/resolv
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
-import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  orgAdapterShimHandlers,
+  readGovernancePolicy,
+  resolveOrgSlug,
+} from '../../lib/org-config.ts';
 import {
   ChatBudgetExceededError,
   toChatBudgetRefusal,
@@ -147,7 +151,6 @@ import {
  * body indexes through `rag.index_message` (`message-index.ts`).
  */
 
-const ADAPTER_FIND_ONE = '_reference/childComponent/betterAuth/adapter/findOne';
 const FILTER_RETRIEVABLE =
   'documents/internal_queries:filterRetrievableRagFileIds';
 const READ_TEXT_ON_DEMAND =
@@ -493,41 +496,6 @@ async function retrievalCallerFor(
   // mail or attachment is retrievable for it.
   if (member.apiKeyOwner?.kind === 'project') return undefined;
   return { userId, isAdmin: isAdminRole(member.role) };
-}
-
-/**
- * The betterAuth org-adapter read (`orgSlugFromId`'s one component ref) —
- * its own factory because every reused module that resolves an org's
- * on-disk provider tree needs it: knowledge embedding here, and the agent
- * lanes' vision-model resolution on the task shim.
- */
-export function orgAdapterShimHandlers(sql: Sql): ShimHandlers {
-  return {
-    [ADAPTER_FIND_ONE]: async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: adapter.findOne's argument shape
-      const { model, where } = raw as {
-        model: string;
-        where: { field: string; value: unknown }[];
-      };
-      if (model !== 'organization') {
-        throw new Error(`[knowledge-shim] unexpected adapter model: ${model}`);
-      }
-      const clauseValue = (field: string): string | null => {
-        const clause = where.find((entry) => entry.field === field);
-        return typeof clause?.value === 'string' ? clause.value : null;
-      };
-      const byId = clauseValue('_id');
-      const bySlug = clauseValue('slug');
-      const rows = await sql<{ id: string; slug: string | null }[]>`
-        SELECT "id", "slug" FROM "organization"
-        WHERE (${byId}::text IS NULL OR "id" = ${byId})
-          AND (${bySlug}::text IS NULL OR "slug" = ${bySlug})
-        LIMIT 1
-      `;
-      const row = rows[0];
-      return row ? { _id: row.id, slug: row.slug ?? undefined } : null;
-    },
-  };
 }
 
 /**

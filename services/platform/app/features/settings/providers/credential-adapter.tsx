@@ -70,12 +70,14 @@ import {
 
 export interface ProviderSecretDraft {
   secret: string;
+  accountId: string;
   envSuffix: string;
   broker: BrokerDraft;
 }
 
 const emptyProviderSecretDraft = (): ProviderSecretDraft => ({
   secret: '',
+  accountId: '',
   envSuffix: '',
   broker: emptyBrokerDraft(),
 });
@@ -155,12 +157,14 @@ function SecretFields({
   onChange,
   disabled,
   replacing,
+  vendor,
 }: {
   method: KnownAuthMethod;
   value: ProviderSecretDraft;
   onChange: (next: ProviderSecretDraft) => void;
   disabled?: boolean;
   replacing?: boolean;
+  vendor?: ProviderVendor;
 }) {
   const { t } = useT('settings');
 
@@ -200,6 +204,18 @@ function SecretFields({
           disabled={disabled}
           required
         />
+        {vendor?.catalog.authMethods.includes('subscription-key') &&
+          vendor.catalog.subscriptionAccountIdVar !== undefined && (
+            <Input
+              label={t('providers.dialog.subscriptionAccountId')}
+              value={value.accountId}
+              onChange={(e) =>
+                onChange({ ...value, accountId: e.target.value })
+              }
+              disabled={disabled}
+              required={!replacing}
+            />
+          )}
       </>
     );
   }
@@ -588,16 +604,33 @@ export const providerCredentialAdapter: CredentialAdapter<
     empty: emptyProviderSecretDraft,
     isDirty: (draft) =>
       draft.secret.length > 0 ||
+      draft.accountId.length > 0 ||
       draft.envSuffix.length > 0 ||
       JSON.stringify(draft.broker) !== JSON.stringify(emptyBrokerDraft()),
-    isComplete: (method, draft) => {
-      if (isSecretLike(method)) return draft.secret.trim().length > 0;
+    isComplete: (method, draft, vendor) => {
+      if (isSecretLike(method)) {
+        return (
+          draft.secret.trim().length > 0 &&
+          (method !== 'subscription-key' ||
+            !vendor?.catalog.authMethods.includes('subscription-key') ||
+            vendor.catalog.subscriptionAccountIdVar === undefined ||
+            draft.accountId.trim().length > 0)
+        );
+      }
       if (method === 'env') return draft.envSuffix.trim().length > 0;
       return isBrokerDraftComplete(draft.broker);
     },
     buildArgs: (t, method, draft) => {
       if (isSecretLike(method)) {
-        return { ok: true, args: { secret: draft.secret.trim() } };
+        return {
+          ok: true,
+          args: {
+            secret: draft.secret.trim(),
+            ...(draft.accountId.trim() !== ''
+              ? { accountId: draft.accountId.trim() }
+              : {}),
+          },
+        };
       }
       if (method === 'env') {
         return {

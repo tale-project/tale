@@ -18,6 +18,7 @@ import {
 } from '../../core/sandbox/session_constants.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { orgAdapterShimHandlers } from '../../lib/org-config.ts';
 import {
   budgetRetryAfterSeconds,
   toChatBudgetRefusal,
@@ -30,7 +31,6 @@ import {
 } from '../governance/budget-gate.ts';
 import { budgetCapPhrase } from '../governance/budget-refusal.ts';
 import { readInFlightReservations } from '../governance/budget-reservations.ts';
-import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import {
   reconcileSessionOpKey,
