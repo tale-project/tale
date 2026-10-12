@@ -214,28 +214,31 @@ and refuses a create that would pass one. Sessions define `limits.memory` and
 `limits.processes` themselves and every workspace volume a `size`, so
 `limits.instances`, `limits.containers`, `limits.memory` (an absolute size),
 `limits.processes` and `limits.disk` work as Incus documents them (the last
-needs the profile's root disk to have a `size`). **Do not set `limits.cpu` on
-the project**: it makes Incus refuse every instance that does not define
-`limits.cpu` (a count of CPUs), and this backend limits CPU with
-`limits.cpu.allowance`; boot refuses that combination. A create past a limit
-fails with Incus's own message (`Reached maximum aggregate value ...`), which
-the platform sees as a failed create, not a busy spawner, so size
-`SANDBOX_MAX_SESSIONS` to stay under them.
+needs the profile's root disk to have a `size`). **Set `limits.cpu` on the
+project only together with `limits.cpu` on the profile**: a project `limits.cpu`
+makes Incus refuse every instance that does not define `limits.cpu` (a count of
+CPUs) itself or through its profile, and this backend limits CPU with
+`limits.cpu.allowance` and sets no `limits.cpu` of its own; boot refuses the
+project key alone and takes the pair (every session then holds a count, and
+Incus adds the counts up). A create past a limit fails with Incus's own message
+(`Reached maximum aggregate value ...`), which the platform sees as a failed
+create, not a busy spawner, so size `SANDBOX_MAX_SESSIONS` to stay under them.
 
 Boot reads the server, project, profile, network and pool and **refuses**:
 a missing API extension (`instance_oci`, `instance_oci_entrypoint`,
 `oci_network_config`, `instance_create_start`, `storage_shifted`,
 `storage_initial_owner` and `storage_volumes_created_at`), a project without
 its own storage volumes, a restricted project that does not allow, with Docker
-inside, nesting and interception, a project that sets `limits.cpu`, or a disk
-limit while the profile's root disk has no size, an unmanaged network, a
-profile without a NIC on the configured network and without an ACL on that NIC, and a
-`SANDBOX_AGENT_SHM_SIZE` the entrypoint cannot mount. Everything allowed but
-worth knowing is a warning: an unrestricted project, a project without its own
-images, disk devices allowed from any host path, low-level keys allowed, project
-count, memory or process limits below what `SANDBOX_MAX_SESSIONS` can add up
-to, a kernel that reports no idmapped mounts, a NIC without port isolation, a
-root disk without a size or on another pool, a `dir` pool.
+inside, nesting and interception, a project that sets `limits.cpu` while the
+profile does not, or a disk limit while the profile's root disk has no size, an
+unmanaged network, a profile without a NIC on the configured network and
+without an ACL on that NIC, and a `SANDBOX_AGENT_SHM_SIZE` the entrypoint
+cannot mount. Everything allowed but worth knowing is a warning: an
+unrestricted project, a project without its own images, disk devices allowed
+from any host path, low-level keys allowed, project count, memory or process
+limits below what `SANDBOX_MAX_SESSIONS` can add up to, a kernel that reports no
+idmapped mounts, a NIC without port isolation, a root disk without a size or on
+another pool, a `dir` pool.
 
 **Network.** Sessions resolve nothing themselves: the bridge's resolver forwards
 no queries, so a session reaches only the egress proxy, and the spawner sets
@@ -683,10 +686,16 @@ storage driver, a reboot, many tenants.
 12. **Project limits.** With `limits.memory` on the project at two sessions'
     worth, the third create fails with Incus's `Reached maximum aggregate value`
     message and leaves only its workspace volume, and the image warm-up still
-    passes; with `limits.cpu` on the project, boot refuses it by name.
-    **Lab (`limits`, `boot`):** both: the third create fails with Incus's own
-    message and leaves only its workspace volume, the failed session's explicit
-    destroy removes it, and a project `limits.cpu` is refused at boot by name.
+    passes; with `limits.cpu` on the project and none on the profile, boot
+    refuses it by name, and with one on both (a count on the profile) boot
+    passes, every session holds that count, and the create past the project's
+    total fails the same way.
+    **Lab (`limits`, `boot`):** all of it: the third create fails with Incus's
+    own message and leaves only its workspace volume, the failed session's
+    explicit destroy removes it, a project `limits.cpu` alone is refused at boot
+    by name, and a project `limits.cpu` of four with a profile `limits.cpu` of
+    two admits two sessions (each with that count and its
+    `limits.cpu.allowance`) and refuses the third in Incus's words.
 13. **Image.** `warmImage` pulls the OCI image through the API into the
     restricted project (the pull is the one call the unit tests cannot vouch
     for), and the unpack warm-up makes the first session start as fast as the

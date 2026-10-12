@@ -208,7 +208,7 @@ describe('boot refusals against the real node', () => {
   });
 
   step(
-    'a project limit on CPUs, which refuses every instance, is refused by name',
+    'a project limit on CPUs that the profile does not repeat, which would refuse every instance, is refused by name',
     async () => {
       await admin.setProject('limits.cpu', '8');
       try {

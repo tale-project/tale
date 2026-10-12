@@ -161,4 +161,62 @@ describe('limits on a real node', () => {
       await admin.unsetProject('limits.memory');
     },
   );
+
+  step(
+    "a project CPU limit is taken when the profile gives every instance a count, and refuses the create past it in Incus's words",
+    async () => {
+      // The layout an infrastructure repository declares: limits.cpu on the
+      // project and on the profile. Boot takes the pair (the profile gives
+      // every instance the key the project asks for), Incus adds the counts
+      // up, and a session's CPU is still capped by limits.cpu.allowance.
+      await admin.cleanSlate();
+      await admin.setProfile('limits.cpu', '2');
+      await admin.setProject('limits.cpu', '4');
+      try {
+        expect(await spawner.stop()).not.toBeNull();
+        spawner.start();
+        await spawner.ready();
+        const first = sessionId('cpu');
+        const second = sessionId('cpu');
+        const third = sessionId('cpu');
+        for (const id of [first, second]) {
+          expectStatus(
+            (
+              await api.create({
+                sessionId: id,
+                organizationId: ORG,
+                profile: 'agent-light',
+              })
+            ).reply,
+            201,
+            `create ${id}`,
+          );
+          const config = (await sessionInstance(id))?.expandedConfig;
+          expect(config?.['limits.cpu']).toBe('2');
+          expect(config?.['limits.cpu.allowance']).toMatch(/^\d+ms\/100ms$/);
+        }
+        const refused = await api.create({
+          sessionId: third,
+          organizationId: ORG,
+          profile: 'agent-light',
+        });
+        expectStatus(refused.reply, 502, 'the create past the CPU limit');
+        expect(field(refused.reply.json, 'error')).toBe('create_failed');
+        const message = asText(field(refused.reply.json, 'message'));
+        expect(message).toContain('Reached maximum aggregate value');
+        expect(message).toContain('limits.cpu');
+        expect(await sessionInstance(third)).toBeUndefined();
+        expectStatus(await api.destroy(third), 200, 'destroy the failed one');
+        expect(await sh(api, first, 'id -u')).toBe('10001\n');
+        expectStatus(await api.destroy(first), 200, 'destroy the first');
+        expectStatus(await api.destroy(second), 200, 'destroy the second');
+      } finally {
+        // The sessions go first: Incus refuses to drop the profile's key from
+        // under instances a project limit still counts.
+        await admin.cleanSlate();
+        await admin.unsetProject('limits.cpu');
+        await admin.unsetProfile('limits.cpu');
+      }
+    },
+  );
 });

@@ -254,6 +254,29 @@ export class Admin {
     await this.run(['project', 'unset', this.lab.project, key]);
   }
 
+  /** A key of the sandbox profile (the project's own, not the default's). */
+  async setProfile(key: string, value: string): Promise<void> {
+    await this.run([
+      'profile',
+      'set',
+      this.lab.profile,
+      `${key}=${value}`,
+      '--project',
+      this.lab.project,
+    ]);
+  }
+
+  async unsetProfile(key: string): Promise<void> {
+    await this.run([
+      'profile',
+      'unset',
+      this.lab.profile,
+      key,
+      '--project',
+      this.lab.project,
+    ]);
+  }
+
   /** Remove every instance and every custom volume of the sandbox project
    * (the images stay: pulling the runtime image is the slow part). */
   async cleanSlate(): Promise<void> {
