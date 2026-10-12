@@ -314,6 +314,12 @@ retentionPolicy:
   enabled: Aktiviert
   retentionDays: Aufbewahrungstage
   retentionHours: Aufbewahrungsstunden
+  valueDays: '{count, plural, one {# Tag} other {# Tage}}'
+  valueHours: '{count, plural, one {# Stunde} other {# Stunden}}'
+  unitDays: Tage
+  unitHours: Stunden
+  stateOn: aktiviert
+  stateOff: deaktiviert
   envDisabled: Aufbewahrung ist derzeit vom Operator deaktiviert
     (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag
     entfernt wurde.
@@ -376,8 +382,9 @@ retentionPolicy:
     detailsEmpty: Keine detaillierten Änderungen erfasst.
     diffHeading: Grenzwertänderungen
     impactHeading: Auswirkung auf deine gespeicherten Werte
-    diffRow: '{category}: {field} {from} → {to} ({direction})'
+    diffRow: '{category}, {field, select, min {Minimum} max {Maximum} other {{field}}}: {from} → {to} ({direction, select, tighten {verschärft die Aufbewahrung} loosen {lockert die Aufbewahrung} other {{direction}}})'
     impactRow: '{category}: {current} wird auf {clamped} begrenzt'
+    unbounded: keine Grenze
     appliedToast:
       Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim
       nächsten Lauf die neuen Grenzen.

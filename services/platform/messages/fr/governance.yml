@@ -325,6 +325,12 @@ retentionPolicy:
   enabled: Activé
   retentionDays: Jours de rétention
   retentionHours: Heures de rétention
+  valueDays: '{count, plural, one {# jour} many {# jours} other {# jours}}'
+  valueHours: '{count, plural, one {# heure} many {# heures} other {# heures}}'
+  unitDays: jours
+  unitHours: heures
+  stateOn: activé
+  stateOff: désactivé
   envDisabled: La rétention est actuellement désactivée par l'opérateur
     (TALE_RETENTION_DISABLED=true). Le nettoyage ne s'exécutera pas tant que
     la variable d'environnement n'est pas retirée.
@@ -388,8 +394,9 @@ retentionPolicy:
     detailsEmpty: Aucune modification détaillée enregistrée.
     diffHeading: Modifications des limites
     impactHeading: Impact sur tes valeurs enregistrées
-    diffRow: '{category} : {field} {from} → {to} ({direction})'
-    impactRow: '{category} : {current} sera limité à {clamped}'
+    diffRow: '{category}, {field, select, min {minimum} max {maximum} other {{field}}} : {from} → {to} ({direction, select, tighten {resserre la rétention} loosen {assouplit la rétention} other {{direction}}})'
+    impactRow: '{category} : {current} sera limité à {clamped}'
+    unbounded: aucune limite
     appliedToast: Proposition de limites appliquée. Le nettoyage utilisera les
       nouvelles limites à la prochaine exécution.
     rejectedToast:

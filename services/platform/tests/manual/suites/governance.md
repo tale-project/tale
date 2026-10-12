@@ -350,7 +350,12 @@ agent.
   changes** (`governance.retentionPolicy.diff.title`) → confirm via **Save
   changes** (`governance.retentionPolicy.diff.confirmLabel`) → reload → Toast
   (`governance.retentionPolicy.saved`); after reload the summary reflects the
-  new value. Verified live on a fresh org: the editor renders with defaults
+  new value. In German and French the values read with their unit in that
+  language (`…retentionPolicy.valueDays`, `…valueHours`: **90 Tage**, **24
+  heures**, singular for one), a field's range says **Erlaubt: 1–3650 Tage.**
+  (`…allowedRange`), and a switch in the diff dialog reads **deaktiviert →
+  aktiviert** (`…stateOff`, `…stateOn`) — no English `days`, `hours`,
+  `enabled` or `disabled`. Verified live on a fresh org: the editor renders with defaults
   and saves fine (the `RETENTION_CONFIG_MISSING` seam did not bite), but a
   **reduction applies immediately** — the pending banner **A retention
   reduction is pending.** (`governance.retentionPolicy.pendingChange.title`,
@@ -367,7 +372,13 @@ agent.
   (`…boundsProposal.applyLabel`) / **Reject** (`…boundsProposal.rejectLabel`)
   / **View details** (`…boundsProposal.detailsLabel`) → open the details
   drawer **Proposed bound changes** (`…boundsProposal.detailsTitle`) → The
-  details drawer lists the proposed bounds; **Apply** shows the toast
+  details drawer lists the proposed bounds, each category by the title the
+  retention editor gives it (for example **Automation versions**), which side
+  changes (minimum or maximum), the values with their unit (days, or hours)
+  or **no limit** (`…boundsProposal.unbounded`), and what the change does to
+  retention — all in the language of the UI, never an id such as
+  `automationVersions` or `min`/`tighten` (`…boundsProposal.diffRow`);
+  **Apply** shows the toast
   (`…boundsProposal.appliedToast`) and the banner clears; **Reject** shows the
   toast (`…boundsProposal.rejectedToast`) and the banner clears — cleared
   state survives reload.
