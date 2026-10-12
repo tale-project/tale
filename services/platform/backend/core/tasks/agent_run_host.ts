@@ -1041,8 +1041,7 @@ async function mintTurnServing(
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
         : {}),
-      ...(credential.authMethod === 'subscription-broker' &&
-      credential.accountId !== undefined
+      ...(credential.accountId !== undefined
         ? { accountId: credential.accountId }
         : {}),
     },
