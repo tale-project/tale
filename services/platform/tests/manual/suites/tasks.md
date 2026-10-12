@@ -844,7 +844,10 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   while you read near the top leaves your place alone, and one sent from the
   latest comment stays in view; in Safari too, scrolling up through a long
   thread never throws the comment you are reading off the screen. **Page Up**,
-  **Page Down** and the scrollbar move the same thread.
+  **Page Down** and the scrollbar move the same thread. On an iPhone flick the
+  task's page up through a long thread, and on an iPad flick the thread in the
+  board's dialog: each flick carries on to where it was heading and the comment
+  you are reading never jumps.
 - [ ] `TASK-F84` · **What the agent cost** — On a task whose agent ran at
   least twice at a cost → **Details** shows **Agent cost**
   (`tasks.agentRuns.costLabel`) with the total (`tasks.agentRuns.totalCost`),

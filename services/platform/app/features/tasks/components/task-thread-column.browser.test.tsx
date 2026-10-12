@@ -41,7 +41,7 @@ function Thread({ rows }: { rows: number }) {
 }
 
 /** A thread that grows by five comments, and a composer that grows to six
- *  times its height, on the buttons above the column. */
+ *  times its height and shrinks back, on the buttons above the column. */
 function Growing({ rows }: { rows: number }) {
   const [count, setCount] = useState(rows);
   const [composerHeight, setComposerHeight] = useState(40);
@@ -52,6 +52,7 @@ function Growing({ rows }: { rows: number }) {
           Add comments
         </button>
         <button onClick={() => setComposerHeight(240)}>Grow composer</button>
+        <button onClick={() => setComposerHeight(40)}>Shrink composer</button>
       </div>
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <TaskThreadColumn
@@ -106,12 +107,35 @@ async function settledLayout() {
   );
 }
 
+/** Until the scrollport has stopped moving. A wheel can scroll by animation,
+ *  and a position read half way is not where the reader ends up. */
+async function settledScroll(scroller: HTMLElement) {
+  let still = 0;
+  let last = scroller.scrollTop;
+  for (let frame = 0; frame < 240 && still < 4; frame += 1) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    still = scroller.scrollTop === last ? still + 1 : 0;
+    last = scroller.scrollTop;
+  }
+}
+
+/** The row in the middle of the scrollport: what a reader there is reading. */
+function readingRow(scroller: HTMLElement) {
+  const port = scroller.getBoundingClientRect();
+  const row = document
+    .elementFromPoint(port.left + port.width / 2, port.top + port.height / 2)
+    ?.closest('li');
+  if (!(row instanceof HTMLElement)) throw new Error('nothing is being read');
+  return row;
+}
+
 /** A reader's wheel: far enough in one direction to reach that end. */
 async function wheelToTop(over: HTMLElement) {
   await userEvent.wheel(over, { delta: { y: -10_000 } });
   await waitFor(() =>
     expect(inView(screen.getByText('The brief'), scrollport())).toBe(true),
   );
+  await settledScroll(scrollport());
 }
 
 async function wheelToEnd(over: HTMLElement, last: string) {
@@ -119,6 +143,7 @@ async function wheelToEnd(over: HTMLElement, last: string) {
   await waitFor(() =>
     expect(inView(screen.getByText(last), scrollport())).toBe(true),
   );
+  await settledScroll(scrollport());
 }
 
 describe('TaskThreadColumn (real layout)', () => {
@@ -213,11 +238,52 @@ describe('TaskThreadColumn on its newest end', () => {
       expect(distanceToEnd(scroller)).toBeGreaterThan(20);
       expect(distanceToEnd(scroller)).toBeLessThan(40);
     });
+    await settledScroll(scroller);
     await userEvent.click(screen.getByRole('button', { name: 'Add comments' }));
 
     await waitFor(() =>
       expect(inView(screen.getByText('Comment 45'), scrollport())).toBe(true),
     );
+  });
+
+  it('stays on it while the composer shrinks and the column grows', async () => {
+    render(<Growing rows={40} />);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Grow composer' }),
+    );
+    await waitFor(() =>
+      expect(inView(screen.getByText('Comment 40'), scrollport())).toBe(true),
+    );
+    await settledScroll(scrollport());
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Shrink composer' }),
+    );
+    await settledLayout();
+    await userEvent.click(screen.getByRole('button', { name: 'Add comments' }));
+
+    await waitFor(() =>
+      expect(inView(screen.getByText('Comment 45'), scrollport())).toBe(true),
+    );
+  });
+
+  it('knows its own write: a scroll event for an offset it holds is not the reader leaving', async () => {
+    render(<Growing rows={40} />);
+    const scroller = scrollport();
+    await settledScroll(scroller);
+    const content = scroller.firstElementChild;
+    if (!(content instanceof HTMLElement)) throw new Error('no thread');
+
+    // The event its own pin queued reaches it after more thread has arrived:
+    // reading the distance to the end then would take the new rows for a
+    // reader who scrolled away.
+    const arrival = document.createElement('div');
+    arrival.style.height = '300px';
+    content.append(arrival);
+    scroller.dispatchEvent(new Event('scroll'));
+    await settledLayout();
+
+    expect(distanceToEnd(scroller)).toBeLessThan(2);
   });
 
   it('leaves a reader who is a screen above the end where they are', async () => {
@@ -232,7 +298,8 @@ describe('TaskThreadColumn on its newest end', () => {
       expect(distanceToEnd(scroller)).toBeGreaterThan(380);
       expect(distanceToEnd(scroller)).toBeLessThan(420);
     });
-    const reading = screen.getByText('Comment 38');
+    await settledScroll(scroller);
+    const reading = readingRow(scroller);
     const before = reading.getBoundingClientRect().top;
     await userEvent.click(screen.getByRole('button', { name: 'Add comments' }));
     await screen.findByText('Comment 45');
@@ -246,15 +313,17 @@ describe('TaskThreadColumn on its newest end', () => {
  *  growing by 200px on the button: a row drawn at its real height. */
 function Shifting({ scrollerClassName }: { scrollerClassName?: string }) {
   const [grown, setGrown] = useState(false);
+  const [extra, setExtra] = useState(0);
   return (
     <div style={{ height: 480, display: 'flex', flexDirection: 'column' }}>
       <button onClick={() => setGrown(true)}>Grow an earlier comment</button>
+      <button onClick={() => setExtra(5)}>Add comments</button>
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <TaskThreadColumn
           brief={<p>The brief</p>}
           conversation={
             <ol>
-              {Array.from({ length: 40 }, (_, index) => (
+              {Array.from({ length: 40 + extra }, (_, index) => (
                 <li
                   key={index}
                   data-task-history-entry
@@ -296,6 +365,7 @@ async function growAboveTheReader() {
   });
   const reading = screen.getByText('Comment 20');
   await waitFor(() => expect(inView(reading, scrollport())).toBe(true));
+  await settledScroll(scrollport());
   const before = reading.getBoundingClientRect().top;
 
   await userEvent.click(
@@ -325,6 +395,46 @@ describe("TaskThreadColumn holding a reader's place", () => {
 
     expect(await growAboveTheReader()).toBeCloseTo(0, 0);
   });
+
+  it.each([
+    { browser: 'a browser that anchors scrolling', safari: false },
+    { browser: 'Safari', safari: true },
+  ])(
+    'leaves a reader who scrolled up a few lines where they are when a row above grows, in $browser',
+    async ({ safari }) => {
+      if (safari) renderLikeSafari();
+      else render(<Shifting />);
+      const scroller = scrollport();
+      await userEvent.wheel(screen.getByText('Comment 40'), {
+        delta: { y: -20 },
+      });
+      await settledScroll(scroller);
+      expect(distanceToEnd(scroller)).toBeGreaterThan(15);
+      expect(distanceToEnd(scroller)).toBeLessThan(25);
+      const reading = readingRow(scroller);
+      const before = reading.getBoundingClientRect().top;
+
+      // The row above grows: the scrollport moves by the browser's anchoring
+      // or by the column, and that is not the reader coming back to the end.
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Grow an earlier comment' }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByText('Comment 4').getBoundingClientRect().height,
+        ).toBe(264),
+      );
+      await settledLayout();
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Add comments' }),
+      );
+      await screen.findByText('Comment 45');
+      await settledLayout();
+
+      expect(reading.getBoundingClientRect().top).toBeCloseTo(before, 0);
+      expect(distanceToEnd(scroller)).toBeGreaterThan(100);
+    },
+  );
 
   it('leaves the place to a history load that holds it', async () => {
     renderLikeSafari();

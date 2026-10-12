@@ -12,6 +12,8 @@ import {
 const END_SLACK_PX = 2;
 /** A reader who scrolls down to within this of the end rejoins it. */
 const REJOIN_PX = 48;
+/** A change in the distance to the end smaller than this is rounding. */
+const MOVED_PX = 1;
 
 /** Chromium and Firefox keep a reader's place themselves when rows above it
  *  change height; Safari has no scroll anchoring. */
@@ -30,10 +32,12 @@ function anchorsScroll() {
  * arriving, the task loading in, an image settling) and while its own box
  * changes (the composer under it growing, the window resizing). A reader who
  * scrolls up is left where they are, and scrolling back down to the end
- * follows the thread again. Where the browser does not anchor scrolling, rows
- * above the reader that change height — a row skipped by `content-visibility`
- * is drawn at its real height as it nears — move the scrollport by the
- * difference, so what is being read does not jump.
+ * follows the thread again. Where the browser does not anchor scrolling,
+ * rows above the reader that change height — an image arriving, a line that
+ * wraps differently after a resize — move the scrollport by the difference,
+ * so what is being read does not jump. (The conversation's rows skip layout
+ * only where the browser anchors, `lazy-layout.ts`, so none of them changes
+ * height as it nears the reader.)
  *
  * Attach `scrollerRef` to an ordinary scrollport and `contentRef` to the one
  * element inside it that holds the thread. The scrollport must scroll from its
@@ -53,15 +57,22 @@ export function useThreadScroll() {
 
     const holdsPlace = !anchorsScroll();
     let following = true;
+    // Where the reader stood when we last looked: the offset, and how far the
+    // end was.
     let lastTop = 0;
+    let lastDistance = 0;
     // The row the reader is at, and where it stood in the thread.
     let place: { entry: HTMLElement; offset: number } | null = null;
 
     const distanceToEnd = () =>
       scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+    const look = () => {
+      lastTop = scroller.scrollTop;
+      lastDistance = distanceToEnd();
+    };
     const goToEnd = () => {
       scroller.scrollTop = scroller.scrollHeight;
-      lastTop = scroller.scrollTop;
+      look();
     };
     // Where a row is in the thread, whatever the scroll offset: a layout change
     // above the row moves it, a scroll does not.
@@ -71,9 +82,9 @@ export function useThreadScroll() {
       scroller.scrollTop;
     // Rows are in document order, one below the other. The reader's place is
     // the first row that starts at or below the middle of the scrollport: it
-    // has been in view a while, so it is drawn at its real height, while the
-    // rows that come into view above it are drawn as they near, grow, and
-    // push everything under them down.
+    // has been in view a while, so it is drawn at its real height, while a row
+    // that comes into view above it can still change and push everything
+    // under it down.
     const rowAtMiddle = () => {
       const entries = content.querySelectorAll<HTMLElement>(
         HISTORY_ENTRY_SELECTOR,
@@ -110,29 +121,46 @@ export function useThreadScroll() {
         !HELD_SCROLLPORTS.has(scroller)
       ) {
         const drift = offsetOf(place.entry) - place.offset;
-        if (Math.abs(drift) >= 1) {
-          scroller.scrollTop += drift;
-          lastTop = scroller.scrollTop;
-        }
+        if (Math.abs(drift) >= 1) scroller.scrollTop += drift;
       }
       const entry = rowAtMiddle();
       place = entry === undefined ? null : { entry, offset: offsetOf(entry) };
     };
     // The scroll event is the one witness of where the reader is, whoever
     // moved the thread: a wheel, a trackpad, a key, the scrollbar, a touch.
+    // An event for an offset already looked at is not news: our own write, or a
+    // shift the resize observer saw first. For the rest, a reader's scroll
+    // moves the offset and the distance to the end in opposite directions:
+    // up and farther, or down and nearer. A layout change does not: the
+    // browser anchoring, or `holdPlace`, moves the offset and the end together
+    // and leaves the distance alone, and a browser giving back an offset it had
+    // clamped moves it toward the end while the thread has grown, so the
+    // distance grows too. Neither leaves the end or rejoins it.
     const onScroll = () => {
       const top = scroller.scrollTop;
+      if (top === lastTop) return;
       const distance = distanceToEnd();
       if (distance <= END_SLACK_PX) following = true;
-      else if (top < lastTop) following = false;
-      else if (distance <= REJOIN_PX) following = true;
-      lastTop = top;
+      else if (top < lastTop && distance > lastDistance + MOVED_PX) {
+        following = false;
+      } else if (
+        top > lastTop &&
+        distance < lastDistance - MOVED_PX &&
+        distance <= REJOIN_PX
+      ) {
+        following = true;
+      }
       if (following) place = null;
       else if (holdsPlace) holdPlace();
+      look();
     };
     const onResize = () => {
-      if (following) goToEnd();
-      else if (holdsPlace) holdPlace();
+      if (following) {
+        goToEnd();
+        return;
+      }
+      if (holdsPlace) holdPlace();
+      look();
     };
 
     goToEnd();

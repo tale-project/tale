@@ -110,8 +110,21 @@ vi.mock(
   }),
 );
 
-/** The history in the column a task is read in, on the page and in the dialog. */
-function renderHistory() {
+/** The history in the column a task is read in, on the page and in the dialog.
+ *  `safari`: a browser with no scroll anchoring answers the support question
+ *  no, and its scrollport anchors nothing. */
+function renderHistory({ safari = false }: { safari?: boolean } = {}) {
+  if (safari) {
+    const supports = CSS.supports.bind(CSS);
+    vi.spyOn(CSS, 'supports').mockImplementation(
+      (property: string, value?: string) => {
+        if (property.includes('overflow-anchor')) return false;
+        return value === undefined
+          ? supports(property)
+          : supports(property, value);
+      },
+    );
+  }
   const rendered = render(
     <div className="flex h-[480px] w-[640px]">
       <TaskThreadColumn
@@ -125,6 +138,7 @@ function renderHistory() {
             currentUserId="user-1"
           />
         }
+        {...(safari ? { scrollerClassName: '[overflow-anchor:none]' } : {})}
       />
     </div>,
   );
@@ -166,6 +180,7 @@ beforeEach(async () => {
 });
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   localStorage.removeItem('user-locale');
 });
 
@@ -274,39 +289,45 @@ describe('TaskConversation long history (Chromium)', () => {
     );
   });
 
-  it('loads earlier comments from the keyboard without moving the read comment', async () => {
-    const { scroller } = renderHistory();
-    await settledLayout();
-    scroller.scrollTop = 0;
-    await settledLayout();
-    const earlier = screen.getByRole('button', {
-      name: 'Show earlier comments',
-    });
-    earlier.focus();
-    await settledLayout();
-    const oldest = commentRow(49);
-    await Promise.all(
-      oldest.parentElement
-        ?.getAnimations()
-        .map((animation) => animation.finished) ?? [],
-    );
-    const before = oldest.getBoundingClientRect().top;
-    const parses = reads.markdown.mock.calls.length;
+  it.each([
+    { browser: 'a browser that anchors scrolling', safari: false },
+    { browser: 'Safari', safari: true },
+  ])(
+    'loads earlier comments from the keyboard without moving the read comment, in $browser',
+    async ({ safari }) => {
+      const { scroller } = renderHistory({ safari });
+      await settledLayout();
+      scroller.scrollTop = 0;
+      await settledLayout();
+      const earlier = screen.getByRole('button', {
+        name: 'Show earlier comments',
+      });
+      earlier.focus();
+      await settledLayout();
+      const oldest = commentRow(49);
+      await Promise.all(
+        oldest.parentElement
+          ?.getAnimations()
+          .map((animation) => animation.finished) ?? [],
+      );
+      const before = oldest.getBoundingClientRect().top;
+      const parses = reads.markdown.mock.calls.length;
 
-    await userEvent.keyboard('{Enter}');
-    await settledLayout();
-    expect(earlier).toHaveFocus();
-    expect(commentRow(49)).toBe(oldest);
-    await expect
-      .poll(() => oldest.getBoundingClientRect().top)
-      .toBeCloseTo(before, 0);
-    expect(reads.markdown).toHaveBeenCalledTimes(parses + 600);
-    const band = oldest.closest('ol')?.parentElement;
-    const divider = (day: Element | null | undefined) =>
-      day?.querySelector('[data-slot="thread-day-divider"]')?.textContent;
-    expect(divider(band)).toContain('September 23');
-    expect(divider(band?.previousElementSibling)).toContain('September 22');
-  });
+      await userEvent.keyboard('{Enter}');
+      await settledLayout();
+      expect(earlier).toHaveFocus();
+      expect(commentRow(49)).toBe(oldest);
+      await expect
+        .poll(() => oldest.getBoundingClientRect().top)
+        .toBeCloseTo(before, 0);
+      expect(reads.markdown).toHaveBeenCalledTimes(parses + 600);
+      const band = oldest.closest('ol')?.parentElement;
+      const divider = (day: Element | null | undefined) =>
+        day?.querySelector('[data-slot="thread-day-divider"]')?.textContent;
+      expect(divider(band)).toContain('September 23');
+      expect(divider(band?.previousElementSibling)).toContain('September 22');
+    },
+  );
 
   it('gives scroll control back immediately when the reader steers during anchor settling', async () => {
     const { scroller } = renderHistory();
