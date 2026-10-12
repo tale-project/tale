@@ -23,7 +23,10 @@ import { sandboxDoorBodyLimit, toolResultTooLarge } from './door-body-limit.ts';
 import { resolveSessionOpAttribution } from './op-attribution.ts';
 import { servingPlatform } from './serving-platform.ts';
 import { getSessionTokenByHash, workflowRunOfSession } from './sessions.ts';
-import { sandboxToolShimHandlers } from './shim.ts';
+import {
+  readSessionCurrentExecution,
+  sandboxToolShimHandlers,
+} from './shim.ts';
 
 /**
  * The in-sandbox WORKSPACE-TOOL dispatch surface —
@@ -225,6 +228,19 @@ export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
     return c.json({
       ...workspaceToolStatusImpl(auth.toolGrants),
       platform: servingPlatform(),
+      ...(auth.taskRunExecId !== undefined
+        ? {
+            // Status discovery is advisory. A lost self-read must not turn a
+            // previously valid, read-only grants response into a new
+            // authority or a body containing a database error; absence/null
+            // keeps the execution identity unknown and leaves grants intact.
+            currentExecution: await readSessionCurrentExecution(deps.sql, {
+              organizationId: auth.organizationId,
+              sessionId: auth.sessionId,
+              taskRunExecId: auth.taskRunExecId,
+            }).catch(() => null),
+          }
+        : {}),
     });
   });
 

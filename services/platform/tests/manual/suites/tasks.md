@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 159 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 160 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1651,3 +1651,4 @@ TASK-F86 is a Member of the project's team.
 - [ ] `TASK-F90` · **A start by an automation works in a worker** — Deploy an automation whose step starts the agent on a task (as in AUTO-F32) and run it on a task assigned to the standard agent → the run works in a worker of the agent (**Worker 1** on Sandboxes) and **Details** shows a live harness transcript, as before; a person pressing **Start agent** on the same agent works without one (`TASK-F86`).
 - [ ] `TASK-F91` · **An organization works four such runs at a time** — With a model slow enough to catch (Mode A: `TALE_MOCK_STREAM_PACE_MS=1500` on the mock gateway), start the standard agent on five tasks within a few seconds → four Run rows read **Working…** (`tasks.agentRun.status.running`) and the fifth reads **Queued** (`tasks.agentRun.status.queued`), never **Waiting for a worker**; when one of the four reads **Finished**, the fifth starts by itself. A start in another organization at the same time reads **Working…** at once. Press **Cancel run** on the queued one instead → it reads **Cancelled** and never starts.
 - [ ] `TASK-B53` · **A policy that blocks the task's text stops the run for good** — Under **Governance**, add a guardrail that blocks a word; put that word in a task's description and start the standard agent → The Run row reads **Failed** and the failure sentence is `tasks.agentRun.failure.policy`; no **Auto-retry** caption appears and no new run starts; the starter's notifications show a row with `inbox.agentRunFailedPolicyBody`. Remove the guardrail, press **Retry** (`tasks.agentRun.retry`) → the run works.
+- [ ] `TASK-B54` · **Native receipts stay bound to the current task run** — With a runnable native task, request the task's exact run metadata and comment row IDs, then read **workspace status** in the same session → the returned run and execution IDs match the database-backed task, organization, session and exec; a foreign, superseded, expired or ended run returns no current execution, and the ordinary grants and admission controls are unchanged. Omit the optional fields → the legacy response shape remains. A model-written identity in a comment or status body is ignored.

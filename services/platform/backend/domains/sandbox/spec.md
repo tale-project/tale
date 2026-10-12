@@ -342,6 +342,14 @@ working sandbox. It is removed only once it has itself been unused for five minu
 - **Example**: Mia's chat could not start a sandbox at 10:00 (the host was busy) and got one at
   10:01, last used at 10:04 → at 10:06 the sandbox is still there, with its files.
 
+## Current execution discovery
+
+### SBX-R27 · Discovery binds self identity to the token’s live task execution without changing grants
+
+`workspace_status` may return `currentExecution` only after the existing task-run authority reader matches the token’s organization, session and exec to a live queued/running task run and its agent/project, with schedule revocation retained. Body claims and earlier guidance do not supply it. Ended, superseded or unavailable task identity is null; chat, workflow and legacy discovery can omit it. Expired authentication is still refused. Tool grants and mutation authority stay unchanged. This read is an observation, not a capacity reservation or start, command or publication allowance.
+
+- **Example**: A resumed turn’s old token names its superseded exec → discovery keeps identity unknown rather than reporting that exec as current.
+
 ## Not yet
 
 - **Egress**: which addresses a sandbox can reach is decided by the sandbox service, outside

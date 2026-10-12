@@ -75,6 +75,29 @@ Der Schritt gibt `{ tasks, hasMore }` zurück. Jede Aufgabe trägt ihre `taskId`
 
 </Frame>
 
+## Eine Aufgabe und einen bestimmten Lauf lesen
+
+Ein Schritt `task.get` liefert normalerweise Titel, Status, Projekt und Beschreibung der Aufgabe. Mit `agentRunId` liest du einen bestimmten Lauf dieser Aufgabe. `agentRun` enthält dann `id`, `taskId`, `agentId`, `status`, `execId`, `startedAt`, `launchedAt` und `settledAt`. Die Zeitstempel sind Millisekunden seit der Unix-Epoche; die letzten beiden können `null` sein. Fehlt der Lauf oder gehört er zu einer anderen Aufgabe oder Organisation, lautet die Antwort `agentRun: null`. Es wird kein neuerer Lauf eingesetzt. Ohne `agentRunId` bleibt die bisherige Antwort unverändert.
+
+Mit `includeIds: true` liefert `task.list_comments` zu jedem Kommentar die native `messageId` neben `authorType`, `authorId`, Inhalt und Zeitstempel. Die Standardantwort bleibt gleich; `truncated` kennzeichnet weiterhin unvollständige Historie. Eine ID im Kommentartext ist nicht die native Identität des Kommentars.
+
+Diese Abfragen reservieren keine Kapazität und erlauben weder einen Start noch einen Befehl oder eine Veröffentlichung. Fehlt ein Feld oder lehnt eine ältere Plattform die Anfrage ab, bleibt die Identität unbekannt. Die eigene aktuelle Ausführung liest ein Aufgabenagent über die [Arbeitsbereichsauskunft](/de/platform/projects/project-agents#current-execution).
+
+```yaml
+nodes:
+  - id: task
+    type: task.get
+    input:
+      taskId: '{{ input.taskId }}'
+      agentRunId: '{{ input.agentRunId }}'
+  - id: comments
+    type: task.list_comments
+    input:
+      taskId: '{{ input.taskId }}'
+      includeIds: true
+      limit: 10
+```
+
 ## Wenn ein Schritt scheitert
 
 | Fehler                                                       | Was geschehen ist                                                                                                         |

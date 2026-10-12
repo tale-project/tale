@@ -11,24 +11,31 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { sandboxToolShimHandlers } from './shim.ts';
+import {
+  readSessionCurrentExecution,
+  sandboxToolShimHandlers,
+} from './shim.ts';
 
 const STANDING = 'pa-agent-1';
 const MEMBER_WORKSPACE = 'pa-agent-1-m0123456789abcdef';
 
 interface Run {
+  runId: string;
   taskId: string;
   projectId: string;
   agentId: string;
   sessionId: string;
   startedBy: string;
   execId: string;
+  startedAt: number;
+  launchedAt: number | null;
 }
 
 function fakeSql(script: {
   run?: Run;
+  sessionOwnerType?: string;
   /** Roles of `org-1`'s members by user id. */
   roles?: Record<string, string>;
 }): Sql {
@@ -36,7 +43,10 @@ function fakeSql(script: {
     const text = strings.join('?');
     if (text.includes('FROM app.sandbox_sessions')) {
       return Promise.resolve([
-        { ownerType: 'project_agent', ownerId: 'agent-1' },
+        {
+          ownerType: script.sessionOwnerType ?? 'project_agent',
+          ownerId: 'agent-1',
+        },
       ]);
     }
     if (text.includes('FROM app.project_agents')) {
@@ -96,13 +106,126 @@ async function context(
 }
 
 const run = (overrides: Partial<Run> = {}): Run => ({
+  runId: 'run-1',
   taskId: 'task-own',
   projectId: 'p-1',
   agentId: 'agent-1',
   sessionId: STANDING,
   startedBy: 'u-editor',
   execId: 'exec-1',
+  startedAt: 10,
+  launchedAt: 11,
   ...overrides,
+});
+
+describe('status self identity uses the live task authority reader [SBX-R27]', () => {
+  const args = {
+    organizationId: 'org-1',
+    sessionId: STANDING,
+    taskRunExecId: 'exec-1',
+  };
+
+  it('returns the actual run/exec and a fresh server observation without widening authority', async () => {
+    const sql = fakeSql({ run: run(), roles: { 'u-editor': 'editor' } });
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(12);
+    try {
+      expect(await readSessionCurrentExecution(sql, args)).toEqual({
+        taskId: 'task-own',
+        agentId: 'agent-1',
+        runId: 'run-1',
+        execId: 'exec-1',
+        startedAt: 10,
+        launchedAt: 11,
+        observedAt: 12,
+      });
+      expect(
+        await context(sql, { sessionId: STANDING, taskRunExecId: 'exec-1' }),
+      ).toEqual({
+        allowed: true,
+        actorId: 'agent-1',
+        scope: { kind: 'project', projectId: 'p-1' },
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('a member-confined run learns only its own identity and stays confined', async () => {
+    const sql = fakeSql({
+      run: run({ sessionId: MEMBER_WORKSPACE, startedBy: 'u-member' }),
+      roles: { 'u-member': 'member' },
+    });
+    const own = { ...args, sessionId: MEMBER_WORKSPACE };
+    expect(await readSessionCurrentExecution(sql, own)).toMatchObject({
+      taskId: 'task-own',
+      runId: 'run-1',
+      execId: 'exec-1',
+    });
+    expect(await context(sql, own)).toMatchObject({
+      allowed: true,
+      confinedToTaskId: 'task-own',
+    });
+  });
+
+  it.each([
+    { organizationId: 'org-2' },
+    { sessionId: 'foreign-session' },
+    { taskRunExecId: 'superseded-exec' },
+    { taskRunExecId: undefined },
+  ])(
+    'never treats a token hint or foreign tuple as current: %j',
+    async (changed) => {
+      const sql = fakeSql({ run: run(), roles: { 'u-editor': 'editor' } });
+      expect(
+        await readSessionCurrentExecution(sql, { ...args, ...changed }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    { agentId: 'foreign-agent' },
+    { projectId: 'foreign-project' },
+    { runId: '' },
+    { startedAt: Number.NaN },
+  ])(
+    'an unbound or incomplete native row stays unknown: %j',
+    async (changed) => {
+      const sql = fakeSql({
+        run: run(changed),
+        roles: { 'u-editor': 'editor' },
+      });
+      expect(await readSessionCurrentExecution(sql, args)).toBeNull();
+    },
+  );
+
+  it('ended task turns and revoked schedules cannot claim a current execution', async () => {
+    expect(await readSessionCurrentExecution(fakeSql({}), args)).toBeNull();
+    expect(
+      await readSessionCurrentExecution(
+        fakeSql({ run: run({ startedBy: 'trigger:removed' }) }),
+        args,
+      ),
+    ).toBeNull();
+  });
+
+  it.each(['chat', 'workflow_run'])(
+    'a %s owner has no task-turn self identity',
+    async (sessionOwnerType) => {
+      expect(
+        await readSessionCurrentExecution(
+          fakeSql({ run: run(), sessionOwnerType }),
+          args,
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it('propagates a failed native read instead of supplying token identity', async () => {
+    const failure = new Error('connection terminated');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the query tag is reached before this failure
+    const sql = (() => Promise.reject(failure)) as unknown as Sql;
+    await expect(readSessionCurrentExecution(sql, args)).rejects.toBe(failure);
+  });
 });
 
 describe('a task turn’s tool authority follows the run’s starter [SBX-R7]', () => {
