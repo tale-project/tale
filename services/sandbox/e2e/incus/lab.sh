@@ -22,8 +22,9 @@
 #   facts      host facts and phase durations, as Markdown
 #   diagnose   what a failed run needs to be read afterwards
 #   env        KEY=VALUE lines for $GITHUB_ENV
-#   suites     the choice of suites (`all`, or a comma-separated list) as
-#              `<suite>=true|false` lines for $GITHUB_OUTPUT
+#   suites     the choice of suites (`all`, or a comma-separated list; `all`
+#              leaves out the opt-in ones) as `<suite>=true|false` lines for
+#              $GITHUB_OUTPUT
 #
 # It reconfigures the host (packages, ZFS, the firewall, Incus itself): CI, or
 # TALE_INCUS_E2E_THROWAWAY_HOST=1 on a VM you can lose. The images are pushed to
@@ -70,8 +71,10 @@ readonly EGRESS_ALIAS=tale-sandbox-egress
 readonly ZPOOL=e2e
 readonly POOL_SIZE="${INCUS_E2E_POOL_SIZE:-48G}"
 # The suites of ./suites, in the order the workflow runs them (workflow.test.ts
-# keeps the three in step).
-readonly SUITES=(boot lifecycle fencing network pool reaping adoption failures limits docker)
+# keeps the three in step), and the ones `all` leaves out: they run only when
+# named.
+readonly SUITES=(boot lifecycle fencing network pool reaping adoption failures limits docker soak)
+readonly OPT_IN_SUITES=(soak)
 
 dir="${INCUS_E2E_DIR:-/mnt/tale-incus-e2e}"
 pki="$dir/pki"
@@ -494,8 +497,15 @@ pick_suites() {
       fi
     done
   fi
+  local opt_in
   for suite in "${SUITES[@]}"; do
-    if [ "$choice" = all ] || [[ ",$choice," == *",$suite,"* ]]; then
+    opt_in=false
+    for name in "${OPT_IN_SUITES[@]}"; do
+      if [ "$name" = "$suite" ]; then opt_in=true; fi
+    done
+    if [ "$choice" = all ] && [ "$opt_in" = false ]; then
+      echo "$suite=true"
+    elif [ "$choice" != all ] && [[ ",$choice," == *",$suite,"* ]]; then
       echo "$suite=true"
     else
       echo "$suite=false"

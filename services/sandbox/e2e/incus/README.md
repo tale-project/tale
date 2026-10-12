@@ -59,6 +59,7 @@ spawners looked like.
 | `failures`  | a session whose process ends by itself stops with its console readable and resumes on the next create, a busy session stopped by a draining spawner hears the shutdown, and an image that cannot start a session fails the create with the reason and keeps the workspace                                                                                                                                                              |
 | `limits`    | `SANDBOX_MAX_SESSIONS` refuses with a place in the line; a project memory limit refuses the create that would pass it in Incus's own words and leaves the workspace volume                                                                                                                                                                                                                                                           |
 | `docker`    | Docker inside a session (opt-in): nesting and interception allowed for it alone, the inner engine comes up, `docker run` and `docker build` work, and a nested container is no freer than the session                                                                                                                                                                                                                                 |
+| `soak`      | opt-in (`suites=soak`; `soak_rounds` sets the number of rounds, default 6): rounds of eight creates at once against a spawner whose warm pool is on, so that starts, claims, refills and removals overlap on the node; each session answers a command and is destroyed, no create may fail or hang, and the node is left clean. The create times under that load are the result                                                                     |
 
 The job summary and the `report/*.json` artifacts hold the timings: boot and
 image pull, a cold create, a create from the warm pool, a resume, a destroy, the
@@ -73,7 +74,10 @@ this is how a draft runs it), dispatch it there:
 gh workflow run sandbox-incus-e2e.yml --ref <branch>                      # every suite
 gh workflow run sandbox-incus-e2e.yml --ref <branch> -f suites=pool,failures
 gh workflow run sandbox-incus-e2e.yml --ref <branch> -f runner=ubuntu-latest
+gh workflow run sandbox-incus-e2e.yml --ref <branch> -f suites=soak -f soak_rounds=40   # hunt for something rare
 ```
+
+`all` is every suite but `soak`, which runs only when it is named.
 
 On a Ubicloud 4-vCPU runner the first suite starts about four minutes after the
 dispatch (Incus and ZFS install in under a minute, the node's own setup in 15 s,

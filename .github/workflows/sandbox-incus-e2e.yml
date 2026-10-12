@@ -42,9 +42,13 @@ on:
           - ubuntu-latest
         default: ubicloud-standard-4
       suites:
-        description: 'The suites to run: all, or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker'
+        description: 'The suites to run: all (every suite but soak), or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker, soak'
         type: string
         default: all
+      soak_rounds:
+        description: 'Rounds of creates at once in the soak suite (raise it to hunt for something rare)'
+        type: string
+        default: '6'
 
 permissions:
   contents: read
@@ -361,6 +365,24 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-docker-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Creates at once, over and over
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.soak == 'true' }}
+        working-directory: services/sandbox
+        env:
+          INCUS_E2E_SOAK_ROUNDS: ${{ inputs.soak_rounds }}
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/soak.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/soak.log"
+
+      - name: Keep the output of creates at once, over and over
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.soak == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-soak-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.INCUS_E2E_DIR }}/logs
           retention-days: 14
           if-no-files-found: warn
