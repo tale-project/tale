@@ -24,7 +24,7 @@
 import { outsideOperationBudget } from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { INCUS_STATUS, incusStatus, type IncusInstance } from './incus-api.ts';
-import type { IncusClient } from './incus-client.ts';
+import { type IncusClient, isIncusBusy } from './incus-client.ts';
 import {
   incusPoolInstanceName,
   isPoolInstance,
@@ -61,6 +61,11 @@ const OPERATION_WAIT_MS = 120_000;
 /** Standbys a claim passes over (gone, retired, changed by another) before
  * the session starts cold. */
 const MAX_CLAIM_ATTEMPTS = 3;
+/** A standby whose start is still under way cannot be changed: Incus refuses
+ * the update while the start holds the instance. A start takes seconds, so
+ * the removal waits for it, this often and this many times. */
+const RETIRE_BUSY_WAIT_MS = 500;
+const RETIRE_BUSY_ATTEMPTS = 120;
 
 export interface PoolDeps {
   now?: () => number;
@@ -347,37 +352,58 @@ export class IncusPool {
   private async retire(name: string): Promise<boolean> {
     this.ready.delete(name);
     try {
-      const found = await this.client.getInstance(name);
-      if (found === undefined) return true;
-      if (!isPoolInstance(found.instance.config, this.cfg.instance)) {
-        console.warn(
-          `[sandbox.incus.pool] ${name} is no longer a standby (claimed meanwhile); left in place`,
-        );
-        return false;
-      }
-      if (label(found.instance.config, LABEL.poolRetired) === undefined) {
-        try {
-          await this.client.patchInstance(
-            name,
-            { config: { [LABEL.poolRetired]: '1' } },
-            found.etag === undefined ? {} : { ifMatch: found.etag },
-          );
-        } catch (error) {
-          if (incusStatus(error) !== 412) throw error;
-          console.warn(
-            `[sandbox.incus.pool] ${name} changed since it was read (claimed meanwhile); left in place`,
-          );
-          return false;
-        }
-      }
+      const marked = await this.markRetired(name);
+      if (marked === 'gone') return true;
+      if (marked === 'left') return false;
       await removeIncusInstance(this.client, name, {
         sleep: this.sleep,
-        createdAt: found.instance.createdAt,
+        createdAt: marked.createdAt,
       });
       return true;
     } catch (error) {
       console.warn(`[sandbox.incus.pool] removing ${name} failed:`, error);
       return false;
+    }
+  }
+
+  /**
+   * Mark a standby retired under the ETag it was read with. `gone`: there is
+   * none; `left`: it is no longer a standby, or changed since it was read, and
+   * is not this removal's to touch. A standby still starting is waited for.
+   */
+  private async markRetired(
+    name: string,
+  ): Promise<{ createdAt: string } | 'gone' | 'left'> {
+    for (let busy = 0; ; busy += 1) {
+      const found = await this.client.getInstance(name);
+      if (found === undefined) return 'gone';
+      if (!isPoolInstance(found.instance.config, this.cfg.instance)) {
+        console.warn(
+          `[sandbox.incus.pool] ${name} is no longer a standby (claimed meanwhile); left in place`,
+        );
+        return 'left';
+      }
+      const marked = { createdAt: found.instance.createdAt };
+      if (label(found.instance.config, LABEL.poolRetired) !== undefined) {
+        return marked;
+      }
+      try {
+        await this.client.patchInstance(
+          name,
+          { config: { [LABEL.poolRetired]: '1' } },
+          found.etag === undefined ? {} : { ifMatch: found.etag },
+        );
+        return marked;
+      } catch (error) {
+        if (incusStatus(error) === 412) {
+          console.warn(
+            `[sandbox.incus.pool] ${name} changed since it was read (claimed meanwhile); left in place`,
+          );
+          return 'left';
+        }
+        if (!isIncusBusy(error) || busy >= RETIRE_BUSY_ATTEMPTS) throw error;
+      }
+      await this.sleep(RETIRE_BUSY_WAIT_MS);
     }
   }
 

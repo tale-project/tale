@@ -733,6 +733,51 @@ describe('making room', () => {
     expect(standbys(fake)).toHaveLength(2);
   });
 
+  test('waits for a standby that is still starting, which Incus will not change until its start is over', async () => {
+    const { fake, pool } = fixture(2, { maxSessions: 3 });
+    await pool.reconcile();
+    fake.seedInstance('tale-sbx-ses-a', {
+      [LABEL.sandboxSession]: '1',
+      [LABEL.session]: 'a',
+    });
+    fake.seedInstance('tale-sbx-ses-b', {
+      [LABEL.sandboxSession]: '1',
+      [LABEL.session]: 'b',
+    });
+    // 2 sessions + 2 standbys + the one about to start = 5 against 3: both
+    // standbys go. The update of the first is refused while its start runs.
+    fake.fail({
+      match: 'PATCH /1.0/instances/*',
+      status: 500,
+      message:
+        'Failed to create instance update operation: Instance is busy running a "start" operation',
+      times: 3,
+    });
+    await pool.makeRoom(1);
+    expect(standbys(fake)).toHaveLength(0);
+    expect(
+      warn.mock.calls.some((call) => String(call[0]).includes('failed:')),
+    ).toBe(false);
+  });
+
+  test('gives up on a standby that stays busy, and says so', async () => {
+    const { fake, pool } = fixture(1, { maxSessions: 1 });
+    await pool.reconcile();
+    fake.fail({
+      match: 'PATCH /1.0/instances/*',
+      status: 500,
+      message: 'Instance is busy running a "start" operation',
+      times: 10_000,
+    });
+    await pool.makeRoom(1);
+    expect(standbys(fake)).toHaveLength(1);
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes('removing tale-sbx-pool-'),
+      ),
+    ).toBe(true);
+  });
+
   test('does nothing while there is room, or no pool', async () => {
     const { fake, pool } = fixture(2);
     await pool.reconcile();

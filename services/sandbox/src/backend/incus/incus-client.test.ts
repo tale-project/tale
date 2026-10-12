@@ -9,6 +9,7 @@ import { withOperationBudget } from '../../operation-budget.ts';
 import { IncusApiError, incusStatus } from './incus-api.ts';
 import {
   IncusClient,
+  isIncusBusy,
   isIncusImageMissing,
   isIncusNameConflict,
   type IncusFetch,
@@ -362,6 +363,27 @@ describe('how an answer is read', () => {
       isIncusNameConflict(new IncusApiError('Instance not found', 404)),
     ).toBe(false);
     expect(isIncusNameConflict(new Error('already exists'))).toBe(false);
+  });
+
+  test('an instance held by its own start or stop is recognised by Incus’s words', () => {
+    expect(
+      isIncusBusy(
+        new IncusApiError(
+          'Failed to create instance update operation: Instance is busy running a "start" operation',
+          500,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isIncusBusy(new IncusApiError('Instance is busy running a "stop"', 500)),
+    ).toBe(true);
+    expect(isIncusBusy(new IncusApiError('Instance not found', 404))).toBe(
+      false,
+    );
+    expect(isIncusBusy(new IncusApiError('Internal error', 500))).toBe(false);
+    expect(isIncusBusy(new Error('Instance is busy running a "start"'))).toBe(
+      false,
+    );
   });
 });
 

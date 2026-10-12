@@ -144,6 +144,16 @@ export function isIncusImageMissing(error: unknown): boolean {
   );
 }
 
+/** Does this failure say another operation holds the instance? Incus refuses
+ * an update of an instance while its start or stop runs ("Instance is busy
+ * running a \"start\" operation", an HTTP 500): nothing is wrong with the
+ * instance, and a moment later it is free. */
+export function isIncusBusy(error: unknown): boolean {
+  return (
+    error instanceof IncusApiError && /\bis busy running\b/i.test(error.message)
+  );
+}
+
 /** Does this failure say the name is taken? Incus answers a create under an
  * existing instance name with a plain error (an HTTP 500 carrying "already
  * exists") from one check and with a 409 from another, so both count. */
