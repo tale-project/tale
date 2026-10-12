@@ -1151,6 +1151,7 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
 
   it.each([
     ['budget_exceeded', 'agentRunFailedBudgetBody'],
+    ['policy_refused', 'agentRunFailedPolicyBody'],
     ['agent_model_missing', 'agentRunFailedSetupBody'],
     ['equipment_missing', 'agentRunFailedSetupBody'],
     ['input_missing', 'agentRunFailedInputBody'],

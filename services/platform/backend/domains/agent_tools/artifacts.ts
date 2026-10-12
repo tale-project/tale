@@ -4,16 +4,19 @@ import type { ToolArtifact } from '../../../lib/chat/tools.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 
 /**
- * The files a chat turn produces — a document the light sandbox wrote, a
+ * The files an agent turn produces — a document the light sandbox wrote, a
  * file the model typed out, a generated image — stored the way a chat
  * upload is: one blob in the organization's own store and one file row
- * bound to the conversation.
+ * bound to the turn's conversation. A chat's conversation is its thread; a
+ * task run's is the run's transcript thread, so a run's files are stored by
+ * the same code.
  *
  * The binding is what makes the file the conversation's: a thread-bound
  * row reads for the person who owns the chat and for the members of a
  * project it is shared with (`files/access.ts`), exactly like the files
- * that person attached, and for nobody else. The row names the person as
- * its uploader, so their erasure takes it, and its source is `agent`, so the
+ * that person attached, and for nobody else — a run's file reads for
+ * everyone who can read the task. The row names the person as its
+ * uploader, so their erasure takes it, and its source is `agent`, so the
  * organization's retention rule for agent-produced files covers it. It is
  * not indexed: the model reads a file it made through the sandbox, by its
  * ref, never through a search.
@@ -21,7 +24,7 @@ import { putOrgBlobBytes } from '../files/service.ts';
 
 /** The largest file a turn stores — the size the sandbox delivers one
  * output at, and well above any document a chat produces. */
-export const CHAT_ARTIFACT_MAX_BYTES = 20 * 1024 * 1024;
+export const ARTIFACT_MAX_BYTES = 20 * 1024 * 1024;
 
 export interface ThreadArtifactScope {
   readonly organizationId: string;
@@ -45,9 +48,9 @@ export async function storeThreadArtifact(
   if (file.bytes.byteLength === 0) {
     throw new Error(`"${file.name}" is empty`);
   }
-  if (file.bytes.byteLength > CHAT_ARTIFACT_MAX_BYTES) {
+  if (file.bytes.byteLength > ARTIFACT_MAX_BYTES) {
     throw new Error(
-      `"${file.name}" is ${Math.ceil(file.bytes.byteLength / (1024 * 1024))} MB; a file of at most ${CHAT_ARTIFACT_MAX_BYTES / (1024 * 1024)} MB can be attached`,
+      `"${file.name}" is ${Math.ceil(file.bytes.byteLength / (1024 * 1024))} MB; a file of at most ${ARTIFACT_MAX_BYTES / (1024 * 1024)} MB can be attached`,
     );
   }
   const ref = await putOrgBlobBytes(sql, scope.organizationId, {

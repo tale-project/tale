@@ -28,6 +28,7 @@ const HOUR = 60 * 60 * 1000;
 beforeEach(() => {
   vi.mocked(startTaskAgentTurnImpl).mockClear();
   vi.mocked(releaseProjectAgentSessionSlot).mockClear();
+  vi.mocked(claimAgentWorker).mockClear();
   vi.mocked(claimAgentWorker).mockResolvedValue({
     sessionId: 'session-1',
     worker: 1,
@@ -61,6 +62,8 @@ function turnSql(run: Record<string, unknown> = {}): Sql {
           viaAgentName: null,
           projectId: 'project-1',
           startedBy: 'user:starter',
+          engine: 'harness',
+          handoff: null,
           ...run,
         },
       ]);
@@ -146,5 +149,34 @@ describe('the worker a turn starts in', () => {
     const deadline = vi.mocked(startTaskAgentTurnImpl).mock.calls[0]?.[1]
       .deadlineAt;
     expect(deadline).toBeGreaterThanOrEqual(Date.now() + 12 * HOUR - 60_000);
+  });
+});
+
+describe('which engine a turn job serves', () => {
+  const PAYLOAD = { organizationId: 'org-1', runId: 'run-1', execId: 'exec-1' };
+
+  it('starts nothing for a native run that reached the harness queue', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await createTaskList({ sql: turnSql({ engine: 'native' }) })[
+      'task.agent_turn'
+    ]?.(PAYLOAD);
+
+    expect(claimAgentWorker).not.toHaveBeenCalled();
+    expect(startTaskAgentTurnImpl).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('is native'));
+    warn.mockRestore();
+  });
+
+  it('hands the brief a native pass wrote to the harness it handed the run to [TASK-R31]', async () => {
+    const handoff = { reason: 'needs a repository', brief: 'Clone and test.' };
+    await createTaskList({ sql: turnSql({ handoff }) })['task.agent_turn']?.(
+      PAYLOAD,
+    );
+
+    expect(startTaskAgentTurnImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ handoff }),
+      undefined,
+    );
   });
 });

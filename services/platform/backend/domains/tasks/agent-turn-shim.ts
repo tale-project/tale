@@ -7,18 +7,12 @@ import {
 } from '../../../lib/harnesses/timeline';
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
-import {
-  cutTaskText,
-  type MentionSource,
-  relabelTaskMentions,
-} from '../../core/tasks/mentions.ts';
+import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { orgAdapterShimHandlers } from '../../lib/org-config.ts';
-import { currentMentionNames } from '../collab/mention-directory.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
@@ -49,6 +43,7 @@ import {
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
+import { readProjectAgentSkillScope } from './agent-skill-scope.ts';
 import { parkAgentRunInTx } from './agent-workers.ts';
 import { staleTaskInputMirrors } from './input-mirrors.ts';
 import { isTaskRunConfined } from './run-authority.ts';
@@ -57,6 +52,7 @@ import {
   deferredAgentKickRefusal,
   handTaskToInProgressForKick,
 } from './service.ts';
+import { readTaskBrief } from './task-brief-read.ts';
 
 /**
  * Handler map for the REUSED task-agent turn host
@@ -455,103 +451,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'tasks/agent_runs:getTaskBriefForAgentRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { taskId: string };
-      const tasks = await sql<
-        {
-          title: string;
-          description: string | null;
-          labelIds: string[];
-          number: number | null;
-          projectId: string;
-          attachments: unknown;
-          outputs: unknown;
-          organizationId: string;
-        }[]
-      >`
-        SELECT title, description, label_ids AS "labelIds", number,
-               project_id AS "projectId", attachments, outputs,
-               org_id AS "organizationId"
-        FROM app.tasks WHERE id = ${args.taskId} LIMIT 1
-      `;
-      const task = tasks[0];
-      if (!task) return null;
-      const projects = await sql<{ name: string; key: string | null }[]>`
-        SELECT name, key FROM app.projects
-        WHERE id = ${task.projectId} LIMIT 1
-      `;
-      const project = projects[0];
-      const identifier =
-        project?.key != null && task.number !== null
-          ? `${project.key}-${task.number}`
-          : undefined;
-      const discussion = await sql<
-        { authorType: string; body: string; createdAt: number }[]
-      >`
-        SELECT * FROM (
-          SELECT meta.author_type AS "authorType",
-                 coalesce(m.text, '') AS body,
-                 m.created_at_ms::float8 AS "createdAt"
-          FROM app.task_discussion_message_meta meta
-          JOIN app.messages m ON m.id = meta.message_id
-          WHERE meta.task_id = ${args.taskId}
-          ORDER BY m.created_at_ms DESC
-          LIMIT 10
-        ) tail ORDER BY "createdAt"
-      `;
-      const labelNames =
-        task.labelIds.length > 0
-          ? (
-              await sql<{ name: string }[]>`
-                SELECT name FROM app.task_labels
-                WHERE id = ANY(${task.labelIds})
-                ORDER BY array_position(${task.labelIds}::text[], id)
-              `
-            ).map((row) => row.name)
-          : [];
-      const fileList = (
-        value: unknown,
-      ): Array<{ fileId: string; fileName: string }> =>
-        Array.isArray(value)
-          ? value
-              .filter(
-                (entry): entry is { fileId: unknown; fileName: unknown } =>
-                  entry !== null && typeof entry === 'object',
-              )
-              .map((entry) => ({
-                fileId: typeof entry.fileId === 'string' ? entry.fileId : '',
-                fileName:
-                  typeof entry.fileName === 'string' ? entry.fileName : '',
-              }))
-              .filter((entry) => entry.fileId !== '' && entry.fileName !== '')
-          : [];
-      // The agent reads each mention with the CURRENT name of whoever it
-      // names: the address is what it acts on, the name what it calls them.
-      const names = await currentMentionNames(sql, task.organizationId, [
-        task.description ?? '',
-        ...discussion.map((entry) => entry.body),
-      ]);
-      return {
-        title: task.title,
-        ...(task.description !== null
-          ? { description: relabelTaskMentions(task.description, names) }
-          : {}),
-        ...(labelNames.length > 0 ? { labels: labelNames } : {}),
-        ...(identifier !== undefined ? { identifier } : {}),
-        ...(project !== undefined ? { projectName: project.name } : {}),
-        discussion: discussion.map((entry) => {
-          const body = relabelTaskMentions(entry.body, names);
-          return {
-            author: entry.authorType === 'user' ? 'user' : 'agent',
-            // Never cut inside a mention.
-            body:
-              body.length > 2000
-                ? `${cutTaskText(body, 2000)}\n… (truncated)`
-                : body,
-            at: entry.createdAt,
-          };
-        }),
-        attachments: fileList(task.attachments),
-        outputs: fileList(task.outputs),
-      };
+      return readTaskBrief(sql, args.taskId);
     },
 
     // ------------------------------------------------- trusted task writers
@@ -977,18 +877,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'projects/internal_queries:getProjectAgentSkillScope': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { agentId: string };
-      // `app.project_agents` carries no team columns, so the audience
-      // expression's bare column names resolve to the project's.
-      const rows = await sql<{ teamIds: string[] | null }[]>`
-        SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
-        FROM app.project_agents a
-        JOIN app.projects p ON p.id = a.project_id
-        WHERE a.id = ${args.agentId}
-        LIMIT 1
-      `;
-      const row = rows[0];
-      if (!row) return null;
-      return { teamIds: row.teamIds ?? [] };
+      return readProjectAgentSkillScope(sql, args.agentId);
     },
 
     // Skill bundles for staging — the reused file layer.

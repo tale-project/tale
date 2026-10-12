@@ -8,6 +8,7 @@ import {
 } from '../../core/tasks/task_auto_retry.ts';
 import { resolveTaskKickResume } from '../../core/tasks/task_kick_resume.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import type { AgentRunHandoff } from './agent-runs.ts';
 import { recordSlotReleaseInTx } from './slot-wakes.ts';
 
 /**
@@ -237,6 +238,10 @@ export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
    * absent when none was — the run failed through a door that arms none, or
    * with a failure no retry changes. */
   readonly autoRetryArmedAt?: number | undefined;
+  /** What the run began on the native engine and handed to the harness
+   * (migration 0201): a retry goes straight to the harness, where the work
+   * now is, and carries the same brief. */
+  readonly handoff?: AgentRunHandoff | undefined;
 }
 
 /**
@@ -268,6 +273,7 @@ export async function loadTaskRetryHistory(
       autoRetryAttempt: number | null;
       autoRetryRefusedAt: number | null;
       autoRetryArmedAt: number | null;
+      handoff: AgentRunHandoff | null;
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
@@ -281,7 +287,8 @@ export async function loadTaskRetryHistory(
            api_error_status AS "apiErrorStatus",
            auto_retry_attempt AS "autoRetryAttempt",
            auto_retry_refused_at_ms::float8 AS "autoRetryRefusedAt",
-           auto_retry_armed_at_ms::float8 AS "autoRetryArmedAt"
+           auto_retry_armed_at_ms::float8 AS "autoRetryArmedAt",
+           handoff
     FROM app.project_agent_runs
     WHERE task_id = ${taskId}
     ORDER BY seq DESC
@@ -305,6 +312,7 @@ export async function loadTaskRetryHistory(
     autoRetryAttempt: row.autoRetryAttempt ?? undefined,
     autoRetryRefusedAt: row.autoRetryRefusedAt ?? undefined,
     autoRetryArmedAt: row.autoRetryArmedAt ?? undefined,
+    handoff: row.handoff ?? undefined,
   }));
 }
 

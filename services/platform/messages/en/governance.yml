@@ -1507,6 +1507,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejected
     gdpr_erasure_cancelled: Cancelled
   categories:
+    runTranscripts: Agent run transcripts
     modelApiRequests: Model requests
     userMemories: Personal memories
     userPreferences: User preferences
@@ -1735,7 +1736,7 @@ standardAgent:
   description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
   enabledLabel: Provide a standard agent
   harnessLabel: Agent runtime
-  harnessHint: Automatic runs Claude Code, or the agent runtime a subscription model is bound to.
+  harnessHint: Automatic works with the same tools as the chat and hands over to Claude Code, or to the agent runtime a subscription model is bound to, when a task needs a full workspace. Choose an agent runtime to run every task on it.
   modelLabel: Model
   modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
   automaticLabel: Automatic
@@ -1745,6 +1746,7 @@ standardAgent:
   instructionsHint: What the standard agent always keeps in mind. Leave this empty to use the built-in instructions.
   instructionsPlaceholder: Built-in instructions
   current: For you, it runs on {harness} with {model}.
+  currentNative: For you, it works with {model} and hands over to {harness} when a task needs a full workspace.
   refusal:
     switchedOff: The standard agent is switched off.
     unreadable: The saved settings can't be read. Retry, or save them again to repair them.

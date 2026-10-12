@@ -143,6 +143,7 @@ type Scenario =
   | 'cloudRegion'
   | 'makeFile'
   | 'makeSpreadsheet'
+  | 'useWorkspace'
   | 'workDone';
 
 function userTexts(messages: ParsedMessage[]): string[] {
@@ -266,12 +267,15 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.cloudRegion)) return 'cloudRegion';
   if (
     last.includes(MOCK_TRIGGERS.makeFile) ||
-    last.includes(MOCK_TRIGGERS.makeSpreadsheet)
+    last.includes(MOCK_TRIGGERS.makeSpreadsheet) ||
+    last.includes(MOCK_TRIGGERS.useWorkspace)
   ) {
     if (resume) return 'workDone';
     return last.includes(MOCK_TRIGGERS.makeFile)
       ? 'makeFile'
-      : 'makeSpreadsheet';
+      : last.includes(MOCK_TRIGGERS.makeSpreadsheet)
+        ? 'makeSpreadsheet'
+        : 'useWorkspace';
   }
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
   // unmatched stays on the spec-pinned canned path. A tool-scripted entry
@@ -529,11 +533,17 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
       }
 
       // A work-tool scenario's first turn: a sentence, then the tool call.
-      if (scenario === 'makeFile' || scenario === 'makeSpreadsheet') {
+      if (
+        scenario === 'makeFile' ||
+        scenario === 'makeSpreadsheet' ||
+        scenario === 'useWorkspace'
+      ) {
         const intro =
           scenario === 'makeFile'
             ? MOCK_WORK_TOOLS.fileIntro
-            : MOCK_WORK_TOOLS.spreadsheetIntro;
+            : scenario === 'makeSpreadsheet'
+              ? MOCK_WORK_TOOLS.spreadsheetIntro
+              : MOCK_WORK_TOOLS.workspaceIntro;
         for (const delta of toDeltas(intro)) {
           sendDelta({ content: delta }, null);
           await pause();
@@ -554,18 +564,31 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
                       }),
                     },
                   }
-                : {
-                    index: 0,
-                    id: 'call_work_code_0',
-                    type: 'function',
-                    function: {
-                      name: 'run_code',
-                      arguments: JSON.stringify({
-                        language: 'python',
-                        code: MOCK_WORK_TOOLS.spreadsheetCode,
-                      }),
+                : scenario === 'makeSpreadsheet'
+                  ? {
+                      index: 0,
+                      id: 'call_work_code_0',
+                      type: 'function',
+                      function: {
+                        name: 'run_code',
+                        arguments: JSON.stringify({
+                          language: 'python',
+                          code: MOCK_WORK_TOOLS.spreadsheetCode,
+                        }),
+                      },
+                    }
+                  : {
+                      index: 0,
+                      id: 'call_work_workspace_0',
+                      type: 'function',
+                      function: {
+                        name: 'use_workspace',
+                        arguments: JSON.stringify({
+                          reason: MOCK_WORK_TOOLS.workspaceReason,
+                          brief: MOCK_WORK_TOOLS.workspaceBrief,
+                        }),
+                      },
                     },
-                  },
             ],
           },
           null,

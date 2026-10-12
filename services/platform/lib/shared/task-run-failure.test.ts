@@ -10,6 +10,7 @@ import {
 describe('taskRunFailureClass', () => {
   it.each([
     ['budget_exceeded', 'budget'],
+    ['policy_refused', 'policy'],
     ['agent_deleted', 'setup'],
     ['agent_model_missing', 'setup'],
     ['equipment_missing', 'setup'],

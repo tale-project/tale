@@ -42,7 +42,7 @@ quota:
     project: Chaque tâche sur laquelle un agent travaille en même temps s’exécute dans sa propre sandbox.
     workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
     render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
-    light: "Les chats exécutent du code dans une petite sandbox jetable pour créer des documents et des graphiques ; une sandbox inutilisée cède sa place au chat suivant."
+    light: "Les chats et les exécutions de tâches exécutent du code dans une petite sandbox jetable pour créer des documents et des graphiques ; une sandbox inutilisée cède sa place à la suivante."
 cleanup:
   title: Nettoyage des espaces de travail
   description:
@@ -145,7 +145,7 @@ worker:
   agent: Worker {number}
   member: Worker de membre {number}
 deletedAgent: Agent supprimé
-chatSandbox: Sandbox du chat
+lightSandbox: Sandbox légère
 devices:
   title: Appareils
   description:

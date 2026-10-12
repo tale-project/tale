@@ -7,7 +7,12 @@ import {
   readSkillForViewer,
 } from '../../core/skills/file_actions.ts';
 import { prewarmLightSandbox } from './run-code.ts';
-import { failure, isArgsRecord, type WorkToolScope } from './scope.ts';
+import {
+  failure,
+  isArgsRecord,
+  skillReachable,
+  type WorkToolScope,
+} from './scope.ts';
 
 /**
  * The skill tools — `load_skill` and `read_skill_file` — over the
@@ -28,26 +33,40 @@ export const SKILL_BODY_MAX_CHARS = 40_000;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** The skills the viewer may load, for the catalog block: name, the
- * description excerpt's source, and the explicit-only flag. A library that
- * cannot be read lists nothing (and the tools then answer not found). */
+ * description excerpt's source, and the explicit-only flag. `only` narrows
+ * the list to the skills an agent is equipped with. Throws when the library
+ * cannot be read — a check that must tell "none" from "unreadable" asks this;
+ * a turn's catalog asks {@link listSkillCatalog}. */
+export async function readSkillCatalog(
+  orgSlug: string,
+  viewer: SkillViewer,
+  only?: readonly string[],
+): Promise<SkillCatalogEntry[]> {
+  const listing = await listSkillsForViewer({ orgSlug, viewer });
+  return listing.skills
+    .filter((skill) => only === undefined || only.includes(skill.slug))
+    .map((skill): SkillCatalogEntry => {
+      const entry: {
+        slug: string;
+        description?: string;
+        explicitOnly?: boolean;
+      } = { slug: skill.slug };
+      if (skill.description !== '') entry.description = skill.description;
+      if (skill.disableModelInvocation === true) entry.explicitOnly = true;
+      return entry;
+    })
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+/** {@link readSkillCatalog} for a turn: a library that cannot be read lists
+ * nothing (and the tools then answer not found). */
 export async function listSkillCatalog(
   orgSlug: string,
   viewer: SkillViewer,
+  only?: readonly string[],
 ): Promise<SkillCatalogEntry[]> {
   try {
-    const listing = await listSkillsForViewer({ orgSlug, viewer });
-    return listing.skills
-      .map((skill): SkillCatalogEntry => {
-        const entry: {
-          slug: string;
-          description?: string;
-          explicitOnly?: boolean;
-        } = { slug: skill.slug };
-        if (skill.description !== '') entry.description = skill.description;
-        if (skill.disableModelInvocation === true) entry.explicitOnly = true;
-        return entry;
-      })
-      .sort((a, b) => a.slug.localeCompare(b.slug));
+    return await readSkillCatalog(orgSlug, viewer, only);
   } catch (error) {
     console.warn(
       `[agent-tools] the skill library of ${orgSlug} could not be listed for a turn:`,
@@ -76,11 +95,13 @@ export async function runLoadSkill(
       'Give "name" exactly as the skill list writes it, e.g. "docx".',
     );
   }
-  const skill = await readSkillForViewer({
-    orgSlug: scope.orgSlug,
-    slug,
-    viewer: scope.skillViewer,
-  });
+  const skill = skillReachable(scope, slug)
+    ? await readSkillForViewer({
+        orgSlug: scope.orgSlug,
+        slug,
+        viewer: scope.skillViewer,
+      })
+    : null;
   if (skill === null) {
     return failure(
       'not_found',
@@ -136,12 +157,14 @@ export async function runReadSkillFile(
     input.offset >= 0
       ? input.offset
       : 0;
-  const read = await readSkillAssetForViewer({
-    orgSlug: scope.orgSlug,
-    slug,
-    path,
-    viewer: scope.skillViewer,
-  });
+  const read = skillReachable(scope, slug)
+    ? await readSkillAssetForViewer({
+        orgSlug: scope.orgSlug,
+        slug,
+        path,
+        viewer: scope.skillViewer,
+      })
+    : ({ kind: 'no-skill' } as const);
   if (read.kind === 'no-skill') {
     return failure('not_found', `There is no skill "${slug}" to read from.`);
   }

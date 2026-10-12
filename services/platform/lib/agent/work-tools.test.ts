@@ -28,7 +28,7 @@ describe('work tools', () => {
     }
   });
 
-  it('only run_code needs a sandbox — the rest run on the platform', () => {
+  it('each tool runs in its tier: the platform, a light sandbox, or the full workspace', () => {
     const tiers = Object.fromEntries(
       WORK_TOOL_NAMES.map((name) => [name, workToolTier(name)]),
     );
@@ -38,7 +38,17 @@ describe('work tools', () => {
       load_skill: 'none',
       read_skill_file: 'none',
       run_code: 'light',
+      use_workspace: 'full',
     });
+  });
+
+  it('use_workspace names its last-resort cost and what to hand over', () => {
+    const description = workWireTool('use_workspace').description;
+    expect(description).toMatch(/last resort/);
+    expect(description).toMatch(/without seeing this conversation/);
+    expect(description).toMatch(/create_file and run_code/);
+    const schema = schemaOf('use_workspace');
+    expect(schema.required).toEqual(['reason', 'brief']);
   });
 
   it('recognizes its own names only', () => {

@@ -2,29 +2,24 @@ import { DEFAULT_CHAT_TOOLS } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
+import { CHAT_ASSISTANT_SLUG } from '../../../lib/chat/assistant.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { UserSkillViewer } from '../../../lib/skills/visibility.ts';
 import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
-import type { ActionCtx } from '../../core/lib/ctx.ts';
-import {
-  resolveImageGenerationModel,
-  type ResolvedImageModel,
-} from '../../core/lib/providers/resolve_image_model.ts';
-import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import {
-  createWorkToolExecutor,
-  workToolDocs,
-} from '../agent_tools/executor.ts';
+  readThreadFiles,
+  storeThreadArtifact,
+} from '../agent_tools/artifacts.ts';
+import { turnWorkToolsFor } from '../agent_tools/executor.ts';
+import { turnImageBilling } from '../agent_tools/image-billing.ts';
+import { offeredImageModel } from '../agent_tools/image-model.ts';
 import type { WorkToolScope } from '../agent_tools/scope.ts';
 import { listSkillCatalog } from '../agent_tools/skills.ts';
-import { readThreadFiles, storeThreadArtifact } from './artifacts.ts';
-import { chatImageBilling } from './image-billing.ts';
-import { chatShimHandlers } from './shim.ts';
 
 /**
  * The chat assistant's work tools for one turn — what lets a chat make the
@@ -51,39 +46,6 @@ export interface ChatWorkTurn {
   readonly threadId: string;
 }
 
-/** The image model a chat turn may use, or `undefined` — policy off, or
- * nothing can serve it. Resolved over the provider credentials the way the
- * agent turns resolve it; a failure offers no image tool rather than
- * failing the turn. */
-async function chatImageModel(
-  sql: Sql,
-  organizationId: string,
-): Promise<ResolvedImageModel | undefined> {
-  const policy = await readGovernancePolicyForOrg(
-    sql,
-    organizationId,
-    'image_generation',
-  );
-  if (policy?.enabled !== true) return undefined;
-  // The turn's own ctx: the same handlers that resolve the chat's model
-  // resolve the image model, whichever module hosts each of them.
-  const shim = createCtxShim(chatShimHandlers(sql));
-  try {
-    const model = await resolveImageGenerationModel(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver reads org slugs, provider credentials and one policy, all served by these handlers
-      shim as unknown as ActionCtx,
-      organizationId,
-    );
-    return model ?? undefined;
-  } catch (error) {
-    console.warn(
-      `[chat] image generation not offered to this turn for ${organizationId}:`,
-      error,
-    );
-    return undefined;
-  }
-}
-
 export async function chatWorkTools(
   sql: Sql,
   turn: ChatWorkTurn,
@@ -93,7 +55,7 @@ export async function chatWorkTools(
     resolveOrgSlug(sql, turn.organizationId),
     findActingMember(sql, turn.organizationId, turn.userId),
     getUserTeamIds(sql, turn.organizationId, turn.userId),
-    chatImageModel(sql, turn.organizationId),
+    offeredImageModel(sql, turn.organizationId),
   ]);
   if (orgSlug === null || member === null) return undefined;
   const switches = policy ?? DEFAULT_CHAT_TOOLS;
@@ -143,7 +105,7 @@ export async function chatWorkTools(
       ? {
           image: {
             model: imageModel,
-            billing: chatImageBilling(sql, {
+            billing: turnImageBilling(sql, {
               organizationId: turn.organizationId,
               userId: turn.userId,
               ...(turn.apiKeyId !== undefined
@@ -151,19 +113,15 @@ export async function chatWorkTools(
                 : {}),
               threadId: turn.threadId,
               projectIds,
+              agentSlug: CHAT_ASSISTANT_SLUG,
+              unit: 'reply',
             }),
           },
         }
       : {}),
   };
-  const executor = createWorkToolExecutor(scope);
-  if (executor === undefined) return undefined;
-  return {
-    executor,
-    toolDocs: workToolDocs(scope),
-    loadout,
-    skillCatalog: loadout.skills
-      ? await listSkillCatalog(orgSlug, skillViewer)
-      : [],
-  };
+  return turnWorkToolsFor(
+    scope,
+    loadout.skills ? await listSkillCatalog(orgSlug, skillViewer) : [],
+  );
 }

@@ -1599,6 +1599,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejetée
     gdpr_erasure_cancelled: Annulée
   categories:
+    runTranscripts: Transcriptions d’exécutions d’agent
     modelApiRequests: Requêtes aux modèles
     userMemories: Mémoires personnelles
     userPreferences: Préférences utilisateur
@@ -1831,7 +1832,7 @@ standardAgent:
   description: L'agent que Tale fournit dans chaque projet qui n'en a pas, pour que toute personne qui peut ouvrir le projet puisse lui confier une tâche, membres compris.
   enabledLabel: Fournir un agent standard
   harnessLabel: Environnement d'agent
-  harnessHint: Automatique utilise Claude Code, ou l'environnement d'agent auquel un modèle d'abonnement est lié.
+  harnessHint: Automatique travaille avec les mêmes outils que le chat et passe la main à Claude Code, ou à l'environnement d'agent auquel un modèle d'abonnement est lié, quand une tâche demande un espace de travail complet. Choisis un environnement d'agent pour y exécuter toutes les tâches.
   modelLabel: Modèle
   modelHint: Automatique choisit un modèle recommandé que la personne qui lance la tâche peut utiliser. Un modèle choisi reste en vigueur jusqu'à ce que tu le changes, même s'il devient indisponible.
   automaticLabel: Automatique
@@ -1841,6 +1842,7 @@ standardAgent:
   instructionsHint: Ce que l'agent standard garde toujours en tête. Laisse ce champ vide pour utiliser les instructions intégrées.
   instructionsPlaceholder: Instructions intégrées
   current: Pour toi, il fonctionne avec {harness} et {model}.
+  currentNative: Pour toi, il travaille avec {model} et passe la main à {harness} quand une tâche demande un espace de travail complet.
   refusal:
     switchedOff: L'agent standard est désactivé.
     unreadable: Les réglages enregistrés sont illisibles. Réessaie, ou enregistre-les à nouveau pour les réparer.

@@ -20,6 +20,10 @@ export interface WorkLoadout {
   readonly generateImage: boolean;
   readonly skills: boolean;
   readonly runCode: boolean;
+  /** The turn may hand its work to the full workspace (`use_workspace`):
+   * a task's turn, which has a coding agent to hand it to. A chat has none,
+   * and leaves this off. */
+  readonly escalate?: boolean;
 }
 
 /** True when the loadout offers any work tool at all. */
@@ -28,7 +32,8 @@ export function offersWork(loadout: WorkLoadout): boolean {
     loadout.createFile ||
     loadout.generateImage ||
     loadout.skills ||
-    loadout.runCode
+    loadout.runCode ||
+    loadout.escalate === true
   );
 }
 
@@ -54,6 +59,11 @@ export function renderWorkLadder(loadout: WorkLoadout): string | undefined {
   if (loadout.runCode) {
     steps.push(
       'run_code — the light sandbox, for a Word, Excel, PowerPoint or PDF file, a chart, a calculation over data, a conversion, or a change to an uploaded file.',
+    );
+  }
+  if (loadout.escalate === true) {
+    steps.push(
+      'use_workspace — the full workspace, with a shell, git and a browser, for a repository, a browser session or hours of work. It starts a full sandbox: the last resort.',
     );
   }
   const lines = [

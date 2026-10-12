@@ -252,10 +252,17 @@ export function StandardAgentEditor({
     readFailed || !enabled || availability === undefined
       ? null
       : availability.available
-        ? t('standardAgent.current', {
-            harness: availability.harnessLabel ?? availability.harness ?? '',
-            model: availability.modelLabel ?? availability.model ?? '',
-          })
+        ? t(
+            // A start by a person works with the chat's own tools and hands
+            // over to the runtime only when a task needs a full workspace.
+            availability.engine === 'native'
+              ? 'standardAgent.currentNative'
+              : 'standardAgent.current',
+            {
+              harness: availability.harnessLabel ?? availability.harness ?? '',
+              model: availability.modelLabel ?? availability.model ?? '',
+            },
+          )
         : null;
   const refusal = readFailed
     ? t('standardAgent.loadFailed')

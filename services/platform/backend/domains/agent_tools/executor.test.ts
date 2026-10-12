@@ -95,4 +95,34 @@ describe('createWorkToolExecutor', () => {
     );
     error.mockRestore();
   });
+
+  it('offers use_workspace only to a turn that may hand over and has somewhere to', () => {
+    const escalation = {
+      request: vi.fn(() => Promise.resolve({ accepted: true as const })),
+    };
+    const names = (scope: ReturnType<typeof testScope>['scope']) =>
+      createWorkToolExecutor(scope)?.wireTools.map((tool) => tool.name);
+
+    expect(names(testScope().scope)).not.toContain('use_workspace');
+    // The loadout alone is not enough: nothing to hand it to.
+    expect(
+      names(testScope({ loadout: { ...FULL_LOADOUT, escalate: true } }).scope),
+    ).not.toContain('use_workspace');
+    // The port alone is not enough either: the loadout says what the turn may do.
+    expect(names(testScope({ escalation }).scope)).not.toContain(
+      'use_workspace',
+    );
+    const both = testScope({
+      loadout: { ...FULL_LOADOUT, escalate: true },
+      escalation,
+    }).scope;
+    expect(names(both)).toEqual([
+      'load_skill',
+      'read_skill_file',
+      'create_file',
+      'run_code',
+      'use_workspace',
+    ]);
+    expect(workToolDocs(both).map((doc) => doc.id)).toContain('use_workspace');
+  });
 });

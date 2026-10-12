@@ -115,6 +115,7 @@ agentRun:
   runReadFailed: Der Agentenlauf konnte nicht geladen werden. Versuch es erneut.
   failure:
     budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
+    policy: Die Inhaltsrichtlinie deiner Organisation hat diesen Lauf gestoppt. Passe die Aufgabe so an, dass sie die Richtlinie einhält, oder frag einen Admin nach der Richtlinie — und starte den Agenten dann erneut.
     setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
     input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
     time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.

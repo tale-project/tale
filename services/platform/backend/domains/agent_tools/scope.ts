@@ -6,15 +6,16 @@ import type { SkillViewer } from '../../../lib/skills/visibility.ts';
 import type { ResolvedImageModel } from '../../core/lib/providers/resolve_image_model.ts';
 
 /**
- * What a work tool needs from the lane that runs the turn — the chat today,
- * a native task run on the same runtime — so the tools themselves are one
+ * What a work tool needs from the lane that runs the turn — the chat, or a
+ * task run on the native engine — so the tools themselves are one
  * implementation for every lane.
  *
- * A lane answers four questions through these ports: where a produced file
+ * A lane answers a few questions through these ports: where a produced file
  * goes (the conversation, or the task's deliverables), which files the turn
  * may read back (the conversation's uploads and products, or the task's
- * inputs), whose spend an image is, and whose sandbox the code runs in. The
- * person behind the turn decides which skills it sees.
+ * inputs), whose spend an image is, whose sandbox the code runs in, which
+ * skills it reaches, and whether it may hand its work to the full workspace.
+ * The person behind the turn decides which skills it sees.
  */
 
 /** Where a file the turn produces goes. */
@@ -56,6 +57,22 @@ export interface ImageBilling {
   }): Promise<void>;
 }
 
+/** What a turn hands to the full workspace: why it cannot finish, and the
+ * brief its successor works from. */
+export interface WorkspaceHandoff {
+  readonly reason: string;
+  readonly brief: string;
+}
+
+/** Where a turn that has a full workspace to hand its work to does so. The
+ * lane decides what a hand-over does and whether it may happen now; the
+ * turn only asks. */
+export interface Escalation {
+  request(
+    handoff: WorkspaceHandoff,
+  ): Promise<{ accepted: true } | { accepted: false; message: string }>;
+}
+
 export interface WorkToolScope {
   readonly sql: Sql;
   readonly organizationId: string;
@@ -64,9 +81,18 @@ export interface WorkToolScope {
    * viewer, the spend's subject. */
   readonly userId: string;
   readonly skillViewer: SkillViewer;
+  /** The skills the turn reaches, by name. Absent: every skill its viewer
+   * sees, as in a chat. A task's agent reaches only what it is equipped
+   * with, whatever else its project can see. */
+  readonly skillAllowlist?: readonly string[];
   /** The key of the light sandbox the turn's code runs in: a
    * conversation's lineage root, a run's id. */
   readonly sandboxOwnerKey: string;
+  /** How long a call waits for a light sandbox when every one of the
+   * organization's is running code. Absent, a call answers busy at once: a
+   * chat's person is watching and can ask again. A task run has no one to
+   * ask, so its lane gives it patience. */
+  readonly lightSandboxWaitMs?: number;
   /** Which work tools the turn offers. */
   readonly loadout: WorkLoadout;
   readonly artifacts: ArtifactSink;
@@ -76,6 +102,16 @@ export interface WorkToolScope {
     readonly model: ResolvedImageModel;
     readonly billing: ImageBilling;
   };
+  /** The hand-over to the full workspace, on a turn that has one. */
+  readonly escalation?: Escalation;
+}
+
+/** Whether the turn reaches the skill `slug`: an equipped list narrows what
+ * the viewer would otherwise see. */
+export function skillReachable(scope: WorkToolScope, slug: string): boolean {
+  return (
+    scope.skillAllowlist === undefined || scope.skillAllowlist.includes(slug)
+  );
 }
 
 /** A structured failure the model reads and can act on — every work tool

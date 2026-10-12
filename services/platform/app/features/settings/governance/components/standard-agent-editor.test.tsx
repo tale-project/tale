@@ -24,6 +24,19 @@ import { StandardAgentEditor } from './standard-agent-editor';
 
 type Availability = ReturnsOf<'projects/queries:getStandardAgent'>;
 
+/** What the settings page reads when the standard agent is on and served by a runtime. */
+const AVAILABLE = {
+  enabled: true,
+  available: true,
+  harness: 'claude-code',
+  harnessLabel: 'Claude Code',
+  model: 'claude-sonnet-5',
+  modelLabel: 'Claude Sonnet 5',
+  modelProvider: 'anthropic',
+  source: 'preferred',
+  engine: 'harness',
+} satisfies Availability;
+
 const { state, saved, refetch, refetchAvailability } = vi.hoisted(() => ({
   saved: vi.fn(),
   refetch: vi.fn(),
@@ -136,16 +149,7 @@ beforeEach(() => {
   state.hasPolicy = true;
   state.policyError = undefined;
   state.canEdit = true;
-  state.availability = {
-    enabled: true,
-    available: true,
-    harness: 'claude-code',
-    harnessLabel: 'Claude Code',
-    model: 'claude-sonnet-5',
-    modelLabel: 'Claude Sonnet 5',
-    modelProvider: 'anthropic',
-    source: 'preferred',
-  };
+  state.availability = AVAILABLE;
 });
 
 describe('standard agent settings', () => {
@@ -164,6 +168,18 @@ describe('standard agent settings', () => {
       screen.getByText('For you, it runs on Claude Code with Claude Sonnet 5.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says a start by a person works with the chat’s tools and hands over to the runtime only when a task needs a full workspace', async () => {
+    state.availability = { ...AVAILABLE, engine: 'native' };
+    await renderEditor();
+
+    expect(
+      screen.getByText(
+        'For you, it works with Claude Sonnet 5 and hands over to Claude Code when a task needs a full workspace.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/For you, it runs on/)).not.toBeInTheDocument();
   });
 
   it('switches off at once, keeping its saved choices', async () => {

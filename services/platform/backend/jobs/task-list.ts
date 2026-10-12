@@ -87,6 +87,7 @@ import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
 } from '../domains/tasks/kick-plan.ts';
+import { runNativeAgentTurn } from '../domains/tasks/native-turn.ts';
 import {
   runStarterMayEditProject,
   sessionIdForAgentRun,
@@ -461,6 +462,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             ? { apiKeyId: newest.apiKeyId }
             : {}),
           trigger: 'auto_retry',
+          // A run that handed its work to the harness retries there, with
+          // the same brief: a native pass would only start the same
+          // hand-over again.
+          ...(newest.handoff !== undefined ? { handoff: newest.handoff } : {}),
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
             : {}),
@@ -1382,10 +1387,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           viaAgentName: string | null;
           projectId: string;
           startedBy: string;
+          handoff: { reason: string; brief: string } | null;
+          engine: string;
         }[]
       >`
         SELECT r.task_id AS "taskId", r.agent_id AS "agentId",
                r.project_id AS "projectId", r.started_by AS "startedBy",
+               r.handoff, r.engine,
                r.session_id AS "sessionId", r.harness, r.model,
                r.model_provider AS "modelProvider", r.feedback,
                r.mention_source AS "mentionSource",
@@ -1406,6 +1414,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (!run || run.status !== 'queued' || run.execId !== input.execId) {
         console.warn(
           `[task-agent] turn job for ${input.execId} skipped (run ${run?.status ?? 'gone'})`,
+        );
+        return;
+      }
+      // A native run has its own start job; one that reached this queue
+      // starts nothing here (the queued-run recovery enqueues the right job).
+      if (run.engine !== 'harness') {
+        console.warn(
+          `[task-agent] turn job for ${input.execId} skipped (the run is ${run.engine})`,
         );
         return;
       }
@@ -1528,6 +1544,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ...(run.mentionSource !== null
             ? { mentionSource: run.mentionSource }
             : {}),
+          // A run a native pass handed over carries the pass's brief.
+          ...(run.handoff !== null ? { handoff: run.handoff } : {}),
           // A run an automation step or another agent started names it in
           // the prompt, so its message never reads as a person's review.
           ...(run.startedVia === 'automation' && run.viaAutomation !== null
@@ -1548,6 +1566,23 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ...plan,
         },
         context !== undefined ? { signal: context.signal } : undefined,
+      );
+    },
+    'task.agent_native': async (payload, context) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          execId: z.string().min(1),
+        })
+        .parse(payload);
+      // The whole native turn — the model's rounds, the light sandbox, the
+      // settle — runs in this job. The job's own signal ends it when the
+      // worker is stopped; the run then fails as interrupted and retries.
+      await runNativeAgentTurn(
+        deps.sql,
+        input,
+        context !== undefined ? { signal: context.signal } : {},
       );
     },
     'task.agent_retry': agentRetry,

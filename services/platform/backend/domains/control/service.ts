@@ -119,9 +119,11 @@ export interface AutomationWork {
    * drain names none). */
   automationRuns: number;
   /** Agent-turn drive windows that were already running when the drain
-   * began. The job queue knows no colour, so they are counted on every
-   * colour; each lasts at most 90 s, and a drained worker hands the turn's
-   * next window to the live colour. */
+   * began, and native task turns, which run to their end inside one job.
+   * The job queue knows no colour, so they are counted on every colour; a
+   * window lasts at most 90 s and a drained worker hands the turn's next
+   * window to the live colour, while a native turn is waited for — it keeps
+   * no state a successor could pick up. */
   agentDrives: number;
 }
 
@@ -160,7 +162,9 @@ export async function countAutomationWork(sql: Sql): Promise<AutomationWork> {
   const drives = await sql<{ count: number }[]>`
     SELECT count(*)::int AS count FROM pgboss.job
     WHERE name IN (${physicalTaskQueue('automation.agent_drive')},
-                   'automation.agent_drive', 'task.agent_drive')
+                   ${physicalTaskQueue('task.agent_native')},
+                   'automation.agent_drive', 'task.agent_drive',
+                   'task.agent_native')
       AND state = 'active'
       AND started_on <= to_timestamp(${drain.startedAt ?? now} / 1000.0)
   `;

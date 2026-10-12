@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   drainSessionExecResilient,
@@ -146,7 +146,9 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(execResult());
   sandbox = fakeSandbox();
-  vi.mocked(acquireLightSession).mockClear();
+  vi.mocked(acquireLightSession)
+    .mockReset()
+    .mockResolvedValue({ sessionId: 'lt-1', created: true });
   vi.mocked(touchLightSession).mockClear();
 });
 
@@ -399,6 +401,81 @@ describe('run_code', () => {
     await expect(
       runRunCode(scope, { language: 'python', code: 'print(1)' }),
     ).resolves.toMatchObject({ status: 'busy' });
+  });
+
+  describe('when every light sandbox is running code', () => {
+    const busy = () =>
+      new LightSandboxBusyError('All light sandboxes are in use.');
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('asks once for a lane with nobody to ask again no more than a chat does', async () => {
+      vi.mocked(acquireLightSession).mockRejectedValue(busy());
+      const { scope } = testScope();
+
+      await expect(
+        runRunCode(scope, { language: 'python', code: 'print(1)' }),
+      ).resolves.toMatchObject({ status: 'busy' });
+
+      expect(acquireLightSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for one to come free when its lane gives it patience, and then runs the code', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession)
+        .mockRejectedValueOnce(busy())
+        .mockRejectedValueOnce(busy())
+        .mockResolvedValueOnce({ sessionId: 'lt-1', created: true });
+      const { scope } = testScope({ lightSandboxWaitMs: 90_000 });
+
+      const running = runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'ok' });
+      expect(acquireLightSession).toHaveBeenCalledTimes(3);
+    });
+
+    it('gives up once its patience is spent, saying so as a chat would', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession).mockRejectedValue(busy());
+      const { scope } = testScope({ lightSandboxWaitMs: 10_000 });
+
+      const running = runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      await expect(running).resolves.toMatchObject({
+        status: 'busy',
+        message: expect.stringContaining('All light sandboxes are in use.'),
+      });
+      // Every three seconds inside ten, and not once beyond it.
+      expect(
+        vi.mocked(acquireLightSession).mock.calls.length,
+      ).toBeLessThanOrEqual(5);
+      expect(vi.mocked(acquireLightSession).mock.calls.length).toBeGreaterThan(
+        2,
+      );
+    });
+
+    it('does not wait out a failure that is not a busy host', async () => {
+      vi.mocked(acquireLightSession).mockRejectedValue(
+        new Error('spawner down'),
+      );
+      const { scope } = testScope({ lightSandboxWaitMs: 90_000 });
+
+      await expect(
+        runRunCode(scope, { language: 'python', code: 'print(1)' }),
+      ).rejects.toThrow('spawner down');
+
+      expect(acquireLightSession).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('notes when a successful program attached nothing', async () => {

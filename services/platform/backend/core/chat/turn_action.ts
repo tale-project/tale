@@ -39,6 +39,7 @@ import {
 } from '../../../lib/chat/turn';
 import type {
   ModelCall,
+  ResolvedAgent,
   ModelStreamChunk,
   TurnAttachment,
   TurnDeps,
@@ -740,6 +741,18 @@ export interface ExecuteTurnOverrides {
     threadIds: readonly string[];
     projectId: string | null;
   }) => Promise<TurnWorkTools | undefined>;
+  /** Who the turn speaks as, given the loadout its work tools gave it. A
+   * task run speaks as its project agent; absent, the chat assistant. */
+  readonly persona?: (loadout: WorkLoadout | undefined) => ResolvedAgent;
+  /** Aborts the turn from outside: a task run whose task was stopped,
+   * moved or retired while it works, or a worker shutting down. The turn
+   * ends at its next boundary, settling what it has. */
+  readonly signal?: AbortSignal;
+  /** Whether the person's own standing instructions and the note on how they
+   * hand work to an agent ride the turn. They belong to a chat with that
+   * person; an agent working a task for its project does not carry them.
+   * Absent, they ride. */
+  readonly personalContext?: boolean;
 }
 
 /** What a turn's work tools add to it: the executor, its tool docs, the
@@ -1082,6 +1095,16 @@ function unwrap<T>(result: PromiseSettledResult<T>): T {
   return result.value;
 }
 
+/**
+ * One turn of an agent, end to end — the engine both lanes run on. A chat
+ * reply runs it as the chat assistant over the person's conversation; a
+ * task run runs it as the project agent over the run's own transcript
+ * thread, with the task's brief as the message (`domains/tasks/native-turn.ts`).
+ * What differs between the lanes is injected through `overrides`: the write
+ * ports, the work tools, the persona, and whether the person's own context
+ * rides. Everything else — model resolution, access policy, the window, the
+ * guardrails, the retrieval tools, the loop — is this one function.
+ */
 export async function executeTurn(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
@@ -1189,20 +1212,25 @@ export async function executeTurn(
   const pendingPolicies = settled(readTurnPolicies(ctx, args.organizationId));
   // The person's own standing instructions, already gated by their toggle
   // over the org default (a failed read degrades to none inside the helper).
+  const personalContext = overrides.personalContext !== false;
   const pendingCustomInstructions = settled(
-    readCustomInstructions(ctx, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-    }),
+    personalContext
+      ? readCustomInstructions(ctx, {
+          organizationId: args.organizationId,
+          userId: args.userId,
+        })
+      : Promise.resolve(undefined),
   );
   // How this person hands work to an agent (the app's chat only).
   const pendingTaskHandover = settled(
-    readTaskHandover(ctx, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      locale: args.locale,
-      ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-    }),
+    personalContext
+      ? readTaskHandover(ctx, {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          locale: args.locale,
+          ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+        })
+      : Promise.resolve(undefined),
   );
 
   // Verdicts in the serial order the reads used to run, so refusal
@@ -1419,9 +1447,11 @@ export async function executeTurn(
 
   const workTools = await pendingWorkTools;
   const agent =
-    workTools !== undefined
-      ? chatAssistantFor(workTools.loadout)
-      : CHAT_ASSISTANT;
+    overrides.persona !== undefined
+      ? overrides.persona(workTools?.loadout)
+      : workTools !== undefined
+        ? chatAssistantFor(workTools.loadout)
+        : CHAT_ASSISTANT;
 
   const retrievalTools = createChatToolExecutor(
     ctx,
@@ -1514,6 +1544,7 @@ export async function executeTurn(
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
     executionMode: 'direct',
     ...(args.resend === true ? { appendUserMessage: false } : {}),
+    ...(overrides.signal !== undefined ? { signal: overrides.signal } : {}),
   };
 
   return runTurn(request, deps);

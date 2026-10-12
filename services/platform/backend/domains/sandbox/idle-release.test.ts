@@ -164,6 +164,19 @@ describe('idle release worker', () => {
     expect(sessionReleaseIdle).not.toHaveBeenCalled();
   });
 
+  it('lets no run without a workspace keep a stopped worker up: it works in none [TASK-R37]', async () => {
+    const texts: string[] = [];
+    const query = (strings: TemplateStringsArray) => {
+      texts.push(strings.join('?').replaceAll(/\s+/g, ' '));
+      return Promise.resolve([]);
+    };
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- scripted postgres tag
+    await releaseIdleSession(query as unknown as Sql, args);
+
+    expect(texts[0]).toContain("r.engine = 'harness'");
+  });
+
   it('does nothing when the committed allocation or live-owner guard refuses eligibility', async () => {
     await releaseIdleSession(scriptedSql([[]]), args);
     expect(sessionReleaseIdle).not.toHaveBeenCalled();

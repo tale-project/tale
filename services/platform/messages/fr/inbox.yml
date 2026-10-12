@@ -76,6 +76,7 @@ automationMessageBodyNoText: 'Envoyé par l’automatisation « {automation} �
 agentRunFailed: Échec de l’exécution de l’agent
 agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
 agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
+agentRunFailedPolicyBody: 'La politique de contenu de ton organisation a arrêté l’agent sur « {title} ». Modifie la tâche ou interroge un admin sur cette politique, puis relance l’agent.'
 agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.'
 agentRunFailedInputBody: 'Une pièce jointe de « {title} » n’est plus dans le stockage. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.'
 email:

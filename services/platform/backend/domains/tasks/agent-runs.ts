@@ -6,6 +6,7 @@ import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
 } from '../../../lib/shared/agent-run-waiting.ts';
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
@@ -25,6 +26,7 @@ import {
   isAutoRetryableFailure,
   resolveAutoRetryBudget,
 } from '../../core/tasks/task_auto_retry.ts';
+import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { currentMentionNames } from '../collab/mention-directory.ts';
@@ -32,6 +34,7 @@ import { ProjectError } from '../projects/service.ts';
 import {
   STANDARD_AGENT_REFUSAL_CODES,
   standardAgentServingForKick,
+  type StandardAgentEngine,
 } from '../projects/standard-agent.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
@@ -93,6 +96,24 @@ export async function emitTaskRunHint(
   });
 }
 
+/** How a run executes: on the engine a chat reply runs on, or as a coding
+ * harness in the agent's sandbox. */
+export type AgentRunEngine = StandardAgentEngine;
+
+/** What a native pass of a run handed to the harness: why it could not
+ * finish, and the brief for its successor. */
+export interface AgentRunHandoff {
+  reason: string;
+  brief: string;
+}
+
+/** The job that starts a run of this engine. */
+export function agentRunJobName(
+  engine: AgentRunEngine,
+): 'task.agent_native' | 'task.agent_turn' {
+  return engine === 'native' ? 'task.agent_native' : 'task.agent_turn';
+}
+
 export interface AgentRunRow {
   id: string;
   organizationId: string;
@@ -102,7 +123,12 @@ export interface AgentRunRow {
   execId: string;
   sessionId: string;
   status: string;
+  /** The runtime the run executes on — or, for a native run, hands over to. */
   harness: string;
+  /** Which engine drives the run now (migration 0201). */
+  engine: AgentRunEngine;
+  /** The run's transcript thread, once a native run has opened it. */
+  threadId: string | null;
   model: string;
   modelProvider: string | null;
   error: string | null;
@@ -159,7 +185,8 @@ export function parkedWaitingReasonSql(alias: RunTableAlias = ''): string {
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId",
   task_id AS "taskId", agent_id AS "agentId", exec_id AS "execId",
-  session_id AS "sessionId", status, harness, model,
+  session_id AS "sessionId", status, harness, engine,
+  thread_id AS "threadId", model,
   model_provider AS "modelProvider", error, failure_code AS "failureCode",
   result_text AS "resultText",
   result_message_id AS "resultMessageId", trigger, feedback,
@@ -254,6 +281,10 @@ export interface KickAgentRunArgs {
   inPlace?: boolean;
   /** Server-owned fixed review envelope, inherited by native retries only. */
   reviewBatchId?: string;
+  /** What a native pass of an earlier run handed to the harness: the retry of
+   * such a run starts on the harness, where the work now is, with the same
+   * brief — a native pass would only repeat the hand-over. */
+  handoff?: AgentRunHandoff;
   feedback?: string;
   /** Which text named the agent on a `mention` kick. A comment's body rides
    * as `feedback`; a description kick carries none, because the turn reads
@@ -295,7 +326,12 @@ export function isStandardAgentRefusal(error: unknown): error is TaskError {
 async function standardAgentServing(
   tx: TransactionSql,
   args: KickAgentRunArgs,
-): Promise<{ harness: string; model: string; modelProvider?: string }> {
+): Promise<{
+  harness: string;
+  model: string;
+  modelProvider?: string;
+  engine: AgentRunEngine;
+}> {
   try {
     return await standardAgentServingForKick(tx, {
       organizationId: args.organizationId,
@@ -321,6 +357,13 @@ async function standardAgentServing(
     }
     throw error;
   }
+}
+
+/** Whether a person's door started the run (`user:` / `api-key:` or a bare
+ * user id), as opposed to a schedule or an unreadable value. */
+function startedByPerson(startedBy: string): boolean {
+  const starter = parseRunStarter(startedBy);
+  return starter.kind === 'user' || starter.kind === 'api-key';
 }
 
 /**
@@ -367,6 +410,18 @@ export async function kickAgentRun(
   // what its row said when the caller read it (`standard-agent.ts`); every
   // other agent runs what the caller read.
   const serving = await standardAgentServing(tx, args);
+  // A run starts native only when the serving says so (the standard agent on
+  // an automatic runtime), a person started it — the native engine acts for
+  // a person, as a chat does — and nothing else put the agent to work: an
+  // automation's or another agent's start, and the retry of a run that
+  // already handed over, belong to the harness.
+  const engine: AgentRunEngine =
+    serving.engine === 'native' &&
+    args.handoff === undefined &&
+    args.startedVia === undefined &&
+    startedByPerson(args.startedBy)
+      ? 'native'
+      : 'harness';
   // The workspace follows the starter: a project editor's run joins the
   // agent's standing session, a member's run works in its own
   // (`run-authority.ts`).
@@ -414,7 +469,7 @@ export async function kickAgentRun(
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
-      harness, model, model_provider, trigger, feedback, mention_source,
+      harness, engine, handoff, model, model_provider, trigger, feedback, mention_source,
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
       started_via_automation, started_via_agent_id, in_place,
@@ -423,7 +478,9 @@ export async function kickAgentRun(
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
-      'queued', ${serving.harness}, ${serving.model},
+      'queued', ${serving.harness}, ${engine},
+      ${args.handoff === undefined ? null : tx.json(toJson(args.handoff))},
+      ${serving.model},
       ${serving.modelProvider ?? null}, ${args.trigger ?? 'manual'},
       ${batch === undefined ? (args.feedback ?? null) : reviewBatchFeedback(batch)}, ${args.mentionSource ?? null},
       ${args.autoRetryAttempt ?? null},
@@ -448,7 +505,7 @@ export async function kickAgentRun(
   }
   await addJobInTx(
     tx,
-    'task.agent_turn',
+    agentRunJobName(engine),
     { organizationId: args.organizationId, runId, execId },
     args.startAfterMs !== undefined && args.startAfterMs > now
       ? { startAfter: new Date(args.startAfterMs) }
@@ -841,6 +898,8 @@ export async function cancelAgentRunInTx(
       sessionId: string;
       agentId: string;
       harness: string;
+      engine: AgentRunEngine;
+      threadId: string | null;
       deadlineAt: number;
     }[]
   >`
@@ -850,7 +909,8 @@ export async function cancelAgentRunInTx(
       AND task_id = ${args.taskId}
       AND status IN ('queued', 'running')
     RETURNING id, exec_id AS "execId", session_id AS "sessionId",
-              agent_id AS "agentId", harness, deadline_at_ms::float8 AS "deadlineAt"
+              agent_id AS "agentId", harness, engine,
+              thread_id AS "threadId", deadline_at_ms::float8 AS "deadlineAt"
   `;
   const run = rows[0];
   if (run === undefined) return false;
@@ -860,17 +920,30 @@ export async function cancelAgentRunInTx(
     finalStatus: 'cancelled',
     settledAt: now,
   });
-  // The active drive may be draining a long window. Enqueue its existing
-  // orphan cleanup immediately; it kills only this exec, preserving any
-  // other turn in the run's worker. This survives process restarts.
-  await addJobInTx(tx, 'task.agent_drive', {
-    ...args,
-    execId: run.execId,
-    sessionId: run.sessionId,
-    agentId: run.agentId,
-    harness: run.harness,
-    deadlineAt: run.deadlineAt,
-  });
+  if (run.engine === 'native') {
+    // A native turn has no exec to reap: it is the turn itself, waiting on a
+    // model or a tool in a job. Stop is the flag a chat reply's Stop sets on
+    // its generation — the turn reads it at its next boundary and ends, and
+    // its settle finds the run no longer live and posts nothing.
+    if (run.threadId !== null) {
+      await tx`
+        UPDATE app.generations SET cancel_requested = true
+        WHERE thread_id = ${run.threadId} AND org_id = ${args.organizationId}
+      `;
+    }
+  } else {
+    // The active drive may be draining a long window. Enqueue its existing
+    // orphan cleanup immediately; it kills only this exec, preserving any
+    // other turn in the run's worker. This survives process restarts.
+    await addJobInTx(tx, 'task.agent_drive', {
+      ...args,
+      execId: run.execId,
+      sessionId: run.sessionId,
+      agentId: run.agentId,
+      harness: run.harness,
+      deadlineAt: run.deadlineAt,
+    });
+  }
   await emitTaskRunHint(tx, args);
   return true;
 }
@@ -882,7 +955,7 @@ export async function cancelAgentRun(
   const cancelled = await sql.begin((tx) => cancelAgentRunInTx(tx, args));
   if (cancelled) {
     const run = await getAgentRun(sql, args.organizationId, args.runId);
-    if (run !== null) {
+    if (run !== null && run.engine === 'harness') {
       // Do not wait for the active drain or the cleanup job's worker slot.
       // The queued orphan cleanup also covers a request/process interruption.
       await sessionCancelExec(run.sessionId, run.execId).catch((error) => {
@@ -960,6 +1033,7 @@ async function wakeOldestParkedAgentRun(
       ORDER BY (
           SELECT count(*) FROM app.project_agent_runs working
           WHERE working.org_id = r.org_id AND working.agent_id = r.agent_id
+            AND working.engine = 'harness'
             AND (working.status = 'running'
               OR (working.status = 'queued'
                 AND working.waiting_for_capacity_at_ms IS NULL))
@@ -1197,7 +1271,11 @@ export interface TaskAgentRunCard {
   status: string;
   agentId: string;
   agentName?: string;
+  /** The runtime the run executes on, or hands over to. */
   harness: string;
+  /** Which engine drives the run now: the card names the harness only for
+   * one the harness drives. */
+  engine: AgentRunEngine;
   model: string;
   error?: string;
   /** The producer's classification of a failed run — what the card words
@@ -1235,6 +1313,7 @@ export async function getLatestAgentRunCardForTask(
       agentId: string;
       agentName: string | null;
       harness: string;
+      engine: AgentRunEngine;
       model: string;
       error: string | null;
       failureCode: string | null;
@@ -1251,8 +1330,8 @@ export async function getLatestAgentRunCardForTask(
     }[]
   >`
     SELECT r.id, r.status, r.agent_id AS "agentId", a.name AS "agentName",
-           r.harness, r.model, r.error, r.failure_code AS "failureCode",
-           r.result_text AS "resultText",
+           r.harness, r.engine, r.model, r.error,
+           r.failure_code AS "failureCode", r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
            ${sql.unsafe(parkedWaitingReasonSql('r'))} AS "waitingReason",
            r.session_id AS "sessionId",
@@ -1280,6 +1359,7 @@ export async function getLatestAgentRunCardForTask(
     agentId: run.agentId,
     ...(run.agentName !== null ? { agentName: run.agentName } : {}),
     harness: run.harness,
+    engine: run.engine,
     model: run.model,
     ...(run.error !== null ? { error: run.error } : {}),
     ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),

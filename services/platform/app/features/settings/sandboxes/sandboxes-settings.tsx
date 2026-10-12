@@ -180,10 +180,11 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   )}
                 </span>
               )}
-              {/* A chat's light sandbox runs code for the person chatting. */}
+              {/* A light sandbox runs code for the person chatting, or for the
+                  person whose task run it is. */}
               {s.ownerType === 'light' && (
                 <span className="text-muted-foreground truncate text-xs">
-                  {t('chatSandbox')}
+                  {t('lightSandbox')}
                 </span>
               )}
               {s.ownerEmail && !s.ownerLabel && s.ownerName && (

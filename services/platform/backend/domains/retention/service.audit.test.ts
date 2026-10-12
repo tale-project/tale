@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
+import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { releaseRefs } from '../knowledge/release.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import {
@@ -30,6 +31,9 @@ vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
 }));
 vi.mock('../knowledge/release.ts', () => ({ releaseRefs: vi.fn() }));
+vi.mock('../knowledge/release-queue.ts', () => ({
+  queueRefRelease: vi.fn(async () => undefined),
+}));
 vi.mock('../legal_holds/service.ts', () => ({ loadActiveHolds: vi.fn() }));
 vi.mock('../audit_logs/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../audit_logs/service.ts')>()),
@@ -813,6 +817,53 @@ describe('sweepOrgPhase2 — destruction rows', () => {
       category: 'externalConversations',
       deleted: 3,
       counts: { conversations: 2, attachments: 1 },
+    });
+  });
+
+  it('ends the transcript of each native run it deletes in the delete’s own transaction, and counts runs, not transcripts [TASK-R36]', async () => {
+    const fake = fakeSql({
+      'DELETE FROM app.project_agent_runs': [
+        { id: 'run-1', threadId: 'thread-1' },
+        { id: 'run-2', threadId: null },
+        { id: 'run-3', threadId: 'thread-3' },
+      ],
+      'UPDATE app.file_metadata': [{ ref: 's3:scratch' }],
+    });
+
+    await sweepOrgPhase2(
+      fake.sql,
+      {
+        organizationId: 'org_1',
+        config: { agentRunsEnabled: true, agentRunsRetentionDays: 30 },
+      },
+      { orgHeld: false, userMembershipIds: new Set() },
+    );
+
+    const transcripts = fake.statements.find((statement) =>
+      statement.text.startsWith('DELETE FROM app.threads'),
+    );
+    // Only the runs that opened a transcript name one; a harness run's row
+    // goes alone.
+    expect(transcripts?.values).toEqual(['org_1', ['thread-1', 'thread-3']]);
+    expect(transcripts?.tx).toBe(
+      txOf(fake.statements, 'DELETE FROM app.project_agent_runs'),
+    );
+    // What the transcripts held is trashed first and its bytes queued.
+    expect(
+      fake.statements.some(
+        (statement) =>
+          statement.text.startsWith('UPDATE app.file_metadata') &&
+          statement.text.includes("lifecycle_status = 'trashed'"),
+      ),
+    ).toBe(true);
+    expect(queueRefRelease).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      'org_1',
+      ['s3:scratch'],
+    );
+    expect(appendOf('agent_run.retention_deleted').row.metadata).toEqual({
+      category: 'agentRuns',
+      deleted: 3,
     });
   });
 

@@ -19,7 +19,9 @@ Der Assistent wählt den leichtesten Weg, der zum Ziel führt, und startet nicht
 | Eine Word-, Excel-, PowerPoint- oder PDF-Datei, ein Diagramm, eine Berechnung mit Daten, eine Änderung an einer angehängten Datei | Führt Code in einer leichten Sandbox aus | Eine leichte Sandbox, in etwa einer Sekunde |
 | Arbeit an einem Repository, in einer Browsersitzung oder über Stunden | Schlägt eine [Projektaufgabe](/de/platform/projects/tasks) vor | Im Chat nichts; der Agent der Aufgabe arbeitet in seiner eigenen Sandbox |
 
-Während er arbeitet, zeigen die Schritte über der Antwort, was er gerade tut, etwa **Schreibt contacts.csv**, **Liest den Skill xlsx** oder **Führt Python in einer leichten Sandbox aus**. Ein fehlgeschlagener Schritt sagt, was schiefging; meist korrigiert der Assistent dann seinen Code und versucht es erneut.
+Eine Datei, die geprüft, mit anderer Arbeit aufbewahrt oder erst später erstellt werden soll, gehört in eine Aufgabe: Der [Standard-Agent](/de/platform/projects/project-agents#standard-agent-runs) des Projekts nutzt dort dieselben Tools, und die Dateien, die er erstellt, werden zu den Ergebnisdateien der Aufgabe.
+
+Während der Assistent arbeitet, zeigen die Schritte über der Antwort, was er gerade tut, etwa **Schreibt contacts.csv**, **Liest den Skill xlsx** oder **Führt Python in einer leichten Sandbox aus**. Ein fehlgeschlagener Schritt sagt, was schiefging; meist korrigiert der Assistent dann seinen Code und versucht es erneut.
 
 ## Die Dateien öffnen und herunterladen
 

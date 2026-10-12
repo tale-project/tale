@@ -326,7 +326,11 @@ export function TaskAgentRunEntry({
                 as="span"
                 variant="caption"
                 className="min-w-0 truncate font-medium"
-                title={`${run.harness} · ${run.model}`}
+                title={
+                  run.engine === 'native'
+                    ? run.model
+                    : `${run.harness} · ${run.model}`
+                }
               >
                 {statusLabel}
               </Text>

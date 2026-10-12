@@ -40,7 +40,7 @@ quota:
     project: Each task an agent works on at the same time runs in a sandbox of its own.
     workflow: Agent and script steps share one sandbox per workflow run.
     render: Temporary sandboxes render web pages during website crawling.
-    light: Chats run code in a small throwaway sandbox to make documents and charts; an idle one gives way to the next chat.
+    light: Chats and task runs run code in a small throwaway sandbox to make documents and charts; an idle one gives way to the next one.
 cleanup:
   title: Workspace cleanup
   description:
@@ -140,7 +140,7 @@ worker:
   agent: Worker {number}
   member: Member worker {number}
 deletedAgent: Deleted agent
-chatSandbox: Chat sandbox
+lightSandbox: Light sandbox
 devices:
   title: Devices
   description:

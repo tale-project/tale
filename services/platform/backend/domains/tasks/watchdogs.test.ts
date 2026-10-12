@@ -7,16 +7,22 @@
  * auth errors), and a Retry could then start a second exec against the same
  * standing workspace. The sweep cancels the exec — best-effort, before the
  * op row is settled — and an unreachable spawner never keeps the run alive.
+ *
+ * A native run has no exec and no worker: its deadline fails the run and
+ * tells its turn to end, and a separate sweep fails the native runs whose
+ * turn is gone (`TASK-R34`).
  */
 
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { CHAT_GENERATION_STALE_MS } from '../chat/watchdogs.ts';
 import { releaseProjectAgentSessionSlot } from '../sandbox/sessions.ts';
 import {
   type AgentRunRow,
   failAgentRun,
+  failAgentRunFromTurn,
   listOverdueAgentRuns,
   listParkedAgentRunOrganizations,
   wakeOrganizationParkedAgentRun,
@@ -31,6 +37,7 @@ vi.mock('../sandbox/sessions.ts', () => ({
 }));
 vi.mock('./agent-runs.ts', () => ({
   failAgentRun: vi.fn(),
+  failAgentRunFromTurn: vi.fn(),
   listOverdueAgentRuns: vi.fn(),
   listParkedAgentRunOrganizations: vi.fn(() => Promise.resolve([])),
   wakeOrganizationParkedAgentRun: vi.fn(() => Promise.resolve(0)),
@@ -43,17 +50,47 @@ const overdueRun = {
   execId: 'exec-1',
   sessionId: 'pa-agent-1',
   status: 'running',
+  engine: 'harness',
+  threadId: null,
 } as unknown as AgentRunRow;
 
+const overdueNativeRun = {
+  ...overdueRun,
+  engine: 'native',
+  threadId: 'thread-1',
+} as unknown as AgentRunRow;
+
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+/** A native run the sweep finds with its turn gone. */
+const LOST = [{ id: 'run-9', organizationId: 'org-1', execId: 'exec-9' }];
+
 /** A recorder `sql`: every statement lands in `events` in call order, next
- * to the exec cancels the mock records — the order IS the contract. */
+ * to the exec cancels the mock records — the order IS the contract. The
+ * orphan backstop's read answers `orphaned`; the native sweep's read answers
+ * `lost`; `statements` keeps each statement whole for the tests that read
+ * its text and values. */
 function fakeSql(
   events: string[],
   orphaned: Array<{ organizationId: string; agentId: string }> = [],
+  more: {
+    lost?: typeof LOST;
+    statements?: Statement[];
+  } = {},
 ): Sql {
-  const fn = (strings: TemplateStringsArray): Promise<unknown[]> => {
+  const fn = (
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<unknown[]> => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     events.push(`sql:${text.slice(0, 36)}`);
+    more.statements?.push({ text, values });
+    if (text.includes('LEFT JOIN app.generations')) {
+      return Promise.resolve(more.lost ?? []);
+    }
     // The orphan backstop's read is the only SELECT answered with rows.
     return Promise.resolve(text.startsWith('SELECT DISTINCT') ? orphaned : []);
   };
@@ -64,6 +101,7 @@ beforeEach(() => {
   vi.mocked(listOverdueAgentRuns).mockResolvedValue([overdueRun]);
   vi.mocked(listParkedAgentRunOrganizations).mockResolvedValue([]);
   vi.mocked(failAgentRun).mockResolvedValue(true);
+  vi.mocked(failAgentRunFromTurn).mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -245,5 +283,107 @@ describe('runTaskAgentWatchdog (orphan backstop)', () => {
 
     expect(result.released).toBe(0);
     expect(releaseProjectAgentSessionSlot).not.toHaveBeenCalled();
+  });
+});
+
+describe('runTaskAgentWatchdog (deadline lane, native runs)', () => {
+  it('fails a native run past its deadline without an exec to stop or a worker to free, and tells its turn to end', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([overdueNativeRun]);
+    const statements: Statement[] = [];
+
+    await expect(
+      runTaskAgentWatchdog(fakeSql([], [], { statements })),
+    ).resolves.toMatchObject({ failed: 1 });
+
+    expect(failAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ runId: 'run-1', failureCode: 'deadline' }),
+    );
+    expect(sessionCancelExec).not.toHaveBeenCalled();
+    expect(releaseProjectAgentSessionSlot).not.toHaveBeenCalled();
+    const flag = statements.find((statement) =>
+      statement.text.includes('SET cancel_requested = true'),
+    );
+    expect(flag?.values).toEqual(['thread-1', 'org-1']);
+  });
+});
+
+describe('runTaskAgentWatchdog (native runs whose turn is gone) [TASK-R34]', () => {
+  beforeEach(() => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+  });
+
+  it('fails each as interrupted, which retries, and ends any turn still running', async () => {
+    const statements: Statement[] = [];
+
+    await expect(
+      runTaskAgentWatchdog(fakeSql([], [], { lost: LOST, statements })),
+    ).resolves.toMatchObject({ failed: 1 });
+
+    expect(failAgentRunFromTurn).toHaveBeenCalledWith(expect.anything(), {
+      runId: 'run-9',
+      execId: 'exec-9',
+      error: 'the agent run was interrupted before it finished',
+      failureCode: 'turn_crashed',
+    });
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('SET cancel_requested = true'),
+      ),
+    ).toBe(true);
+  });
+
+  it('counts and flags only the runs this sweep won', async () => {
+    vi.mocked(failAgentRunFromTurn).mockResolvedValue(false);
+    const statements: Statement[] = [];
+
+    await expect(
+      runTaskAgentWatchdog(fakeSql([], [], { lost: LOST, statements })),
+    ).resolves.toMatchObject({ failed: 0 });
+
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('SET cancel_requested = true'),
+      ),
+    ).toBe(false);
+  });
+
+  it('asks the three questions a native turn’s liveness is: no transcript, a turn that ended, a heartbeat gone silent', async () => {
+    const statements: Statement[] = [];
+    const before = Date.now();
+
+    await runTaskAgentWatchdog(fakeSql([], [], { statements }));
+
+    const list = statements.find((statement) =>
+      statement.text.includes('LEFT JOIN app.generations'),
+    );
+    expect(list?.text).toContain(
+      "r.engine = 'native' AND r.status = 'running'",
+    );
+    expect(list?.text).toContain('r.thread_id IS NULL');
+    expect(list?.text).toContain('g.thread_id IS NULL');
+    expect(list?.text).toContain('g.heartbeat_at_ms <');
+    // The silence window is a chat reply's: every tool of a turn ends inside it.
+    const horizons = (list?.values ?? []).filter(
+      (value): value is number => typeof value === 'number',
+    );
+    expect(horizons).toHaveLength(4);
+    expect(
+      horizons.some(
+        (horizon) =>
+          Math.abs(before - CHAT_GENERATION_STALE_MS - horizon) < 5_000,
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps a worker an idle release may take: only a harness run holds a standing session', async () => {
+    const statements: Statement[] = [];
+
+    await runTaskAgentWatchdog(fakeSql([], [], { statements }));
+
+    const orphanRead = statements.find((statement) =>
+      statement.text.startsWith('SELECT DISTINCT s.org_id'),
+    );
+    expect(orphanRead?.text).toContain("r.engine = 'harness'");
   });
 });

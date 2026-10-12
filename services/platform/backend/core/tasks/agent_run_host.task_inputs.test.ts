@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MAX_STAGED_TASK_OUTPUTS,
-  partitionTaskInputSkips,
   selectTaskOutputsForStaging,
+} from '../../../lib/agent/task-brief.ts';
+import {
+  partitionTaskInputSkips,
   type PlannedTaskInput,
 } from './agent_run_host.ts';
 

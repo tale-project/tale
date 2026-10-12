@@ -78,6 +78,7 @@ automationMessageBodyNoText: 'Gesendet von der Automatisierung "{automation}".'
 agentRunFailed: Agenten-Lauf fehlgeschlagen
 agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
 agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
+agentRunFailedPolicyBody: 'Die Inhaltsrichtlinie deiner Organisation hat den Agenten bei "{title}" gestoppt. Passe die Aufgabe an oder frag einen Admin nach der Richtlinie, und starte den Agenten dann erneut.'
 agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
 agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
 email:

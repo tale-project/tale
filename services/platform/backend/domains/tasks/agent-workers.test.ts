@@ -395,6 +395,24 @@ describe('claiming a worker', () => {
     );
   });
 
+  it.each([
+    ['the runs holding a worker', "(status = 'running'"],
+    ['the task’s previous run', 'ORDER BY seq DESC'],
+    ['the worker kept for a retry', "r.status IN ('failed', 'cancelled')"],
+  ])(
+    'looks only at runs of the full workspace when it reads %s: a run without one works in no worker [TASK-R37]',
+    async (_label, fragment) => {
+      const { sql, statements } = claimSql({
+        family: [{ sessionId: w(1), status: 'stopped', pinned: false }],
+      });
+
+      await claimAgentWorker(sql, ARGS);
+
+      const read = statements.find((s) => s.text.includes(fragment));
+      expect(read?.text).toContain("engine = 'harness'");
+    },
+  );
+
   it("moves a run whose starter lost the editor role into the member's family [SBX-R21]", async () => {
     const member = memberWorkerSessionId(AGENT, 'user-ada', 1);
     vi.mocked(sessionIdForAgentRun).mockResolvedValue(member);

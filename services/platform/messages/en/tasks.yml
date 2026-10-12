@@ -117,6 +117,7 @@ agentRun:
   runReadFailed: The agent run could not be loaded. Try again.
   failure:
     budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
+    policy: Your organization's content policy stopped this run. Change the task so it complies, or ask an Admin about the policy — then start the agent again.
     setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
     input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
     time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.

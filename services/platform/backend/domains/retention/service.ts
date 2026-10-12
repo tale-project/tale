@@ -41,6 +41,7 @@ import {
   markEntryChainsDeletedForDocuments,
 } from '../knowledge_entries/service.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
+import { endRunTranscriptsAndRelease } from '../tasks/run-transcripts.ts';
 import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
 /**
@@ -1459,7 +1460,7 @@ async function sweepAgentRuns(
     Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
   const protectedIds = [...holds.userMembershipIds];
   await destroyInTx(sql, trail, async (tx) => {
-    const rows = await tx<{ id: string }[]>`
+    const rows = await tx<{ id: string; threadId: string | null }[]>`
       DELETE FROM app.project_agent_runs
       WHERE id IN (
         SELECT id FROM app.project_agent_runs
@@ -1470,8 +1471,17 @@ async function sweepAgentRuns(
                OR started_by <> ALL(${protectedIds}))
         LIMIT ${BATCH_LIMIT}
       )
-      RETURNING id
+      RETURNING id, thread_id AS "threadId"
     `;
+    // A native run's transcript is part of its record: what the run said and
+    // did, and the files only it held, go with the row. Nothing else reaches
+    // the thread — it is bare, so no chat-history rule ever lists it.
+    await endRunTranscriptsAndRelease(tx, {
+      organizationId: org.organizationId,
+      threadIds: rows.flatMap((row) =>
+        typeof row.threadId === 'string' ? [row.threadId] : [],
+      ),
+    });
     return { deleted: rows.length };
   });
 }

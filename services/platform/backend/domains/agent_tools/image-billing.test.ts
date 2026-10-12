@@ -9,8 +9,8 @@ import {
 } from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import {
-  CHAT_TURN_MAX_GENERATED_IMAGES,
-  chatImageBilling,
+  TURN_MAX_GENERATED_IMAGES,
+  turnImageBilling,
 } from './image-billing.ts';
 
 vi.mock('../governance/budget-gate.ts', () => ({
@@ -52,6 +52,8 @@ const TURN = {
   userId: 'user_1',
   threadId: 'thread_1',
   projectIds: ['proj_1'],
+  agentSlug: 'assistant',
+  unit: 'reply' as const,
 };
 
 beforeEach(() => {
@@ -60,10 +62,10 @@ beforeEach(() => {
   vi.mocked(incrementUsageLedger).mockClear();
 });
 
-describe('chatImageBilling', () => {
+describe('turnImageBilling', () => {
   it('holds the estimate on the turn’s generation row while a cap binds', async () => {
     const { sql, statements } = fakeSql();
-    const billing = chatImageBilling(sql, TURN);
+    const billing = turnImageBilling(sql, TURN);
 
     const admission = await billing.admit(2);
 
@@ -90,7 +92,7 @@ describe('chatImageBilling', () => {
     );
     const { sql, statements } = fakeSql();
 
-    const admission = await chatImageBilling(sql, TURN).admit(1);
+    const admission = await turnImageBilling(sql, TURN).admit(1);
 
     expect(admission).toEqual({
       admitted: false,
@@ -102,7 +104,7 @@ describe('chatImageBilling', () => {
   it('holds nothing where no budget binds', async () => {
     vi.mocked(budgetPolicyActive).mockResolvedValue(false);
     const { sql, statements } = fakeSql();
-    await expect(chatImageBilling(sql, TURN).admit(1)).resolves.toEqual({
+    await expect(turnImageBilling(sql, TURN).admit(1)).resolves.toEqual({
       admitted: true,
       holdCents: 0,
     });
@@ -112,8 +114,8 @@ describe('chatImageBilling', () => {
   it('caps the images one reply may create [CHAT-R23]', async () => {
     vi.mocked(budgetPolicyActive).mockResolvedValue(false);
     const { sql } = fakeSql();
-    const billing = chatImageBilling(sql, TURN);
-    await billing.admit(CHAT_TURN_MAX_GENERATED_IMAGES - 1);
+    const billing = turnImageBilling(sql, TURN);
+    await billing.admit(TURN_MAX_GENERATED_IMAGES - 1);
     await expect(billing.admit(2)).resolves.toMatchObject({
       admitted: false,
       message: expect.stringContaining('1 more image'),
@@ -123,7 +125,7 @@ describe('chatImageBilling', () => {
   it('books each billed request under the person, in the chat’s project, and lowers the hold [CHAT-R22]', async () => {
     const { sql, statements } = fakeSql();
 
-    await chatImageBilling(sql, TURN).settle({
+    await turnImageBilling(sql, TURN).settle({
       holdCents: 50,
       charges: [4, 3],
       provider: 'openrouter',
@@ -149,5 +151,32 @@ describe('chatImageBilling', () => {
       s.text.includes('greatest(0, reserved_cost_cents -'),
     );
     expect(release?.values).toContain(50);
+  });
+
+  it('books a task run’s images under its agent and words the ceiling for a run', async () => {
+    vi.mocked(budgetPolicyActive).mockResolvedValue(false);
+    const { sql } = fakeSql();
+    const run = turnImageBilling(sql, {
+      ...TURN,
+      agentSlug: 'agent_7',
+      unit: 'run',
+    });
+
+    await run.settle({
+      holdCents: 0,
+      charges: [5],
+      provider: 'openrouter',
+      model: 'img-1',
+    });
+    expect(incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ agentSlug: 'agent_7', userId: 'user_1' }),
+    );
+
+    await run.admit(TURN_MAX_GENERATED_IMAGES);
+    await expect(run.admit(1)).resolves.toMatchObject({
+      admitted: false,
+      message: expect.stringMatching(/^This run has created the 16 images/),
+    });
   });
 });

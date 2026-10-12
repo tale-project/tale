@@ -42,13 +42,15 @@ export const MOCK_TRIGGERS = {
   cloudRegion: 'e2e:cloud-region',
   makeFile: 'e2e:make-file',
   makeSpreadsheet: 'e2e:make-spreadsheet',
+  useWorkspace: 'e2e:use-workspace',
 } as const;
 
 /**
- * The work-tool scenarios (`MOCK_TRIGGERS.makeFile` / `makeSpreadsheet`): a
- * first turn that calls the tool — `create_file` with a small CSV, or
- * `run_code` with a Python program that writes a spreadsheet to the light
- * sandbox's output box — and, once the tool result is in, a closing reply.
+ * The work-tool scenarios (`MOCK_TRIGGERS.makeFile` / `makeSpreadsheet` /
+ * `useWorkspace`): a first turn that calls the tool — `create_file` with a
+ * small CSV, `run_code` with a Python program that writes a spreadsheet to
+ * the light sandbox's output box, or `use_workspace` handing a task to the
+ * full workspace — and, once the tool result is in, a closing reply.
  * They prove the plumbing (the call, the sandbox, the attached file), never
  * a model's judgment of which tool to use.
  */
@@ -69,6 +71,11 @@ export const MOCK_WORK_TOOLS = {
     'wb.save("/agent/output/planets.xlsx")',
     'print("wrote planets.xlsx")',
   ].join('\n'),
+  workspaceIntro: 'This needs the full workspace.',
+  workspaceReason:
+    'The work needs a repository checked out and its tests run, which the light sandbox cannot do.',
+  workspaceBrief:
+    'Clone the repository, run its test suite and report which tests fail.',
   done: 'Done — the file is attached to this reply.',
 } as const;
 

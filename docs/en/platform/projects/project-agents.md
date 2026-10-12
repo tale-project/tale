@@ -89,7 +89,7 @@ The agent's report appears in task comments and collected files appear as delive
 
 ## Run one agent on several tasks
 
-An agent is a configuration; a worker is one running copy of it. Each task the agent works on at the same time runs in a worker of its own: a sandbox with its own workspace, memory and processes, so two tasks never share files or slow each other down. Start the agent Scribe on “Release notes” and on “Changelog”, and both work at once, one per worker.
+An agent is a configuration; a worker is one running copy of it. Each task the agent works on at the same time runs in a worker of its own: a sandbox with its own workspace, memory and processes, so two tasks never share files or slow each other down. Start the agent Scribe on “Release notes” and on “Changelog”, and both work at once, one per worker. The one exception is the [standard agent](#standard-agent-runs) when a person starts it: it works the task without a worker until the work needs one.
 
 Workers count against your organization’s **Agent workers** limit in [Sandboxes](/platform/admin/sandboxes#identify-the-limit-that-matters), which every agent of the organization shares. When all of them are busy, a new run waits instead of failing, and the task says why under **Run**: **Waiting for a worker**. It starts on its own as soon as a worker is free, without using an automatic retry, and gets its full working time from then on. Owners and Admins see a link there to raise the limit. When several runs wait, a freed worker goes first to the agent with the fewest runs working, then to the run that has waited longest. To take a waiting run back, use **Cancel run**, or assign the task to someone else: a run that has not started yet is cancelled with the reassignment.
 
@@ -108,6 +108,18 @@ A project without agents of its own can still take on agent work. Unless an admi
 The **Agents** tab lists it with the **Standard** badge. Nobody edits it: its agent runtime, model and instructions follow the organization's settings, read again whenever a run starts, and its equipment is whichever of the document skills `docx`, `pptx`, `xlsx` and `pdf` the project can use when a run starts, so a skill an admin turns off drops out instead of stopping the agent. On **Automatic**, each run uses a model that the person who starts it may use, so it can run on different models for different people.
 
 To give the project an agent of its own, select **New agent**. From then on, the project isn't offered the standard agent any more; the one already set up stays assignable until you delete it. Deleting it keeps the history of its tasks, and while the project has no agents, the next task given to the standard agent sets it up again.
+
+### How a standard agent run works {#standard-agent-runs}
+
+When a person starts the standard agent, it works the task the way the [chat assistant](/platform/chat/files-and-skills) makes a file: with the model chosen for that person, the same knowledge search and page fetching a chat has, the document skills it is equipped with, and code run in a [light sandbox](/platform/admin/sandboxes#light-sandboxes) that starts in about a second and goes away when the run ends. A person starts it with **Start agent**, with an @mention in a comment or in the description, or through the API. No worker starts for such a run, so it never waits for one and doesn't count against **Agent workers**: **Run** reads **Working…** as soon as it starts. It ends like any run. The closing message is posted as the report, the files it made are the task's deliverables, and the task moves to **In review**. **Details** beside **Run** lists what it did, tool by tool.
+
+The run is booked like a chat reply: to the person who started it, under the agent, and on the project. A limit that binds that person refuses the run before it spends anything, and the task then says a usage limit stopped it. An organization works at most four such runs at once; the next waits its turn and starts when one of them ends. A run stops after about 50 minutes, and a Member's run reads only what that Member can read.
+
+When the work needs more than a light sandbox offers, such as a repository to clone and test, a browser session or hours of processing, the agent hands the task to its full workspace instead. It writes down why and what remains. A worker of the agent then starts and carries on from that brief, and the files already made are among the task's deliverables, so nothing is redone. **Run** reads **Waiting for a worker** or **Working…** again. If that worker can't start and the run is retried, the retry goes straight to the full workspace with the same brief.
+
+A run without a worker takes no word while it works. Mention the agent in a comment, or in the description, and the run stops and a new one starts with your comment as its message; if the organization refuses that start, the first run goes on. **Cancel run** ends it at once.
+
+Everything else works in a worker from the start: a run an automation, a schedule or another agent starts, a standard agent whose agent runtime an admin chose under [Governance > Models](/platform/admin/governance/content-models#standard-agent), one whose model only a runtime can serve, such as a subscription's, and every agent you create yourself.
 
 ## Update or remove an agent
 
