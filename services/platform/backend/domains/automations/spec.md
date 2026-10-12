@@ -324,6 +324,37 @@ the current one. Running a draft's tests, or only some of a version's, records n
   report names the failing test and says Ada ran them by hand; the report of the save before is
   gone.
 
+### AUTO-R55 · A pipeline runs a version's tests over REST, and the verdict is recorded
+
+With a key, the REST API runs the tests of a saved version on the mocks, as the editor and a
+coding agent do (`MCP-R33`): all of them, or only those the call names, by the name the document
+gives each — a name no test bears, or two bear, is refused (`INVALID_BODY`), naming the tests
+there are. The answer says which tests passed and, for each that did not, what differed and
+where; it can also carry what each run returned, did and went through. The whole suite, run to
+its end, is recorded on the version as its verdict, made by hand with the key (`AUTO-R50`); a
+part of the suite, a version without tests and a suite the time ran out on record nothing. A
+version that no longer passes the checks is not tested (`AUTOMATION_INVALID`, with the
+problems). The runs draw one execution from the key holder's budget and one unit for each test
+from the organization's budget for runs that are never stored; when either is spent the call is
+refused (`RATE_LIMITED`) with the wait and nothing runs. Any member's key may run them, since a
+test reaches nothing outside Tale. An automation installed only in projects the key holder
+cannot read is "not found" (`AUTO-R27`).
+
+- **Example**: Ada's pipeline runs the tests of `billing/dunning` v7 → three tests, two pass and
+  one fails with the output that differed, and v7 now reads as failing, checked by hand with
+  Ada's key. It runs only "late invoice" by name → one result, and the verdict stays as it was.
+
+### AUTO-R56 · A pipeline reads what a version's tests found last
+
+With a key, the REST API reads the latest check of a saved version's tests: the verdict, when it
+was made, which act made it (the save, the deploy gate, or someone running the tests) and who —
+a member's name only while they are a member — with the report of that check (`AUTO-R50`). A
+version never checked reads as empty, not as a refusal; one that does not exist is "not found"
+(`AUTOMATION_VERSION_UNKNOWN`).
+
+- **Example**: Ada's pipeline reads v7 after the run above → failing, checked by hand, by Ada,
+  with the failing test named. v6, saved without tests, reads with no verdict and no report.
+
 ### AUTO-R51 · Governance can remove old versions, never one that is still read
 
 When an organization sets a period for automation versions, the daily cleanup removes the

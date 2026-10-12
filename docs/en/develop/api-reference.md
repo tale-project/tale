@@ -606,6 +606,26 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/
 
 `POST /api/v1/automations/{name}/versions/{version}/restore` brings an older version back as the newest, restored from it, after the checks and tests of any save: **201** with the new `version`, or **200** with `unchanged: true` when the latest version already holds that content and nothing was saved. It never deploys; the live version stays live. `baseVersion` is the latest version you read, and a version saved since refuses the restore with **409** `AUTOMATION_VERSION_STALE` and `data.latestVersion`.
 
+### Run a version's tests
+
+`POST /api/v1/automations/{name}/versions/{version}/tests` runs the tests in a saved version's document on the deterministic mocks, the ones [the editor runs](/platform/automations/testing). Nothing leaves Tale and nothing is stored, so any member's key may run them. The body is optional:
+
+```bash
+# Run two of v7's tests and read what each run returned
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/versions/7/tests" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "tests": ["late invoice", "paid in full"], "detail": ["output"] }'
+# → 200 { "name": "billing/dunning", "version": 7, "passed": 1, "failed": 1, "results": [ … ] }
+```
+
+`tests` lists the tests to run, by the name the document gives each; leave it out to run all of them. A name no test bears, or two tests bear, answers **400** `INVALID_BODY` and names the tests there are. Each entry of `results` says whether its test passed and how long it took and, for one that did not, lists under `failures` what differed and where: each entry has a `kind` (`output`, `effect_missing`, `node_state`, `run_failed`, `timeout` and more) and the facts for it, with the engine's first sentence as `message`. `detail` adds to each result what its run returned (`output`), would have done (`effects`) and went through (`trace`, the run step by step under `run.record`); a run larger than 256 KB, or runs larger than 384 KB together, are left out and marked `detailOmitted`, and running that test alone reads it. A test stops after 10 seconds and a suite after 60; the tests the suite's time did not reach are named in `notRun` and count as failed.
+
+When the whole suite runs to its end, the result is recorded on the version as its verdict, made by hand with the key: the answer carries `recorded` (`version`, `testsPassed`), and `GET …/tests` reads it back. A part of the suite, a version without tests (an empty report) and a suite the time ran out on record nothing. A version that no longer passes the checks answers **409** `AUTOMATION_INVALID` (`data.errors` lists the problems). The call draws one request from the execute budget, before anything is looked up, and one unit for each test from the organization's budget for runs that are never stored; when either is spent it answers **429** `RATE_LIMITED` with `Retry-After`.
+
+`GET /api/v1/automations/{name}/versions/{version}/tests` reads what a version's tests found last: the verdict (`testsPassed`, `null` while none was recorded), when (`testsCheckedAt`), which act made it (`via`: `save`, `deploy` or `manual`) and who (`by`, and `byName` while that person is a member), and the `report` of that check — each test, whether it passed and, for one that did not, what differed. A report past 64 KB keeps each failure's `kind` alone (`trimmed: true`). A version never checked answers `null`s, not an error.
+
 ## Triggers
 
 A trigger starts an automation without a call from you: on a schedule, from a webhook URL, or when the platform raises an event. Bind one with `PUT /api/v1/automations/{name}/triggers` — one trigger per automation, and the `PUT` replaces whatever was bound:
