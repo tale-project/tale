@@ -710,14 +710,20 @@ async function fetchFollowingRedirects(
   while (true) {
     let response: Response;
     try {
-      const init: RequestInit & { dispatcher: Agent } = {
+      // `@types/node` augments the global RequestInit with the older
+      // undici-types Dispatcher, while this process deliberately uses the
+      // pinned current `undici.Agent`. The dispatcher is a Node-only fetch
+      // extension; cast only this handoff and keep the browser-facing options
+      // above on the standard RequestInit shape.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node fetch dispatcher boundary uses the runtime undici version
+      const init = {
         method: currentMethod,
         headers: currentHeaders,
         body: currentBody,
         redirect: 'manual',
         signal,
         dispatcher,
-      };
+      } as unknown as RequestInit;
       response = await fetch(currentUrl, init);
     } catch (error) {
       if (error instanceof SafeFetchError) throw error;
