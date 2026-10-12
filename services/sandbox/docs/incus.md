@@ -522,12 +522,14 @@ still claim from them.
 - **Spawner restart and rollout.** Sessions keep running (they are not
   children of the spawner) and are re-adopted from their labels; standbys that
   still match are taken over. A stopped instance counts as compute that ended
-  only once its creator's startup deadline and slack have passed, so a spawner
-  that boots, or sweeps, while its peer is creating a session does not reap the
-  create (the lab boots a peer a dozen times beside a spawner creating). A
-  rollout drains the old spawner (`POST /v1/drain`): it refuses new sessions,
-  serves its own, and stops keeping the warm pool, which the new spawner keeps
-  from its boot.
+  once the create that made it has finished (it writes `user.tale.ready` when
+  runnerd answers) or has long given up (its startup deadline and slack have
+  passed), and not before: Incus shows an instance in the middle of its start
+  as stopped, so a spawner that boots, or sweeps, while its peer is creating a
+  session must not take it for ended (the lab boots a peer a hundred times
+  beside a spawner creating). A rollout drains the old spawner (`POST
+  /v1/drain`): it refuses new sessions, serves its own, and stops keeping the
+  warm pool, which the new spawner keeps from its boot.
 - **Node reboot.** Sessions do not autostart: each session instance is found
   stopped, which the route layer treats as ended compute and removes after
   adoption (the sweep takes what it misses). Workspaces survive, and the
