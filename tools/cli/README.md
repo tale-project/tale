@@ -421,6 +421,10 @@ native configuration intent. Remove recovery selectors after the operation reach
 `ready`. The [recovery procedure](../../docs/en/self-hosted/install/cli-install.md#replace-a-pending-configuration-plan)
 includes the hash command, review steps and readback checks.
 
+A pending rollout permits at most 64 bundle takeovers. At that limit, recover
+the exact pending bundle before selecting another rollout. Older CLI journals
+with 65 retained entries remain recoverable; the CLI preserves their history.
+
 Secret values come from environment references. The CLI does not install model
 servers or migrate existing embedding vectors. Read the
 [configuration examples](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)

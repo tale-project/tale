@@ -1823,6 +1823,62 @@ describePosix('complete managed deployment lifecycle', () => {
     });
   });
 
+  test.each([64, 65])(
+    'a saturated %s-entry pending history refuses another takeover but permits exact recovery',
+    async (count) => {
+      const run = await create(true);
+      run.nativeFailure(true);
+      await expect(run.apply()).rejects.toThrow(
+        'did not complete provisioning',
+      );
+      const intentPath = join(
+        run.fixture.options.stateDirectory,
+        '.tale/deployment-pending.json',
+      );
+      const pending = JSON.parse(readFileSync(intentPath, 'utf8'));
+      const history = Array.from({ length: count }, (_, index) =>
+        (index + 1).toString(16).padStart(64, '0'),
+      );
+      pending.supersededBundles = history;
+      writeFileSync(intentPath, JSON.stringify(pending));
+      const original = await verifyDeploymentBundle(run.bundle);
+      rmSync(join(run.bundle, 'deployment.json'));
+      await writeDeploymentBundle(run.bundle, {
+        ...original,
+        spec: {
+          ...original.spec,
+          supersedesPendingBundle: pending.bundleSha256,
+        },
+        deploymentRef: 'd'.repeat(40),
+      });
+      const pendingBytes = readFileSync(intentPath);
+      const runtimeBytes = readFileSync(
+        join(run.fixture.options.stateDirectory, '.tale/runtime.json'),
+      );
+      run.events.length = 0;
+      await expect(run.apply()).rejects.toThrow('takeover history limit');
+      expect(run.events).toEqual([]);
+      expect(readFileSync(intentPath)).toEqual(pendingBytes);
+      expect(
+        readFileSync(
+          join(run.fixture.options.stateDirectory, '.tale/runtime.json'),
+        ),
+      ).toEqual(runtimeBytes);
+      expect(existsSync(run.receiptPath)).toBe(false);
+
+      rmSync(join(run.bundle, 'deployment.json'));
+      await writeDeploymentBundle(run.bundle, original);
+      run.nativeFailure(false);
+      expect(await run.apply()).toMatchObject({
+        phase: 'ready',
+        snapshotId: pending.snapshot.id,
+        supersededBundles: history,
+      });
+      expect(run.events).toEqual(['verify-snapshot', 'provision', 'cleanup']);
+      expect(existsSync(intentPath)).toBe(false);
+    },
+  );
+
   test('preparation binds real source commits, retains only secret references and refuses output reuse', async () => {
     const run = await create();
     const bundle = await verifyDeploymentBundle(run.bundle, {
@@ -2048,7 +2104,10 @@ describePosix('configuration-only managed deployment', () => {
     return { directory, proof };
   }
 
-  async function recoveredDeployment(legacyBasis = false) {
+  async function recoveredDeployment(
+    legacyBasis = false,
+    legacyHistory = false,
+  ) {
     const run = await create(true);
     run.nativeFailure(true);
     await expect(run.apply()).rejects.toThrow('did not complete provisioning');
@@ -2069,11 +2128,33 @@ describePosix('configuration-only managed deployment', () => {
       spec,
       deploymentRef: 'd'.repeat(40),
     });
+    // The released writer could append to a 64-entry Pending and persist 65
+    // entries before provisioning failed. Recover that exact bundle; a new
+    // takeover must not be needed to read or complete the retained journal.
+    const history = legacyHistory
+      ? [
+          ...Array.from({ length: 64 }, (_, index) =>
+            (index + 1).toString(16).padStart(64, '0'),
+          ),
+          pending.bundleSha256,
+        ]
+      : [pending.bundleSha256];
+    if (legacyHistory)
+      writeFileSync(
+        intentPath,
+        JSON.stringify({
+          ...pending,
+          bundleSha256: sha256(
+            readFileSync(join(run.bundle, 'deployment.json')),
+          ),
+          supersededBundles: history,
+        }),
+      );
     run.nativeFailure(false);
     expect(await run.apply()).toMatchObject({
       phase: 'ready',
       snapshotId: pending.snapshot.id,
-      supersededBundles: [pending.bundleSha256],
+      supersededBundles: history,
     });
     expect(existsSync(intentPath)).toBe(false);
     if (legacyBasis) {
@@ -2090,6 +2171,23 @@ describePosix('configuration-only managed deployment', () => {
     }
     return { run, pending, pendingBytes, intentPath };
   }
+
+  test('a released 65-entry recovery journal admits hot cleanup without losing history', async () => {
+    const { run, pending } = await recoveredDeployment(true, true);
+    const ready = readFileSync(run.receiptPath);
+    expect(JSON.parse(ready.toString()).supersededBundles).toHaveLength(65);
+    const hot = await hotBundle(run);
+    run.events.length = 0;
+    expect(
+      await applyDeployment(
+        { bundle: hot.directory, configurationOnly: true },
+        run.dependencies,
+      ),
+    ).toMatchObject({ phase: 'configuration-ready', runtimeChanged: false });
+    expect(run.events).toEqual(['provision', 'cleanup']);
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+    expect(JSON.parse(ready.toString()).snapshotId).toBe(pending.snapshot.id);
+  });
 
   test.each([false, true])(
     'recovery then removal admits hot configuration (legacy basis: %s) without replacing Ready or snapshot',

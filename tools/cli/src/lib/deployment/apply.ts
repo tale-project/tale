@@ -130,13 +130,17 @@ const recoverySnapshotSchema = z.object({
     )
     .refine((volumes) => Object.keys(volumes).length > 0),
 });
+const MAX_SUPERSEDED_BUNDLES = 64;
+// Released writers accepted 64 entries, then appended one without checking.
+// Read their retained Pending and Ready journals without pruning that history.
+const supersededBundlesSchema = z.array(sha).max(MAX_SUPERSEDED_BUNDLES + 1);
 const deploymentIntentSchema = z.strictObject({
   schemaVersion: z.literal(1),
   phase: z.literal('pending'),
   name: slug,
   bundleSha256: sha,
   snapshot: recoverySnapshotSchema.optional(),
-  supersededBundles: z.array(sha).max(64).optional(),
+  supersededBundles: supersededBundlesSchema.optional(),
 });
 
 /**
@@ -658,6 +662,10 @@ async function applyVerifiedDeployment(
         intent.name === bundle.spec.name &&
         bundle.spec.supersedesPendingBundle === intent.bundleSha256
       ) {
+        if ((intent.supersededBundles?.length ?? 0) >= MAX_SUPERSEDED_BUNDLES)
+          throw preconditionError(
+            'The pending deployment has reached its takeover history limit. Recover that exact reviewed bundle first.',
+          );
         // The reviewed bundle takes over the pending one's recovery point: the
         // snapshot taken before anything changed stays the recovery point, and
         // the superseded bundle is named in the ready receipt. The takeover is
@@ -691,7 +699,7 @@ async function applyVerifiedDeployment(
             bundleSha256: sha,
             snapshotId: z.string().refine(isValidSnapshotId).optional(),
             configurationBasisSha256: sha.optional(),
-            supersededBundles: z.array(sha).max(64).optional(),
+            supersededBundles: supersededBundlesSchema.optional(),
             native: nativeProvisionProofSchema.optional(),
           })
           .parse(JSON.parse(readRegular(receiptPath).toString('utf8')))
