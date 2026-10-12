@@ -24,6 +24,7 @@ import {
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { getClientIp, nodePeerAddress } from './core/lib/utils/client_ip.ts';
 import { runWithSwallowedDatabaseErrors } from './db/unavailable.ts';
+import { createAgentConnectionRoutes } from './domains/agent_connections/routes.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApiKeyRoutes } from './domains/api_keys/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
@@ -431,6 +432,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));
   app.route('/api/app/api-keys', createApiKeyRoutes(deps));
+  app.route('/api/app/agent-connections', createAgentConnectionRoutes(deps));
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
   app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/deployment', createDeploymentRoutes(deps));

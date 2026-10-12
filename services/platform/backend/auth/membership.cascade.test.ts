@@ -14,6 +14,7 @@ import type { PgBoss } from 'pg-boss';
 import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { recordingSql } from '../domains/agent_connections/test-helpers.ts';
 import { setEnqueueBoss } from '../jobs/enqueue.ts';
 import { removeMembershipCascade } from './membership.ts';
 
@@ -76,6 +77,24 @@ describe('removeMembershipCascade — competence grants', () => {
         statement.text.includes('DELETE FROM app.competence_records'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('removeMembershipCascade — coding agents [AGCONN-R4]', () => {
+  it('ends the agents the member connected in this organization, for the platform, and no other organization’s', async () => {
+    installFakeBoss();
+    const { tx, statements } = recordingSql();
+    await removeMembershipCascade(tx, 'org-1', 'u-1');
+    const ended = statements.find((statement) =>
+      statement.text.startsWith('UPDATE app.agent_connections'),
+    );
+    expect(ended?.values).toEqual([
+      expect.any(Number),
+      'system',
+      'membership_ended',
+      'org-1',
+      'u-1',
+    ]);
   });
 });
 

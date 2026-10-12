@@ -489,6 +489,9 @@ describe('deleteOrganization', () => {
     // realtime outbox sits in its own schema, outside the catalog walk. The
     // API keys bound to the organization go first, before the walk takes
     // their bindings (none are held here, so no secret or identity follows).
+    // The grants coding agents hold at the sign-in server are keyed by the
+    // organization they were made for, so they go beside the clients bound
+    // to it.
     const deletes = writes.filter((t) => t.startsWith('DELETE FROM'));
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
       'app.api_key_owners',
@@ -501,6 +504,9 @@ describe('deleteOrganization', () => {
       'app.projects',
       'app_realtime.outbox',
       '"oauthClient"',
+      '"oauthAccessToken"',
+      '"oauthRefreshToken"',
+      '"oauthConsent"',
       '"teamMember"',
       '"team"',
       '"invitation"',

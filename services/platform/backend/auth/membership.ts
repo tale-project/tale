@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { roleRank } from '../../lib/shared/role-rank.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../core/lib/audience.ts';
+import { endAgentConnectionsInTx } from '../domains/agent_connections/end.ts';
 import {
   type ApiKeyOwner,
   readServicePrincipal,
@@ -340,6 +341,15 @@ export async function removeMembershipCascade(
     organizationId,
     reason: 'maker_removed',
     makerUserId: userId,
+  });
+  // The coding agents the member connected here end with the seat: the
+  // organization's record of each, and the consent and refresh tokens the
+  // sign-in server holds for it — a re-added member connects them again.
+  await endAgentConnectionsInTx(tx, {
+    organizationId,
+    userId,
+    reason: 'membership_ended',
+    revokedBy: 'system',
   });
   // The workspaces the member's runs with the organization's agents worked
   // in hold what those runs left behind — theirs, and reachable by nobody
