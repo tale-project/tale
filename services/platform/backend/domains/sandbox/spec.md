@@ -344,7 +344,7 @@ working sandbox. It is removed only once it has itself been unused for five minu
 
 ## Current execution discovery
 
-### SBX-R27 · Discovery binds self identity to the token’s live task execution without changing grants
+### SBX-R27 · Discovery binds self identity without changing grants
 
 `workspace_status` may return `currentExecution` only after the existing task-run authority reader matches the token’s organization, session and exec to a live queued/running task run and its agent/project, with schedule revocation retained. Body claims and earlier guidance do not supply it. Ended, superseded or unavailable task identity is null; chat, workflow and legacy discovery can omit it. Expired authentication is still refused. Tool grants and mutation authority stay unchanged. This read is an observation, not a capacity reservation or start, command or publication allowance.
 
