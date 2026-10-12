@@ -680,5 +680,25 @@
  * instead of a document to bring an older version back as the newest; and
  * `deploy_automation` answers `kind`: `rollback` for a deploy of an older
  * version, `deploy` for any other.
+ *
+ * 3.38.0 — 2026-10-12: versions on the REST API, as the app and MCP read
+ * them. `GET /automations/{name}/versions` answers each version's `createdVia`,
+ * `viaInferred`, `clientName`, `createdByName` (a member's name, never an
+ * e-mail address), `basedOnVersion`, `restoredFromVersion`, `changes`, `tests`
+ * and `lastDeployedAt`, `latestVersion` beside the list, and pages with `limit`
+ * and a signed `cursor` (`isDone`, `continueCursor`; without `limit`, the whole
+ * history in one page as before). New: `GET /automations/{name}/deployments`
+ * (when each version went live, and what is live now),
+ * `GET /automations/{name}/compare` (what a version changed against another,
+ * node by node or as a unified patch over the YAML),
+ * `POST /automations/{name}/deployments` (put a saved version live behind the
+ * deploy gate, `expectedDeployedVersion` refusing a deploy another one
+ * overtook; an older version rolls back; the developer capability) and
+ * `POST /automations/{name}/versions/{version}/restore` (bring an older
+ * version back as the newest; never a deploy; the developer capability). The
+ * error codes `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_DEPLOY_REJECTED`,
+ * `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING` and
+ * `AUTOMATION_VERSION_STALE` join the registry. A deploy answered over MCP
+ * now says `kind: "unchanged"` for a version that was live already.
  */
-export const API_CONTRACT_VERSION = '3.37.0';
+export const API_CONTRACT_VERSION = '3.38.0';

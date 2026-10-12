@@ -20,10 +20,10 @@ import {
   getRun,
   listRunsPage,
   listTriggers,
-  listVersions,
   setTrigger,
   versionRow,
 } from '../domains/automations/store.ts';
+import { listVersionHistory } from '../domains/automations/versions.ts';
 import { formatKeysetCursor, mintCursorFor, type RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 
@@ -63,9 +63,14 @@ vi.mock('../domains/automations/store.ts', async (importOriginal) => ({
   deployedVersion: vi.fn(),
   getRun: vi.fn(),
   listTriggers: vi.fn(async () => []),
-  listVersions: vi.fn(async () => []),
   listRunsPage: vi.fn(),
   versionRow: vi.fn(),
+}));
+vi.mock('../domains/automations/versions.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../domains/automations/versions.ts')
+  >()),
+  listVersionHistory: vi.fn(),
 }));
 
 const SAVED = 'invoice-sync';
@@ -215,8 +220,13 @@ beforeEach(() => {
   vi.mocked(deleteAutomationCascade).mockReset();
   vi.mocked(deleteAutomationCascade).mockResolvedValue({ versions: 2 });
   vi.mocked(listTriggers).mockClear();
-  vi.mocked(listVersions).mockReset();
-  vi.mocked(listVersions).mockResolvedValue([]);
+  vi.mocked(listVersionHistory).mockReset();
+  vi.mocked(listVersionHistory).mockResolvedValue({
+    versions: [],
+    nextBefore: null,
+    latestVersion: null,
+    deployedVersion: 1,
+  });
   vi.mocked(listRunsPage).mockReset();
   vi.mocked(listRunsPage).mockResolvedValue({
     runs: [],
@@ -1107,7 +1117,7 @@ describe('reads of an automation nobody saved', () => {
         error: 'Automation not found',
         code: 'AUTOMATION_NOT_FOUND',
       });
-      expect(listVersions).not.toHaveBeenCalled();
+      expect(listVersionHistory).not.toHaveBeenCalled();
       expect(listTriggers).not.toHaveBeenCalled();
       expect(listRunsPage).not.toHaveBeenCalled();
     },
@@ -1152,7 +1162,7 @@ describe('reads of an automation nobody saved', () => {
       `http://localhost/api/v1/automations/${SAVED}/extra/versions`,
     );
     expect(res.status).toBe(404);
-    expect(listVersions).not.toHaveBeenCalled();
+    expect(listVersionHistory).not.toHaveBeenCalled();
   });
 });
 
@@ -1230,8 +1240,60 @@ describe('GET /automations/{name}', () => {
 });
 
 describe('GET /automations/{name}/versions', () => {
+  /** A history row as `listVersionHistory` answers it. */
+  const history = (
+    version: number,
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    version,
+    message: null,
+    createdBy: 'user-1',
+    createdAt: version,
+    via: 'app' as const,
+    viaInferred: false,
+    apiKeyId: null,
+    clientName: null,
+    basedOnVersion: null,
+    restoredFromVersion: null,
+    changes: null,
+    testsPassed: null,
+    testsCheckedAt: null,
+    tests: null,
+    live: false,
+    lastDeployedAt: null,
+    ...overrides,
+  });
+
   it('marks the deployed version', async () => {
-    vi.mocked(listVersions).mockResolvedValue([
+    vi.mocked(listVersionHistory).mockResolvedValue({
+      versions: [
+        history(2, { message: 'second', createdVia: 'mcp', via: 'mcp' }),
+        history(1, {
+          testsPassed: true,
+          testsCheckedAt: 1_700_000_000_500,
+          live: true,
+        }),
+      ],
+      nextBefore: null,
+      latestVersion: 2,
+      deployedVersion: 1,
+    });
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/versions`,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      name: SAVED,
+      deployedVersion: 1,
+      latestVersion: 2,
+      isDone: true,
+      continueCursor: '',
+    });
+    // The documented fields of every version, as the listing has always
+    // answered them — what the history adds to them is held in
+    // `v1-automations.versions.test.ts`.
+    expect(body.versions).toMatchObject([
       {
         version: 2,
         message: 'second',
@@ -1239,8 +1301,7 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: null,
         createdBy: 'user-1',
         createdAt: 2,
-        createdVia: 'mcp',
-        clientName: 'claude-code',
+        deployed: false,
       },
       {
         version: 1,
@@ -1249,42 +1310,18 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: 1_700_000_000_500,
         createdBy: 'user-1',
         createdAt: 1,
-        createdVia: null,
-        clientName: null,
+        deployed: true,
       },
     ]);
-    const res = await mount().app.request(
-      `http://localhost/api/v1/automations/${SAVED}/versions`,
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      name: SAVED,
-      deployedVersion: 1,
-      versions: [
-        {
-          version: 2,
-          message: 'second',
-          testsPassed: null,
-          testsCheckedAt: null,
-          createdBy: 'user-1',
-          createdAt: 2,
-          deployed: false,
-        },
-        {
-          version: 1,
-          message: null,
-          testsPassed: true,
-          testsCheckedAt: 1_700_000_000_500,
-          createdBy: 'user-1',
-          createdAt: 1,
-          deployed: true,
-        },
-      ],
-    });
   });
 
   it('answers null when nothing is deployed', async () => {
-    vi.mocked(deployedVersion).mockResolvedValue(undefined);
+    vi.mocked(listVersionHistory).mockResolvedValue({
+      versions: [history(1)],
+      nextBefore: null,
+      latestVersion: 1,
+      deployedVersion: null,
+    });
     const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/versions`,
     );

@@ -53,6 +53,7 @@ import {
   readApprovalAllowanceRows,
   setApprovalAllowances,
 } from './approval-allowances.ts';
+import { refusalDataOf } from './authoring-refusal.ts';
 import { admitBenchRun, runTestsByHand, tryRun } from './bench.ts';
 import {
   deploymentEventWire,
@@ -458,9 +459,6 @@ const replayQuerySchema = z.object({
   mode: z.enum(['mock', 'live']).optional(),
 });
 
-/** The parts of a refusal the editor reads as structure, not as a sentence. */
-const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
-
 /**
  * The app and MCP authoring doors share the engine's validation/test gate.
  *
@@ -484,20 +482,13 @@ export function authoringRefusalBody(
           code === 'AUTOMATION_DEPLOY_REJECTED'
         ? 409
         : 400;
-  // A refusal's own `data` (a refused run input's schema problems, say)
-  // stays; the detail keys join it.
-  const data: Record<string, unknown> = isRecord(result.data)
-    ? { ...result.data }
-    : {};
-  for (const key of REFUSAL_DETAIL_KEYS) {
-    if (result[key] !== undefined) data[key] = result[key];
-  }
+  const data = refusalDataOf(result);
   return {
     body: {
       ...result,
       error: code,
       message: result.error,
-      ...(Object.keys(data).length > 0 && { data }),
+      ...(data !== undefined && { data }),
     },
     status,
   };

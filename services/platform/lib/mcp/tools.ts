@@ -317,7 +317,7 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   list_automations:
     "The organization's automations with their latest and deployed versions and the projects each is installed in (projectIds).",
   deploy_automation:
-    'Promote one saved version to be the live version; an older one rolls back. Pass expectedDeployedVersion so another deploy meanwhile is never replaced; the answer names the previousVersion and whether it was a rollback (kind).',
+    'Promote one saved version to be the live version; an older one rolls back. Pass expectedDeployedVersion so another deploy meanwhile is never replaced; the answer names the previousVersion and what the deploy did (kind: deploy, rollback or unchanged).',
   delete_automation:
     'Delete an automation: every version, its trigger and its installations; the run history stays. expectedLatestVersion must be the latest version you read.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',

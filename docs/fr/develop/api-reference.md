@@ -668,11 +668,35 @@ Une automatisation installée uniquement dans des projets que le titulaire de la
 - `testsPassed: true` ou `false` : résultat de la dernière exécution des tests, soit lors d’un enregistrement par `save_automation` sur MCP, soit lors de la vérification préalable au déploiement. Un refus de déploiement est également enregistré.
 - `testsCheckedAt` : date de cette vérification. Elle peut être `null` pour un résultat antérieur à la version 0.5.24. Lis le verdict dans `testsPassed` et utilise la date uniquement pour en évaluer l’ancienneté.
 
+Chaque ligne indique aussi qui l’a enregistrée (`createdBy`, et `createdByName` tant que la personne est membre — jamais une adresse e-mail), par quel accès (`createdVia` : `app`, `upload`, `mcp`, `rest`, `managed` ou `system` ; `viaInferred` quand l’accès d’une version antérieure à son enregistrement a été déduit de `createdBy`) et avec quel client (`clientName`), de quelle version elle part (`basedOnVersion`) et laquelle elle restaure (`restoredFromVersion`), ce qu’elle a changé par rapport à la version précédente (`changes` : des comptes et des indicateurs, jamais de contenu), comment ses tests se sont passés, en nombres (`tests`), et quand elle est passée en service pour la dernière fois (`lastDeployedAt`) ; `latestVersion` nomme la plus récente. Sans `limit`, la réponse est tout l’historique et `isDone` vaut `true` ; avec `limit` (de 1 à 200), c’est une page, et `continueCursor` est le `cursor` de la suivante.
+
 `DELETE /api/v1/automations/{name}` exige la capacité développeur. Il supprime la définition, ses versions, ses déclencheurs et ses associations aux projets. Une exécution active bloque la suppression avec **409**, `AUTOMATION_HAS_ACTIVE_RUNS`.
 
 Les anciennes exécutions sont conservées. `GET /api/v1/runs` continue de les lister, elles restent lisibles par ID, et `GET /api/v1/automations/{name}/runs` (comme son jumeau de projet) les renvoie toujours sous le nom utilisé à leur lancement. En revanche, lire la définition supprimée, ses versions ou ses déclencheurs donne **404**.
 
-REST permet de consulter les automatisations, de les installer, de les exécuter et de configurer leurs déclencheurs. Pour créer, enregistrer ou déployer une définition, utilise `save_automation` et `deploy_automation` sur [MCP](/fr/develop/mcp-endpoint), l’éditeur visuel de l’application ou une release de configuration via `tale deploy`.
+REST permet de consulter et de comparer les automatisations, de les installer, de les exécuter, de configurer leurs déclencheurs, et de déployer ou de restaurer leurs versions. Pour créer ou enregistrer une définition, utilise `save_automation` sur [MCP](/fr/develop/mcp-endpoint), l’éditeur visuel de l’application ou une release de configuration via `tale deploy`.
+
+### Comparer, déployer et restaurer des versions
+
+`GET /api/v1/automations/{name}/compare` indique ce qu’une version a changé par rapport à une autre : les nœuds ajoutés, supprimés, renommés ou modifiés et dans quels champs, et ce qui a changé dans le schéma d’entrée, la sortie, la description, les tests et ce qu’une version garde à côté de son document. `from` et `to` acceptent un numéro de version, `latest` ou `deployed`, et `from` aussi `previous` — la version enregistrée juste avant `to`, par défaut ; `to` vaut par défaut la plus récente. `format=unified` renvoie à la place un patch sur le YAML des deux versions, et `both` les deux ; un patch de plus de 256 Ko est coupé, et `truncated` le signale. Une version que l’automatisation n’a jamais enregistrée, et `deployed` tant que rien n’est en service, donnent **404**, `AUTOMATION_VERSION_UNKNOWN`.
+
+`GET /api/v1/automations/{name}/deployments` liste quand chaque version est passée en service, les plus récentes d’abord et par pages comme les versions : ce qu’elle a remplacé (`previousVersion`), si c’était un retour en arrière (`kind`), et qui l’a fait, par quel accès et avec quel client. À côté de la page, la réponse nomme ce qui est en service (`live`), avec ses exécutions encore en cours.
+
+Deux écritures permettent à une chaîne de livraison de promouvoir une version. Toutes deux exigent la capacité développeur et exécutent les tests propres de la version ; la mise en service prélève en plus une requête sur le budget d’exécution, en plus du budget général :
+
+```bash
+# Mettre la v7 en service, mais seulement tant que la v5 l’est
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/deployments" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "version": 7, "expectedDeployedVersion": 5 }'
+# → 200 { "name": "billing/dunning", "version": 7, "previousVersion": 5, "kind": "deploy", "deploymentId": "…", "trigger": null }
+```
+
+`POST …/deployments` met en service une version enregistrée. Une version plus ancienne revient en arrière, et `kind` dit lequel des deux c’était (`unchanged` quand cette version était déjà en service). La réponse est **409**, `AUTOMATION_TESTS_FAILING` (`data.report` liste les tests en échec) ou `AUTOMATION_INVALID` (`data.errors` liste les problèmes), quand la version ne passe plus. `expectedDeployedVersion` est la version que tu as lue comme en service, `null` pour aucune : si une autre est passée en service entre-temps, le déploiement répond **409**, `AUTOMATION_DEPLOYMENT_STALE`, et nomme la version en service, pour qu’une chaîne de livraison n’annule jamais le déploiement d’un collègue. Le champ `trigger` de la réponse dit si le déclencheur de l’automatisation démarrera la nouvelle version ; un déclencheur désactivé ne le fait pas.
+
+`POST /api/v1/automations/{name}/versions/{version}/restore` remet une ancienne version en place comme la plus récente, restaurée depuis elle, après les vérifications et les tests de tout enregistrement : **201** avec la nouvelle `version`, ou **200** avec `unchanged: true` quand la dernière version a déjà ce contenu et que rien n’a été enregistré. Il ne déploie jamais ; la version en service le reste. `baseVersion` est la dernière version que tu as lue, et une version enregistrée depuis refuse la restauration avec **409**, `AUTOMATION_VERSION_STALE` et `data.latestVersion`.
 
 ## Déclencheurs
 

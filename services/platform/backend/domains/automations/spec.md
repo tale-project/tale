@@ -178,6 +178,47 @@ remove another automation's trigger. A name saved before the rule keeps saving.
 - **Example**: Noah creates `ops/versions` → refused, naming `versions`. He creates
   `ops/version-history` → it saves.
 
+### AUTO-R52 · A pipeline reads the history and compares versions over REST
+
+With a key, the REST API reads a version history a page at a time, newest first (all of it when
+no page is asked for): each version with who saved it, through which door and client, what it
+was based on and changed, how its tests went and whether it is live; and the member behind a
+version is named only while they are a member, never by an e-mail address. It reads when each
+version went live and what is live now, and compares two versions node by node or as a patch
+over their YAML. An automation installed only in projects the key holder cannot read is "not
+found" on all of these (`AUTO-R27`).
+
+- **Example**: Ada's pipeline asks for the history of `billing/dunning` three versions at a time
+  → versions 7, 6 and 5 with a cursor for the rest, version 7 naming Ada as its author, saved
+  through a coding agent. It asks what 7 changed against the live version 5 → the nodes that 6
+  and 7 changed.
+
+### AUTO-R53 · A pipeline puts a version live over REST, behind the same gate
+
+With a key whose holder may deploy, the REST API puts a saved version live as the editor and a
+coding agent do: the version must still pass the checks and its own tests (`AUTOMATION_INVALID`,
+`AUTOMATION_TESTS_FAILING`, each with what failed). The call may name the version it read as
+live; when another went live meanwhile it is refused (`AUTOMATION_DEPLOYMENT_STALE`), naming the
+live one, and nothing changes. An older version rolls back, and the answer says which it did:
+deployed, rolled back, or nothing changed because the version was live already. The change is
+recorded as the key's (`AUTO-R28`) and draws one request from the key holder's execution budget.
+
+- **Example**: Ada's pipeline read version 5 as live and promotes 7, naming 5. Ben put 6 live a
+  minute earlier → refused, naming 6, and 6 stays live. It promotes 7 naming 6 → 7 is live. Later
+  it puts 6 back, naming 7 → rolled back.
+
+### AUTO-R54 · A pipeline brings an older version back over REST, and nothing goes live
+
+With the same key, the REST API restores an older version as `AUTO-R48` says: its content saved
+as the newest version through a save's checks and tests (201), or nothing saved when the latest
+version already holds it (200). Naming the latest version the pipeline read refuses the restore
+when another was saved since (`AUTOMATION_VERSION_STALE`), naming it. A restore never deploys. A
+key whose holder may not deploy is refused (`ROLE_FORBIDDEN`) and nothing is saved.
+
+- **Example**: Ben's pipeline read version 9 as the latest and restores version 7, naming 9 →
+  version 10 is saved, restored from 7, and the live version is untouched. Ada had saved version
+  10 first → refused, naming 10.
+
 ## Creating from a starter
 
 A starter is a working automation the platform ships with a few questions: the project it
