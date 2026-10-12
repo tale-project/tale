@@ -260,8 +260,10 @@ basis included the declaration is accepted only when its recorded final
 `supersededBundles` entry reconstructs that exact hash with all other protected
 inputs unchanged. Missing or mismatched history still refuses the apply. Keep
 the historical Ready receipt and recovery snapshot intact; no receipt editing or
-extra rollout is needed solely to remove the declaration. A pending rollout or
-a declaration that still requests a takeover remains ineligible.
+extra rollout is needed solely to remove the declaration when a legacy receipt
+retains that history. A legacy receipt without it needs one normal deployment.
+A pending rollout or any remaining `supersedesPendingBundle` declaration
+remains ineligible.
 
 The CLI reuses its existing deployment lock, private native provisioning session,
 configuration plan, journal and readback. It changes only managed instruction and

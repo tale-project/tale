@@ -1823,8 +1823,8 @@ describePosix('complete managed deployment lifecycle', () => {
     });
   });
 
-  test.each([64, 65])(
-    'a saturated %s-entry pending history refuses another takeover but permits exact recovery',
+  test.each([63, 64, 65])(
+    'a %d-entry pending history preserves the last allowed takeover and exact recovery',
     async (count) => {
       const run = await create(true);
       run.nativeFailure(true);
@@ -1856,6 +1856,27 @@ describePosix('complete managed deployment lifecycle', () => {
         join(run.fixture.options.stateDirectory, '.tale/runtime.json'),
       );
       run.events.length = 0;
+      if (count === 63) {
+        await expect(run.apply()).rejects.toThrow(
+          'did not complete provisioning',
+        );
+        const takenOver = JSON.parse(readFileSync(intentPath, 'utf8'));
+        const completeHistory = [...history, pending.bundleSha256];
+        expect(takenOver.supersededBundles).toEqual(completeHistory);
+        expect(takenOver.supersededBundles).toHaveLength(64);
+        expect(takenOver.snapshot).toEqual(pending.snapshot);
+        expect(existsSync(run.receiptPath)).toBe(false);
+        run.nativeFailure(false);
+        run.events.length = 0;
+        expect(await run.apply()).toMatchObject({
+          phase: 'ready',
+          snapshotId: pending.snapshot.id,
+          supersededBundles: completeHistory,
+        });
+        expect(run.events).toEqual(['verify-snapshot', 'provision', 'cleanup']);
+        expect(existsSync(intentPath)).toBe(false);
+        return;
+      }
       await expect(run.apply()).rejects.toThrow('takeover history limit');
       expect(run.events).toEqual([]);
       expect(readFileSync(intentPath)).toEqual(pendingBytes);
@@ -2171,6 +2192,25 @@ describePosix('configuration-only managed deployment', () => {
     }
     return { run, pending, pendingBytes, intentPath };
   }
+
+  test('reapplying a completed takeover keeps its selector out of the hot basis without history', async () => {
+    const { run, pending } = await recoveredDeployment();
+    // Reapplying the same completed bundle only warns about its selector,
+    // then writes Ready without takeover history to reconstruct a legacy hash.
+    expect(await run.apply()).not.toHaveProperty('supersededBundles');
+    const ready = readFileSync(run.receiptPath);
+    const hot = await hotBundle(run);
+    run.events.length = 0;
+    expect(
+      await applyDeployment(
+        { bundle: hot.directory, configurationOnly: true },
+        run.dependencies,
+      ),
+    ).toMatchObject({ phase: 'configuration-ready', runtimeChanged: false });
+    expect(run.events).toEqual(['provision', 'cleanup']);
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+    expect(JSON.parse(ready.toString()).snapshotId).toBe(pending.snapshot.id);
+  });
 
   test('a released 65-entry recovery journal admits hot cleanup without losing history', async () => {
     const { run, pending } = await recoveredDeployment(true, true);
