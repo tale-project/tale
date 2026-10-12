@@ -251,29 +251,39 @@ describe('an automation agent turn', () => {
         targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
       },
     ].flatMap((provider) =>
-      [undefined, 'https://subscription-proxy.example.com/vendor'].map(
-        (endpointUrl) => Object.assign({}, provider, { endpointUrl }),
-      ),
+      [
+        { authMethod: 'subscription-broker', endpointUrl: undefined },
+        {
+          authMethod: 'subscription-broker',
+          endpointUrl: 'https://subscription-proxy.example.com/vendor',
+        },
+        { authMethod: 'subscription-key', endpointUrl: undefined },
+      ].map((credential) => Object.assign({}, provider, credential)),
     ),
   )(
-    'delivers the $providerSlug broker channel and endpoint override $endpointUrl',
+    'delivers the $providerSlug $authMethod channel and endpoint override $endpointUrl',
     async ({
       providerSlug,
       harness,
       modelId,
       apiBaseUrl,
       targetEnvVar,
+      authMethod,
       endpointUrl,
     }) => {
       io.reservation = { allowed: true, budgetCents: 0 };
       vi.mocked(resolveProviderCredential).mockResolvedValue({
-        authMethod: 'subscription-broker',
+        authMethod,
         credentialId: 'credential-1',
         name: 'Synthetic broker',
-        token: 'synthetic-oauth-token',
+        ...(authMethod === 'subscription-broker'
+          ? {
+              token: 'synthetic-oauth-token',
+              brokerTokenHash: 'stable-selected-account-hash',
+            }
+          : { secret: 'synthetic-oauth-token' }),
         targetEnvVar,
         accountId: 'synthetic-account',
-        brokerTokenHash: 'stable-selected-account-hash',
         ...(endpointUrl !== undefined ? { endpointUrl } : {}),
       } as never);
       const { ctx, mutations } = makeCtx({ status: 'running' });
@@ -318,7 +328,11 @@ describe('an automation agent turn', () => {
       expect(
         mutations.find((m) => m.args.brokerTokenHash !== undefined)?.args
           .brokerTokenHash,
-      ).toBe('stable-selected-account-hash');
+      ).toBe(
+        authMethod === 'subscription-broker'
+          ? 'stable-selected-account-hash'
+          : null,
+      );
       // The subscription turn holds its request — at no cost — before the
       // credential is vended (GOV-R16).
       expect(
