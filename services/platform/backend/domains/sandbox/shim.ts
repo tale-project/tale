@@ -133,6 +133,16 @@ async function resolveSessionBinding(
  * field — only the standing workspace existed then, and a member's
  * workspace never lacks it.
  */
+export interface SessionCurrentExecution {
+  taskId: string;
+  agentId: string;
+  runId: string;
+  execId: string;
+  startedAt: number;
+  launchedAt: number | null;
+  observedAt: number;
+}
+
 async function taskRunConfinement(
   sql: Sql | TransactionSql,
   args: {
@@ -142,7 +152,14 @@ async function taskRunConfinement(
     projectId: string;
     execId?: string;
   },
-): Promise<'ended' | 'revoked' | { taskId?: string }> {
+): Promise<
+  | 'ended'
+  | 'revoked'
+  | {
+      taskId?: string;
+      currentExecution?: Omit<SessionCurrentExecution, 'observedAt'>;
+    }
+> {
   if (args.execId === undefined) {
     return isStandingProjectAgentSession(args.agentId, args.sessionId)
       ? {}
@@ -150,16 +167,22 @@ async function taskRunConfinement(
   }
   const runs = await sql<
     {
+      runId: string;
+      execId: string;
       taskId: string;
       projectId: string;
       agentId: string;
       sessionId: string;
       startedBy: string;
+      startedAt: number;
+      launchedAt: number | null;
     }[]
   >`
-    SELECT task_id AS "taskId", project_id AS "projectId",
+    SELECT id AS "runId", exec_id AS "execId",
+           task_id AS "taskId", project_id AS "projectId",
            agent_id AS "agentId", session_id AS "sessionId",
-           started_by AS "startedBy"
+           started_by AS "startedBy", started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt"
     FROM app.project_agent_runs
     WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
       AND exec_id = ${args.execId} AND status IN ('queued', 'running')
@@ -187,7 +210,60 @@ async function taskRunConfinement(
     organizationId: args.organizationId,
     ...run,
   });
-  return confined ? { taskId: run.taskId } : {};
+  const execution =
+    typeof run.runId === 'string' &&
+    run.runId.length > 0 &&
+    run.execId === args.execId &&
+    run.sessionId === args.sessionId &&
+    Number.isSafeInteger(run.startedAt) &&
+    run.startedAt >= 0 &&
+    (run.launchedAt === null ||
+      (Number.isSafeInteger(run.launchedAt) && run.launchedAt >= run.startedAt))
+      ? {
+          currentExecution: {
+            taskId: run.taskId,
+            agentId: run.agentId,
+            runId: run.runId,
+            execId: run.execId,
+            startedAt: run.startedAt,
+            launchedAt: run.launchedAt,
+          },
+        }
+      : {};
+  return { ...(confined ? { taskId: run.taskId } : {}), ...execution };
+}
+
+/** A fresh self read, bound to the token's live task exec, not its hint alone. */
+export async function readSessionCurrentExecution(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string; taskRunExecId?: string },
+): Promise<SessionCurrentExecution | null> {
+  if (args.taskRunExecId === undefined) return null;
+  const binding = await resolveSessionBinding(
+    sql,
+    args.organizationId,
+    args.sessionId,
+  );
+  if (
+    binding.kind !== 'project' ||
+    binding.ownerType !== 'project_agent' ||
+    binding.projectId === undefined ||
+    binding.actorId === undefined
+  )
+    return null;
+  const confinement = await taskRunConfinement(sql, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+    agentId: binding.actorId,
+    projectId: binding.projectId,
+    execId: args.taskRunExecId,
+  });
+  if (
+    typeof confinement === 'string' ||
+    confinement.currentExecution === undefined
+  )
+    return null;
+  return { ...confinement.currentExecution, observedAt: Date.now() };
 }
 
 /** The same session and starter gate for project-wide task mutations.

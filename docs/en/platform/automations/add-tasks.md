@@ -75,6 +75,29 @@ The step returns `{ tasks, hasMore }`. Each task carries its `taskId`, `number`,
 
 </Frame>
 
+## Read a task and a specific run
+
+A `task.get` step normally returns the task’s title, status, project and description. Add `agentRunId` to read one exact run on that task. `agentRun` then contains `id`, `taskId`, `agentId`, `status`, `execId`, `startedAt`, `launchedAt` and `settledAt`; timestamps are epoch milliseconds and the last two can be `null`. A missing run or one belonging to another task or organization returns `agentRun: null`. No latest run is substituted. Leaving `agentRunId` out preserves the original response.
+
+Use `task.list_comments` with `includeIds: true` when a receipt needs each comment’s native `messageId` alongside `authorType`, `authorId`, body and timestamp. The default response stays unchanged, and `truncated` still reports incomplete history. IDs written inside a comment are not its native identity.
+
+These reads do not reserve capacity or authorize a start, command or publication. A missing field or refusal on an older platform leaves identity unknown. For a task agent’s own fresh execution, use [workspace discovery](/platform/projects/project-agents#current-execution).
+
+```yaml
+nodes:
+  - id: task
+    type: task.get
+    input:
+      taskId: '{{ input.taskId }}'
+      agentRunId: '{{ input.agentRunId }}'
+  - id: comments
+    type: task.list_comments
+    input:
+      taskId: '{{ input.taskId }}'
+      includeIds: true
+      limit: 10
+```
+
 ## When a step fails
 
 | Failure                                       | What happened                                                                                                       |

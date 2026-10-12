@@ -87,6 +87,12 @@ Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergeb
 
 Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Fortschritt, Stoppen und Prüfung. Der gewöhnliche Chat-Assistent bleibt davon getrennt, auch mit Projektkontext.
 
+## Die aktuelle Ausführung lesen {#current-execution}
+
+Rufe während eines Aufgabenagenten-Laufs das eigene Werkzeug `workspace_status` mit `{}` auf, um die aktuelle Ausführungsidentität zu lesen. Bei einem laufenden oder wartenden Lauf gleicht die Plattform Organisation, Sitzung und Ausführungs-ID des Tokens mit dem aktuellen Aufgabenlauf ab. Sie liefert `currentExecution` mit `taskId`, `agentId`, `runId`, `execId`, `startedAt`, `launchedAt` und dem serverseitigen `observedAt`. Die Zeitwerte sind Millisekunden seit der Unix-Epoche; bei einem eingereihten Lauf kann `launchedAt` noch `null` sein.
+
+Eine ersetzte oder beendete Ausführung hat keine aktuelle Identität. `null`, ein fehlendes Feld oder eine gescheiterte Abfrage bedeutet unbekannt. Übernimm keine Identität aus früheren Anweisungen oder einem gespeicherten Beleg. Antworten aus Chats, Workflows oder älteren Plattformen können das Feld auslassen. Eine abgelaufene Anmeldung bleibt abgelehnt. Werkzeugliste und Freigaben bleiben unverändert; die Auskunft braucht keine zusätzliche Werkzeugfreigabe. Sie erlaubt weder einen Start noch einen Befehl oder eine Veröffentlichung.
+
 ## Einen Agenten an mehreren Aufgaben arbeiten lassen {#run-one-agent-on-several-tasks}
 
 Ein Agent ist eine Konfiguration, ein Worker eine laufende Kopie davon. Jede Aufgabe, an der der Agent gleichzeitig arbeitet, läuft in einem eigenen Worker: einer Sandbox mit eigenem Arbeitsbereich, Arbeitsspeicher und eigenen Prozessen. Zwei Aufgaben teilen sich also nie Dateien und bremsen sich nicht gegenseitig aus. Startest du den Agenten Scribe für „Versionshinweise“ und für „Änderungsprotokoll“, arbeiten beide gleichzeitig, jede in ihrem Worker. Die einzige Ausnahme ist der [Standard-Agent](#standard-agent-runs), wenn eine Person ihn startet: Er bearbeitet die Aufgabe ohne Worker, bis die Arbeit einen braucht.

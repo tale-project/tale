@@ -45,6 +45,15 @@ const STATUS_TEXT = JSON.stringify(
       },
     ],
     platform: { version: '0.5.64' },
+    currentExecution: {
+      taskId: 'task_1',
+      agentId: 'agent_1',
+      runId: 'run_1',
+      execId: 'current_exec',
+      startedAt: 1_750_000_000_000,
+      launchedAt: 1_750_000_000_001,
+      observedAt: 1_750_000_000_002,
+    },
   },
   null,
   2,
@@ -213,11 +222,24 @@ describe('workspace_status through the bridge', () => {
       method: 'tools/call',
       params: {
         name: 'workspace_status',
-        arguments: { version: '9.9.9', platform: { version: '9.9.9' } },
+        arguments: {
+          version: '9.9.9',
+          platform: { version: '9.9.9' },
+          currentExecution: { runId: 'forged', execId: 'superseded' },
+        },
       },
     });
     const response = await responseTo(10);
     expect(textOf(response)).toBe(STATUS_TEXT);
+    expect(asRecord(JSON.parse(textOf(response))).currentExecution).toEqual({
+      taskId: 'task_1',
+      agentId: 'agent_1',
+      runId: 'run_1',
+      execId: 'current_exec',
+      startedAt: 1_750_000_000_000,
+      launchedAt: 1_750_000_000_001,
+      observedAt: 1_750_000_000_002,
+    });
     expect(asRecord(response.result).isError).toBe(false);
     expect(statusCalls).toEqual([
       {
