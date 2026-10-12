@@ -35,7 +35,10 @@ describe('requireSession', () => {
   it('lets a session through and hands the bundle to the route', async () => {
     const app = new Hono<{ Variables: { sessionBundle: unknown } }>();
     const bundle = { user: { id: 'u-1' }, session: { id: 's-1' } };
-    const auth = { api: { getSession: async () => bundle } };
+    const auth = {
+      api: { getSession: async () => bundle },
+      resolveSessionAuthority: async () => bundle,
+    };
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the guard reads only getSession
     app.use(requireSession(auth as never));
     app.get('/events', (c) => c.json(c.get('sessionBundle')));
@@ -82,6 +85,7 @@ describe('requireSession with the process auth cache', () => {
     };
     let resolved = 0;
     const auth = {
+      resolveSessionAuthority: async () => bundle,
       $context: Promise.resolve({
         authCookies: { sessionToken: { name: 'better-auth.session_token' } },
       }),

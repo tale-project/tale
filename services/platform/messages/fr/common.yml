@@ -103,6 +103,8 @@ errors:
   generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
   failedToCopy: Échec de la copie dans le presse-papiers
   sessionEnded: Ta session a pris fin. Reconnecte-toi.
+  organizationSessionRestricted: Cette session est limitée à l’organisation qui t’a connecté.
+  accountIdentityRequired: Confirme ton mot de passe ou un passkey de ton compte avant de modifier ton compte.
   connectionLost: Impossible de joindre Tale. Vérifie ta connexion et réessaie.
 notFound:
   title: Page introuvable

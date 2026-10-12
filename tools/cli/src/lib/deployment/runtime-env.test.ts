@@ -43,6 +43,53 @@ async function create() {
 }
 
 describe('managed runtime credential adoption', () => {
+  test('refuses a scheduled future organization-session fence before runtime input returns', async () => {
+    const { fixture } = await create();
+    let refused = false;
+    try {
+      prepareRuntimeEnvironment(
+        {
+          ...fixture.options,
+          environment: {
+            TALE_ORG_SESSION_CUTOVER_AT: new Date(
+              Date.now() + 60_000,
+            ).toISOString(),
+          },
+        },
+        fixture.revision,
+        true,
+      );
+    } catch (error) {
+      refused =
+        error instanceof Error && error.message.includes('already-reached UTC');
+    }
+    // A refusal failure must not print the returned fixture credentials.
+    expect(refused).toBe(true);
+  });
+
+  test('carries an exact reached organization-session fence without changing runtime credentials', async () => {
+    const { fixture } = await create();
+    const before = prepareRuntimeEnvironment(
+      fixture.options,
+      fixture.revision,
+      true,
+    );
+    const cutoff = '2026-01-01T00:00:00.000Z';
+    const after = prepareRuntimeEnvironment(
+      {
+        ...fixture.options,
+        environment: { TALE_ORG_SESSION_CUTOVER_AT: cutoff },
+      },
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(after.environment, 'compose')
+        .TALE_ORG_SESSION_CUTOVER_AT,
+    ).toBe(cutoff);
+    expect(after.secrets === before.secrets).toBe(true);
+    expect(after.regeneratedSecrets).toEqual(before.regeneratedSecrets);
+  });
   test('declared reporting environment changes no persistent runtime identity or secret', async () => {
     const { fixture, legacy } = await create();
     const identity = {

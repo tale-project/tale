@@ -455,6 +455,7 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
         code: 'code-1',
         vendorError: null,
         requesterUserId: null,
+        requesterOrganizationId: null,
       }),
     ).resolves.toEqual({ kind: 'error', error: 'invalid_state' });
   });
@@ -479,6 +480,7 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
             code: 'code-1',
             vendorError: null,
             requesterUserId: 'user-1',
+            requesterOrganizationId: null,
           },
           { fetchImpl },
         ),
@@ -525,6 +527,7 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
         code: 'code-1',
         vendorError: null,
         requesterUserId: 'user-1',
+        requesterOrganizationId: null,
       }),
     ).resolves.toEqual({
       kind: 'error',

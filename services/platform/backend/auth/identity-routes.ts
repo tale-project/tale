@@ -8,6 +8,7 @@ import type { Auth } from './auth.ts';
 import { isAdminRole } from './membership.ts';
 import { OIDC_SCOPES } from './oidc.ts';
 import { requireOrgMember, type OrgEnv } from './org.ts';
+import { requireAccountIdentity } from './session-authority.ts';
 import { requireSession } from './session.ts';
 
 const clientInput = z
@@ -39,6 +40,7 @@ export function createIdentityRoutes(deps: { sql: Sql; auth: Auth }) {
   const app = new Hono<OrgEnv>();
   app.use(bodyLimit({ maxSize: 8192 }));
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  app.use(requireAccountIdentity({ organizationKeyAdministration: true }));
   app.use(async (c, next) => {
     if (c.req.method !== 'GET') {
       const origin = c.req.header('Origin');

@@ -41,7 +41,10 @@ vi.mock('../../auth/membership.ts', async (importOriginal) => ({
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
     () => async (c: Context<AuthEnv>, next: () => Promise<void>) => {
-      c.set('sessionBundle', { user: { ...caller } } as never);
+      c.set('sessionBundle', {
+        user: { ...caller },
+        session: { id: 'session-member-1' },
+      } as never);
       await next();
     },
 }));

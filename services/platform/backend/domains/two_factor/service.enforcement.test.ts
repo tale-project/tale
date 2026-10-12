@@ -34,6 +34,8 @@ interface Account {
   /** An authenticator app is set up. */
   authenticator?: boolean;
   passkey?: boolean;
+  passkeyRealm?: string;
+  pendingPasskey?: boolean;
   /** How the account signs in: `credential` is a password of its own. */
   signIns?: string[];
   /** The stored end of a grace period that already started. */
@@ -43,7 +45,10 @@ interface Account {
 
 /** A `db` that answers the four reads of the decision from one account. */
 function accountDb(account: Account): Sql {
-  const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+  const tag = (
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<unknown[]> => {
     const text = strings.join('?');
     if (text.includes('FROM "user"')) {
       return Promise.resolve([
@@ -51,7 +56,31 @@ function accountDb(account: Account): Sql {
       ]);
     }
     if (text.includes('FROM "passkey"')) {
-      return Promise.resolve(account.passkey === true ? [{ id: 'pk-1' }] : []);
+      return Promise.resolve(
+        account.passkey === true && values[1] === ''
+          ? [{ id: 'pk-1', userId: 'user-1', credentialID: 'public-handle-1' }]
+          : [],
+      );
+    }
+    if (text.includes('FROM app.auth_factor_authorities')) {
+      return Promise.resolve(
+        account.passkeyRealm === undefined && !account.pendingPasskey
+          ? []
+          : [
+              {
+                fingerprint:
+                  'f40338c65ef90be2d23133f9e23231335d2a627194115e2d52e820dd8e910a3a',
+                credentialId: account.pendingPasskey ? null : 'pk-1',
+                userId: 'user-1',
+                organizationId: account.passkeyRealm ?? null,
+                authority:
+                  account.passkeyRealm === undefined
+                    ? 'global'
+                    : 'organization',
+                state: account.pendingPasskey ? 'pending' : 'bound',
+              },
+            ],
+      );
     }
     if (text.includes('FROM "account"')) {
       return Promise.resolve(
@@ -125,6 +154,40 @@ describe('evaluateTwoFactorEnforcement', () => {
   ])('is met by %s [TFA-R2]', async (_what, account) => {
     organizations({ enforced: true, gracePeriodDays: 0 });
     expect(await decide(account)).toMatchObject({ decision: 'ok' });
+  });
+
+  it('does not count a realm passkey for the global or another realm policy', async () => {
+    organizations(
+      { enforced: true, gracePeriodDays: 0, exemptSsoUsers: false },
+      { enforced: true, gracePeriodDays: 0, exemptSsoUsers: false },
+    );
+    const db = accountDb({ passkey: true, passkeyRealm: 'org-0' });
+    expect(
+      await evaluateTwoFactorEnforcement(db, 'user-1', {
+        organizationIds: ['org-0'],
+        organizationId: 'org-0',
+      }),
+    ).toMatchObject({ decision: 'ok' });
+    expect(
+      await evaluateTwoFactorEnforcement(db, 'user-1', {
+        organizationIds: ['org-1'],
+        organizationId: 'org-1',
+      }),
+    ).toMatchObject({ decision: 'blocked' });
+    expect(await evaluateTwoFactorEnforcement(db, 'user-1')).toMatchObject({
+      decision: 'blocked',
+    });
+  });
+
+  it('does not count an unfinished new credential as a historical factor', async () => {
+    organizations({
+      enforced: true,
+      gracePeriodDays: 0,
+      exemptSsoUsers: false,
+    });
+    expect(await decide({ passkey: true, pendingPasskey: true })).toMatchObject(
+      { decision: 'blocked' },
+    );
   });
 
   it('takes the authenticator flag the caller already holds instead of reading the user [TFA-R2]', async () => {

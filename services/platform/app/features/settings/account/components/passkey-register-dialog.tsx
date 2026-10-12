@@ -10,6 +10,7 @@ import { useEffect, useLayoutEffect, useState } from 'react';
 import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
 import {
   isSessionFresh,
@@ -189,7 +190,11 @@ export function PasskeyRegisterDialog({
           setStepChoice('confirm');
           return;
         }
-        setError(result.error.message ?? t('passkeys.errors.registerFailed'));
+        setError(
+          authSessionRefusalMessage(result.error) ??
+            result.error.message ??
+            t('passkeys.errors.registerFailed'),
+        );
         return;
       }
       onOpenChange(false);
