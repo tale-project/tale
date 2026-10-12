@@ -295,10 +295,11 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
   ```
 
   A session then resolves exactly those names and nothing else; whatever it
-  reaches outside goes through the proxy, which resolves for it (a tool that
-  ignores the proxy settings has no name to connect to, which is the point).
-  Or run a resolver of your own that holds the records, name it in
-  `SANDBOX_INCUS_DNS`, and let the ACL admit udp and tcp 53 to it.
+  reaches outside goes through the proxy, which resolves for it. A tool that
+  ignores the proxy settings finds no name to connect to (an address still goes
+  through the transparent redirect to the proxy). Or run a resolver of your own
+  that holds the records, name it in `SANDBOX_INCUS_DNS`, and let the ACL admit
+  udp and tcp 53 to it.
 - **Give the sandbox bridge no address but its own** (`ipv4.address`). An OCI
   container has no DHCP client of its own: Incus runs one beside it
   (`forknet dhcp`, its log is `forknet-dhcp.log` in the instance's log
