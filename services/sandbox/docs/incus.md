@@ -229,7 +229,8 @@ inside, nesting and interception, a project that sets `limits.cpu`, or a disk
 limit while the profile's root disk has no size, an unmanaged network, a
 profile without a NIC on the configured network and without an ACL, and a
 `SANDBOX_AGENT_SHM_SIZE` the entrypoint cannot mount. Everything allowed but
-worth knowing is a warning: an unrestricted project, a project without its own
+worth knowing is a warning: a network that offers its whole subnet to DHCP, an
+unrestricted project, a project without its own
 images, disk devices allowed from any host path, low-level keys allowed, project
 count, memory or process limits below what `SANDBOX_MAX_SESSIONS` can add up
 to, a kernel that reports no idmapped mounts, a NIC without port isolation, a

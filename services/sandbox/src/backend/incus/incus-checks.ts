@@ -248,6 +248,24 @@ export function inspectIncus(
       `network ${incus.network} is not managed by Incus, so no network ACL can apply to it; point SANDBOX_INCUS_NETWORK at the managed bridge sessions are meant to use`,
     );
   }
+  // Incus keeps DHCP from handing out the address it gave an instance of the
+  // network, not one a host, another network or the node holds: with no range
+  // of its own, a service that shares the subnet (the LLM gateway, the
+  // backend, the node) can be handed to a session, which is then unreachable
+  // and waits out its create.
+  const subnet = network.config['ipv4.address'];
+  if (
+    network.managed &&
+    subnet !== undefined &&
+    subnet !== '' &&
+    subnet !== 'none' &&
+    network.config['ipv4.dhcp'] !== 'false' &&
+    list(network.config['ipv4.dhcp.ranges']).length === 0
+  ) {
+    warnings.push(
+      `network ${incus.network} offers its whole subnet (${subnet}) to DHCP, so an address that the LLM gateway, the backend or the node holds in it can be handed to a session, which is then unreachable and waits out its create. Give the network a range of its own in the part of the subnet that holds no service: incus network set ${incus.network} ipv4.dhcp.ranges=<first>-<last>`,
+    );
+  }
   const nics = Object.entries(profile.devices).filter(
     ([, device]) => device.type === 'nic',
   );

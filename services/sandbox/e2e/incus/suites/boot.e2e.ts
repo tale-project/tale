@@ -220,6 +220,50 @@ describe('boot refusals against the real node', () => {
   );
 
   step(
+    'a bridge that offers its whole subnet to DHCP is warned about, and the operator block’s is not',
+    async () => {
+      // The block's network has a pool of its own: no warning at a normal boot.
+      port += 1;
+      const quiet = spawnerOf({
+        name: 'dhcp-range-set',
+        port,
+        token: newToken(),
+      });
+      quiet.start();
+      await quiet.ready();
+      expect(quiet.logTail(200)).not.toContain('whole subnet');
+      await quiet.stop();
+
+      const ranges = (
+        await admin.run(['network', 'get', lab.network, 'ipv4.dhcp.ranges'])
+      ).stdout.trim();
+      expect(ranges).not.toBe('');
+      await admin.run(['network', 'unset', lab.network, 'ipv4.dhcp.ranges']);
+      try {
+        port += 1;
+        const loud = spawnerOf({
+          name: 'dhcp-range-unset',
+          port,
+          token: newToken(),
+        });
+        loud.start();
+        await loud.ready();
+        const log = loud.logTail(200);
+        expect(log).toContain('whole subnet');
+        expect(log).toContain('ipv4.dhcp.ranges');
+        await loud.stop();
+      } finally {
+        await admin.run([
+          'network',
+          'set',
+          lab.network,
+          `ipv4.dhcp.ranges=${ranges}`,
+        ]);
+      }
+    },
+  );
+
+  step(
     'the restricted certificate is trusted, and sees only its project',
     async () => {
       const server = await asSpawner('GET', '/1.0');
