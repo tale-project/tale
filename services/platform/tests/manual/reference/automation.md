@@ -339,6 +339,13 @@ stealing focus moved outside the notice (TALE-625 B1). Post-frame assertions
 also cover focus moved after initial or cached errors unmount but before
 the deferred handoff runs, across all four lists (TALE-644).
 
+The contact palette target carries its title through the actual Contacts route,
+table, shared list hook and paginated query adapters, including a match outside
+the unfiltered first page, manual query editing/clearing and a new same-page route query:
+`app/features/contacts/components/contact-table.wire.test.tsx`. Router search
+hooks and a closed synthetic HTTP transport supply deterministic inputs; browser
+navigation, layout and live backend behavior remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:

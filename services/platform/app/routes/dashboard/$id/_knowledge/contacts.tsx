@@ -38,6 +38,7 @@ function ContactsPage() {
   return (
     <ContactsTable
       organizationId={organizationId}
+      query={search.query}
       source={search.source}
       locale={search.locale}
     />
