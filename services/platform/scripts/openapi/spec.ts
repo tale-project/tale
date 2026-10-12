@@ -10685,27 +10685,14 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         AutomationDiff: {
           type: 'object',
-          required: [
-            'name',
-            'from',
-            'to',
-            'first',
-            'identical',
-            'counts',
-            'nodes',
-            'inputs',
-            'output',
-            'description',
-            'tests',
-            'other',
-            'package',
-            'ignored',
-          ],
+          required: ['name', 'from', 'to', 'first', 'identical'],
           description:
             'What version `to` changed against version `from` (`from` is ' +
             'null when `to` is the first version, compared with nothing). ' +
-            'With `format=unified` only `name`, `from`, `to`, `first`, ' +
-            '`identical`, `unified` and `truncated` are answered.',
+            'The first five fields are always answered; with `format=unified` ' +
+            'only `unified` (and `truncated`, when the patch was cut) ' +
+            'follows them, otherwise the changes below do — and `unified` ' +
+            'with them for `both`.',
           properties: {
             name: str,
             from: nullable(int),
