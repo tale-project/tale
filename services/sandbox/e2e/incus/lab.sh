@@ -22,6 +22,8 @@
 #   facts      host facts and phase durations, as Markdown
 #   diagnose   what a failed run needs to be read afterwards
 #   env        KEY=VALUE lines for $GITHUB_ENV
+#   suites     the choice of suites (`all`, or a comma-separated list) as
+#              `<suite>=true|false` lines for $GITHUB_OUTPUT
 #
 # It reconfigures the host (packages, ZFS, the firewall, Incus itself): CI, or
 # TALE_INCUS_E2E_THROWAWAY_HOST=1 on a VM you can lose. The images are pushed to
@@ -67,6 +69,9 @@ readonly EGRESS_INSTANCE=egress
 readonly EGRESS_ALIAS=tale-sandbox-egress
 readonly ZPOOL=e2e
 readonly POOL_SIZE="${INCUS_E2E_POOL_SIZE:-48G}"
+# The suites of ./suites, in the order the workflow runs them (workflow.test.ts
+# keeps the three in step).
+readonly SUITES=(boot lifecycle fencing network pool reaping adoption failures limits docker)
 
 dir="${INCUS_E2E_DIR:-/mnt/tale-incus-e2e}"
 pki="$dir/pki"
@@ -464,10 +469,39 @@ print_env() {
   printf 'E2E_EGRESS_IMAGE=%s\n' "$EGRESS_IMAGE"
 }
 
+# `suites <choice>`: which suites a run was asked for. The choice is checked
+# here, so a misspelt name fails the run at once and not as a silent skip.
+pick_suites() {
+  local choice="${1//[[:space:]]/}" name suite known
+  choice="${choice:-all}"
+  if [ "$choice" != all ]; then
+    local -a names
+    IFS=, read -r -a names <<<"$choice"
+    for name in "${names[@]}"; do
+      if [ -z "$name" ]; then continue; fi
+      known=false
+      for suite in "${SUITES[@]}"; do
+        if [ "$name" = "$suite" ]; then known=true; fi
+      done
+      if [ "$known" = false ]; then
+        die "unknown suite '$name': choose from ${SUITES[*]}, or all"
+      fi
+    done
+  fi
+  for suite in "${SUITES[@]}"; do
+    if [ "$choice" = all ] || [[ ",$choice," == *",$suite,"* ]]; then
+      echo "$suite=true"
+    else
+      echo "$suite=false"
+    fi
+  done
+}
+
 main() {
   local command="${1:-}"
   case "$command" in
     env) print_env ;;
+    suites) pick_suites "${2:-}" ;;
     install | storage | api | registry | operator | egress | lab-file | facts | diagnose)
       guard
       ensure_dir
@@ -483,7 +517,7 @@ main() {
         diagnose) diagnose ;;
       esac
       ;;
-    *) die "usage: lab.sh install|storage|api|registry|operator|egress|lab-file|facts|diagnose|env" ;;
+    *) die "usage: lab.sh install|storage|api|registry|operator|egress|lab-file|facts|diagnose|env|suites" ;;
   esac
 }
 

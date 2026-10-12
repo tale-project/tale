@@ -7,11 +7,13 @@ through its signed HTTP API the way the platform drives it, against a real
 Incus node built the way [docs/incus.md](../../docs/incus.md) tells an operator
 to build one.
 
-It runs in CI (`.github/workflows/sandbox-incus-e2e.yml`) on a hosted Linux
-runner, on pull requests that touch the spawner, the runtime image or the egress
-proxy, and on demand. It reconfigures its host (packages, a ZFS pool, the
-firewall, Incus itself), so it is only ever run on a throwaway machine: CI, or a
-VM you can lose, with `TALE_INCUS_E2E_THROWAWAY_HOST=1`.
+It runs in CI (`.github/workflows/sandbox-incus-e2e.yml`) on a Linux runner, on
+pull requests that touch the spawner, the runtime image or the egress proxy, and
+on demand. A draft pull request is held, as the other heavy workflows hold it;
+to try a draft, dispatch the workflow on its branch (see "Running it"). It
+reconfigures its host (packages, a ZFS pool, the firewall, Incus itself), so it
+is only ever run on a throwaway machine: CI, or a VM you can lose, with
+`TALE_INCUS_E2E_THROWAWAY_HOST=1`.
 
 ## The lab
 
@@ -49,10 +51,12 @@ spawners looked like.
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `boot`      | the pinned server certificate is the only trust anchor (a wrong one, and Incus's own `CA:FALSE` one, are refused before or without a request), an untrusted client, a key that does not match, no node, a foreign project, a missing profile and a project `limits.cpu` are each refused in words; the restricted certificate sees only its project and cannot make a project, change a pool or the network, or reach another project; the restricted project refuses a privileged container, `raw.lxc`, swap, a host path and a NIC of its own |
 | `lifecycle` | create (cold, render profile), exec (output, exit codes, env, cwd, stdin, streaming, deadline, cancel), files (stage, list, read, delete, binary), env, the instance's labels, limits, devices and hardening (`no_new_privs`, no capabilities, a user namespace of its own, the cgroup limits), `/dev/shm`, the workspace quota, stop and resume with the workspace intact under a new idmap, a duplicate, a race, a pin, destroy       |
+| `fencing`   | the ETag is honoured (a stale write is a 412), a session is created by the backend alone and a second create is a duplicate, a different incarnation is not the session, the right stamp pins, lists and stops, and destroy removes everything and says the bytes are gone                                                                                                                                                   |
 | `network`   | a session resolves through the proxy alone, goes out through Tale's egress proxy and nowhere else (UDP and non-443 TCP stopped, the metadata address, the node's API and the spawner, another session and its runnerd), reaches the gateway and backend stand-ins on the ACL's ports only, and the proxy refuses private destinations                                                                                                  |
 | `pool`      | standbys fill and wait, a create is a claim (relabelled, workspace hot-plugged under an isolated idmap, token by file), the refill, the capacity bound with sessions and standbys together, a standby that vanished, and a rollout: a draining spawner stops keeping the pool and its replacement takes the standbys over                                                                                                             |
 | `reaping`   | the sweep stops a session past its lifetime and an idle one (workspace kept, resumable), and leaves a pinned one alone                                                                                                                                                                                                                                                                                                              |
 | `adoption`  | a crashed or restarted spawner re-adopts its sessions from the labels (pin, incarnation, env), ended compute found after a restart is removed with the workspace kept, and a peer that replaced a session under its name is never undone by a spawner still holding the old incarnation                                                                                                                                              |
+| `failures`  | a session whose process ends by itself stops with its console readable and resumes on the next create, a busy session stopped by a draining spawner hears the shutdown, and an image that cannot start a session fails the create with the reason and keeps the workspace                                                                                                                                                              |
 | `limits`    | `SANDBOX_MAX_SESSIONS` refuses with a place in the line; a project memory limit refuses the create that would pass it in Incus's own words and leaves the workspace volume                                                                                                                                                                                                                                                           |
 | `docker`    | Docker inside a session (opt-in): nesting and interception allowed for it alone, the inner engine comes up, `docker run` and `docker build` work, and a nested container is no freer than the session                                                                                                                                                                                                                                 |
 

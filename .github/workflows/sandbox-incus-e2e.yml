@@ -19,17 +19,32 @@ name: Sandbox Incus E2E
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
     # Everything that decides whether the backend works on a node: the spawner,
-    # the image its sessions run and the proxy they go out through. Drafts run it
-    # too: this is the check that tells a draft of the backend whether it works.
+    # the image its sessions run and the proxy they go out through.
     paths:
       - 'services/sandbox/**'
       - 'services/sandbox-runtime/**'
       - 'services/sandbox-egress/**'
       - '.github/workflows/sandbox-incus-e2e.yml'
+  # A draft is held, as the other heavy workflows hold it (e2e.yml): to try a
+  # draft of the backend, dispatch this workflow on its branch.
   workflow_dispatch:
+    inputs:
+      runner:
+        description: 'The runner label the node is built on'
+        type: choice
+        options:
+          - ubicloud-standard-4
+          - ubicloud-standard-8
+          - ubuntu-latest
+        default: ubicloud-standard-4
+      suites:
+        description: 'The suites to run: all, or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker'
+        type: string
+        default: all
 
 permissions:
   contents: read
@@ -44,7 +59,9 @@ env:
 jobs:
   incus:
     name: Sandbox on Incus
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
+    # A pull request runs on GitHub's own runner; a dispatch names its runner.
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 90
     permissions:
       contents: read
@@ -175,20 +192,26 @@ jobs:
         id: lab
         run: bash services/sandbox/e2e/incus/lab.sh lab-file
 
+      - name: Choose the suites
+        id: pick
+        env:
+          SUITES: ${{ inputs.suites }}
+        run: bash services/sandbox/e2e/incus/lab.sh suites "$SUITES" | tee -a "$GITHUB_OUTPUT"
+
       # Each suite starts its own spawner(s) from this checkout and leaves the
       # node clean. They run whatever came before, so one finding does not hide
       # the next, but only on a lab that came up. Each leaves its output behind
       # as an artifact the moment it ends, so a run in progress can be read.
 
       - name: Boot refusals and the restricted certificate
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.boot == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/boot.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/boot.log"
 
       - name: Keep the output of boot refusals and the restricted certificate
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.boot == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-boot-${{ github.run_id }}-${{ github.run_attempt }}
@@ -197,14 +220,14 @@ jobs:
           if-no-files-found: warn
 
       - name: The session contract
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.lifecycle == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/lifecycle.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/lifecycle.log"
 
       - name: Keep the output of the session contract
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.lifecycle == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-lifecycle-${{ github.run_id }}-${{ github.run_attempt }}
@@ -213,14 +236,14 @@ jobs:
           if-no-files-found: warn
 
       - name: The fence and the ETag
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.fencing == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/fencing.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/fencing.log"
 
       - name: Keep the output of the fence and the ETag
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.fencing == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-fencing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -229,14 +252,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Network containment
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.network == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/network.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/network.log"
 
       - name: Keep the output of network containment
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.network == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-network-${{ github.run_id }}-${{ github.run_attempt }}
@@ -245,14 +268,14 @@ jobs:
           if-no-files-found: warn
 
       - name: The warm pool
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.pool == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/pool.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/pool.log"
 
       - name: Keep the output of the warm pool
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.pool == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-pool-${{ github.run_id }}-${{ github.run_attempt }}
@@ -261,14 +284,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Reaping
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.reaping == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/reaping.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/reaping.log"
 
       - name: Keep the output of reaping
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.reaping == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-reaping-${{ github.run_id }}-${{ github.run_attempt }}
@@ -277,14 +300,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Re-adoption and a peer that replaced a session
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.adoption == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/adoption.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/adoption.log"
 
       - name: Keep the output of re-adoption and a peer that replaced a session
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.adoption == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-adoption-${{ github.run_id }}-${{ github.run_attempt }}
@@ -293,14 +316,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Endings that are not a clean destroy
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.failures == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/failures.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/failures.log"
 
       - name: Keep the output of endings that are not a clean destroy
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.failures == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-failures-${{ github.run_id }}-${{ github.run_attempt }}
@@ -309,14 +332,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Capacity and project limits
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.limits == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/limits.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/limits.log"
 
       - name: Keep the output of capacity and project limits
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.limits == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-limits-${{ github.run_id }}-${{ github.run_attempt }}
@@ -325,14 +348,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Docker inside a session
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.docker == 'true' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/docker.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/docker.log"
 
       - name: Keep the output of docker inside a session
-        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.docker == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-docker-${{ github.run_id }}-${{ github.run_attempt }}
