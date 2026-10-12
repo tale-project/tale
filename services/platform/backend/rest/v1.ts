@@ -25,6 +25,7 @@ import {
   databaseUnavailableResponse,
   reportRequestError,
   requestIdOf,
+  writeConflictResponse,
 } from '../error-reporting.ts';
 import { noStoreByDefault } from '../lib/http-hygiene.ts';
 import {
@@ -188,6 +189,8 @@ export function createRestV1Routes(deps: {
     }
     const unavailable = databaseUnavailableResponse(err, c);
     if (unavailable !== undefined) return unavailable;
+    const conflict = writeConflictResponse(err, c);
+    if (conflict !== undefined) return conflict;
     const abandoned = clientAbortResponse(err, c);
     if (abandoned !== undefined) return abandoned;
     reportRequestError(err, c);

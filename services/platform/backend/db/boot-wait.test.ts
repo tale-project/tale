@@ -3,7 +3,7 @@
 import pg from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createBootDatabaseWait } from './boot-wait.ts';
+import { createBootDatabaseWait, waitOutDatabaseOutage } from './boot-wait.ts';
 
 /** What node-postgres — pg-boss's and Better Auth's driver — rejects a
  * statement with when the server terminates its session as it shuts down. */
@@ -156,5 +156,88 @@ describe('createBootDatabaseWait', () => {
       ),
     ).resolves.toBe('started');
     expect(sleep.mock.calls).toEqual([[1000]]);
+  });
+});
+
+describe('waitOutDatabaseOutage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('runs a write again until the restarted database answers it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const sleeps: number[] = [];
+    const write = flakyStep(
+      [terminated(), withCode('57P03', 'the database system is starting up')],
+      'settled',
+    );
+
+    await expect(
+      waitOutDatabaseOutage(write, {
+        sleep: async (ms) => {
+          sleeps.push(ms);
+        },
+      }),
+    ).resolves.toBe('settled');
+
+    expect(write).toHaveBeenCalledTimes(3);
+    // Backing off from a second, so a restart is noticed within seconds.
+    expect(sleeps).toEqual([1_000, 2_000]);
+  });
+
+  it('gives each write an outage clock of its own', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let now = 0;
+    const options = {
+      waitMs: 10_000,
+      now: () => now,
+      sleep: async (ms: number) => {
+        now += ms;
+      },
+    };
+
+    // One write waits out a restart of about eight seconds ...
+    now = 0;
+    const first = flakyStep(
+      [terminated(), terminated(), terminated(), terminated()],
+      'first',
+    );
+    await expect(waitOutDatabaseOutage(first, options)).resolves.toBe('first');
+
+    // ... and a second, long after, is timed from ITS first refusal, not the first's.
+    now = 1_000_000;
+    const second = flakyStep([terminated(), terminated()], 'second');
+    await expect(waitOutDatabaseOutage(second, options)).resolves.toBe(
+      'second',
+    );
+  });
+
+  it('rejects at once for anything but an unavailable database', async () => {
+    const constraint = withCode('23505', 'duplicate key value');
+    const write = flakyStep([constraint], 'never');
+
+    await expect(waitOutDatabaseOutage(write)).rejects.toBe(constraint);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up with the last error once the outage outlasts the wait', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let now = 0;
+    const failure = terminated();
+    const write = vi.fn(async () => {
+      throw failure;
+    });
+
+    await expect(
+      waitOutDatabaseOutage(write, {
+        waitMs: 5_000,
+        now: () => now,
+        sleep: async (ms) => {
+          now += ms;
+        },
+      }),
+    ).rejects.toBe(failure);
+    // 1 s, 2 s, then 4 s would pass the five-second wait.
+    expect(now).toBeLessThanOrEqual(5_000 + 5_000);
   });
 });

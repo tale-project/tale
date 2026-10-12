@@ -50,9 +50,15 @@ function recordingSteps(
       calls.push('release');
       return 0;
     },
+    settleChatTurns: async (timeoutMs) => {
+      calls.push(`chat ${timeoutMs}`);
+      return 0;
+    },
     closeStores: async () => {
       calls.push('stores');
     },
+    // A clock that stands still: the budget a step gets is the whole of it.
+    now: () => 0,
     ...overrides,
   };
   return { calls, steps, shutdown, finish: () => finishStop() };
@@ -73,6 +79,7 @@ describe('the shutdown sequence', () => {
       'settle 30000',
       'boss stopped',
       'release',
+      'chat 90000',
       'stores',
     ]);
   });
@@ -91,6 +98,7 @@ describe('the shutdown sequence', () => {
       'server (shutting down: true)',
       'boss.stop 15000',
       'boss stopped',
+      'chat 15000',
       'stores',
     ]);
   });
@@ -116,10 +124,91 @@ describe('the shutdown sequence', () => {
       'boss.stop 90000',
       'boss stopped',
       'release',
+      'chat 90000',
       'stores',
     ]);
     expect(error).toHaveBeenCalledWith(
       '[backend] could not hand automation runs on:',
+      expect.any(Error),
+    );
+  });
+});
+
+describe('the chat turns a stopping process is still running', () => {
+  it('get what is left of the drain budget once the server and the jobs are done', async () => {
+    let clock = 1_000;
+    const { calls, steps, finish } = recordingSteps('api', {
+      drainMs: 15_000,
+      now: () => clock,
+      // The HTTP close took five seconds of the fifteen.
+      closeServer: async () => {
+        clock += 5_000;
+      },
+    });
+
+    const done = runShutdownSequence('SIGTERM', steps);
+    await vi.waitFor(() => expect(calls).toContain('boss.stop 15000'));
+    finish();
+    await done;
+
+    expect(calls).toContain('chat 10000');
+  });
+
+  it('get nothing more once a worker has used its whole budget on its jobs', async () => {
+    let clock = 0;
+    const { calls, steps, finish } = recordingSteps('worker', {
+      now: () => clock,
+      settleLiveTurns: async () => {
+        clock += 95_000;
+        finish();
+        return 0;
+      },
+    });
+
+    await runShutdownSequence('SIGTERM', steps);
+
+    // Past the budget: the turns still running are settled at once.
+    expect(calls).toContain('chat 0');
+  });
+
+  it('are settled before the stores close, and say so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { calls, steps, finish } = recordingSteps('api', {
+      drainMs: 15_000,
+      settleChatTurns: async () => {
+        calls.push('chat settled');
+        return 3;
+      },
+    });
+
+    const done = runShutdownSequence('SIGTERM', steps);
+    await vi.waitFor(() => expect(calls).toContain('boss.stop 15000'));
+    finish();
+    await done;
+
+    expect(calls.slice(-2)).toEqual(['chat settled', 'stores']);
+    expect(warn).toHaveBeenCalledWith(
+      '[backend] 3 chat turn(s) still running at shutdown — settled as interrupted',
+    );
+  });
+
+  it('never keep the stores open when settling them fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { calls, steps, finish } = recordingSteps('api', {
+      drainMs: 15_000,
+      settleChatTurns: async () => {
+        throw new Error('database closing');
+      },
+    });
+
+    const done = runShutdownSequence('SIGTERM', steps);
+    await vi.waitFor(() => expect(calls).toContain('boss.stop 15000'));
+    finish();
+    await done;
+
+    expect(calls.at(-1)).toBe('stores');
+    expect(warn).toHaveBeenCalledWith(
+      '[backend] could not settle the running chat turns:',
       expect.any(Error),
     );
   });

@@ -31,7 +31,7 @@ MCP batches have their own accounting: additional tool calls consume additional 
 
 Calls to the [model endpoints](/develop/api-reference#model-endpoints) under `/api/v1/openai` and `/api/v1/anthropic` count against the general budget only, one request each, streamed or not; what a call may spend is capped separately by budget rules. A person, and each API key, may also have eight of these calls running at once: a ninth answers `429` with `code` `MODEL_API_CONCURRENCY_EXCEEDED` and `Retry-After: 2`.
 
-The execution bucket limits how quickly messages are accepted, not how many turns run at once. Accepted chat messages share a deployment-wide queue across organizations and keys. Each worker batch runs up to `WORKER_CONCURRENCY` turns, 5 by default; the next batch waits for the current one to settle. A successful send can therefore wait behind other clients’ work. Queue position and estimated start time are not exposed.
+The execution bucket limits how quickly messages are accepted, not how many turns run at once. Accepted chat messages share a deployment-wide queue across organizations and keys. Each worker replica runs up to 16 turns at once, or `WORKER_CONCURRENCY` turns when that is higher, and starts the next one as soon as a turn settles. A successful send can therefore wait behind other clients’ work. Queue position and estimated start time are not exposed.
 
 ## The 429
 

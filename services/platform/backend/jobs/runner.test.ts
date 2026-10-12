@@ -563,7 +563,7 @@ describe('startWorker slot queues', () => {
   // a site added meanwhile sat on "Scanning · 0" until that link ended.
   // The same for an automation step: one step walking its minute-long
   // budget held every step fetched with it.
-  it.each(['websites.scan', 'chat.api_turn', 'automation.step'] as const)(
+  it.each(['websites.scan', 'automation.step'] as const)(
     'works %s through independent one-job slots',
     async (queue) => {
       const { boss, workOptions } = fakeBoss();
@@ -582,6 +582,41 @@ describe('startWorker slot queues', () => {
       expect(workOptions.get('noop')?.localConcurrency).toBeUndefined();
     },
   );
+});
+
+describe('startWorker REST chat turn slots', () => {
+  // A REST turn holds its slot through the whole reply and mostly waits on the
+  // model: five slots capped a worker at about a turn a second, and API
+  // clients' first token took 49 s at 4,000 users while the app's own chat,
+  // which runs in the API process, stayed under a second.
+  it('works REST chat turns through at least sixteen one-job slots, polling idle ones every five seconds', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      taskList: { 'chat.api_turn': vi.fn() },
+    });
+
+    expect(workOptions.get(physicalTaskQueue('chat.api_turn'))).toMatchObject({
+      batchSize: 1,
+      localConcurrency: 16,
+      pollingIntervalSeconds: 5,
+      notifyPollingIntervalSeconds: 5,
+    });
+  });
+
+  it('a higher worker concurrency raises them too', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 32,
+      taskList: { 'chat.api_turn': vi.fn() },
+    });
+
+    expect(
+      workOptions.get(physicalTaskQueue('chat.api_turn'))?.localConcurrency,
+    ).toBe(32);
+  });
 });
 
 describe('startWorker organization limit', () => {

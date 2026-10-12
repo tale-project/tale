@@ -199,7 +199,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   before the 404 page: a 359-of-932 loss of published URLs and agents guessing translated slugs
   showed why (2026-09).
 - **A patched dependency stays pinned, proven and dated** — `patches/` holds the Bun
-  `patchedDependencies` patches (today postgres.js 3.4.7, #4041), and
+  `patchedDependencies` patches (today postgres.js 3.4.7: a killed server process, #4041, and a
+  `begin()` that fills a connection's pipeline, porsager/postgres#1189), and
   [`patches/README.md`](../patches/README.md) says for each why it exists, which test proves it and
   when to remove it. Every Dockerfile that installs from the root manifests copies `patches/`
   (`bun install` fails without a listed patch), and bumping a patched package regenerates or
@@ -607,6 +608,29 @@ default means deleting the override and fixing what surfaces:
   `readIdempotencyKey(c)` with a door-specific request hash over `{taskId, workflowSlug}` —
   the default hash covers the task's `title` and `status`, which the workflow itself moves, so
   an honest retry would otherwise answer 409 `IDEMPOTENCY_KEY_REUSED`.
+- **A hard-killed chat turn is recovered after ten minutes** — a reply cut by a graceful stop
+  or a database restart now settles at once (`domains/chat/live-turns.ts`, the shutdown sequence,
+  `waitOutDatabaseOutage` around the settle writes, 2026-10), but a process that is killed
+  (SIGKILL, the out-of-memory killer, a lost host) can run nothing, and the generation sweep
+  (`domains/chat/watchdogs.ts`, every 2 minutes) takes its turn for dead only once the
+  generation's heartbeat has stood still for `CHAT_GENERATION_STALE_MS` (10 minutes): the
+  placeholder stays `pending` and the thread refuses a new send meanwhile (409
+  `CHAT_TURN_IN_PROGRESS` on the REST door). The horizon is that long because the heartbeat
+  moves with streamed text and stored parts, not while a tool runs: the deploy drain
+  (`GENERATION_FRESH_MS` in `domains/control/service.ts`), the tool deadlines (the knowledge
+  search's embedding ceiling is held to half of it, `watchdogs.test.ts`) and the in-flight gauge
+  are measured against it. Paying it down means a beat that moves while a tool runs (a timer
+  around the turn engine's tool phase in `lib/chat/turn.ts`) so the horizon can drop to a couple
+  of minutes, with those four consumers moved together, or an owner stamp on the generation row
+  with a process lease the sweep reads (a migration).
+- **A missing sandbox token is logged with a stack per session** — in a deployment with no
+  spawner (the `tools/load` stack, a hand-rolled compose without `SANDBOX_TOKEN`) every sandbox
+  watchdog pass prints `Error: SANDBOX_TOKEN is not set` with its stack once per leftover session
+  (`collectFailedSessions` in `domains/sandbox/watchdogs.ts`, five sites in
+  `domains/sandbox/light-sessions.ts`, the `run_code` tool); only the workspace cleanup sweep
+  prints the sentence alone (2026-10). Paying it down means a typed error from
+  `requireSpawnerToken` (`core/node_only/sandbox/helpers/session_client.ts`) that those sites
+  print as one line, or no spawner passes at all while no token is configured.
 - **No queue position on a queued send** — the generation poll answers `queued` with no
   count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked through
   independent slots at `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from

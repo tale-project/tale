@@ -70,6 +70,56 @@ export function isTransientDbError(error: unknown): boolean {
   );
 }
 
+const SERIALIZATION_SQLSTATES = new Set(['40001', '40P01']);
+
+/** True for errors that mean "rerun the whole transaction" (40001/40P01). */
+export function isSerializationFailure(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    SERIALIZATION_SQLSTATES.has(error.code)
+  );
+}
+
+/**
+ * Where in the application a failed database call was made: the first frame
+ * of the error's stack that is neither a dependency nor this package's own
+ * retry plumbing, as `path/to/file.ts:line`, or `undefined` when the stack
+ * names none. postgres.js builds a statement's error with the stack of the
+ * place that wrote the statement, so a retry warning can say WHICH write is
+ * losing — the log line used to read the same for every one of them.
+ *
+ * Read only when a retry is about to be logged, never on a call that works.
+ */
+export function callSiteOf(error: unknown): string | undefined {
+  if (!(error instanceof Error) || typeof error.stack !== 'string') {
+    return undefined;
+  }
+  for (const line of error.stack.split('\n').slice(1)) {
+    if (line.includes('node_modules') || line.includes('node:internal')) {
+      continue;
+    }
+    const frame = /(?:file:\/\/)?([^\s()]+\.[cm]?[jt]sx?):(\d+):\d+\)?$/.exec(
+      line.trim(),
+    );
+    if (frame === null) continue;
+    const [, file = '', row = ''] = frame;
+    // This package's own plumbing (`withRetry`, `transactSerializable`) is
+    // in every stack and names nothing.
+    if (/\/packages\/shared\/src\/db\/(?:retry|serializable)\.ts$/.test(file)) {
+      continue;
+    }
+    // Relative to the service: `domains/chat/store.ts:655`.
+    const short = file.replace(
+      /^.*\/(?:services\/[^/]+|packages\/[^/]+(?:\/src)?|tools\/[^/]+)\//,
+      '',
+    );
+    return `${short.replace(/^backend\//, '')}:${row}`;
+  }
+  return undefined;
+}
+
 /**
  * Run `operation`, retrying the whole call on transient connection errors with
  * exponential backoff. Non-transient errors propagate immediately. Returns
@@ -102,9 +152,10 @@ export async function withRetry<T>(
         throw error;
       }
       const of = Number.isFinite(attempts) ? `/${attempts}` : '';
+      const site = callSiteOf(error);
       console.warn(
         `[db] transient error on attempt ${attempt + 1}${of}, ` +
-          `retrying in ${delay}ms: ${error instanceof Error ? error.message : String(error)}`,
+          `retrying in ${delay}ms${site === undefined ? '' : ` (${site})`}: ${error instanceof Error ? error.message : String(error)}`,
       );
       await sleep(delay);
     }

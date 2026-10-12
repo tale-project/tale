@@ -9,6 +9,7 @@ import {
   registerRetryQueueKey,
   retryQueueKeyOf,
   retryQueueKeysOf,
+  SERIALIZABLE_ATTEMPTS,
   transactSerializable,
   type SerializableTransactionRunner,
 } from './serializable.ts';
@@ -115,6 +116,19 @@ describe('transactSerializable', () => {
       }),
     ).rejects.toThrow('sqlstate 40001');
     expect(attempts()).toBe(3);
+  });
+
+  it('reruns a lost serializable transaction eight times by default, which five lost to a burst of writers', async () => {
+    const { runner, attempts } = createRunner(
+      Array.from({ length: 20 }, () => sqlstateError('40001')),
+    );
+    await expect(
+      transactSerializable(runner, () => Promise.resolve('unreached'), {
+        sleep: noSleep,
+      }),
+    ).rejects.toThrow('sqlstate 40001');
+    expect(SERIALIZABLE_ATTEMPTS).toBe(8);
+    expect(attempts()).toBe(SERIALIZABLE_ATTEMPTS);
   });
 
   it('still retries transient connection faults', async () => {

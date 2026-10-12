@@ -230,6 +230,7 @@ export const newProject: Journey = {
       projectDraft(vu.data, vu.random),
     );
     if (created.body !== undefined) vu.metrics.counter('projects.created');
+    else if (created.status === 409) vu.metrics.counter('projects.key_taken');
   },
 };
 

@@ -2,6 +2,10 @@ import type { Sql } from 'postgres';
 import * as client from 'prom-client';
 
 import { registerSlaTargetMetrics } from '../sla-targets.ts';
+import {
+  passwordHasher,
+  type PasswordHasherStats,
+} from './auth/password-hasher.ts';
 import { probeStores } from './store-health.ts';
 
 /**
@@ -303,6 +307,45 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
   return [hintStreams, generations, jobs, drain, triggerScan, stores];
 }
 
+/**
+ * The pull-time view of the bounded password hasher (`auth/password-hasher.ts`):
+ * how many hashes run and wait right now, and how many checks it refused as
+ * busy. A sign-in wave shows here before anyone reports it. Split from
+ * {@link registerBackendCollectors} because it reads the process, not the
+ * database.
+ */
+export function registerPasswordHashCollectors(
+  stats: () => PasswordHasherStats,
+): client.Metric[] {
+  const active = new client.Gauge({
+    name: 'tale_backend_password_checks_active',
+    help: 'Password hashes running right now on this process.',
+    collect() {
+      this.set(stats().active);
+    },
+  });
+  const waiting = new client.Gauge({
+    name: 'tale_backend_password_checks_waiting',
+    help: 'Password checks waiting for a hashing slot on this process.',
+    collect() {
+      this.set(stats().waiting);
+    },
+  });
+  const refused = new client.Counter({
+    name: 'tale_backend_password_checks_refused_total',
+    help: 'Password checks refused with a retryable 503 because every hashing slot was busy: the queue was full, or the wait ran out.',
+    labelNames: ['reason'] as const,
+    collect() {
+      // The hasher keeps the running totals; a scrape restates them.
+      const { refusedQueueFull, refusedWaitExpired } = stats();
+      this.reset();
+      this.inc({ reason: 'queue_full' }, refusedQueueFull);
+      this.inc({ reason: 'wait_expired' }, refusedWaitExpired);
+    },
+  });
+  return [active, waiting, refused];
+}
+
 /** Native completion read shared with the isolated real-Postgres proof. The
  * collector names exactly one queue, so no user/organization labels or IDs
  * enter metrics. The existing (name,id) index scopes this to that queue's
@@ -333,6 +376,7 @@ export function initBackendTelemetry(sql: Sql): void {
   client.register.registerMetric(httpDuration);
   registerSlaTargetMetrics();
   registerBackendCollectors(sql);
+  registerPasswordHashCollectors(() => passwordHasher.stats());
   initialized = true;
 }
 

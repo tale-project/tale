@@ -1096,9 +1096,14 @@ export async function runWorkspaceCleanup(
   try {
     inventory = await spawner.inventory();
   } catch (error) {
+    // A plain error is a sentence an operator can act on — a deployment with
+    // no sandbox has no spawner token, and said so with a stack on every
+    // sweep. Anything the runtime raised keeps its stack.
     console.warn(
       '[sandbox.cleanup] the spawner inventory is unavailable; owner-less workspaces wait for the next sweep:',
-      error,
+      error instanceof Error && error.constructor === Error
+        ? error.message
+        : error,
     );
     return result;
   }

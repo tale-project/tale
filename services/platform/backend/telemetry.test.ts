@@ -10,6 +10,7 @@ import {
   methodClass,
   openHintStreamCount,
   registerBackendCollectors,
+  registerPasswordHashCollectors,
   routeClass,
 } from './telemetry.ts';
 
@@ -108,6 +109,38 @@ vi.mock('./store-health.ts', () => ({
       { name: 'object_store', up: false, detail: 'stubbed' },
     ]),
 }));
+
+describe('the password hasher’s collectors', () => {
+  test('state the slots in use, the queue and the refusals on scrape', async () => {
+    let stats = {
+      concurrency: 2,
+      maxQueued: 32,
+      active: 2,
+      waiting: 5,
+      refusedQueueFull: 3,
+      refusedWaitExpired: 1,
+    };
+    registerPasswordHashCollectors(() => stats);
+
+    const first = await client.register.metrics();
+    expect(first).toContain('tale_backend_password_checks_active 2');
+    expect(first).toContain('tale_backend_password_checks_waiting 5');
+    expect(first).toContain(
+      'tale_backend_password_checks_refused_total{reason="queue_full"} 3',
+    );
+    expect(first).toContain(
+      'tale_backend_password_checks_refused_total{reason="wait_expired"} 1',
+    );
+
+    // A scrape restates the running totals; the counter never goes backwards.
+    stats = { ...stats, active: 0, waiting: 0, refusedQueueFull: 7 };
+    const second = await client.register.metrics();
+    expect(second).toContain('tale_backend_password_checks_active 0');
+    expect(second).toContain(
+      'tale_backend_password_checks_refused_total{reason="queue_full"} 7',
+    );
+  });
+});
 
 describe('pull-time collectors', () => {
   /** A `postgres` stand-in whose tagged-template call returns fixed rows. */

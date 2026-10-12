@@ -9,6 +9,7 @@ import {
 } from '../../core/chat/generate_title';
 import type { ActionCtx } from '../../core/lib/ctx';
 import { internal } from '../../core/lib/handler_names';
+import { logDetail } from '../../db/unavailable.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import {
@@ -151,7 +152,10 @@ export async function improveConversationMessage(
       inputTokens: usage.prompt,
       outputTokens: usage.completion,
     }).catch((error: unknown) => {
-      console.warn('[improveConversationMessage] usage write failed:', error);
+      console.warn(
+        '[improveConversationMessage] usage write failed:',
+        logDetail(error),
+      );
     });
   };
   const release = async () => {

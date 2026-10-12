@@ -5,6 +5,7 @@ import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
 import { estimateTokens } from '../../../lib/chat/types';
+import { logDetail } from '../../db/unavailable';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
@@ -297,7 +298,10 @@ async function generateWithModel(
       })
       .catch((error: unknown) => {
         // Best-effort: a ledger failure must not cost the title.
-        console.warn('[generateThreadTitle] usage write failed:', error);
+        console.warn(
+          '[generateThreadTitle] usage write failed:',
+          logDetail(error),
+        );
       });
   };
   const release = async () => {
@@ -437,7 +441,7 @@ export async function generateThreadTitleImpl(
     } catch (error) {
       console.warn(
         `[generateThreadTitle] failed for thread ${args.threadId}:`,
-        error,
+        logDetail(error),
       );
     } finally {
       clearTimeout(timeout);

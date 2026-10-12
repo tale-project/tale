@@ -866,6 +866,13 @@ export function queueGroupConcurrency(
  * output waits in the daemon's bounded replay journal and its heartbeat
  * goes stale, so the default of five slots throttled a worker to five live
  * agent turns at once.
+ *
+ * A REST chat turn (`chat.api_turn`) holds its slot for the whole reply and
+ * spends nearly all of it waiting on the model's stream, so five slots capped
+ * a worker at about one turn a second however idle it was. Under a load run
+ * the first token of an API client's reply took 1.3 s with 14 users, 6.2 s
+ * with 1,000 and 49 s with 4,000, while the same chat in the app (which runs
+ * in the API process, unbounded) stayed under a second.
  */
 const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   TaskIdentifier,
@@ -878,6 +885,7 @@ const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   // A native run waits on the model for nearly all of its minutes: many can
   // share a worker.
   ['task.agent_native', 16],
+  ['chat.api_turn', 16],
 ]);
 
 /** The agent queues whose slots the operator sets: a turn's start (a
@@ -927,4 +935,8 @@ export const TASK_WORKER_IDLE_POLL_SECONDS: ReadonlyMap<string, number> =
     ['automation.agent_drive', 10],
     // Enqueued with no delay, like a drive window: the insert wakes a slot.
     ['task.agent_native', 10],
+    // A REST turn is enqueued with no delay, so its insert wakes the slots at
+    // once; the poll surfaces only the one the deploy drain hands on five
+    // seconds later.
+    ['chat.api_turn', 5],
   ]);

@@ -103,6 +103,35 @@ export function authPoolMax(
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 5;
 }
 
+/**
+ * The longest a pool waits to reconnect a connection the database dropped.
+ *
+ * postgres.js's own backoff climbs to twenty seconds, and its retry count is
+ * the POOL's, not the connection's: every one of a pool's connections that
+ * fails to reconnect raises it. A restart of a few seconds took twenty
+ * connections through a handful of refused attempts each, which put the pool
+ * at its ceiling, so each then waited up to twenty seconds past the moment the
+ * database answered again. The event stream measured it: one process saw its
+ * database back after 3 s, a sibling after 20 s, and every request in between
+ * answered a 503 the database no longer deserved.
+ *
+ * Two seconds still spreads a pool's reconnects (the jitter below) so a
+ * restarted database is not hit by every replica at the same instant.
+ */
+const MAX_RECONNECT_BACKOFF_SECONDS = 2;
+
+/**
+ * postgres.js's default backoff — `3 ** retries` hundredths of a second,
+ * jittered between half and all of it — with the ceiling above in place of its
+ * twenty seconds. Seconds, as the option takes them.
+ */
+export function reconnectBackoffSeconds(retries: number): number {
+  return (
+    (0.5 + Math.random() / 2) *
+    Math.min(3 ** retries / 100, MAX_RECONNECT_BACKOFF_SECONDS)
+  );
+}
+
 export function createSql(databaseUrl: string): Sql {
   const { url, ssl } = resolvePostgresConnection(databaseUrl);
   return postgres(url, {
@@ -110,6 +139,7 @@ export function createSql(databaseUrl: string): Sql {
     ssl,
     idle_timeout: 30,
     connect_timeout: 10,
+    backoff: reconnectBackoffSeconds,
     types: {
       json: { to: 114, from: [114], ...jsonPassthrough },
       jsonb: { to: 3802, from: [3802], ...jsonPassthrough },

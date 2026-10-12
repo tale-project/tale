@@ -7,6 +7,7 @@ import {
   AUTH_INVALIDATION_TRIGGERS,
   presentAuthInvalidationTriggers,
 } from '../db/auth-invalidation-triggers.ts';
+import { logDetail } from '../db/unavailable.ts';
 import type { OrganizationMember } from './membership.ts';
 import { sessionCookieCacheSeconds } from './session-cache.ts';
 import type { SessionBundle } from './session.ts';
@@ -374,7 +375,7 @@ export function createAuthRequestCache(
         failing = true;
         console.warn(
           '[auth-cache] the invalidation log cannot be read; answering from the database until it can:',
-          error,
+          logDetail(error),
         );
       }
     }

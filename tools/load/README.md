@@ -82,6 +82,27 @@ node tools/load/src/cli.ts stack down
 | `connections`  | idle open tabs: live streams held, hardly a click                                                                                                                  | What do the open connections alone cost?                       |
 | `signin-storm` | every user signs in with the password inside the ramp                                                                                                              | Does a Monday morning hold?                                    |
 
+### Reading and running the profiles
+
+- **`signin-storm` needs `--forwarded-for`.** Every virtual user connects from this machine, and the
+  platform's sign-in flood guard counts attempts per source address: without per-user addresses all
+  of them share one bucket, and a few dozen sign-ins in, every one answers `429` — by design, and
+  the same would happen to a real deployment behind a proxy that drops `X-Forwarded-For`. Pass
+  `--forwarded-for` to give each user an address of their own.
+- **A refused sign-in is an outcome, not a crash.** When more passwords arrive than the process
+  hashes at once, the platform answers `503 PASSWORD_CHECK_BUSY` with `Retry-After` instead of
+  queuing them (`backend/auth/password-hasher.ts`). The report's server section shows
+  `tale_backend_password_checks_waiting`; raise `UV_THREADPOOL_SIZE` on the api, or add an api
+  process, to move the line.
+- **`soak` holds its peak for at least an hour** (`--hold` below 3,600 s is raised to it). For a
+  quick drift check run `--profile load --hold 720` instead and watch the server section's memory.
+- **Telling the machine from the platform.** `net_ETIMEDOUT` and `net_UND_ERR_CONNECT_TIMEOUT` are
+  TCP-level: the target's listen backlog (`kern.ipc.somaxconn` is 128 on macOS) or a full ephemeral
+  port range, not an answer of the platform. A jump of thousands of users in seconds (`spike`,
+  `signin-storm`) produces them on a laptop; ramp `connections` over several minutes
+  (`--ramp 360` for 5,000 idle tabs) or run the generators from Linux. The platform's own
+  failures are the `http_5xx` kinds and the server section's logs.
+
 ## Personas and journeys
 
 Each virtual user is one person of the plan (same e-mail, organization and session every run) and

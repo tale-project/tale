@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { isTransientDbError, withRetry } from './retry.ts';
+import { callSiteOf, isTransientDbError, withRetry } from './retry.ts';
 
 const noSleep = (): Promise<void> => Promise.resolve();
 
@@ -110,11 +110,64 @@ describe('withRetry', () => {
       // An unbounded count names no total it could reach.
       expect(warn).toHaveBeenNthCalledWith(
         1,
-        '[db] transient error on attempt 1, retrying in 1000ms: connection error 57P03',
+        expect.stringMatching(
+          /^\[db\] transient error on attempt 1, retrying in 1000ms \(db\/retry\.test\.ts:\d+\): connection error 57P03$/,
+        ),
       );
     } finally {
       clock.mockRestore();
       warn.mockRestore();
     }
+  });
+});
+
+describe('callSiteOf', () => {
+  const withStack = (...frames: string[]) =>
+    Object.assign(new Error('could not serialize access'), {
+      stack: ['Error: could not serialize access', ...frames].join('\n'),
+    });
+
+  it('names the application frame that wrote the statement, relative to its service', () => {
+    const error = withStack(
+      '    at cachedError (/repo/node_modules/postgres/src/query.js:170:23)',
+      '    at new Query (/repo/node_modules/postgres/src/query.js:36:24)',
+      '    at sql (/repo/node_modules/postgres/src/index.js:112:11)',
+      '    at <anonymous> (/repo/services/platform/backend/domains/chat/store.ts:655:17)',
+      '    at async transactSerializable (/repo/packages/shared/src/db/serializable.ts:360:12)',
+    );
+
+    expect(callSiteOf(error)).toBe('domains/chat/store.ts:655');
+  });
+
+  it('skips the retry plumbing, Node’s own frames and dependencies', () => {
+    const error = withStack(
+      '    at async withRetry (/repo/packages/shared/src/db/retry.ts:101:18)',
+      '    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)',
+      '    at async Promise.all (index 0)',
+      '    at async attempt (file:///repo/packages/shared/src/db/serializable.ts:351:7)',
+      '    at async run (file:///repo/services/platform/lib/chat/turn.ts:90:5)',
+    );
+
+    expect(callSiteOf(error)).toBe('lib/chat/turn.ts:90');
+  });
+
+  it('keeps another package’s file legible', () => {
+    const error = withStack(
+      '    at tx (/repo/packages/ui/src/server/something.ts:12:3)',
+    );
+
+    expect(callSiteOf(error)).toBe('server/something.ts:12');
+  });
+
+  it('says nothing when no frame belongs to the application', () => {
+    expect(
+      callSiteOf(
+        withStack('    at x (/repo/node_modules/postgres/src/query.js:1:1)'),
+      ),
+    ).toBeUndefined();
+    expect(
+      callSiteOf(Object.assign(new Error('x'), { stack: undefined })),
+    ).toBeUndefined();
+    expect(callSiteOf('not an error')).toBeUndefined();
   });
 });

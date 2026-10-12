@@ -31,7 +31,7 @@ MCP-Batches rechnen zusätzliche Tool-Aufrufe als zusätzliche Anfragen ab. Der 
 
 Aufrufe der [Modell-Endpunkte](/de/develop/api-reference#model-endpoints) unter `/api/v1/openai` und `/api/v1/anthropic` zählen nur gegen das allgemeine Budget, jeweils als eine Anfrage, ob gestreamt oder nicht; was ein Aufruf ausgeben darf, begrenzen die Budgetregeln gesondert. Außerdem dürfen eine Person und jeder API-Schlüssel acht dieser Aufrufe gleichzeitig laufen haben: Ein neunter erhält `429` mit `code` `MODEL_API_CONCURRENCY_EXCEEDED` und `Retry-After: 2`.
 
-Das Ausführungsbudget begrenzt, wie schnell Nachrichten angenommen werden, nicht die Zahl gleichzeitig laufender Antworten. Angenommene Chatnachrichten teilen sich eine Warteschlange über alle Organisationen und Schlüssel der Instanz. Ein Worker verarbeitet pro Durchgang bis zu `WORKER_CONCURRENCY` Antwortläufe, standardmäßig 5. Sein nächster Durchgang beginnt erst, wenn der aktuelle abgeschlossen ist. Eine erfolgreich angenommene Nachricht kann deshalb hinter anderen Clients warten. Die API liefert weder Warteschlangenposition noch geschätzten Startzeitpunkt.
+Das Ausführungsbudget begrenzt, wie schnell Nachrichten angenommen werden, nicht die Zahl gleichzeitig laufender Antworten. Angenommene Chatnachrichten teilen sich eine Warteschlange über alle Organisationen und Schlüssel der Instanz. Jeder Worker führt bis zu 16 Antwortläufe gleichzeitig aus, bei höherem `WORKER_CONCURRENCY` entsprechend mehr, und beginnt den nächsten, sobald einer abgeschlossen ist. Eine erfolgreich angenommene Nachricht kann deshalb hinter anderen Clients warten. Die API liefert weder Warteschlangenposition noch geschätzten Startzeitpunkt.
 
 ## Die Antwort 429
 

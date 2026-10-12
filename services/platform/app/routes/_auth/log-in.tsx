@@ -244,6 +244,15 @@ export function LogInPage() {
         setShowLockoutHint(false);
         return;
       }
+      if (typeof status === 'number' && status >= 500) {
+        // The server could not check the password at all — too many checks at
+        // once (503 `PASSWORD_CHECK_BUSY`), or the database restarting. It says
+        // nothing about the password, so it must not read as a wrong one, nor
+        // warn about a lockout the attempt did not count toward.
+        setLoginError(t('login.temporarilyUnavailable'));
+        setShowLockoutHint(false);
+        return;
+      }
       setLoginError(t('login.wrongCredentials'));
       setShowLockoutHint(true);
     },

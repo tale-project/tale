@@ -46,6 +46,7 @@ import {
 } from '../../src/api/tasks.ts';
 import {
   createContact,
+  createProject,
   listMyNotifications,
   listProjects,
 } from '../../src/api/workspace.ts';
@@ -141,6 +142,21 @@ describe('auth', () => {
     expect(seen.headers.origin).toBe(server.url);
     expect(seen.headers['x-forwarded-for']).toBe('198.18.0.7');
     expect(seen.json).toMatchObject({ email: 'u@example.test' });
+  });
+
+  test('a sign-in the platform refuses as busy is an outcome, not an error', async () => {
+    const { api, metrics } = client();
+    answers.set('POST /api/auth/sign-in/email', {
+      status: 503,
+      body: { code: 'PASSWORD_CHECK_BUSY' },
+    });
+
+    const result = await signInEmail(api, 'u@example.test', 'pw');
+
+    expect(result.status).toBe(503);
+    expect(result.code).toBe('PASSWORD_CHECK_BUSY');
+    expect(result.body).toBeUndefined();
+    expect(metrics.snapshot().errors).toEqual({});
   });
 
   test('get-session reads the active organization; null is no session', async () => {
@@ -361,6 +377,32 @@ describe('workspace', () => {
     const rows = await listMyNotifications(api, 'o1');
     expect(rows.body).toEqual([{ id: 'n1', read: false }]);
     expect(lastRequest().query.get('limit')).toBe('20');
+  });
+});
+
+describe('projects', () => {
+  test('a project key another project already holds is an outcome, not an error', async () => {
+    const { api, metrics } = client();
+    answers.set('POST /api/app/projects', {
+      status: 409,
+      body: { error: 'PROJECT_KEY_TAKEN' },
+    });
+
+    const created = await createProject(api, 'o1', { name: 'Roadmap' });
+
+    expect(created.status).toBe(409);
+    expect(created.body).toBeUndefined();
+    expect(metrics.snapshot().errors).toEqual({});
+  });
+
+  test('a project that is created answers its id', async () => {
+    const { api } = client();
+    answers.set('POST /api/app/projects', { body: { projectId: 'p1' } });
+
+    expect((await createProject(api, 'o1', { name: 'Roadmap' })).body).toBe(
+      'p1',
+    );
+    expect(lastRequest().json).toEqual({ name: 'Roadmap' });
   });
 });
 

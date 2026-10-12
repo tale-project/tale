@@ -22,6 +22,7 @@ import {
   type AuditSealer,
 } from './domains/audit_logs/sealer.ts';
 import { releaseOwnedRunLeases } from './domains/automations/store.ts';
+import { settleLiveChatTurns } from './domains/chat/live-turns.ts';
 import { isBackendDraining } from './domains/control/service.ts';
 import {
   installCorpusHealthHook,
@@ -283,6 +284,10 @@ async function main(): Promise<void> {
       stopBoss: (options) => boss.stop(options),
       settleLiveTurns,
       releaseOwnedRunLeases: () => releaseOwnedRunLeases(sql),
+      // A chat reply streams inside the process that took it; one still
+      // going when the drain budget ends is settled as interrupted now,
+      // not by the sweep ten minutes on (`domains/chat/live-turns.ts`).
+      settleChatTurns: (timeoutMs) => settleLiveChatTurns(sql, timeoutMs),
       // The knowledge pools outlive the jobs and requests that used them —
       // drain them here rather than leaving their sockets to process.exit.
       closeStores: async () => {

@@ -62,6 +62,7 @@ login:
     La connexion par passkey a échoué ou a été annulée. Réessaie ou
     utilise ton mot de passe.
   wrongCredentials: Courriel ou mot de passe incorrect
+  temporarilyUnavailable: Impossible de te connecter pour le moment. Réessaie dans un instant.
   accountLockedGeneric: Compte temporairement verrouillé en raison d'échecs répétés. Réessaie plus tard ou contacte un administrateur.
   accountLockedSeconds:
     Compte temporairement verrouillé. Réessaie dans {seconds,

@@ -22,8 +22,29 @@ statement, is written to it from an Immediate: an uncaught
 [#1208](https://github.com/porsager/postgres/issues/1208), with the guard proposed in
 [#1209](https://github.com/porsager/postgres/pull/1209); all open.
 
+A second defect, found by the 2026-10 load run: under load a transaction can start without owning its
+connection. `begin()` learns which connection its `BEGIN` runs on only through the `onexecute` hook,
+which `execute()` calls last in an `&&` chain behind `sent.length < max_pipeline` (and behind the
+socket's backpressure answer). When the pool has pipelined `max_pipeline` (100) plain statements onto a
+busy connection and the `BEGIN` is the one that fills it, the hook is skipped though the `BEGIN` is
+written. Its `CommandComplete` then finds no reservation (`UNSAFE_TRANSACTION`) and the connection goes
+back to the pool inside the transaction. The next `begin` on it logs `there is already a transaction in
+progress` or fails with 25001 (`SET TRANSACTION ISOLATION LEVEL must be called before any query`), and
+the aborted transaction never returns to idle, so its slot leaks. A 4,000-user spike answered HTTP 500s
+and left `idle in transaction (aborted)` sessions; a steady 4,000-user run did not, because pipelines
+stay shallow. Upstream:
+[porsager/postgres#1189](https://github.com/porsager/postgres/issues/1189) (this ordering),
+[#823](https://github.com/porsager/postgres/issues/823) (the intermittent symptom) and
+[#1210](https://github.com/porsager/postgres/issues/1210); the earlier fix proposal #1159 was closed
+unmerged.
+
 **What.** The same change goes into each build the package ships: `src/` (`import`, Bun), `cjs/src/`
 (`require`) and `cf/src/` (workerd).
+
+- `connection.js`, `execute`: `onexecute` runs once the statement is written, whether or not the
+  connection can take more pipelined statements, so a full pipeline or a backpressured socket no longer
+  skips it. Its return value is unchanged: the connection still counts as full while a transaction
+  holds it.
 
 - `connection.js`, `nextWrite`: #1209's guard, verbatim. A write to a closed connection rejects
   the pending statements with `CONNECTION_CLOSED` instead of throwing.
@@ -49,7 +70,9 @@ statement, is written to it from an Immediate: an uncaught
 through both its ESM and its CommonJS build. The child talks to a fake server that closes or resets the
 connection the way a killed server process or a proxy does. Without the patch, the cut cases crash the
 child, hang it, or commit the stray statement. With #1209's guard alone, they hang or fail on the dead
-connection.
+connection. The `begin-fills-the-pipeline` case (a pool of two with `max_pipeline: 3`, the `begin` the
+seventh statement) fails unpatched with `UNSAFE_TRANSACTION`; patched, the transaction commits and no
+other statement ever runs on a connection inside it.
 
 **Behaviour change.** A statement issued on a transaction handle after its `COMMIT`, or on a
 released reservation, now rejects with `CONNECTION_CLOSED` instead of running on the pool's
@@ -60,7 +83,8 @@ connection closes and the pool reconnects that one for it: upstream's `onclose` 
 the reconnect, whose type fetch discards it.
 
 **Remove it when** a postgres.js release fixes all of this. That means the write to a closed
-connection, what `closed()` leaves pending, and the pool's hand-back of a closed connection. Then bump
+connection, what `closed()` leaves pending, the pool's hand-back of a closed connection, and the order
+in which `execute()` calls `onexecute` (#1189). Then bump
 the pin in `services/platform` and `packages/shared`, delete this file's entry and its
 `patchedDependencies` line, and keep the regression suite: it must pass on that release unpatched. If a
 release fixes only part of it, regenerate the rest against that release with `bun patch`.
