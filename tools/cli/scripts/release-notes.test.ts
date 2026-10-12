@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import {
   chmod,
   copyFile,
@@ -61,8 +62,10 @@ async function readWorkflow(path: string) {
 const releaseWorkflow = () => readWorkflow('.github/workflows/release.yml');
 
 /** A checkout holding only the validator; notes are written per case. */
-async function validatorCheckout() {
-  const directory = await mkdtemp(join(tmpdir(), 'tale-release-notes-'));
+async function validatorCheckout(parent?: string) {
+  const directory = parent
+    ? join(parent, 'release-source')
+    : await mkdtemp(join(tmpdir(), 'tale-release-notes-'));
   temporary.push(directory);
   const script = 'tools/cli/scripts/release-notes.ts';
   await mkdir(join(directory, dirname(script)), { recursive: true });
@@ -115,6 +118,26 @@ async function runStep(
 }
 
 describe('authored release notes', () => {
+  test('an explicit source root cannot silently fall back to the tooling checkout', async () => {
+    const tree = await validatorCheckout();
+    await tree.notes('v1.2.3', authored);
+    const result = Bun.spawnSync(
+      [
+        process.execPath,
+        join(tree.directory, 'tools/cli/scripts/release-notes.ts'),
+        '--version',
+        'v1.2.3',
+        '--source-root',
+        '',
+      ],
+      { cwd: tree.directory },
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr.toString()).toContain(
+      '--source-root takes a checkout directory',
+    );
+  });
+
   test('binds notes to one exact version and refuses path traversal', () => {
     expect(releaseNotesPath('v1.2.3')).toBe('.github/release-notes/v1.2.3.md');
     expect(releaseNotesPath('v1.2.3-rc.1')).toBe(
@@ -289,62 +312,151 @@ describe('authored release notes', () => {
       const at = (name: string) =>
         steps.findIndex((step) => step.name === name);
       const resolveTag = steps[at('Resolve snapshot tag')]!;
+      const checkout = steps[at('Checkout release source')]!;
       const validate =
         steps[at('Validate authored release notes before pinning')];
       const publish = steps[at('Publish snapshot')]!;
-      // The check stops the job before the only step that pushes.
+      // The check reads the released commit and stops the job before the
+      // only step that pushes.
+      expect(at('Checkout release source')).toBeGreaterThan(
+        at('Resolve snapshot tag'),
+      );
       expect(
         at('Validate authored release notes before pinning'),
-      ).toBeGreaterThan(at('Resolve snapshot tag'));
+      ).toBeGreaterThan(at('Checkout release source'));
       expect(at('Validate authored release notes before pinning')).toBeLessThan(
         at('Publish snapshot'),
       );
       expect(validate?.['continue-on-error']).toBeUndefined();
       expect(publish.if).toBeUndefined();
-      // The same validator and version spelling as Release's Prepare.
+      expect(checkout.uses).toStartWith('actions/checkout@');
+      expect(checkout.if).toBe("steps.tag.outputs.version != ''");
+      expect(checkout.with?.ref).toBe('${{ steps.tag.outputs.source }}');
+      expect(checkout.with?.['persist-credentials']).toBe(false);
+      // Main's maintained validator reads the released notes as data. Neither
+      // the validator nor Bun's configuration comes from the source checkout.
       const prepare = (await releaseWorkflow()).jobs.prepare.steps.find(
         (step) =>
           step.name === 'Validate authored release notes before building',
       );
-      expect(validate?.run).toBe(prepare?.run);
+      expect(validate?.run).toContain(prepare!.run!);
+      expect(validate?.run).toContain('--source-root "$SOURCE_ROOT"');
       expect(validate?.shell).toBe('bash');
+      expect(checkout.with?.path).toBe('release-source');
       expect(validate?.['working-directory']).toBe('.');
       expect(validate?.if).toBe("steps.tag.outputs.version != ''");
       expect(validate?.env?.TAG).toBe('${{ steps.tag.outputs.version }}');
+      expect(validate?.env?.SOURCE_ROOT).toBe(
+        '${{ github.workspace }}/release-source',
+      );
 
       const tree = await validatorCheckout();
-      const resolved = async (env: Record<string, string>) => {
-        const result = await runStep(resolveTag.run!, tree.directory, {
+      const released = await validatorCheckout(tree.directory);
+      const source = '0123456789abcdef0123456789abcdef01234567';
+      const resolveWith = (env: Record<string, string>) =>
+        runStep(resolveTag.run!, tree.directory, {
           PACKAGE: 'ui',
-          REF_NAME: 'main',
-          INPUT_VERSION: '',
+          REF: 'refs/heads/main',
+          RELEASE_TAG: '',
+          SOURCE_SHA: '',
           ...env,
         });
-        expect(result.exitCode, result.stderr).toBe(0);
-        return result.outputs;
-      };
       // A plain push to main pins nothing, so the check is skipped.
-      expect(await resolved({ REF_TYPE: 'branch' })).toEqual({
-        value: '',
-        version: '',
+      const push = await resolveWith({});
+      expect(push.exitCode, push.stderr).toBe(0);
+      expect(push.outputs).toEqual({ value: '', version: '', source: '' });
+      const tag = await resolveWith({
+        RELEASE_TAG: 'v1.2.3',
+        SOURCE_SHA: source,
       });
-      expect(
-        await resolved({ REF_TYPE: 'branch', INPUT_VERSION: '1.2.3' }),
-      ).toEqual({ value: 'ui-v1.2.3', version: 'v1.2.3' });
-      const tag = await resolved({ REF_TYPE: 'tag', REF_NAME: 'v1.2.3' });
-      expect(tag).toEqual({ value: 'ui-v1.2.3', version: 'v1.2.3' });
+      expect(tag.exitCode, tag.stderr).toBe(0);
+      expect(tag.outputs).toEqual({
+        value: 'ui-v1.2.3',
+        version: 'v1.2.3',
+        source,
+      });
+      // A version needs its exact tag and the commit it names, on main.
+      const refusals: Record<string, string>[] = [
+        { RELEASE_TAG: 'v1.2.3' },
+        { SOURCE_SHA: source },
+        { RELEASE_TAG: '1.2.3', SOURCE_SHA: source },
+        { RELEASE_TAG: 'v1.2.3', SOURCE_SHA: source.slice(0, 12) },
+        { REF: 'refs/tags/v1.2.3', RELEASE_TAG: 'v1.2.3', SOURCE_SHA: source },
+        { REF: 'refs/heads/feature' },
+      ];
+      for (const env of refusals) {
+        const refused = await resolveWith(env);
+        expect(refused.exitCode, JSON.stringify(env)).not.toBe(0);
+        expect(refused.outputs).toEqual({});
+      }
 
       const pin = () =>
-        runStep(validate!.run!, tree.directory, { TAG: tag.version! });
+        runStep(validate!.run!, tree.directory, {
+          TAG: tag.outputs.version!,
+          SOURCE_ROOT: released.directory,
+        });
       expect((await pin()).exitCode).not.toBe(0);
-      await tree.notes(
+      await released.notes(
         'v1.2.3',
         authored.replace('Restart the service after updating.', 'TODO'),
       );
       expect((await pin()).exitCode).not.toBe(0);
-      await tree.notes('v1.2.3', authored);
+      await released.notes('v1.2.3', authored);
       const valid = await pin();
       expect(valid.exitCode, valid.stderr).toBe(0);
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'Publish packages validates released notes without executing historical tooling',
+    async () => {
+      const steps = (
+        await readWorkflow('.github/workflows/publish-packages.yml')
+      ).jobs.publish.steps;
+      const validate = steps.find(
+        (step) =>
+          step.name === 'Validate authored release notes before pinning',
+      )!;
+      const trusted = await validatorCheckout();
+      const released = await validatorCheckout(trusted.directory);
+      await trusted.notes(
+        'v1.2.3',
+        authored.replace('Restart', 'TODO Restart'),
+      );
+      await released.notes('v1.2.3', authored);
+      const marker = join(trusted.directory, 'historical-tooling-ran');
+      const poison =
+        'import { writeFileSync } from "node:fs"; writeFileSync(process.env.SOURCE_EXECUTION_MARKER!, "ran");\n';
+      await writeFile(
+        join(released.directory, 'tools/cli/scripts/release-notes.ts'),
+        poison,
+      );
+      await writeFile(join(released.directory, 'preload.ts'), poison);
+      await writeFile(
+        join(released.directory, 'bunfig.toml'),
+        'preload = ["./preload.ts"]\n',
+      );
+      const pin = () =>
+        runStep(
+          validate.run!,
+          join(trusted.directory, validate['working-directory'] ?? '.'),
+          {
+            TAG: 'v1.2.3',
+            SOURCE_ROOT: released.directory,
+            SOURCE_EXECUTION_MARKER: marker,
+          },
+        );
+      const valid = await pin();
+      expect(valid.exitCode, valid.stderr).toBe(0);
+      expect(existsSync(marker)).toBe(false);
+      // Main's invalid notes cannot substitute for the valid release notes,
+      // and invalid release notes still fail despite the source's fake script.
+      await released.notes(
+        'v1.2.3',
+        authored.replace('Restart', 'TODO Restart'),
+      );
+      expect((await pin()).exitCode).not.toBe(0);
+      expect(existsSync(marker)).toBe(false);
     },
   );
 

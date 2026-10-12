@@ -223,13 +223,28 @@ git tag vX.Y.Z <sha>
 git push origin refs/tags/vX.Y.Z
 ```
 
-The tag starts `release.yml` and `publish-packages.yml`. `release.yml` builds both
-architectures from the tag, runs its container test gate, then publishes the manifests, the
-GitHub release and the CLI binaries. Both validate the version's authored notes before they
-publish anything: Release in Prepare, and Publish packages before it pins `ui-vX.Y.Z` and
-`marketing-ui-vX.Y.Z`, so a version whose notes Release refuses at that tag gets no package
-tags from that tag push. The two workflows run independently: package tags can already exist
-when Release fails after Prepare.
+The tag starts `release.yml`. It builds both architectures from the tag, runs its container
+test gate, then publishes the manifests, the GitHub release, the CLI binaries and the package
+tags. Prepare validates the version's authored notes before anything is built, so a version
+whose notes it refuses publishes nothing.
+
+The package tags `ui-vX.Y.Z` and `marketing-ui-vX.Y.Z` follow the release. Once
+`Create release` has checked that the tag names the release commit, `Publish package tags`
+dispatches `publish-packages.yml` on `main` with `release_tag=vX.Y.Z` and `source_sha=<sha>`.
+A tag that a workflow writes with `GITHUB_TOKEN`, as `Create release` does for a dispatched
+Release, starts no push workflow, while a `workflow_dispatch` always starts one
+([Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)).
+Publish packages checks out `<sha>`, validates the version's notes in that checkout, and
+pushes only the two tags, once its publisher has confirmed that the remote's `vX.Y.Z` names
+`<sha>`. A version snapshot uses tracked package files from that clean source; local ignored
+files are excluded. It leaves `dist/ui` and `dist/marketing-ui` at their current commits.
+Pushes to `main` and manual runs without version inputs update those rolling snapshots.
+A version whose Release stops before `Create release` gets no package tags.
+
+The validator and publisher run from `main`'s tooling checkout and read the selected source
+as data. The validator's `--source-root <directory>` selects the release's notes; the
+publisher's release-only `--checkout <directory>` selects its Git identity and package files.
+Neither executes historical scripts or loads the historical checkout's Bun configuration.
 
 `Manifest <service>` publishes one OCI image index per service with
 `docker buildx imagetools create`. `:X.Y.Z` and, unless the release is sites-only, `:latest`
@@ -252,12 +267,20 @@ if a pending tag is superseded, dispatch its immutable tag again when it is elig
 Recovery of the latest published tag remains allowed, and unreadable release history
 refuses a full release. A `sites_only` dispatch keeps its existing publication scope.
 
-`publish-packages.yml` also validates notes at the ref its dispatch runs on, not by looking up
-`tag_version`'s tag. Dispatch it on the matching immutable tag when retrying that version's
-snapshot. A dispatch from a newer branch could validate notes added after a refused tag and
-publish that branch's snapshot under the requested package version; it is not evidence for the
-original tag. A ref predating the notes gate does not gain it retroactively. Keep existing
-package tags immutable and choose a new version for corrected source.
+To retry or backfill a version's package tags, dispatch Publish packages the same way, on
+`main`, with the tag and the full commit SHA it names:
+
+```bash
+gh workflow run publish-packages.yml --ref main -f release_tag=vX.Y.Z -f source_sha=<sha>
+```
+
+The run refuses a tag that names another commit and a commit without valid authored notes for
+that version. A package tag
+that already exists never moves: if its contents are identical, the run pushes nothing and
+succeeds; if they differ, it fails. Reconcile that conflict using the recorded source and
+publication evidence, preserving the existing tags. Never dispatch Publish packages on a tag or any ref other than
+`main`: the run would use that ref's copy of the workflow and publisher, and the copy in an
+older tag also force-moves `dist/ui` and `dist/marketing-ui` back to the tagged commit.
 
 ## 5. Verify the release
 
@@ -270,6 +293,9 @@ package tags immutable and choose a new version for corrected source.
   docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
     ghcr.io/tale-project/tale/tale-platform:X.Y.Z
   ```
+- The Publish packages run for `vX.Y.Z` concluded `success`, and `ui-vX.Y.Z` and
+  `marketing-ui-vX.Y.Z` exist. Each names a snapshot whose commit message ends with
+  `from <sha>`.
 
 CLI publication dispatched on a tag requires the exact `release_tag` input to match that ref,
 and its resolved commit (including annotated tags) to match the dispatch commit before building.
@@ -302,8 +328,8 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
   the corrected candidate under the next version; never repair its source by moving the tag.
-  Publish packages also refuses notes from that same tag on its tag-push run. A branch dispatch
-  with later notes is a different source; do not use it to repair the refused version.
+  Publish packages validates the notes at the commit the tag names, so notes merged later
+  cannot repair the refused version either.
 - **A release publication retry.** A published release is preserved, including its edited notes
   and attached assets. A draft with the same tag stops publication for the release lane to
   reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
@@ -336,11 +362,12 @@ A published version is not a deployment. Deployments follow their own procedure.
     run (its concurrency never cancels a release). The re-run replaces only the `X.Y.Z-amd64`
     and `X.Y.Z-arm64` tags, which only the run's own jobs read.
   - **Any service has `:X.Y.Z`** (typically a failure in `Manifest <service>`,
-    `Create release`, `Trigger CLI build` or `Summary`): re-run no job of that run. A full
-    re-run re-points the published tags, re-running a failed `Manifest` job pushes them again,
-    and the adopter refuses a failed-job-only attempt anyway. Leave the tag, the images and
-    the run as they are; until the next version publishes, `:latest` can name different
-    versions per service.
+    `Create release`, `Trigger CLI build`, `Publish package tags` or `Summary`): re-run no
+    job of that run. A full re-run re-points the published tags, re-running a failed
+    `Manifest` job pushes them again, and the adopter refuses a failed-job-only attempt
+    anyway. Leave the tag, the images and the run as they are; until the next version
+    publishes, `:latest` can name different versions per service. Missing package tags are
+    recovered by dispatching Publish packages for the tag, as step 4 shows.
 
   For a published version, or a failure that needs a source change, recover forward: fix
   `main` where needed, then validate a new candidate and release it as the next version
