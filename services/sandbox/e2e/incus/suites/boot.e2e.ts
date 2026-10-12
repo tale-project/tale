@@ -224,10 +224,13 @@ describe('boot refusals against the real node', () => {
     async () => {
       // The block's network has a pool of its own: no warning at a normal boot.
       port += 1;
+      // These boots are about the network, not the image: no pull is started.
+      const noPull = { SANDBOX_INCUS_IMAGE_SOURCE: undefined };
       const quiet = spawnerOf({
         name: 'dhcp-range-set',
         port,
         token: newToken(),
+        env: noPull,
       });
       quiet.start();
       await quiet.ready();
@@ -245,6 +248,7 @@ describe('boot refusals against the real node', () => {
           name: 'dhcp-range-unset',
           port,
           token: newToken(),
+          env: noPull,
         });
         loud.start();
         await loud.ready();
