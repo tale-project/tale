@@ -24,11 +24,13 @@ import { LOCALE_REGISTRY } from './locales';
 import { CHECKS } from './registry';
 import { createScanner } from './scanner';
 import { walkMessagesDir } from './scanner/walk';
+import { defineSwissCoverageTests } from './swiss-coverage';
 
 export function defineI18nTests(config: I18nTestsConfig): void {
   const repoRoot = resolveRepoRoot(config.serviceRoot);
   const messagesDir =
     config.messagesDir ?? path.join(config.serviceRoot, 'messages');
+  defineSwissCoverageTests(messagesDir);
   const sharedFiles = config.sharedFiles ?? ['global.yml'];
   const requestedLocales = config.locales
     ? [...config.locales]

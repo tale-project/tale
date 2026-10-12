@@ -1,0 +1,11 @@
+automations:
+  cappedNotice: Zeigt die letzten 5.000 Läufe in diesem Zeitraum. Ältere Läufe
+    fliessen nicht in diese Zahlen ein.
+externalTurns:
+  cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum angezeigt.
+    Ältere Runden fliessen nicht in diese Summen ein.
+chatHealth:
+  guardrails:
+    chart:
+      noDataDescription: Erkennungen aus den Modi Markieren / Maskieren / Blockieren
+        erscheinen hier, sobald Chat-Verkehr fliesst.

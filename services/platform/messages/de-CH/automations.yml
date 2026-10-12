@@ -5,6 +5,12 @@ condition:
 runs:
   quarantine:
     changed: Die Sperre hat sich geändert. Schliesse diesen Dialog und prüfe die aktuellen Angaben, bevor du entscheidest.
+  effects:
+    description: Alles, was dieser Lauf ausserhalb der Plattform verändert hat, in
+      der Reihenfolge, in der es passiert ist.
+    none: Dieser Lauf hat ausserhalb der Plattform nichts verändert.
+    noneForNode: Diese Node hat ausserhalb der Plattform nichts verändert.
+    noneYetForNode: Diese Node hat ausserhalb der Plattform noch nichts verändert.
 trigger:
   schedule:
     repeatNoCron: '«{sentence}» lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
@@ -16,3 +22,18 @@ trigger:
   issues:
     input:
       tooLarge: 'Die feste Eingabe ist grösser als 16 KiB.'
+blank:
+  deployFailed: 'Die Automatisierung wurde angelegt, aber v1 liess sich nicht live schalten: {error}. Schalte sie im Editor live.'
+  triggerFailed: "Die Automatisierung wurde angelegt, aber ihr Trigger liess sich
+    nicht setzen: {error}. Setze ihn über die Trigger-Karte."
+starters:
+  loadFailed: 'Die Vorlagen liessen sich nicht laden: {error}'
+tests:
+  fromRun:
+    simulate:
+      tooLarge: 'Zu gross, um ihn in der Automatisierung zu behalten ({size}).'
+    warnings:
+      tooLarge: '{part, select, input {Die Eingabe} output {Die Ausgabe} other {Der Test}} ist gross ({size}).'
+settings:
+  loadFailed: Einstellungen konnten nicht geladen werden — schliesse den Dialog
+    und versuch es nochmal.
