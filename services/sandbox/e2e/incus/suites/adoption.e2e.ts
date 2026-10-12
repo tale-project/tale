@@ -7,7 +7,11 @@
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
-import { LABEL, label } from '../../../src/backend/incus/incus-naming.ts';
+import {
+  isWarmupInstanceName,
+  LABEL,
+  label,
+} from '../../../src/backend/incus/incus-naming.ts';
 import {
   admin,
   expectStatus,
@@ -290,9 +294,13 @@ describe('re-adoption and fencing on a real node', () => {
         String(boots),
       );
       expect(failures).toEqual([]);
-      // Every create was answered and destroyed, and nothing is left behind.
+      // Every create was answered and destroyed, and no session is left behind
+      // (the throwaway instance of a spawner's own image warm-up, which
+      // removes it itself, is not one).
       expect(
-        (await admin.instances()).map((instance) => instance.name),
+        (await admin.instances())
+          .map((instance) => instance.name)
+          .filter((name) => !isWarmupInstanceName(name)),
       ).toEqual([]);
     },
     15 * 60_000,
