@@ -48,6 +48,8 @@ function generateCertificate(dir: string, name: string, usage: string) {
   const cert = join(dir, `${name}.crt`);
   const key = join(dir, `${name}.key`);
   const result = Bun.spawnSync([
+    // Ephemeral fixture key of a foreign certificate, written to a private mkdtemp directory of a CI lab and never used for anything.
+    // nosemgrep: tools.opengrep.rules.trailofbits.generic.openssl-insecure-flags.openssl-insecure-flags
     'openssl',
     'req',
     '-x509',

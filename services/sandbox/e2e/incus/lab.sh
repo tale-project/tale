@@ -230,6 +230,8 @@ extendedKeyUsage = serverAuth
 subjectKeyIdentifier = hash
 subjectAltName = $names
 CONF
+  # The key of a throwaway lab's server, read unattended by Incus: no passphrase.
+  # nosemgrep: tools.opengrep.rules.trailofbits.generic.openssl-insecure-flags.openssl-insecure-flags -- intentional: a CI lab certificate on a host that is thrown away after the run
   openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -nodes \
     -days 3650 -config "$conf" -keyout "$key" -out "$crt"
   rm -f "$conf"
@@ -257,6 +259,7 @@ serve_api() {
   make_server_certificate "$pki/other-server.crt" "$pki/other-server.key" 127.0.0.1 "$BRIDGE_ADDRESS"
 
   # The spawner's client certificate. The operator block trusts it, restricted.
+  # nosemgrep: tools.opengrep.rules.trailofbits.generic.openssl-insecure-flags.openssl-insecure-flags -- intentional: the spawner's lab client key is read unattended, on a host that is thrown away after the run
   openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -nodes \
     -days 3650 -subj "/CN=$CLIENT_NAME" -addext 'extendedKeyUsage=clientAuth' \
     -keyout "$pki/client.key" -out "$pki/client.crt"
