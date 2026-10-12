@@ -126,8 +126,35 @@ class StoppedWhileWaiting extends Error {}
 function stopped(): ReturnType<typeof failure> {
   return failure(
     'cancelled',
-    'The program was stopped before it finished: the reply was stopped or the step ran out of time.',
+    `The program was stopped before it finished: the reply was stopped or the step ran out of time. Files it had already written stay in ${LIGHT_SANDBOX_PATHS.output}/ and are attached by the next run.`,
   );
+}
+
+/** How often the sandbox is asked to cancel a program it does not know yet,
+ * and how long between the asks. */
+const CANCEL_ATTEMPTS = 4;
+const CANCEL_RETRY_MS = 300;
+
+/**
+ * Cut a program off in its sandbox. The cancel can overtake the request that
+ * starts the program, and the sandbox then answers it knows no such program —
+ * the same answer it gives for one that already ended. So the ask is repeated
+ * a few times: a program left running holds a sandbox nobody waits for.
+ */
+async function cancelProgram(sessionId: string, execId: string): Promise<void> {
+  for (let attempt = 1; attempt <= CANCEL_ATTEMPTS; attempt += 1) {
+    try {
+      if (await sessionCancelExec(sessionId, execId)) return;
+    } catch (error) {
+      console.warn(
+        `[run_code] stopping the program of ${sessionId} failed:`,
+        error,
+      );
+    }
+    if (attempt < CANCEL_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, CANCEL_RETRY_MS));
+    }
+  }
 }
 
 /** Wait `ms`, or less when `signal` aborts. */
@@ -417,19 +444,16 @@ export async function runRunCode(
       if (!toldToStop()) throw error;
       // Stopped, or out of time: the program must not run on in a sandbox
       // nobody is waiting for.
-      await sessionCancelExec(lease.sessionId, execId).catch(
-        (cancel: unknown) => {
-          console.warn(
-            `[run_code] stopping the program of ${lease.sessionId} failed:`,
-            cancel,
-          );
-        },
-      );
+      await cancelProgram(lease.sessionId, execId);
       return stopped();
     }
     const elapsedMs = Date.now() - startedAt;
 
-    const { artifacts, skipped } = await harvestOutputs(scope, lease.sessionId);
+    const { artifacts, skipped } = await harvestOutputs(
+      scope,
+      lease.sessionId,
+      signal,
+    );
     await touchLightSession(
       scope.sql,
       scope.organizationId,
@@ -550,8 +574,15 @@ async function readDelivered(
 async function harvestOutputs(
   scope: WorkToolScope,
   sessionId: string,
+  signal?: AbortSignal,
 ): Promise<{ artifacts: ToolArtifact[]; skipped: SkippedOutput[] }> {
   const artifacts: ToolArtifact[] = [];
+  // Set when a Stop (or the step's time) ended the harvest between two files:
+  // what it stored stays stored and is returned, but it is not recorded as
+  // delivered — the batch may already have given up on this call, and a file
+  // recorded for a reply that never got it would be lost. Unrecorded, a later
+  // call attaches it: a duplicate at worst.
+  let interrupted = false;
   const skipped: SkippedOutput[] = [];
   /** Files left out of the answer's list, not out of the sandbox. */
   let unlisted = 0;
@@ -567,14 +598,39 @@ async function harvestOutputs(
   };
   const listing =
     (await sessionListFiles(sessionId, LIGHT_SANDBOX_PATHS.output)) ?? [];
-  const entries = listing.slice(0, HARVEST_MAX_ENTRIES);
-  unlisted += listing.length - entries.length;
+  // Newest first, whatever order the sandbox listed them in: what the program
+  // just wrote has the latest modification times, so the entries this call
+  // looks at are the ones it is for.
+  const ordered = [...listing].sort(
+    (a, b) =>
+      b.mtimeMs - a.mtimeMs || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+  );
+  const entries = ordered.slice(0, HARVEST_MAX_ENTRIES);
+  const beyond = ordered.slice(HARVEST_MAX_ENTRIES);
+  unlisted += beyond.length;
   const before = await readDelivered(sessionId);
   // Rebuilt from the listing: a file that left the output box is forgotten,
-  // and comes back as new if it is written again.
+  // and comes back as new if it is written again. A delivered file the window
+  // did not reach is still there, unchanged, and stays delivered — else it
+  // would be attached again the day it comes back into view.
   const after = new Map<string, Delivered>();
+  for (const entry of beyond) {
+    const previous = before.get(entry.name);
+    if (
+      previous !== undefined &&
+      entry.type === 'file' &&
+      previous.size === entry.size &&
+      previous.mtimeMs === entry.mtimeMs
+    ) {
+      after.set(entry.name, previous);
+    }
+  }
   const names = new Set<string>();
   for (const entry of entries) {
+    if (signal?.aborted === true) {
+      interrupted = true;
+      break;
+    }
     if (entry.type !== 'file') {
       skip(
         entry.name,
@@ -658,7 +714,7 @@ async function harvestOutputs(
   const changed =
     before.size !== after.size ||
     [...after].some(([name, entry]) => before.get(name) !== entry);
-  if (changed) {
+  if (changed && !interrupted) {
     await sessionStageFiles(sessionId, [
       {
         path: DELIVERED_MANIFEST,

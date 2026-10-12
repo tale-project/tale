@@ -530,6 +530,10 @@ describe('run_code', () => {
         status: 'cancelled',
         message: expect.stringContaining('stopped'),
       });
+      // What it had written stays, and the model is told where.
+      await expect(running).resolves.toMatchObject({
+        message: expect.stringContaining('/agent/output/'),
+      });
       // The program must not run on in a sandbox nobody waits for.
       const execId = vi.mocked(drainSessionExecResilient).mock.calls[0]?.[1]
         .execId;
@@ -565,6 +569,89 @@ describe('run_code', () => {
         expect.stringContaining('stopping the program'),
         expect.any(Error),
       );
+    });
+
+    it('asks again when the sandbox does not know the program yet: the cancel can overtake its start', async () => {
+      vi.useFakeTimers();
+      const stop = new AbortController();
+      vi.mocked(drainSessionExecResilient).mockImplementation(
+        (_sessionId, _body, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+      // The first two cancels reach the sandbox before the program is
+      // registered there; the third finds it.
+      vi.mocked(sessionCancelExec)
+        .mockReset()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true);
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      stop.abort();
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      expect(sessionCancelExec).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('gives up asking after a few tries when the program is already gone', async () => {
+      vi.useFakeTimers();
+      const stop = new AbortController();
+      vi.mocked(drainSessionExecResilient).mockImplementation(
+        (_sessionId, _body, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            });
+          }),
+      );
+      vi.mocked(sessionCancelExec).mockReset().mockResolvedValue(false);
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.waitFor(() =>
+        expect(drainSessionExecResilient).toHaveBeenCalledOnce(),
+      );
+      stop.abort();
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      expect(sessionCancelExec).toHaveBeenCalledTimes(4);
+    });
+
+    it('records nothing as delivered when a Stop ends the harvest between two files, so no file is lost to a reply that never got it', async () => {
+      const stop = new AbortController();
+      sandbox.write('a.csv', 'a', 2_000);
+      sandbox.write('b.csv', 'b', 1_000);
+      const { scope, stored } = testScope();
+      // The newest file is being read when the Stop arrives.
+      const read = vi.mocked(sessionReadFile).getMockImplementation();
+      vi.mocked(sessionReadFile).mockImplementation((...args) => {
+        if (args[1].endsWith('/a.csv')) stop.abort();
+        return read?.(...args) ?? Promise.resolve(null);
+      });
+
+      await runRunCode(scope, PROGRAM, { signal: stop.signal });
+
+      // What was stored is stored, but the record of delivered files was not
+      // touched: the next call offers every file again.
+      expect(stored.map((file) => file.name)).toEqual(['a.csv']);
+      expect(sandbox.delivered()).toBeUndefined();
+
+      vi.mocked(sessionReadFile).mockImplementation(
+        (...args) => read?.(...args) ?? Promise.resolve(null),
+      );
+      await runRunCode(scope, { language: 'python', code: 'print(1)' });
+      expect(stored.map((file) => file.name)).toContain('b.csv');
     });
 
     it('stops waiting for a sandbox the moment it is told to', async () => {
@@ -641,6 +728,45 @@ describe('run_code', () => {
       270 - 10 - HARVEST_NAMED,
     );
     expect(JSON.stringify(result).length).toBeLessThan(6_000);
+  });
+
+  it('looks at the newest files first, so what the program just wrote is never behind a window of old files [CHAT-R27]', async () => {
+    // The sandbox lists in its own order; the fresh file comes last.
+    for (let index = 0; index < 250; index += 1) {
+      sandbox.write(`old-${String(index).padStart(3, '0')}.txt`, 'x', 1_000);
+    }
+    sandbox.write('fresh.txt', 'fresh', 5_000);
+    const { scope, stored } = testScope();
+
+    await runRunCode(scope, { language: 'python', code: 'print(1)' });
+
+    expect(stored.map((file) => file.name)).toContain('fresh.txt');
+    expect(stored).toHaveLength(10);
+  });
+
+  it('keeps a delivered file recorded while it is beyond the window, so it is not attached again when it is back in view [CHAT-R24]', async () => {
+    const { scope, stored } = testScope();
+    const run = () =>
+      runRunCode(scope, { language: 'python', code: 'print(1)' });
+    sandbox.write('keep.csv', 'a,b', 1_000);
+    await run();
+
+    // A program writes more new files than one call looks at; the sandbox
+    // lists the delivered one last, and it is the oldest.
+    sandbox.output.delete('keep.csv');
+    for (let index = 0; index < 205; index += 1) {
+      sandbox.write(`new-${String(index).padStart(3, '0')}.txt`, 'n', 2_000);
+    }
+    sandbox.write('keep.csv', 'a,b', 1_000);
+    await run();
+    expect(sandbox.delivered()).toHaveProperty(['keep.csv']);
+
+    // The new files go; the delivered one is the whole box again.
+    for (const name of sandbox.output.keys()) {
+      if (name !== 'keep.csv') sandbox.output.delete(name);
+    }
+    await expect(run()).resolves.toMatchObject({ artifacts: [] });
+    expect(stored.filter((file) => file.name === 'keep.csv')).toHaveLength(1);
   });
 
   it('notes when a successful program attached nothing', async () => {
