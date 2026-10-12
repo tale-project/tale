@@ -20,7 +20,12 @@ export interface SignedIn {
   twoFactorRedirect: boolean;
 }
 
-/** `POST /api/auth/sign-in/email`. 401 is a wrong password (a seeding fault). */
+/**
+ * `POST /api/auth/sign-in/email`. 401 is a wrong password (a seeding fault);
+ * 503 is the platform shedding a wave of sign-ins it cannot hash at once
+ * (`PASSWORD_CHECK_BUSY`), which the person retries — an outcome the report
+ * counts by status, not an error.
+ */
 export async function signInEmail(
   api: ApiClient,
   email: string,
@@ -31,6 +36,7 @@ export async function signInEmail(
     path: '/api/auth/sign-in/email',
     json: { email, password, rememberMe: true },
     name: 'POST /api/auth/sign-in/email',
+    refusals: [503],
   });
   return mapResult(result, (body) => {
     const record = asRecord(body);
