@@ -35,6 +35,7 @@ import {
   isAgentSessionProfile,
   sessionAgentProfile,
   sessionDindEnabled,
+  sessionSharesPackageCaches,
 } from './session-profile.ts';
 
 interface DockerSessionRunInput {
@@ -402,15 +403,10 @@ export function buildDockerSessionRunArgs(
     : [];
 
   // Per-org shared dep caches are for the AGENT profiles only, and not under
-  // DinD. Under DinD (sysbox userns shifting) a cross-session shared volume's
-  // ownership/integrity is unsafe — a same-org cache-poisoning vector. And the
-  // `default` profile runs UNTRUSTED code (run_code in a chat, page rendering):
-  // a cache that code can write and an agent session later reads would carry
-  // whatever it wrote into a more privileged session — pip serves the bytes of
-  // a cached URL without checking them, and npm's index is as writable as its
-  // content. Cold caches are the safe default; installs still work, just
-  // uncached across sessions. See plan D2.
-  const sharedCaches = !dind && inp.profile !== 'default';
+  // Whether the shared per-org dependency caches are mounted at all is one
+  // question for the whole spawner (`sessionSharesPackageCaches`): not under
+  // DinD, and not for the untrusted `default` profile. See plan D2.
+  const sharedCaches = sessionSharesPackageCaches(inp.profile, dind);
   const cacheEnv = !sharedCaches
     ? []
     : [

@@ -347,6 +347,94 @@ process.stdout.write(JSON.stringify(result) + '\\n');
   return JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}');
 }
 
+interface Untrusted {
+  /** The cache volumes the docker daemon holds after a `default`-profile create. */
+  volumesAfterLight: string[];
+  /** Whether that create recorded a use of the organization's caches. */
+  recordedAfterLight: boolean;
+  /** The cache volumes and the recorded use once an agent session was made. */
+  volumesAfterAgent: string[];
+  recordedAfterAgent: boolean;
+  error: string | null;
+}
+
+/** A sandbox that runs untrusted code mounts none of the organization's
+ * shared caches, so its start neither holds them, nor creates them, nor
+ * records their use; an agent session of the same organization does all
+ * three. */
+async function untrustedCaches(): Promise<Untrusted> {
+  const sourceRoot = resolve(import.meta.dir, '../..');
+  const script = `
+import { mock } from 'bun:test';
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const source = ${JSON.stringify(sourceRoot)};
+mock.module(join(source,'session/runnerd-client.ts'), () => ({
+  runnerdHealth: async () => ({}),
+  runnerdEnvPatch: async () => [],
+}));
+console.warn = () => {};
+console.log = () => {};
+const fake = await mkdtemp(join(tmpdir(),'tale-cache-untrusted-'));
+await writeFile(join(fake,'docker'), ${JSON.stringify(FAKE_DOCKER)});
+await chmod(join(fake,'docker'), 0o755);
+await writeFile(join(fake,'state.json'), JSON.stringify({volumes:{}, containers:{}}));
+process.env.DOCKER_BIN = join(fake,'docker');
+const state = async () => JSON.parse(await readFile(join(fake,'state.json'),'utf8'));
+const {DockerSessionBackend} = await import(join(source,'backend/docker/docker-session-backend.ts'));
+const {TEST_SESSION_CONFIG} = await import(join(source,'session/session-test-config.ts'));
+const root = join(fake,'sessions');
+const cfg = {
+ backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'runc',dockerInContainer:false,dockerBuildCache:false,
+ transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
+ egressNetwork:'control',egressProxy:'http://egress:3128',
+ session:{...TEST_SESSION_CONFIG,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
+};
+const organizationId = 'org-untrusted';
+const caches = ['pip','npm','bun'].map((prefix) => prefix + '-' + organizationId);
+const backend = new DockerSessionBackend(cfg);
+const create = (sessionId, profile) => backend.createSession({sessionId,organizationId,profile,env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+const cacheVolumes = async () => Object.keys((await state()).volumes).filter((name) => caches.includes(name));
+const recorded = async () => (await stat(join(root,'.package-caches',organizationId + '.used')).catch(() => null)) !== null;
+const result = {volumesAfterLight:[], recordedAfterLight:false, volumesAfterAgent:[], recordedAfterAgent:false, error:null};
+try {
+  await create('untrusted-light', 'default');
+  result.volumesAfterLight = await cacheVolumes();
+  result.recordedAfterLight = await recorded();
+  await create('untrusted-agent', 'agent');
+  result.volumesAfterAgent = await cacheVolumes();
+  result.recordedAfterAgent = await recorded();
+  await backend.stopSession('untrusted-light');
+  await backend.stopSession('untrusted-agent');
+} catch (e) { result.error = e.message; }
+await rm(fake,{recursive:true,force:true});
+process.stdout.write(JSON.stringify(result) + '\\n');
+`;
+  const child = Bun.spawn([process.execPath, '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exit !== 0) throw new Error(`Untrusted-cache probe failed: ${stderr}`);
+  return JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}');
+}
+
+describe('package caches and the untrusted default profile', () => {
+  test('a sandbox for untrusted code neither creates nor holds the shared caches, and an agent session still does', async () => {
+    const result = await untrustedCaches();
+    expect(result.error).toBeNull();
+    expect(result.volumesAfterLight).toEqual([]);
+    expect(result.recordedAfterLight).toBe(false);
+    expect(result.volumesAfterAgent).toHaveLength(3);
+    expect(result.recordedAfterAgent).toBe(true);
+  }, 30_000);
+});
+
 describe('package cache retention through session creates', () => {
   test('a create records the use; past the retention the caches stay while mounted, go once the session stopped, and come back with the next create', async () => {
     const result = await retainedCaches();
