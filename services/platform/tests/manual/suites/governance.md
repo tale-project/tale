@@ -764,8 +764,13 @@ agent.
   (`governance.standardAgent.automaticLabel`); **Instructions**
   (`governance.standardAgent.instructionsLabel`) is empty, showing
   `governance.standardAgent.instructionsPlaceholder`; and the section's last
-  line (`governance.standardAgent.current`) names the agent type and model it
-  runs on for you. **Model** lists only models the chosen agent type can run.
+  line names the model and agent type it uses for you: with **Agent type**
+  on **Automatic** and a model served directly it is
+  `governance.standardAgent.currentNative` (works with the model, hands over
+  to the agent type when a task needs a full workspace); with an agent type
+  chosen, or a model only an agent type can run, it is
+  `governance.standardAgent.current` (runs on the agent type with the model).
+  **Model** lists only models the chosen agent type can run.
   With no credential serving a model you may use, the alert
   `governance.standardAgent.refusal.noModel` shows instead of that line, with
   a link to **AI providers** (`governance.standardAgent.providersLink`).
