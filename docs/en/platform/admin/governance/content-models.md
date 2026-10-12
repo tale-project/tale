@@ -84,7 +84,7 @@ Only Editors and higher roles can add agents to a project. So that a project wit
 
 <Frame caption="Governance > Models — the standard agent, on, with its agent runtime and model chosen automatically.">
 
-![The Standard agent section with its switch on, Agent runtime and Model both set to Automatic, an empty Instructions field showing Built-in instructions, and the line For you, it runs on Claude Code with Claude Haiku 4.5.](/images/platform/governance-standard-agent.webp)
+![The Standard agent section with its switch on, Agent runtime and Model both set to Automatic, an empty Instructions field showing Built-in instructions, and the line For you, it works with Claude Haiku 4.5 and hands over to Claude Code when a task needs a full workspace.](/images/platform/governance-standard-agent.webp)
 
 </Frame>
 

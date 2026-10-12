@@ -84,7 +84,7 @@ Agenten zu einem Projekt hinzufügen können nur Redakteure und höhere Rollen. 
 
 <Frame caption="Richtlinien > Modelle — der Standard-Agent, eingeschaltet, mit automatisch gewählter Agent-Laufzeit und automatisch gewähltem Modell.">
 
-![Der Abschnitt zum Standard-Agenten: Der Schalter ist eingeschaltet, Agent-Laufzeit und Modell stehen auf automatisch, das Feld für Anweisungen ist leer und verweist auf die eingebauten Anweisungen. Die letzte Zeile sagt, dass er für dich mit Claude Code und Claude Haiku 4.5 läuft.](/images/platform/governance-standard-agent.webp)
+![Der Abschnitt zum Standard-Agenten: Der Schalter ist eingeschaltet, Agent-Laufzeit und Modell stehen auf automatisch, das Feld für Anweisungen ist leer und verweist auf die eingebauten Anweisungen. Die letzte Zeile sagt, dass er für dich mit Claude Haiku 4.5 arbeitet und an Claude Code übergibt, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht.](/images/platform/governance-standard-agent.webp)
 
 </Frame>
 

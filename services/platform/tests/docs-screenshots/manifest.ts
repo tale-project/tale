@@ -3049,14 +3049,20 @@ export const SHOTS: readonly Shot[] = [
     // Governance > Models — the organization's standard agent as a new
     // organization has it: on, its agent type and model automatic. The line
     // naming what it runs on for the viewer lands last, once the policy and
-    // the viewer's model choice have both answered.
+    // the viewer's model choice have both answered. It reads one of two
+    // ways: the agent works with the chat's own tools and hands over to a
+    // runtime, or the runtime runs it throughout.
     name: 'governance-standard-agent',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
     readyWhen: (page) =>
-      standardAgentSection(page).getByText(
-        labelPrefix('governance.standardAgent.current'),
-      ),
+      standardAgentSection(page)
+        .getByText(labelPrefix('governance.standardAgent.currentNative'))
+        .or(
+          standardAgentSection(page).getByText(
+            labelPrefix('governance.standardAgent.current'),
+          ),
+        ),
     sanitize: replaceRigNames,
     capture: (page) => standardAgentSection(page),
   },

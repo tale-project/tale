@@ -1153,7 +1153,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 954
+      "height": 1032,
+      "locale": "en"
     },
     {
       "file": "images/platform/home-inbox.webp",

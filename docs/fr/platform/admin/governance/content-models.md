@@ -84,7 +84,7 @@ Seuls les éditeurs et les rôles supérieurs peuvent ajouter des agents à un p
 
 <Frame caption="Gouvernance > Modèles — l’agent standard, activé, avec son environnement d’agent et son modèle choisis automatiquement.">
 
-![La section de l’agent standard : l’interrupteur est activé, l’environnement d’agent et le modèle sont réglés sur automatique, et le champ des instructions est vide et renvoie aux instructions intégrées. La dernière ligne indique qu’il fonctionne pour toi avec Claude Code et Claude Haiku 4.5.](/images/platform/governance-standard-agent.webp)
+![La section de l’agent standard : l’interrupteur est activé, l’environnement d’agent et le modèle sont réglés sur automatique, et le champ des instructions est vide et renvoie aux instructions intégrées. La dernière ligne indique que, pour toi, il travaille avec Claude Haiku 4.5 et passe la main à Claude Code quand une tâche demande un espace de travail complet.](/images/platform/governance-standard-agent.webp)
 
 </Frame>
 
