@@ -77,6 +77,8 @@ describe('a create that claims a standby', () => {
       [LABEL.createAttempt]: 'attempt-1',
       [LABEL.created]: String(START_MS),
     });
+    // A claimed standby is a finished create like any other: marked ready.
+    expect(session?.config[LABEL.ready]).toBeDefined();
     expect(session?.devices.workspace?.source).toBe(
       incusWorkspaceVolumeName(ID),
     );

@@ -66,7 +66,6 @@ import {
 } from './incus-client.ts';
 import {
   hasEnded,
-  hasStarted,
   instanceAddress,
   isRunning,
   isStartingOrRunning,
@@ -368,6 +367,10 @@ export class IncusSessionBackend implements SessionBackend {
       }
     }
     signal.throwIfAborted();
+    // The create is over: from here a stopped instance has ended, whenever it
+    // stops, and a peer spawner may remove it. Best effort: without the marker
+    // an ended instance is held back until the create's deadline has passed.
+    await this.markReady(client, name);
     return {
       resumed: preexisting,
       ...(readiness.incarnation === undefined
@@ -375,6 +378,19 @@ export class IncusSessionBackend implements SessionBackend {
         : { incarnation: readiness.incarnation }),
       ...(egressAddress === undefined ? {} : { egressAddress }),
     };
+  }
+
+  private async markReady(client: IncusClient, name: string): Promise<void> {
+    try {
+      await client.patchInstance(name, {
+        config: { [LABEL.ready]: String(this.runtime.now()) },
+      });
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot mark ${name} ready (it is held back from reaping until its create's deadline):`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   /**
@@ -1022,19 +1038,17 @@ export class IncusSessionBackend implements SessionBackend {
         idleTimeoutMs: this.cfg.session.maxIdleMs,
         state: isRunning(instance) ? 'ready' : 'degraded',
         pinned: label(instance.config, LABEL.pinned) === 'true',
-        // Stopped is also how an instance looks for the moment between its
-        // creation and its start, and a peer spawner (a rollout overlaps two)
-        // may be making it. One that has started and stopped has ended; one
-        // that never started has only once its creator's startup deadline and
-        // slack are past.
+        // Stopped is also how an instance looks in the middle of its start,
+        // and a peer spawner (a rollout overlaps two) may be making it: it
+        // has ended once its create has finished (the ready marker) or has
+        // long given up (its startup deadline and slack), not before.
         ended:
           hasEnded(instance) &&
-          (hasStarted(instance) ||
-            startupExpired(
-              instance,
-              this.runtime.now(),
-              this.cfg.session.createHealthTimeoutMs,
-            )),
+          startupExpired(
+            instance,
+            this.runtime.now(),
+            this.cfg.session.createHealthTimeoutMs,
+          ),
         ...(isIpv4Address(egress) ? { egressAddress: egress } : {}),
       });
     }

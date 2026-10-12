@@ -356,6 +356,8 @@ describe('setPinned', () => {
   test('writes the pin on the instance, and listing reads it back', async () => {
     const f = sessionFixture();
     await f.backend.createSession(specOf(ID));
+    // The create's own PATCH (its ready marker) is not the pin's.
+    f.fake.requests.length = 0;
     await f.backend.setPinned(ID, true, START_MS);
     expect(f.fake.instances.get(NAME)?.config[LABEL.pinned]).toBe('true');
     const patch = f.fake.seen('PATCH /1.0/instances/*')[0];
@@ -370,6 +372,8 @@ describe('setPinned', () => {
   test('looks again when the instance changed since it was read', async () => {
     const f = sessionFixture();
     await f.backend.createSession(specOf(ID));
+    // The create's own PATCH (its ready marker) is not the pin's.
+    f.fake.requests.length = 0;
     f.fake.fail({
       match: 'PATCH /1.0/instances/*',
       status: 412,
@@ -383,6 +387,8 @@ describe('setPinned', () => {
   test('gives up when it keeps changing', async () => {
     const f = sessionFixture();
     await f.backend.createSession(specOf(ID));
+    // The create's own PATCH (its ready marker) is not the pin's.
+    f.fake.requests.length = 0;
     f.fake.fail({
       match: 'PATCH /1.0/instances/*',
       status: 412,
@@ -397,6 +403,8 @@ describe('setPinned', () => {
   test('is fenced to the incarnation it was asked about', async () => {
     const f = sessionFixture();
     await f.backend.createSession(specOf(ID));
+    // The create's own PATCH (its ready marker) is not the pin's.
+    f.fake.requests.length = 0;
     const error = await rejection(f.backend.setPinned(ID, true, START_MS + 1));
     expect(error).toBeInstanceOf(SessionIncarnationChangedError);
     expect(f.fake.seen('PATCH /1.0/instances/*')).toHaveLength(0);
@@ -572,15 +580,15 @@ describe('listSessions', () => {
     expect(after).toMatchObject({ state: 'degraded', ended: true });
   });
 
-  test('calls an instance that started and stopped ended at once: no creator is starting it', async () => {
+  test('calls a stopped instance ended at once once its create has finished, and not before', async () => {
     // A session whose process died shortly after it came up, as a killed
     // runnerd does: the next create of the id must be able to replace it.
     const f = sessionFixture();
-    f.fake.seedInstance(NAME, labels(ID), { ephemeral: false });
+    await f.backend.createSession(specOf(ID));
     const instance = f.fake.instances.get(NAME);
     if (instance === undefined) throw new Error('no instance');
+    expect(instance.config[LABEL.ready]).toBeDefined();
     instance.status = 'Stopped';
-    f.clock.now = Date.parse(instance.createdAt) + 1_000;
     const [session] = await f.backend.listSessions();
     expect(session).toMatchObject({ state: 'degraded', ended: true });
   });

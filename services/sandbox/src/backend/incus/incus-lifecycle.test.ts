@@ -9,7 +9,6 @@ import {
 } from './incus-api.ts';
 import {
   hasEnded,
-  hasStarted,
   instanceAddress,
   isRunning,
   isStartingOrRunning,
@@ -90,7 +89,6 @@ describe('statuses', () => {
       devices: {},
       profiles: [],
       createdAt: '2026-10-11T12:00:00Z',
-      lastUsedAt: '',
     };
   }
 
@@ -113,37 +111,6 @@ describe('statuses', () => {
   });
 });
 
-describe('hasStarted', () => {
-  const base: IncusInstance = {
-    name: 'x',
-    status: 'Stopped',
-    statusCode: INCUS_STATUS.stopped,
-    ephemeral: false,
-    config: {},
-    devices: {},
-    profiles: [],
-    createdAt: '2026-10-11T12:00:00Z',
-    lastUsedAt: '',
-  };
-
-  test('reads the last start Incus keeps, and the epoch as never', () => {
-    expect(hasStarted({ ...base, lastUsedAt: '1970-01-01T00:00:00Z' })).toBe(
-      false,
-    );
-    expect(hasStarted({ ...base, lastUsedAt: '0001-01-01T00:00:00Z' })).toBe(
-      false,
-    );
-    expect(hasStarted({ ...base, lastUsedAt: '2026-10-11T12:00:03.5Z' })).toBe(
-      true,
-    );
-  });
-
-  test('takes a server that does not say, or says what cannot be read, as started', () => {
-    expect(hasStarted({ ...base, lastUsedAt: '' })).toBe(true);
-    expect(hasStarted({ ...base, lastUsedAt: 'yesterday' })).toBe(true);
-  });
-});
-
 describe('startupExpired', () => {
   const created = Date.parse('2026-10-11T12:00:00Z');
   function instance(config: Record<string, string>, createdAt: string) {
@@ -156,7 +123,6 @@ describe('startupExpired', () => {
       devices: {},
       profiles: [],
       createdAt,
-      lastUsedAt: '1970-01-01T00:00:00Z',
     };
   }
   const budget = 180_000;
@@ -209,5 +175,28 @@ describe('startupExpired', () => {
     expect(startupExpired(instance({}, ''), Date.now() * 2, budget)).toBe(
       false,
     );
+  });
+  test('is over the moment the create wrote its ready marker, whatever its deadline', () => {
+    const deadline = created + 10 * 60_000;
+    const subject = instance(
+      {
+        [LABEL.created]: String(created),
+        [LABEL.startupDeadline]: String(deadline),
+        [LABEL.ready]: String(created + 4_000),
+      },
+      '2026-10-11T12:00:00Z',
+    );
+    // Seconds after its creation, ten minutes before its deadline.
+    expect(startupExpired(subject, created + 5_000, budget)).toBe(true);
+    // An empty marker is no marker (Incus reads an emptied key as unset).
+    const without = instance(
+      {
+        [LABEL.created]: String(created),
+        [LABEL.startupDeadline]: String(deadline),
+        [LABEL.ready]: '',
+      },
+      '2026-10-11T12:00:00Z',
+    );
+    expect(startupExpired(without, created + 5_000, budget)).toBe(false);
   });
 });

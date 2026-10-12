@@ -394,6 +394,27 @@ describe('a create that fails', () => {
     expect(error.message).toContain('listening on a port nobody can reach');
   });
 
+  test('marks the instance ready once runnerd answers, and survives a marker it cannot write', async () => {
+    const f = sessionFixture();
+    await f.backend.createSession(specOf(ID));
+    expect(Number(f.fake.instances.get(NAME)?.config[LABEL.ready])).toBe(
+      f.clock.now,
+    );
+
+    const g = sessionFixture();
+    g.fake.fail({
+      match: 'PATCH /1.0/instances/*',
+      status: 500,
+      message: 'database is locked',
+      times: 10,
+    });
+    await g.backend.createSession(specOf(ID));
+    expect(g.fake.instances.get(NAME)?.config[LABEL.ready]).toBeUndefined();
+    expect(
+      warn.mock.calls.some((call) => String(call[0]).includes('cannot mark')),
+    ).toBe(true);
+  });
+
   test('logs what the create was doing when it failed', async () => {
     const f = sessionFixture();
     f.runnerd.failFirst = 1_000_000;

@@ -56,16 +56,6 @@ export function hasEnded(instance: IncusInstance): boolean {
   );
 }
 
-/** Has it ever started? Incus keeps the time of the last start, and the epoch
- * for an instance that has none: what an instance is between its creation and
- * its start. A server that does not say reads as started, so that nothing is
- * held back on a guess. */
-export function hasStarted(instance: IncusInstance): boolean {
-  if (instance.lastUsedAt === '') return true;
-  const at = Date.parse(instance.lastUsedAt);
-  return !Number.isFinite(at) || at > Date.UTC(2000, 0, 1);
-}
-
 /** Running, or on its way to it: a start another create is still making. */
 export function isStartingOrRunning(instance: IncusInstance): boolean {
   return (
@@ -75,16 +65,22 @@ export function isStartingOrRunning(instance: IncusInstance): boolean {
 }
 
 /**
- * Has the create that made this instance long given up? Its creator wrote
- * the deadline it works to into the instance (a peer with a shorter timeout
- * never reaps a healthy start), and Incus's own creation time keeps an
- * instance created just now safe whatever stamp it carries.
+ * Is nobody still creating this instance? Not once its create wrote the ready
+ * marker (runnerd answered), and not once the create has long given up: its
+ * creator wrote the deadline it works to into the instance (a peer with a
+ * shorter timeout never reaps a healthy start), and Incus's own creation time
+ * keeps an instance created just now safe whatever stamp it carries.
+ *
+ * Until then a stopped instance may be one in the middle of its start, which
+ * Incus shows as stopped, and a peer spawner (a rollout overlaps two) that took
+ * it for ended compute would stop and delete it from under its creator.
  */
 export function startupExpired(
   instance: IncusInstance,
   nowMs: number,
   createTimeoutMs: number,
 ): boolean {
+  if (label(instance.config, LABEL.ready) !== undefined) return true;
   const stamp = stampOf(instance.config) ?? 0;
   const createdAt = Date.parse(instance.createdAt);
   if (!Number.isFinite(createdAt)) return false;

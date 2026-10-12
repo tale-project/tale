@@ -73,6 +73,9 @@ export const LABEL = {
   spawnerInstance: 'user.tale.sandbox-instance',
   pinned: 'user.tale.pinned',
   startupDeadline: 'user.tale.startup-deadline',
+  /** Written by the create once runnerd answers: from then on nobody is
+   * creating the instance, and a stopped one has ended. Epoch ms. */
+  ready: 'user.tale.ready',
   /** Set to `1` on every workspace volume. */
   workspace: 'user.tale.sandbox-workspace',
   /** On a standby instance: the fingerprint of the shape it was made for. */
