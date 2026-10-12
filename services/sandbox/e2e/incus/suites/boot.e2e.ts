@@ -305,7 +305,7 @@ describe('boot refusals against the real node', () => {
   );
 
   step(
-    'a restricted project refuses a privileged container, raw LXC and a host path',
+    'a restricted project refuses a privileged container, raw LXC, swap, a host path and a NIC of its own',
     async () => {
       const attempts: [string, Record<string, unknown>][] = [
         ['privileged', { config: { 'security.privileged': 'true' } }],

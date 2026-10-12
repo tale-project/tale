@@ -250,6 +250,15 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
 - `sandbox-llm-gateway`, `backend-api` and `backend-relay` (the session's
   `NO_PROXY` list) must resolve, on the egress proxy's resolver, to addresses
   reachable from the sandbox network (host records).
+- **Give the sandbox bridge no address but its own** (`ipv4.address`). An OCI
+  container has no DHCP client of its own: Incus runs one beside it
+  (`forknet dhcp`, its log is `forknet-dhcp.log` in the instance's log
+  directory), and when it releases a lease it sends the release to the last
+  address of the bridge. The lab first hosted the LLM gateway and backend
+  stand-ins as extra addresses on the bridge and saw about two instances in a
+  hundred start running and without an address, so that their create waited out
+  its whole budget; with the stand-ins on a link of their own it has not seen
+  one in three full runs. Put such services on another interface or host.
 - The spawner must reach the sessions: runnerd answers on tcp 8200 at each
   instance's own address, so run the spawner where the sandbox bridge is
   routable (on the node, or on a network with a route to it), and let the ACL's
@@ -547,8 +556,9 @@ storage driver, a reboot, many tenants.
    of `SANDBOX_AGENT_SHM_SIZE` (`df -m /dev/shm`), one NIC (the profile's) with
    its ACL. Time it: the DHCP wait is the long part.
    **Lab (`lifecycle`):** every property listed is asserted. A cold create
-   takes about 3.4 s (the DHCP wait included), a resume 3.6 s, a destroy 0.8 s,
-   an exec round trip 5 ms.
+   takes 3.2 to 4.0 s (the DHCP wait included), a resume 3.1 to 3.7 s, a stop and
+   a destroy under a second, an exec round trip 4 to 7 ms, and five creates at
+   once each finish in 3.6 to 9.2 s.
 4. **OCI entrypoint and its wrapper.** `oci.entrypoint`
    (`/usr/bin/setpriv --no-new-privs -- /docker-entrypoint.sh daemon`) is split
    into arguments the way the entrypoint expects; runnerd answers `/healthz`
@@ -621,8 +631,8 @@ storage driver, a reboot, many tenants.
     standby, the new one takes the existing ones over without recreating them,
     and a create admitted before the drain still claims.
     **Lab (`pool`):** the standby script is root-owned and mode 0755 in the
-    OCI instance, two standbys fill in about 4 s and wait, a create takes one in
-    under a second (against 3.4 s cold), the pool refills in about 5 s, a
+    OCI instance, two standbys fill in under 4 s and wait, a create takes one in
+    under a second (against 3.2 to 4.0 s cold), the pool refills in under 5 s, a
     standby that vanished is replaced and a create still succeeds, the capacity
     bound holds with sessions and standbys together, and through a rollout the
     drained spawner makes no standby and its replacement takes the existing ones
@@ -648,8 +658,8 @@ storage driver, a reboot, many tenants.
     for), and the unpack warm-up makes the first session start as fast as the
     second.
     **Lab (every run):** the first boot pulls the runtime image from the lab's
-    registry into the restricted project through the API and unpacks it (about
-    two minutes), and every later create is fast.
+    registry into the restricted project through the API and unpacks it (two to
+    three minutes), and every later create is fast.
 14. **Docker inside** (only if you enable it). `docker run hello-world`,
     `docker build` and `docker compose up` work in a session, and its nested
     containers still cannot reach what the session cannot; if they cannot,
