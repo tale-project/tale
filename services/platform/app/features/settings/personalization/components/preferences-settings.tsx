@@ -256,7 +256,11 @@ function CustomInstructionsSection({
               await setEnabled({ organizationId, enabled: next });
               toast({ title: t('toasts.preferencesUpdated') });
             } catch (error) {
-              console.error('[personalization] toggle failed', error);
+              toast({
+                title: t('errors.toggleFailed'),
+                description: failureDetail(error),
+                variant: 'destructive',
+              });
             }
           }}
         />
