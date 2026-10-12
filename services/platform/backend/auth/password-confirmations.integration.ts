@@ -13,7 +13,10 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { ITEST_PASSWORD } from '../integration-lane-helpers.ts';
+import {
+  AUDIT_WRITE_ORDER,
+  ITEST_PASSWORD,
+} from '../integration-lane-helpers.ts';
 
 /** A new password every default policy accepts; never applied here. */
 const NEXT_PASSWORD = 'Itest-Next-Passw0rd!42';
@@ -77,7 +80,7 @@ export async function checkPasswordConfirmationThrottle(
       FROM app.audit_logs
       WHERE org_id = ${ctx.orgId} AND resource_id = ${userId}
         AND action IN ('login_attempt', 'login_success')
-      ORDER BY ts ASC
+      ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
     `
   ).map((row) =>
     row.passwordCheck === null

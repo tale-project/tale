@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Sql } from 'postgres';
 
 import { getConfigRoot } from '../../core/lib/file_io.ts';
+import { AUDIT_WRITE_ORDER } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { createAuditLog, sealAuditChainNow } from '../audit_logs/service.ts';
 import { verifyAuditChain } from '../audit_logs/verify.ts';
@@ -594,7 +595,7 @@ async function retentionRuns(sql: Sql, orgId: string): Promise<TrailRow[][]> {
            error_message AS "errorMessage", metadata
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'retention_run'
-    ORDER BY ts ASC, id ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   const runs = new Map<string, TrailRow[]>();
   for (const row of rows) {

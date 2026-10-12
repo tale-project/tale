@@ -14,6 +14,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import {
+  AUDIT_WRITE_ORDER,
   cookieHeaderFrom,
   ITEST_PASSWORD,
 } from '../integration-lane-helpers.ts';
@@ -84,7 +85,7 @@ export async function checkStaleSessionReauthentication(
       FROM app.audit_logs
       WHERE org_id = ${ctx.orgId} AND resource_id = ${userId}
         AND action IN ('login_attempt', 'login_success')
-      ORDER BY ts ASC
+      ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
     `
   ).map((row) =>
     row.passwordCheck === null

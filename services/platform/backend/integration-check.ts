@@ -46,6 +46,7 @@ import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
+import { checkAuditEventOrder } from './audit-order.integration.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
@@ -192,6 +193,7 @@ import { checkVideoLinkComposerChips } from './domains/video_links/composer-chip
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
 import {
+  AUDIT_WRITE_ORDER,
   connectSse,
   cookieHeaderFrom,
   errorText,
@@ -6696,7 +6698,7 @@ async function checkDocumentWriteGuards(
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'api_key'
       AND resource_id = ${auditKeyId}
-    ORDER BY ts ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   record(
     'api keys: create and revoke leave audit rows naming the key, never its plaintext',
@@ -34560,7 +34562,7 @@ async function checkWebdav(
           SELECT document_id FROM app.knowledge_entries WHERE id = ${davEntryId}
         ))
       )
-    ORDER BY ts ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   const davActions = davAudit.map((row) => row.action);
   const cascadeRow = davAudit.find((row) => row.action === 'folder.deleted');
@@ -34777,7 +34779,7 @@ async function checkWebdav(
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'webdav_app_password'
       AND resource_id = ${passwordId}
-    ORDER BY ts ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   record(
     'webdav: app-password mint and revoke leave audit rows naming the label and the prefix only',
@@ -44599,7 +44601,7 @@ async function checkAutomationRunToolLane(
     SELECT action, actor_id AS "actorId" FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'knowledge_entry'
       AND resource_name = ${entryTopic}
-    ORDER BY ts
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   const runActor = 'automation:itest-run-tools-pinned';
   record(
@@ -58856,7 +58858,7 @@ async function checkTwoFactor(
       SELECT action FROM app.audit_logs
       WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
         AND resource_id = ${userId}
-      ORDER BY ts ASC
+      ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
     `;
     return rows.map((row) => row.action);
   };
@@ -65582,6 +65584,7 @@ async function main(): Promise<void> {
             `itest-${orgSuffix}`,
           ),
       ],
+      ['checkAuditEventOrder', () => checkAuditEventOrder(sql, record)],
       ['checkAuditSurface', () => checkAuditSurface(sql, baseUrl, authCtx)],
       [
         'checkDataResidency',
