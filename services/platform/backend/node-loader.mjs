@@ -16,6 +16,12 @@
  */
 
 import { registerHooks } from 'node:module';
+import { debuglog } from 'node:util';
+
+// `console.debug` is `console.log` in Node: it printed every candidate that
+// did not exist — 26 lines on every process start, for specifiers that
+// resolve a step later. `NODE_DEBUG=tale-loader` turns the trail on.
+const debug = debuglog('tale-loader');
 
 const RETRIABLE = new Set([
   'ERR_MODULE_NOT_FOUND',
@@ -54,8 +60,10 @@ registerHooks({
         try {
           return nextResolve(candidate, context);
         } catch (retryError) {
-          console.debug?.(
-            `[node-loader] candidate failed: ${candidate} (${String(retryError?.code ?? retryError)})`,
+          debug(
+            'candidate failed: %s (%s)',
+            candidate,
+            String(retryError?.code ?? retryError),
           );
         }
       }
