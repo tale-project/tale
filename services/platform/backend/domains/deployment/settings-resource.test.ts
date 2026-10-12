@@ -117,18 +117,27 @@ describe('who reads and changes the deployment settings [MCP-R10]', () => {
  * the app.
  */
 function miaThrough(
-  owner: 'member' | 'team' | 'project' | 'organization' | undefined,
+  owner: 'member' | 'team' | 'project' | 'organization' | 'agent' | undefined,
 ): SettingsContext {
   const caller: McpCaller = {
     organizationId: 'org-1',
     orgSlug: 'acme',
     userId: 'user-mia',
     role: 'developer',
-    credential: {
-      kind: 'api-key',
-      apiKeyId: 'key-billing',
-      ...(owner === undefined ? {} : { owner }),
-    },
+    credential:
+      owner === 'agent'
+        ? {
+            kind: 'agent',
+            connectionId: 'conn-cursor',
+            clientId: 'https://cursor.example.test/client.json',
+            clientName: 'Cursor',
+            scopes: new Set(['tale:mcp', 'tale:settings.write']),
+          }
+        : {
+            kind: 'api-key',
+            apiKeyId: 'key-billing',
+            ...(owner === undefined ? {} : { owner }),
+          },
   };
   const tag = async (strings: TemplateStringsArray) => {
     const text = strings.join('?');
@@ -148,7 +157,7 @@ function miaThrough(
   return { sql: sql as unknown as Sql, caller };
 }
 
-describe('a key that is not its person’s own [MCP-R29]', () => {
+describe('a key that is not its person’s own, or a coding agent’s connection [MCP-R29]', () => {
   it('lets Mia’s own key read and change what she may in the app', async () => {
     expect(await deploymentSettings.access(miaThrough(undefined))).toEqual({
       read: true,
@@ -156,8 +165,8 @@ describe('a key that is not its person’s own [MCP-R29]', () => {
     });
   });
 
-  it.each(['member', 'team', 'project', 'organization'] as const)(
-    'reaches no deployment setting through a key made for %s',
+  it.each(['member', 'team', 'project', 'organization', 'agent'] as const)(
+    'reaches no deployment setting through a credential that works in one organization alone (%s)',
     async (owner) => {
       const ctx = miaThrough(owner);
       expect(await deploymentSettings.access(ctx)).toEqual({

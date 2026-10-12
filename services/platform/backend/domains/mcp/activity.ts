@@ -6,6 +6,10 @@
  * call cannot end up here. The writes a call makes are audited on their own
  * (the request channel stamps them `via: mcp`); this record only counts.
  *
+ * The credential a row is counted under is the API key or — for a coding
+ * agent that signed in — its connection (kind `oauth`), which is where the
+ * Connected agents list reads when each was last used.
+ *
  * Recording never fails a call: the upsert is awaited so the counts are
  * true when the answer leaves, but an error is logged and swallowed.
  */
@@ -71,12 +75,18 @@ export function utcDay(ms: number): number {
   );
 }
 
-/** The credential a row is counted under, or null when the caller's has no
- * id (a door that verified a session naming no key — never the real door). */
+/** The credential a row is counted under: the API key, or — for a coding
+ * agent that signed in — its connection (`oauth`, so the connection's "last
+ * used" reads from here). Null when the caller's has no id (a door that
+ * verified a session naming no key — never the real door). */
 function credentialOf(
   caller: McpCaller,
-): { kind: 'api-key'; id: string } | null {
-  const { apiKeyId } = caller.credential;
+): { kind: 'api-key' | 'oauth'; id: string } | null {
+  const { credential } = caller;
+  if (credential.kind === 'agent') {
+    return { kind: 'oauth', id: credential.connectionId };
+  }
+  const { apiKeyId } = credential;
   return apiKeyId === undefined || apiKeyId === ''
     ? null
     : { kind: 'api-key', id: apiKeyId };
@@ -102,7 +112,7 @@ export async function recordMcpActivity(
         ${caller.organizationId}, ${caller.userId}, ${credential.kind},
         ${credential.id}, ${record.method}, ${record.tool ?? ''},
         ${utcDay(now)}, 1, ${refused}, ${failed},
-        ${record.clientName ?? null}, ${now}
+        ${record.clientName ?? (caller.credential.kind === 'agent' ? caller.credential.clientName : null)}, ${now}
       )
       ON CONFLICT (org_id, user_id, credential_id, method, tool, day)
       DO UPDATE SET

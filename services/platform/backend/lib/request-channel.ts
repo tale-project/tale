@@ -31,6 +31,9 @@ export interface RequestChannel {
   readonly tool?: string;
   /** The API key the caller authenticated with. */
   readonly apiKeyId?: string;
+  /** The connection of the coding agent that signed in, when the caller
+   * came with its access token instead of a key. */
+  readonly agentConnectionId?: string;
   /** The name the caller's client gave itself, through `displayClientName`. */
   readonly clientName?: string;
 }
@@ -62,6 +65,9 @@ export function channelAuditMetadata(
     via: channel.via,
     ...(channel.tool === undefined ? {} : { tool: channel.tool }),
     ...(channel.apiKeyId === undefined ? {} : { apiKeyId: channel.apiKeyId }),
+    ...(channel.agentConnectionId === undefined
+      ? {}
+      : { agentConnectionId: channel.agentConnectionId }),
     ...(channel.clientName === undefined
       ? {}
       : { clientName: channel.clientName }),

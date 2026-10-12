@@ -7728,7 +7728,16 @@ export function buildSpec(): Json {
         'instructions; a request carries one message; and every result adds ' +
         '`resultType` and the server under `_meta`, with `ttlMs` and ' +
         '`cacheScope` where a client may cache it. Authenticate with ' +
-        'the same Bearer org API key as the REST API. Call `tools/list` for ' +
+        'the same Bearer org API key as the REST API — or, where the operator ' +
+        'lets coding agents sign in, with the access token of a connection a ' +
+        'person made from their agent (OAuth), which this endpoint alone ' +
+        'takes: its 401 carries a `WWW-Authenticate` challenge naming the ' +
+        'endpoint’s metadata and the scopes to ask for. A connection acts in ' +
+        'the organization it was made for (`X-Organization-Slug` naming ' +
+        'another answers `ORG_MISMATCH`) and holds the access its person ' +
+        'allowed: a request that calls a tool needing access the connection ' +
+        'lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. ' +
+        'Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
         'and the organization’s capability surface — and the `get_docs` tool ' +
         'for the in-band authoring reference; `resources/list` and ' +
@@ -7776,7 +7785,7 @@ export function buildSpec(): Json {
         ),
         '401': standardErrors['401'],
         '403': errorResponse(
-          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none',
+          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; for a coding agent that signed in, the request names another organization than its connection’s (`ORG_MISMATCH`, `data.organization` the one it is for), or calls tools that need access its connection lacks and its person could allow (`INSUFFICIENT_SCOPE`: `data.tools`, `data.requiredScopes` and `data.grantedScopes`, and a `WWW-Authenticate` challenge whose `scope` is everything to ask for) — nothing in the request runs. A call that its person’s role could never give the access for answers the same code as a tool result instead',
         ),
         '429': standardErrors['429'],
       },
@@ -8737,7 +8746,7 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'http',
           scheme: 'bearer',
           description:
-            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored.',
+            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection, where the operator lets agents sign in.',
         },
       },
       schemas: {

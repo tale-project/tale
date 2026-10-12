@@ -17,6 +17,8 @@
 import type { z } from 'zod';
 
 import { METHODS, type Method } from '../engine/api/methods';
+import type { AgentScope } from '../shared/agent-access';
+import { isRecord } from '../utils/type-utils';
 import {
   CAPABILITY_TOOL_ARGS,
   ENGINE_TOOL_ARGS,
@@ -35,6 +37,15 @@ export const MCP_TOOL_GROUPS = [
 ] as const;
 
 export type McpToolGroup = (typeof MCP_TOOL_GROUPS)[number];
+
+/** The scopes that let a connection call a tool: any one of them. */
+export type ToolScopes = readonly [AgentScope, ...AgentScope[]];
+
+const READ_AND_TEST: ToolScopes = ['tale:mcp'];
+const EDIT: ToolScopes = ['tale:automations.write'];
+const DEPLOY: ToolScopes = ['tale:automations.deploy'];
+const READ_SETTINGS: ToolScopes = ['tale:settings.read', 'tale:settings.write'];
+const CHANGE_SETTINGS: ToolScopes = ['tale:settings.write'];
 
 /**
  * The MCP `ToolAnnotations` a host keys its "always allow" decisions on —
@@ -81,6 +92,16 @@ export interface McpToolSpec {
    * (`rest:execute`, the REST API's run-start budget); `settings` also one
    * settings change (`rest:settings`). */
   readonly lane: 'api' | 'execute' | 'settings';
+  /** The access a connection made by signing in from a coding agent must
+   * hold to call it: any one of these scopes. An API key holds no scopes,
+   * so its holder's role alone decides; a scope never widens a role, it
+   * only narrows what a connection does with it. */
+  readonly scopes: ToolScopes;
+  /** The calls that need only reading and testing however the tool is
+   * otherwise scoped — a run on the mocks changes nothing outside Tale, the
+   * plan of a replay starts nothing. Given the arguments as the client sent
+   * them, so it answers true only for the exact value that makes it so. */
+  readonly lowersScopes?: (args: Record<string, unknown>) => boolean;
   /** What every answer that is not a refusal carries — read tools only:
    * `tools/list` advertises it as the `outputSchema`, and the answer carries
    * it as `structuredContent` beside the same JSON as text. */
@@ -131,6 +152,8 @@ const RESULTS: ReadonlyMap<string, z.ZodObject> = new Map(
 
 type ContractFields =
   | 'lane'
+  | 'scopes'
+  | 'lowersScopes'
   | 'result'
   | 'requiresUserInteraction'
   | 'maxResultChars';
@@ -139,7 +162,14 @@ type ContractFields =
  * arguments: its budget, its answer, and the client hints. */
 function withContract(spec: Omit<McpToolSpec, ContractFields>): McpToolSpec {
   const maxResultChars = MAX_RESULT_CHARS[spec.name];
+  const scopes = TOOL_SCOPES.get(spec.name);
+  if (scopes === undefined) {
+    throw new Error(`The tool ${spec.name} declares no scopes`);
+  }
+  const lowersScopes = LOWERED_SCOPES[spec.name];
   return Object.assign(spec, {
+    scopes,
+    ...(lowersScopes === undefined ? {} : { lowersScopes }),
     lane: EXECUTE_TOOLS.has(spec.name)
       ? ('execute' as const)
       : SETTINGS_WRITE_TOOLS.has(spec.name)
@@ -385,6 +415,51 @@ const METHOD_GROUPS: Record<
   delete_trigger: 'management',
 };
 
+/** The access each engine method needs of a connection made by signing in:
+ * reading and testing for everything that changes nothing outside Tale (a
+ * run on the mocks and the tests included), editing for a new version,
+ * deploying for whatever puts a version live, starts or stops a live run,
+ * speaks for a person or removes something. Exhaustive over `Method`, so a
+ * new engine method cannot ship without saying which access it needs. */
+const METHOD_SCOPES: Record<Method, ToolScopes> = {
+  get_docs: READ_AND_TEST,
+  get_catalog: READ_AND_TEST,
+  search_catalog: READ_AND_TEST,
+  validate_automation: READ_AND_TEST,
+  run_automation: READ_AND_TEST,
+  test_automation: READ_AND_TEST,
+  save_automation: EDIT,
+  get_automation: READ_AND_TEST,
+  list_automations: READ_AND_TEST,
+  deploy_automation: DEPLOY,
+  delete_automation: DEPLOY,
+  set_trigger: DEPLOY,
+  run_deployed: DEPLOY,
+  start_run: DEPLOY,
+  list_runs: READ_AND_TEST,
+  get_run: READ_AND_TEST,
+  get_run_node: READ_AND_TEST,
+  compare_runs: READ_AND_TEST,
+  replay_run: DEPLOY,
+  cancel_run: DEPLOY,
+  answer_run_ask: DEPLOY,
+  list_versions: READ_AND_TEST,
+  set_automation_projects: DEPLOY,
+  list_triggers: READ_AND_TEST,
+  delete_trigger: DEPLOY,
+};
+
+/** The calls of a tool that needs more than reading and testing which
+ * need only that: a run started on the mocks, and the plan a replay
+ * answers before it starts anything. A live start is the default, so a
+ * call that does not say `mode: "mock"` needs the deploy access. */
+const LOWERED_SCOPES: Readonly<
+  Record<string, (args: Record<string, unknown>) => boolean>
+> = {
+  start_run: (args) => args.mode === 'mock',
+  replay_run: (args) => args.dryRun === true || args.mode === 'mock',
+};
+
 /** The platform tools — answered by the platform from its own records, not
  * by the engine's method table. */
 const PLATFORM_TOOLS = [
@@ -472,6 +547,26 @@ const PLATFORM_TOOLS = [
   group: McpToolGroup;
 }>;
 
+/** The access each platform tool needs: reading and testing for the
+ * discovery reads, either settings scope for reading and planning settings,
+ * the write one for changing them. Exhaustive over the platform tools. */
+const PLATFORM_TOOL_SCOPES: Record<
+  keyof typeof PLATFORM_TOOL_ARGS,
+  ToolScopes
+> = {
+  get_automation_metrics: READ_AND_TEST,
+  list_models: READ_AND_TEST,
+  list_harnesses: READ_AND_TEST,
+  list_skills: READ_AND_TEST,
+  list_connectors: READ_AND_TEST,
+  list_agent_secrets: READ_AND_TEST,
+  list_projects: READ_AND_TEST,
+  list_events: READ_AND_TEST,
+  get_settings: READ_SETTINGS,
+  plan_settings: READ_SETTINGS,
+  apply_settings: CHANGE_SETTINGS,
+};
+
 /** The capability tools — NOT engine methods. They reach the organization's own
  * capability registry and knowledge base, which is a different surface with a
  * different backend, so they are named and described separately. */
@@ -500,6 +595,20 @@ const CAPABILITY_TOOL_ANNOTATIONS: Record<
   invoke_capability: EXECUTE_LIVE,
   get_knowledge: READ,
 };
+
+/** Searching and reading knowledge is reading; invoking a capability runs a
+ * deployed automation live. */
+const CAPABILITY_TOOL_SCOPES: Record<CapabilityToolName, ToolScopes> = {
+  search_capabilities: READ_AND_TEST,
+  invoke_capability: DEPLOY,
+  get_knowledge: READ_AND_TEST,
+};
+
+const TOOL_SCOPES: ReadonlyMap<string, ToolScopes> = new Map([
+  ...Object.entries(METHOD_SCOPES),
+  ...Object.entries(PLATFORM_TOOL_SCOPES),
+  ...Object.entries(CAPABILITY_TOOL_SCOPES),
+]);
 
 /**
  * Every tool this endpoint serves, in the order it advertises them: the engine's
@@ -546,4 +655,21 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
 /** The tool of that name, if the inventory holds one. */
 export function findMcpTool(name: string): McpToolSpec | undefined {
   return MCP_TOOLS.find((tool) => tool.name === name);
+}
+
+/**
+ * The scopes a call needs, any one of them: the tool's own, or — when the
+ * tool lowers them for these arguments — reading and testing alone. Read
+ * from the arguments as the client sent them; anything but the exact value
+ * that lowers the need leaves it as the tool declares.
+ */
+export function requiredScopes(
+  tool: Pick<McpToolSpec, 'scopes' | 'lowersScopes'>,
+  args: unknown,
+): ToolScopes {
+  return tool.lowersScopes !== undefined &&
+    isRecord(args) &&
+    tool.lowersScopes(args)
+    ? READ_AND_TEST
+    : tool.scopes;
 }

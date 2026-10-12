@@ -88,6 +88,21 @@ export function levelOf(scopes: Iterable<string>): AccessLevel | null {
   );
 }
 
+/** A scope in the words the consent page uses for the access it gives —
+ * what a refusal that tells an agent to ask for more names it by. */
+const SCOPE_WORDS: Readonly<Record<AgentScope, string>> = {
+  'tale:mcp': 'Read and test',
+  'tale:automations.write': 'Edit',
+  'tale:automations.deploy': 'Edit and deploy',
+  'tale:settings.read': 'Read settings',
+  'tale:settings.write': 'Change settings',
+  'tale:subscriptions.connect': 'Connect subscriptions',
+};
+
+export function describeAgentScope(scope: AgentScope): string {
+  return SCOPE_WORDS[scope];
+}
+
 /** The scopes that write, deploy, change settings or connect a subscription
  * — the ones that take the developer bar. */
 const DEVELOPER_SCOPES: ReadonlySet<string> = new Set<AgentScope>([

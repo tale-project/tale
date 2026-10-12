@@ -8,14 +8,15 @@
  * Better Auth's own, so this is where Tale's gate, its claims and its raw
  * writes of them meet the real schema and the real library.
  */
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { type RecordCheck, signUpUser } from '../integration-lane-helpers.ts';
-import { AGENT_REDIRECT, DOCUMENT_URL } from './agent-oauth-integration.ts';
+import { agentFlow } from './agent-flow-integration.ts';
+import { DOCUMENT_URL } from './agent-oauth-integration.ts';
 import { configuredMcpResources, seedMcpResources } from './agent-oauth.ts';
 import { removeMembershipCascade } from './membership.ts';
 import { OIDC_ORGANIZATION_CLAIM } from './oidc.ts';
@@ -84,101 +85,12 @@ export async function checkAgentConsent(
       WHERE "userId" = ${staleDev.userId}
     `;
 
-    const locationOf = async (response: Response) => {
-      const returned = z.object({ url: z.string() }).safeParse(
-        await response
-          .clone()
-          .json()
-          .catch(() => null),
-      );
-      return new URL(
-        response.headers.get('location') ??
-          (returned.success ? returned.data.url : '/'),
-        base,
-      );
-    };
-    /** An agent's authorization request, signed in as `cookie`. */
-    const begin = async (cookie: string, scope: string) => {
-      const verifier = randomBytes(32).toString('base64url');
-      const response = await fetch(
-        `${issuer}/oauth2/authorize?${new URLSearchParams({
-          client_id: DOCUMENT_URL,
-          redirect_uri: AGENT_REDIRECT,
-          response_type: 'code',
-          scope,
-          state: 'lane',
-          code_challenge: createHash('sha256')
-            .update(verifier)
-            .digest('base64url'),
-          code_challenge_method: 'S256',
-        }).toString()}`,
-        {
-          headers: {
-            cookie,
-            Accept: 'text/html',
-            'Sec-Fetch-Mode': 'navigate',
-          },
-          redirect: 'manual',
-        },
-      );
-      const next = await locationOf(response);
-      return { verifier, oauthQuery: next.search.slice(1), page: next };
-    };
-    /** What the consent page does when the person allows. */
-    const allow = async (
-      cookie: string,
-      body: { scope?: string; organizationId?: string | null } = {},
-      asked = EDIT,
-    ) => {
-      const { verifier, oauthQuery, page } = await begin(cookie, asked);
-      const response = await fetch(`${issuer}/oauth2/consent`, {
-        method: 'POST',
-        headers: { ...headers, cookie },
-        body: JSON.stringify({
-          accept: true,
-          ...(body.scope === undefined
-            ? { scope: asked }
-            : { scope: body.scope }),
-          oauth_query: oauthQuery,
-          ...(body.organizationId === null
-            ? {}
-            : { tale: { organizationId: body.organizationId ?? orgId } }),
-        }),
-      });
-      const answer = z
-        .looseObject({
-          url: z.string().optional(),
-          code: z.string().optional(),
-          data: z
-            .looseObject({ scopes: z.array(z.string()).optional() })
-            .optional(),
-        })
-        .parse(await response.json());
-      const code =
-        answer.url === undefined
-          ? undefined
-          : (new URL(answer.url, base).searchParams.get('code') ?? undefined);
-      return {
-        status: response.status,
-        answer,
-        code,
-        verifier,
-        page,
-      };
-    };
-    const form = { 'content-type': 'application/x-www-form-urlencoded' };
-    const tokenAnswer = async (fields: Record<string, string>) => {
-      const response = await fetch(`${issuer}/oauth2/token`, {
-        method: 'POST',
-        headers: form,
-        body: new URLSearchParams({ client_id: DOCUMENT_URL, ...fields }),
-      });
-      return { status: response.status, body: await response.json() };
-    };
-    const tokensOf = (body: unknown) =>
-      z
-        .object({ access_token: z.string(), refresh_token: z.string() })
-        .parse(body);
+    const {
+      allow,
+      token: tokenAnswer,
+      tokensOf,
+      exchange,
+    } = agentFlow({ base, organizationId: orgId, defaultScope: EDIT });
     const keySet = createRemoteJWKSet(new URL(`${issuer}/jwks`));
     const verified = async (accessToken: string) =>
       (
@@ -244,12 +156,7 @@ export async function checkAgentConsent(
     );
 
     // Its tokens name the organization, now and at every refresh.
-    const exchanged = await tokenAnswer({
-      grant_type: 'authorization_code',
-      code: connected.code ?? '',
-      redirect_uri: AGENT_REDIRECT,
-      code_verifier: connected.verifier,
-    });
+    const exchanged = await exchange(connected);
     const first = tokensOf(exchanged.body);
     const claims = await verified(first.access_token);
     const refreshed = await tokenAnswer({
@@ -368,16 +275,7 @@ export async function checkAgentConsent(
 
     // Disconnecting from the app ends the agent at once.
     const mine = await allow(owner.cookie);
-    const mineTokens = tokensOf(
-      (
-        await tokenAnswer({
-          grant_type: 'authorization_code',
-          code: mine.code ?? '',
-          redirect_uri: AGENT_REDIRECT,
-          code_verifier: mine.verifier,
-        })
-      ).body,
-    );
+    const mineTokens = tokensOf((await exchange(mine)).body);
     const route = `${base}/api/app/agent-connections`;
     const listed = z
       .object({

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
+import { mcpChallenge } from '../auth/agent-challenge.ts';
 import { mcpCallLogLine, recordMcpActivity } from '../domains/mcp/activity.ts';
 import { callerFromRest } from '../domains/mcp/caller.ts';
 import { mcpHost } from '../domains/mcp/engine-host.ts';
@@ -18,7 +19,8 @@ import { DEFAULT_BODY_BYTES, restBodyLimit, type RestEnv } from './shared.ts';
 
 /**
  * POST /api/v1/mcp — the platform MCP endpoint. The door proves the caller
- * (`callerFromRest`: the key, the organization, the member's role) and hands
+ * (`callerFromRest`: the key or the coding agent's connection, the
+ * organization, the member's role) and hands
  * the request to the MCP domain's protocol layer (`handleMcpRequest`:
  * JSON-RPC framing, initialize/ping/tools, the developer gate on persisting
  * tools, refusals-as-data), whose tool calls reach the engine dispatch over
@@ -113,6 +115,14 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // budget the REST API's run starts draw from, and a settings change
       // one change from its own, after the tool's role check.
       charge: (lane) => chargeLane(deps.sql, lane, caller.userId),
+      // A coding agent that asks for more than its connection holds is
+      // told where to ask (`domains/mcp/scopes.ts`).
+      scopeChallenge: ({ scope, description }) =>
+        mcpChallenge(c.req.raw, {
+          error: 'insufficient_scope',
+          description,
+          scope,
+        }),
     });
   });
 

@@ -48,6 +48,7 @@ import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_
 import { createApp } from './app.ts';
 import { checkAuditEventOrder } from './audit-order.integration.ts';
 import { checkAgentConsent } from './auth/agent-consent-integration.ts';
+import { checkAgentDoor } from './auth/agent-door-integration.ts';
 import {
   agentLaneMetadataFetch,
   checkAgentOAuth,
@@ -65623,6 +65624,7 @@ async function main(): Promise<void> {
       ],
       ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
       ['checkAgentConsent', () => checkAgentConsent(sql, baseUrl, record)],
+      ['checkAgentDoor', () => checkAgentDoor(sql, baseUrl, record)],
       [
         'checkAgentConnections',
         () => checkAgentConnections(sql, baseUrl, record),

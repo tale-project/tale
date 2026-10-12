@@ -7,6 +7,7 @@ import {
   ACCESS_LEVELS,
   AGENT_SCOPES,
   type AgentScope,
+  describeAgentScope,
   isAgentScope,
   levelOf,
   MCP_PATH,
@@ -141,6 +142,22 @@ describe('the most a role may grant an agent', () => {
     ]);
     expect(scopeCeilingForRole('disabled')).toEqual([]);
     expect(scopeCeilingForRole(null)).toEqual([]);
+  });
+});
+
+describe('the words a refusal uses for a scope', () => {
+  it('give every scope its own, so two are never mistaken for each other', () => {
+    const words = AGENT_SCOPES.map(describeAgentScope);
+    expect(new Set(words).size).toBe(AGENT_SCOPES.length);
+    expect(words.every((word) => word.trim() !== '')).toBe(true);
+  });
+
+  it('call the three access levels what the consent page calls them', () => {
+    expect(describeAgentScope('tale:mcp')).toBe('Read and test');
+    expect(describeAgentScope('tale:automations.write')).toBe('Edit');
+    expect(describeAgentScope('tale:automations.deploy')).toBe(
+      'Edit and deploy',
+    );
   });
 });
 
