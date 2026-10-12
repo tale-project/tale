@@ -975,25 +975,28 @@ export async function processErasure(
     for (const thread of threads) {
       erased += await purgeThreadLineage(sql, organizationId, thread.threadId);
     }
-    // The transcripts of the task runs the subject started: threads like
-    // their chats, but bare — no metadata row, so the walk above never meets
-    // them. The run record stays (its starter is pseudonymised below) and
-    // loses only what the run said and did on the subject's behalf; a
-    // deliverable already belongs to its task.
+    return erased;
+  });
+
+  // The transcripts of the task runs the subject started: threads like their
+  // chats, but bare — no metadata row, so the pass above never meets them, and
+  // no lineage the request targeted, so they are counted apart. The run
+  // record stays (its starter is pseudonymised below) and loses only what the
+  // run said and did on the subject's behalf; a deliverable already belongs
+  // to its task.
+  await pass('runTranscripts', async () => {
     const transcripts = await sql<{ threadId: string }[]>`
       SELECT id AS "threadId" FROM app.threads
       WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
         AND kind = ${TASK_RUN_THREAD_KIND}
     `;
-    if (transcripts.length > 0) {
-      erased += await sql.begin((tx) =>
-        endRunTranscriptsAndRelease(tx, {
-          organizationId,
-          threadIds: transcripts.map((row) => row.threadId),
-        }),
-      );
-    }
-    return erased;
+    if (transcripts.length === 0) return 0;
+    return sql.begin((tx) =>
+      endRunTranscriptsAndRelease(tx, {
+        organizationId,
+        threadIds: transcripts.map((row) => row.threadId),
+      }),
+    );
   });
 
   await pass('documents', async () => {

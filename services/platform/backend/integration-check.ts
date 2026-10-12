@@ -52627,8 +52627,10 @@ async function checkErasure(
       runAfter[0].scratch === 0 &&
       runAfter[0].deliverable === 1 &&
       runAfter[0].startedBy !== subject &&
-      runAfter[0].threadId === null,
-    `receipt=${receiptStatus}; ${JSON.stringify(runAfter[0])} (want 0 threads/messages/scratch, 1 deliverable, started_by not the subject, no thread)`,
+      runAfter[0].threadId === null &&
+      // Counted apart from the chats the request targeted.
+      receiptCounts[0]?.counts?.runTranscripts === 1,
+    `receipt=${receiptStatus}; ${JSON.stringify(runAfter[0])} counts.runTranscripts=${receiptCounts[0]?.counts?.runTranscripts} (want 0 threads/messages/scratch, 1 deliverable, started_by not the subject, no thread, 1 transcript counted)`,
   );
 
   // Cancel lane: a fresh subject inside a real cooling window.

@@ -1553,6 +1553,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Zurückgewiesen
     gdpr_erasure_cancelled: Abgebrochen
   categories:
+    runTranscripts: Verläufe von Agentenläufen
     modelApiRequests: Modellanfragen
     userMemories: Persönliche Memos
     userPreferences: Nutzereinstellungen

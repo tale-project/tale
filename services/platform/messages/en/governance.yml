@@ -1502,6 +1502,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejected
     gdpr_erasure_cancelled: Cancelled
   categories:
+    runTranscripts: Agent run transcripts
     modelApiRequests: Model requests
     userMemories: Personal memories
     userPreferences: User preferences
