@@ -1070,8 +1070,12 @@ preconditioned delete. Docker inside is opt-in and unproven on this backend.
   the session route layer against a fake runnerd, the agent adapters.
 - Incus (no node): `src/backend/incus/*.test.ts` run every method of both
   backends, the warm pool and the node checks against `fake-incus.ts`, an
-  in-memory Incus API, and the TLS pinning against a real mutual-TLS server. What
-  only a real node proves is listed in [incus.md](incus.md#verify-a-node-before-trusting-it).
+  in-memory Incus API, and the TLS pinning against a real mutual-TLS server.
+- Incus (a real node): `e2e/incus` builds on a CI runner the node incus.md
+  describes and drives this spawner's signed API through the session contract
+  (`.github/workflows/sandbox-incus-e2e.yml`; dispatch it on a draft branch).
+  What the lab proves, and what only a node of yours can, is marked in
+  [incus.md](incus.md#verify-a-node-before-trusting-it).
 - Image conformance (no LLM, no cluster): `services/platform/tests/integration/container-sandbox-runtime-test.ts`.
 - E2E on kind (needs a cluster): create → exec → kill-container-restart →
   idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC

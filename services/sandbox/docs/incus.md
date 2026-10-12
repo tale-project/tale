@@ -12,10 +12,11 @@ Kubernetes paths are unaffected, and **the backend is off unless
 > ([e2e/incus](../e2e/incus/README.md), `.github/workflows/sandbox-incus-e2e.yml`)
 > runs the spawner from the same checkout against a real Incus (Zabbly's stable
 > build on a hosted Ubuntu runner, a ZFS pool on a file, the operator block below
-> run verbatim) on every change to the spawner, the runtime image or the egress
-> proxy, and holds the timings in its job summary. What a hosted runner is not
-> is what is left: [Verify a node](#verify-a-node-before-trusting-it) marks each
-> check as proven by that lab or left to your first real node.
+> run verbatim) on pull requests that touch the spawner, the runtime image or the
+> egress proxy (a draft is dispatched by hand), and holds the timings in its job
+> summary. What a hosted runner is not is what is left:
+> [Verify a node](#verify-a-node-before-trusting-it) marks each check as proven
+> by that lab or left to your first real node.
 
 ## Execution model: one OCI container per session
 
@@ -398,6 +399,18 @@ unavailable because a restricted certificate does not see the node's resources,
 so admission has no memory or disk floor here: size `SANDBOX_MAX_SESSIONS` and
 the per-session limits so that the sum of the limits fits the node.
 
+### A full workspace
+
+A workspace holds `SANDBOX_INCUS_WORKSPACE_SIZE` and no more: a write past it is
+refused (`EDQUOT`). runnerd keeps its output spool on the workspace
+(`/agent/.runtime/tmp`, see [sessions.md](sessions.md)), so a session at its
+quota cannot journal an exec: the exec that fills it ends with a `REPLAY_` code
+(`REPLAY_DISK_FULL`), and the next ones fail the same way until space is freed.
+The platform frees it without an exec, through the files API (`POST
+/v1/sessions/:id/files/delete`), and the session works again; the `lifecycle`
+suite of the lab shows exactly that. Leave the quota room for the spool (up to
+256 MiB of replay storage per session).
+
 ### CPU under contention
 
 A session's CPU limit is a hard quota, `limits.cpu.allowance=<N*100>ms/100ms`,
@@ -479,8 +492,11 @@ still claim from them.
   adoption (the sweep takes what it misses). Workspaces survive, and the
   platform resumes sessions on them.
 - **Graceful stop.** A busy session's stop asks the instance to shut down for
-  the grace period before the forced stop; whether runnerd's own shutdown
-  handler runs on that signal is part of the verification below.
+  the grace period before the forced stop, but the instance's init decides how
+  long that is: `lxc-init` passes `SIGTERM` to every process at once (runnerd
+  and the execs together, not runnerd first) and kills whatever is left a second
+  after the last process exited, whatever grace was asked. An exec that must
+  save something on `SIGTERM` has about that second.
 - **A create that fails** is logged as `create of <id> failed while <phase>`
   (making the workspace volume, claiming a standby, creating the instance,
   waiting for the address and for runnerd), and the answer to the platform says
@@ -496,33 +512,50 @@ still claim from them.
 
 ## Verify a node before trusting it
 
-Only a real Incus host can prove these. Each names what to do and what it must
-show. Unit tests stand in for none of them: they run against an in-memory
-imitation of the API, which is only as right as the Incus source and
-documentation it was written from.
+Unit tests stand in for none of these: they run against an in-memory imitation
+of the API, which is only as right as the Incus source and documentation it was
+written from. Each item names what to do and what it must show, and ends with
+what the CI lab ([e2e/incus](../e2e/incus/README.md)) already shows on a real
+Incus 7.5.1 (Zabbly's stable build, on a hosted Ubuntu 24.04 runner with a ZFS
+pool on a file): **Lab** names the suite that proves it, **Not in the lab**
+what is left to your first real node. Run the check yourself where the lab does
+not, and wherever your node differs from the lab's: a different kernel or
+storage driver, a reboot, many tenants.
 
 1. **Mutual TLS and pinning.** With the real certificates, boot the spawner:
    the boot line names the Incus version, `/health` is ok. Replace the pinned
    server certificate with another: boot refuses (and never connects). Present
    Incus's default `CA:FALSE` server certificate: boot refuses it with the
    explanation, before any request.
+   **Lab (`boot`):** the pinned certificate is the only anchor; another
+   pinnable one, Incus's own `CA:FALSE` one, a client the node does not trust and
+   a key that is not the certificate's are each refused in words.
 2. **Restricted certificate.** `incus config trust show` lists it `restricted`
    to the one project. With the certificate, `incus project list` shows only
    that project; creating a project, editing the pool and touching another
    project fail. `GET /1.0` answers `auth: trusted` with the extensions and
    `kernel_features` the boot checks read; if the restricted view leaves
    `kernel_features` out, the idmapped-mounts warning is silent by design.
+   **Lab (`boot`):** the restricted certificate is `trusted`, lists only its
+   project, and cannot create a project, change a pool or the network, or read
+   another project; on Incus 7.5.1 its `GET /1.0` reports no `kernel_features`
+   at all (`{}`), so the idmapped-mounts warning is silent there.
 3. **Cold create.** Create a session, then read it with `incus info` and
    `incus config show`: not ephemeral, the `user.tale.*` labels, the `oci.*` and
    `limits.*` keys of [the mapping](#how-dockers-limits-and-hardening-map), the
    workspace volume mounted at `/agent` and writable by uid 10001, a `/dev/shm`
    of `SANDBOX_AGENT_SHM_SIZE` (`df -m /dev/shm`), one NIC (the profile's) with
-   its ACL. Time it: the
-   DHCP wait is the long part.
+   its ACL. Time it: the DHCP wait is the long part.
+   **Lab (`lifecycle`):** every property listed is asserted. A cold create
+   takes about 3.4 s (the DHCP wait included), a resume 3.6 s, a destroy 0.8 s,
+   an exec round trip 5 ms.
 4. **OCI entrypoint and its wrapper.** `oci.entrypoint`
    (`/usr/bin/setpriv --no-new-privs -- /docker-entrypoint.sh daemon`) is split
    into arguments the way the entrypoint expects; runnerd answers `/healthz`
    naming the incarnation; the console log shows the entrypoint's output.
+   **Lab (`lifecycle`, `failures`):** the instance's `oci.*` keys are asserted,
+   runnerd answers and names its incarnation, and the console of an ended
+   session shows the entrypoint's output.
 5. **Privileges.** In the running session, runnerd's `/proc/<pid>/status` shows
    `NoNewPrivs: 1`, `Uid` 10001 and an empty `CapEff`; `su` and `newuidmap` do
    not lift the session user; an exec that tries to remove the egress firewall
@@ -533,27 +566,51 @@ documentation it was written from.
    suspect. Report it rather than working around it: the backend has no switch
    for the bit, as Docker's `no-new-privileges` has none. With Docker inside,
    `NoNewPrivs` is 0 and `docker run hello-world` works.
+   **Lab (`lifecycle`, `network`, `docker`):** runnerd and the session user
+   have `NoNewPrivs: 1`, uid 10001, no capabilities and a user namespace of
+   their own on a high host uid range; the session user cannot flush the
+   redirect's rules; with Docker inside the engine's processes show
+   `NoNewPrivs: 0` and `docker run hello-world` works. **Not in the lab:**
+   starting a browser and the coding agents' tools under `no_new_privs` on your
+   node's security modules.
 6. **Network.** From a session: the proxy works (an HTTPS fetch through
    `HTTPS_PROXY`, a plain one through transparent egress), the LLM gateway and
    backend answer by name, DNS resolves only through the proxy's resolver
    (`/etc/resolv.conf` lists only it), and everything else (another session,
    the node, the Incus API on 8443, the metadata address) is unreachable. From
    the spawner: runnerd on tcp 8200.
+   **Lab (`network`):** all of it, with stand-ins for the gateway and the
+   backend on the ACL's two ports (reached by address, the lab having no
+   resolver records for their names). **Not in the lab:** the gateway and
+   backend by name through your resolver.
 7. **Workspace across stop and resume.** Write a file, stop the session
    (`stopSession`), confirm the instance is gone and the volume is not, resume,
    read the file. Check that a **new idmap** mounts the `security.shifted`
    volume writable (the hot-plug of a shifted volume under an isolated idmap,
    which needs idmapped mounts) and that the quota stops a write past
    `SANDBOX_INCUS_WORKSPACE_SIZE`.
-8. **Graceful stop.** Start a long exec, stop with a grace period: runnerd gets
-   the signal, passes it to the exec and the exec ends before the force; with
-   Docker inside, the inner engine shuts down.
+   **Lab (`lifecycle`, `pool`):** a file written before a stop is read after
+   the resume under a new idmap, the quota stops a write past
+   `SANDBOX_INCUS_WORKSPACE_SIZE`, and a claimed standby has its workspace
+   hot-plugged the same way.
+8. **Graceful stop.** Start a long exec, stop with a grace period: the exec
+   hears `SIGTERM` and ends before the force (within the second `lxc-init`
+   allows, see Operations); with Docker inside, the inner engine shuts down.
+   **Lab (`failures`):** a draining spawner's linger reap stops a busy session,
+   and the exec's `TERM` trap runs and writes its marker before the instance is
+   forced down. **Not in the lab:** the inner engine's own shutdown.
 9. **Removal and diagnosis.** After `stopSession` the instance is gone; after
    the session's process ends by itself (kill runnerd) the instance stays
    stopped, its console log readable, until the route layer, the next create of
    the id or the sweep removes it; a create whose entrypoint cannot start fails
    with the end of the console in its message, and its instance is removed; a
    node reboot leaves only stopped instances, all removed after adoption.
+   **Lab (`lifecycle`, `failures`, `adoption`):** all of it but the reboot: a
+   stop leaves no instance and keeps the volume, a killed runnerd leaves a
+   stopped instance whose console reads and which the next create replaces, an
+   image that cannot start a session fails the create and keeps the workspace,
+   and compute that ended while the spawner was away is removed after adoption
+   with the workspace kept. **Not in the lab:** an actual node reboot.
 10. **Warm pool.** With `SANDBOX_INCUS_POOL_SIZE=2`: the standby script is
     pushed into the _stopped_ OCI instance (root-owned, mode 0755, which only a
     real node proves), two standbys appear and wait (the ready marker exists);
@@ -563,26 +620,52 @@ documentation it was written from.
     /v1/drain` on the old spawner while the new one boots) the old one makes no
     standby, the new one takes the existing ones over without recreating them,
     and a create admitted before the drain still claims.
+    **Lab (`pool`):** the standby script is root-owned and mode 0755 in the
+    OCI instance, two standbys fill in about 4 s and wait, a create takes one in
+    under a second (against 3.4 s cold), the pool refills in about 5 s, a
+    standby that vanished is replaced and a create still succeeds, the capacity
+    bound holds with sessions and standbys together, and through a rollout the
+    drained spawner makes no standby and its replacement takes the existing ones
+    over. **Not in the lab:** a standby's script killed mid-claim, and the
+    script refusing a session whose workspace is not mounted (the unit tests
+    own both), and a create admitted before the drain still claiming.
 11. **Restricted-project refusals.** The project keeps `restricted.devices.disk`
     at `managed`: a host-path disk device, a privileged container, `raw.lxc`,
     swap and a NIC of the instance's own are all refused; the spawner never
     sends any of them.
+    **Lab (`boot`):** a privileged container, `raw.lxc`, swap, a host-path disk
+    device and a NIC of the instance's own are each refused by the restricted
+    project.
 12. **Project limits.** With `limits.memory` on the project at two sessions'
     worth, the third create fails with Incus's `Reached maximum aggregate value`
     message and leaves only its workspace volume, and the image warm-up still
     passes; with `limits.cpu` on the project, boot refuses it by name.
+    **Lab (`limits`, `boot`):** both: the third create fails with Incus's own
+    message and leaves only its workspace volume, the failed session's explicit
+    destroy removes it, and a project `limits.cpu` is refused at boot by name.
 13. **Image.** `warmImage` pulls the OCI image through the API into the
     restricted project (the pull is the one call the unit tests cannot vouch
     for), and the unpack warm-up makes the first session start as fast as the
     second.
+    **Lab (every run):** the first boot pulls the runtime image from the lab's
+    registry into the restricted project through the API and unpacks it (about
+    two minutes), and every later create is fast.
 14. **Docker inside** (only if you enable it). `docker run hello-world`,
     `docker build` and `docker compose up` work in a session, and its nested
     containers still cannot reach what the session cannot; if they cannot,
     keep it off.
+    **Lab (`docker`):** the project allows nesting and interception for it, the
+    inner engine answers, `docker run hello-world` and `docker build` work, and
+    a nested container is no freer than the session (no SSH banner from the
+    internet, the node's API blocked, the proxy reachable). **Not in the lab:**
+    `docker compose up`.
 15. **Fencing under load.** Two creates of one session id at once: one wins and
     the other is answered a duplicate; a stop with a stale stamp is refused.
+    **Lab (`lifecycle`, `fencing`, `adoption`):** two creates of one id at once,
+    a stale ETag (412), a different incarnation, and a peer that replaced a
+    session under its name never being undone by the old holder.
 16. **Capacity UI.** Settings > Sandboxes names the Incus project scope and
-    leaves CPU and memory unavailable.
+    leaves CPU and memory unavailable. **Not in the lab** (the platform's UI).
 
 The bounded API client, the TLS pinning shapes, every lifecycle method, the
 pool's refill and capacity bound, the config validation and the boot checks are
