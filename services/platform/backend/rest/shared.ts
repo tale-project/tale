@@ -96,6 +96,10 @@ export interface RestVars {
    * made for a member, or a team's, a project's or the organization's own
    * key (`domains/api_keys/owners.ts`); null for a person's own key. */
   apiKeyOwner: ApiKeyOwner | null;
+  /** The connection of a coding agent that signed in, when the request
+   * came with its access token instead of an API key (the MCP endpoint
+   * alone takes one). Absent for a key. */
+  agentConnection?: RestAgentConnection;
   /** Why `readJsonBody` refused a body that parsed as JSON but carried a
    * value no field accepts (a U+0000) — `invalidBodyResponse` names it. */
   bodyIssue?: { path: string; message: string };
@@ -116,21 +120,43 @@ export function restApiKeyId(c: Context<RestEnv>): string | undefined {
 }
 
 /**
- * What a caller of this door authenticated with. Today one kind: an API
- * key, which acts with its holder's live role in the resolved organization
- * and never with more.
+ * A coding agent's connection to the organization, as the door proved it for
+ * one request: the person connected an app to this organization and the app
+ * presented an access token that connection stands behind.
  */
-export type RestCredential = {
-  readonly kind: 'api-key';
-  /** The key row the bearer verified as (`restApiKeyId`); absent only when
-   * the verified session named none, which the real door never does. */
-  readonly apiKeyId?: string;
-  /** Whose key it is when it is not its person's own: a key an Owner or
-   * Admin made for a member, or a team's, a project's or the
-   * organization's own key (`domains/api_keys/owners.ts`) — each works in
-   * its organization alone. Absent for a person's own key. */
-  readonly owner?: ApiKeyOwnerKind;
-};
+export interface RestAgentConnection {
+  /** The connection record (`app.agent_connections`). */
+  readonly connectionId: string;
+  /** The app, by its OAuth client id. */
+  readonly clientId: string;
+  /** The app's name as the person saw it when they connected it. */
+  readonly clientName: string;
+  /** What the request may do beyond the role: the scopes the token carries
+   * that the connection still holds. A scope narrows a role, never widens
+   * it. */
+  readonly scopes: ReadonlySet<string>;
+}
+
+/**
+ * What a caller of this door authenticated with: an API key, or — on the MCP
+ * endpoint — a coding agent's access token. Either acts with its person's
+ * live role in the resolved organization and never with more; an agent's
+ * scopes narrow that further.
+ */
+export type RestCredential =
+  | {
+      readonly kind: 'api-key';
+      /** The key row the bearer verified as (`restApiKeyId`); absent only
+       * when the verified session named none, which the real door never
+       * does. */
+      readonly apiKeyId?: string;
+      /** Whose key it is when it is not its person's own: a key an Owner
+       * or Admin made for a member, or a team's, a project's or the
+       * organization's own key (`domains/api_keys/owners.ts`) — each works
+       * in its organization alone. Absent for a person's own key. */
+      readonly owner?: ApiKeyOwnerKind;
+    }
+  | ({ readonly kind: 'agent' } & RestAgentConnection);
 
 /**
  * The REST door's 429: the shared producer, with `error` a sentence rather

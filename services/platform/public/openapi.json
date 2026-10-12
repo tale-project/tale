@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.42.0",
+    "version": "3.43.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -42839,7 +42839,7 @@
       "post": {
         "tags": ["MCP"],
         "summary": "The platform MCP endpoint",
-        "description": "JSON-RPC over HTTP, both MCP protocol eras on one endpoint (JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or 2025-03-26 when the client proposes it, the client opens with `initialize`, which answers `instructions` and reports the API contract version as `serverInfo.version`; a request carries one message, or a JSON-RPC batch answered as an array. On 2026-07-28 there is no `initialize`: every request carries its revision and the client’s capabilities in `params._meta`, mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; `server/discover` answers the revisions, capabilities and instructions; a request carries one message; and every result adds `resultType` and the server under `_meta`, with `ttlMs` and `cacheScope` where a client may cache it. Authenticate with the same Bearer org API key as the REST API. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference; `resources/list` and `prompts/list` name what a client reads by address (the references, automations, runs) and the ready-made prompts. Tool arguments are checked against the advertised input schema, and every problem comes back at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
+        "description": "JSON-RPC over HTTP, both MCP protocol eras on one endpoint (JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or 2025-03-26 when the client proposes it, the client opens with `initialize`, which answers `instructions` and reports the API contract version as `serverInfo.version`; a request carries one message, or a JSON-RPC batch answered as an array. On 2026-07-28 there is no `initialize`: every request carries its revision and the client’s capabilities in `params._meta`, mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; `server/discover` answers the revisions, capabilities and instructions; a request carries one message; and every result adds `resultType` and the server under `_meta`, with `ttlMs` and `cacheScope` where a client may cache it. Authenticate with the same Bearer org API key as the REST API — or, where the operator lets coding agents sign in, with the access token of a connection a person made from their agent (OAuth), which this endpoint alone takes: its 401 carries a `WWW-Authenticate` challenge naming the endpoint’s metadata and the scopes to ask for. A connection acts in the organization it was made for (`X-Organization-Slug` naming another answers `ORG_MISMATCH`) and holds the access its person allowed: a request that calls a tool needing access the connection lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference; `resources/list` and `prompts/list` name what a client reads by address (the references, automations, runs) and the ready-made prompts. Tool arguments are checked against the advertised input schema, and every problem comes back at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
         "operationId": "mcp",
         "security": [
           {
@@ -43156,7 +43156,7 @@
             }
           },
           "403": {
-            "description": "Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; for a coding agent that signed in, the request names another organization than its connection’s (`ORG_MISMATCH`, `data.organization` the one it is for), or calls tools that need access its connection lacks and its person could allow (`INSUFFICIENT_SCOPE`: `data.tools`, `data.requiredScopes` and `data.grantedScopes`, and a `WWW-Authenticate` challenge whose `scope` is everything to ask for) — nothing in the request runs. A call that its person’s role could never give the access for answers the same code as a tool result instead; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -44622,7 +44622,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.42.0"
+          "example": "3.43.0"
         }
       },
       "Location": {
@@ -44700,7 +44700,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored."
+        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection, where the operator lets agents sign in."
       }
     },
     "schemas": {
@@ -44816,6 +44816,7 @@
                   "HUMAN_ASK_NOT_FOUND",
                   "HUMAN_ASK_NOT_PENDING",
                   "IDEMPOTENCY_KEY_REUSED",
+                  "INSUFFICIENT_SCOPE",
                   "INTEGRATION_NOT_OWNED",
                   "INTERNAL_ERROR",
                   "INVALID_BODY",
@@ -44855,6 +44856,7 @@
                   "OBJECT_STORE_UNAVAILABLE",
                   "OBJECT_STORE_UNCONFIGURED",
                   "ORG_FORBIDDEN",
+                  "ORG_MISMATCH",
                   "ORG_SLUG_INVALID",
                   "ORG_SLUG_REQUIRED",
                   "ORIGIN_FORBIDDEN",
@@ -45061,6 +45063,7 @@
                   "HUMAN_ASK_NOT_FOUND",
                   "HUMAN_ASK_NOT_PENDING",
                   "IDEMPOTENCY_KEY_REUSED",
+                  "INSUFFICIENT_SCOPE",
                   "INTEGRATION_NOT_OWNED",
                   "INTERNAL_ERROR",
                   "INVALID_BODY",
@@ -45100,6 +45103,7 @@
                   "OBJECT_STORE_UNAVAILABLE",
                   "OBJECT_STORE_UNCONFIGURED",
                   "ORG_FORBIDDEN",
+                  "ORG_MISMATCH",
                   "ORG_SLUG_INVALID",
                   "ORG_SLUG_REQUIRED",
                   "ORIGIN_FORBIDDEN",
@@ -45297,6 +45301,7 @@
               "HUMAN_ASK_NOT_FOUND",
               "HUMAN_ASK_NOT_PENDING",
               "IDEMPOTENCY_KEY_REUSED",
+              "INSUFFICIENT_SCOPE",
               "INTEGRATION_NOT_OWNED",
               "INTERNAL_ERROR",
               "INVALID_BODY",
@@ -45336,6 +45341,7 @@
               "OBJECT_STORE_UNAVAILABLE",
               "OBJECT_STORE_UNCONFIGURED",
               "ORG_FORBIDDEN",
+              "ORG_MISMATCH",
               "ORG_SLUG_INVALID",
               "ORG_SLUG_REQUIRED",
               "ORIGIN_FORBIDDEN",

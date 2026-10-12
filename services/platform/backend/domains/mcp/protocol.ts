@@ -96,6 +96,7 @@ import {
   type MethodReply,
   readResource,
 } from './resources';
+import { insufficientScope, scopeShortfalls } from './scopes';
 import {
   callTool,
   listTools,
@@ -184,6 +185,15 @@ export interface McpRequestOptions {
    * The door counts it (`activity.ts`); awaited, so the count is true when
    * the answer leaves. */
   readonly observe?: (record: McpCallRecord) => Promise<void>;
+  /** The `WWW-Authenticate` challenge of a request refused for want of
+   * access a coding agent's connection could be given (`scopes.ts`): the
+   * door knows its own address and where an agent signs in. Without it the
+   * refusal carries none. */
+  readonly scopeChallenge?: (ask: {
+    /** Every scope the agent should ask for. */
+    readonly scope: readonly string[];
+    readonly description: string;
+  }) => string;
 }
 
 /** What one request has spent so far — shared by the messages of a batch. */
@@ -650,6 +660,46 @@ function unsupportedHeader(message: unknown, claimed: string): Response {
 }
 
 /**
+ * The refusal of a request that calls tools a coding agent's connection
+ * lacks the access for, when its person could give it: the whole request is
+ * refused with 403 and the challenge that tells the agent which access to
+ * ask for, and nothing in it runs — a batch is never half done. Counted as a
+ * refused call, so the connection reads as used. Null when every call is
+ * covered (an API key always is).
+ */
+async function refuseForScope(
+  caller: McpCaller,
+  messages: readonly unknown[],
+  options: McpRequestOptions,
+  started: number,
+): Promise<Response | null> {
+  const shortfalls = scopeShortfalls(caller, messages);
+  const first = shortfalls[0];
+  if (first === undefined) return null;
+  const refusal = insufficientScope(caller, shortfalls);
+  await options.observe?.({
+    method: 'tools/call',
+    tool: first.tool,
+    outcome: 'refused',
+    code: 'INSUFFICIENT_SCOPE',
+    ms: performance.now() - started,
+  });
+  return Response.json(refusal.body, {
+    status: 403,
+    ...(options.scopeChallenge === undefined
+      ? {}
+      : {
+          headers: {
+            'www-authenticate': options.scopeChallenge({
+              scope: refusal.scope,
+              description: refusal.description,
+            }),
+          },
+        }),
+  });
+}
+
+/**
  * The endpoint's logic, after authentication. Exported so the protocol contract
  * is testable directly — authentication and org resolution are the REST
  * door's job (`backend/rest/v1.ts` + `backend/rest/v1-mcp.ts`) and are
@@ -660,6 +710,7 @@ export async function handleMcpRequest(
   request: Request,
   options: McpRequestOptions,
 ): Promise<Response> {
+  const started = performance.now();
   let message: unknown;
   try {
     // The REST body's own parser: a whole number beyond ±(2^53 − 1) is
@@ -727,6 +778,8 @@ export async function handleMcpRequest(
         ),
       );
     }
+    const lacking = await refuseForScope(caller, message, options, started);
+    if (lacking !== null) return lacking;
     // In order, one after another: a batch may carry calls that depend on
     // each other's side effects, and replies are matched by id regardless.
     const replies: Record<string, unknown>[] = [];
@@ -747,6 +800,8 @@ export async function handleMcpRequest(
   if (!modern && claimed !== null && !MCP_PROTOCOL_VERSIONS.includes(claimed)) {
     return unsupportedHeader(message, claimed);
   }
+  const lacking = await refuseForScope(caller, [message], options, started);
+  if (lacking !== null) return lacking;
   const reply = await handleMessage(
     caller,
     message,

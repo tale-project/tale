@@ -32,8 +32,8 @@ import {
  * additionally an address on the deployment's editor allowlist. That gate
  * weighs a person's standing in every organization they belong to, so only
  * a person's own key passes it: a key made for a member, a team, a project
- * or the organization works in its own organization alone, and the
- * deployment is no one organization's.
+ * or the organization, and a coding agent's connection, work in their own
+ * organization alone, and the deployment is no one organization's.
  */
 
 /** The person behind the call as the deployment's gate reads them. */
@@ -41,10 +41,11 @@ async function instanceAdmin(
   ctx: SettingsContext,
   write: boolean,
 ): Promise<InstanceAdminAuth> {
-  if (ctx.caller.credential.owner !== undefined) {
+  const { credential } = ctx.caller;
+  if (credential.kind === 'agent' || credential.owner !== undefined) {
     throw new DeploymentError(
       'FORBIDDEN_INSTANCE_ADMIN',
-      "The deployment settings are read and changed only with a person's own API key; this key works in its organization alone.",
+      `The deployment settings are read and changed only with a person's own API key; ${credential.kind === 'agent' ? "a coding agent's connection" : 'this key'} works in its organization alone.`,
       403,
     );
   }

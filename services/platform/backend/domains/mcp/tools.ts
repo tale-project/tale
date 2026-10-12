@@ -6,12 +6,14 @@
  * the protocol layer's), its arguments are checked against the tool's zod
  * schema — every problem at once, as one tool error the agent can read
  * (`INVALID_ARGUMENTS`) —, the role the tool needs is checked, then the
- * surface runs it inside a request channel (its audit rows name the door),
- * and the answer is shaped. A refusal is data: whether the surface answered
- * it (`{error, code, hint}`) or threw it (a store's `AutomationError`, an
- * `AppError`), the agent reads its code and its own sentence — never an
- * error's serialized payload. Anything else that throws is a fault, answered
- * as `INTERNAL_ERROR` with the request id and reported server-side.
+ * access a coding agent's connection holds (`scopes.ts`; a key holds none
+ * and is always covered), then the surface runs it inside a request channel
+ * (its audit rows name the door), and the answer is shaped. A refusal is
+ * data: whether the surface answered it (`{error, code, hint}`) or threw it
+ * (a store's `AutomationError`, an `AppError`), the agent reads its code and
+ * its own sentence — never an error's serialized payload. Anything else that
+ * throws is a fault, answered as `INTERNAL_ERROR` with the request id and
+ * reported server-side.
  */
 
 import type { z } from 'zod';
@@ -26,6 +28,7 @@ import { houseIssueMessage } from '../../rest/shared';
 import type { McpCallOutcome } from './activity';
 import { callerOrigin, type McpCaller } from './caller';
 import { MAX_ARGUMENT_ISSUES, refusalFromThrown } from './refusals';
+import { scopeRefusal, scopeVerdict } from './scopes';
 
 /** The whole inventory, in the advertised order. */
 export function listTools(): McpToolListing[] {
@@ -360,6 +363,18 @@ export async function callTool(
         }),
       };
     }
+  }
+  // A scope narrows a role and never widens it, so the role is judged first
+  // (above) and the connection's access second. A call the connection could
+  // be given more access for never gets here: the protocol layer refuses
+  // the whole request first, with the challenge that tells an agent how to
+  // ask. This is the same rule for every way a tool is reached.
+  const verdict = scopeVerdict(caller, tool, parsed.data);
+  if (verdict.kind !== 'covered') {
+    return {
+      kind: 'answer',
+      answer: answer(tool, scopeRefusal(tool, verdict)),
+    };
   }
   if (tool.lane !== 'api' && context.charge !== undefined) {
     const wait = await context.charge(LANE_BUDGETS[tool.lane]);

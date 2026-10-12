@@ -58,6 +58,49 @@ and its answer would reveal it.
 - **Example**: Noah, a developer outside the HR team, has his agent save `hr/onboarding` without
   `create` → refused as a taken name, and no version is added; the agent picks another name.
 
+## A coding agent that signed in
+
+An agent can call the endpoint with an access token instead of a key, once its person connected it
+from the agent (see the [agent connections](../agent_connections/spec.md)). The call acts as that
+person, in the organization the connection was made for, with their role at the time of the request,
+as a key's does — and the connection adds one limit more: the access the person allowed.
+
+### MCP-R40 · What a person allowed an agent narrows their role and never widens it
+
+A connection holds the access its person allowed when they connected the agent: reading and
+testing, editing, editing and deploying, and reading or changing settings. A call needs both the
+role of its tool and the access of its tool; without either it is refused. The role is judged first,
+so a person whose role cannot do something is told so, not told to ask for more. A run started on
+the mocks and the plan of a replay need only reading and testing; a live start needs deploying. A
+key holds no such access: its person's role alone decides.
+
+- **Example**: Ada, a developer, connected Cursor to read and test. Cursor starts a mock run →
+  it runs. It starts a live one → refused, asking for "Edit and deploy". Mia, a member, connected
+  hers to read and test; her agent saves an automation → refused as her role's, with nothing to ask for.
+
+### MCP-R41 · A request that needs missing access runs nothing and says what to ask for
+
+When any call in a request needs access the connection lacks and its person could allow, the whole
+request is refused with 403 `INSUFFICIENT_SCOPE` and none of its calls run, so a batch is never half
+done. The answer carries a challenge that names the access to ask for together with all the connection
+already holds, so asking again never drops what the agent had. Calls that the person's role could never
+allow are not refused this way: each is refused as a tool error, since asking would change nothing. The
+handshake, the lists and a notification are never refused for access.
+
+- **Example**: Cursor sends a batch that reads a run and then deploys an automation, holding reading and
+  editing → 403, nothing ran, and the challenge asks for reading, editing and deploying.
+
+### MCP-R42 · What a connection's call leaves behind names the connection
+
+A call made through a connection writes as its person through the MCP door, as a key's does, and names
+the connection where a key's names the key: the audit rows it writes carry the connection and the app
+(or the client name the call gave), a version it saves records the MCP door and the app, and its
+counters are kept under the connection, which is where its "last used" is read from. A connection is
+not a key, so the budgets and the spend of a key do not see it; its person's do.
+
+- **Example**: Ada's Cursor saves a version of Dunning → the version says it was saved through MCP by
+  Cursor, the audit row names Ada's connection, and the connection's last use moves to now.
+
 ## Saving, deploying and deleting
 
 An agent saves, deploys and deletes through the same store the editor does, with the same rules
@@ -348,14 +391,16 @@ is queued again. The similarity floor and the serving limits change at any time.
 
 The deployment's settings are every organization's, and who may read and change them is decided
 by a person's standing in every organization they belong to. A key made for a member, a team, a
-project or the organization works in its own organization alone, so it reads and changes none of
-them, and `get_settings` says so for the kind (`FORBIDDEN_INSTANCE_ADMIN`). A person's own key
-reads and changes them as the person may in the app.
+project or the organization, and the connection of a coding agent that signed in, work in their own
+organization alone, so they read and change none of them, and `get_settings` says so for the kind
+(`FORBIDDEN_INSTANCE_ADMIN`). A person's own key reads and changes them as the person may in the
+app.
 
 - **Example**: Mia is a developer at Acme and an admin of Beta, and her address is on the
   deployment's editor allowlist. Ada, an admin at Acme, makes the key "Billing sync" for Mia;
   Ada's agent reads the deployment's settings with it → refused, and a change of the sandbox
-  runtime is refused too. Mia's own key reads and changes them.
+  runtime is refused too. Mia's own key reads and changes them, and an agent Mia connected by signing
+  in reads none of them.
 
 ### MCP-R35 · Settings are read a page at a time, by kind, and a page fits the answer
 

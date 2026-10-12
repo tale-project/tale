@@ -755,5 +755,21 @@
  * and the writes allowed alone. An act that would change nothing plans and
  * applies as `unchanged`. The refusal code `APPROVAL_ALLOWANCE_INVALID` joins
  * the settings vocabulary. No REST operation changes.
+ *
+ * 3.43.0 — 2026-10-13: the MCP endpoint takes a coding agent's access token
+ * in place of an API key where the operator lets agents sign in (off unless
+ * set). Its 401 then carries the challenge RFC 9728 describes —
+ * `resource_metadata` and `scope` — and a credential that was presented and
+ * refused adds `error="invalid_token"`. A token opens the MCP endpoint
+ * alone; on every other route it is read as an API key. A call made through a
+ * connection acts in the organization the connection was made for (naming
+ * another in `X-Organization-Slug` answers 403 `ORG_MISMATCH`) and holds the
+ * access its person allowed: a request that calls a tool needing access the
+ * connection lacks is refused whole with 403 `INSUFFICIENT_SCOPE` and the
+ * challenge `error="insufficient_scope"`, which names what to ask for, and
+ * a call that the person's role could never be given the access for answers
+ * the same code as a tool error. `tools/list` is unchanged. The codes
+ * `INSUFFICIENT_SCOPE` and `ORG_MISMATCH` join the registry. No REST
+ * operation changes.
  */
-export const API_CONTRACT_VERSION = '3.42.0';
+export const API_CONTRACT_VERSION = '3.43.0';

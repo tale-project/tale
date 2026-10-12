@@ -51,6 +51,9 @@ export interface WriteOrigin {
   readonly via: WriteVia;
   /** The API key a keyed door authenticated with, by id — never the key. */
   readonly apiKeyId?: string;
+  /** The connection of the coding agent a call came through, by id, when
+   * the agent signed in instead of using a key. */
+  readonly agentConnectionId?: string;
   /** The name the caller's client gave itself, already cleaned by
    * `displayClientName` (at most 80 characters). Untrusted, display only. */
   readonly clientName?: string;
@@ -75,16 +78,21 @@ export function appOrigin(
 }
 
 /** A coding agent's write over the MCP endpoint, made with the key holder's
- * key and named by the client the agent runs in. */
+ * key — or through the connection the person made for the agent — and named
+ * by the client the agent runs in. */
 export function mcpOrigin(caller: {
   userId: string;
   apiKeyId?: string;
+  agentConnectionId?: string;
   clientName?: string;
 }): WriteOrigin {
   return {
     actor: `api-key:${caller.userId}`,
     via: 'mcp',
     ...(caller.apiKeyId === undefined ? {} : { apiKeyId: caller.apiKeyId }),
+    ...(caller.agentConnectionId === undefined
+      ? {}
+      : { agentConnectionId: caller.agentConnectionId }),
     ...(caller.clientName === undefined
       ? {}
       : { clientName: caller.clientName }),
@@ -139,6 +147,9 @@ export function requestChannelOf(
       ? {}
       : { requestId: request.requestId }),
     ...(origin.apiKeyId === undefined ? {} : { apiKeyId: origin.apiKeyId }),
+    ...(origin.agentConnectionId === undefined
+      ? {}
+      : { agentConnectionId: origin.agentConnectionId }),
   };
   if (origin.via === 'mcp') {
     return {
