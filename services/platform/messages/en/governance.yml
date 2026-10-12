@@ -308,6 +308,12 @@ retentionPolicy:
   enabled: Enabled
   retentionDays: Retention days
   retentionHours: Retention hours
+  valueDays: '{count, plural, one {# day} other {# days}}'
+  valueHours: '{count, plural, one {# hour} other {# hours}}'
+  unitDays: days
+  unitHours: hours
+  stateOn: enabled
+  stateOff: disabled
   envDisabled: Retention is currently disabled by the operator
     (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is
     removed.
@@ -371,8 +377,9 @@ retentionPolicy:
     detailsEmpty: No detailed changes recorded.
     diffHeading: Bound changes
     impactHeading: Impact on your stored values
-    diffRow: '{category}: {field} {from} → {to} ({direction})'
+    diffRow: '{category}, {field, select, min {minimum} max {maximum} other {{field}}}: {from} → {to} ({direction, select, tighten {tightens retention} loosen {loosens retention} other {{direction}}})'
     impactRow: '{category}: {current} will clamp to {clamped}'
+    unbounded: no limit
     appliedToast: Bounds proposal applied. Cleanup will use new bounds on next run.
     rejectedToast: Bounds proposal rejected. Cleanup continues with previous bounds.
     applyFailedToast: Couldn't apply the bounds proposal.

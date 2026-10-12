@@ -21,6 +21,10 @@ import { readBackendErrorData } from '../backend-error-data';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertRetentionPolicy } from '../hooks/mutations';
 import type { CategoryBounds } from '../hooks/use-retention-bounds';
+import {
+  type RetentionText,
+  useRetentionText,
+} from '../hooks/use-retention-text';
 import { type CategoryWireMapping, WIRE_MAPPING } from './retention-categories';
 import { RetentionForm } from './retention-form';
 
@@ -91,6 +95,7 @@ function RetentionEditFormBody({
 }: RetentionEditFormBodyProps) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
+  const text = useRetentionText();
   const { toast } = useToast();
   const upsertMutation = useUpsertRetentionPolicy();
 
@@ -152,12 +157,12 @@ function RetentionEditFormBody({
               ? t(
                   'retentionPolicy.errors.belowFloor',
                   'Below operator floor (min {bound} {unit}).',
-                  { bound: bound ?? '?', unit },
+                  { bound: bound ?? '?', unit: text.unit(unit) },
                 )
               : t(
                   'retentionPolicy.errors.exceedsCeiling',
                   'Exceeds operator ceiling (max {bound} {unit}).',
-                  { bound: bound ?? '?', unit },
+                  { bound: bound ?? '?', unit: text.unit(unit) },
                 );
           setErrors((prev) => {
             const m = new Map(prev);
@@ -178,7 +183,7 @@ function RetentionEditFormBody({
         });
       }
     },
-    [organizationId, upsertMutation, toast, t, bounds, onClose],
+    [organizationId, upsertMutation, toast, t, text, bounds, onClose],
   );
 
   return (
@@ -296,7 +301,8 @@ function DiffList({
   bounds: Map<RetentionCategory, CategoryBounds>;
 }): ReactNode {
   const { t } = useT('governance');
-  const entries = computeDiff(from, to, bounds);
+  const text = useRetentionText();
+  const entries = computeDiff(from, to, bounds, text);
   if (entries.length === 0) {
     return (
       <Text className="text-muted-foreground text-sm">
@@ -327,10 +333,11 @@ function computeDiff(
   from: RetentionPolicyConfig,
   to: RetentionPolicyConfig,
   bounds: Map<RetentionCategory, CategoryBounds>,
+  text: RetentionText,
 ): DiffEntry[] {
   const out: DiffEntry[] = [];
   for (const wire of WIRE_MAPPING) {
-    pushDiffForWire(wire, from, to, bounds, out);
+    pushDiffForWire(wire, from, to, bounds, text, out);
   }
   if ((from.deletionGraceDays ?? 30) !== (to.deletionGraceDays ?? 30)) {
     out.push({
@@ -348,6 +355,7 @@ function pushDiffForWire(
   from: RetentionPolicyConfig,
   to: RetentionPolicyConfig,
   bounds: Map<RetentionCategory, CategoryBounds>,
+  text: RetentionText,
   out: DiffEntry[],
 ): void {
   const bound = bounds.get(wire.id);
@@ -359,8 +367,8 @@ function pushDiffForWire(
       out.push({
         id: wire.id,
         i18nKey: wire.i18nKey,
-        fromText: fromEnabled ? 'enabled' : 'disabled',
-        toText: toEnabled ? 'enabled' : 'disabled',
+        fromText: text.state(fromEnabled),
+        toText: text.state(toEnabled),
       });
     }
   }
@@ -374,8 +382,8 @@ function pushDiffForWire(
     out.push({
       id: wire.id,
       i18nKey: wire.i18nKey,
-      fromText: `${fromVal} ${unit}`,
-      toText: `${toVal} ${unit}`,
+      fromText: text.value(fromVal, unit),
+      toText: text.value(toVal, unit),
     });
   } else if (
     fromVal !== toVal &&
@@ -384,8 +392,8 @@ function pushDiffForWire(
     out.push({
       id: wire.id,
       i18nKey: wire.i18nKey,
-      fromText: typeof fromVal === 'number' ? `${fromVal} ${unit}` : '—',
-      toText: typeof toVal === 'number' ? `${toVal} ${unit}` : '—',
+      fromText: typeof fromVal === 'number' ? text.value(fromVal, unit) : '—',
+      toText: typeof toVal === 'number' ? text.value(toVal, unit) : '—',
     });
   }
 }

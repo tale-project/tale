@@ -13,6 +13,7 @@ import {
 } from '@/lib/shared/schemas/retention';
 
 import type { CategoryBounds } from '../hooks/use-retention-bounds';
+import { useRetentionText } from '../hooks/use-retention-text';
 import { type CategoryWireMapping, WIRE_MAPPING } from './retention-categories';
 
 interface RetentionFormProps {
@@ -75,6 +76,7 @@ function CategoryRow({
   inputDisabled,
 }: CategoryRowProps) {
   const { t } = useT('governance');
+  const text = useRetentionText();
   const { id, configKey, enabledKey, i18nKey } = wire;
 
   const enabled = enabledKey !== undefined ? Boolean(value[enabledKey]) : true;
@@ -100,12 +102,12 @@ function CategoryRow({
       ? t(
           'retentionPolicy.boundHelper',
           'Operator caps this at {min}-{max} {unit}.',
-          { min: bound.min, max: bound.max, unit },
+          { min: bound.min, max: bound.max, unit: text.unit(unit) },
         )
       : t('retentionPolicy.allowedRange', 'Allowed: {min}–{max} {unit}.', {
           min: bound.min,
           max: bound.max,
-          unit,
+          unit: text.unit(unit),
         })
     : '';
   const helper = [categoryHelper, rangeHelper]

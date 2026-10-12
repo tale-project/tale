@@ -11,6 +11,7 @@ import {
 } from '@/lib/shared/schemas/retention';
 
 import type { CategoryBounds } from '../hooks/use-retention-bounds';
+import { useRetentionText } from '../hooks/use-retention-text';
 import { type CategoryWireMapping, WIRE_MAPPING } from './retention-categories';
 import { RetentionTimeline } from './retention-timeline';
 
@@ -63,6 +64,7 @@ interface SummaryRowProps {
 
 function SummaryRow({ wire, config, bounds }: SummaryRowProps) {
   const { t } = useT('governance');
+  const text = useRetentionText();
   const { id, configKey, enabledKey, i18nKey } = wire;
 
   const titleText = t(`retentionPolicy.${i18nKey}.title`, id);
@@ -84,7 +86,7 @@ function SummaryRow({ wire, config, bounds }: SummaryRowProps) {
               {t('retentionPolicy.summary.disabled', 'Disabled')}
             </span>
           ) : typeof numericValue === 'number' ? (
-            `${numericValue} ${unit}`
+            text.value(numericValue, unit)
           ) : (
             <span className="text-muted-foreground">—</span>
           )}
