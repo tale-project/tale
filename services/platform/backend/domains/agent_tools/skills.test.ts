@@ -1,0 +1,222 @@
+// @vitest-environment node
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  listSkillsForViewer,
+  readSkillAssetForViewer,
+  readSkillForViewer,
+} from '../../core/skills/file_actions.ts';
+import { prewarmLightSandbox } from './run-code.ts';
+import {
+  listSkillCatalog,
+  runLoadSkill,
+  runReadSkillFile,
+  SKILL_BODY_MAX_CHARS,
+} from './skills.ts';
+import { FULL_LOADOUT, testScope } from './test-helpers.ts';
+
+vi.mock('../../core/skills/file_actions.ts', () => ({
+  listSkillsForViewer: vi.fn(),
+  readSkillForViewer: vi.fn(),
+  readSkillAssetForViewer: vi.fn(),
+}));
+vi.mock('./run-code.ts', () => ({ prewarmLightSandbox: vi.fn() }));
+
+function skill(
+  overrides: Partial<{
+    slug: string;
+    description: string;
+    body: string;
+    files: { path: string; size: number }[];
+    disableModelInvocation: boolean;
+  }> = {},
+) {
+  return {
+    slug: 'docx',
+    description: 'Word documents',
+    body: 'Use docx-js to build the document.',
+    files: [
+      { path: 'SKILL.md', size: 10 },
+      { path: 'scripts/office/pack.py', size: 20 },
+    ],
+    visibility: 'org',
+    origin: 'builtin',
+    canEdit: false,
+    etag: '"x"',
+    updatedAt: 0,
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.mocked(prewarmLightSandbox).mockClear();
+});
+
+describe('load_skill', () => {
+  it('answers the instructions and the bundle, and how to use its files from code', async () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+    vi.mocked(readSkillForViewer).mockResolvedValue(skill() as never);
+    const { scope } = testScope();
+
+    const result = await runLoadSkill(scope, { name: 'docx' });
+
+    expect(readSkillForViewer).toHaveBeenCalledWith({
+      orgSlug: 'acme',
+      slug: 'docx',
+      viewer: scope.skillViewer,
+    });
+    expect(result).toMatchObject({
+      status: 'ok',
+      name: 'docx',
+      instructions: 'Use docx-js to build the document.',
+      files: [
+        { path: 'SKILL.md', size: 10 },
+        { path: 'scripts/office/pack.py', size: 20 },
+      ],
+    });
+    expect(JSON.stringify(result)).toContain('/agent/skills/docx/');
+  });
+
+  it('starts the light sandbox early for a skill with scripts, not for one of words alone', async () => {
+    const { scope } = testScope();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+    vi.mocked(readSkillForViewer).mockResolvedValueOnce(skill() as never);
+    await runLoadSkill(scope, { name: 'docx' });
+    expect(prewarmLightSandbox).toHaveBeenCalledWith(scope);
+
+    vi.mocked(prewarmLightSandbox).mockClear();
+    vi.mocked(readSkillForViewer).mockResolvedValueOnce(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+      skill({
+        slug: 'house-style',
+        files: [{ path: 'SKILL.md', size: 10 }],
+      }) as never,
+    );
+    await runLoadSkill(scope, { name: 'house-style' });
+    expect(prewarmLightSandbox).not.toHaveBeenCalled();
+  });
+
+  it('continues long instructions through read_skill_file', async () => {
+    vi.mocked(readSkillForViewer).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+      skill({ body: 'x'.repeat(SKILL_BODY_MAX_CHARS + 10) }) as never,
+    );
+    const { scope } = testScope({
+      loadout: { ...FULL_LOADOUT, runCode: false },
+    });
+
+    const result = await runLoadSkill(scope, { name: 'docx' });
+
+    expect(result).toMatchObject({ nextOffset: SKILL_BODY_MAX_CHARS });
+    expect((result as { instructions: string }).instructions.length).toBe(
+      SKILL_BODY_MAX_CHARS,
+    );
+  });
+
+  it('answers a skill the person cannot see as absent, and a malformed name as correctable [CHAT-R21]', async () => {
+    vi.mocked(readSkillForViewer).mockResolvedValue(null);
+    const { scope } = testScope();
+    await expect(
+      runLoadSkill(scope, { name: 'secret' }),
+    ).resolves.toMatchObject({ status: 'not_found' });
+    await expect(
+      runLoadSkill(scope, { name: '../etc' }),
+    ).resolves.toMatchObject({ status: 'invalid_args' });
+  });
+});
+
+describe('read_skill_file', () => {
+  it('reads a window of a text file and says where it continues', async () => {
+    vi.mocked(readSkillAssetForViewer).mockResolvedValue({
+      kind: 'asset',
+      path: 'reference.md',
+      content: Buffer.from('a'.repeat(25_000)),
+      mtimeMs: 0,
+    });
+    const { scope } = testScope();
+
+    const result = await runReadSkillFile(scope, {
+      name: 'pdf',
+      path: 'reference.md',
+    });
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      path: 'reference.md',
+      totalChars: 25_000,
+      nextOffset: 20_000,
+    });
+    const next = await runReadSkillFile(scope, {
+      name: 'pdf',
+      path: 'reference.md',
+      offset: 20_000,
+    });
+    expect((next as { content: string }).content).toHaveLength(5_000);
+    expect(next).not.toHaveProperty('nextOffset');
+  });
+
+  it('sends a binary file to run_code', async () => {
+    vi.mocked(readSkillAssetForViewer).mockResolvedValue({
+      kind: 'asset',
+      path: 'templates/logo.png',
+      content: Buffer.from([0x89, 0x50, 0x00, 0x01]),
+      mtimeMs: 0,
+    });
+    const { scope } = testScope();
+    const result = await runReadSkillFile(scope, {
+      name: 'pptx',
+      path: 'templates/logo.png',
+    });
+    expect(result).toMatchObject({ status: 'invalid_args' });
+    expect(JSON.stringify(result)).toContain('/agent/skills/pptx/');
+  });
+
+  it('tells a missing skill from a missing file', async () => {
+    const { scope } = testScope();
+    vi.mocked(readSkillAssetForViewer).mockResolvedValueOnce({
+      kind: 'no-skill',
+    });
+    await expect(
+      runReadSkillFile(scope, { name: 'gone', path: 'a.md' }),
+    ).resolves.toMatchObject({ status: 'not_found' });
+    vi.mocked(readSkillAssetForViewer).mockResolvedValueOnce({
+      kind: 'no-file',
+    });
+    const result = await runReadSkillFile(scope, { name: 'pdf', path: 'b.md' });
+    expect(JSON.stringify(result)).toContain('has no file');
+  });
+});
+
+describe('listSkillCatalog', () => {
+  it('lists the viewer’s skills by name, with their explicit-only flag', async () => {
+    vi.mocked(listSkillsForViewer).mockResolvedValue({
+      skills: [
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the summary fields the catalog reads
+        skill({ slug: 'pptx', description: 'Slides' }) as never,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the summary fields the catalog reads
+        skill({
+          slug: 'audit',
+          description: '',
+          disableModelInvocation: true,
+        }) as never,
+      ],
+      failures: [],
+    });
+    await expect(
+      listSkillCatalog('acme', testScope().scope.skillViewer),
+    ).resolves.toEqual([
+      { slug: 'audit', explicitOnly: true },
+      { slug: 'pptx', description: 'Slides' },
+    ]);
+  });
+
+  it('lists nothing when the library cannot be read', async () => {
+    vi.mocked(listSkillsForViewer).mockRejectedValue(new Error('EIO'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(
+      listSkillCatalog('acme', testScope().scope.skillViewer),
+    ).resolves.toEqual([]);
+    warn.mockRestore();
+  });
+});

@@ -576,6 +576,16 @@ thinking:
     mailAttachments: Liste des pièces jointes
   seconds: '{seconds}s'
   summaryReasoningOnly: A montré son raisonnement
+  writingFile: Rédaction de {name}
+  generatingImages: '{count, plural, one {Création d’une image} many {Création de # images} other {Création de # images}}'
+  loadingSkill: Lecture du skill {name}
+  readingSkillFile: Lecture de {path} dans le skill {name}
+  runningCode: Exécution de {language} dans une sandbox légère
+artifacts:
+  label: Fichiers de cette réponse
+  open: Ouvrir {name}
+  download: Télécharger {name}
+  viewImage: Voir {name}
 sources:
   label: Sources
   showAll: Afficher les {count} sources

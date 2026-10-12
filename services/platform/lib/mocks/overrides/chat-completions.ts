@@ -32,6 +32,7 @@ import {
   CANNED_STREAM_ERROR_MESSAGE,
   MOCK_SERVING,
   MOCK_TRIGGERS,
+  MOCK_WORK_TOOLS,
 } from './canned';
 import {
   matchDocsReply,
@@ -45,6 +46,7 @@ const CANNED_JSON_REPLY = '{}';
 /** The tools a docs entry's scripted tool turn calls (`docsToolCallDeltas`). */
 const HUMAN_INPUT_TOOL_NAME = 'request_human_input';
 const FILE_WRITE_TOOL_NAME = 'file_write';
+const CREATE_FILE_TOOL_NAME = 'create_file';
 
 /** One parsed chat message — only the fields the scenario logic needs. */
 interface ParsedMessage {
@@ -138,7 +140,10 @@ type Scenario =
   | 'length'
   | 'streamError'
   | 'gatewayRoute'
-  | 'cloudRegion';
+  | 'cloudRegion'
+  | 'makeFile'
+  | 'makeSpreadsheet'
+  | 'workDone';
 
 function userTexts(messages: ParsedMessage[]): string[] {
   return messages
@@ -259,6 +264,15 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   if (last.includes(MOCK_TRIGGERS.gatewayRoute)) return 'gatewayRoute';
   if (last.includes(MOCK_TRIGGERS.cloudRegion)) return 'cloudRegion';
+  if (
+    last.includes(MOCK_TRIGGERS.makeFile) ||
+    last.includes(MOCK_TRIGGERS.makeSpreadsheet)
+  ) {
+    if (resume) return 'workDone';
+    return last.includes(MOCK_TRIGGERS.makeFile)
+      ? 'makeFile'
+      : 'makeSpreadsheet';
+  }
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
   // unmatched stays on the spec-pinned canned path. A tool-scripted entry
   // emits its tool call on the first turn and its `reply` on the resume turn
@@ -271,6 +285,22 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
 
 /** The streamed tool-call delta(s) for a docs entry's scripted tool. */
 function docsToolCallDeltas(tool: DocsReplyTool): ToolCallDelta[] {
+  if (tool.name === 'create_file') {
+    return [
+      {
+        index: 0,
+        id: 'call_docs_cf_0',
+        type: 'function' as const,
+        function: {
+          name: CREATE_FILE_TOOL_NAME,
+          arguments: JSON.stringify({
+            name: tool.fileName,
+            content: tool.content,
+          }),
+        },
+      },
+    ];
+  }
   if (tool.name === 'file_write') {
     return tool.files.map((file, index) => ({
       index,
@@ -313,6 +343,8 @@ function scenarioContent(
       return triageScore(body) ?? CANNED_JSON_REPLY;
     case 'reasoning':
       return CANNED_REASONING_ANSWER;
+    case 'workDone':
+      return MOCK_WORK_TOOLS.done;
     default: {
       const formatType = body.response_format?.type ?? '';
       return formatType.startsWith('json') ? CANNED_JSON_REPLY : CANNED_REPLY;
@@ -492,6 +524,54 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
             ],
           })}\n\n`,
         );
+        controller.close();
+        return;
+      }
+
+      // A work-tool scenario's first turn: a sentence, then the tool call.
+      if (scenario === 'makeFile' || scenario === 'makeSpreadsheet') {
+        const intro =
+          scenario === 'makeFile'
+            ? MOCK_WORK_TOOLS.fileIntro
+            : MOCK_WORK_TOOLS.spreadsheetIntro;
+        for (const delta of toDeltas(intro)) {
+          sendDelta({ content: delta }, null);
+          await pause();
+        }
+        sendDelta(
+          {
+            tool_calls: [
+              scenario === 'makeFile'
+                ? {
+                    index: 0,
+                    id: 'call_work_file_0',
+                    type: 'function',
+                    function: {
+                      name: 'create_file',
+                      arguments: JSON.stringify({
+                        name: MOCK_WORK_TOOLS.fileName,
+                        content: MOCK_WORK_TOOLS.fileContent,
+                      }),
+                    },
+                  }
+                : {
+                    index: 0,
+                    id: 'call_work_code_0',
+                    type: 'function',
+                    function: {
+                      name: 'run_code',
+                      arguments: JSON.stringify({
+                        language: 'python',
+                        code: MOCK_WORK_TOOLS.spreadsheetCode,
+                      }),
+                    },
+                  },
+            ],
+          },
+          null,
+        );
+        sendDelta({}, 'tool_calls', USAGE);
+        send('data: [DONE]\n\n');
         controller.close();
         return;
       }

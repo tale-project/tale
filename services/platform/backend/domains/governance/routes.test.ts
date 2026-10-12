@@ -350,8 +350,9 @@ describe('POST /policies/sandbox_workspaces — the rule takes effect with the s
 describe('POST /policies/sandbox_quota — deployment capacity', () => {
   const atCapacity = {
     maxSessionsPerOrg: 2,
-    maxWorkflowSessionsPerOrg: 8,
+    maxWorkflowSessionsPerOrg: 6,
     maxRenderSessionsPerOrg: 6,
+    maxLightSessionsPerOrg: 2,
   };
 
   function expectNoWrite() {

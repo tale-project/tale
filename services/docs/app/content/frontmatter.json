@@ -596,6 +596,14 @@
       "description": "Sende eine Nachricht, wähle ein Modell, prüfe die Quellen und bewahre hilfreiche Gespräche auf."
     }
   },
+  "de:platform/chat/files-and-skills": {
+    "slug": "platform/chat/files-and-skills",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Im Chat Dateien erstellen und Skills nutzen",
+      "description": "Bitte den Assistenten um ein Dokument, eine Tabelle, eine Präsentation, ein Diagramm oder ein Bild und lass ihn einen Skill aus deiner Bibliothek befolgen, ohne das Gespräch zu verlassen."
+    }
+  },
   "de:platform/chat/overview": {
     "slug": "platform/chat/overview",
     "locale": "de",
@@ -1812,6 +1820,14 @@
       "description": "Send a message, choose a model, check the answer’s sources, and keep a useful conversation."
     }
   },
+  "en:platform/chat/files-and-skills": {
+    "slug": "platform/chat/files-and-skills",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Make files and use skills in chat",
+      "description": "Ask the assistant for a document, spreadsheet, presentation, chart, or image, and let it follow a skill from your library, without leaving the conversation."
+    }
+  },
   "en:platform/chat/overview": {
     "slug": "platform/chat/overview",
     "locale": "en",
@@ -3026,6 +3042,14 @@
     "frontmatter": {
       "title": "Poser des questions dans le chat",
       "description": "Envoie un message, choisis un modèle, vérifie les sources et conserve les conversations utiles."
+    }
+  },
+  "fr:platform/chat/files-and-skills": {
+    "slug": "platform/chat/files-and-skills",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Créer des fichiers et utiliser des skills",
+      "description": "Demande à l’assistant un document, un tableur, une présentation, un graphique ou une image, et laisse-le suivre un skill de ta bibliothèque, sans quitter la conversation."
     }
   },
   "fr:platform/chat/overview": {

@@ -81,6 +81,22 @@ Feature controls include scoped context-window limits and the organization-wide 
 
 The custom-instructions default switch stores the organization default for members’ personal instructions: while it is on, every member’s custom instructions apply to their chat replies unless they turned the feature off themselves under **Settings > Preferences**. Organization-wide mandatory instructions are a separate setting under [Guardrails](/platform/admin/governance/guardrails).
 
+## Choose what chat can make {#chat-tools}
+
+**Chat tools** decides what the chat assistant may make besides its answers. Each switch removes its tool from every chat in your organization, so the assistant is never offered something it may not use:
+
+- **Files** — text files the assistant writes itself, such as Markdown, CSV, HTML, or calendar entries. Nothing starts for them.
+- **Skills** — instructions from each person's [skill library](/platform/workspace/skills), which the assistant reads when one fits the request.
+- **Code** — code in a light sandbox, for Word, Excel, PowerPoint, and PDF files, charts, and calculations. Each conversation uses one light sandbox at a time, and your organization's [light sandbox limit](/platform/admin/sandboxes#light-sandboxes) caps how many run at once.
+
+<Frame caption="Governance > Policies & Limits — Chat tools as a new organization has them: files, skills, and code switched on.">
+
+![The Chat tools section with three switched-on rows: Files, for text files the assistant writes itself; Skills, for instructions from each person's skill library; and Code, for code in a light sandbox.](/images/platform/governance-chat-tools.webp)
+
+</Frame>
+
+All three are on until you turn one off. Change the switches, then save the pending page changes in the header; the next reply in every chat follows them. Images are not part of this section: the chat creates them only while [image generation](/platform/admin/governance/content-models#let-agents-generate-images) is on. [Make files and use skills in chat](/platform/chat/files-and-skills) shows what members see.
+
 ## Show a confidentiality notice in chat
 
 **Confidentiality notice** adds a short line under the chat message field for every member of your organization, such as a reminder not to share sensitive data. It stays off until you turn it on.

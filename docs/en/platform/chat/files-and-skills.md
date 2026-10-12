@@ -1,0 +1,57 @@
+---
+title: Make files and use skills in chat
+description: Ask the assistant for a document, spreadsheet, presentation, chart, or image, and let it follow a skill from your library, without leaving the conversation.
+---
+
+The assistant can make what you ask for in the conversation: a CSV or Markdown file it writes itself, a Word document, Excel workbook, PowerPoint presentation, PDF or chart it builds in a light sandbox, and images when your organization allows them. The files appear below the reply, ready to open and download. Skills from your [skill library](/platform/workspace/skills) tell it how to make them well.
+
+## Ask for the file you need
+
+Name the format and the content in your message, as you would to a colleague. For example: “Make an Excel file with our monthly revenue for 2025 and a total row that uses a formula.” Or: “Turn this into a nicely formatted PDF,” followed by the text.
+
+The assistant uses the lightest way that does the job, and starts nothing it does not need:
+
+| You ask for | The assistant | What it starts |
+| --- | --- | --- |
+| An answer, a comparison table, a short code block | Answers in the reply | Nothing |
+| A Markdown, CSV, JSON, HTML or SVG file, a calendar entry (`.ics`) or a contact card (`.vcf`) | Writes the file itself | Nothing |
+| A picture: an illustration, a photo-like scene, a logo | Generates an image | Your organization’s image model, when [image generation](/platform/admin/governance/content-models#let-agents-generate-images) is on |
+| A Word, Excel, PowerPoint or PDF file, a chart, a calculation over data, a change to a file you attached | Runs code in a light sandbox | A light sandbox, in about a second |
+| Work on a repository, in a browser session, or lasting hours | Suggests a [project task](/platform/projects/tasks) | Nothing in the chat; the task’s agent works in its own sandbox |
+
+While it works, the steps above the reply say what it is doing, such as **Writing contacts.csv**, **Reading the xlsx skill** or **Running Python in a light sandbox**. A failed step says what went wrong, and the assistant usually corrects its code and tries again.
+
+## Open and download the files
+
+The files appear under the reply, in the order they were made. Images show as pictures; select one to open it full size and page through the others. Every other file shows as a card with its name, type and size. Select the card to preview the file; PDF, Word, spreadsheet, Markdown and text files open in place. The download button beside the card saves the file under its own name.
+
+<Frame caption="The file the assistant wrote appears as a card under its reply, with a download button beside it.">
+
+![A chat asks for the onboarding feedback themes as a CSV file. The steps show Writing onboarding-feedback-themes.csv, the reply says the file is attached, and a card below it shows onboarding-feedback-themes.csv, CSV, 251 B, with a download button.](/images/platform/chat-reply-files.webp)
+
+</Frame>
+
+When the assistant revises a file in the same reply, for example after checking its own output, the card shows the final version only. Ask for a change in a follow-up message to get a new version in the next reply.
+
+Files belong to the conversation: whoever can open the conversation can open its files.
+
+## Change a file you attach
+
+[Attach the file](/platform/chat/attachments) and say what should change: “Add a chart of the totals to the attached spreadsheet,” or “Convert the attached Word document to PDF.” The assistant copies the file into the light sandbox and returns the result as a new file. The file you attached stays as it was.
+
+## Use a skill
+
+A skill is a tested procedure for a kind of work, such as a document format or a house style. The assistant sees the name and description of every skill in your skill library: those shared with the whole organization and with your teams. When one fits your request, it reads the skill before it starts and follows it; the steps then show, for example, **Reading the docx skill**. The built-in skills `docx`, `xlsx`, `pptx` and `pdf` cover the Office and PDF formats.
+
+To be sure a skill is used, name it: “Use the brief-summary skill to summarize the attached brief.” A skill whose author marked it for explicit use only is used only when you ask for it by name. In a library of more than 40 skills, the assistant sees the first 40 in alphabetical order and uses any other one when you name it.
+
+A skill guides the assistant; it does not change what the assistant is allowed to do. A skill’s scripts and templates run in the light sandbox, like the assistant’s own code.
+
+## Know the limits
+
+- A light sandbox belongs to one conversation. It keeps its files between the assistant’s steps and your follow-up messages, and after about five minutes without use it is removed; the next request starts a fresh one. When your organization’s light sandboxes are all in use, an idle one gives way; when none is idle, the assistant tells you to try again in a minute.
+- One run of code may take up to three minutes. It attaches up to 10 files, each up to 20 MB.
+- A file the assistant writes itself holds up to 1 MB of text.
+- One request creates up to 4 images, and one reply up to 16. Images are billed to your organization and count against you, like the reply itself.
+
+An administrator decides what chat can make under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools), whether it can create images under [Image generation](/platform/admin/governance/content-models#let-agents-generate-images), and how many light sandboxes your organization runs at once under [Sandboxes](/platform/admin/sandboxes#light-sandboxes). A tool that is switched off is gone from every chat; the assistant then answers in the reply or suggests a task instead.

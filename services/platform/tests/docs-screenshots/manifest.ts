@@ -174,6 +174,13 @@ const imageGenerationSection = (page: Page): Locator =>
     exact: true,
   });
 
+/** The Chat tools section on Governance > Policies & Limits. */
+const chatToolsSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.chatTools.title'),
+    exact: true,
+  });
+
 /** The Model endpoints for API keys section on Governance > Models. */
 const modelEndpointsSection = (page: Page): Locator =>
   page.getByRole('region', {
@@ -1300,6 +1307,35 @@ export const SHOTS: readonly Shot[] = [
         .waitFor({ timeout: 60_000 });
     },
     readyWhen: (page) => page.getByText('launch-blocking ones').nth(1),
+  },
+  {
+    // A file the assistant made, under its reply: the docs mock answers the
+    // prompt with a `create_file` call (no sandbox), then a closing line. The
+    // card is the last thing to land.
+    name: 'chat-reply-files',
+    section: 'platform',
+    route: FRESH_CHAT_ROUTE,
+    prepare: async (page) => {
+      // Hydration first: a fill before React attaches never reaches state.
+      await page
+        .getByText('Help me write a clear, professional email')
+        .first()
+        .waitFor({ timeout: 30_000 });
+      const input = page.getByRole('textbox', {
+        name: t('chat.aria.chatInput'),
+      });
+      await input.click();
+      await input.fill(
+        'Put the onboarding feedback themes into a CSV file I can share',
+      );
+      await page.keyboard.press('Enter');
+      await page
+        .getByRole('region', { name: t('chat.artifacts.label'), exact: true })
+        .getByText('onboarding-feedback-themes.csv')
+        .waitFor({ timeout: 60_000 });
+    },
+    readyWhen: (page) =>
+      messageLog(page).getByText('It opens in Excel and Google Sheets.'),
   },
   {
     // The empty new-chat screen with the Assistant's conversation starters.
@@ -2996,6 +3032,20 @@ export const SHOTS: readonly Shot[] = [
     capture: (page) => imageGenerationSection(page),
   },
   {
+    // Governance > Policies & Limits — Chat tools as a new organization has
+    // them: files, skills and code all on. The switches read only once the
+    // policy has loaded.
+    name: 'governance-chat-tools',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/policies-limits',
+    readyWhen: (page) =>
+      chatToolsSection(page).getByRole('switch', {
+        name: t('governance.chatTools.code'),
+        checked: true,
+      }),
+    capture: (page) => chatToolsSection(page),
+  },
+  {
     // Governance > Models — the organization's standard agent as a new
     // organization has it: on, its agent type and model automatic. The line
     // naming what it runs on for the viewer lands last, once the policy and
@@ -3174,6 +3224,7 @@ export const SHOTS: readonly Shot[] = [
         ['project', DEFAULT_SANDBOX_QUOTA.maxSessionsPerOrg],
         ['workflow', DEFAULT_SANDBOX_QUOTA.maxWorkflowSessionsPerOrg],
         ['render', DEFAULT_SANDBOX_QUOTA.maxRenderSessionsPerOrg],
+        ['light', DEFAULT_SANDBOX_QUOTA.maxLightSessionsPerOrg],
       ] as const;
       // The dedicated docs org may still hold older saved limits. Set the
       // current defaults through the real editor, so the capture shows the

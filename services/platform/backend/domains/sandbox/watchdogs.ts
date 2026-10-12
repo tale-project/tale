@@ -19,6 +19,7 @@ import { closeStaleModelApiOps } from '../model_api/metering.ts';
 import { sweepSettledModelApiOps } from '../model_api/retention.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
+import { releaseIdleLightSessions } from './light-sessions.ts';
 import { RECOVERY_STALE_MS } from './recovery.ts';
 import {
   reconcileSession,
@@ -131,6 +132,9 @@ export interface SandboxWatchdogResult {
   /** Render sessions a cut-off scan link left behind, destroyed and settled
    * this tick. */
   released: number;
+  /** Light sandboxes unused past their idle window, destroyed and settled
+   * this tick. */
+  lightReleased: number;
   /** Finalized ops whose gateway-key settlement (spend booked, key revoked)
    * the sweep closed this tick. */
   settled: number;
@@ -254,6 +258,7 @@ export async function runSandboxWatchdog(
   let reclaimed = 0;
   let collected = 0;
   let released = 0;
+  let lightReleased = 0;
   if (options.skipReconcile !== true) {
     const spawner = options.spawner ?? DEFAULT_SPAWNER;
     const passSignal = () =>
@@ -292,13 +297,24 @@ export async function runSandboxWatchdog(
         now,
         signal: passSignal(),
       }),
+      releaseIdleLightSessions(
+        sql,
+        {
+          now,
+          batch: options.releaseBatch ?? 25,
+          signal: passSignal(),
+        },
+        spawner,
+      ),
     ]);
-    const [reconciled, reclaimedRows, collectedRows, releasedRows] = results;
+    const [reconciled, reclaimedRows, collectedRows, releasedRows, lightRows] =
+      results;
     if (reconciled.status === 'fulfilled')
       ({ healed, recreating } = reconciled.value);
     if (reclaimedRows.status === 'fulfilled') reclaimed = reclaimedRows.value;
     if (collectedRows.status === 'fulfilled') collected = collectedRows.value;
     if (releasedRows.status === 'fulfilled') released = releasedRows.value;
+    if (lightRows.status === 'fulfilled') lightReleased = lightRows.value;
     for (const [index, result] of results.entries()) {
       if (result.status === 'rejected') {
         console.warn(
@@ -394,6 +410,7 @@ export async function runSandboxWatchdog(
     reclaimed,
     collected,
     released,
+    lightReleased,
     settled,
   };
 }

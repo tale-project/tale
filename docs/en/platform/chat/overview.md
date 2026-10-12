@@ -3,7 +3,7 @@ title: Chat
 description: Ask a question, inspect the answer and its sources, and keep useful conversations within reach.
 ---
 
-Chat is the quickest place to ask about a document, understand a topic, or refine an answer through follow-up questions. The assistant can search accessible knowledge and fetch public pages when the question needs them. Check its sources before relying on a factual answer, especially when the information may have changed.
+Chat is the quickest place to ask about a document, understand a topic, or refine an answer through follow-up questions. The assistant can search accessible knowledge and fetch public pages when the question needs them, and make a spreadsheet, document, chart or image when you ask for one. Check its sources before relying on a factual answer, especially when the information may have changed.
 
 <Frame caption="A conversation keeps the question and answer together so you can refine the request without starting over.">
 
@@ -28,11 +28,12 @@ When several usable models are available, the model picker can start on **Auto**
 | You want to | Start in |
 | --- | --- |
 | Ask, compare information, or clarify an answer | A **chat** |
+| Get a document, spreadsheet, chart, or image made | A **chat** |
 | Reuse the same files and instructions across conversations | A **project chat** |
 | Produce a deliverable with an owner and a review | A project **task** |
 | Run a repeatable process on a schedule or incoming event | An **automation** |
 
-Chat focuses on conversation and retrieval. For a substantial deliverable, the assistant may direct you to a task so an agent can work in a sandbox and a person can review the result. See [Tasks](/platform/projects/tasks) and [Automations](/platform/automations/concepts).
+Chat makes files within the conversation. For a deliverable that needs an owner and a review, or work on a repository, in a browser session, or lasting hours, the assistant may direct you to a task so an agent can work in its own sandbox and a person can review the result. See [Tasks](/platform/projects/tasks) and [Automations](/platform/automations/concepts).
 
 ## Use the conversation well
 
@@ -44,6 +45,10 @@ Send, choose a model, read sources, and resume a conversation later.
 
 <Card title="Attach files" icon="paperclip" href="/platform/chat/attachments">
 Add a document or image and understand upload and indexing states.
+</Card>
+
+<Card title="Make files and use skills" icon="file-plus" href="/platform/chat/files-and-skills">
+Get a document, spreadsheet, chart, or image, and let a skill guide the work.
 </Card>
 
 <Card title="Compare models in Arena" icon="swords" href="/platform/chat/arena-mode">

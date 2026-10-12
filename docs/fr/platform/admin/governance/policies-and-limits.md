@@ -81,6 +81,22 @@ Les contrôles comprennent les limites de fenêtre de contexte par portée et le
 
 Le commutateur par défaut des instructions personnalisées enregistre la valeur d’organisation pour les instructions personnelles des membres : tant qu’il est activé, les instructions personnalisées de chaque membre s’appliquent à ses réponses de chat, sauf si le membre a désactivé la fonction lui-même sous **Paramètres > Personnalisation**. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/fr/platform/admin/governance/guardrails).
 
+## Choisir ce que le chat peut créer {#chat-tools}
+
+**Outils du chat** détermine ce que l’assistant du chat peut créer en plus de ses réponses. Chaque interrupteur retire son outil de tous les chats de ton organisation, si bien que l’assistant ne se voit jamais proposer un outil qu’il n’a pas le droit d’utiliser :
+
+- **Fichiers** — des fichiers texte que l’assistant rédige lui-même, comme du Markdown, du CSV, du HTML ou des entrées d’agenda. Rien ne démarre pour eux.
+- **Skills** — les instructions de la [bibliothèque de skills](/fr/platform/workspace/skills) de chaque personne, que l’assistant lit quand l’une d’elles correspond à la demande.
+- **Code** — du code dans une sandbox légère, pour des fichiers Word, Excel, PowerPoint et PDF, des graphiques et des calculs. Chaque conversation utilise une sandbox légère à la fois, et la [limite des sandboxes légères](/fr/platform/admin/sandboxes#light-sandboxes) de ton organisation plafonne le nombre de sandboxes qui tournent en même temps.
+
+<Frame caption="Gouvernance > Politiques et limites — les outils du chat tels qu’une nouvelle organisation les a : fichiers, skills et code activés.">
+
+![La section Outils du chat avec trois lignes activées : Fichiers, pour les fichiers texte que l’assistant rédige lui-même ; Skills, pour les instructions de la bibliothèque de skills de chaque personne ; et Code, pour le code dans une sandbox légère.](/images/platform/governance-chat-tools.webp)
+
+</Frame>
+
+Les trois sont activés tant que tu n’en désactives pas un. Modifie les interrupteurs, puis enregistre les modifications en attente dans l’en-tête de la page ; la prochaine réponse de chaque chat les applique. Les images ne relèvent pas de cette section : le chat n’en crée que lorsque la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) est activée. [Créer des fichiers et utiliser des skills dans le chat](/fr/platform/chat/files-and-skills) montre ce que voient les membres.
+
 ## Afficher un avis de confidentialité dans le chat
 
 **Avis de confidentialité** ajoute une courte ligne sous le champ de message du chat pour tous les membres de ton organisation, par exemple pour rappeler de ne pas partager de données sensibles. L’avis reste désactivé tant que tu ne l’actives pas.

@@ -26,8 +26,8 @@ limits:
   invalidSessions: Gib eine ganze Zahl zwischen 1 und 500 ein.
   total: Sitzungen deiner Organisation insgesamt
   totalValue: '{total} / {maxSessions}'
-  totalHint: Summe der drei Limits / Kapazität der Bereitstellung. Andere Organisationen teilen sich diese Kapazität.
-  totalHintWithDevices: Summe der drei Limits / Kapazität der Bereitstellung plus die {deviceSessions} Sandboxes deiner Geräte. Andere Organisationen teilen sich die Kapazität der Bereitstellung.
+  totalHint: Summe der Limits oben / Kapazität der Bereitstellung. Andere Organisationen teilen sich diese Kapazität.
+  totalHintWithDevices: Summe der Limits oben / Kapazität der Bereitstellung plus die {deviceSessions} Sandboxes deiner Geräte. Andere Organisationen teilen sich die Kapazität der Bereitstellung.
   totalExceedsDeployment: Die Summe von {total} Sitzungen überschreitet die Kapazität der Bereitstellung von {maxSessions}. Verringere mindestens ein Limit, um zu speichern.
   totalExceedsCapacity: 'Die Summe von {total} Sitzungen überschreitet die Kapazität von {maxSessions}: {deploymentSessions} in der Bereitstellung und {deviceSessions} auf deinen Geräten. Verringere mindestens ein Limit, um zu speichern.'
   capacityUnavailable: Die Kapazität der Bereitstellung ist nicht verfügbar. Niedrigere Limits kannst du speichern; aktualisiere die Infrastrukturdaten, bevor du ein Limit erhöhst.
@@ -38,10 +38,12 @@ quota:
     project: Agenten-Worker
     workflow: Workflow-Sitzungen
     render: Render-Sitzungen
+    light: Leichte Sandboxes
   budgetHints:
     project: Jede Aufgabe, an der ein Agent gleichzeitig arbeitet, läuft in einer eigenen Sandbox.
     workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
     render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
+    light: Chats führen Code in einer kleinen Wegwerf-Sandbox aus, um Dokumente und Diagramme zu erstellen; eine unbenutzte macht dem nächsten Chat Platz.
 cleanup:
   title: Bereinigung der Arbeitsbereiche
   description:
@@ -145,6 +147,7 @@ worker:
   agent: Worker {number}
   member: Mitglieder-Worker {number}
 deletedAgent: Gelöschter Agent
+chatSandbox: Chat-Sandbox
 devices:
   title: Geräte
   description:

@@ -1,3 +1,4 @@
 maxSessionsPerOrg: 2
 maxWorkflowSessionsPerOrg: 2
 maxRenderSessionsPerOrg: 2
+maxLightSessionsPerOrg: 2

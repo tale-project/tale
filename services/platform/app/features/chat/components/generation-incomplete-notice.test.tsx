@@ -85,6 +85,25 @@ describe('isGenerationIncomplete', () => {
     ).toBe(false);
   });
 
+  it('never flags a reply whose answer is the file it made', () => {
+    expect(
+      isGenerationIncomplete({
+        ...base,
+        parts: [
+          toolCall,
+          {
+            type: 'artifact',
+            fileId: 's3:acme/planets',
+            name: 'planets.csv',
+            mediaType: 'text/csv',
+            sizeBytes: 96,
+            callId: 'c1',
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
   it('leaves an empty placeholder to the thinking state', () => {
     // No tools, no status, no usage: a turn may still be writing this row.
     expect(isGenerationIncomplete({ ...base, parts: [] })).toBe(false);

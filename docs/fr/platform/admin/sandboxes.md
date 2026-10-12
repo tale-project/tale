@@ -3,7 +3,7 @@ title: Gérer la capacité des sandboxes
 description: Ajuste les limites de travail simultané, interprète les mesures et examine un démarrage de sandbox bloqué.
 ---
 
-Ouvre **Paramètres > Sandboxes** lorsqu’un agent ou une analyse de site ne peut pas obtenir d’environnement d’exécution. La page distingue les limites de travail de ton organisation de l’infrastructure réelle du déploiement. Les Propriétaires et Admins peuvent modifier les limites et décider quand les espaces de travail inutilisés sont supprimés. Les Développeurs lisent les limites et la capacité globale, sans accéder aux détails privés des espaces de travail.
+Ouvre **Paramètres > Sandboxes** lorsqu’un agent, le chat ou une analyse de site ne peut pas obtenir d’environnement d’exécution. La page distingue les limites de travail de ton organisation de l’infrastructure réelle du déploiement. Les Propriétaires et Admins peuvent modifier les limites et décider quand les espaces de travail inutilisés sont supprimés. Les Développeurs lisent les limites et la capacité globale, sans accéder aux détails privés des espaces de travail.
 
 ## Identifier la limite concernée
 
@@ -12,25 +12,34 @@ Ouvre **Paramètres > Sandboxes** lorsqu’un agent ou une analyse de site ne pe
 | **Workers d’agent** | 2 | Un worker en démarrage ou au travail : un pour chaque tâche sur laquelle un agent travaille en même temps. Chaque worker est une sandbox avec son propre espace de travail, que l’agent réutilise pour ses tâches suivantes. |
 | Sessions de workflow | 2 | La sandbox d’une exécution. Des exécutions simultanées occupent des places distinctes. |
 | Sessions de rendu | 2 | Une sandbox temporaire qui rend les pages pendant l’analyse des sites. |
+| Sandboxes légères | 2 | Une sandbox éphémère dans laquelle l’assistant du chat exécute du code pour une conversation. Une sandbox inutilisée cède sa place au chat suivant ; voir [Sandboxes légères pour le chat](#light-sandboxes). |
 
 Ces valeurs limitent le travail simultané, pas le nombre de tâches ni les dépenses. Un agent qui travaille sur trois tâches à la fois occupe trois workers d’agent ; une exécution qui les trouve tous occupés [en attend un](#resoudre-un-demarrage-bloque) et démarre d’elle-même dès qu’un worker se libère. Sous **Workers d’agent**, les Propriétaires et les Admins voient combien d’exécutions d’agent attendent un worker libre : celles qu’une limite plus haute démarrerait tout de suite. Les limites ne réservent pas d’infrastructure : toutes les organisations partagent la capacité du déploiement.
 
-<Frame caption="Le total des trois limites de travail se recalcule automatiquement. Il ne doit pas dépasser la capacité du déploiement.">
+<Frame caption="Le total des limites de travail se recalcule automatiquement. Il ne doit pas dépasser la capacité du déploiement.">
 
-![La section des limites de l’organisation affiche trois limites de sessions modifiables et leur total calculé par rapport à la capacité du déploiement.](/images/platform/settings-sandboxes.webp)
+![La section des limites de l’organisation affiche quatre limites de sessions modifiables et leur total calculé par rapport à la capacité du déploiement.](/images/platform/settings-sandboxes.webp)
 
 </Frame>
 
 ## Modifier une limite d’activité
 
 1. Vérifie les places allouées à l’activité et les mesures d’infrastructure en dessous.
-2. Saisis un entier de 1 à 500 pour la limite concernée. Le total affiché recalcule la somme des trois champs.
+2. Saisis un entier de 1 à 500 pour la limite concernée. Le total affiché recalcule la somme des quatre champs.
 3. Maintiens cette somme dans la capacité du déploiement, puis choisis **Enregistrer** dans l’en-tête. **Abandonner** rétablit les valeurs enregistrées.
 4. Rouvre la page pour vérifier les limites enregistrées, puis observe si de nouvelles tâches obtiennent une allocation.
 
-Les valeurs initiales totalisent 6. Avec une capacité de déploiement de 8, un total de 8 est accepté et 9 est refusé. Le serveur vérifie à nouveau la capacité à l’enregistrement ; sa valeur peut donc différer de la première observation. Les [appareils](/fr/platform/admin/sandbox-devices) connectés de ton organisation ajoutent au plafond les sandboxes qu’ils exécutent : avec un appareil qui en exécute 4, le total peut atteindre 12.
+Les valeurs initiales totalisent 8. Avec une capacité de déploiement de 10, un total de 10 est accepté et 11 est refusé. Le serveur vérifie à nouveau la capacité à l’enregistrement ; sa valeur peut donc différer de la première observation. Les [appareils](/fr/platform/admin/sandbox-devices) connectés de ton organisation ajoutent au plafond les sandboxes qu’ils exécutent : avec un appareil qui en exécute 4, le total peut atteindre 14.
 
 Une baisse concerne les prochains démarrages et n’interrompt pas le travail en cours. Si les mesures d’infrastructure manquent, les réductions restent possibles, mais une augmentation demande une nouvelle observation de capacité. Si l’opérateur a abaissé la capacité sous ton total actuel, réduis les limites avant d’enregistrer à nouveau. Lorsque les allocations de l’organisation elles-mêmes ne peuvent pas être chargées, les champs restent indisponibles au lieu de présenter des valeurs par défaut modifiables.
+
+## Sandboxes légères pour le chat {#light-sandboxes}
+
+Quand un membre demande à l’assistant du chat un fichier Word, Excel, PowerPoint ou PDF, un graphique ou un calcul, l’assistant exécute du code dans une sandbox légère : un environnement isolé qui démarre en une seconde environ et ne conserve aucun espace de travail. [Créer des fichiers et utiliser des skills dans le chat](/fr/platform/chat/files-and-skills) décrit ce que voient les membres.
+
+Chaque conversation utilise au plus une sandbox légère. Elle garde ses fichiers entre les étapes de l’assistant et les questions de suivi du membre ; après environ cinq minutes sans utilisation, Tale la supprime. Quand l’organisation exécute déjà autant de sandboxes légères que **Sandboxes légères** l’autorise, une nouvelle demande prend la place de celle qui est inutilisée depuis le plus longtemps, à condition qu’elle le soit depuis au moins 30 secondes. Quand toutes sont occupées, l’assistant invite le membre à réessayer dans une minute ; aucune file d’attente ne se forme.
+
+Une sandbox légère apparaît sous **Espaces de travail** avec le nom de la personne qui discute et la mention **Sandbox du chat**. Tu peux la supprimer comme tout espace de travail. Elle ne peut pas être épinglée, car Tale la supprime dès qu’elle est inactive. Pour que le chat n’exécute jamais de code, désactive **Code** sous [Outils du chat](/fr/platform/admin/governance/policies-and-limits#chat-tools).
 
 ## Lire les mesures d’infrastructure
 
@@ -64,7 +73,7 @@ Les Propriétaires et Admins disposent du menu de chaque ligne :
 | Action | Effet |
 | --- | --- |
 | **Arrêter la tâche** | Annule toutes les opérations en cours dans cet espace. Un worker traite une tâche à la fois : seule cette tâche s’arrête, les autres workers de l’agent continuent. |
-| **Épingler** / **Détacher** | Exempte l’espace du nettoyage automatique pour inactivité ou expiration et de la suppression pour cause d’inutilisation, ou rétablit ce nettoyage. Une allocation épinglée peut continuer à occuper de la capacité. Si l’environnement d’un espace épinglé disparaît, par exemple après un redémarrage de l’hôte, Tale le relance avec ses fichiers, et l’espace reste épinglé. |
+| **Épingler** / **Détacher** | Exempte l’espace du nettoyage automatique pour inactivité ou expiration et de la suppression pour cause d’inutilisation, ou rétablit ce nettoyage. Une sandbox légère du chat ne peut pas être épinglée. Une allocation épinglée peut continuer à occuper de la capacité. Si l’environnement d’un espace épinglé disparaît, par exemple après un redémarrage de l’hôte, Tale le relance avec ses fichiers, et l’espace reste épinglé. |
 | **Supprimer** | Demande confirmation, puis retire la sandbox avec ses fichiers en arrière-plan : l’espace est d’abord détaché et le travail en cours annulé. Tant que l’espace n’a pas disparu, sa ligne indique **Suppression…** et tu peux continuer à utiliser la page. Si Tale ne parvient toujours pas à le retirer après plusieurs tentatives, il reste dans la liste, détaché, et indique **Non supprimée** ; choisis alors de nouveau **Supprimer** pour le retirer complètement. Tant que la ligne indique **Suppression…**, rien de nouveau ne démarre dans cet espace. L’exécution d’un agent qui l’utiliserait prend un autre worker libre de l’agent ; si aucun n’est libre, elle attend et indique **En attente d’un espace de travail**. Une étape d’exécution de workflow qui a besoin de l’espace échoue aussitôt en indiquant la raison, sans attendre ni réessayer, car les fichiers laissés par ses étapes précédentes sont en cours de suppression. Une fois la ligne disparue, le démarrage suivant crée un environnement neuf ; si elle indique **Non supprimée** à la place, le travail en attente reprend dans les anciens fichiers. |
 
 Tale enregistre durablement les changements d’épinglage et réessaie de les transmettre si le runtime ne les confirme pas, même après un redémarrage d’un worker backend ou une panne de l’appareil. Chaque tentative applique la dernière valeur souhaitée à la même instance de session. Répéter le détachement ne repousse pas son expiration.

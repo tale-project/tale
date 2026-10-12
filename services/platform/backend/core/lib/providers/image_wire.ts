@@ -34,6 +34,28 @@ export type ImageGenerationWire = 'openrouter-images' | 'openai-images';
 export const IMAGE_SIZES = ['square', 'landscape', 'portrait'] as const;
 export type ImageSize = (typeof IMAGE_SIZES)[number];
 
+/** The shape an agent asked for: one of {@link IMAGE_SIZES}, or a pixel size
+ * (`1536x1024`, the spelling image APIs teach models) or an aspect ratio
+ * (`16:9`, the spelling people use) read by its orientation. Shared by
+ * every lane's image tool, so a size means the same wherever it is asked. */
+export function readImageSize(raw: unknown): ImageSize | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const value = raw.trim().toLowerCase();
+  const named = IMAGE_SIZES.find((candidate) => candidate === value);
+  if (named !== undefined) return named;
+  const shape =
+    /^(\d{2,5})\s*[x×]\s*(\d{2,5})$/.exec(value) ??
+    /^([1-9]\d{0,3})\s*:\s*([1-9]\d{0,3})$/.exec(value);
+  if (shape === null) return undefined;
+  const width = Number(shape[1]);
+  const height = Number(shape[2]);
+  return width === height
+    ? 'square'
+    : width > height
+      ? 'landscape'
+      : 'portrait';
+}
+
 /** The raster formats the platform stores. Anything else a model returns —
  * an SVG from a vector model, a format it cannot recognize — is refused: a
  * deliverable is served back to people, and an SVG can carry script. */

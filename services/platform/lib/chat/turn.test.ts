@@ -13,12 +13,14 @@ import {
 import type { GuardrailFilter } from './guardrails';
 import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {
+  attachArtifact,
   CAP_CUT_CALL_OUTPUT,
   CAP_WITHHELD_CALL_OUTPUT,
   estimateCostCents,
   fixedLocaleNotice,
   LAST_TOOL_ROUND_NOTICE,
   MAX_TOOL_ROUNDS,
+  MAX_WORK_TOOL_ROUNDS,
   runTurn,
   ThreadBusyError,
   TOOL_BUDGET_SPENT_NOTICE,
@@ -2741,5 +2743,270 @@ describe('runTurn — where the reply was served', () => {
     expect(d.store.finalized.at(-1)).toMatchObject({
       usage: { serving: { providers: ['Together'] } },
     });
+  });
+});
+
+describe('runTurn — the files a tool made', () => {
+  const XLSX =
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  function workModel(calls: ToolCallRequest[]): ModelCall {
+    let round = 0;
+    return async function* stream() {
+      round += 1;
+      if (round === 1) {
+        yield { text: 'Building it. ' };
+        yield { text: '', toolCalls: calls };
+        return;
+      }
+      yield { text: 'The spreadsheet is attached.' };
+    };
+  }
+
+  function workExecutor(output: unknown): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          {
+            name: 'run_code',
+            description: 'Run code.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve(output);
+        },
+      },
+    };
+  }
+
+  const ARTIFACT = {
+    ref: 's3:org/sheet',
+    name: 'planets.xlsx',
+    mediaType: XLSX,
+    sizeBytes: 4935,
+  };
+
+  it('lifts each produced file onto the reply, after the result that names it', async () => {
+    const { executor } = workExecutor({ status: 'ok', artifacts: [ARTIFACT] });
+    const d = deps({
+      model: workModel([
+        { id: 'call_1', name: 'run_code', input: { language: 'python' } },
+      ]),
+      tools: executor,
+    });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized.at(-1)?.parts as MessagePart[];
+    const kinds = parts.map((part) => part.type);
+    expect(kinds).toEqual([
+      'text',
+      'tool-call',
+      'tool-result',
+      'artifact',
+      'text',
+    ]);
+    expect(parts[3]).toEqual({
+      type: 'artifact',
+      fileId: 's3:org/sheet',
+      name: 'planets.xlsx',
+      mediaType: XLSX,
+      sizeBytes: 4935,
+      callId: 'call_1',
+    });
+    // Settled with the round, before the closing text streamed: the person
+    // sees the file while the model is still writing.
+    expect(
+      d.store.partsWrites.some((write) =>
+        write.some((part) => part.type === 'artifact'),
+      ),
+    ).toBe(true);
+  });
+
+  it('attaches the files of a duplicated call once', async () => {
+    const { executor, executed } = workExecutor({
+      status: 'ok',
+      artifacts: [ARTIFACT],
+    });
+    const d = deps({
+      model: workModel([
+        { id: 'call_1', name: 'run_code', input: { language: 'python' } },
+        { id: 'call_2', name: 'run_code', input: { language: 'python' } },
+      ]),
+      tools: executor,
+    });
+
+    await runTurn(request(), d.deps);
+
+    expect(executed).toHaveLength(1);
+    const parts = d.store.finalized.at(-1)?.parts as MessagePart[];
+    expect(parts.filter((part) => part.type === 'artifact')).toHaveLength(1);
+    expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(2);
+  });
+
+  it('attaches nothing a result does not well-formedly name', async () => {
+    const { executor } = workExecutor({
+      status: 'ok',
+      artifacts: [
+        { ref: '', name: 'x', mediaType: 'text/plain', sizeBytes: 1 },
+        { ref: 's3:org/y', name: 'y.txt', mediaType: 'text/plain' },
+        'not-an-artifact',
+      ],
+    });
+    const d = deps({
+      model: workModel([
+        { id: 'call_1', name: 'run_code', input: { language: 'python' } },
+      ]),
+      tools: executor,
+    });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized.at(-1)?.parts as MessagePart[];
+    expect(parts.some((part) => part.type === 'artifact')).toBe(false);
+  });
+
+  it('shows a document revised by a later round once, as it ended up [CHAT-R20]', async () => {
+    const outputs = [
+      { status: 'ok', artifacts: [ARTIFACT] },
+      { status: 'ok', artifacts: [{ ...ARTIFACT, ref: 's3:org/sheet-v2' }] },
+    ];
+    let round = 0;
+    const model: ModelCall = async function* stream() {
+      round += 1;
+      if (round <= 2) {
+        yield {
+          text: '',
+          toolCalls: [{ id: `call_${round}`, name: 'run_code', input: {} }],
+        };
+        return;
+      }
+      yield { text: 'Fixed the header row.' };
+    };
+    const d = deps({
+      model,
+      tools: {
+        wireTools: [
+          { name: 'run_code', description: 'Run code.', parameters: {} },
+        ],
+        execute: () => Promise.resolve(outputs.shift()),
+      },
+    });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized.at(-1)?.parts as MessagePart[];
+    expect(parts.filter((part) => part.type === 'artifact')).toEqual([
+      expect.objectContaining({ fileId: 's3:org/sheet-v2', callId: 'call_2' }),
+    ]);
+    // In the first version's place: the card does not jump as it updates.
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-call',
+      'tool-result',
+      'artifact',
+      'tool-call',
+      'tool-result',
+      'text',
+    ]);
+  });
+
+  it('keeps the produced files off the model wire: the result already names them', async () => {
+    const { executor } = workExecutor({ status: 'ok', artifacts: [ARTIFACT] });
+    const requests: ModelCallRequest[] = [];
+    let round = 0;
+    const model: ModelCall = async function* stream(modelRequest) {
+      requests.push(modelRequest);
+      round += 1;
+      if (round === 1) {
+        yield {
+          text: '',
+          toolCalls: [{ id: 'call_1', name: 'run_code', input: {} }],
+        };
+        return;
+      }
+      yield { text: 'Done.' };
+    };
+    const d = deps({ model, tools: executor });
+
+    await runTurn(request(), d.deps);
+
+    const second = requests[1]?.messages.at(-1);
+    expect(second?.role).toBe('assistant');
+    expect(second?.parts.map((part) => part.type)).toContain('artifact');
+    // The round transcript ends on the tool result; the explode drops the
+    // artifact part (see wire-parts), so no trailing assistant turn reaches
+    // a provider.
+  });
+
+  it('runs as many tool rounds as the host allows a work loadout', async () => {
+    let rounds = 0;
+    const model: ModelCall = async function* stream(modelRequest) {
+      rounds += 1;
+      if (modelRequest.tools === undefined) {
+        yield { text: 'Here is what I have.' };
+        return;
+      }
+      yield {
+        text: '',
+        toolCalls: [{ id: `call_${rounds}`, name: 'run_code', input: {} }],
+      };
+    };
+    const { executor } = workExecutor({ status: 'ok' });
+    const d = deps({
+      model,
+      tools: executor,
+      maxToolRounds: MAX_WORK_TOOL_ROUNDS,
+    });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(rounds).toBe(MAX_WORK_TOOL_ROUNDS + 1);
+    expect(MAX_WORK_TOOL_ROUNDS).toBeGreaterThan(MAX_TOOL_ROUNDS);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      usage: expect.objectContaining({ stepLimitHit: true }),
+    });
+  });
+});
+
+describe('attachArtifact', () => {
+  const file = (
+    fileId: string,
+    name: string,
+    mediaType: string,
+  ): Extract<MessagePart, { type: 'artifact' }> => ({
+    type: 'artifact',
+    fileId,
+    name,
+    mediaType,
+    sizeBytes: 10,
+  });
+
+  it('puts a revised document in its earlier version’s place', () => {
+    const parts: MessagePart[] = [
+      file('v1', 'report.md', 'text/markdown'),
+      { type: 'text', text: 'Drafted.' },
+      file('csv', 'data.csv', 'text/csv'),
+    ];
+    attachArtifact(parts, file('v2', 'report.md', 'text/markdown'));
+    expect(
+      parts.map((part) => (part.type === 'artifact' ? part.fileId : part.type)),
+    ).toEqual(['v2', 'text', 'csv']);
+  });
+
+  it('adds every image, even under a name the reply already shows', () => {
+    const parts: MessagePart[] = [file('a', 'sunset.png', 'image/png')];
+    attachArtifact(parts, file('b', 'sunset.png', 'image/png'));
+    attachArtifact(parts, file('c', 'notes.md', 'text/markdown'));
+    expect(
+      parts.map((part) => part.type === 'artifact' && part.fileId),
+    ).toEqual(['a', 'b', 'c']);
   });
 });

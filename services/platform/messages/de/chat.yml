@@ -578,6 +578,16 @@ thinking:
     mailAttachments: Listet E-Mail-Anhänge auf
   seconds: '{seconds}s'
   summaryReasoningOnly: Hat den Gedankengang gezeigt
+  writingFile: Schreibt {name}
+  generatingImages: '{count, plural, one {Erstellt ein Bild} other {Erstellt # Bilder}}'
+  loadingSkill: Liest den Skill {name}
+  readingSkillFile: Liest {path} aus dem Skill {name}
+  runningCode: Führt {language} in einer leichten Sandbox aus
+artifacts:
+  label: Dateien aus dieser Antwort
+  open: '{name} öffnen'
+  download: '{name} herunterladen'
+  viewImage: '{name} ansehen'
 sources:
   label: Quellen
   showAll: Alle {count} Quellen anzeigen

@@ -140,8 +140,11 @@ function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
         !values.includes(stored.organizationId)
       )
         return [];
-      if (text.includes('pinned =')) stored.pinned = Boolean(values[0]);
-      else stored.status = 'destroyed';
+      if (text.includes('pinned =')) {
+        // A chat's light sandbox takes no pin.
+        if (values[0] === true && stored.ownerType === 'light') return [];
+        stored.pinned = Boolean(values[0]);
+      } else stored.status = 'destroyed';
       return [{ id: stored.id }];
     }
     return [];
@@ -484,6 +487,21 @@ describe('pinSession serializes with the other lifecycle transitions', () => {
       ...OWNED_SESSION,
       organizationId: 'org-b',
     });
+
+    await expect(
+      pinSession(sql, {
+        organizationId: 'org-a',
+        sessionId: 'session-a',
+        pinned: true,
+      }),
+    ).resolves.toBe(false);
+
+    expect(sessionSetPinned).not.toHaveBeenCalled();
+    expect(stored?.pinned).toBe(false);
+  });
+
+  it('refuses to pin a chat’s light sandbox, which is released when it idles [SBX-R25]', async () => {
+    const { sql, stored } = fakeSql({ ...OWNED_SESSION, ownerType: 'light' });
 
     await expect(
       pinSession(sql, {

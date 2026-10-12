@@ -160,9 +160,11 @@ the session installed), `PLAYWRIGHT_MCP_*` settings in the environment, and
 `TALE_PLAYWRIGHT_MCP_EAGER=1`, start the server at once.
 
 Python document libraries are baked into the shared Python 3.12 environment:
-openpyxl and xlrd for spreadsheets, pypdf for PDFs, PyYAML for safe YAML
-parsing, and xmlschema for XSD validation. defusedxml enables openpyxl's XML
-entity protection. The libraries the builtin document skills
+openpyxl and xlrd for spreadsheets, python-docx for Word files, pypdf for PDFs,
+matplotlib for charts, PyYAML for safe YAML parsing, and xmlschema for XSD
+validation; the chat's `run_code` tool tells the model they are there.
+defusedxml enables openpyxl's XML entity protection. The libraries the builtin
+document skills
 (`configs/platform/custom/skills/{docx,pdf,pptx,xlsx}`) import sit beside them:
 `markitdown[pptx]`, pandas, pdfplumber, pdf2image, Pillow, reportlab and lxml.
 The complete version and wheel-hash lock is

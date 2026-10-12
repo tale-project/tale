@@ -678,6 +678,19 @@
       "height": 436
     },
     {
+      "file": "images/platform/chat-reply-files.webp",
+      "shot": "chat-reply-files",
+      "route": "/dashboard/:orgId/chat?new=true",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/chat-shared-view.webp",
       "shot": "chat-shared-view",
       "route": "/dashboard/:orgId/chat",
@@ -997,6 +1010,19 @@
       "height": 1400
     },
     {
+      "file": "images/platform/governance-chat-tools.webp",
+      "shot": "governance-chat-tools",
+      "route": "/dashboard/:orgId/settings/governance/policies-limits",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 670,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/governance-confidentiality-notice.webp",
       "shot": "governance-confidentiality-notice",
       "route": "/dashboard/:orgId/settings/governance/policies-limits",
@@ -1054,7 +1080,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 394
+      "height": 394,
+      "locale": "en"
     },
     {
       "file": "images/platform/governance-legal-hold.webp",
@@ -1423,7 +1450,7 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 1048,
+      "height": 1266,
       "locale": "en"
     },
     {

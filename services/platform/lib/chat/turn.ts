@@ -28,6 +28,7 @@
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
+import type { SkillCatalogEntry } from '../agent/skills-block';
 import {
   classifyChatErrorCode,
   describeChatError,
@@ -64,6 +65,7 @@ import {
 import type { TaskHandover } from './handover';
 import { createServingTally, mergeServedBy } from './serving';
 import {
+  toolOutputArtifacts,
   type ChatToolExecutor,
   type ToolCallRequest,
   type WireTool,
@@ -109,6 +111,15 @@ const NO_HARNESSES: HarnessTable = new Map();
 export const MAX_TOOL_ROUNDS = 4;
 
 /**
+ * The round budget of a turn that also offers WORK tools — writing a file,
+ * running code in a sandbox, loading a skill. Making a document takes more
+ * steps than looking something up: load the skill, run the program, read
+ * the error, run it again, answer. Twelve rounds is room for that loop and
+ * one correction, still a ceiling the host sets, not the model.
+ */
+export const MAX_WORK_TOOL_ROUNDS = 12;
+
+/**
  * Wire-only budget notices, appended as a trailing user turn on the round
  * they describe (user role for the same reason as the context truncation
  * notice: the Anthropic wire hoists system-role messages out of position).
@@ -122,15 +133,15 @@ export const MAX_TOOL_ROUNDS = 4;
  * say what was actually read, offer to continue.
  */
 export const LAST_TOOL_ROUND_NOTICE =
-  '[Last lookup round for this reply: issue every remaining search or ' +
-  'fetch now, as parallel tool calls in this one response — after their ' +
-  'results you must answer.]';
+  '[Last tool round for this reply: issue every remaining call now, as ' +
+  'parallel tool calls in this one response — after their results you ' +
+  'must answer.]';
 
 export const TOOL_BUDGET_SPENT_NOTICE =
-  '[The lookup budget for this reply is spent; no further tool calls will ' +
-  'run. Answer now from what you have gathered. If you could not read ' +
-  'everything, say exactly which parts you did read and offer to continue ' +
-  'in a follow-up reply — do not announce further lookups.]';
+  '[The tool budget for this reply is spent; no further tool calls will ' +
+  'run. Answer now from what you have gathered. If you could not finish, ' +
+  'say exactly what you did and what is left, and offer to continue in a ' +
+  'follow-up reply — do not announce further tool calls.]';
 
 /**
  * The fixed-reply-language notice, appended to the newest user message on
@@ -458,6 +469,9 @@ export interface TurnRequest {
    * the app's chat only. */
   readonly taskHandover?: TaskHandover;
   readonly toolDocs?: readonly ToolDoc[];
+  /** The skills the turn may load (`ContextInput.skillCatalog`); only a
+   * turn that offers the skill tools passes any. */
+  readonly skillCatalog?: readonly SkillCatalogEntry[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary
    * server-side). Absent for an unbound thread. */
@@ -517,6 +531,10 @@ export interface TurnDeps {
   /** The tool executor, when this lane equips tools. Absent runs the turn
    * as a plain single-shot answer. */
   readonly tools?: ChatToolExecutor;
+  /** How many rounds may end in tool calls before the tools are withheld —
+   * {@link MAX_TOOL_ROUNDS} unless the host's loadout needs more (a lane
+   * with work tools passes {@link MAX_WORK_TOOL_ROUNDS}). */
+  readonly maxToolRounds?: number;
   readonly now?: () => Date;
   /** Called with every cleared chunk — how a host forwards the stream. */
   readonly onChunk?: (text: string) => void;
@@ -649,6 +667,9 @@ function assembleTurnContext(
       : {}),
     ...(request.taskHandover !== undefined
       ? { taskHandover: request.taskHandover }
+      : {}),
+    ...(request.skillCatalog !== undefined
+      ? { skillCatalog: request.skillCatalog }
       : {}),
     now,
     history,
@@ -1268,6 +1289,31 @@ function sortKeysDeep(value: unknown): unknown {
   return value;
 }
 
+/**
+ * Put a produced file on the reply. A document the reply already carries
+ * under the same name was revised by a later call: the new version takes
+ * the earlier one's place, so the person gets the file once, as it ended
+ * up. Images are each a result of their own and always add.
+ */
+export function attachArtifact(
+  parts: MessagePart[],
+  artifact: Extract<MessagePart, { type: 'artifact' }>,
+): void {
+  if (!artifact.mediaType.startsWith('image/')) {
+    const earlier = parts.findIndex(
+      (part) =>
+        part.type === 'artifact' &&
+        part.name === artifact.name &&
+        !part.mediaType.startsWith('image/'),
+    );
+    if (earlier !== -1) {
+      parts[earlier] = artifact;
+      return;
+    }
+  }
+  parts.push(artifact);
+}
+
 /** The sentence a guardrail refusal is reported with — the chat turn's and
  * the model endpoints' alike (`backend/domains/model_api/guardrails.ts`). */
 export function refusalReason(refusal: GuardrailRefusal): string {
@@ -1474,6 +1520,7 @@ export async function runTurn(
       : cancel.signal;
 
     const executor = deps.tools;
+    const maxToolRounds = deps.maxToolRounds ?? MAX_TOOL_ROUNDS;
     /** Parts settled by finished tool rounds, in authored order. */
     const settledParts: MessagePart[] = [];
     /** The TTFT anchor is the FIRST round's first provider text SSE;
@@ -1524,7 +1571,7 @@ export async function runTurn(
       // and only for the round that is about to run its tools.
       roundSettled = false;
       const offeredTools =
-        executor !== undefined && toolRounds < MAX_TOOL_ROUNDS
+        executor !== undefined && toolRounds < maxToolRounds
           ? executor.wireTools
           : undefined;
       // The notice rides the wire only, never the store: the transcript
@@ -1532,9 +1579,9 @@ export async function runTurn(
       const budgetNotice =
         executor === undefined
           ? undefined
-          : toolRounds >= MAX_TOOL_ROUNDS
+          : toolRounds >= maxToolRounds
             ? TOOL_BUDGET_SPENT_NOTICE
-            : toolRounds === MAX_TOOL_ROUNDS - 1
+            : toolRounds === maxToolRounds - 1
               ? LAST_TOOL_ROUND_NOTICE
               : undefined;
       const roundMessages: ChatMessage[] = [...context.messages];
@@ -1702,6 +1749,25 @@ export async function runTurn(
           structured: true,
         });
       }
+      // The files the round's calls produced ride the reply itself, after
+      // the results that name them: they are what the person downloads, and
+      // the record keeps them whether or not the model mentions them. A
+      // duplicate call shares its twin's output — its files are one set.
+      const attached = new Set<string>();
+      for (const [index, call] of calls.entries()) {
+        for (const artifact of toolOutputArtifacts(outputs[index])) {
+          if (attached.has(artifact.ref)) continue;
+          attached.add(artifact.ref);
+          attachArtifact(settledParts, {
+            type: 'artifact',
+            fileId: artifact.ref,
+            name: artifact.name,
+            mediaType: artifact.mediaType,
+            sizeBytes: artifact.sizeBytes,
+            callId: call.id,
+          });
+        }
+      }
       await persistSettledParts();
       // One cancel read for the whole batch: a Stop that landed while the
       // tools ran must not start another round. The finished batch keeps
@@ -1793,7 +1859,7 @@ export async function runTurn(
             : streamed.finishReason;
     const usage: TurnUsage = {
       ...summedUsage(summed, request.model.pricing),
-      ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
+      ...(toolRounds >= maxToolRounds ? { stepLimitHit: true } : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
       ...servingStamp(),

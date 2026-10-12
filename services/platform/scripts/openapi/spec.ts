@@ -12017,6 +12017,26 @@ curl -H "Authorization: Bearer <api-key>" \\
             text: { ...str, description: 'Extracted text, when any' },
           },
         },
+        ArtifactPart: {
+          type: 'object',
+          required: ['type', 'fileId', 'name', 'mediaType', 'sizeBytes'],
+          description:
+            'A file the assistant produced during the reply — a document, a spreadsheet, a chart, an image — stored in the organization and bound to the chat, so it reads for exactly the people who can read the chat. It follows the tool result that produced it.',
+          properties: {
+            type: { type: 'string', enum: ['artifact'] },
+            fileId: {
+              ...str,
+              description: 'The stored file’s reference',
+            },
+            name: str,
+            mediaType: str,
+            sizeBytes: int,
+            callId: {
+              ...str,
+              description: 'The tool call that produced the file',
+            },
+          },
+        },
         ToolCallPart: {
           type: 'object',
           required: ['type', 'callId', 'capabilityId', 'input'],
@@ -12061,6 +12081,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               text: '#/components/schemas/TextPart',
               reasoning: '#/components/schemas/ReasoningPart',
               attachment: '#/components/schemas/AttachmentPart',
+              artifact: '#/components/schemas/ArtifactPart',
               'tool-call': '#/components/schemas/ToolCallPart',
               'tool-result': '#/components/schemas/ToolResultPart',
               approval: '#/components/schemas/ApprovalPart',
@@ -12070,6 +12091,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             ref('TextPart'),
             ref('ReasoningPart'),
             ref('AttachmentPart'),
+            ref('ArtifactPart'),
             ref('ToolCallPart'),
             ref('ToolResultPart'),
             ref('ApprovalPart'),

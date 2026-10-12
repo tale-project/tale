@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.35.0",
+    "version": "3.36.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -42887,7 +42887,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.35.0"
+          "example": "3.36.0"
         }
       },
       "Location": {
@@ -50899,6 +50899,34 @@
           }
         }
       },
+      "ArtifactPart": {
+        "type": "object",
+        "required": ["type", "fileId", "name", "mediaType", "sizeBytes"],
+        "description": "A file the assistant produced during the reply — a document, a spreadsheet, a chart, an image — stored in the organization and bound to the chat, so it reads for exactly the people who can read the chat. It follows the tool result that produced it.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["artifact"]
+          },
+          "fileId": {
+            "type": "string",
+            "description": "The stored file’s reference"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "callId": {
+            "type": "string",
+            "description": "The tool call that produced the file"
+          }
+        }
+      },
       "ToolCallPart": {
         "type": "object",
         "required": ["type", "callId", "capabilityId", "input"],
@@ -50965,6 +50993,7 @@
             "text": "#/components/schemas/TextPart",
             "reasoning": "#/components/schemas/ReasoningPart",
             "attachment": "#/components/schemas/AttachmentPart",
+            "artifact": "#/components/schemas/ArtifactPart",
             "tool-call": "#/components/schemas/ToolCallPart",
             "tool-result": "#/components/schemas/ToolResultPart",
             "approval": "#/components/schemas/ApprovalPart"
@@ -50979,6 +51008,9 @@
           },
           {
             "$ref": "#/components/schemas/AttachmentPart"
+          },
+          {
+            "$ref": "#/components/schemas/ArtifactPart"
           },
           {
             "$ref": "#/components/schemas/ToolCallPart"

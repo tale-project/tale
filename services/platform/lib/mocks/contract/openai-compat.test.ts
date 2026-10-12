@@ -17,6 +17,7 @@ import {
   CANNED_STREAM_ERROR_MESSAGE,
   MOCK_SERVING,
   MOCK_TRIGGERS,
+  MOCK_WORK_TOOLS,
 } from '../overrides/canned';
 import { DOCS_REPLIES } from '../overrides/docs-replies';
 import { readJson } from './json';
@@ -178,6 +179,79 @@ describe('chat/completions override', () => {
     });
     expect(chunks[0]).not.toHaveProperty('provider');
   });
+
+  test.each([
+    [
+      MOCK_TRIGGERS.makeFile,
+      'create_file',
+      { name: MOCK_WORK_TOOLS.fileName, content: MOCK_WORK_TOOLS.fileContent },
+    ],
+    [
+      MOCK_TRIGGERS.makeSpreadsheet,
+      'run_code',
+      { language: 'python', code: MOCK_WORK_TOOLS.spreadsheetCode },
+    ],
+  ])(
+    'work trigger %s calls %s, then closes once the result is in',
+    async (trigger, tool, args) => {
+      const first = events(
+        await (
+          await post('/v1/chat/completions', {
+            model: 'm',
+            stream: true,
+            messages: [{ role: 'user', content: `${trigger} please` }],
+          })
+        ).text(),
+      );
+      const calls = first.flatMap((chunk) => {
+        const choice = (
+          chunk.choices as { delta?: { tool_calls?: unknown[] } }[]
+        )[0];
+        return choice?.delta?.tool_calls ?? [];
+      }) as { id: string; function: { name: string; arguments: string } }[];
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.function.name).toBe(tool);
+      expect(JSON.parse(calls[0]?.function.arguments ?? '{}')).toEqual(args);
+      const closing = first.at(-1)?.choices as
+        | { finish_reason: string }[]
+        | undefined;
+      expect(closing?.[0]?.finish_reason).toBe('tool_calls');
+
+      const resumed = await (
+        await post('/v1/chat/completions', {
+          model: 'm',
+          stream: true,
+          messages: [
+            { role: 'user', content: `${trigger} please` },
+            {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: calls[0]?.id,
+                  type: 'function',
+                  function: calls[0]?.function,
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              tool_call_id: calls[0]?.id,
+              content: '{"status":"ok"}',
+            },
+          ],
+        })
+      ).text();
+      const text = events(resumed)
+        .map(
+          (chunk) =>
+            (chunk.choices as { delta?: { content?: string } }[])[0]?.delta
+              ?.content ?? '',
+        )
+        .join('');
+      expect(text).toBe(MOCK_WORK_TOOLS.done);
+    },
+  );
 
   test('a plain stream names no upstream and no region', async () => {
     const res = await post('/v1/chat/completions', {

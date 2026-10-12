@@ -19,7 +19,7 @@ export { DEFAULT_SANDBOX_QUOTA };
  * sandboxes; its cap lives in the `maxSessionsPerOrg` config field, whose
  * name predates the rename and stays for shipped-config compatibility.
  */
-export type SessionBudget = 'project' | 'workflow' | 'render';
+export type SessionBudget = 'project' | 'workflow' | 'render' | 'light';
 
 /**
  * Which budget an `ownerType` draws from — `null` for the retired per-thread
@@ -32,6 +32,7 @@ export function sessionBudgetForOwnerType(
   if (ownerType === 'thread') return null;
   if (ownerType === 'workflow_run') return 'workflow';
   if (ownerType === 'render') return 'render';
+  if (ownerType === 'light') return 'light';
   // `project_agent` standing sandboxes — plus any legacy per-user rows —
   // draw from the org's main session budget.
   return 'project';
@@ -58,6 +59,7 @@ export function sessionCapFor(
 ): number {
   if (budget === 'workflow') return quota.maxWorkflowSessionsPerOrg;
   if (budget === 'render') return quota.maxRenderSessionsPerOrg;
+  if (budget === 'light') return quota.maxLightSessionsPerOrg;
   // 'project' — the field name predates the rename (shipped org config).
   return quota.maxSessionsPerOrg;
 }

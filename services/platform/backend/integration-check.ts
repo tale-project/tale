@@ -1341,12 +1341,12 @@ async function checkIdentityDomains(
       visionPick.success &&
       connectorCatalog.success &&
       quotaUsage.success &&
-      quotaUsage.data.usage.length === 3 &&
+      quotaUsage.data.usage.length === 4 &&
       harnessHealth.success &&
       sessionsView.success &&
       reconcile.success &&
       stopMissing.status === 404,
-    `catalogs=${provCatalogs.success ? provCatalogs.data.catalogs.length : 'ERR'}, harness=${harnessStatus.success ? harnessStatus.data.statuses.length : 'ERR'}, vision=${visionPick.success ? 'ok' : 'ERR'}, connectors=${connectorCatalog.success ? connectorCatalog.data.connectors.length : 'ERR'}, quota=${quotaUsage.success ? quotaUsage.data.usage.length : 'ERR'} (want 3), health=${harnessHealth.success ? 'ok' : 'ERR'}, view=${sessionsView.success ? sessionsView.data.sessions.length : 'ERR'}, reconcile=${reconcile.success ? reconcile.data.healed : 'ERR'}, stop404=${stopMissing.status}`,
+    `catalogs=${provCatalogs.success ? provCatalogs.data.catalogs.length : 'ERR'}, harness=${harnessStatus.success ? harnessStatus.data.statuses.length : 'ERR'}, vision=${visionPick.success ? 'ok' : 'ERR'}, connectors=${connectorCatalog.success ? connectorCatalog.data.connectors.length : 'ERR'}, quota=${quotaUsage.success ? quotaUsage.data.usage.length : 'ERR'} (want 4), health=${harnessHealth.success ? 'ok' : 'ERR'}, view=${sessionsView.success ? sessionsView.data.sessions.length : 'ERR'}, reconcile=${reconcile.success ? reconcile.data.healed : 'ERR'}, stop404=${stopMissing.status}`,
   );
 
   // Governance core (inc 90): policy save/read round trip + guards, the

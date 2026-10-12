@@ -50,6 +50,7 @@ import {
   IMAGE_SIZES,
   isReferenceMediaType,
   RASTER_EXTENSIONS,
+  readImageSize,
   sniffRasterMediaType,
   type GeneratedImage,
   type ImageSize,
@@ -149,27 +150,6 @@ interface ImageToolArgs {
   inputImages: string[];
 }
 
-/** The shape an agent asked for: one of {@link IMAGE_SIZES}, or a pixel size
- * (`1536x1024`, the spelling image APIs teach models) or an aspect ratio
- * (`16:9`, the spelling people use) read by its orientation. */
-function imageSizeOf(raw: unknown): ImageSize | undefined {
-  if (typeof raw !== 'string') return undefined;
-  const value = raw.trim().toLowerCase();
-  const named = IMAGE_SIZES.find((candidate) => candidate === value);
-  if (named !== undefined) return named;
-  const shape =
-    /^(\d{2,5})\s*[x×]\s*(\d{2,5})$/.exec(value) ??
-    /^([1-9]\d{0,3})\s*:\s*([1-9]\d{0,3})$/.exec(value);
-  if (shape === null) return undefined;
-  const width = Number(shape[1]);
-  const height = Number(shape[2]);
-  return width === height
-    ? 'square'
-    : width > height
-      ? 'landscape'
-      : 'portrait';
-}
-
 /** Read and bound the call's arguments, or say what is wrong with them. */
 function readImageToolArgs(
   callArgs: Record<string, unknown>,
@@ -208,7 +188,7 @@ function readImageToolArgs(
   }
   let size: ImageSize = 'square';
   if (callArgs.size !== undefined) {
-    const known = imageSizeOf(callArgs.size);
+    const known = readImageSize(callArgs.size);
     if (known === undefined) {
       return {
         error: `"size" must be one of ${IMAGE_SIZES.map((s) => `"${s}"`).join(', ')}, or a shape such as "16:9" or "1536x1024".`,
