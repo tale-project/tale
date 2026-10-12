@@ -2,18 +2,29 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { createSelectColumn } from '@tale/ui/data-table/column-builders';
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
 import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { TableTimestampCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
-import { ArrowLeftRight, History, X } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  ExternalLink,
+  FlaskConical,
+  History,
+  X,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import type { PageItemOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
@@ -23,6 +34,7 @@ import { automationDetailPathname } from '../lib/detail-paths';
 import { isRunFailureCode, runFailureText } from '../lib/run-failure';
 import { readRunStatus, runReasonKey } from '../lib/run-view';
 import { AutomationVersionPill } from './automation-version-pill';
+import { RowMenu } from './row-menu';
 import { RunBadge } from './run-status-badge';
 
 type RunRow = PageItemOf<'automations/queries:listRunsPaginated'>;
@@ -42,7 +54,8 @@ const STATUSES = [
  * One automation's runs as a table, newest first, a page at a time: how
  * each ended, when it started, why a failed one failed and what a waiting
  * one waits for, its version, mode and starter. Narrowed by status and
- * mode; a row opens its run; two selected runs open their comparison.
+ * mode; a row opens its run, its menu opens it too and, for an author,
+ * saves it as a test; two selected runs open their comparison.
  *
  * Mode is on every row and never implied: a test run reaches nothing
  * outside the platform, a live one may have changed things on the
@@ -64,6 +77,9 @@ export function RunsTable({
   const { t } = useT('automationRuns');
   const { t: tAutomations } = useT('automations');
   const navigate = useNavigate();
+  const { formatDate } = useFormatDate();
+  // Saving a run as a test changes the automation's document: authors only.
+  const canAuthor = useAbility().can('read', 'developerSettings');
   const starterLabel = useRunStarterLabel(organizationId);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [mode, setMode] = useState<'mock' | 'live' | undefined>();
@@ -84,6 +100,11 @@ export function RunsTable({
     automationSlug,
     ...(projectId !== undefined && { projectId }),
   })}/runs`;
+  const editorPath = `${automationDetailPathname({
+    organizationId,
+    automationSlug,
+    ...(projectId !== undefined && { projectId }),
+  })}/editor`;
 
   const columns = useMemo<ColumnDef<RunRow>[]>(() => {
     // Why a failed run failed in the reader's words, what a waiting one
@@ -176,6 +197,42 @@ export function RunsTable({
         },
         size: 200,
       },
+      {
+        id: 'actions',
+        header: '',
+        size: ACTIONS_COLUMN_SIZE,
+        enableSorting: false,
+        meta: { isAction: true },
+        cell: ({ row }) => (
+          <RowMenu
+            label={t('list.actions.menu', {
+              when: formatDate(new Date(row.original.startedAt), 'long'),
+            })}
+            actions={() => [
+              {
+                key: 'open',
+                label: t('list.actions.open'),
+                icon: ExternalLink,
+                onClick: () =>
+                  void navigate({ to: `${runsPath}/${row.original.id}` }),
+              },
+              {
+                key: 'saveAsTest',
+                label: t('again.saveAsTest'),
+                icon: FlaskConical,
+                visible: canAuthor,
+                // The test joins the editor's draft: the editor opens with
+                // the run, asking how to save it.
+                onClick: () =>
+                  void navigate({
+                    to: editorPath,
+                    search: { panel: 'tests', saveRun: row.original.id },
+                  }),
+              },
+            ]}
+          />
+        ),
+      },
     ];
   }, [
     t,
@@ -185,6 +242,11 @@ export function RunsTable({
     automationSlug,
     projectId,
     deployedVersion,
+    formatDate,
+    canAuthor,
+    navigate,
+    runsPath,
+    editorPath,
   ]);
 
   const selected = Object.keys(rowSelection).filter((id) => rowSelection[id]);

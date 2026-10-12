@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 240 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 241 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1671,6 +1671,16 @@ output:
       a test fails. The picker's tests icon and the Versions table's Tests
       column read `automations.versions.testsCount` with
       `automations.versions.testsChecked`.
+- [ ] `AUTO-F180` · **Save a run as a test from the Runs tab, and play a run
+      back on a phone** → each row of the Runs tab has a menu named
+      `automationRuns.list.actions.menu` with **Open run**
+      (`automationRuns.list.actions.open`) and, for a developer, **Save as
+      test…** (`automationRuns.again.saveAsTest`), which opens the editor on
+      Tests with the dialog for that run; a member sees only **Open run**,
+      and a click in the menu never opens the row. At 390 px the playback
+      bar (`flow.playback.label`) holds its buttons, the time and the speed
+      in one row and the scrubber in a row under them, with nothing cut off
+      at either edge.
 
 ## Boundary & error tests
 

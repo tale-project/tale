@@ -147,6 +147,9 @@ list:
   entity:
     one: exécution
     other: exécutions
+  actions:
+    menu: 'Plus pour l’exécution du {when}'
+    open: Ouvrir l’exécution
   noMatch: Aucune exécution ne correspond à ces filtres
 attempts:
   title: Tentatives

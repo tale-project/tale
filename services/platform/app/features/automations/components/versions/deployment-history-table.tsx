@@ -17,8 +17,8 @@ import { useT } from '@/lib/i18n/client';
 import { useAutomationDeployments } from '../../hooks/queries';
 import type { DeployVersion } from '../../hooks/use-deploy-version';
 import { compareVersionLink, editorVersionLink } from '../../lib/detail-paths';
+import { RowMenu } from '../row-menu';
 import { VersionAuthor } from './version-author';
-import { VersionRowMenu } from './version-row-menu';
 
 type DeploymentRow = PageItemOf<'automations/queries:listDeploymentsPaginated'>;
 
@@ -141,7 +141,7 @@ export function DeploymentHistoryTable({
           const { version } = row.original;
           const back = liveVersion !== null && version < liveVersion;
           return (
-            <VersionRowMenu
+            <RowMenu
               label={t('deployments.actions.menu', { version })}
               actions={(button) => [
                 {

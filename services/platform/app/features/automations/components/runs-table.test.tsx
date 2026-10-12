@@ -11,6 +11,9 @@ const page = vi.hoisted(() => ({
   calls: [] as unknown[],
 }));
 const navigate = vi.hoisted(() => vi.fn());
+/** Whether the viewer may author: a member reads runs, a developer saves
+ * them as tests. */
+const viewer = vi.hoisted(() => ({ canAuthor: true }));
 
 vi.mock('../hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/queries')>()),
@@ -31,6 +34,9 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
       errorCount: 0,
     };
   },
+}));
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => viewer.canAuthor }),
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
@@ -71,6 +77,7 @@ beforeEach(() => {
   page.results = [];
   page.status = 'Exhausted';
   page.calls = [];
+  viewer.canAuthor = true;
   navigate.mockReset();
 });
 
@@ -203,6 +210,61 @@ describe('RunsTable', () => {
     // The pill opens the version; the row around it stays put.
     await user.click(live);
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("opens a run, or saves it as a test, from its row's menu, which the row's own click leaves alone", async () => {
+    page.results = [run('run-a')];
+    const { user } = renderTable();
+    const menu = screen.getByRole('button', {
+      name: /^More for the run of /,
+    });
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitem', { name: 'Save as test…' }));
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/org-1/automations/triage/editor',
+      search: { panel: 'tests', saveRun: 'run-a' },
+    });
+
+    navigate.mockReset();
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitem', { name: 'Open run' }));
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/org-1/automations/triage/runs/run-a',
+    });
+  });
+
+  it("keeps the run in its project's shell when it is saved as a test", async () => {
+    page.results = [run('run-p')];
+    const { user } = render(
+      <RunsTable
+        organizationId="org-1"
+        automationSlug="triage"
+        projectId="proj-1"
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: /^More for the run of / }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'Save as test…' }));
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/org-1/projects/proj-1/automations/triage/editor',
+      search: { panel: 'tests', saveRun: 'run-p' },
+    });
+  });
+
+  it('offers a member no Save as test, only the run', async () => {
+    viewer.canAuthor = false;
+    page.results = [run('run-a')];
+    const { user } = renderTable();
+    await user.click(
+      screen.getByRole('button', { name: /^More for the run of / }),
+    );
+    expect(screen.getByRole('menuitem', { name: 'Open run' })).toBeVisible();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Save as test…' }),
+    ).toBeNull();
   });
 
   it('says when the automation has not run', () => {

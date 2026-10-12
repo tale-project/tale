@@ -37,8 +37,8 @@ import type { DeployVersion } from '../../hooks/use-deploy-version';
 import { versionTestsWords } from '../../lib/automation-tests/version-tests';
 import { compareVersionLink, editorVersionLink } from '../../lib/detail-paths';
 import { changeFlags } from '../../lib/version-changes';
+import { RowMenu } from '../row-menu';
 import { VersionAuthor } from './version-author';
-import { VersionRowMenu } from './version-row-menu';
 
 export type VersionHistoryRow =
   PageItemOf<'automations/queries:listVersionHistory'>;
@@ -270,7 +270,7 @@ export function VersionHistoryTable({
           const { version, deployed } = row.original;
           const back = liveVersion !== null && version < liveVersion;
           return (
-            <VersionRowMenu
+            <RowMenu
               label={t('versions.actions.menu', { version })}
               actions={(button) => [
                 {
