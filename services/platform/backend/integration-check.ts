@@ -47,6 +47,7 @@ import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { checkAuditEventOrder } from './audit-order.integration.ts';
+import { checkAgentConsent } from './auth/agent-consent-integration.ts';
 import {
   agentLaneMetadataFetch,
   checkAgentOAuth,
@@ -74,6 +75,7 @@ import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
 import { checkImageHoldIdentity } from './domains/agent_tools/image-billing.integration.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
@@ -65620,6 +65622,11 @@ async function main(): Promise<void> {
         () => checkNativeIdentity(sql, baseUrl, auth, record),
       ],
       ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
+      ['checkAgentConsent', () => checkAgentConsent(sql, baseUrl, record)],
+      [
+        'checkAgentConnections',
+        () => checkAgentConnections(sql, baseUrl, record),
+      ],
       [
         'checkConversationApi',
         async () => {

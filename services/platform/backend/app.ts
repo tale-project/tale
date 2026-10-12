@@ -24,6 +24,7 @@ import {
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { getClientIp, nodePeerAddress } from './core/lib/utils/client_ip.ts';
 import { runWithSwallowedDatabaseErrors } from './db/unavailable.ts';
+import { createAgentConnectionRoutes } from './domains/agent_connections/routes.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApiKeyRoutes } from './domains/api_keys/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
@@ -322,14 +323,16 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     // an unsupported grant).
     const early = await oauthTokenPrecheck(c.req.raw);
     if (early !== null) return early;
-    // A coding agent's registration and authorization are checked before
-    // the provider sees them, and a failed token request is charged to its
-    // source (`auth/agent-oauth.ts`); everything else passes as it came.
+    // A coding agent's registration, authorization and consent are checked
+    // before the provider sees them, and a failed token request is charged
+    // to its source (`auth/agent-oauth.ts`); everything else passes as it
+    // came.
     const answer = await withAgentOAuth(
       requestWithMintedCookie(c.req.raw),
       {
         sql: deps.sql,
         options: agentOAuth,
+        session: (headers) => deps.auth.api.getSession({ headers }),
         clientIp: async () =>
           getClientIp(c.req.raw.headers, await loadTrustedProxies(), {
             peer: nodePeerAddress(c.env),
@@ -431,6 +434,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));
   app.route('/api/app/api-keys', createApiKeyRoutes(deps));
+  app.route('/api/app/agent-connections', createAgentConnectionRoutes(deps));
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
   app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/deployment', createDeploymentRoutes(deps));

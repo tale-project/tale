@@ -99,3 +99,14 @@ export const TEAM_HINT_ENTITY = 'team';
  * was missing, and a revoked one still offered.
  */
 export const API_KEY_HINT_ENTITY = 'api_key';
+
+/**
+ * The coding agents people connected by signing in on the MCP endpoint — the
+ * Connected agents list under Settings > API, and the setup step that waits
+ * for a first connection. A connection is made at the sign-in server, ended
+ * by its person or an admin, and by what its person loses (a seat, a
+ * password), and its last use moves with every call, to the minute; each of
+ * them hints the person who owns it, so an open list shows the new agent,
+ * the disconnect and the last use without a reload.
+ */
+export const AGENT_CONNECTION_HINT_ENTITY = 'agent_connection';

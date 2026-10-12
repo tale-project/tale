@@ -9,9 +9,11 @@ import {
   AGENT_SCOPES,
   MCP_RESOURCE_SCOPES,
   OFFLINE_ACCESS,
+  requestsAgentAccess,
 } from '../../lib/shared/agent-access.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
+import { agentConsentReferenceId } from './agent-consent.ts';
 import { AGENT_REFRESH_TOKEN_SECONDS } from './agent-oauth.ts';
 import { findOrganizationMember, isAdminRole } from './membership.ts';
 
@@ -559,6 +561,14 @@ export function createOidcProvider(
       agents.clientDiscovery === null
         ? []
         : [{ clientDiscovery: agents.clientDiscovery }],
+    // A coding agent's consent is tied to the organization the person chose
+    // for it (`agent-consent.ts`); every other request, single sign-on above
+    // all, has no reference and is never sent to a page of its own.
+    postLogin: {
+      page: `${basePath}/oauth/consent`,
+      shouldRedirect: () => false,
+      consentReferenceId: agentConsentReferenceId,
+    },
     clientReference: ({ session }) => {
       const organizationId = session?.activeOrganizationId;
       return typeof organizationId === 'string' ? organizationId : undefined;
@@ -580,11 +590,21 @@ export function createOidcProvider(
       );
       return { ...oidcScopeClaims(user, scopes), ...organization };
     },
-    customAccessTokenClaims: ({ user, metadata }) => {
+    // The organization a token names: the one an application is bound to, or
+    // — for a coding agent — the one the person chose when they connected it.
+    // Asked again at every refresh, so a person who left, or whom the
+    // organization has since blocked, cannot refresh.
+    customAccessTokenClaims: ({ user, scopes, referenceId, metadata }) => {
       if (!user) {
         throw new APIError('FORBIDDEN', { message: 'IDENTITY_NOT_ELIGIBLE' });
       }
-      return oidcOrganizationClaims(sql, user, metadata?.taleOrganizationId);
+      return oidcOrganizationClaims(
+        sql,
+        user,
+        requestsAgentAccess(scopes)
+          ? referenceId
+          : metadata?.taleOrganizationId,
+      );
     },
     customUserInfoClaims: ({ user, jwt }) => {
       const organization = jwt[OIDC_ORGANIZATION_CLAIM];

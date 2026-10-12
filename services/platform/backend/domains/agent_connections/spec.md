@@ -1,0 +1,136 @@
+# Agent connections — who sees a coding agent's connection, and how it ends
+
+> **Prefix** `AGCONN-`
+
+A person can connect a coding agent to an organization by signing in from the agent on Tale's
+MCP endpoint. The organization keeps one record of each connection: who connected which app, with
+which access, and when and why it ended; the endpoint's own count of calls says when it was last used.
+These rules cover who may connect an agent and with which access, who sees a connection and who ends
+it, what ending one takes away, and what ends one without anyone asking. What the consent page looks
+like and what a call may do with the access it was given are left to Not yet.
+
+## Connecting an agent
+
+|                                            | Owner, admin or developer | Member with a key-using competence | Any other member |
+| ------------------------------------------ | ------------------------- | ---------------------------------- | ---------------- |
+| Connect an agent to this organization      | yes                       | yes                                | no               |
+| Allow "Edit" and "Edit and deploy"         | yes                       | no                                 | no               |
+| Allow reading, testing and reading settings | yes                       | yes                                | no               |
+
+### AGCONN-R7 · A person connects an agent only to an organization they may hold an API key in
+
+Connecting an agent takes what holding a personal API key takes, read for that one organization: the
+Owner, Admin or Developer role there, or a live competence there whose door is reached with a key.
+The person chooses the organization on the consent page (`AGENT_CONSENT_ORG_REQUIRED`), must be an
+active member of it (`ORG_FORBIDDEN`) and may connect an agent there (`AGENT_CONNECT_FORBIDDEN`); an
+unverified address or a two-factor enrollment that is due refuses it too (`IDENTITY_NOT_ELIGIBLE`).
+Another organization's role or competence never counts.
+
+- **Example**: Noah is a member of Acme with no such competence, and a developer at Beta. He connects
+  Cursor to Acme → refused. He connects it to Beta → connected.
+
+### AGCONN-R8 · A connection never gets more access than the person's role allows
+
+The consent offers only the access the role allows in that organization, and an agent is always
+allowed to read and test. Asking to allow more than the role allows is refused
+(`AGENT_SCOPE_NOT_ALLOWED`, naming it), and so is allowing access that leaves out reading and
+testing (`AGENT_SCOPE_MCP_REQUIRED`). Staying signed in is not a choice: an agent that asked for it
+keeps it.
+
+- **Example**: Mia, a member, asks to let Claude Code edit automations → refused, naming the edit
+  access. She allows reading and settings reading → connected.
+
+### AGCONN-R9 · Access beyond reading needs a sign-in from the last day
+
+Allowing an agent to edit, deploy, change settings or connect a subscription takes a session that
+began within the last day (`SESSION_NOT_FRESH`); the person confirms their password first. Reading
+and testing, and reading settings, do not.
+
+- **Example**: Ada signed in two days ago and picks "Edit" → she confirms her password first. Picking
+  "Read and test" needs nothing more.
+
+### AGCONN-R10 · The connection is recorded before the agent's code is handed over
+
+When the person allows an agent, the connection is recorded first, for the organization they chose,
+with the app, where it came from, the access allowed and the host Tale sends them back to. If it cannot
+be recorded, the agent gets no code and the person is told to try again
+(`AGENT_CONNECTION_UNAVAILABLE`).
+
+- **Example**: Ada allows Claude Code while the database is unreachable → she is told to try again, and
+  Claude Code never receives a code to sign in with.
+
+## Who sees and ends a connection
+
+|                                                       | The person who connected it | Owner or admin | Anyone else |
+| ----------------------------------------------------- | --------------------------- | -------------- | ----------- |
+| See it in the organization's list                     | yes                         | yes            | no          |
+| See everyone's, and the ended ones                    | —                           | yes            | no          |
+| Disconnect it                                         | yes                         | yes            | no          |
+
+### AGCONN-R1 · A person sees their own connections; owners and admins can see everyone's
+
+The list a person opens shows the connections they made in this organization, each with when its
+agent last called — the endpoint's own count of the calls it answered with that connection, never
+something the agent says, and nothing before the first call. An owner or admin can ask for everyone's,
+and for the ones that ended; anyone else who asks gets their own, and the live ones only.
+
+- **Example**: Ada, a developer, opens the list and asks for everyone's → she sees her two agents.
+  Olav, the owner, asks the same → he sees Ada's, Mia's and his own, and can add the disconnected ones.
+- **Example**: Ada's agent called an hour ago, and Mia connected hers this morning without a call yet →
+  Olav's list says "an hour ago" for Ada's and nothing for Mia's.
+
+### AGCONN-R2 · A person or an admin disconnects an agent; for anyone else it does not exist
+
+A person ends their own connection. An owner or admin ends anyone's in their organization. A
+connection that belongs to someone else, to another organization, or that already ended answers
+"not found" (`AGENT_CONNECTION_NOT_FOUND`), never "forbidden": the answer reveals nothing of what
+the caller may not see.
+
+- **Example**: Mia, a member, disconnects Ada's agent → not found, and Ada's agent stays connected.
+  Olav disconnects it → it ends, recorded as an admin's doing.
+
+### AGCONN-R3 · Disconnecting ends the agent's sign-in for this organization only
+
+Ending a connection removes the consent the person gave and every refresh token the app holds for
+them in this organization, so the agent cannot sign itself in again. The same app connected to
+another organization by the same person stays as it is.
+
+- **Example**: Ada connected Claude Code to Acme and to Beta. She disconnects it from Acme → Acme's
+  consent and tokens are gone, and Beta's are untouched.
+
+### AGCONN-R4 · Leaving the organization disconnects every agent of that person there
+
+When a member is removed or de-provisioned, the agents they connected to that organization end with
+the seat, recorded as the platform's doing. Their agents in other organizations stay.
+
+- **Example**: Noah is removed from Acme → his Cursor connection to Acme ends. His connection to Beta
+  stays.
+
+### AGCONN-R5 · Every connect, access change and disconnect writes an audit row
+
+The audit log records who connected which app and with which access, any later change of that
+access (before and after), and every disconnect with who ended it and why: the person, an admin, or
+the platform, with the reason.
+
+- **Example**: Ada connects Claude Code with "Edit", later allows "Edit and deploy", then Olav
+  disconnects it → three rows: connected, access changed, disconnected by an admin.
+
+### AGCONN-R6 · Allowing an app again changes its access; it never adds a second connection
+
+When a person allows an app that is already connected to this organization, the same connection takes
+the access they allow now, rather than a second connection appearing. Two consents at once leave one.
+An app that was disconnected and is allowed again makes a new connection.
+
+- **Example**: Ada allows Claude Code to read, then allows it to edit → one connection, now with edit
+  access. She disconnects it and allows it again → a new connection, and the old one stays in the
+  history an admin can read.
+
+## Not yet
+
+- What the consent page shows and how it reads, and what a call may do with the access a connection was
+  given (the MCP door checking the connection on every call), are not covered yet.
+- A password change or reset, an admin's sign-out of every session, and an account's deletion should
+  disconnect the person's agents too; only leaving an organization does today.
+- A refresh token that is used twice, which should disconnect the agent and tell the person, is not
+  handled yet.
+- The daily clean-up of old connections and of apps nobody connected is not covered yet.

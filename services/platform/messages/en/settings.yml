@@ -1266,6 +1266,9 @@ logs:
       api_key.created: API key created
       api_key.updated: API key updated
       api_key.revoked: API key revoked
+      agent_connection.created: Coding agent connected
+      agent_connection.updated: Coding agent's access changed
+      agent_connection.revoked: Coding agent disconnected
       webdav_app_password.created: WebDAV app password created
       webdav_app_password.revoked: WebDAV app password revoked
       connector_credential.created: Connector credential created
@@ -1526,6 +1529,7 @@ logs:
       connector_operation: Connector operation
       connector_credential: Connector credential
       api_key: API key
+      agent_connection: Coding agent connection
       webdav_app_password: WebDAV app password
       sso_provider: SSO provider
       video_link: Video link

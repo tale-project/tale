@@ -19,8 +19,8 @@ import { signUpUser } from '../integration-lane-helpers.ts';
 import { configuredMcpResources, seedMcpResources } from './agent-oauth.ts';
 import { OIDC_SCOPES } from './oidc.ts';
 
-const DOCUMENT_URL = 'https://agent.example.test/oauth/client.json';
-const AGENT_REDIRECT = 'http://127.0.0.1:33418/callback';
+export const DOCUMENT_URL = 'https://agent.example.test/oauth/client.json';
+export const AGENT_REDIRECT = 'http://127.0.0.1:33418/callback';
 const APP_REDIRECT =
   'https://identity-client.example.test/api/auth/oauth2/callback/tale';
 const AGENT_SCOPE_SET = [...AGENT_SCOPES, OFFLINE_ACCESS];
