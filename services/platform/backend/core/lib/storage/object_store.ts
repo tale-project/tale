@@ -533,9 +533,13 @@ export async function s3PutObject(
     {
       // aws4fetch hashes the Uint8Array body for SigV4 (it checks `byteLength`);
       // the cast is only to bridge TS 5.7's `Uint8Array<ArrayBufferLike>` vs the
-      // DOM `BufferSource` shape — it is a valid `BodyInit` at runtime.
+      // aws4fetch's declaration uses the DOM `BodyInit` shape. The Bun
+      // compiler models this view as `Uint8Array<ArrayBufferLike>`, while the
+      // signer accepts the same bytes at runtime as an ArrayBuffer-backed
+      // view. Keep the assertion at this package boundary rather than making
+      // every object-store caller carry the dependency's DOM type.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- valid BodyInit at runtime (see above)
-      body: body as BodyInit,
+      body: body as Uint8Array<ArrayBuffer>,
       headers: {
         'content-type': contentType,
         ...(opts.createOnly ? { 'if-none-match': '*' } : {}),

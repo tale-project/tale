@@ -1,3 +1,4 @@
+import { parseOrgSessionCutoverAt } from '@tale/shared/utils/org-session-cutover';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
@@ -100,6 +101,22 @@ const envSchema = z.object({
    * boot without auth configuration.
    */
   BETTER_AUTH_SECRET: z.string().min(16).optional(),
+  TALE_ORG_SESSION_CUTOVER_AT: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      try {
+        parseOrgSessionCutoverAt(value);
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Invalid organization-session cutover',
+        });
+      }
+    }),
   /**
    * The deployment's field-encryption root: 32 bytes as 64 hex chars. It is
    * the direct AES-256 key of the JWE lanes (`core/lib/crypto/get_secret_key.ts`)

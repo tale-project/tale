@@ -84,7 +84,9 @@ function outboxWorld() {
     if (text.includes('FROM "organization"')) return [{ id: values[0] }];
     if (text.includes('FROM "session"')) {
       const ids = values[0] as string[];
-      return ids.filter((id) => world.sessions.has(id)).map((id) => ({ id }));
+      return ids
+        .filter((id) => world.sessions.has(id))
+        .map((id) => ({ id, trustedOrganizationId: null }));
     }
     if (text.includes('id = ANY(')) {
       const ids = new Set((values[0] as string[]).map(Number));

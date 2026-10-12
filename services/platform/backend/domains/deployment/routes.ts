@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
+import { requireGlobalSession } from '../../auth/session-authority.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
@@ -35,7 +36,7 @@ export function createDeploymentRoutes(deps: {
   auth: Auth;
 }): Hono<AuthEnv> {
   const app = new Hono<AuthEnv>();
-  app.use(requireSession(deps.auth));
+  app.use(requireSession(deps.auth), requireGlobalSession());
 
   const caller = (c: Context<AuthEnv>): { id: string; email: string } => ({
     id: c.get('sessionBundle').user.id,

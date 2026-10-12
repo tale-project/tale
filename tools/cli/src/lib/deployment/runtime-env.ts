@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { parseOrgSessionCutoverAt } from '@tale/shared/utils/org-session-cutover';
+
 import { generateGatewayAdminPassword } from '../crypto/gateway-password';
 import {
   requireRuntime,
@@ -248,6 +250,14 @@ export function prepareRuntimeEnvironment(
       extras.METRICS_BEARER_TOKEN ?? previous.METRICS_BEARER_TOKEN ?? '',
     SANDBOX_URL: 'http://sandbox:8003',
   };
+  try {
+    parseOrgSessionCutoverAt(environment.TALE_ORG_SESSION_CUTOVER_AT);
+  } catch {
+    requireRuntime(
+      false,
+      'Organization-session cutover must be an exact already-reached UTC ISO timestamp.',
+    );
+  }
   // The declaration is the list's only source. Without one, a value an earlier
   // declaration wrote is removed, so dropping `additionalOrigins` and applying
   // again takes the extra origins away; an empty assignment an older stack

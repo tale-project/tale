@@ -115,6 +115,10 @@ async function main(): Promise<void> {
     // through the boot's wait like every step that needs the database.
     await databaseWait(() => seedMcpResources(sql, configuredMcpResources()));
   }
+  // The additive custody schema exists before this can inventory legacy
+  // factors. Refuse an altered/removed active fence before serving requests.
+  if (auth !== null)
+    await databaseWait(() => auth.initializeSessionAuthority());
 
   // Metrics collectors need the pool and read app tables, so they register
   // once per process AFTER the schema is known to exist.

@@ -241,7 +241,7 @@ export async function findOrCreateSsoUser(
  * caller signs the token into the cookie; Better Auth verifies the signature
  * and reads this row on every request. `activeOrganizationId` is bound to
  * the connection's org: the session an org's IdP minted starts IN that org
- * (switching later still passes Better Auth's own membership check).
+ * and trustedOrganizationId permanently confines its authority to that org.
  */
 export async function createSsoUserSession(
   sql: Sql,
@@ -253,11 +253,11 @@ export async function createSsoUserSession(
   await sql`
     INSERT INTO "session" (
       "id", "token", "userId", "expiresAt", "createdAt", "updatedAt",
-      "activeOrganizationId"
+      "activeOrganizationId", "trustedOrganizationId"
     ) VALUES (
       gen_random_uuid(), ${sessionToken}, ${args.userId},
       ${new Date(expiresAt)}, ${new Date(now)}, ${new Date(now)},
-      ${args.organizationId}
+      ${args.organizationId}, ${args.organizationId}
     )
   `;
   return { sessionToken };
@@ -646,7 +646,7 @@ export async function handleSsoLogin(
     // every read and the enrolment deadline never arrived. A 'blocked'
     // verdict still mints the session — the org middleware withholds
     // authority server-side and the enrolment surface needs the session.
-    await anchorTwoFactorGraceOnSignIn(sql, result.userId);
+    await anchorTwoFactorGraceOnSignIn(sql, result.userId, args.organizationId);
 
     const session = await createSsoUserSession(sql, {
       userId: result.userId,

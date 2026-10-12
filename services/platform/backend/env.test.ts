@@ -8,6 +8,28 @@ const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
 
 describe('loadEnv', () => {
+  it('accepts only an already-reached exact operator UTC cutover', () => {
+    const past = '2026-01-01T00:00:00.000Z';
+    expect(loadEnv(BASE).TALE_ORG_SESSION_CUTOVER_AT).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TALE_ORG_SESSION_CUTOVER_AT: '' })
+        .TALE_ORG_SESSION_CUTOVER_AT,
+    ).toBe('');
+    expect(
+      loadEnv({ ...BASE, TALE_ORG_SESSION_CUTOVER_AT: past })
+        .TALE_ORG_SESSION_CUTOVER_AT,
+    ).toBe(past);
+    for (const value of [
+      ' ',
+      '2026-01-01T00:00:00Z',
+      '2026-02-30T00:00:00.000Z',
+      new Date(Date.now() + 60_000).toISOString(),
+    ]) {
+      expect(() =>
+        loadEnv({ ...BASE, TALE_ORG_SESSION_CUTOVER_AT: value }),
+      ).toThrow('TALE_ORG_SESSION_CUTOVER_AT');
+    }
+  });
   it('validates and normalizes the authenticator client name', () => {
     expect(loadEnv(BASE).TOTP_CLIENT_NAME).toBeUndefined();
     expect(

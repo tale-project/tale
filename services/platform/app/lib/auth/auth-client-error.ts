@@ -6,6 +6,10 @@
  */
 
 import { i18n } from '@/lib/i18n/i18n';
+import {
+  SESSION_ORGANIZATION_MESSAGE,
+  ACCOUNT_AUTHENTICATION_MESSAGE,
+} from '@/lib/shared/constants/session-authority';
 
 import { isLapsedSessionAnswer, reportSessionLapsed } from './session-lapse';
 
@@ -14,6 +18,35 @@ export interface AuthClientRefusal {
   status: number;
   code?: string;
   message?: string;
+}
+
+/** These same codes also name other refusals. Localize only the authority
+ * sentence this server owns; never relabel another resource or stale-age
+ * refusal merely because it used ORG_FORBIDDEN or SESSION_NOT_FRESH. */
+export function authSessionRefusalMessage(
+  error:
+    | {
+        status: number;
+        code?: string | undefined;
+        message?: string | undefined;
+      }
+    | null
+    | undefined,
+): string | undefined {
+  if (error?.status !== 403) return undefined;
+  if (
+    error.code === 'ORG_FORBIDDEN' &&
+    error.message === SESSION_ORGANIZATION_MESSAGE
+  ) {
+    return i18n.t('errors.organizationSessionRestricted', { ns: 'common' });
+  }
+  if (
+    error.code === 'SESSION_NOT_FRESH' &&
+    error.message === ACCOUNT_AUTHENTICATION_MESSAGE
+  ) {
+    return i18n.t('errors.accountIdentityRequired', { ns: 'common' });
+  }
+  return undefined;
 }
 
 /**
@@ -42,5 +75,7 @@ export function authClientError(error: AuthClientRefusal): Error {
       cause: error,
     });
   }
-  return new Error(error.message ?? '', { cause: error });
+  return new Error(authSessionRefusalMessage(error) ?? error.message ?? '', {
+    cause: error,
+  });
 }

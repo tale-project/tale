@@ -7,6 +7,7 @@ import {
   type AppAction,
   type AppSubject,
 } from '../../lib/permissions/ability.ts';
+import { SESSION_ORGANIZATION_MESSAGE } from '../../lib/shared/constants/session-authority.ts';
 import { trustedRoleHolds } from '../domains/trusted_headers/service.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
@@ -15,6 +16,10 @@ import {
   type OrganizationMember,
 } from './membership.ts';
 import { authRequestCache } from './request-cache.ts';
+import {
+  sessionAllowsOrganization,
+  sessionOrganizationId,
+} from './session-authority.ts';
 import type { AuthEnv } from './session.ts';
 
 export interface OrgEnv {
@@ -53,6 +58,17 @@ export function requireOrgMember<E extends OrgEnv>(
       return c.json(
         { error: '"orgId" is required', code: 'INVALID_QUERY' },
         400,
+      );
+    }
+    const session = c.get('sessionBundle').session;
+    if (!sessionAllowsOrganization(session, orgId)) {
+      return c.json(
+        {
+          error: 'ORG_FORBIDDEN',
+          code: 'ORG_FORBIDDEN',
+          message: SESSION_ORGANIZATION_MESSAGE,
+        },
+        403,
       );
     }
     try {
@@ -108,7 +124,11 @@ export function requireOrgMember<E extends OrgEnv>(
         'twoFactorEnabled',
       );
       const enforcement = await evaluateTwoFactorEnforcement(sql, userId, {
-        organizationIds,
+        organizationIds:
+          sessionOrganizationId(session) === null ? organizationIds : [orgId],
+        ...(sessionOrganizationId(session) === null
+          ? {}
+          : { organizationId: orgId }),
         ...(typeof twoFactorEnabled === 'boolean' ? { twoFactorEnabled } : {}),
       });
       if (enforcement.decision === 'blocked') {

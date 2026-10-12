@@ -22,7 +22,10 @@ import { createConnectorOauthRoutes } from './oauth-routes.ts';
 function app(session: SessionBundle | null) {
   return createConnectorOauthRoutes({
     sql: {} as never,
-    auth: { api: { getSession: async () => session } } as unknown as Auth,
+    auth: {
+      api: { getSession: async () => session },
+      resolveSessionAuthority: async () => session,
+    } as unknown as Auth,
   });
 }
 
@@ -81,6 +84,16 @@ describe('the consent intent', () => {
     });
   });
   afterEach(() => vi.unstubAllEnvs());
+
+  it('refuses a foreign realm before its existing connector/member lookup', async () => {
+    const response = await app({
+      ...SIGNED_IN,
+      session: { ...SIGNED_IN.session, trustedOrganizationId: 'org-other' },
+    }).request('/start?connector=gmail&organizationId=org-1');
+    expect(response.status).toBe(403);
+    expect(connectorWriteAccess).not.toHaveBeenCalled();
+    expect(startOauth2).not.toHaveBeenCalled();
+  });
 
   it('starts an Add when no credential is named', async () => {
     const response = await app(SIGNED_IN).request(
@@ -166,6 +179,7 @@ describe('the consent intent', () => {
     expect(completeOauth2).toHaveBeenCalledWith(expect.anything(), {
       state: 's',
       code: 'c',
+      requesterOrganizationId: null,
       vendorError: null,
       requesterUserId: 'u1',
     });

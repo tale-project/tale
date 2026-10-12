@@ -95,6 +95,13 @@ import {
   parseOrganizationCreators,
 } from './organization-creation-gate.ts';
 import {
+  createPasskeyAuthority,
+  clearSessionMintAuthority,
+  mintAuthorityOf,
+  sessionMintAuthority,
+  setSessionMintAuthority,
+} from './passkey-authority.ts';
+import {
   jitterDelay,
   recordPasswordAttempt,
   refuseThrottledPasswordAttempt,
@@ -105,7 +112,17 @@ import {
 } from './password-confirmations.ts';
 import { passwordHasher } from './password-hasher.ts';
 import { reauthenticate } from './reauthenticate.ts';
+import {
+  authorizeScopedAuthEndpoint,
+  isSessionBundle,
+  orgSessionCutoverActive,
+  orgSessionCutoverAt,
+  refuseScopedSession,
+  resolveSessionAuthority,
+  sessionOrganizationId,
+} from './session-authority.ts';
 import { sessionCookieCacheOption } from './session-cache.ts';
+import type { SessionBundle } from './session.ts';
 import {
   openSignUpEnabled,
   SIGN_UP_CLOSED_MESSAGE,
@@ -539,6 +556,72 @@ export function createAuth(config: AuthConfig) {
   const sql = config.sql;
   /** How coding agents may sign in to the MCP endpoint (`TALE_MCP_*`). */
   const agentOAuth = agentOAuthOptionsFromEnv();
+  const cutoverAt = orgSessionCutoverAt();
+  const factorAuthority = createPasskeyAuthority(sql, cutoverAt);
+  const authoritative = async <T extends SessionBundle>(
+    bundle: T,
+  ): Promise<T | null> => {
+    await factorAuthority.inventory();
+    return resolveSessionAuthority(sql, bundle, cutoverAt);
+  };
+
+  // Run AFTER plugin before-hooks: the api-key plugin injects a synthetic
+  // session there. The library context supplies identity; the app resolver
+  // re-reads current persisted authority even when that context was cached.
+  const sessionAuthorityBefore = createAuthMiddleware(async (mw) => {
+    clearSessionMintAuthority(mw);
+    if (mw.request !== undefined || mw.headers !== undefined) {
+      const existing = await getSessionFromCtx(mw);
+      if (existing !== null) {
+        const current = await authoritative(existing);
+        if (current === null) {
+          const identityPaths = new Set([
+            '/sign-in/email',
+            '/sign-out',
+            '/passkey/generate-authenticate-options',
+            '/passkey/verify-authentication',
+          ]);
+          if (!identityPaths.has(mw.path))
+            throw new APIError('UNAUTHORIZED', {
+              code: 'UNAUTHORIZED',
+              message: 'Sign in again',
+            });
+          mw.context.session = null;
+        } else {
+          mw.context.session = current;
+          setSessionMintAuthority(mw, mintAuthorityOf(current));
+          await authorizeScopedAuthEndpoint(sql, current, {
+            path: mw.path,
+            body: mw.body,
+            query: mw.query,
+            overHttp: mw.request !== undefined,
+          });
+          const realm = sessionOrganizationId(current.session);
+          if (
+            realm !== null &&
+            (mw.path === '/passkey/generate-register-options' ||
+              mw.path === PASSKEY_REGISTER_PATH) &&
+            !orgSessionCutoverActive(cutoverAt)
+          )
+            throw refuseScopedSession();
+          if (
+            realm !== null &&
+            (mw.path === PASSKEY_DELETE_PATH ||
+              mw.path === '/passkey/update-passkey')
+          ) {
+            const id = isRecord(mw.body) ? getString(mw.body, 'id') : undefined;
+            if (
+              id === undefined ||
+              !(await factorAuthority.mayManage(current, id))
+            )
+              throw refuseScopedSession();
+          }
+          return { context: { context: { session: current } } };
+        }
+      }
+    }
+    return undefined;
+  });
 
   /** The organization slug hooks' view of `assertOrgSlugNotRetiring`: the
    * domain refusal becomes the plugin's 400 like the other slug guards. */
@@ -778,7 +861,7 @@ export function createAuth(config: AuthConfig) {
   // stripped URL (see `db/ssl.ts`).
   const authDb = resolvePostgresConnection(config.databaseUrl);
 
-  return betterAuth({
+  const auth = betterAuth({
     database: createAuthPool(authDb),
     logger: { log: logBetterAuth },
     secret: config.secret,
@@ -885,6 +968,11 @@ export function createAuth(config: AuthConfig) {
           required: false,
           input: false,
         },
+        independentIdentityVerifiedAt: {
+          type: 'date' as const,
+          required: false,
+          input: false,
+        },
       },
     },
     /**
@@ -912,6 +1000,39 @@ export function createAuth(config: AuthConfig) {
      * claim is read against.
      */
     databaseHooks: {
+      session: {
+        create: {
+          before: (session, ctx) => {
+            const mint = ctx === null ? null : sessionMintAuthority(ctx);
+            if (mint !== null && mint.userId !== session.userId)
+              throw refuseScopedSession();
+            const firstParty =
+              ctx?.path === SIGN_IN_EMAIL_PATH ||
+              ctx?.path === '/reauthenticate' ||
+              ctx?.path === '/two-factor/verify-totp' ||
+              ctx?.path === '/two-factor/verify-backup-code';
+            return Promise.resolve({
+              data: {
+                ...session,
+                ...(mint === null
+                  ? {}
+                  : {
+                      trustedOrganizationId: mint.organizationId,
+                      trustedRole: mint.trustedRole,
+                      ...(mint.organizationId === null
+                        ? {}
+                        : { activeOrganizationId: mint.organizationId }),
+                      independentIdentityVerifiedAt:
+                        mint.independentIdentityVerifiedAt,
+                    }),
+                ...(firstParty
+                  ? { independentIdentityVerifiedAt: new Date() }
+                  : {}),
+              },
+            });
+          },
+        },
+      },
       user: {
         create: {
           before: (user) =>
@@ -1069,6 +1190,79 @@ export function createAuth(config: AuthConfig) {
       // Post-flight: classify the sign-in result into the failure counter,
       // and persist the api-key suffix on creation.
       after: createAuthMiddleware(async (mw) => {
+        if (
+          mw.path === '/get-session' &&
+          mw.request !== undefined &&
+          isSessionBundle(mw.context.returned)
+        ) {
+          return mw.json(await authoritative(mw.context.returned));
+        }
+        if (mw.path === PASSKEY_REGISTER_PATH) {
+          await factorAuthority.finishRegistration(mw, mw.context.returned);
+        }
+        if (
+          mw.path === '/passkey/list-user-passkeys' &&
+          Array.isArray(mw.context.returned) &&
+          isSessionBundle(mw.context.session) &&
+          sessionOrganizationId(mw.context.session.session) !== null
+        ) {
+          const currentSession = mw.context.session;
+          const visible: Record<string, unknown>[] = [];
+          const candidates = mw.context.returned.map((row: unknown) =>
+            isRecord(row) && typeof row.id === 'string'
+              ? { row, id: row.id }
+              : null,
+          );
+          const allowed = await Promise.all(
+            candidates.map((candidate) =>
+              candidate === null
+                ? Promise.resolve(false)
+                : factorAuthority.mayManage(currentSession, candidate.id),
+            ),
+          );
+          candidates.forEach((candidate, index) => {
+            if (candidate !== null && allowed[index])
+              visible.push(candidate.row);
+          });
+          return mw.json(visible);
+        }
+        if (
+          mw.path === '/organization/list' &&
+          Array.isArray(mw.context.returned) &&
+          isSessionBundle(mw.context.session)
+        ) {
+          const realm = sessionOrganizationId(mw.context.session.session);
+          if (realm !== null)
+            return mw.json(
+              mw.context.returned.filter(
+                (row: unknown) => isRecord(row) && row.id === realm,
+              ),
+            );
+        }
+        if (
+          (mw.path === '/organization/list-user-invitations' ||
+            mw.path === '/organization/list-user-teams') &&
+          Array.isArray(mw.context.returned) &&
+          isSessionBundle(mw.context.session)
+        ) {
+          const realm = sessionOrganizationId(mw.context.session.session);
+          if (realm !== null)
+            return mw.json(
+              mw.context.returned.filter(
+                (row: unknown) => isRecord(row) && row.organizationId === realm,
+              ),
+            );
+        }
+        if (
+          TWO_FACTOR_VERIFY_PATHS.has(mw.path) &&
+          !(mw.context.returned instanceof APIError) &&
+          isSessionBundle(mw.context.session)
+        ) {
+          // A genuine existing account TOTP/backup factor can confirm account
+          // identity; it changes no organization marker or membership.
+          await sql`UPDATE "session" SET "independentIdentityVerifiedAt" = ${new Date()}
+            WHERE "id" = ${mw.context.session.session.id} AND "userId" = ${mw.context.session.user.id}`;
+        }
         const trusted = await loadTrustedProxies();
         const ip = mw.request
           ? getClientIp(mw.request.headers, trusted)
@@ -1615,11 +1809,52 @@ export function createAuth(config: AuthConfig) {
         rpID: new URL(siteUrl).hostname,
         rpName: 'Tale',
         origin: siteOrigins,
+        ...factorAuthority.options,
       }),
       // Registering a passkey needs a fresh session; an older one confirms
       // the password here and is replaced by a fresh one.
       reauthenticate({ sql, trustedProxies: loadTrustedProxies }),
+      {
+        id: 'tale-session-authority',
+        hooks: {
+          before: [
+            {
+              matcher: (ctx) => ctx.path !== '/get-session',
+              handler: sessionAuthorityBefore,
+            },
+          ],
+        },
+      },
     ],
+  });
+  const handler = auth.handler;
+  return Object.assign(auth, {
+    handler: async (request: Request): Promise<Response> => {
+      const response = await handler(request);
+      // The api-key plugin short-circuits get-session in its before-hook,
+      // skipping every after-hook. Normalize that actual verified payload
+      // here too; it is not a browser row and must retain its owner binding.
+      const path = new URL(request.url).pathname.replace(/\/+$/, '');
+      if (
+        request.headers.has(API_KEY_HEADER) &&
+        path.endsWith('/api/auth/get-session') &&
+        response.status === 200
+      ) {
+        const payload: unknown = await response.clone().json();
+        if (isSessionBundle(payload)) {
+          const current = await authoritative(payload);
+          const headers = new Headers(response.headers);
+          headers.delete('content-length');
+          return new Response(JSON.stringify(current), {
+            status: response.status,
+            headers,
+          });
+        }
+      }
+      return response;
+    },
+    resolveSessionAuthority: authoritative,
+    initializeSessionAuthority: factorAuthority.inventory,
   });
 }
 

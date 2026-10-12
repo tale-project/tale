@@ -181,6 +181,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'CONFLICT',
   'SERVICE_UNAVAILABLE',
   'TOO_MANY_REQUESTS',
+  // Better Auth's fresh-session refusal is emitted by the app-only
+  // passkey/reauthentication doors; REST has no session-freshness route.
+  'SESSION_NOT_FRESH',
   // Every password hash and check goes through the process's bounded hasher
   // (`auth/password-hasher.ts`), which refuses a check with a retryable 503
   // when its slots and queue are full. Only Better Auth's sign-in, sign-up

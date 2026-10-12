@@ -37,6 +37,7 @@
     "./schemas/projects": "./src/schemas/projects.ts",
     "./schemas/pii": "./src/schemas/pii.ts",
     "./utils/session-idle": "./src/utils/session-idle.ts",
+    "./utils/org-session-cutover": "./src/utils/org-session-cutover.ts",
     "./utils/model-ref": "./src/utils/model-ref.ts",
     "./utils/project-key": "./src/utils/project-key.ts",
     "./net/private-ip": "./src/net/private-ip.ts",

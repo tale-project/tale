@@ -104,6 +104,7 @@ function makeApp() {
     forwardedCookie: null,
   };
   const auth = {
+    resolveSessionAuthority: async (bundle: unknown) => bundle,
     api: {
       getSession: async ({ headers }: { headers: Headers }) => {
         seen.gateCookie = headers.get('cookie');
