@@ -276,9 +276,29 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
   to the egress proxy; tcp 8080 to the LLM gateway and tcp 3005 to the backend
   (reached directly, since the proxy refuses private destinations); and, to a
   session: tcp 8200 from the spawner. Everything else is dropped.
-- `sandbox-llm-gateway`, `backend-api` and `backend-relay` (the session's
-  `NO_PROXY` list) must resolve, on the egress proxy's resolver, to addresses
-  reachable from the sandbox network (host records).
+- **Give the sessions the platform's names.** `sandbox-llm-gateway`,
+  `backend-api` and `backend-relay` (the session's `NO_PROXY` list) must
+  resolve, for a session, to addresses reachable from the sandbox network. The
+  egress proxy's resolver, the default, holds no records of its own, so with it
+  they do not resolve. The bridge's own resolver is the one DNS server an ACL
+  cannot refuse (the lab's ACL has no rule for it, and the bridge answers a
+  session that asks), so list the names there and hand sessions the bridge as
+  their resolver:
+
+  ```
+  incus network set sbx0 raw.dnsmasq="no-resolv
+  address=/sandbox-llm-gateway/10.20.0.3
+  address=/backend-api/10.20.0.4
+  address=/backend-relay/10.20.0.4"
+  # in the spawner's environment (restart it; new sessions are given the bridge)
+  SANDBOX_INCUS_DNS=10.20.0.1
+  ```
+
+  A session then resolves exactly those names and nothing else; whatever it
+  reaches outside goes through the proxy, which resolves for it (a tool that
+  ignores the proxy settings has no name to connect to, which is the point).
+  Or run a resolver of your own that holds the records, name it in
+  `SANDBOX_INCUS_DNS`, and let the ACL admit udp and tcp 53 to it.
 - **Give the sandbox bridge no address but its own** (`ipv4.address`). An OCI
   container has no DHCP client of its own: Incus runs one beside it
   (`forknet dhcp`, its log is `forknet-dhcp.log` in the instance's log
@@ -621,15 +641,17 @@ storage driver, a reboot, many tenants.
    starting a browser and the coding agents' tools under `no_new_privs` on your
    node's security modules.
 6. **Network.** From a session: the proxy works (an HTTPS fetch through
-   `HTTPS_PROXY`, a plain one through transparent egress), the LLM gateway and
-   backend answer by name, DNS resolves only through the proxy's resolver
+   `HTTPS_PROXY`, and, where the proxy is the session's resolver, a plain one
+   through transparent egress), the LLM gateway and backend answer by name, DNS
+   resolves only through the one resolver the session is given
    (`/etc/resolv.conf` lists only it), and everything else (another session,
    the node, the Incus API on 8443, the metadata address) is unreachable. From
    the spawner: runnerd on tcp 8200.
    **Lab (`network`):** all of it, with stand-ins for the gateway and the
-   backend on the ACL's two ports (reached by address, the lab having no
-   resolver records for their names). **Not in the lab:** the gateway and
-   backend by name through your resolver.
+   backend on the ACL's two ports, reached by address and, once the bridge's
+   resolver is given `address=` lines and the spawner points sessions at it
+   (above), by name, with nothing else resolved. **Not in the lab:** the
+   gateway and backend by name through *your* resolver.
 7. **Workspace across stop and resume.** Write a file, stop the session
    (`stopSession`), confirm the instance is gone and the volume is not, resume,
    read the file. Check that a **new idmap** mounts the `security.shifted`

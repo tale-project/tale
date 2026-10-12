@@ -3,11 +3,14 @@
 // proxy's resolver (the bridge's forwards nothing); they reach the gateway and
 // backend stand-ins on the two ports the ACL names, and not the node's API,
 // the spawner, the metadata address, another session or the internet directly.
+// Last, the other way an infrastructure can give them the platform's names: the
+// bridge's resolver told the names, and the spawner pointing sessions at it.
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
 import {
   admin,
+  expectStatus,
   lab,
   reportFor,
   sessionId,
@@ -305,4 +308,90 @@ describe('a session on the sandbox bridge', () => {
       (await sh(api, A, 'cat /proc/sys/net/ipv6/conf/all/disable_ipv6')).trim(),
     ).toBe('1');
   });
+
+  step(
+    "a bridge resolver that is given the platform's names answers them for a session pointed at it, with no ACL rule for DNS",
+    async () => {
+      // How an infrastructure that keeps the bridge's resolver closed (it
+      // forwards nothing) can give a session the names of the LLM gateway and
+      // the backend: `address=` lines on the bridge, and the spawner told to
+      // hand sessions the bridge as their resolver (SANDBOX_INCUS_DNS). The
+      // ACL has no rule for DNS to the bridge: Incus lets it through.
+      const closed = 'no-resolv';
+      const names = [
+        `address=/sandbox-llm-gateway/${lab.gatewayAddress}`,
+        `address=/backend-api/${lab.backendAddress}`,
+        `address=/backend-relay/${lab.backendAddress}`,
+      ];
+      await admin.run([
+        'network',
+        'set',
+        lab.network,
+        `raw.dnsmasq=${[closed, ...names].join('\n')}`,
+      ]);
+      try {
+        expect(await spawner.stop()).not.toBeNull();
+        spawner.start({ SANDBOX_INCUS_DNS: lab.bridgeAddress });
+        await spawner.ready();
+        const C = sessionId('netc');
+        const created = await api.create({
+          sessionId: C,
+          organizationId: ORG,
+          profile: 'agent',
+        });
+        if (created.session === undefined) {
+          throw new Error(
+            `create ${C}: ${created.reply.status} ${created.reply.text}`,
+          );
+        }
+        const resolv = await sh(api, C, 'cat /etc/resolv.conf');
+        expect(
+          resolv
+            .split('\n')
+            .filter((line) => line.startsWith('nameserver'))
+            .map((line) => line.split(/\s+/)[1]),
+        ).toEqual([lab.bridgeAddress]);
+        expect(
+          (await sh(api, C, 'getent hosts sandbox-llm-gateway')).trim(),
+        ).toStartWith(lab.gatewayAddress);
+        expect(
+          (await sh(api, C, 'getent hosts backend-api')).trim(),
+        ).toStartWith(lab.backendAddress);
+        // By name, on the ACL's ports, reached directly (NO_PROXY names them).
+        const gateway = await api.exec(C, {
+          shell: 'curl -sS --max-time 10 http://sandbox-llm-gateway:8080/',
+        });
+        expect(gateway.stdout).toBe('gateway');
+        const backend = await api.exec(C, {
+          shell: 'curl -sS --max-time 10 http://backend-api:3005/',
+        });
+        expect(backend.stdout).toBe('backend');
+        // The bridge resolves nothing else, as designed: what goes out goes
+        // through the proxy, which resolves for the session.
+        const outside = await api.exec(C, {
+          shell: 'getent hosts github.com',
+        });
+        expect(outside.result?.exitCode ?? 0).toBeGreaterThan(0);
+        report.fact(
+          'a name the bridge was not given, looked up by a session pointed at it',
+          `getent exit ${outside.result?.exitCode}`,
+        );
+        expect(await http(C, 'https://github.com/robots.txt')).toEqual({
+          code: 0,
+          stdout: '200',
+        });
+        expectStatus(await api.destroy(C), 200, `destroy ${C}`);
+      } finally {
+        const restored = await admin.run(
+          ['network', 'set', lab.network, `raw.dnsmasq=${closed}`],
+          { allowFailure: true },
+        );
+        if (restored.code !== 0) {
+          console.warn(
+            `could not close the bridge resolver again: ${restored.stderr.trim()}`,
+          );
+        }
+      }
+    },
+  );
 });
