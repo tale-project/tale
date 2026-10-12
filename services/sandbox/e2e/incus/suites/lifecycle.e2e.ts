@@ -25,8 +25,9 @@ import {
   step,
   until,
 } from '../harness.ts';
-import { field } from '../spawner-api.ts';
+import { field, type Reply } from '../spawner-api.ts';
 import { newToken } from '../spawner.ts';
+import { asText } from '../util.ts';
 
 const ORG = 'e2e-org';
 const report = reportFor('lifecycle');
@@ -471,33 +472,66 @@ describe('a session on a real Incus node', () => {
     ]);
   });
 
-  step('the workspace quota stops a write past it', async () => {
-    try {
-      const result = await api.exec(S1, {
-        shell:
-          'dd if=/dev/urandom of=/agent/e2e/quota.bin bs=1M count=700 2>&1; echo "rc=$?"; df -m /agent | tail -n 1',
-        timeoutMs: 120_000,
-      });
-      const text = result.stdout.toLowerCase();
-      report.fact(
-        'the write past the quota',
-        text.trim().replaceAll('\n', ' | ').slice(-300),
-      );
-      expect(text).toMatch(/no space left|quota exceeded/);
-      expect(text).toMatch(/rc=1/);
-    } finally {
-      // A full workspace takes the session's own journal with it.
-      await sh(api, S1, 'rm -f /agent/e2e/quota.bin');
-    }
-    // Room again: a small write works.
-    expect(
-      await sh(
-        api,
-        S1,
-        'echo fine > /agent/e2e/after-quota && cat /agent/e2e/after-quota',
-      ),
-    ).toBe('fine\n');
-  });
+  step(
+    'the workspace quota stops a write past it, and freeing space brings the session back',
+    async () => {
+      const quota = 512 * 1024 ** 2; // SANDBOX_INCUS_WORKSPACE_SIZE of the lab
+      let freed: Reply | undefined;
+      try {
+        const filled = await api.exec(S1, {
+          shell:
+            'dd if=/dev/urandom of=/agent/e2e/quota.bin bs=1M count=700 2>&1; echo "rc=$?"',
+          timeoutMs: 120_000,
+        });
+        // The quota ends it in one of two ways, by timing: the shell finishes
+        // (dd is refused, rc=1), or runnerd, whose output spool lives on the
+        // workspace, cannot journal what follows and ends the exec with a
+        // REPLAY_ code (documented in sessions.md).
+        const text = `${filled.stdout}${filled.stderr}`.toLowerCase();
+        const finished = filled.result?.status === 'completed';
+        report.fact(
+          'the write past the quota',
+          `${finished ? 'the shell finished' : `the exec was ended: ${asText(filled.streamError)}`} | ${text.trim().replaceAll('\n', ' | ').slice(-200)}`,
+        );
+        if (finished) {
+          expect(text).toMatch(/no space left|quota exceeded/);
+          expect(text).toMatch(/rc=1/);
+        } else {
+          expect(asText(filled.streamError)).toContain('REPLAY_');
+        }
+        // What the node says, however the exec ended: the volume is full, and
+        // no fuller.
+        const usage = await admin.volumeUsage(incusWorkspaceVolumeName(S1));
+        report.fact(
+          'the workspace volume after the write',
+          `${usage.used} of ${usage.total ?? '?'} bytes`,
+        );
+        expect(usage.used).toBeGreaterThan(quota * 0.9);
+        expect(usage.used).toBeLessThanOrEqual(quota);
+        if (usage.total !== undefined) expect(usage.total).toBe(quota);
+      } finally {
+        // The files API needs no journal: it frees the space, and the session
+        // is back. (If it cannot, the node does, so that the next step runs.)
+        freed = await api.deleteFiles(S1, ['e2e/quota.bin']);
+        if (freed.status !== 200) {
+          const name = (await sessionInstance(S1))?.name;
+          if (name !== undefined) {
+            await admin.exec(name, ['rm', '-f', '/agent/e2e/quota.bin'], {
+              allowFailure: true,
+            });
+          }
+        }
+      }
+      expectStatus(freed, 200, 'free the space through the files API');
+      expect(
+        await sh(
+          api,
+          S1,
+          'echo fine > /agent/e2e/after-quota && cat /agent/e2e/after-quota',
+        ),
+      ).toBe('fine\n');
+    },
+  );
 
   step('the workspace survives stop; resume mounts it again', async () => {
     const before = created1();

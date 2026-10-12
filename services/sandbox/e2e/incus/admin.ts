@@ -170,6 +170,27 @@ export class Admin {
     return raw.map((item) => parseVolume(item));
   }
 
+  /** What a custom volume of the project uses, and the quota it is held to
+   * (when the driver reports one). */
+  async volumeUsage(
+    name: string,
+  ): Promise<{ used: number; total: number | undefined }> {
+    const state = record(
+      await this.query(
+        `/1.0/storage-pools/${this.lab.pool}/volumes/custom/${encodeURIComponent(name)}/state?project=${this.lab.project}`,
+      ),
+      'the volume state',
+    );
+    const usage = record(state.usage, 'the volume usage');
+    if (typeof usage.used !== 'number') {
+      throw new Error(`the volume ${name} reports no usage`);
+    }
+    return {
+      used: usage.used,
+      total: typeof usage.total === 'number' ? usage.total : undefined,
+    };
+  }
+
   async volume(name: string): Promise<IncusVolume | undefined> {
     const raw = await this.queryOptional(
       `/1.0/storage-pools/${this.lab.pool}/volumes/custom/${encodeURIComponent(name)}?project=${this.lab.project}`,

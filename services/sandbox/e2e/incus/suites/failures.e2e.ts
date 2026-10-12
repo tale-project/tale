@@ -161,8 +161,11 @@ describe('endings that are not a clean destroy', () => {
       let running = false;
       const exec = api.exec(GRACE, {
         execId: 'grace-run',
+        // `wait` returns the moment the signal comes, where a trap would sit
+        // out the rest of a foreground `sleep` and Incus's init, which ends
+        // the container a second after it passes the signal on, would not.
         shell:
-          "trap 'echo graceful > /agent/graceful-marker; exit 0' TERM; echo ready; while :; do sleep 1; done",
+          "trap 'echo graceful > /agent/graceful-marker; exit 0' TERM; echo ready; while :; do sleep 1 & wait $!; done",
         timeoutMs: 600_000,
         onEvent: (event) => {
           if (event.event === 'stdout') running = true;
