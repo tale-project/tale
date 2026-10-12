@@ -66,7 +66,9 @@ env:
 jobs:
   incus:
     name: Sandbox on Incus
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
+    # A draft is held, and so is a fork's pull request (its token cannot read
+    # the layer caches, and it is not trusted with a root-owned lab).
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true) }}
     # A pull request runs on GitHub's own runner; a dispatch names its runner.
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 90

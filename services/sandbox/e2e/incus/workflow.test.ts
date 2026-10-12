@@ -205,6 +205,11 @@ describe('the workflow', () => {
     expect(text(job.if, 'the if of the job')).toContain(
       'github.event.pull_request.draft != true',
     );
+    // A fork's token cannot read the layer caches and its code is not trusted
+    // with a lab that is root on the runner.
+    expect(text(job.if, 'the if of the job')).toContain(
+      'github.event.pull_request.head.repo.fork != true',
+    );
   });
 
   test('a push supersedes a pull request run, and a dispatch never cancels another', () => {
