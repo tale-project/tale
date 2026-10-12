@@ -835,6 +835,16 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   one shows everything from the top; a comment sent in one appears in the
   other without a reload. On a phone the dialog's drawer scrolls as one
   column: brief, conversation, comment box, then the details.
+- [ ] `TASK-F92` · **A long task scrolls under a trackpad or a wheel** — Open a
+  task with more comments than fit, twenty will do, from the board and then
+  from Home → it opens on its latest comment; a two-finger trackpad swipe, or
+  the wheel, over the thread scrolls it up to the brief and back down to the
+  latest comment, in the board's dialog and on the task's page alike, while the
+  header, the details and the comment box stay where they are; a comment sent
+  while you read near the top leaves your place alone, and one sent from the
+  latest comment stays in view; in Safari too, scrolling up through a long
+  thread never throws the comment you are reading off the screen. **Page Up**,
+  **Page Down** and the scrollbar move the same thread.
 - [ ] `TASK-F84` · **What the agent cost** — On a task whose agent ran at
   least twice at a cost → **Details** shows **Agent cost**
   (`tasks.agentRuns.costLabel`) with the total (`tasks.agentRuns.totalCost`),
