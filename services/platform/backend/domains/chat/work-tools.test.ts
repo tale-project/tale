@@ -131,19 +131,33 @@ describe('chatWorkTools', () => {
       );
     });
 
-    it('offers no tool, rather than the defaults an admin may have switched off', async () => {
-      const warn = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
-      unreadable(broken());
+    it.each([
+      ['a file that fails to parse', broken],
+      [
+        'a configuration root that is not set or readable',
+        () =>
+          new ConfigurationError(
+            'GOVERNANCE_POLICY_UNAVAILABLE',
+            'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+            409,
+          ),
+      ],
+    ])(
+      'offers no tool for %s, rather than the defaults an admin may have switched off',
+      async (_cause, makeError) => {
+        const warn = vi
+          .spyOn(console, 'warn')
+          .mockImplementation(() => undefined);
+        unreadable(makeError());
 
-      await expect(chatWorkTools(sql, TURN)).resolves.toBeUndefined();
+        await expect(chatWorkTools(sql, TURN)).resolves.toBeUndefined();
 
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining('chat_tools policy of org_1 cannot be read'),
-        expect.stringContaining('unavailable or invalid'),
-      );
-    });
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('chat_tools policy of org_1 cannot be read'),
+          expect.stringContaining('unavailable or invalid'),
+        );
+      },
+    );
 
     it('still offers images, which follow their own policy', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);

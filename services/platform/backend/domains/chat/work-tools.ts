@@ -59,11 +59,13 @@ const NO_CHAT_TOOLS: ChatToolsConfig = {
 
 /**
  * The organization's chat tool switches: the policy as written, the defaults
- * when no file says otherwise, and every switch OFF when a file exists and
- * cannot be read. A switch an admin turned off is a decision about what code
- * may run; a file that fails to parse must not quietly turn the decision back
- * on — the Governance page names the problem, and the tools return with the
- * repaired file. An absent file, and an unset config root, are the defaults.
+ * when no file says otherwise, and every switch OFF when the policy cannot be
+ * read — a file that exists and fails to parse, a configuration root that is
+ * not set or not readable, a read that failed. A switch an admin turned off
+ * is a decision about what code may run; a policy that cannot be read must
+ * not quietly turn the decision back on — the Governance page names the
+ * problem, and the tools return once it can be read. Only an absent file is
+ * the defaults.
  */
 async function readChatToolSwitches(
   sql: Sql,

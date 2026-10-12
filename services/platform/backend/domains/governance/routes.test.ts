@@ -985,6 +985,30 @@ describe('GET /policies/:policyType — who may read [GOV-R10]', () => {
 
     expect((await read(policyType)).status).toBe(200);
   });
+
+  it('reads chat_tools the way the chat does: a file that cannot be read is reported to the page, never shown as every switch on [CHAT-R26]', async () => {
+    caller.role = 'admin';
+    readGovernancePolicyForOrg.mockRejectedValue(
+      new ConfigurationError(
+        'GOVERNANCE_POLICY_INVALID',
+        'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+        400,
+      ),
+    );
+
+    const response = await read('chat_tools');
+
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'chat_tools',
+      { strict: true },
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: 'GOVERNANCE_POLICY_INVALID',
+    });
+  });
 });
 
 describe('POST /trash/restore — the corpus row of a restored document', () => {
