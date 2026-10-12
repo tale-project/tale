@@ -140,6 +140,29 @@ describe('docs/incus.md operator block', () => {
     expect(text).toContain('raw.dnsmasq=no-resolv');
   });
 
+  test('keeps every address the lab or the ACL names out of the DHCP pool', () => {
+    const lab = labConstants();
+    const range =
+      /ipv4\.dhcp\.ranges=(\d+\.\d+\.\d+\.\d+)-(\d+\.\d+\.\d+\.\d+)/.exec(
+        commands.join('\n'),
+      );
+    if (range?.[1] === undefined || range[2] === undefined) {
+      throw new Error('the sandbox network sets no ipv4.dhcp.ranges');
+    }
+    const last = (address: string) => Number(address.split('.')[3]);
+    const [low, high] = [last(range[1]), last(range[2])];
+    expect(low).toBeLessThan(high);
+    for (const address of [
+      lab.BRIDGE_ADDRESS,
+      lab.EGRESS_ADDRESS,
+      lab.GATEWAY_ADDRESS,
+      lab.BACKEND_ADDRESS,
+    ]) {
+      if (address === undefined) throw new Error('lab.sh names no address');
+      expect(last(address) < low || last(address) > high).toBe(true);
+    }
+  });
+
   test('is the project the doc says a sandbox project must be', () => {
     const text = commands.join('\n');
     for (const setting of [

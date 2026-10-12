@@ -243,6 +243,17 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
   and boot refuses a name. A moved proxy address means a changed variable and a
   restart; sessions that pinned the old address are then recycled once they are
   released.
+- **Keep the infrastructure's addresses out of the DHCP pool.** Incus keeps
+  DHCP from handing out the address it gave an *instance* of the network a
+  static address, but not an address a host, another network or the node itself
+  holds. A session that is handed the address of the gateway, the backend or the
+  node is unreachable (its own address is the node's, so the spawner's calls to
+  runnerd never leave the node) and its create waits out its budget; the lab
+  measured it at about one create in a hundred when two such addresses lay in
+  the pool. Give the pool its own range (`ipv4.dhcp.ranges`) in the part of the
+  subnet that holds no service, and size it for `SANDBOX_MAX_SESSIONS` plus the
+  pool and the image warm-ups, with room for the leases of instances that were
+  removed a moment ago.
 - The ACL on the sandbox network admits, from a session: tcp 3128 and udp/tcp 53
   to the egress proxy; tcp 8080 to the LLM gateway and tcp 3005 to the backend
   (reached directly, since the proxy refuses private destinations); and, to a
@@ -299,9 +310,11 @@ whoever installed Incus. As an administrator:
 ```
 # the sandbox bridge: its own resolver forwards nothing (the egress proxy
 # resolves for the sessions), and it NATs so that the egress proxy, an instance
-# on it, reaches the internet (the sessions' ACL lets them reach nothing else)
+# on it, reaches the internet (the sessions' ACL lets them reach nothing else).
+# Its DHCP pool is the upper part of the subnet only: the lower addresses are
+# the infrastructure's (below), and DHCP must never hand one out
 incus network create sbx0 ipv4.address=10.20.0.1/24 ipv4.nat=true \
-  ipv6.address=none raw.dnsmasq=no-resolv
+  ipv4.dhcp.ranges=10.20.0.100-10.20.0.254 ipv6.address=none raw.dnsmasq=no-resolv
 
 # the project
 incus project create sandbox-pr \

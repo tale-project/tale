@@ -210,6 +210,16 @@ export class Admin {
     );
   }
 
+  /** The leases the bridge's DHCP server holds (a line of its lease file
+   * each: an address handed out and not yet expired or released). */
+  async leases(): Promise<string[]> {
+    const result = await this.host(
+      ['cat', `/var/lib/incus/networks/${this.lab.network}/dnsmasq.leases`],
+      { allowFailure: true },
+    );
+    return result.stdout.split('\n').filter((line) => /^\d+ /.test(line));
+  }
+
   /** The end of an instance's console log (an OCI instance's output). */
   async consoleLog(name: string): Promise<string> {
     const result = await this.run(

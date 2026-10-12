@@ -14,7 +14,6 @@ import { afterAll, beforeAll, describe, expect } from 'bun:test';
 import { LABEL, label } from '../../../src/backend/incus/incus-naming.ts';
 import {
   admin,
-  expectStatus,
   reportFor,
   sessionId,
   spawnerOf,
@@ -44,6 +43,10 @@ const ORG = 'e2e-soak';
 
 const elapsed: number[] = [];
 let failures = 0;
+/** How many leases the DHCP server held after each round. */
+const leases: number[] = [];
+/** What went wrong, round by round. */
+const problems: string[] = [];
 
 function percentile(sorted: readonly number[], fraction: number): number {
   if (sorted.length === 0) return 0;
@@ -122,17 +125,29 @@ describe('creates at once, over and over', () => {
           }),
         );
         const destroyed = await Promise.all(ids.map((id) => api.destroy(id)));
-        expect(bad.map((result) => result.reply.text.slice(0, 300))).toEqual(
-          [],
-        );
-        expect(
-          answered.filter((answer) => answer !== 'ok'),
-          `round ${round}: sessions that did not answer`,
-        ).toEqual([]);
-        for (const [index, reply] of destroyed.entries()) {
-          expectStatus(reply, 200, `destroy ${ids[index]}`);
+        // A finding does not stop the rounds: the hunt wants every one.
+        for (const result of bad) {
+          problems.push(
+            `round ${round}: a create answered HTTP ${result.reply.status} after ${formatDuration(result.elapsedMs)}: ${result.reply.text.slice(0, 300)}`,
+          );
         }
+        for (const [index, answer] of answered.entries()) {
+          if (answer !== 'ok' && answer !== 'not created') {
+            problems.push(
+              `round ${round}: ${ids[index]} answered ${JSON.stringify(answer)}`,
+            );
+          }
+        }
+        for (const [index, reply] of destroyed.entries()) {
+          if (reply.status !== 200) {
+            problems.push(
+              `round ${round}: destroying ${ids[index]} answered HTTP ${reply.status}`,
+            );
+          }
+        }
+        leases.push((await admin.leases()).length);
       }
+      expect(problems).toEqual([]);
     },
   );
 
@@ -153,6 +168,10 @@ describe('creates at once, over and over', () => {
         `p50 ${formatDuration(percentile(sorted, 0.5))}, p90 ${formatDuration(percentile(sorted, 0.9))}, max ${formatDuration(sorted.at(-1) ?? 0)}`,
       );
       report.add('slowest create under load', sorted.at(-1) ?? 0);
+      report.fact(
+        'DHCP leases held after each round',
+        leases.length === 0 ? 'none read' : leases.join(' '),
+      );
       expect(sessions.map((instance) => instance.name)).toEqual([]);
       expect(volumes.map((volume) => volume.name)).toEqual([]);
     },

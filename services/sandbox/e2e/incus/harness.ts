@@ -207,8 +207,20 @@ async function describeNode(): Promise<string[]> {
     );
   }
   await note('DHCP leases of the sandbox bridge', async () =>
-    (await admin.run(['network', 'list-leases', lab.network])).stdout.trim(),
+    (
+      await admin.run([
+        'network',
+        'list-leases',
+        lab.network,
+        '--project',
+        lab.project,
+      ])
+    ).stdout.trim(),
   );
+  await note('the lease file of the bridge', async () => {
+    const leases = await admin.leases();
+    return `${leases.length} lease(s); the last ten:\n${leases.slice(-10).join('\n')}`;
+  });
   await note('operations under way', async () =>
     (
       await admin.run(['operation', 'list', '--project', lab.project])
