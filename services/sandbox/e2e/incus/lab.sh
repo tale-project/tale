@@ -398,6 +398,7 @@ facts() {
   echo "| Runner image | ${ImageOS:-?} ${ImageVersion:-?} |"
   echo "| Incus | $(incus version 2>/dev/null | tr '\n' ' ') |"
   echo "| ZFS | $(modinfo -F version zfs 2>/dev/null || echo '?') |"
+  echo "| Kernel features Incus reports | $(incus query /1.0 2>/dev/null | jq -c '.environment.kernel_features // {}' 2>/dev/null || echo '?') |"
   echo "| Pool | $POOL on a ${POOL_SIZE} sparse file, $(sudo zpool list -H -o name,size,alloc "$ZPOOL" 2>/dev/null | tr '\t' ' ') |"
   if [ -f "$dir/phases.tsv" ]; then
     echo

@@ -7,10 +7,15 @@ the operator creates on it, and the env the spawner reads. The Docker and
 Kubernetes paths are unaffected, and **the backend is off unless
 `SANDBOX_BACKEND=incus` is set**.
 
-> **Status.** Everything here is covered by unit tests against a fake Incus
-> API (`src/backend/incus/fake-incus.ts`), and none of it has run against a real
-> node yet. [Verify a node](#verify-a-node-before-trusting-it) lists exactly
-> what only a real host can prove; run it before putting users on this backend.
+> **Status.** Unit tests run both backends against a fake Incus API
+> (`src/backend/incus/fake-incus.ts`). An end-to-end lab
+> ([e2e/incus](../e2e/incus/README.md), `.github/workflows/sandbox-incus-e2e.yml`)
+> runs the spawner from the same checkout against a real Incus (Zabbly's stable
+> build on a hosted Ubuntu runner, a ZFS pool on a file, the operator block below
+> run verbatim) on every change to the spawner, the runtime image or the egress
+> proxy, and holds the timings in its job summary. What a hosted runner is not
+> is what is left: [Verify a node](#verify-a-node-before-trusting-it) marks each
+> check as proven by that lab or left to your first real node.
 
 ## Execution model: one OCI container per session
 
