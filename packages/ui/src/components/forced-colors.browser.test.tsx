@@ -2,16 +2,18 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cdp } from 'vitest/browser';
+import { cdp, userEvent } from 'vitest/browser';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { WorkbenchDock } from './editor/workbench-dock';
+import { TestResultList } from './feedback/test-results';
 import { SegmentedControl } from './forms/segmented-control';
 import { Slider } from './forms/slider';
 import { ToggleChipGroup } from './forms/toggle-chip-group';
 import { TabNavigation } from './navigation/tab-navigation';
 import { Tabs } from './navigation/tabs';
+import { Button } from './primitives/button';
 
 import '../globals.css';
 
@@ -226,5 +228,55 @@ describe('the current choice and the progress, in forced colours', () => {
     const filled = getComputedStyle(fill as Element).backgroundColor;
     expect(filled).not.toBe(canvas());
     expect(filled).toBe(outline.borderTopColor);
+  });
+});
+
+/**
+ * Most controls draw their focus as a ring, which is a box-shadow, and turn
+ * the browser's own outline off; a contrast theme drops box-shadows, so
+ * without a rule of its own nothing would show where the keyboard is.
+ */
+describe('keyboard focus, in forced colours', () => {
+  it('keeps an outline on what has focus', async () => {
+    await inForcedColors();
+    render(
+      <div>
+        <Button>Plain</Button>
+        <Tabs
+          variant="underline"
+          listAriaLabel="Result"
+          value="a"
+          items={[
+            { value: 'a', label: 'A', content: null },
+            { value: 'b', label: 'B', content: null },
+          ]}
+        />
+        <TestResultList
+          items={[{ id: 'one', name: 'First', status: 'passed' }]}
+          aria-label="Tests"
+          onActivate={() => undefined}
+        />
+      </div>,
+    );
+    // Every stop of the keyboard path: the button, the tab, the tab's panel
+    // and the row.
+    const stops = new Set<Element>();
+    for (let press = 0; press < 4; press += 1) {
+      await userEvent.tab();
+      const focused = document.activeElement;
+      expect(focused).not.toBe(document.body);
+      stops.add(focused as Element);
+      // Controls that transition `all` draw the outline in over 150 ms.
+      await waitFor(() => {
+        const outline = getComputedStyle(focused as Element);
+        expect(outline.outlineStyle).not.toBe('none');
+        expect(Number.parseFloat(outline.outlineWidth)).toBeGreaterThanOrEqual(
+          2,
+        );
+        expect(outline.outlineColor).not.toBe(canvas());
+      });
+    }
+    expect(stops.size).toBe(4);
+    expect(stops.has(screen.getByRole('button', { name: /First/ }))).toBe(true);
   });
 });

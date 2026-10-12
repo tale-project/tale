@@ -2050,8 +2050,9 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       inspector (**Setup** / **Result**) is underlined and the others are not,
       the run timeline's track is an outline with the played part solid
       (`flow.playback.label`), and a pressed day in a repeat rule is filled.
-      Every label stays readable, and a diff's added and removed lines keep
-      their signs.
+      Tab shows an outline round every control that takes focus, the test
+      rows and the dock's tabs included. Every label stays readable, and a
+      diff's added and removed lines keep their signs.
 
 ## Performance
 
@@ -2077,6 +2078,4 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       in the browser's Performance panel; **Run all**
       (`automations.tests.runAll`) answers every row within 2 s. A try of a
       10-node draft answers in under 300 ms server time (the run's `ms`) and a
-      suite of 20 tests in under 3 s; a cheap read such as the list of
-      automations still answers in under 50 ms at the 95th percentile while a
-      suite runs.
+      suite of 20 tests in under 3 s.
