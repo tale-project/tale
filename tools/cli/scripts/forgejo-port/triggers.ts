@@ -10,7 +10,7 @@
  * batches are pushes to `mq/**`.
  */
 
-import { Scalar, YAMLMap, YAMLSeq, isMap, isScalar, isSeq } from 'yaml';
+import { Scalar, YAMLMap, YAMLSeq, isMap, isSeq } from 'yaml';
 import type { Document } from 'yaml';
 
 import {
@@ -72,14 +72,16 @@ function flowSequence(values: readonly string[]): YAMLSeq {
 /** `on: push`, `on: [push, pull_request]` and the mapping form, all as a mapping. */
 function normalize(doc: Document): YAMLMap {
   const root = rootOf(doc);
-  const current = root.get('on', true);
+  const current = root.get('on');
   if (isMap(current)) return current;
   const events = new YAMLMap();
-  const names = isScalar(current)
-    ? [stringOf(current)]
-    : isSeq(current)
-      ? current.items.map((item) => stringOf(item))
-      : [];
+  const single = stringOf(current);
+  const names =
+    single !== undefined
+      ? [single]
+      : isSeq(current)
+        ? current.items.map((item) => stringOf(item))
+        : [];
   for (const name of names) if (name !== undefined) events.set(name, null);
   root.set('on', events);
   return events;
@@ -107,9 +109,9 @@ export function rewriteTriggers(
       note('trigger-dead', `removed \`${name}\`: Forgejo never fires it`);
   }
 
-  const pull = events.get('pull_request', true);
+  const pull = events.get('pull_request');
   if (isMap(pull)) {
-    const types = pull.get('types', true);
+    const types = pull.get('types');
     if (isSeq(types)) {
       for (let index = types.items.length - 1; index >= 0; index -= 1) {
         const type = stringOf(types.items[index]);
@@ -129,7 +131,7 @@ export function rewriteTriggers(
   }
 
   if (validatedInQueue) {
-    const existing = events.get('push', true);
+    const existing = events.get('push');
     const push = isMap(existing) ? existing : new YAMLMap();
     const branches = options.keepMainPush
       ? ['main', TRAIN_BRANCHES]
@@ -150,9 +152,9 @@ export function rewriteTriggers(
       );
   }
 
-  const dispatch = events.get('workflow_dispatch', true);
+  const dispatch = events.get('workflow_dispatch');
   if (isMap(dispatch)) {
-    const inputs = dispatch.get('inputs', true);
+    const inputs = dispatch.get('inputs');
     if (isMap(inputs) && inputs.has('candidate_sha')) {
       // A dispatch that exists to validate a release candidate has nothing to do here.
       events.delete('workflow_dispatch');
