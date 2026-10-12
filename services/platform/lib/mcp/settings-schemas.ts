@@ -20,6 +20,8 @@ import {
 import type { SettingsKind } from '@tale/shared/schemas/settings-kinds';
 import { z } from 'zod';
 
+import { automationApprovalConfigSchema } from '../shared/schemas/automation-approval';
+
 /**
  * The schema each settings kind's config is read through — the one its
  * writer checks a change against — for every reader that needs a kind's
@@ -42,6 +44,7 @@ export const SETTINGS_CONFIG_SCHEMAS: Readonly<
   'agent-model': managedAgentModelSchema,
   'task-instructions': managedTaskInstructionsSchema,
   'task-review-context': managedTaskReviewContextSchema,
+  'automation-approval': automationApprovalConfigSchema,
   deployment: deploymentConfigSchema,
 };
 

@@ -742,5 +742,18 @@
  * no setting (`SETTINGS_NOT_FOUND`), where it read as a refused name; and an
  * `expected` that names resources no change names lists at most fifty of
  * them. No REST operation changes.
+ *
+ * 3.42.0 — 2026-10-12: over MCP, the settings kind `automation-approval`
+ * reads and changes the writes an automation may make without a person
+ * approving each run, as its General tab does. `get_settings` answers, for
+ * each automation, the writes `allowed`, the ones its latest version `used`,
+ * those a rule of the approval policy still requires a person for
+ * (`requiredByPolicy`) and who allowed each (`grants`, by name, never by
+ * address); the acts `grant` and `revoke` with `args.types` change it for an
+ * owner's or admin's key, and a developer's key reads it. A plan of a `grant`
+ * names the effect `removes-human-approval`; the hash covers the automation
+ * and the writes allowed alone. An act that would change nothing plans and
+ * applies as `unchanged`. The refusal code `APPROVAL_ALLOWANCE_INVALID` joins
+ * the settings vocabulary. No REST operation changes.
  */
-export const API_CONTRACT_VERSION = '3.41.0';
+export const API_CONTRACT_VERSION = '3.42.0';

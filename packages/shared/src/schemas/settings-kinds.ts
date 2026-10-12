@@ -272,6 +272,19 @@ export const SETTINGS_KINDS = [
       "Whether a task's work goes to an independent review by another project agent, and which one (reviewerAgentId); the reviewer stays the same once set. A task without one reads as null. id is <projectId>/<taskId>.",
   },
   {
+    kind: 'automation-approval',
+    scope: 'organization',
+    areas: [],
+    cli: false,
+    ops: [],
+    acts: ['grant', 'revoke'],
+    secretPaths: [],
+    baseRisk: 'high',
+    order: 66,
+    description:
+      "The writes to outside systems one automation may make without a person approving each run, named by step type (<connector>.<action>). id is the automation's name. The config is read only: allowed lists the step types allowed, used the writes the latest version makes, requiredByPolicy those a rule of the organization's approval policy still requires a person for whatever is allowed, and grants who allowed each and when. It changes through the acts grant and revoke, each taking args {types: [...]} of 1 to 50 step types; only a write to an outside system can be allowed. Owners and admins change it; developers read it.",
+  },
+  {
     kind: 'deployment',
     scope: 'instance',
     areas: [],

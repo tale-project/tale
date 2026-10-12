@@ -206,6 +206,7 @@ describe('get_settings', () => {
       'agent-model',
       'task-instructions',
       'task-review-context',
+      'automation-approval',
       'deployment',
     ]);
     expect(kinds.find((entry) => entry.kind === 'governance')).toMatchObject({
@@ -377,6 +378,37 @@ describe('get_settings', () => {
 });
 
 describe('plan_settings', () => {
+  it('plans an act that would change nothing as unchanged, with no effects, and applies it by writing nothing', async () => {
+    const state = seeded();
+    vi.spyOn(state.handlers.provider!, 'plan').mockResolvedValue({
+      unchanged: true,
+      effects: ['reaches-vendor'],
+    });
+    const changes = [
+      {
+        kind: 'provider' as const,
+        id: 'vendor',
+        op: 'act' as const,
+        act: 'refresh-catalogs',
+      },
+    ];
+    const plan = await planSettings(contextFor(), state.registry, changes);
+    expect(plan.changes[0]).toMatchObject({
+      action: 'unchanged',
+      diff: [],
+      effects: [],
+      risk: 'low',
+    });
+    expect(
+      await applySettings(contextFor(), state.registry, changes, {
+        'provider/vendor': hashOf(state, 'provider/vendor'),
+      }),
+    ).toMatchObject({
+      applied: [{ key: 'provider/vendor', action: 'unchanged' }],
+    });
+    expect(state.writes).toEqual([]);
+  });
+
   it('refuses text Postgres could not store, naming every field it sits in', async () => {
     const state = seeded();
     const plan = await planSettings(contextFor(), state.registry, [

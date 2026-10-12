@@ -104,6 +104,10 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
     'The id names no policy the governance kind takes: the governance section above lists them.',
   ],
   [
+    'APPROVAL_ALLOWANCE_INVALID',
+    'A type named for an allowance is no write to an outside system of the connector catalog — a read, and a write on Tale itself such as creating a task, never waits for approval; to withdraw one, it is not one allowed either: data.types names them.',
+  ],
+  [
     'PROVIDER_IN_USE',
     'Credentials still name the provider: remove them first (kind provider-credential).',
   ],
@@ -190,13 +194,15 @@ function kindSection(descriptor: (typeof SETTINGS_KINDS)[number]): string[] {
     '',
     descriptor.description,
     '',
-    `Scope: ${descriptor.scope}. Operations: ${descriptor.ops.join(', ')}${descriptor.acts.length > 0 ? `; acts: ${descriptor.acts.join(', ')}` : ''}. Base risk: ${descriptor.baseRisk}.${descriptor.areas.length > 0 ? ` In Tale: Settings > ${descriptor.areas.join(', ')}.` : ''}`,
+    `Scope: ${descriptor.scope}. Operations: ${descriptor.ops.length > 0 ? descriptor.ops.join(', ') : 'none'}${descriptor.acts.length > 0 ? `; acts: ${descriptor.acts.join(', ')}` : ''}. Base risk: ${descriptor.baseRisk}.${descriptor.areas.length > 0 ? ` In Tale: Settings > ${descriptor.areas.join(', ')}.` : ''}`,
     '',
   ];
   if (descriptor.kind !== 'governance') {
     return [
       ...header,
-      'Config:',
+      descriptor.ops.length > 0
+        ? 'Config:'
+        : 'Config, as get_settings answers it (read only; the acts change it):',
       '',
       fieldsOf(SETTINGS_CONFIG_SCHEMAS[descriptor.kind]),
       '',

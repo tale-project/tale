@@ -22,9 +22,10 @@ Tale lit et écrit chaque type de paramètre avec son propre code et les contrô
 | `agent-model` | L’environnement d’agent (harness), le modèle et le fournisseur avec lesquels travaille un agent de projet. Un changement s’applique aux exécutions qu’il lance ensuite. | Définir | Qui peut modifier le projet |
 | `task-instructions` | La description d’une tâche. | Définir | Qui peut modifier la tâche |
 | `task-review-context` | Si le travail d’une tâche passe par une relecture indépendante d’un autre agent de projet, et lequel. Une fois défini, l’agent relecteur reste le même. | Définir | Qui peut modifier le projet |
+| `automation-approval` | Les écritures vers des systèmes externes qu’une automatisation peut faire sans que chaque exécution attende une personne, nommées comme le fait une étape, par exemple `slack.send_message`, avec celles que fait sa dernière version et qui les a autorisées. En lecture seule ; ses actions la modifient. | Autoriser ou retirer une écriture (`grant`, `revoke`) | Propriétaires et admins ; les développeurs la lisent |
 | `deployment` | Les paramètres propres au déploiement, communs à toutes les organisations qu’il héberge, comme l’environnement d’exécution des sandboxes. | Définir | Tout propriétaire ou admin d’une organisation du déploiement peut les lire, avec sa propre clé API ; seules les adresses de la liste d’autorisation des éditeurs du déploiement peuvent les modifier. Une clé créée pour un autre membre, une équipe, un projet ou l’organisation n’en atteint aucun |
 
-Une ressource a un identifiant au sein de son type : un fournisseur, son nom ; des identifiants, `<provider>/<name>` avec le nom encodé en URI ; une politique, sa clé, comme `password_policy` ; un projet, son identifiant ; un agent, `<projectId>/<agentId>` ; une tâche, `<projectId>/<taskId>`. Le modèle d’embedding, le branding et les paramètres du déploiement n’ont pas d’identifiant. `get_settings` liste les paramètres des projets et des agents page par page, sur les projets que tu peux lire ; il ne lit la description d’une tâche et son contexte de relecture que par l’identifiant de la tâche.
+Une ressource a un identifiant au sein de son type : un fournisseur, son nom ; des identifiants, `<provider>/<name>` avec le nom encodé en URI ; une politique, sa clé, comme `password_policy` ; un projet, son identifiant ; un agent, `<projectId>/<agentId>` ; une tâche, `<projectId>/<taskId>` ; les autorisations d’une automatisation, le nom de l’automatisation, comme `ops/morning-digest`. Le modèle d’embedding, le branding et les paramètres du déploiement n’ont pas d’identifiant. `get_settings` liste les paramètres des projets et des agents page par page, sur les projets que tu peux lire, ainsi que les automatisations qui ont une autorisation ; il ne lit la description d’une tâche, son contexte de relecture et une automatisation sans autorisation que par l’identifiant.
 
 Certaines modifications restent dans Tale :
 
@@ -90,6 +91,37 @@ Pour l’appliquer, envoie les mêmes `changes` avec `"expected": { "governance/
 
 `apply_settings` demande à la personne avant chaque appel et dispose de son propre [budget](/fr/develop/rate-limits).
 
+## Laisser une automatisation écrire sans approbation {#automation-approval}
+
+Une écriture vers un système externe, comme un message Slack ou un nouveau ticket GitHub, attend l’approbation d’une personne à chaque exécution réelle, sauf si un propriétaire ou un admin a autorisé cette écriture pour cette seule automatisation. Ce sont les interrupteurs **S’exécute sans approbation** de l’onglet **Général** de l’automatisation (voir [Répondre à un workflow en attente](/fr/platform/automations/approvals-in-workflows)) ; le type `automation-approval` lit et modifie ces mêmes autorisations.
+
+Pour lire les autorisations d’une automatisation, nomme-la : `get_settings` avec `kinds: ["automation-approval"]` et `ids: ["ops/morning-digest"]`. Sans `ids`, il liste page par page les automatisations qui ont une autorisation. La configuration est en lecture seule :
+
+| Champ | Ce qu’il contient |
+| --- | --- |
+| `allowed` | Les écritures qui s’exécutent sans approbation, nommées comme le fait une étape : `<connector>.<action>`, par exemple `slack.send_message`. |
+| `used` | Les écritures que fait la dernière version de l’automatisation. |
+| `requiredByPolicy` | Parmi les écritures autorisées et utilisées, celles pour lesquelles une règle de la [politique d’approbation](/fr/self-hosted/configuration/approvals) de ton organisation exige toujours une personne. Une telle règle l’emporte sur une autorisation. |
+| `grants` | Qui a autorisé chaque écriture, par son nom, et quand. Une personne qui a quitté l’organisation n’a pas de nom. |
+
+Une autorisation change par une action, une opération ponctuelle sur une ressource existante : `grant` autorise des écritures, `revoke` retire leur autorisation. Chacune prend les écritures dans `args.types` :
+
+```json
+{
+  "changes": [
+    {
+      "kind": "automation-approval",
+      "id": "ops/morning-digest",
+      "op": "act",
+      "act": "grant",
+      "args": { "types": ["github.create_issue"] }
+    }
+  ]
+}
+```
+
+Seule une écriture d’un connecteur vers un système externe peut être autorisée. Une lecture, et une écriture dans Tale même comme la création d’une tâche, n’attendent jamais d’approbation. Autoriser une écriture retire une personne des exécutions réelles de cette automatisation : le plan nomme donc l’effet `removes-human-approval`, au risque critical — montre-le d’abord à la personne. Retirer une autorisation n’a pas cet effet : l’écriture demande de nouveau une approbation. Une modification laisse les autres autorisations telles quelles, et son hash ne couvre que l’automatisation et ses écritures autorisées : une nouvelle version de l’automatisation ne périme donc pas un plan, la modification de ses autorisations par une autre personne, si. Les propriétaires et les admins modifient les autorisations ; les développeurs les lisent. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre chaque autorisation et chaque retrait comme faits par MCP, comme pour l’onglet **Général**.
+
 ## Lire les effets d’un plan {#effects}
 
 Le risque d’un plan est le plus élevé entre le risque de base de son type et celui de ses effets. Voici les effets que peuvent nommer les types servis aujourd’hui :
@@ -98,7 +130,7 @@ Le risque d’un plan est le plus élevé entre le risque de base de son type et
 | --- | --- | --- |
 | `may-lock-out-members` | critical | Le verrouillage de connexion est actif après la modification, la rotation des mots de passe commence ou se raccourcit, ou l’authentification à deux facteurs devient plus stricte |
 | `signs-out-members` | critical | Le délai d’inactivité est activé ou raccourci |
-| `removes-human-approval` | critical | Une règle d’approbation ou une exigence de relecture ne demande plus l’avis d’une personne |
+| `removes-human-approval` | critical | Une règle d’approbation ou une exigence de relecture ne demande plus l’avis d’une personne, ou une automatisation peut faire une écriture sans approbation |
 | `changes-serving-account` | high | Le point d’accès d’un fournisseur change, ou d’autres identifiants servent ses requêtes |
 | `breaks-dependents` | high | Les identifiants actifs par défaut du fournisseur sont supprimés et rien ne les remplace |
 | `requires-empty-corpus` | critical | Le modèle d’embedding change, ce qui exige que les connaissances de l’organisation soient vides |
@@ -125,6 +157,7 @@ Un refus arrive sous forme de données, avec un `error`, un `code`, un `hint` et
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Le rôle de la personne ne permet pas non plus cette modification dans Tale. Réessayer ne sert à rien. |
 | `EMBEDDING_CORPUS_NOT_EMPTY` | Le modèle d’embedding ne change que tant que les connaissances de l’organisation sont vides. `data` indique combien de documents et de sites web elles contiennent. |
 | `BRANDING_IMAGE_UNKNOWN` | Un nom de fichier du branding ne désigne aucune image téléversée dans l’organisation. |
+| `APPROVAL_ALLOWANCE_INVALID` | Un nom n’est pas une écriture d’un connecteur vers un système externe : on ne peut pas l’autoriser. `data.types` les nomme. |
 | `PROVIDER_IN_USE`, `CREDENTIAL_IN_USE` | Des identifiants désignent encore le fournisseur, ou le modèle d’embedding utilise ces identifiants. Modifie-les d’abord. |
 
 La référence des paramètres liste les codes que les outils de paramètres renvoient eux-mêmes ; le rédacteur d’un type en renvoie aussi les siens, chacun avec sa phrase et un conseil. La page du [point d’accès MCP](/fr/develop/mcp-endpoint#settings) décrit les arguments et les réponses des outils.

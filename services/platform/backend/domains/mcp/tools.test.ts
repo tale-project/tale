@@ -442,6 +442,13 @@ describe('settings over MCP', () => {
           { kind: 'provider', id: 'vendor', op: 'set' },
           { kind: 'provider', id: 'vendor', op: 'act', act: 'rename' },
           { kind: 'files', op: 'set', config: {} },
+          { kind: 'automation-approval', id: 'digest', op: 'delete' },
+          {
+            kind: 'automation-approval',
+            id: 'digest',
+            op: 'set',
+            config: {},
+          },
         ],
       },
       { host: { ...host, platform }, requestId: 'r' },
@@ -460,6 +467,8 @@ describe('settings over MCP', () => {
       'changes.2.config required',
       'changes.3.act act_unknown',
       'changes.4.kind invalid_value',
+      'changes.5.op op_not_supported',
+      'changes.6.op op_not_supported',
     ]);
     expect(platform).not.toHaveBeenCalled();
   });

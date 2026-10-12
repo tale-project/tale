@@ -33,7 +33,7 @@ Ein Schreibzugriff, der bei jedem Lauf auf eine Person wartet — ein Morgen-Dig
 
 </Frame>
 
-Eine Regel der [Freigaberichtlinie](/de/self-hosted/configuration/approvals), die für die Aktion eine Person verlangt, hat weiterhin Vorrang vor einer Erlaubnis. Jede Erlaubnis und jede Rücknahme steht im [Audit-Protokoll](/de/platform/admin/governance/audit-logs), und das Löschen der Automatisierung entfernt ihre Erlaubnisse.
+Eine Regel der [Freigaberichtlinie](/de/self-hosted/configuration/approvals), die für die Aktion eine Person verlangt, hat weiterhin Vorrang vor einer Erlaubnis. Jede Erlaubnis und jede Rücknahme steht im [Audit-Protokoll](/de/platform/admin/governance/audit-logs), und das Löschen der Automatisierung entfernt ihre Erlaubnisse. Ein Coding-Agent, der über [MCP](/de/develop/mcp-settings#automation-approval) verbunden ist, liest dieselben Erlaubnisse; der Schlüssel eines Inhabers oder Admins kann sie ändern.
 
 ## Eine Rückfrage des Agenten beantworten
 
