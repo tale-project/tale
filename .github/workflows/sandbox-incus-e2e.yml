@@ -9,13 +9,14 @@ name: Sandbox Incus E2E
 # runtime and egress images from this checkout, starts the spawner from this
 # checkout, and drives its signed HTTP API through the session contract:
 # create (cold and from the warm pool), exec, files, env, stop and resume,
-# destroy, fencing, re-adoption, pins, reaping, quotas and limits, egress, and
-# Docker inside. services/sandbox/e2e/incus/README.md says what each suite
-# proves and what only production can.
+# destroy, fencing, re-adoption, pins, reaping, quotas and limits, egress,
+# Docker inside, and the upgrade of the runtime image. A draft is held; to try
+# one, dispatch this workflow on its branch (a Ubicloud runner by default).
+# services/sandbox/e2e/incus/README.md says what each suite proves and what
+# only production can.
 #
-# Not a required check (it takes the better part of an hour and depends on a
-# third party's package index); making it one is a branch-protection setting,
-# and a gate in CI ready's list of workflows, see the README.
+# Not a required check (it takes about half an hour and depends on a third
+# party's package index); the README says how to make it one.
 
 on:
   pull_request:

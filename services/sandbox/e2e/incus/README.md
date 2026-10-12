@@ -121,9 +121,22 @@ manual list in docs/incus.md names what is left for a first real node.
 
 ## Making it a required check
 
-It is a standalone workflow on purpose: it takes the better part of an hour and
-depends on a third party's package index. To require it: add the job
-("Sandbox on Incus") to the repository's branch protection, and add the
-workflow to CI ready's lists (`.github/actions/ci-ready`, the candidate
-contract) the way the other validation workflows are listed. Until then it
-reports on the pull request and blocks nothing.
+It is a standalone workflow on purpose: it takes about half an hour and
+depends on a third party's package index. To require it, do what the other
+validation workflows do, in one change:
+
+1. Give the workflow a `merge_group:` trigger and a `ci-ready` job like the one
+   in `.github/workflows/checks.yml` (named `CI ready (Sandbox Incus E2E)`,
+   `needs` the `incus` job, `if: always() && (github.event_name ==
+   'pull_request' || github.event_name == 'merge_group')`, running
+   `./.github/actions/ci-ready` with `workflow: sandbox-incus-e2e`).
+2. Register the workflow in `tools/cli/scripts/ci-ready.ts`: its job ids in
+   `CI_JOBS` and its context in `CI_CONTEXTS` (the tests next to it hold every id
+   to the YAML). Consider listing it with the heavy suites that run only in the
+   merge queue (`MERGE_QUEUE_ONLY_SCOPES`), so that a pull request does not spend a
+   runner on it and the queue's run is the gate.
+3. Add `CI ready (Sandbox Incus E2E)` to the repository's required checks (the
+   branch protection or ruleset of `main`).
+
+Until then it reports on the pull request once it is ready for review, runs on
+demand for a draft (see "Running it"), and blocks nothing.
