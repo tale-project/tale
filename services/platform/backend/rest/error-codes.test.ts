@@ -179,7 +179,14 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // a client branches on.
   'BAD_REQUEST',
   'CONFLICT',
+  'SERVICE_UNAVAILABLE',
   'TOO_MANY_REQUESTS',
+  // Every password hash and check goes through the process's bounded hasher
+  // (`auth/password-hasher.ts`), which refuses a check with a retryable 503
+  // when its slots and queue are full. Only Better Auth's sign-in, sign-up
+  // and password confirmations hash a password: the REST door authenticates
+  // an API key and never reaches it.
+  'PASSWORD_CHECK_BUSY',
   // Interactive confirmations the REST door supplies itself, or that
   // only the app asks for.
   'DEFAULT_ORG_PROTECTED',

@@ -8,6 +8,7 @@ import {
 import { createAccessControl } from 'better-auth/plugins/access';
 import { createAuthClient } from 'better-auth/react';
 
+import { shouldRetryAuthRequest } from './auth-retry';
 import { sanitizeInternalRedirect } from './shared/utils/safe-redirect';
 
 // Mirror minimal access control on the client for type-safe checks
@@ -53,14 +54,15 @@ export const authClient = createAuthClient({
   // session id changes. A single failed hop therefore used to strand the
   // websocket unauthenticated (endless skeletons) until a manual reload.
   // Retrying here keeps those one-shot fetches pending until the backend is
-  // actually up. 4xx (signed out, bad request) is never retried.
+  // actually up. 4xx (signed out, bad request) is never retried, nor is the
+  // server's refusal of a password check (`lib/auth-retry.ts`).
   fetchOptions: {
     retry: {
       type: 'exponential',
       attempts: 4,
       baseDelay: 500,
       maxDelay: 4000,
-      shouldRetry: (response) => response === null || response.status >= 500,
+      shouldRetry: shouldRetryAuthRequest,
     },
   },
   plugins: [

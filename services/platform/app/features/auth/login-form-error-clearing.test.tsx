@@ -194,3 +194,61 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
     });
   });
 });
+
+describe('LogInPage – a sign-in the server could not check', () => {
+  async function submit() {
+    const { user } = render(<LogInPage />);
+    await user.type(
+      screen.getByLabelText('email', { exact: false }),
+      'user@example.com',
+    );
+    await user.type(screen.getByLabelText(/^password\b/i), 'secret-password');
+    await user.click(screen.getByRole('button', { name: 'login.loginButton' }));
+  }
+
+  it.each([
+    ['too many passwords were being checked at once (503)', 503],
+    ['the server failed outright (500)', 500],
+  ])(
+    'says sign-in is unavailable, not that the password is wrong, when %s',
+    async (_name, status) => {
+      mockSignInEmail.mockImplementation(async (_payload, { onError }) => {
+        onError?.({ error: { status } });
+        return { data: null };
+      });
+
+      await submit();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('login.temporarilyUnavailable'),
+        ).toBeInTheDocument();
+      });
+      // It says nothing about the password, and the attempt did not count
+      // toward a lockout: neither the wrong-password line nor its advisory.
+      expect(
+        screen.queryByText('login.wrongCredentials'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('login.lockoutAdvisory'),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('still says the password is wrong, with the lockout advisory, for a refused sign-in (401)', async () => {
+    mockSignInEmail.mockImplementation(async (_payload, { onError }) => {
+      onError?.({ error: { status: 401 } });
+      return { data: null };
+    });
+
+    await submit();
+
+    await waitFor(() => {
+      expect(screen.getByText('login.wrongCredentials')).toBeInTheDocument();
+    });
+    expect(screen.getByText('login.lockoutAdvisory')).toBeInTheDocument();
+    expect(
+      screen.queryByText('login.temporarilyUnavailable'),
+    ).not.toBeInTheDocument();
+  });
+});

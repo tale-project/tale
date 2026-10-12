@@ -100,6 +100,7 @@ import {
   confirmationOutcome,
   passwordConfirmationOf,
 } from './password-confirmations.ts';
+import { passwordHasher } from './password-hasher.ts';
 import { reauthenticate } from './reauthenticate.ts';
 import { sessionCookieCacheOption } from './session-cache.ts';
 import {
@@ -797,6 +798,14 @@ export function createAuth(config: AuthConfig) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+      // Every hash and check Better Auth makes — sign-in, sign-up, the
+      // password confirmations — runs through the process's bounded hasher
+      // (`password-hasher.ts`): a wave of sign-ins is refused with a
+      // retryable 503 rather than queued ahead of the rest of the process.
+      password: {
+        hash: (password) => passwordHasher.hash(password),
+        verify: (data) => passwordHasher.verify(data),
+      },
     },
     advanced: {
       cookiePrefix: 'better-auth',
