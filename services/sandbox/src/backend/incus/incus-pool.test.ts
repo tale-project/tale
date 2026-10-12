@@ -191,6 +191,32 @@ describe('filling the pool', () => {
     expect(second.created).toBe(1);
   });
 
+  test('a standby with no address is not ready, however it started, and is given up on', async () => {
+    const { fake, pool } = fixture(1);
+    fake.assignAddresses = false;
+    const report = await pool.reconcile();
+    // It wrote its marker and waits, but a session claiming it would wait for
+    // DHCP: it counts for nothing and is removed.
+    expect(report.created).toBe(0);
+    expect(pool.readyCount()).toBe(0);
+    expect(fake.instances.size).toBe(0);
+  });
+
+  test('a standby is ready once its address arrives', async () => {
+    const { fake, pool, clock } = fixture(1);
+    // The lease comes a few seconds after the marker, as it can under load.
+    fake.onStarted = (instance) => {
+      const started = clock.now;
+      Object.defineProperty(instance, 'address', {
+        get: () => (clock.now >= started + 3_000 ? '10.9.0.77' : undefined),
+        configurable: true,
+      });
+    };
+    const report = await pool.reconcile();
+    expect(report).toEqual({ created: 1, removed: 0, ready: 1 });
+    expect(standbys(fake)[0]?.address).toBe('10.9.0.77');
+  });
+
   test('a standby that never says it waits is given up on', async () => {
     const { fake, pool } = fixture(1);
     fake.onStarted = (instance) => {

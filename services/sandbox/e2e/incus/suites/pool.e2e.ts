@@ -40,6 +40,8 @@ const spawner = spawnerOf({ name: 'pool-a', port: 18006, token, env });
 const peer = spawnerOf({ name: 'pool-b', port: 18007, token, env });
 const api = spawner.api;
 const ORG = 'e2e-pool';
+/** Far above a claim (under a second), far below a cold create (3 s and more). */
+const CLAIM_BUDGET_MS = 2_500;
 
 /** `warm=<ready>/<target>` of the health detail. The spawner caches its health
  * for a minute, so this lags the node; it is read only where the point is that
@@ -134,6 +136,9 @@ describe('the warm pool on a real node', () => {
       });
       expectStatus(result.reply, 201, 'create from the pool');
       report.add('create from the warm pool (a claim)', result.elapsedMs);
+      // A claim must not wait for DHCP (a cold create takes three to four
+      // seconds, most of it that wait): that is what the pool is for.
+      expect(result.elapsedMs).toBeLessThan(CLAIM_BUDGET_MS);
 
       const instance = await sessionInstance(id);
       if (instance === undefined)
@@ -293,6 +298,7 @@ describe('the warm pool on a real node', () => {
         'create from the warm pool, on a replacement spawner',
         result.elapsedMs,
       );
+      expect(result.elapsedMs).toBeLessThan(CLAIM_BUDGET_MS);
       expect(waiting.has((await sessionInstance(id))?.name ?? '')).toBe(true);
       await waitForPool(POOL_SIZE, 'the replacement to refill');
       // The draining one made none: the pool holds its size, not twice it.

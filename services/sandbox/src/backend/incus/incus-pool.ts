@@ -25,6 +25,7 @@ import { outsideOperationBudget } from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { INCUS_STATUS, incusStatus, type IncusInstance } from './incus-api.ts';
 import { type IncusClient, isIncusBusy } from './incus-client.ts';
+import { instanceAddress } from './incus-lifecycle.ts';
 import {
   incusPoolInstanceName,
   isPoolInstance,
@@ -268,10 +269,21 @@ export class IncusPool {
     return this.report(created, removed);
   }
 
-  /** Is the standby up and waiting for a claim? */
+  /**
+   * Is the standby up, waiting for a claim and reachable? A standby that has
+   * written its marker but holds no address yet would hand the session that
+   * claims it the DHCP wait the pool exists to hide (Incus starts an OCI
+   * container after five seconds without a lease, and its client goes on for
+   * thirty), so it is not ready, and one that never gets an address is given
+   * up on like one that never writes its marker.
+   */
   private async waiting(name: string): Promise<boolean> {
     try {
-      return await this.client.fileExists(name, STANDBY_READY_FILE);
+      if (!(await this.client.fileExists(name, STANDBY_READY_FILE))) {
+        return false;
+      }
+      const found = await this.client.getInstanceFull(name);
+      return found !== undefined && instanceAddress(found.state) !== undefined;
     } catch (error) {
       console.warn(
         `[sandbox.incus.pool] cannot tell whether ${name} waits:`,
