@@ -334,6 +334,14 @@ workspace did not exist (404).
 
 - **Example**: Ada pins the light sandbox of Mia's chat → not found; nothing changes.
 
+### SBX-R26 · A failed start never costs the conversation its working sandbox
+
+When a start fails and a retry works, the failed attempt's age is no reason to remove the
+working sandbox. It is removed only once it has itself been unused for five minutes.
+
+- **Example**: Mia's chat could not start a sandbox at 10:00 (the host was busy) and got one at
+  10:01, last used at 10:04 → at 10:06 the sandbox is still there, with its files.
+
 ## Not yet
 
 - **Egress**: which addresses a sandbox can reach is decided by the sandbox service, outside

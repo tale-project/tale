@@ -143,6 +143,7 @@ import { checkChatFilterEventRetention } from './domains/retention/chat-filter-e
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
+import { checkLightSessionSweep } from './domains/sandbox/light-sessions.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
@@ -65685,6 +65686,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
+      [
+        'checkLightSessionSweep',
+        () => checkLightSessionSweep(sql, authCtx, record),
       ],
       [
         'checkWorkspaceCleanup',
