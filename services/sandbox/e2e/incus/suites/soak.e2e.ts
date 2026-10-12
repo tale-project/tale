@@ -24,7 +24,17 @@ import { formatDuration } from '../report.ts';
 import { newToken } from '../spawner.ts';
 
 const report = reportFor('soak');
-const ROUNDS = Math.max(1, Number(process.env.INCUS_E2E_SOAK_ROUNDS ?? '6'));
+const ROUNDS = (() => {
+  const raw = (process.env.INCUS_E2E_SOAK_ROUNDS ?? '').trim() || '6';
+  const rounds = Number(raw);
+  // A number nobody meant would make the suite pass without running a round.
+  if (!Number.isInteger(rounds) || rounds < 1 || rounds > 500) {
+    throw new Error(
+      `INCUS_E2E_SOAK_ROUNDS must be a whole number from 1 to 500, not ${JSON.stringify(raw)}`,
+    );
+  }
+  return rounds;
+})();
 const BURST = 8;
 const POOL_SIZE = 3;
 const spawner = spawnerOf({
