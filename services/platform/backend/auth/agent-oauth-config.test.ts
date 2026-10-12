@@ -4,16 +4,17 @@ import { describe, expect, it } from 'vitest';
 
 import {
   agentOAuthOptionsFromEnv,
+  agentSignInOn,
   DEFAULT_DCR_WEB_REDIRECT_HOSTS,
   invalidHostEntries,
 } from './agent-oauth-config.ts';
 
 describe('how a deployment lets coding agents sign in', () => {
-  it('lets agents identify themselves by a metadata document and register themselves, by default', () => {
+  it('opens neither way in by default, so nothing is advertised before the sign-in is complete', () => {
     expect(agentOAuthOptionsFromEnv({})).toEqual({
-      metadataDocuments: true,
+      metadataDocuments: false,
       metadataHosts: [],
-      dynamicRegistration: true,
+      dynamicRegistration: false,
       webRedirectHosts: [...DEFAULT_DCR_WEB_REDIRECT_HOSTS],
     });
     expect(DEFAULT_DCR_WEB_REDIRECT_HOSTS).toEqual([
@@ -25,19 +26,33 @@ describe('how a deployment lets coding agents sign in', () => {
     ]);
   });
 
-  it('turns either way off only for the word false', () => {
+  it('turns either way on only for the word true', () => {
     expect(
       agentOAuthOptionsFromEnv({
-        TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'FALSE',
-        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: ' false ',
-      }),
-    ).toMatchObject({ metadataDocuments: false, dynamicRegistration: false });
-    expect(
-      agentOAuthOptionsFromEnv({
-        TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'true',
-        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: '',
+        TALE_MCP_CLIENT_METADATA_DOCUMENTS: ' TRUE ',
+        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'true',
       }),
     ).toMatchObject({ metadataDocuments: true, dynamicRegistration: true });
+    expect(
+      agentOAuthOptionsFromEnv({
+        TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'false',
+        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: '',
+      }),
+    ).toMatchObject({ metadataDocuments: false, dynamicRegistration: false });
+  });
+
+  it('gives agents a way in when either way is on, and none when both are off', () => {
+    const off = agentOAuthOptionsFromEnv({});
+    expect(agentSignInOn(off)).toBe(false);
+    expect(agentSignInOn({ ...off, metadataDocuments: true })).toBe(true);
+    expect(agentSignInOn({ ...off, dynamicRegistration: true })).toBe(true);
+    expect(
+      agentSignInOn({
+        ...off,
+        metadataDocuments: true,
+        dynamicRegistration: true,
+      }),
+    ).toBe(true);
   });
 
   it('reads host lists comma- or space-separated, lower-cased, once each', () => {

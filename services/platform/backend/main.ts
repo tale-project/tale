@@ -111,8 +111,9 @@ async function main(): Promise<void> {
   });
   if (auth !== null) {
     // The MCP endpoint as the sign-in server's resource, on every address
-    // the deployment answers on — once the provider's tables exist.
-    await seedMcpResources(sql, configuredMcpResources());
+    // the deployment answers on — once the provider's tables exist, and
+    // through the boot's wait like every step that needs the database.
+    await databaseWait(() => seedMcpResources(sql, configuredMcpResources()));
   }
 
   // Metrics collectors need the pool and read app tables, so they register

@@ -357,10 +357,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // RFC 9728: where a coding agent learns that the MCP endpoint signs in
   // with this issuer — at the endpoint's own path and at the root.
   app.get(PROTECTED_RESOURCE_METADATA_PATH, (c) =>
-    protectedResourceMetadataAnswer(c.req.raw, oidcRealm()),
+    protectedResourceMetadataAnswer(c.req.raw, oidcRealm(), agentOAuth),
   );
   app.get(`${PROTECTED_RESOURCE_METADATA_PATH}/*`, (c) =>
-    protectedResourceMetadataAnswer(c.req.raw, oidcRealm()),
+    protectedResourceMetadataAnswer(c.req.raw, oidcRealm(), agentOAuth),
   );
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
   // The remote images an email draws, fetched by the backend so the sender

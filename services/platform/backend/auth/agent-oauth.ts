@@ -27,7 +27,7 @@ import {
   checkKeyedRateLimit,
   RateLimitExceededError,
 } from '../lib/rate-limit.ts';
-import type { AgentOAuthOptions } from './agent-oauth-config.ts';
+import { type AgentOAuthOptions, agentSignInOn } from './agent-oauth-config.ts';
 
 /**
  * Coding agents signing in to Tale's MCP endpoint, on the Better Auth OAuth
@@ -64,7 +64,7 @@ export const PROTECTED_RESOURCE_METADATA_PATH =
 
 /** How long an agent's access token lives: a disconnect or a lost seat is
  * also refused at the door on the next call, whatever the token says. */
-export const AGENT_ACCESS_TOKEN_SECONDS = 300;
+const AGENT_ACCESS_TOKEN_SECONDS = 300;
 
 /** How long a coding agent stays signed in without being used: every
  * refresh rotates its refresh token and restarts the window. */
@@ -76,7 +76,7 @@ const MCP_RESOURCE_MARK = { taleResource: 'mcp' } as const;
 
 /** The MCP endpoint as an OAuth resource on one origin: its URL, the
  * deployment's base path kept, scheme and host lower-cased. */
-export function mcpResourceOn(origin: string, base: string): string {
+function mcpResourceOn(origin: string, base: string): string {
   return `${new URL(origin).origin}${base}${MCP_PATH}`;
 }
 
@@ -185,17 +185,22 @@ export function protectedResourceMetadata(resource: string, issuer: string) {
  * The answer at `/.well-known/oauth-protected-resource[<path>]`: the MCP
  * endpoint's metadata for the address the request arrived on, at the root
  * (where an agent looks second) and at the endpoint's own path; any other
- * path names no resource of this deployment. Public, cacheable for five
- * minutes, and per host.
+ * path names no resource of this deployment, and none does while the
+ * operator leaves agents no way in. Public, cacheable for five minutes, and
+ * per host.
  */
 export function protectedResourceMetadataAnswer(
   request: Request,
   issuer: string,
+  options: AgentOAuthOptions,
 ): Response {
   const path = new URL(request.url).pathname;
   const suffix = path.slice(PROTECTED_RESOURCE_METADATA_PATH.length);
   const resource = mcpResourceFor(request);
-  if (suffix !== '' && suffix !== new URL(resource).pathname) {
+  if (
+    !agentSignInOn(options) ||
+    (suffix !== '' && suffix !== new URL(resource).pathname)
+  ) {
     return Response.json(
       { error: 'Not found', code: 'NOT_FOUND' },
       { status: 404, headers: { 'cache-control': 'no-store' } },

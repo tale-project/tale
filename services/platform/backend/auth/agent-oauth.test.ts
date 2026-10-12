@@ -195,6 +195,7 @@ describe('the MCP endpoint as an OAuth resource', () => {
           headers: { host, 'x-forwarded-proto': 'https' },
         }),
         ISSUER,
+        OPTIONS,
       );
     for (const path of [
       '/.well-known/oauth-protected-resource/api/v1/mcp',
@@ -226,6 +227,33 @@ describe('the MCP endpoint as an OAuth resource', () => {
       error: 'Not found',
       code: 'NOT_FOUND',
     });
+  });
+
+  it('names no resource while agents have no way in, and one as soon as either way is on', async () => {
+    const ask = (given: AgentOAuthOptions) =>
+      protectedResourceMetadataAnswer(
+        new Request(
+          'http://backend-api:3005/.well-known/oauth-protected-resource',
+          {
+            headers: { host: 'tale.example.com', 'x-forwarded-proto': 'https' },
+          },
+        ),
+        ISSUER,
+        given,
+      );
+    const closed = ask({
+      ...OPTIONS,
+      metadataDocuments: false,
+      dynamicRegistration: false,
+    });
+    expect(closed.status).toBe(404);
+    expect(closed.headers.get('cache-control')).toBe('no-store');
+    for (const one of [
+      { metadataDocuments: true, dynamicRegistration: false },
+      { metadataDocuments: false, dynamicRegistration: true },
+    ]) {
+      expect(ask({ ...OPTIONS, ...one }).status).toBe(200);
+    }
   });
 });
 

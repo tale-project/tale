@@ -169,7 +169,7 @@ const envSchema = z.object({
   /**
    * Whether a coding agent may sign in to the MCP endpoint identifying
    * itself by a client metadata document it publishes on its own HTTPS host
-   * (on unless `false`). Read by `auth/agent-oauth-config.ts`.
+   * (off unless `true`). Read by `auth/agent-oauth-config.ts`.
    */
   TALE_MCP_CLIENT_METADATA_DOCUMENTS: z.enum(['true', 'false']).optional(),
   /** The hosts such a document may come from (comma- or space-separated);
@@ -178,7 +178,7 @@ const envSchema = z.object({
     'TALE_MCP_CLIENT_METADATA_HOSTS',
   ),
   /** Whether a coding agent may register itself at the sign-in server
-   * (open dynamic client registration, restricted; on unless `false`). */
+   * (open dynamic client registration, restricted; off unless `true`). */
   TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: z.enum(['true', 'false']).optional(),
   /** The web hosts a self-registered agent may send a person back to; unset,
    * the hosted agents' own (`DEFAULT_DCR_WEB_REDIRECT_HOSTS`). */

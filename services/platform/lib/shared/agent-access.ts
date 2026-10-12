@@ -75,13 +75,6 @@ export const ACCESS_LEVELS = {
 
 export type AccessLevel = keyof typeof ACCESS_LEVELS;
 
-/** What a person may allow beside a level, each on its own. */
-export const ACCESS_EXTRAS = [
-  'tale:settings.read',
-  'tale:settings.write',
-  'tale:subscriptions.connect',
-] as const satisfies readonly AgentScope[];
-
 const LEVELS_HIGHEST_FIRST: readonly AccessLevel[] = ['deploy', 'edit', 'read'];
 
 /** The highest level a set of scopes holds whole, or null when it lacks

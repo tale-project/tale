@@ -53,6 +53,9 @@ beforeEach(() => {
   vi.stubEnv('SITE_URL', 'https://tale.example.com');
   vi.stubEnv('ADDITIONAL_SITE_URLS', '');
   vi.stubEnv('BASE_PATH', '');
+  // Agents have a way in only when the operator opens one.
+  vi.stubEnv('TALE_MCP_CLIENT_METADATA_DOCUMENTS', 'true');
+  vi.stubEnv('TALE_MCP_DYNAMIC_CLIENT_REGISTRATION', 'true');
 });
 
 afterEach(() => {
@@ -113,6 +116,38 @@ describe('the MCP endpoint’s resource metadata', () => {
       resource: 'https://tale.example.com/tale/api/v1/mcp',
       authorization_servers: ['https://tale.example.com/tale/api/auth'],
     });
+  });
+});
+
+describe('a deployment that leaves agents no way in', () => {
+  it('answers no resource metadata and hands a self-registration to the provider untouched', async () => {
+    vi.stubEnv('TALE_MCP_CLIENT_METADATA_DOCUMENTS', '');
+    vi.stubEnv('TALE_MCP_DYNAMIC_CLIENT_REGISTRATION', '');
+    const handler = vi.fn(() => Promise.resolve(new Response('{}')));
+    const application = app('https://tale.example.com', handler);
+    expect(
+      (
+        await application.request(
+          '/.well-known/oauth-protected-resource/api/v1/mcp',
+          { headers: onTale },
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await application.request('/.well-known/oauth-protected-resource', {
+          headers: onTale,
+        })
+      ).status,
+    ).toBe(404);
+    // Registration is the provider's to refuse, as before: Tale's own steps
+    // in front of it only run while the operator allows registration.
+    await application.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { ...onTale, 'content-type': 'application/json' },
+      body: JSON.stringify({ redirect_uris: ['https://evil.example/cb'] }),
+    });
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
 
