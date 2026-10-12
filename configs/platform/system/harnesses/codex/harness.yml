@@ -118,7 +118,13 @@ exec:
     # The instructions addendum rides the `developer_instructions` config
     # key — Codex injects it as a developer message ahead of the user turn
     # (the text lands verbatim in the request's developer message). Never
-    # dropped.
+    # dropped, but recorded into the thread with its first turn (again only
+    # when Codex compacts it): `codex exec resume` loads this flag's value
+    # yet keeps the recorded message, adding only setting diffs to the
+    # resumed history, and this key is not one of them. So the task host
+    # opens every resumed Codex task turn with the whole current addendum,
+    # a Tale instructions update on stdin, ahead of the brief. It reads that
+    # need from this slot's `configKey` (`resumeKeepsRecordedInstructions`).
     - instructions:
         flag: '-c'
         configKey: developer_instructions
