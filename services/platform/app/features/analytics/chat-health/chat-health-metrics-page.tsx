@@ -416,6 +416,7 @@ function ChatHealthMetricsPageView({
   );
   const guardrailBlocked =
     guardrails?.byKind.find((entry) => entry.key === 'blocked')?.count ?? 0;
+  const guardrailsUnavailable = readFailure !== undefined;
 
   const turnsTooltip = (count: number): string =>
     t('chatHealth.routing.turnsTooltip', { count: formatNumber(count) });
@@ -486,13 +487,15 @@ function ChatHealthMetricsPageView({
         </StatCard>
         <StatCard
           label={t('chatHealth.cards.guardrailEvents')}
-          value={formatNumber(guardrailTotal)}
+          value={guardrailsUnavailable ? '—' : formatNumber(guardrailTotal)}
         >
-          <Text variant="caption">
-            {t('chatHealth.cards.guardrailEventsDetail', {
-              blocked: formatNumber(guardrailBlocked),
-            })}
-          </Text>
+          {!guardrailsUnavailable ? (
+            <Text variant="caption">
+              {t('chatHealth.cards.guardrailEventsDetail', {
+                blocked: formatNumber(guardrailBlocked),
+              })}
+            </Text>
+          ) : null}
         </StatCard>
       </StatCardGrid>
 
@@ -541,27 +544,29 @@ function ChatHealthMetricsPageView({
         </div>
       </MetricsSection>
 
-      <MetricsSection title={t('chatHealth.guardrails.title')}>
-        <div className="@container">
-          <Grid gap={6} className="@2xl:grid-cols-2">
-            <BreakdownList
-              title={t('chatHealth.guardrails.byKind')}
-              items={kindItems}
-              total={guardrailTotal}
-              countTooltip={eventsTooltip}
-            />
-            <BreakdownList
-              title={t('chatHealth.guardrails.byFilter')}
-              items={filterItems}
-              total={guardrailTotal}
-              countTooltip={eventsTooltip}
-            />
-            <div className="@2xl:col-span-2">
-              <GuardrailTrendChart series={guardrails?.series ?? []} />
-            </div>
-          </Grid>
-        </div>
-      </MetricsSection>
+      {!guardrailsUnavailable ? (
+        <MetricsSection title={t('chatHealth.guardrails.title')}>
+          <div className="@container">
+            <Grid gap={6} className="@2xl:grid-cols-2">
+              <BreakdownList
+                title={t('chatHealth.guardrails.byKind')}
+                items={kindItems}
+                total={guardrailTotal}
+                countTooltip={eventsTooltip}
+              />
+              <BreakdownList
+                title={t('chatHealth.guardrails.byFilter')}
+                items={filterItems}
+                total={guardrailTotal}
+                countTooltip={eventsTooltip}
+              />
+              <div className="@2xl:col-span-2">
+                <GuardrailTrendChart series={guardrails?.series ?? []} />
+              </div>
+            </Grid>
+          </div>
+        </MetricsSection>
+      ) : null}
     </MetricsLayout>
   );
 }
