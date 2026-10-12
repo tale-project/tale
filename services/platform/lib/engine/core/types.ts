@@ -20,6 +20,26 @@ export type Json =
   | Json[]
   | { [k: string]: Json };
 
+/** Whether `v` is a JSON value: finite numbers, strings, booleans, null,
+ * lists and plain objects of them, nested no deeper than 32. */
+export function isJson(v: unknown, depth = 0): v is Json {
+  if (depth > 32) return false;
+  if (v === null) return true;
+  switch (typeof v) {
+    case 'string':
+    case 'boolean':
+      return true;
+    case 'number':
+      return Number.isFinite(v);
+    case 'object':
+      return Array.isArray(v)
+        ? v.every((e) => isJson(e, depth + 1))
+        : Object.values(v).every((e) => isJson(e, depth + 1));
+    default:
+      return false;
+  }
+}
+
 /**
  * One node of the graph. Exactly one behavior per `type`:
  *  - `transform`      — sandboxed JavaScript over its resolved `input`

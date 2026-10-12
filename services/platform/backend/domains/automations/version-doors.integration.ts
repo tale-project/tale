@@ -6,6 +6,10 @@
  * restore — each write audited as the key's, a member's key refused, a
  * version whose tests fail refused with its report, and an automation
  * installed only in a project the member cannot read answered as not found.
+ * An agent also runs an automation on stand-ins and picks which tests to run
+ * by name (MCP-R33, MCP-R34): the whole suite of a saved version is recorded
+ * on it, a part is not, and what the runs draw from the organization's
+ * budget for runs that are never stored is refused with the wait once spent.
  * The lane deletes what it wrote before it ends. */
 import { randomUUID } from 'node:crypto';
 
@@ -13,6 +17,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { appOrigin } from '../../lib/write-origin.ts';
+import { admitBenchRuns } from './bench.ts';
 import { deleteAutomationCascade } from './store.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
@@ -30,6 +35,7 @@ export async function checkVersionDoors(
   const { cookie, orgId, userId } = ctx;
   const suffix = randomUUID().slice(0, 8);
   const name = `itest-doors-${suffix}/dunning`;
+  const benchName = `itest-doors-${suffix}/orders`;
   const slug = name.replaceAll('/', '__');
   const teamId = randomUUID();
   let projectId: string | null = null;
@@ -516,6 +522,165 @@ export async function checkVersionDoors(
       `rows=${JSON.stringify(audit.map((row) => `${row.action}/${row.via ?? '-'}`))}`,
     );
 
+    // MCP-R33 and MCP-R34: an automation with three tests, run on stand-ins
+    // and by name over the real endpoint.
+    const benchDoc = {
+      version: 1,
+      name: benchName,
+      inputs: {
+        type: 'object',
+        properties: { n: { type: 'number' } },
+        required: ['n'],
+      },
+      nodes: [
+        {
+          id: 'double',
+          type: 'transform',
+          input: { n: '{{ input.n }}' },
+          code: 'return { n: input.n * 2 };',
+        },
+        {
+          id: 'label',
+          type: 'transform',
+          input: { n: '{{ nodes.double.output.n }}' },
+          code: 'return { text: "n=" + input.n };',
+        },
+      ],
+      output: '{{ nodes.label.output.text }}',
+      tests: [
+        { name: 'doubles 2', input: { n: 2 }, expect: { output: 'n=4' } },
+        { name: 'doubles 5', input: { n: 5 }, expect: { output: 'n=10' } },
+        {
+          name: 'stands in for double',
+          input: { n: 1 },
+          mocks: { double: { n: 100 } },
+          expect: { output: 'n=100' },
+        },
+      ],
+    };
+    const savedBench = await tool('save_automation', {
+      automation: benchDoc,
+      message: 'three tests',
+      create: true,
+    });
+    const testsOf = async () => {
+      const history = await tool('list_versions', { name: benchName });
+      return isRecordOf(rowOf(history.value, 1)?.tests);
+    };
+    const bySave = await testsOf();
+    const part = await tool('test_automation', {
+      name: benchName,
+      tests: ['doubles 5'],
+    });
+    const afterPart = await testsOf();
+    const wholeRun = await tool('test_automation', {
+      name: benchName,
+      detail: ['output'],
+    });
+    const afterWhole = await testsOf();
+    const wholeResults = Array.isArray(wholeRun.value.results)
+      ? wholeRun.value.results
+      : [];
+    const unknownTest = await tool('test_automation', {
+      name: benchName,
+      tests: ['doubles 7'],
+    });
+    record(
+      'over MCP the tests named run alone and leave the version’s verdict as it was; the whole suite is recorded on the version as made by hand, and says so [MCP-R33]',
+      !savedBench.isError &&
+        bySave?.via === 'save' &&
+        bySave.total === 3 &&
+        !part.isError &&
+        part.value.passed === 1 &&
+        part.value.failed === 0 &&
+        !('recorded' in part.value) &&
+        Array.isArray(part.value.results) &&
+        part.value.results.length === 1 &&
+        isRecordWith(part.value.results[0], 'name', 'doubles 5') &&
+        afterPart?.via === 'save' &&
+        !wholeRun.isError &&
+        wholeRun.value.passed === 3 &&
+        isRecordWith(wholeRun.value.recorded, 'version', 1) &&
+        isRecordWith(wholeRun.value.recorded, 'testsPassed', true) &&
+        wholeResults.length === 3 &&
+        wholeResults.every(
+          (result) =>
+            isRecordWith(isRecordOf(result)?.run, 'status', 'success') &&
+            !('record' in (isRecordOf(isRecordOf(result)?.run) ?? {})),
+        ) &&
+        afterWhole?.via === 'manual' &&
+        afterWhole.passed === 3 &&
+        unknownTest.isError &&
+        unknownTest.value.code === 'INVALID_PARAMS' &&
+        String(unknownTest.value.hint).includes('doubles 5'),
+      `saved=${String(!savedBench.isError)}, save verdict=${JSON.stringify(bySave)}, part=${String(part.value.passed)}/${String(part.value.failed)}/${String(part.value.recorded)}, after part=${String(afterPart?.via)}, whole suite=${JSON.stringify(wholeRun.value.recorded)}, after the whole suite=${JSON.stringify(afterWhole)}, unknown=${String(unknownTest.value.code)}`,
+    );
+
+    const standIn = await tool('run_automation', {
+      automation: benchDoc,
+      input: { n: 3 },
+      only: 'label',
+      mocks: { double: { n: 7 } },
+    });
+    const unusedStandIn = await tool('run_automation', {
+      automation: {
+        ...benchDoc,
+        nodes: [
+          benchDoc.nodes[0],
+          { ...benchDoc.nodes[1], when: '{{ input.n > 100 }}' },
+        ],
+        output: '{{ nodes.double.output.n }}',
+      },
+      input: { n: 3 },
+      mocks: { label: { text: 'x' } },
+    });
+    const badBench = await tool('run_automation', {
+      automation: benchDoc,
+      input: { n: 3 },
+      mocks: { dubble: { n: 1 } },
+    });
+    record(
+      'over MCP a run stands in for the nodes it is given, runs one step on pinned data, says which stand-ins it never used, and refuses a node the document lacks [MCP-R34]',
+      !standIn.isError &&
+        isRecordWith(standIn.value.output, 'text', 'n=7') &&
+        isRecordWith(standIn.value.focus, 'node', 'label') &&
+        isRecordWith(standIn.value.focus, 'kind', 'only') &&
+        !unusedStandIn.isError &&
+        JSON.stringify(unusedStandIn.value.unusedMocks) ===
+          JSON.stringify(['label']) &&
+        badBench.isError &&
+        badBench.value.code === 'BENCH_INVALID' &&
+        isRecordWith(
+          isRecordOf(badBench.value.data)?.issue,
+          'code',
+          'BENCH_UNKNOWN_NODE',
+        ),
+      `only=${JSON.stringify(standIn.value).slice(0, 200)}, unused=${JSON.stringify(unusedStandIn.value.unusedMocks)}, bad=${String(badBench.value.code)}/${JSON.stringify(badBench.value.data).slice(0, 160)}`,
+    );
+
+    // The runs are charged to the organization's bench budget: spent, the
+    // next call is refused with the wait, and runs nothing.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+    (await admitBenchRuns(sql, orgId, 240))();
+    const spentTests = await tool('test_automation', { name: benchName });
+    const spentRun = await tool('run_automation', {
+      automation: benchDoc,
+      input: { n: 1 },
+    });
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+    const refilled = await tool('test_automation', { name: benchName });
+    record(
+      'over MCP a suite or a run is refused with the wait once the organization’s budget for runs that are never stored is spent, and is served again after [MCP-R33]',
+      spentTests.isError &&
+        spentTests.value.code === 'RATE_LIMITED' &&
+        typeof isRecordOf(spentTests.value.data)?.retryAfterMs === 'number' &&
+        spentRun.isError &&
+        spentRun.value.code === 'RATE_LIMITED' &&
+        !refilled.isError &&
+        refilled.value.passed === 3,
+      `tests=${String(spentTests.value.code)}/${JSON.stringify(spentTests.value.data)}, run=${String(spentRun.value.code)}, after=${String(refilled.value.passed)}`,
+    );
+
     // An automation installed only in a project a member cannot read is not
     // found to them on every one of these reads.
     await sql`
@@ -582,19 +747,23 @@ export async function checkVersionDoors(
         );
       },
     );
-    await deleteAutomationCascade(sql, {
-      organizationId: orgId,
-      name,
-      origin: appOrigin(userId),
-    }).catch((error: unknown) => {
-      console.warn(
-        `[itest] cleanup of ${name}:`,
-        error instanceof Error ? error.message : error,
-      );
-    });
-    // The lanes after this one spend the same request and execution budgets.
+    for (const written of [name, benchName]) {
+      await deleteAutomationCascade(sql, {
+        organizationId: orgId,
+        name: written,
+        origin: appOrigin(userId),
+      }).catch((error: unknown) => {
+        console.warn(
+          `[itest] cleanup of ${written}:`,
+          error instanceof Error ? error.message : error,
+        );
+      });
+    }
+    // The lanes after this one spend the same request, execution and bench
+    // budgets.
     await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
     await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
   }
 }
 

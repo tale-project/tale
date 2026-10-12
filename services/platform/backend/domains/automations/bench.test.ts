@@ -1,9 +1,18 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Automation } from '../../../lib/engine/core/types.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
+
+const io = vi.hoisted(() => ({ charge: vi.fn() }));
+vi.mock('../../lib/rate-limit.ts', async (original) => ({
+  ...(await original<typeof import('../../lib/rate-limit.ts')>()),
+  checkOrganizationRateLimit: io.charge,
+}));
+
 import {
   admitBenchRun,
+  admitBenchRuns,
   BENCH_CONCURRENCY,
   runTestsByHand,
   tryRun,
@@ -45,6 +54,73 @@ describe('admitBenchRun', () => {
     expect(admitBenchRun()).toBeNull();
     next?.();
     for (const release of held.slice(1)) release?.();
+  });
+});
+
+/** How many of this process's places are free: every one it can take,
+ * taken and given back. */
+function freePlaces(): number {
+  const held: Array<() => void> = [];
+  for (;;) {
+    const place = admitBenchRun();
+    if (place === null) break;
+    held.push(place);
+  }
+  for (const release of held) release();
+  return held.length;
+}
+
+describe('admitBenchRuns', () => {
+  const sql = {} as never;
+
+  beforeEach(() => {
+    io.charge.mockReset();
+    io.charge.mockResolvedValue(undefined);
+  });
+
+  it('charges the organization one unit per run, then takes a place, and gives it back once', async () => {
+    const release = await admitBenchRuns(sql, 'org-1', 3);
+    expect(io.charge).toHaveBeenCalledWith(sql, 'automation:bench', 'org-1', 3);
+    expect(freePlaces()).toBe(BENCH_CONCURRENCY - 1);
+    release();
+    // Giving it back twice frees one place, not two.
+    release();
+    expect(freePlaces()).toBe(BENCH_CONCURRENCY);
+  });
+
+  it('charges at least one unit', async () => {
+    (await admitBenchRuns(sql, 'org-1', 0))();
+    expect(io.charge).toHaveBeenCalledWith(sql, 'automation:bench', 'org-1', 1);
+  });
+
+  it('takes no place when the budget is spent, and passes the wait on', async () => {
+    io.charge.mockRejectedValueOnce(
+      new RateLimitExceededError('spent', 30_000),
+    );
+    await expect(admitBenchRuns(sql, 'org-1', 1)).rejects.toMatchObject({
+      retryAfter: 30_000,
+    });
+    expect(freePlaces()).toBe(BENCH_CONCURRENCY);
+  });
+
+  it('asks for two seconds when every place is taken, having charged', async () => {
+    const held = Array.from({ length: BENCH_CONCURRENCY }, () =>
+      admitBenchRun(),
+    );
+    await expect(admitBenchRuns(sql, 'org-1', 1)).rejects.toMatchObject({
+      name: 'RateLimitExceededError',
+      retryAfter: 2_000,
+    });
+    expect(io.charge).toHaveBeenCalledOnce();
+    for (const place of held) place?.();
+  });
+
+  it('lets a fault in the budget through as the fault it is', async () => {
+    io.charge.mockRejectedValueOnce(new Error('connection refused'));
+    await expect(admitBenchRuns(sql, 'org-1', 1)).rejects.toThrow(
+      'connection refused',
+    );
+    expect(freePlaces()).toBe(BENCH_CONCURRENCY);
   });
 });
 

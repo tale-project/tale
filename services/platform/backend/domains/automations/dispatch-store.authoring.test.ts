@@ -15,6 +15,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mintCursorFor } from '../../core/lib/signed_cursor.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { mcpOrigin } from '../../lib/write-origin.ts';
 import {
   assertWritable,
@@ -25,6 +26,7 @@ import {
 } from '../projects/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
 import { memberNamesOf } from './author-names.ts';
+import { admitBenchRuns } from './bench.ts';
 import { recentDeployments } from './deployments.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
@@ -62,6 +64,7 @@ vi.mock('./store.ts', async (original) => ({
 }));
 vi.mock('./ask-answer.ts', () => ({ answerRunAskAs: vi.fn() }));
 vi.mock('./author-names.ts', () => ({ memberNamesOf: vi.fn() }));
+vi.mock('./bench.ts', () => ({ admitBenchRuns: vi.fn() }));
 vi.mock('./versions.ts', async (original) => ({
   ...(await original<typeof import('./versions.ts')>()),
   listVersionHistory: vi.fn(),
@@ -839,5 +842,29 @@ describe("another organization's automations, projects and runs stay out of reac
     ).rejects.toMatchObject({ code: 'RUN_NOT_FOUND' });
     expect(getRun).toHaveBeenCalledWith(expect.anything(), 'org-2', 'run-1');
     expect(answerRunAskAs).not.toHaveBeenCalled();
+  });
+});
+
+describe('admitBench', () => {
+  it("asks for room for the runs in the store's own organization, and hands back the release", async () => {
+    const release = vi.fn();
+    vi.mocked(admitBenchRuns).mockResolvedValue(release);
+    const room = await store({ organizationId: 'org-2' }).admitBench?.(3);
+    expect(admitBenchRuns).toHaveBeenCalledWith(expect.anything(), 'org-2', 3);
+    expect(room).toBe(release);
+  });
+
+  it('answers how long to wait when the budget is spent or every place is taken', async () => {
+    vi.mocked(admitBenchRuns).mockRejectedValue(
+      new RateLimitExceededError('spent', 1_500),
+    );
+    expect(await store().admitBench?.(1)).toEqual({ retryAfterMs: 1_500 });
+  });
+
+  it('lets a fault through as the fault it is', async () => {
+    vi.mocked(admitBenchRuns).mockRejectedValue(
+      new Error('connection refused'),
+    );
+    await expect(store().admitBench?.(1)).rejects.toThrow('connection refused');
   });
 });

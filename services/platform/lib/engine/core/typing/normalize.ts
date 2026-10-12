@@ -21,7 +21,7 @@
  */
 
 import { isRecord } from '../../../utils/type-utils';
-import type { Json } from '../types';
+import { isJson, type Json } from '../types';
 import {
   isUnknown,
   NULL_SHAPE,
@@ -65,24 +65,6 @@ const STRUCTURAL = [
 interface Cx {
   root: Record<string, unknown>;
   origin: ShapeOrigin;
-}
-
-function isJson(v: unknown, depth = 0): v is Json {
-  if (depth > 32) return false;
-  if (v === null) return true;
-  switch (typeof v) {
-    case 'string':
-    case 'boolean':
-      return true;
-    case 'number':
-      return Number.isFinite(v);
-    case 'object':
-      return Array.isArray(v)
-        ? v.every((e) => isJson(e, depth + 1))
-        : Object.values(v).every((e) => isJson(e, depth + 1));
-    default:
-      return false;
-  }
 }
 
 function typeOfJson(v: Json): ShapeType {

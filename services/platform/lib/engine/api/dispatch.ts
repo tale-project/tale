@@ -43,9 +43,18 @@ import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
 import { recordBudget, redactTrace } from '../core/record/value';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
-import type { Automation, Issue, RunResult } from '../core/types';
+import { BENCH_RUN_DEADLINE_MS } from '../core/test-limits';
+import {
+  type Automation,
+  isJson,
+  type Issue,
+  type Json,
+  type RunBench,
+  type RunResult,
+} from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
+import { closestName } from '../core/validate/similar';
 import { searchCatalog } from './catalog-search';
 import {
   authoringReference,
@@ -55,6 +64,8 @@ import {
 import { documentYaml } from './document-yaml';
 import { METHODS } from './methods';
 import { isCodedRefusal, structuredRefusal } from './refusal';
+import { REPORT_DETAILS, type ReportDetail } from './report-details';
+import { boundedReport, reportWithDetail } from './report-shape';
 import { ACTIVE_RUN_STATUSES } from './run-statuses';
 import { runAutomationTests, type TestReport } from './tests';
 import { unifiedPatch } from './version-patch';
@@ -421,6 +432,16 @@ export interface DispatchStore extends StoreAdapter {
      * someone running the tests made it. */
     check?: { report?: TestReport; via: 'deploy' | 'manual' },
   ): Promise<void>;
+  /** A place for runs this process executes and never stores — a run in one
+   * call, the tests of an automation — asked for before they start: the
+   * host charges `executions` of them to the organization's budget and holds
+   * the process to a few at once. The answer is the release to call when the
+   * runs are over, or how long to wait (`retryAfterMs`) when the budget is
+   * spent or every place is taken. A host that leaves it out runs them
+   * unmetered. */
+  admitBench?(
+    executions: number,
+  ): Promise<(() => void) | { retryAfterMs: number }>;
   /** Record a trigger binding. A host that revokes something by doing so (a
    * live webhook URL replaced by another kind) says so in the outcome; a
    * host with nothing to add answers nothing. */
@@ -626,6 +647,14 @@ export const DISPATCH_REFUSAL_CODES = [
   'INVALID_CURSOR',
   /** An answer to a run's question with nothing in it. */
   'EMPTY_ANSWER',
+  /** A run in one call or a suite of tests found no place: the
+   * organization's budget for runs that are never stored is spent, or the
+   * server runs as many as it takes at once. `data.retryAfterMs` is the
+   * wait. */
+  'RATE_LIMITED',
+  /** The stand-ins or scope a run was given cannot be taken: `data.issue`
+   * is the engine's own refusal, with its code, its place and its fix. */
+  'BENCH_INVALID',
 ] as const;
 
 const LIST_AUTOMATIONS_HINT = 'list_automations shows the saved ones';
@@ -1016,6 +1045,186 @@ function detailParam(
     error: `params.detail must list "analysis" and/or "types" — got ${JSON.stringify(v)}`,
     code: 'INVALID_PARAMS',
     hint: 'omit detail to get both, or pass detail: ["analysis"]',
+  };
+}
+
+/** What an answer holds of the runs of one suite: each run, and all of them
+ * together, as UTF-8 JSON. A run with its record is read by a model, so it
+ * is kept as far as a client holds an answer inline; past it, a run is left
+ * out and its test is run alone. */
+const TEST_ANSWER_LIMITS = { runBytes: 262_144, totalBytes: 393_216 } as const;
+
+/** The most test names a refusal lists. */
+const TEST_NAMES_LISTED = 10;
+
+/** `0`, `0 and 2`, `0, 2 and 5`. */
+function listed(items: readonly (string | number)[]): string {
+  if (items.length < 2) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${String(items.at(-1))}`;
+}
+
+/**
+ * The tests a `test_automation` call names — by name, as the document's
+ * `tests:` block gives them — as their places in it. A name no test bears is
+ * refused with the names there are, and so is one several tests bear: with
+ * where they stand, since a place is all the runner takes.
+ */
+function testSelection(
+  names: unknown,
+  tests: readonly { name: string }[],
+): { select: number[] } | ParamRefusal {
+  if (
+    !Array.isArray(names) ||
+    names.length === 0 ||
+    !names.every((n) => typeof n === 'string' && n !== '')
+  ) {
+    return {
+      error: `params.tests must list the names of tests — got ${JSON.stringify(names)}`,
+      code: 'INVALID_PARAMS',
+      hint: 'name tests as the document’s tests: block does, or leave tests out to run them all',
+    };
+  }
+  if (tests.length === 0) {
+    return {
+      error: 'the automation has no tests',
+      code: 'INVALID_PARAMS',
+      hint: 'add a top-level tests: [{name, input, mocks?, failures?, expect?}] block, or run_automation to try it on one input',
+    };
+  }
+  const select = new Set<number>();
+  for (const name of names) {
+    const at = tests.flatMap((test, i) => (test.name === name ? [i] : []));
+    const first = at[0];
+    if (first === undefined) {
+      const shown = tests.slice(0, TEST_NAMES_LISTED).map((t) => t.name);
+      const more = tests.length - shown.length;
+      const near = closestName(
+        name,
+        tests.map((t) => t.name),
+      );
+      return {
+        error: `the automation has no test named ${JSON.stringify(name)}`,
+        code: 'INVALID_PARAMS',
+        hint: `${near === undefined ? '' : `did you mean ${JSON.stringify(near)}? `}its tests are ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}; test names are matched exactly`,
+      };
+    }
+    if (at.length > 1) {
+      return {
+        error: `${at.length} tests are named ${JSON.stringify(name)}`,
+        code: 'INVALID_PARAMS',
+        hint: `they stand at ${listed(at)} in tests (from 0) — give every test its own name, then name it`,
+      };
+    }
+    select.add(first);
+  }
+  return { select: [...select].toSorted((a, b) => a - b) };
+}
+
+/** What of each test's run a call asks to keep: some of output, effects and
+ * trace, or nothing. */
+function testDetailParam(
+  v: unknown,
+): { value: ReadonlySet<ReportDetail> } | ParamRefusal {
+  if (v === undefined) return { value: new Set() };
+  const known = new Set<unknown>(REPORT_DETAILS);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: new Set(REPORT_DETAILS.filter((d) => v.includes(d))) };
+  }
+  return {
+    error: `params.detail must list some of ${REPORT_DETAILS.map((d) => `"${d}"`).join(', ')} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'omit detail for the verdicts alone, or pass detail: ["output"] to read what each test’s run returned',
+  };
+}
+
+/** The params of a run on stand-ins. */
+const BENCH_PARAMS = ['mocks', 'failures', 'upTo', 'only', 'item'] as const;
+
+/**
+ * The stand-ins and scope a `run_automation` call carries, as the executor
+ * takes them — none when it names none. A param of the wrong type is
+ * refused; which nodes it may name, and how its scopes combine, the
+ * executor decides, with a refusal of its own for each.
+ */
+function benchParams(
+  p: Record<string, unknown>,
+): { value: RunBench | undefined } | ParamRefusal {
+  if (BENCH_PARAMS.every((field) => p[field] === undefined)) {
+    return { value: undefined };
+  }
+  const refuse = (field: string, wants: string): ParamRefusal => ({
+    error: `params.${field} must be ${wants} — got ${JSON.stringify(p[field])}`,
+    code: 'INVALID_PARAMS',
+    hint: 'a run on stand-ins takes mocks {node: its simulated output}, failures {node: a message}, upTo or only (a node id) and item (with only)',
+  });
+  const { mocks, failures, upTo, only, item } = p;
+  if (mocks !== undefined && !isJsonRecord(mocks)) {
+    return refuse(
+      'mocks',
+      'an object of node ids and their simulated outputs, as JSON',
+    );
+  }
+  if (failures !== undefined && !isMessageRecord(failures)) {
+    return refuse('failures', 'an object of node ids and a message each');
+  }
+  if (upTo !== undefined && typeof upTo !== 'string') {
+    return refuse('upTo', 'a node id');
+  }
+  if (only !== undefined && typeof only !== 'string') {
+    return refuse('only', 'a node id');
+  }
+  if (item !== undefined && !(Number.isInteger(item) && Number(item) >= 0)) {
+    return refuse('item', 'a whole number from 0');
+  }
+  return {
+    value: {
+      ...(mocks !== undefined && { mocks }),
+      ...(failures !== undefined && { failures }),
+      ...(typeof upTo === 'string' && { upTo }),
+      ...(typeof only === 'string' && { only }),
+      ...(typeof item === 'number' && { item }),
+    },
+  };
+}
+
+/** An object of JSON values. */
+function isJsonRecord(v: unknown): v is Record<string, Json> {
+  return isRecord(v) && Object.values(v).every((value) => isJson(value));
+}
+
+/** An object of strings. */
+function isMessageRecord(v: unknown): v is Record<string, string> {
+  return (
+    isRecord(v) && Object.values(v).every((value) => typeof value === 'string')
+  );
+}
+
+/**
+ * A place for `executions` runs this process executes and never stores, to be
+ * released when they are done — or the refusal that says how long to wait.
+ * A store with no meter admits every run.
+ */
+async function admitBench(
+  store: DispatchStore,
+  executions: number,
+): Promise<
+  | (() => void)
+  | {
+      error: string;
+      code: 'RATE_LIMITED';
+      hint: string;
+      data: { retryAfterMs: number };
+    }
+> {
+  if (store.admitBench === undefined || executions < 1) return () => {};
+  const admitted = await store.admitBench(executions);
+  if (typeof admitted === 'function') return admitted;
+  const seconds = Math.ceil(admitted.retryAfterMs / 100) / 10;
+  return {
+    error: `no room for ${executions === 1 ? 'this run' : 'these runs'} right now: the organization’s budget for runs that are never stored is spent, or this server is running as many of them as it can at once`,
+    code: 'RATE_LIMITED',
+    hint: `wait data.retryAfterMs (${seconds} s), then call again`,
+    data: { retryAfterMs: admitted.retryAfterMs },
   };
 }
 
@@ -1749,6 +1958,8 @@ export async function dispatch(
           hint: 'run it in mock mode, or save_automation + deploy_automation and run it live with run_deployed or start_run',
         };
       }
+      const bench = benchParams(p);
+      if ('error' in bench) return bench;
       const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
@@ -1758,15 +1969,46 @@ export async function dispatch(
           validation: { errors, warnings },
         } satisfies RunResult;
       }
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      const result = await execute(p.automation as Automation, {
-        input: p.input ?? {},
-        mode,
-        store,
-        ...(ctx.connectorHost !== undefined && {
-          connectorHost: ctx.connectorHost,
-        }),
-      });
+      // A run on the mocks executes in this process: it takes a place among
+      // the runs that are never stored, and stops at its next step once it
+      // has run past its time limit.
+      const metered = mode === 'mock';
+      const admitted = metered ? await admitBench(store, 1) : () => {};
+      if (typeof admitted !== 'function') return admitted;
+      let result: RunResult;
+      try {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+        result = await execute(p.automation as Automation, {
+          input: p.input ?? {},
+          mode,
+          store,
+          ...(ctx.connectorHost !== undefined && {
+            connectorHost: ctx.connectorHost,
+          }),
+          ...(bench.value !== undefined && { bench: bench.value }),
+          ...(metered && { deadline: Date.now() + BENCH_RUN_DEADLINE_MS }),
+        });
+      } finally {
+        admitted();
+      }
+      // A bench the document cannot take is the request's fault, not the
+      // run's: the refusal names the issue.
+      const refused =
+        result.status === 'invalid'
+          ? result.validation?.errors.find((issue) =>
+              issue.code.startsWith('BENCH_'),
+            )
+          : undefined;
+      if (refused !== undefined) {
+        return {
+          error: refused.message,
+          code: 'BENCH_INVALID',
+          hint:
+            refused.hint ??
+            'fix the stand-ins or the scope data.issue names, then run again',
+          data: { issue: refused },
+        };
+      }
       if (warnings.length > 0) result.validation = { errors: [], warnings };
       return { ...result, trace: redactTrace(result.trace) };
     }
@@ -1787,9 +2029,14 @@ export async function dispatch(
           hint: 'send the document to test a draft, or name a saved version — not both',
         };
       }
+      const detail = testDetailParam(p.detail);
+      if ('error' in detail) return detail;
+      // A saved version is tested as saved, and its verdict is recorded on
+      // it, so the version history reads as tested — the deploy gate's own
+      // write; a draft has no version to hold one.
+      let automation: Automation;
+      let saved: { name: string; version: number } | undefined;
       if (p.automation === undefined) {
-        // A saved version: its verdict is recorded on it, so the version
-        // history reads as tested — the deploy gate's own write.
         const stored = await storedVersion(store, name, p.version);
         if ('error' in stored) return stored;
         const { errors, warnings } = await validate(stored.automation, {
@@ -1804,22 +2051,63 @@ export async function dispatch(
             warnings,
           };
         }
-        const report = await runAutomationTests(stored.automation, { store });
-        const tested = (stored.automation.tests?.length ?? 0) > 0;
-        if (tested && 'failed' in report) {
-          await store.recordTestVerdict?.(
-            name,
-            stored.version,
-            report.failed === 0,
-            { report, via: 'manual' },
-          );
-        }
-        return { name, version: stored.version, ...report };
+        automation = stored.automation;
+        saved = { name, version: stored.version };
+      } else {
+        const { errors, warnings } = await validate(p.automation, { store });
+        if (errors.length > 0) return { status: 'invalid', errors, warnings };
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+        automation = p.automation as Automation;
       }
-      const { errors, warnings } = await validate(p.automation, { store });
-      if (errors.length > 0) return { status: 'invalid', errors, warnings };
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      return await runAutomationTests(p.automation as Automation, { store });
+      const tests = automation.tests ?? [];
+      let select: number[] | undefined;
+      if (p.tests !== undefined) {
+        const picked = testSelection(p.tests, tests);
+        if ('error' in picked) return picked;
+        select = picked.select;
+      }
+      const admitted = await admitBench(store, select?.length ?? tests.length);
+      if (typeof admitted !== 'function') return admitted;
+      let report: Awaited<ReturnType<typeof runAutomationTests>>;
+      try {
+        report = await runAutomationTests(automation, {
+          store,
+          ...(select !== undefined && { select }),
+          ...(detail.value.size > 0 && { detail: true }),
+          ...(saved !== undefined && { version: saved.version }),
+        });
+      } finally {
+        admitted();
+      }
+      // Only the whole suite of a saved version, run to its end, is a
+      // verdict on it: a part of the suite says nothing of the rest, and
+      // tests the suite's time never reached are not tests that failed.
+      let recorded: { version: number; testsPassed: boolean } | undefined;
+      if (
+        saved !== undefined &&
+        select === undefined &&
+        tests.length > 0 &&
+        'failed' in report &&
+        report.notRun === undefined &&
+        store.recordTestVerdict !== undefined
+      ) {
+        const testsPassed = report.failed === 0;
+        await store.recordTestVerdict(saved.name, saved.version, testsPassed, {
+          report,
+          via: 'manual',
+        });
+        recorded = { version: saved.version, testsPassed };
+      }
+      return {
+        ...saved,
+        ...('failed' in report
+          ? boundedReport(
+              reportWithDetail(report, detail.value),
+              TEST_ANSWER_LIMITS,
+            )
+          : report),
+        ...(recorded !== undefined && { recorded }),
+      };
     }
 
     case 'save_automation': {

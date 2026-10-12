@@ -98,8 +98,9 @@ describe('engine purity', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), jsdiff's line
     // diff (the unified patch between two versions), the shared safe YAML
-    // loader, type guards, name grammar, stable serializer, JSON bounding,
-    // the secret-key list and the credential detector are runtime-neutral,
+    // loader, type guards, name grammar, stable serializer, JSON bounding
+    // and JSON byte counting, the secret-key list and the credential
+    // detector are runtime-neutral,
     // and so is `@tale/ui`'s data core (summaries, shapes, diffs, pointers,
     // hashes), whose own guard (`packages/ui/src/data/pure.test.ts`) holds it
     // to imports of itself, and its line diff (`code-diff/compute`, the one
@@ -130,6 +131,7 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
       path.join('lib', 'shared', 'secret-scan'),
       path.join('lib', 'shared', 'utils', 'bound-json'),
+      path.join('lib', 'shared', 'utils', 'json-bytes'),
       path.join('lib', 'shared', 'utils', 'storable-text'),
       path.join('lib', 'shared', 'audit-redaction'),
     ];
