@@ -5,7 +5,7 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
@@ -441,6 +441,166 @@ describe("TaskThreadColumn holding a reader's place", () => {
     HELD_SCROLLPORTS.add(scrollport());
 
     expect(await growAboveTheReader()).toBeCloseTo(200, 0);
+  });
+});
+
+/** A thread that shows its newest 40 rows, as one page of a long discussion
+ *  does: a new comment drops the oldest row at the top as it joins at the
+ *  foot. */
+function Windowed({ scrollerClassName }: { scrollerClassName?: string }) {
+  const [first, setFirst] = useState(0);
+  return (
+    <div style={{ height: 480, display: 'flex', flexDirection: 'column' }}>
+      <button onClick={() => setFirst((current) => current + 1)}>
+        New comment
+      </button>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        <TaskThreadColumn
+          brief={<p>The brief</p>}
+          conversation={
+            <ol>
+              {Array.from({ length: 40 }, (_, index) => first + index).map(
+                (id) => (
+                  <li
+                    key={id}
+                    data-task-history-entry
+                    style={{
+                      height: first > 0 && id === first + 39 ? 140 : 64,
+                    }}
+                  >
+                    Comment {id + 1}
+                  </li>
+                ),
+              )}
+            </ol>
+          }
+          composer={<textarea aria-label="Comment" />}
+          {...(scrollerClassName === undefined ? {} : { scrollerClassName })}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** A thread whose last row keeps growing, as an agent's output does. */
+function Streaming() {
+  const [grown, setGrown] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setGrown((current) => (current < 600 ? current + 6 : current)),
+      20,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <div style={{ height: 480, display: 'flex' }}>
+      <TaskThreadColumn
+        brief={<p>The brief</p>}
+        conversation={
+          <ol>
+            {Array.from({ length: 40 }, (_, index) => (
+              <li
+                key={index}
+                data-task-history-entry
+                style={{ height: index === 39 ? 64 + grown : 64 }}
+              >
+                Comment {index + 1}
+              </li>
+            ))}
+          </ol>
+        }
+        composer={<textarea aria-label="Comment" />}
+      />
+    </div>
+  );
+}
+
+describe('TaskThreadColumn while the thread changes under the reader', () => {
+  it.each([
+    { browser: 'a browser that anchors scrolling', safari: false },
+    { browser: 'Safari', safari: true },
+  ])(
+    'stays on the end when a new comment drops the oldest row, in $browser',
+    async ({ safari }) => {
+      if (safari) {
+        const supports = CSS.supports.bind(CSS);
+        vi.spyOn(CSS, 'supports').mockImplementation(
+          (property: string, value?: string) => {
+            if (property.includes('overflow-anchor')) return false;
+            return value === undefined
+              ? supports(property)
+              : supports(property, value);
+          },
+        );
+      }
+      render(
+        <Windowed
+          {...(safari ? { scrollerClassName: '[overflow-anchor:none]' } : {})}
+        />,
+      );
+      await settledScroll(scrollport());
+
+      // The browser moves the offset up for the row that left, and the new row
+      // pushes the end away: that is not the reader scrolling up.
+      await userEvent.click(
+        screen.getByRole('button', { name: 'New comment' }),
+      );
+      await screen.findByText('Comment 41');
+      await settledLayout();
+      await userEvent.click(
+        screen.getByRole('button', { name: 'New comment' }),
+      );
+      await screen.findByText('Comment 42');
+      await settledLayout();
+
+      expect(distanceToEnd(scrollport())).toBeLessThan(2);
+    },
+  );
+
+  it('does not take a scroll toward the end for the reader leaving it', async () => {
+    render(<Growing rows={40} />);
+    const scroller = scrollport();
+    await settledScroll(scroller);
+    const content = scroller.firstElementChild;
+    if (!(content instanceof HTMLElement)) throw new Error('no thread');
+
+    // More thread arrives and, before the column has pinned, the offset moves
+    // down a little and the scroll event reaches it: the end is farther than it
+    // was, yet nobody scrolled up.
+    const arrival = document.createElement('div');
+    arrival.style.height = '300px';
+    content.append(arrival);
+    scroller.scrollTop += 10;
+    scroller.dispatchEvent(new Event('scroll'));
+    await settledLayout();
+
+    expect(distanceToEnd(scroller)).toBeLessThan(2);
+  });
+
+  it("switches the browser's own anchoring off while it follows the end, and on while the reader reads", async () => {
+    render(<Growing rows={40} />);
+    const scroller = scrollport();
+    await settledScroll(scroller);
+    expect(getComputedStyle(scroller).overflowAnchor).toBe('none');
+
+    await wheelToTop(screen.getByText('Comment 40'));
+    expect(getComputedStyle(scroller).overflowAnchor).toBe('auto');
+
+    await wheelToEnd(screen.getByText('The brief'), 'Comment 40');
+    expect(getComputedStyle(scroller).overflowAnchor).toBe('none');
+  });
+
+  it('lets a reader scroll up and stay there while the last row keeps growing', async () => {
+    render(<Streaming />);
+    const scroller = scrollport();
+    await settledLayout();
+
+    await userEvent.wheel(screen.getByText('Comment 40'), {
+      delta: { y: -300 },
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+    expect(distanceToEnd(scroller)).toBeGreaterThan(250);
   });
 });
 

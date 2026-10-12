@@ -15,6 +15,11 @@ const REJOIN_PX = 48;
 /** A change in the distance to the end smaller than this is rounding. */
 const MOVED_PX = 1;
 
+/** Native scroll anchoring off, as a class so it never fights a host's own
+ *  inline style (the history load switches it off inline while it holds a
+ *  place). */
+const NO_ANCHORING_CLASS = '[overflow-anchor:none]';
+
 /** Chromium and Firefox keep a reader's place themselves when rows above it
  *  change height; Safari has no scroll anchoring. */
 function anchorsScroll() {
@@ -32,12 +37,18 @@ function anchorsScroll() {
  * arriving, the task loading in, an image settling) and while its own box
  * changes (the composer under it growing, the window resizing). A reader who
  * scrolls up is left where they are, and scrolling back down to the end
- * follows the thread again. Where the browser does not anchor scrolling,
- * rows above the reader that change height — an image arriving, a line that
- * wraps differently after a resize — move the scrollport by the difference,
- * so what is being read does not jump. (The conversation's rows skip layout
- * only where the browser anchors, `lazy-layout.ts`, so none of them changes
- * height as it nears the reader.)
+ * follows the thread again. Where the browser anchors scrolling, it holds a
+ * reading reader's place when a row above them changes height — but not a
+ * following reader's: when a row leaves the top as another joins the end, the
+ * browser moves the offset by the row that left, and that is not a reader
+ * scrolling away. So anchoring is switched off on the scrollport while the
+ * thread follows its end, which it pins itself, and back on while they read.
+ * Where the browser does not anchor scrolling, rows above the reader that
+ * change height — an image arriving, a line that wraps differently after a
+ * resize — move the scrollport by the difference, so what is being read does
+ * not jump. (The conversation's rows skip layout only where the browser
+ * anchors, `lazy-layout.ts`, so none of them changes height as it nears the
+ * reader.)
  *
  * Attach `scrollerRef` to an ordinary scrollport and `contentRef` to the one
  * element inside it that holds the thread. The scrollport must scroll from its
@@ -55,7 +66,8 @@ export function useThreadScroll() {
     const content = contentRef.current;
     if (scroller === null || content === null) return undefined;
 
-    const holdsPlace = !anchorsScroll();
+    const anchors = anchorsScroll();
+    const holdsPlace = !anchors;
     let following = true;
     // Where the reader stood when we last looked: the offset, and how far the
     // end was.
@@ -64,6 +76,11 @@ export function useThreadScroll() {
     // The row the reader is at, and where it stood in the thread.
     let place: { entry: HTMLElement; offset: number } | null = null;
 
+    // The browser's own anchoring is for a reader who is reading.
+    const follow = (next: boolean) => {
+      following = next;
+      if (anchors) scroller.classList.toggle(NO_ANCHORING_CLASS, next);
+    };
     const distanceToEnd = () =>
       scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
     const look = () => {
@@ -140,15 +157,15 @@ export function useThreadScroll() {
       const top = scroller.scrollTop;
       if (top === lastTop) return;
       const distance = distanceToEnd();
-      if (distance <= END_SLACK_PX) following = true;
+      if (distance <= END_SLACK_PX) follow(true);
       else if (top < lastTop && distance > lastDistance + MOVED_PX) {
-        following = false;
+        follow(false);
       } else if (
         top > lastTop &&
         distance < lastDistance - MOVED_PX &&
         distance <= REJOIN_PX
       ) {
-        following = true;
+        follow(true);
       }
       if (following) place = null;
       else if (holdsPlace) holdPlace();
@@ -163,6 +180,7 @@ export function useThreadScroll() {
       look();
     };
 
+    follow(true);
     goToEnd();
     scroller.addEventListener('scroll', onScroll, { passive: true });
     const observer = new ResizeObserver(onResize);
@@ -170,6 +188,7 @@ export function useThreadScroll() {
     observer.observe(scroller);
     return () => {
       scroller.removeEventListener('scroll', onScroll);
+      scroller.classList.remove(NO_ANCHORING_CLASS);
       observer.disconnect();
     };
   }, []);
