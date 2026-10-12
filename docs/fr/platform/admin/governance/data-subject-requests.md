@@ -26,6 +26,8 @@ Les tâches qui désignent la personne comme **Relecteur** perdent cette désign
 
 Le contenu des versions enregistrées d’automatisation et leurs rapports de tests restent inchangés lors de l’effacement. L’effacement remplace l’identité de la personne par un pseudonyme lorsqu’elle a enregistré une version ou exécuté ses tests, l’a déployée, a configuré son déclencheur, l’a installée dans un projet ou l’a supprimée.
 
+L’effacement des exécutions concernées d’une personne ne réécrit pas les valeurs copiées dans les tests des versions d’automatisation conservées. Examine séparément ces contenus rédigés selon la procédure de ton organisation. [Utilise des exemples synthétiques lorsque tu enregistres une exécution comme test](/fr/platform/automations/testing#save-a-run).
+
 ## Vérifier la règle avant le dépôt
 
 | Réglage | Effet |

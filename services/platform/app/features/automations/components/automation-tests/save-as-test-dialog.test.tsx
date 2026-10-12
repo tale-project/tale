@@ -47,6 +47,22 @@ function renderDialog(run: RunForTest = SUCCEEDED) {
 }
 
 describe('saving a run as a test', () => {
+  it('explains the saved copy lifecycle before adding ordinary run data', () => {
+    const { onAdd } = renderDialog();
+    expect(
+      screen.getByText(
+        /The copies can remain after the source run is deleted or removed through retention or erasure/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        /use synthetic examples for personal data before saving/,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
   it('expects what a succeeded run returned and stands in for its model', async () => {
     const { user, onAdd } = renderDialog();
     const dialog = screen.getByRole('dialog', {

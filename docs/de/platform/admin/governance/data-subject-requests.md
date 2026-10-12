@@ -26,6 +26,8 @@ Aufgaben, die die Person als **Reviewer** nennen, verlieren diese Zuweisung. Ein
 
 Bei der Löschung bleiben die Inhalte gespeicherter Automatisierungsversionen und ihre Testberichte unverändert. Die Löschung ersetzt die Kennung der Person durch ein Pseudonym, wenn sie eine Version gespeichert oder deren Tests geprüft, sie live geschaltet, ihren Trigger eingerichtet, sie in einem Projekt installiert oder sie gelöscht hat.
 
+Die Löschung geeigneter Läufe einer Person verändert keine Werte, die in Tests aufbewahrter Automatisierungsversionen übernommen wurden. Prüfe diese Inhalte separat nach dem Verfahren deiner Organisation. [Nutze synthetische Beispiele, wenn du einen Lauf als Test speicherst](/de/platform/automations/testing#save-a-run).
+
 ## Vorher die Richtlinie prüfen
 
 | Einstellung | Wirkung |

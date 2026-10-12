@@ -1210,7 +1210,7 @@ tests:
       dropped: '{nodes} können nicht wie in diesem Lauf antworten, also führt der Test sie wie gewohnt aus.'
     target: Fügt den Test deinem Entwurf hinzu.
     targetOtherVersion: 'Dieser Lauf verwendete Version {run}; der Test wird deinem Entwurf von Version {version} hinzugefügt.'
-    privacy: Die Eingabe des Laufs und die Ausgaben, die du behältst, werden Teil der Automatisierung. Alle, die die Automatisierung öffnen können, können sie lesen.
+    privacy: Wenn du Eingaben, Ausgaben oder Fehlermeldungen eines Laufs in Tests übernimmst, werden sie Teil der gespeicherten Automatisierungsversion. Alle, die die Automatisierung öffnen können, können sie lesen. Die Kopien können auch bleiben, wenn der ursprüngliche Lauf gelöscht oder durch Aufbewahrungsregeln beziehungsweise eine Löschanfrage entfernt wird. Prüfe die Werte vor dem Speichern und ersetze personenbezogene Daten durch synthetische Beispiele.
     readFailed: Dieser Lauf konnte nicht gelesen werden. Versuche es in der Liste der Läufe erneut.
   pathNeed:
     when: '{value, select, true {Mach die Bedingung von {node} wahr, damit sie läuft.} other {Mach die Bedingung von {node} falsch, damit sie übersprungen wird.}}'

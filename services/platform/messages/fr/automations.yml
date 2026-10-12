@@ -1212,7 +1212,7 @@ tests:
       dropped: '{nodes} ne peuvent pas répondre comme dans cette exécution, donc le test les exécute normalement.'
     target: Ajoute le test à ton brouillon.
     targetOtherVersion: 'Cette exécution utilisait la version {run} ; le test est ajouté à ton brouillon de la version {version}.'
-    privacy: L’entrée de l’exécution et les sorties que tu gardes font partie de l’automatisation. Toute personne qui peut ouvrir l’automatisation peut les lire.
+    privacy: Les entrées, les sorties et les messages d’erreur que tu copies d’une exécution dans des tests font partie de la version enregistrée de l’automatisation. Toute personne qui peut ouvrir l’automatisation peut les lire. Ces copies peuvent rester après la suppression de l’exécution d’origine, y compris par rétention ou effacement. Vérifie les valeurs avant d’enregistrer et remplace les données personnelles par des exemples synthétiques.
     readFailed: Impossible de lire cette exécution. Réessaie depuis la liste des exécutions.
   pathNeed:
     when: '{value, select, true {Rends vraie la condition de {node}, pour qu’il s’exécute.} other {Rends fausse la condition de {node}, pour qu’il soit ignoré.}}'
