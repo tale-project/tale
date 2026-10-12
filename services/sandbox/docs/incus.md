@@ -264,9 +264,9 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
   pool its own range (`ipv4.dhcp.ranges`) in the part of the subnet that holds
   no service, and size it for `SANDBOX_MAX_SESSIONS` plus the pool and the
   image warm-ups. Boot cannot check this for you (a restricted certificate is
-  shown no network configuration). Leases do not pile up behind removed instances: the lab's
-  DHCP server held 4 to 6 leases after every round of its soak, 640 creates
-  and removals in.
+  shown no network configuration). Leases do not pile up behind removed
+  instances: the lab's DHCP server held 4 to 6 leases after every round of its
+  soak, 640 creates and removals in.
 - **Name the ACL on the profile's NIC**, as the example does. You may attach it
   to the bridge as well (every port of the bridge, the egress proxy's and any
   other instance's, then falls under it, and needs rules of its own), but the

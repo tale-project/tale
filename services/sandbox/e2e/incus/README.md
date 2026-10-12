@@ -78,12 +78,12 @@ gh workflow run sandbox-incus-e2e.yml --ref <branch> -f runner=ubuntu-latest
 gh workflow run sandbox-incus-e2e.yml --ref <branch> -f suites=soak -f soak_rounds=40   # hunt for something rare
 ```
 
-
 On a Ubicloud 4-vCPU runner the first suite starts about four minutes after the
 dispatch (Incus and ZFS install in under a minute, the node's own setup in 15 s,
 the two image builds in under two minutes with warm layer caches) and a run of
-all ten ends about twenty minutes after it, so a run of a suite or two is short. `runner` is the label the
-node is built on: a Ubicloud label by default, GitHub's own for a pull request.
+all twelve ends 22 to 24 minutes after the dispatch, so a run of a suite or two
+is short. `runner` is the label the node is built on: a Ubicloud label by
+default, GitHub's own for a pull request.
 Each suite leaves its log and report as an artifact the moment it ends, so a run
 in progress can be read.
 
