@@ -2230,20 +2230,38 @@ describe('every limit and offset query parameter is bounded', () => {
     ).toBeGreaterThanOrEqual(16);
   });
 
+  // A list that answered its complete set before it took a `limit` keeps
+  // answering it when none is named: its page size has no default, and its
+  // description says so. The one such list is an automation's version
+  // history.
+  const WHOLE_WHEN_OMITTED: ReadonlySet<string> = new Set([
+    'GET /api/v1/automations/{name}/versions',
+  ]);
+
   it('declares minimum, maximum and default on every limit', () => {
     const bare = windows
       .filter(
-        ({ parameter, schema }) =>
+        ({ name, parameter, schema }) =>
           parameter === 'limit' &&
           !(
             schema.type === 'integer' &&
             whole(schema.minimum) &&
             whole(schema.maximum) &&
-            whole(schema.default)
+            (whole(schema.default) || WHOLE_WHEN_OMITTED.has(name))
           ),
       )
       .map(({ name }) => name);
     expect(bare).toEqual([]);
+  });
+
+  it('lets a limit go without a default only where the whole set is the answer', () => {
+    const undefaulted = windows
+      .filter(
+        ({ parameter, schema }) =>
+          parameter === 'limit' && !whole(schema.default),
+      )
+      .map(({ name }) => name);
+    expect(undefaulted).toEqual([...WHOLE_WHEN_OMITTED]);
   });
 
   it('declares minimum and default on every offset', () => {
@@ -2789,8 +2807,11 @@ describe('the shapes the 2026-09-14 round-h evaluation found generated clients t
       'PUT /api/v1/skills/{slug}',
     ]);
     // The creates with nothing to point at: many rows, a row with no read
-    // of its own, or an install answering the project's automation view.
+    // of its own, a restored version (answered by its number, and read with
+    // the version query of the automation), or an install answering the
+    // project's automation view.
     expect(unlocated.sort()).toEqual([
+      'POST /api/v1/automations/{name}/versions/{version}/restore',
       'POST /api/v1/browser-sessions/import',
       'POST /api/v1/contacts/bulk',
       'POST /api/v1/projects/{id}/automations/{name}',

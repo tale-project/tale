@@ -92,8 +92,9 @@ false`).
 A deploy may name the version the agent read as live (`expectedDeployedVersion`, `null` for none).
 When another version went live meanwhile it is refused (`AUTOMATION_DEPLOYMENT_STALE`) with the
 version that is live, and nothing changes. Every deploy answers the version that was live before
-(`previousVersion`) and what kind of deploy it was (`kind`: `rollback` when it put an older
-version live, `deploy` otherwise): deploying the previous version again rolls back.
+(`previousVersion`) and what the deploy did (`kind`: `rollback` when it put an older version
+live, `unchanged` when that version was live already, `deploy` otherwise): deploying the previous
+version again rolls back.
 
 - **Example**: Ada's agent read v5 as live and deploys v7 naming v5. Ben deployed v6 a minute ago →
   refused, naming v6, and v6 stays live. Deploying v7 naming v6 succeeds and answers

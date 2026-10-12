@@ -5202,24 +5202,269 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List an automation’s versions',
       description:
-        'The immutable version history, complete — not paginated. ' +
-        '`deployedVersion` names the live one and each row says whether it ' +
-        'is `deployed`.',
+        'The immutable version history, newest first. Each version says who ' +
+        'saved it (`createdBy`, and `createdByName` while that person is ' +
+        'still a member of the organization — never an e-mail address), ' +
+        'through which door and client (`createdVia`, `clientName`), which ' +
+        'version it was based on (`basedOnVersion`) and restored from ' +
+        '(`restoredFromVersion`), what it changed against the version saved ' +
+        'before it (`changes`: counts and flags, never content), how its ' +
+        'tests went (`tests`), whether it is `deployed` and when it last ' +
+        'went live (`lastDeployedAt`). `deployedVersion` names the live one ' +
+        'and `latestVersion` the newest. Without `limit` the answer is the ' +
+        'whole history in one page (`isDone: true`), as it has always been; ' +
+        'with it a page, and `continueCursor` reads the next.',
       operationId: 'listAutomationVersions',
       security: sec,
-      parameters: [automationNameParam],
+      parameters: [
+        automationNameParam,
+        paginationParams(200, 50)[0],
+        {
+          ...queryParam(
+            'limit',
+            'Page size, 1..200 (out-of-range numbers are clamped, a value ' +
+              'that is not a number answers 400 `INVALID_LIMIT`). Omitted: ' +
+              'the whole history in one page',
+          ),
+          schema: { type: 'integer', minimum: 1, maximum: 200 },
+        },
+      ],
       responses: {
-        '200': jsonResponse(
-          'Immutable version history',
-          listOf('versions', ref('AutomationVersion'), {
+        '200': jsonResponse('Immutable version history', {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: [
+            'name',
+            'deployedVersion',
+            'latestVersion',
+            'versions',
+            'isDone',
+            'continueCursor',
+          ],
+          properties: {
             name: str,
             deployedVersion: nullable({
               ...int,
               description: 'null while nothing is deployed',
             }),
-          }),
-        ),
+            latestVersion: nullable({
+              ...int,
+              description: 'The newest saved version',
+            }),
+            versions: { type: 'array', items: ref('AutomationVersion') },
+            isDone: { type: 'boolean' },
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        }),
         '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/deployments'] = {
+    get: {
+      tags: ['Automations'],
+      summary: 'List when an automation’s versions went live',
+      description:
+        'The deployment history, newest first: each time a version was put ' +
+        'live, what it replaced (`previousVersion`), whether it rolled back ' +
+        '(`kind`), who did it (`deployedBy`, and `deployedByName` while that ' +
+        'person is still a member) through which door and client — and, ' +
+        'beside the page, what is `live` now with its runs still going. A ' +
+        'deploy the history did not record when it happened is rebuilt from ' +
+        'what is live (`synthesized`). Keyset-paged: pass `continueCursor` ' +
+        'back as `cursor` until `isDone`.',
+      operationId: 'listAutomationDeployments',
+      security: sec,
+      parameters: [automationNameParam, ...paginationParams(200, 50)],
+      responses: {
+        '200': jsonResponse('Deployment history', {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: ['name', 'live', 'deployments', 'isDone', 'continueCursor'],
+          properties: {
+            name: str,
+            live: nullable(ref('AutomationLiveDeployment')),
+            deployments: { type: 'array', items: ref('AutomationDeployment') },
+            isDone: { type: 'boolean' },
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        }),
+        '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
+        ...standardErrors,
+      },
+    },
+    post: {
+      tags: ['Automations'],
+      summary: 'Put a saved version live',
+      description:
+        'Promotes one saved version to be the version live runs and ' +
+        'triggers use — an older one rolls back (`kind`). The same gate as ' +
+        'the editor’s and an agent’s deploy: the version must still ' +
+        'validate and its own tests must pass. Name the version you read as ' +
+        'live in `expectedDeployedVersion` (`null` for none) and a deploy ' +
+        'that another one overtook is refused with the version that is live, ' +
+        'so a release pipeline never undoes a colleague’s. Requires the ' +
+        'developer capability; charges the execute bucket (the tests run) on ' +
+        'top of the general REST bucket. The answer carries the trigger that ' +
+        'starts the version now, so a pipeline can tell one that is off.',
+      operationId: 'deployAutomationVersion',
+      security: sec,
+      parameters: [automationNameParam],
+      requestBody: jsonBody({
+        type: 'object',
+        additionalProperties: false,
+        required: ['version'],
+        properties: {
+          version: {
+            type: 'integer',
+            minimum: 1,
+            description: 'The saved version to put live',
+          },
+          expectedDeployedVersion: nullable({
+            type: 'integer',
+            minimum: 1,
+            description:
+              'The version you read as live (`null`: none). Another one ' +
+              'live now refuses the deploy. Omitted: no check.',
+          }),
+        },
+      }),
+      responses: {
+        '200': jsonResponse(
+          'The version is live',
+          ref('AutomationDeployResult'),
+        ),
+        '403': errorResponse(
+          'The key holder lacks the developer capability (`ROLE_FORBIDDEN`)',
+        ),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        '409': errorResponse(
+          'Another version went live since `expectedDeployedVersion` was read (`AUTOMATION_DEPLOYMENT_STALE` — `data` names the version that is live); the version’s own tests fail (`AUTOMATION_TESTS_FAILING` — `data.report` lists them); the version no longer validates (`AUTOMATION_INVALID` — `data.errors` lists the problems); or the automation is managed by configuration and refuses a hand deploy (`AUTOMATION_DEPLOY_REJECTED`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/compare'] = {
+    get: {
+      tags: ['Automations'],
+      summary: 'Compare two versions of an automation',
+      description:
+        'What `to` changed against `from`: which nodes were added, removed, ' +
+        'renamed or changed and in which fields, and what changed in the run ' +
+        'input’s schema, the output, the description, the tests and what a ' +
+        'version keeps beside its document. `from` and `to` take a version ' +
+        'number, `latest` or `deployed`, and `from` also `previous` (the ' +
+        'version saved before `to`, the default); `to` defaults to the ' +
+        'latest. The first version compares with nothing (`from: null`). ' +
+        '`format` picks the answer: `changes` (the default), `unified` — a ' +
+        'patch over the two versions’ YAML, cut at 256 KB with `truncated` ' +
+        'saying so — or `both`.',
+      operationId: 'compareAutomationVersions',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        queryParam(
+          'from',
+          'The version to compare from: a number, `latest`, `deployed` or `previous` (the default)',
+        ),
+        queryParam(
+          'to',
+          'The version to compare to: a number, `latest` (the default) or `deployed`',
+        ),
+        {
+          ...queryParam(
+            'format',
+            '`changes` (the default), `unified` or `both`',
+          ),
+          schema: {
+            type: 'string',
+            enum: ['changes', 'unified', 'both'],
+            default: 'changes',
+          },
+        },
+      ],
+      responses: {
+        '200': jsonResponse('The comparison', ref('AutomationDiff')),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), a version it never saved, or `deployed` while nothing is live (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/versions/{version}/restore'] = {
+    post: {
+      tags: ['Automations'],
+      summary: 'Bring an older version back as the newest',
+      description:
+        'Saves the older version’s content — its document and what it keeps ' +
+        'beside it — as the newest version, recorded as based on and ' +
+        'restored from it, after the checks and tests of any save. Answers ' +
+        '201 with the new version; 200 with `unchanged: true` when the ' +
+        'latest version already holds that content and nothing was saved. ' +
+        'Never a deploy: the live version stays live (`POST …/deployments` ' +
+        'puts the new one live). `baseVersion` refuses the restore when a ' +
+        'version was saved since the one you read. Requires the developer ' +
+        'capability.',
+      operationId: 'restoreAutomationVersion',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        pathParam('version', 'The saved version to bring back'),
+      ],
+      requestBody: jsonBody(
+        {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            message: {
+              type: 'string',
+              maxLength: 500,
+              description:
+                'Why — shown in the version history; “Restore v3” when omitted',
+            },
+            baseVersion: {
+              type: 'integer',
+              minimum: 1,
+              description:
+                'The latest version you read. A version saved since refuses the restore.',
+            },
+          },
+        },
+        false,
+      ),
+      responses: {
+        '201': jsonResponse('Saved as the newest version', {
+          ...ref('AutomationRestoreResult'),
+        }),
+        '200': jsonResponse(
+          'Nothing saved: the latest version already holds that content',
+          ref('AutomationRestoreResult'),
+        ),
+        '403': errorResponse(
+          'The key holder lacks the developer capability (`ROLE_FORBIDDEN`)',
+        ),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        '409': errorResponse(
+          'A version was saved since `baseVersion` (`AUTOMATION_VERSION_STALE` — `data.latestVersion` names it); the version no longer validates (`AUTOMATION_INVALID` — `data.errors` lists the problems); or the automation is managed by configuration (`AUTOMATION_DEPLOY_REJECTED`)',
+        ),
         ...standardErrors,
       },
     },
@@ -8029,8 +8274,9 @@ loop from the document rather than from this prose:
   (contacts, products, documents, knowledge entries, threads, messages,
   websites) and under the resource's own key elsewhere: \`{runs, …}\`,
   \`{deliveries, …}\`, \`{conversations, …}\`, \`{comments, …}\`,
-  \`{projects, …}\`, \`{files, …}\`, and a run step's items and passes
-  under \`{units, …}\`.
+  \`{projects, …}\`, \`{files, …}\`, an automation's \`{versions, …}\` and
+  \`{deployments, …}\`, and a run step's items and passes under
+  \`{units, …}\`.
   The last two also answer \`cursor\` — the same token under its pre-1.5.0
   name, present only while more pages remain, deprecated and served for at
   least two more minor versions; a project lookup by \`externalItemId\` is
@@ -8042,8 +8288,8 @@ loop from the document rather than from this prose:
 - **none** — a named array alone is the complete set (or the bounded roster
   the operation names), never a cursor walk — no \`isDone\`, no cursor, no
   \`cursor\` or \`limit\` parameter: \`{automations}\`, \`{agents}\`,
-  \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\`,
-  \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`; the
+  \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\` (a
+  knowledge entry's), \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`; the
   OpenAI-compatible model list answers \`{data, object}\` in OpenAI's shape.
 
 Every cursor is an opaque signed token: one this list never answered is
@@ -10224,6 +10470,15 @@ curl -H "Authorization: Bearer <api-key>" \\
             'createdBy',
             'createdAt',
             'deployed',
+            'createdVia',
+            'viaInferred',
+            'clientName',
+            'createdByName',
+            'basedOnVersion',
+            'restoredFromVersion',
+            'changes',
+            'tests',
+            'lastDeployedAt',
           ],
           properties: {
             version: int,
@@ -10255,11 +10510,459 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'organization (the built-in connector automations). Split on ' +
                 'the first `:`; a value without one is a user id.',
             },
+            createdByName: nullable({
+              ...str,
+              description:
+                'The saving person’s name while they are a member of the ' +
+                'organization; null for a former member, a system writer or a ' +
+                'person with no name. Never an e-mail address.',
+            }),
             createdAt: epochMs,
+            createdVia: nullable({
+              type: 'string',
+              enum: ['app', 'upload', 'mcp', 'rest', 'managed', 'system'],
+              description:
+                'The door the version was saved through: the editor (`app`), ' +
+                'a package upload, a coding agent over MCP, the REST API, ' +
+                'managed configuration, or the platform itself. Null when ' +
+                'the door is not one this contract names.',
+            }),
+            viaInferred: {
+              ...bool,
+              description:
+                '`createdVia` was read from `createdBy`: the version is older ' +
+                'than the record of doors',
+            },
+            clientName: nullable({
+              ...str,
+              description: 'The name the saving agent’s client gave itself',
+            }),
+            basedOnVersion: nullable({
+              ...int,
+              description: 'The version the edit started from, when recorded',
+            }),
+            restoredFromVersion: nullable({
+              ...int,
+              description: 'The older version this one brings back, if any',
+            }),
+            changes: nullable(ref('AutomationChangeSummary')),
+            tests: nullable({
+              type: 'object',
+              required: ['passed', 'failed', 'total'],
+              properties: {
+                passed: int,
+                failed: int,
+                total: int,
+                via: {
+                  type: 'string',
+                  enum: ['save', 'deploy', 'manual'],
+                  description:
+                    'Which act ran them: the save, the deploy gate, or someone running the tests',
+                },
+                by: {
+                  ...str,
+                  description: 'Who ran them, as `createdBy` names a person',
+                },
+              },
+              description:
+                'The latest check of the version’s tests, in counts — null ' +
+                'while none was recorded with a report',
+            }),
             deployed: {
               ...bool,
               description: 'Whether this is the version live runs execute',
             },
+            lastDeployedAt: nullable({
+              ...epochMs,
+              description: 'When the version last went live; null if never',
+            }),
+          },
+        },
+        AutomationChangeSummary: {
+          type: 'object',
+          required: ['nodes'],
+          description:
+            'What a version changed against the one saved before it — counts ' +
+            'and flags, never content. A flag is present only when set.',
+          properties: {
+            first: {
+              type: 'boolean',
+              enum: [true],
+              description: 'The automation’s first version: nothing to change',
+            },
+            identical: {
+              type: 'boolean',
+              enum: [true],
+              description: 'The document is the one before it',
+            },
+            nodes: {
+              type: 'object',
+              required: ['added', 'removed', 'changed'],
+              properties: {
+                added: int,
+                removed: int,
+                changed: int,
+                renamed: int,
+              },
+            },
+            inputs: { type: 'boolean', enum: [true] },
+            output: { type: 'boolean', enum: [true] },
+            description: { type: 'boolean', enum: [true] },
+            tests: { type: 'boolean', enum: [true] },
+            other: { type: 'boolean', enum: [true] },
+            package: {
+              type: 'boolean',
+              enum: [true],
+              description:
+                'The version’s settings, task contract or presentation changed',
+            },
+          },
+        },
+        AutomationDiffChange: {
+          type: 'object',
+          required: ['pointer', 'path', 'kind'],
+          description: 'One difference between two values, where and what',
+          properties: {
+            pointer: { ...str, description: 'A JSON Pointer to the place' },
+            path: {
+              type: 'array',
+              items: { oneOf: [str, int] },
+            },
+            kind: {
+              type: 'string',
+              enum: [
+                'added',
+                'removed',
+                'changed',
+                'type-changed',
+                'reordered',
+                'unknown',
+              ],
+            },
+            before: {},
+            after: {},
+            beforeKind: { type: 'string' },
+            afterKind: { type: 'string' },
+          },
+        },
+        AutomationFieldChange: {
+          type: 'object',
+          required: ['field', 'kind', 'display'],
+          description:
+            'One field that differs: its name (a node’s field, a document key ' +
+            'or a package field), how its two values are best shown, and — ' +
+            'for data — the differences inside it',
+          properties: {
+            field: str,
+            kind: { type: 'string', enum: ['added', 'removed', 'changed'] },
+            display: {
+              type: 'string',
+              enum: [
+                'code',
+                'template',
+                'condition',
+                'json',
+                'text',
+                'scalar',
+                'list',
+              ],
+            },
+            before: {},
+            after: {},
+            values: { type: 'array', items: ref('AutomationDiffChange') },
+            truncated: { type: 'boolean', enum: [true] },
+            referencesOnly: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['from', 'to'],
+                properties: { from: str, to: str },
+              },
+              description:
+                'The field differs only because it reads a renamed node by its new id',
+            },
+          },
+        },
+        AutomationDiff: {
+          type: 'object',
+          required: [
+            'name',
+            'from',
+            'to',
+            'first',
+            'identical',
+            'counts',
+            'nodes',
+            'inputs',
+            'output',
+            'description',
+            'tests',
+            'other',
+            'package',
+            'ignored',
+          ],
+          description:
+            'What version `to` changed against version `from` (`from` is ' +
+            'null when `to` is the first version, compared with nothing). ' +
+            'With `format=unified` only `name`, `from`, `to`, `first`, ' +
+            '`identical`, `unified` and `truncated` are answered.',
+          properties: {
+            name: str,
+            from: nullable(int),
+            to: int,
+            first: bool,
+            identical: bool,
+            counts: {
+              type: 'object',
+              required: ['added', 'removed', 'changed', 'renamed'],
+              properties: {
+                added: int,
+                removed: int,
+                changed: int,
+                renamed: int,
+              },
+            },
+            nodes: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id', 'kind', 'type', 'fields'],
+                properties: {
+                  id: str,
+                  kind: {
+                    type: 'string',
+                    enum: ['added', 'removed', 'changed', 'renamed'],
+                  },
+                  type: str,
+                  typeBefore: str,
+                  renamedFrom: str,
+                  fields: {
+                    type: 'array',
+                    items: ref('AutomationFieldChange'),
+                  },
+                  referencesOnly: { type: 'boolean', enum: [true] },
+                  beforeIndex: int,
+                  afterIndex: int,
+                },
+              },
+            },
+            inputs: {
+              type: 'array',
+              description: 'Changes to the run input’s schema, by property',
+              items: {
+                type: 'object',
+                required: ['property', 'kind', 'values'],
+                properties: {
+                  property: nullable(str),
+                  kind: {
+                    type: 'string',
+                    enum: ['added', 'removed', 'changed'],
+                  },
+                  required: {
+                    type: 'object',
+                    properties: { before: bool, after: bool },
+                  },
+                  typeBefore: str,
+                  typeAfter: str,
+                  before: {},
+                  after: {},
+                  values: { type: 'array', items: ref('AutomationDiffChange') },
+                  truncated: { type: 'boolean', enum: [true] },
+                },
+              },
+            },
+            output: nullable(ref('AutomationFieldChange')),
+            description: nullable(ref('AutomationFieldChange')),
+            tests: {
+              type: 'array',
+              description: 'Changes to the tests, by name',
+              items: {
+                type: 'object',
+                required: ['name', 'kind', 'fields'],
+                properties: {
+                  name: str,
+                  kind: {
+                    type: 'string',
+                    enum: ['added', 'removed', 'changed'],
+                  },
+                  fields: {
+                    type: 'array',
+                    items: ref('AutomationFieldChange'),
+                  },
+                  beforeIndex: int,
+                  afterIndex: int,
+                },
+              },
+            },
+            other: {
+              type: 'array',
+              items: ref('AutomationFieldChange'),
+              description: 'Other top-level keys of the document',
+            },
+            package: {
+              type: 'array',
+              items: ref('AutomationFieldChange'),
+              description:
+                'What a version keeps beside its document: settings, task contract, presentation',
+            },
+            ignored: {
+              type: 'array',
+              items: { type: 'string', enum: ['ui'] },
+              description:
+                'What differs but is not compared: the canvas layout',
+            },
+            unified: {
+              ...str,
+              description:
+                'With `format` `unified` or `both`: the patch between the two ' +
+                'versions’ YAML, as `git diff` writes it',
+            },
+            truncated: {
+              ...bool,
+              description: 'The patch was cut at 256 KB: it no longer applies',
+            },
+          },
+        },
+        AutomationLiveDeployment: {
+          type: 'object',
+          required: [
+            'version',
+            'deployedAt',
+            'deployedBy',
+            'deployedByName',
+            'via',
+            'clientName',
+            'activeRuns',
+          ],
+          properties: {
+            version: int,
+            deployedAt: epochMs,
+            deployedBy: str,
+            deployedByName: nullable(str),
+            via: nullable({
+              type: 'string',
+              enum: ['app', 'upload', 'mcp', 'rest', 'managed', 'system'],
+            }),
+            clientName: nullable(str),
+            activeRuns: {
+              ...int,
+              description: 'Runs of the live version still going',
+            },
+          },
+        },
+        AutomationDeployment: {
+          type: 'object',
+          required: [
+            'id',
+            'version',
+            'previousVersion',
+            'kind',
+            'synthesized',
+            'deployedAt',
+            'deployedBy',
+            'deployedByName',
+            'via',
+            'clientName',
+          ],
+          description: 'One time a version was put live',
+          properties: {
+            id: str,
+            version: int,
+            previousVersion: nullable({
+              ...int,
+              description: 'What was live before it; null for the first deploy',
+            }),
+            kind: {
+              type: 'string',
+              enum: ['deploy', 'rollback', 'recorded'],
+              description:
+                '`rollback` put an older version live; `recorded` is a deploy recorded from what was live',
+            },
+            synthesized: {
+              ...bool,
+              description:
+                'Rebuilt from what is live rather than recorded when it happened',
+            },
+            deployedAt: epochMs,
+            deployedBy: str,
+            deployedByName: nullable(str),
+            via: nullable({
+              type: 'string',
+              enum: ['app', 'upload', 'mcp', 'rest', 'managed', 'system'],
+            }),
+            clientName: nullable(str),
+          },
+        },
+        AutomationWarning: {
+          type: 'object',
+          required: ['code', 'message'],
+          properties: { code: str, message: str },
+        },
+        AutomationDeployResult: {
+          type: 'object',
+          required: [
+            'name',
+            'version',
+            'previousVersion',
+            'kind',
+            'deploymentId',
+            'trigger',
+          ],
+          properties: {
+            name: str,
+            version: int,
+            previousVersion: nullable({
+              ...int,
+              description:
+                'The version that was live before; deploy it again to undo this one. Null when none was.',
+            }),
+            kind: {
+              type: 'string',
+              enum: ['deploy', 'rollback', 'unchanged'],
+              description:
+                '`deploy` put a newer version (or the first) live, `rollback` an older one, `unchanged` found it live already',
+            },
+            deploymentId: nullable({
+              ...str,
+              description:
+                'The deployment history’s new event; null when nothing changed',
+            }),
+            trigger: nullable({
+              type: 'object',
+              required: ['kind', 'enabled', 'nextRunAt', 'warnings'],
+              description:
+                'The automation’s trigger as the version now live meets it — ' +
+                'a trigger that is off does not start the new version',
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['schedule', 'webhook', 'event'],
+                },
+                enabled: bool,
+                nextRunAt: nullable(epochMs),
+                warnings: { type: 'array', items: ref('AutomationWarning') },
+              },
+            }),
+          },
+        },
+        AutomationRestoreResult: {
+          type: 'object',
+          required: ['name', 'version', 'restoredFrom', 'warnings'],
+          properties: {
+            name: str,
+            version: {
+              ...int,
+              description:
+                'The new version — or, with `unchanged`, the latest, which already holds that content',
+            },
+            restoredFrom: int,
+            unchanged: { type: 'boolean', enum: [true] },
+            testsPassed: {
+              ...bool,
+              description:
+                'How the restored version’s own tests went; absent when it has none',
+            },
+            warnings: { type: 'array', items: ref('AutomationWarning') },
           },
         },
         Trigger: triggerViewSpec,

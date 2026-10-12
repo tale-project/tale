@@ -90,6 +90,7 @@ import { checkAutomationTemplates } from './domains/automations/templates.integr
 import { checkTestReports } from './domains/automations/test-reports.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
+import { checkVersionDoors } from './domains/automations/version-doors.integration.ts';
 import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
 import { checkVersionRetention } from './domains/automations/version-retention.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
@@ -65140,6 +65141,24 @@ async function main(): Promise<void> {
         'checkMcpAuthoringParity',
         () =>
           checkMcpAuthoringParity(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkVersionDoors',
+        async () =>
+          checkVersionDoors(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'version-doors-reader',
+              'member',
+            ),
+            `itest-${orgSuffix}`,
+            record,
+          ),
       ],
       [
         'checkMcpDiscovery',

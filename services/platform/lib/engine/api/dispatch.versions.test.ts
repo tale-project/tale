@@ -653,4 +653,37 @@ describe('deploy_automation says what kind of deploy it was', () => {
     );
     expect(first).toMatchObject({ kind: 'deploy', previousVersion: null });
   });
+  it('says nothing changed when the version was live already [MCP-R3]', async () => {
+    // Derived from the two numbers when the host does not say.
+    const already = await dispatch(
+      'deploy_automation',
+      { name: NAME, version: 5 },
+      {
+        store: store({
+          deploy: async (name, version) => ({
+            name,
+            version,
+            previousVersion: version,
+          }),
+        }),
+      },
+    );
+    expect(already).toMatchObject({ kind: 'unchanged', previousVersion: 5 });
+    // The host's own word wins: it knows what its history recorded.
+    const hosts = await dispatch(
+      'deploy_automation',
+      { name: NAME, version: 3 },
+      {
+        store: store({
+          deploy: async (name, version) => ({
+            name,
+            version,
+            previousVersion: 5,
+            kind: 'unchanged',
+          }),
+        }),
+      },
+    );
+    expect(hosts).toMatchObject({ kind: 'unchanged' });
+  });
 });

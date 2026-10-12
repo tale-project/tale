@@ -403,6 +403,11 @@ export interface DispatchStore extends StoreAdapter {
     version: number;
     /** What was live before; null when nothing was. */
     previousVersion?: number | null;
+    /** What the deploy did, when the host records it: `deploy` put a newer
+     * version (or the first) live, `rollback` an older one, `unchanged`
+     * found it live already. A host that leaves it out has it read from
+     * `previousVersion`. */
+    kind?: 'deploy' | 'rollback' | 'unchanged';
   }>;
   /** Record the deploy gate's verdict on a saved version WITHOUT deploying
    * it — the refusal's `false`, so the version reads as failing rather than
@@ -2000,11 +2005,15 @@ export async function dispatch(
           deployed: { name: deployed.name, version: deployed.version },
           // What was live before: deploy it again to undo this one.
           previousVersion,
-          // Whether it put an older version live again.
+          // What it did: put a newer version live, an older one (a
+          // rollback), or found it live already.
           kind:
-            previousVersion !== null && deployed.version < previousVersion
-              ? 'rollback'
-              : 'deploy',
+            deployed.kind ??
+            (previousVersion === deployed.version
+              ? 'unchanged'
+              : previousVersion !== null && deployed.version < previousVersion
+                ? 'rollback'
+                : 'deploy'),
           note:
             previousVersion === null || previousVersion === deployed.version
               ? 'this version is now live-eligible via run_deployed and triggers'
