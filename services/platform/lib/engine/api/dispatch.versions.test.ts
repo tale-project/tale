@@ -444,6 +444,9 @@ describe('save_automation restoring a version', () => {
       testReport: expect.objectContaining({ passed: 1 }),
       baseVersion: 7,
       restoredFrom: 3,
+      // Under the automation it was asked to restore, whatever the
+      // document names.
+      name: NAME,
       metadata: {
         settings: { forms: [] },
         taskContract: { workflow: NAME },

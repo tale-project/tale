@@ -423,7 +423,7 @@ export function pgAutomationStore(
       return triggerInputSample(row, Date.now());
     },
     save: async (automation, message, options) => {
-      const name = assertAutomationName(automation.name ?? '');
+      const name = assertAutomationName(options?.name ?? automation.name ?? '');
       // Ownership travels with the scope: a project-scoped authoring caller
       // pins its first save to that project; a caller naming one installs a
       // new automation there — a write on the project, so it must be one

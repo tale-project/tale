@@ -424,6 +424,26 @@ describe('save', () => {
     );
   });
 
+  it('saves a restore under the automation it restores, never on the one an old document names', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 8 });
+    await store().save(
+      { version: 1 as const, name: 'someone/else', nodes: [] } as never,
+      'Restore v3',
+      { restoredFrom: 3, name: NAME },
+    );
+    const args = vi.mocked(saveVersion).mock.calls.at(-1)?.[1];
+    expect(args).toMatchObject({
+      organizationId: ORG,
+      name: NAME,
+      restoredFromVersion: 3,
+    });
+    // An ordinary save still names the automation by its document.
+    await store().save(doc as never, 'why');
+    expect(vi.mocked(saveVersion).mock.calls.at(-1)?.[1]).toMatchObject({
+      name: NAME,
+    });
+  });
+
   it('saves an ordinary version without a restore’s marks', async () => {
     vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 8 });
     await store().save(doc as never, 'why');

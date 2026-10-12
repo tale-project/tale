@@ -196,6 +196,7 @@ describe('restoring a version at the app door [AUTO-R48]', () => {
       testsPassed: true,
       testReport: expect.objectContaining({ passed: 1, failed: 0 }),
       restoredFrom: 1,
+      name: 'double',
       metadata: {
         settings: null,
         taskContract: null,

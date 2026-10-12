@@ -5,15 +5,19 @@
  * the older content as the newest version (and nothing when it is the
  * latest already), the versions a retention sweep must keep are the live
  * and deployed ones, the newest twenty and their lineage, and a new name
- * cannot end in a word an automation's own pages use, and the history names
- * the member behind each actor — and no one else. The lane deletes what it
- * wrote before it ends. */
+ * cannot end in a word an automation's own pages use, the history names the
+ * member behind each actor — and no one else — and an agent's restore saves
+ * under the automation it restores, whatever name an old document carries.
+ * The lane deletes what it wrote before it ends. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { dispatch } from '../../../lib/engine/api/dispatch.ts';
+import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
 import { appOrigin } from '../../lib/write-origin.ts';
 import { memberNamesOf } from './author-names.ts';
+import { pgAutomationStore } from './dispatch-store.ts';
 import {
   AutomationError,
   deleteAutomationCascade,
@@ -45,6 +49,8 @@ export async function checkVersionHistory(
     outsider: `itest-outsider-${suffix}`,
   };
   const otherOrg = `itest-names-org-${suffix}`;
+  const agentRestored = `itest-versions-restore-${suffix}`;
+  const namedInstead = `itest-versions-named-${suffix}`;
   const node = (id: string) => ({
     id,
     type: 'transform',
@@ -203,6 +209,51 @@ export async function checkVersionHistory(
       reserved instanceof AutomationError ? reserved.message : String(reserved),
     );
 
+    // An agent's restore saves under the automation it was asked to restore:
+    // a version whose document carries another automation's name (the app
+    // never checked) is brought back under the requested name, and the
+    // automation the document names is not created or touched.
+    assembleAutomationAuthoringHost();
+    const asAgent = pgAutomationStore(sql, {
+      organizationId: orgId,
+      origin: appOrigin(userId),
+    });
+    await saveVersion(sql, {
+      organizationId: orgId,
+      name: agentRestored,
+      document: {
+        version: 1,
+        name: namedInstead,
+        nodes: [node('a')],
+        output: '{{ nodes.a.output }}',
+      },
+      origin,
+    });
+    await save(agentRestored, ['a', 'b'], { baseVersion: 1 });
+    const brought = await dispatch(
+      'save_automation',
+      { name: agentRestored, restoreVersion: 1, baseVersion: 2 },
+      { store: asAgent },
+    );
+    const rows = await sql<
+      { name: string; version: number; from: number | null }[]
+    >`
+      SELECT name, version, restored_from_version AS "from"
+      FROM app.automations
+      WHERE org_id = ${orgId} AND name = ANY(${[agentRestored, namedInstead]})
+      ORDER BY name, version
+    `;
+    record(
+      'an agent’s restore saves under the automation it restores, never on the one an old document names [MCP-R32]',
+      JSON.stringify(brought).includes('"version":3') &&
+        rows.filter((entry) => entry.name === agentRestored).length === 3 &&
+        rows.find(
+          (entry) => entry.name === agentRestored && entry.version === 3,
+        )?.from === 1 &&
+        rows.every((entry) => entry.name !== namedInstead),
+      JSON.stringify({ brought, rows }),
+    );
+
     // The names a history answers beside its actors: a member's display
     // name for the person an actor names, whichever door they came through;
     // nothing for a nameless member, a former member, a person who belongs
@@ -285,7 +336,7 @@ export async function checkVersionHistory(
         );
       },
     );
-    for (const automation of [name, kept]) {
+    for (const automation of [name, kept, agentRestored]) {
       await deleteAutomationCascade(sql, {
         organizationId: orgId,
         name: automation,

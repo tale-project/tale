@@ -282,6 +282,11 @@ export interface SaveOptions {
    * nothing — answering `unchanged` — when the latest version already is
    * that content. */
   restoredFrom?: number;
+  /** The automation the version is saved under, where that is not the
+   * document's own `name`: a restore saves under the automation it was
+   * asked to restore, whatever name an old version's document carries —
+   * it never lands a version on another automation. */
+  name?: string;
 }
 
 /** One page of a run listing, newest first, and where the next one starts. */
@@ -1559,6 +1564,7 @@ async function restoreVersionCall(
           baseVersion: baseVersion.value,
         }),
         restoredFrom: wanted.value,
+        name,
         ...(source.kept !== undefined && { metadata: source.kept }),
       },
     );
