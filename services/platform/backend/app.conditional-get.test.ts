@@ -79,6 +79,10 @@ function fakeAuth(): Auth {
     api: { getSession },
     options: { baseURL: 'http://localhost' },
     handler: () => Promise.resolve(new Response(null, { status: 404 })),
+    // The real Auth instance re-reads persisted organization authority after
+    // Better Auth resolves a cookie. Keep this app-level double on that same
+    // seam so the test exercises the route contract without a database.
+    resolveSessionAuthority: async (session: unknown) => session,
   } as unknown as Auth;
 }
 

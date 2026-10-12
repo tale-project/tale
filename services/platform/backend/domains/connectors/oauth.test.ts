@@ -428,7 +428,13 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
 
     const outcome = await completeOauth2(
       sql,
-      { state, code: 'code-1', vendorError: null, requesterUserId: 'user-2' },
+      {
+        state,
+        code: 'code-1',
+        vendorError: null,
+        requesterUserId: 'user-2',
+        requesterOrganizationId: null,
+      },
       { fetchImpl },
     );
 
@@ -440,7 +446,13 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
     await expect(
       completeOauth2(
         sql,
-        { state, code: 'code-1', vendorError: null, requesterUserId: 'user-1' },
+        {
+          state,
+          code: 'code-1',
+          vendorError: null,
+          requesterUserId: 'user-1',
+          requesterOrganizationId: null,
+        },
         { fetchImpl },
       ),
     ).resolves.toEqual({ kind: 'error', error: 'invalid_state' });
@@ -500,7 +512,13 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
     await expect(
       completeOauth2(
         sql,
-        { state, code: 'code-1', vendorError: null, requesterUserId: 'user-1' },
+        {
+          state,
+          code: 'code-1',
+          vendorError: null,
+          requesterUserId: 'user-1',
+          requesterOrganizationId: null,
+        },
         { fetchImpl },
       ),
     ).resolves.toEqual({

@@ -76,7 +76,7 @@ export function sessionHasFreshAccountProof(
 
 /** Account proof permits account operations, never another organization or
  * unbound delegation. The ordinary global-session behavior stays unchanged. */
-export function sessionAllowsAccountChanges(session: object): boolean {
+function sessionAllowsAccountChanges(session: object): boolean {
   return (
     Reflect.get(session, 'authenticationDoor') !== 'api-key' &&
     (sessionOrganizationId(session) === null ||
