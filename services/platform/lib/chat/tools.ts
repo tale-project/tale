@@ -100,6 +100,15 @@ export interface WireTool {
   readonly parameters: Record<string, unknown>;
 }
 
+/** What the turn tells a tool about the call it runs. */
+export interface ToolCallOptions {
+  /** Aborted when the call must stop: the reply was stopped, the round's tools
+   * ran out of time, or the turn itself ended (a worker stopping, a run's time
+   * limit). A tool that waits or works for long honours it and answers a
+   * structured result; one that finishes in moments may ignore it. */
+  readonly signal?: AbortSignal;
+}
+
 /**
  * The executor port the turn pipeline calls. Injected (like the model call
  * and the store) so the pipeline stays pure and a test drives the loop with a
@@ -109,7 +118,7 @@ export interface WireTool {
  */
 export interface ChatToolExecutor {
   readonly wireTools: readonly WireTool[];
-  execute(call: ToolCallRequest): Promise<unknown>;
+  execute(call: ToolCallRequest, options?: ToolCallOptions): Promise<unknown>;
 }
 
 // ------------------------------------------------------------------ schemas

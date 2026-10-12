@@ -117,7 +117,13 @@ export function skillReachable(scope: WorkToolScope, slug: string): boolean {
 /** A structured failure the model reads and can act on — every work tool
  * answers one instead of throwing. */
 export interface WorkToolFailure {
-  status: 'invalid_args' | 'not_found' | 'unavailable' | 'busy' | 'error';
+  status:
+    | 'invalid_args'
+    | 'not_found'
+    | 'unavailable'
+    | 'busy'
+    | 'error'
+    | 'cancelled';
   message: string;
 }
 

@@ -97,7 +97,7 @@ The custom-instructions default switch stores the organization default for membe
 
 </Frame>
 
-All three are on until you turn one off. Change the switches, then save the pending page changes in the header; the next reply in every chat follows them. Images are not part of this section: the chat creates them only while [image generation](/platform/admin/governance/content-models#let-agents-generate-images) is on. [Make files and use skills in chat](/platform/chat/files-and-skills) shows what members see.
+All three are on until you turn one off, and a missing policy file leaves them on. A policy file that exists but cannot be read turns all three off until it is repaired, so a broken file never switches back on what you turned off; this page then shows that the policy could not be read. Change the switches, then save the pending page changes in the header; the next reply in every chat follows them. Images are not part of this section: the chat creates them only while [image generation](/platform/admin/governance/content-models#let-agents-generate-images) is on. [Make files and use skills in chat](/platform/chat/files-and-skills) shows what members see.
 
 ## Show a confidentiality notice in chat
 

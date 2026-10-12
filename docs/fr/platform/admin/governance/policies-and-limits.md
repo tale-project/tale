@@ -97,7 +97,7 @@ Le commutateur par défaut des instructions personnalisées enregistre la valeur
 
 </Frame>
 
-Les trois sont activés tant que tu n’en désactives pas un. Modifie les interrupteurs, puis enregistre les modifications en attente dans l’en-tête de la page ; la prochaine réponse de chaque chat les applique. Les images ne relèvent pas de cette section : le chat n’en crée que lorsque la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) est activée. [Créer des fichiers et utiliser des skills dans le chat](/fr/platform/chat/files-and-skills) montre ce que voient les membres.
+Les trois sont activés tant que tu n’en désactives pas un, et un fichier de politique absent les laisse activés. Un fichier de politique qui existe mais ne peut pas être lu désactive les trois jusqu’à sa réparation : un fichier défectueux ne réactive donc jamais ce que tu as désactivé, et cette page indique alors que la politique n’a pas pu être lue. Modifie les interrupteurs, puis enregistre les modifications en attente dans l’en-tête de la page ; la prochaine réponse de chaque chat les applique. Les images ne relèvent pas de cette section : le chat n’en crée que lorsque la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) est activée. [Créer des fichiers et utiliser des skills dans le chat](/fr/platform/chat/files-and-skills) montre ce que voient les membres.
 
 ## Afficher un avis de confidentialité dans le chat
 

@@ -11,7 +11,7 @@ states (backend unavailable, no provider, budget exceeded). There is **no
 agent picker** anymore: the composer picks a **model** and a reasoning effort;
 agents and connectors are equipped per **project** (see
 [projects.md](projects.md)); chat reads skills from the person's own skill
-library and makes files with its own tools (CHAT-F66–CHAT-F71). The Home panel itself — its views,
+library and makes files with its own tools (CHAT-F66–CHAT-F72). The Home panel itself — its views,
 bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
 list of its own any more.
 
@@ -32,10 +32,11 @@ Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock, wired per SETUP.md §1.A). In **mode A** any prompt returns the canned reply and the
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
 `e2e:length` / `e2e:stream-error` / `e2e:gateway-route` /
-`e2e:cloud-region` / `e2e:make-file` / `e2e:make-spreadsheet`) drive
-CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58, CHAT-F62 and
-CHAT-F66–CHAT-F68; CHAT-F68 also needs the sandbox service (full Docker
-stack). Rows marked **mode B** need a live provider; CHAT-F25
+`e2e:cloud-region` / `e2e:make-file` / `e2e:make-spreadsheet` /
+`e2e:run-long-code`) drive
+CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58, CHAT-F62,
+CHAT-F66–CHAT-F68 and CHAT-F72; CHAT-F68 and CHAT-F72 also need the sandbox
+service (full Docker stack). Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -732,6 +733,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   totals" → **Running Python in a light sandbox**; a new `.xlsx` card holds a
   sheet with the data and a chart; the attachment chip above your message is
   unchanged and still opens the original CSV.
+- [ ] `CHAT-F72` · **Stop cuts a running program off** — Mode A with the
+  sandbox service (or mode B asking "Run a Python program that sleeps for 170
+  seconds and then writes done.txt"), one new chat: send `e2e:run-long-code` →
+  **Running Python in a light sandbox** shows as running. After
+  about 20 seconds press **Stop generating** (`chat.stopGenerating`) → within
+  about 15 seconds the step stops, the reply reads as stopped, no `done.txt`
+  card appears, and the composer is free again. Ask for the same program again
+  and leave it → the reply stays in progress for the full run, never reads as
+  failed while it works, and ends with the file. In the Sandboxes settings the
+  chat's light sandbox is not still running the program after Stop.
 
 ## Boundary & error tests
 
@@ -925,6 +936,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 
 ## Accessibility (WCAG 2.1 AA)
 
+- [ ] `CHAT-B25` · **A Chat tools policy file that cannot be read** — On a
+  disposable organization, break `governance/chat-tools.yml` under
+  `TALE_CONFIG_DIR/<org>/` (an unknown key, or invalid YAML); in a new chat
+  (mode B) ask for an Excel file → no tool step appears and the reply says it
+  cannot make files here; **Governance › Policies & Limits** shows the
+  policy read failure (`governance.policyReadFailed`) with **Retry**
+  (`governance.policyReadRetry`) where the Chat tools switches would be.
+  Delete the file → the defaults return and the same request runs code. Write a
+  valid file with **Code** off → only code is gone.
 - [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
   newline; a blocked send announces its reason (toast) instead of silently
   no-opping.

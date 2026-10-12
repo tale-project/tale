@@ -192,6 +192,15 @@ describe('chat/completions override', () => {
       { language: 'python', code: MOCK_WORK_TOOLS.spreadsheetCode },
     ],
     [
+      MOCK_TRIGGERS.runLongCode,
+      'run_code',
+      {
+        language: 'python',
+        code: MOCK_WORK_TOOLS.longCode,
+        timeoutSeconds: 180,
+      },
+    ],
+    [
       MOCK_TRIGGERS.useWorkspace,
       'use_workspace',
       {

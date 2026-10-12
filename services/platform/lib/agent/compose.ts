@@ -16,7 +16,11 @@
  * Layer A: pure.
  */
 
-import type { ChatToolExecutor, ToolCallRequest } from '../chat/tools';
+import type {
+  ChatToolExecutor,
+  ToolCallOptions,
+  ToolCallRequest,
+} from '../chat/tools';
 
 export function composeToolExecutors(
   executors: readonly (ChatToolExecutor | undefined)[],
@@ -39,7 +43,10 @@ export function composeToolExecutors(
   }
   return {
     wireTools: present.flatMap((executor) => executor.wireTools),
-    execute(call: ToolCallRequest): Promise<unknown> {
+    execute(
+      call: ToolCallRequest,
+      options?: ToolCallOptions,
+    ): Promise<unknown> {
       const executor = owner.get(call.name);
       if (executor === undefined) {
         return Promise.resolve({
@@ -47,7 +54,7 @@ export function composeToolExecutors(
           message: `There is no tool named "${call.name}". Use one of: ${[...owner.keys()].join(', ')}.`,
         });
       }
-      return executor.execute(call);
+      return executor.execute(call, options);
     },
   };
 }

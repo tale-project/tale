@@ -122,6 +122,62 @@ describe('turnImageBilling', () => {
     });
   });
 
+  it('counts the images of calls that run together, so parallel requests meet the ceiling [CHAT-R23]', async () => {
+    // A round's calls run in the same tick: the budget check awaits, so a count
+    // taken after it would read none admitted for every one of them.
+    vi.mocked(budgetPolicyActive).mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(false), 5)),
+    );
+    const { sql } = fakeSql();
+    const billing = turnImageBilling(sql, TURN);
+
+    const verdicts = await Promise.all(
+      Array.from({ length: 10 }, () => billing.admit(4)),
+    );
+
+    // Four calls of four fill sixteen; the other six are refused, none admitted
+    // past the ceiling.
+    expect(verdicts.filter((verdict) => verdict.admitted)).toHaveLength(
+      TURN_MAX_GENERATED_IMAGES / 4,
+    );
+    expect(verdicts.filter((verdict) => !verdict.admitted)).toHaveLength(
+      10 - TURN_MAX_GENERATED_IMAGES / 4,
+    );
+  });
+
+  it.each([
+    [
+      'a budget that refuses it',
+      () =>
+        vi
+          .mocked(findBudgetViolation)
+          .mockResolvedValueOnce({ kind: 'cost' } as never),
+    ],
+    [
+      'a failure of its own',
+      () =>
+        vi
+          .mocked(budgetPolicyActive)
+          .mockRejectedValueOnce(new Error('database blinked')),
+    ],
+  ])(
+    'gives the count back when an admission ends in %s, so the reply can still use its images [CHAT-R23]',
+    async (_label, fail) => {
+      vi.mocked(budgetPolicyActive).mockResolvedValue(true);
+      const { sql } = fakeSql();
+      const billing = turnImageBilling(sql, TURN);
+      fail();
+
+      await billing.admit(TURN_MAX_GENERATED_IMAGES).catch(() => undefined);
+
+      // The whole ceiling is still there to spend.
+      vi.mocked(budgetPolicyActive).mockResolvedValue(false);
+      await expect(
+        billing.admit(TURN_MAX_GENERATED_IMAGES),
+      ).resolves.toMatchObject({ admitted: true });
+    },
+  );
+
   it('books each billed request under the person, in the chat’s project, and lowers the hold [CHAT-R22]', async () => {
     const { sql, statements } = fakeSql();
 

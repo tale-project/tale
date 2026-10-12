@@ -52,7 +52,7 @@ Ein Skill leitet den Assistenten an; er ändert nicht, was der Assistent darf. D
 ## Die Grenzen kennen
 
 - Eine leichte Sandbox gehört zu einem Gespräch. Sie behält ihre Dateien zwischen den Schritten des Assistenten und deinen Folgenachrichten; nach etwa fünf Minuten ohne Nutzung wird sie entfernt, und die nächste Anfrage startet eine neue. Sind alle leichten Sandboxes deiner Organisation belegt, macht eine unbenutzte Platz; ist keine unbenutzt, bittet dich der Assistent, es in einer Minute noch einmal zu versuchen.
-- Ein Code-Lauf darf bis zu drei Minuten dauern. Er hängt bis zu 10 Dateien an, jede bis zu 20 MB groß.
+- Ein Code-Lauf darf bis zu drei Minuten dauern, und alle Tools eines Schritts zusammen höchstens fünf. In einem Schritt laufen höchstens 16 Tools. Wählst du **Generierung stoppen**, wird ein laufendes Programm innerhalb weniger Sekunden abgebrochen. Ein Lauf hängt bis zu 10 Dateien an, jede bis zu 20 MB groß; schreibt ein Programm sehr viel mehr, nennt die Antwort einige und zählt den Rest.
 - Eine Datei, die der Assistent selbst schreibt, fasst bis zu 1 MB Text.
 - Eine Anfrage erstellt bis zu 4 Bilder, eine Antwort bis zu 16. Bilder werden deiner Organisation berechnet und zählen wie die Antwort selbst für dich.
 

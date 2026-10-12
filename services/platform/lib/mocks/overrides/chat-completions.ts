@@ -143,6 +143,7 @@ type Scenario =
   | 'cloudRegion'
   | 'makeFile'
   | 'makeSpreadsheet'
+  | 'runLongCode'
   | 'useWorkspace'
   | 'workDone';
 
@@ -268,6 +269,7 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (
     last.includes(MOCK_TRIGGERS.makeFile) ||
     last.includes(MOCK_TRIGGERS.makeSpreadsheet) ||
+    last.includes(MOCK_TRIGGERS.runLongCode) ||
     last.includes(MOCK_TRIGGERS.useWorkspace)
   ) {
     if (resume) return 'workDone';
@@ -275,7 +277,9 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
       ? 'makeFile'
       : last.includes(MOCK_TRIGGERS.makeSpreadsheet)
         ? 'makeSpreadsheet'
-        : 'useWorkspace';
+        : last.includes(MOCK_TRIGGERS.runLongCode)
+          ? 'runLongCode'
+          : 'useWorkspace';
   }
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
   // unmatched stays on the spec-pinned canned path. A tool-scripted entry
@@ -536,6 +540,7 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
       if (
         scenario === 'makeFile' ||
         scenario === 'makeSpreadsheet' ||
+        scenario === 'runLongCode' ||
         scenario === 'useWorkspace'
       ) {
         const intro =
@@ -543,7 +548,9 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
             ? MOCK_WORK_TOOLS.fileIntro
             : scenario === 'makeSpreadsheet'
               ? MOCK_WORK_TOOLS.spreadsheetIntro
-              : MOCK_WORK_TOOLS.workspaceIntro;
+              : scenario === 'runLongCode'
+                ? MOCK_WORK_TOOLS.longCodeIntro
+                : MOCK_WORK_TOOLS.workspaceIntro;
         for (const delta of toDeltas(intro)) {
           sendDelta({ content: delta }, null);
           await pause();
@@ -564,7 +571,7 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
                       }),
                     },
                   }
-                : scenario === 'makeSpreadsheet'
+                : scenario === 'makeSpreadsheet' || scenario === 'runLongCode'
                   ? {
                       index: 0,
                       id: 'call_work_code_0',
@@ -573,7 +580,13 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
                         name: 'run_code',
                         arguments: JSON.stringify({
                           language: 'python',
-                          code: MOCK_WORK_TOOLS.spreadsheetCode,
+                          code:
+                            scenario === 'runLongCode'
+                              ? MOCK_WORK_TOOLS.longCode
+                              : MOCK_WORK_TOOLS.spreadsheetCode,
+                          ...(scenario === 'runLongCode'
+                            ? { timeoutSeconds: 180 }
+                            : {}),
                         }),
                       },
                     }

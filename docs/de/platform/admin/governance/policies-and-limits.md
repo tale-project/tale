@@ -97,7 +97,7 @@ Der Standardschalter für benutzerdefinierte Anweisungen legt die Organisationsv
 
 </Frame>
 
-Alle drei sind eingeschaltet, bis du einen ausschaltest. Ändere die Schalter und speichere dann die offenen Änderungen der Seite in der Kopfzeile; die nächste Antwort in jedem Chat folgt ihnen. Bilder gehören nicht zu diesem Abschnitt: Der Chat erstellt sie nur, solange die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet ist. Was Mitglieder sehen, zeigt [Im Chat Dateien erstellen und Skills nutzen](/de/platform/chat/files-and-skills).
+Alle drei sind eingeschaltet, bis du einen ausschaltest, und eine fehlende Richtliniendatei lässt sie eingeschaltet. Eine Richtliniendatei, die existiert, aber nicht gelesen werden kann, schaltet alle drei aus, bis sie repariert ist; so schaltet eine defekte Datei nichts wieder ein, was du ausgeschaltet hast, und diese Seite zeigt dann, dass die Richtlinie nicht gelesen werden konnte. Ändere die Schalter und speichere dann die offenen Änderungen der Seite in der Kopfzeile; die nächste Antwort in jedem Chat folgt ihnen. Bilder gehören nicht zu diesem Abschnitt: Der Chat erstellt sie nur, solange die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet ist. Was Mitglieder sehen, zeigt [Im Chat Dateien erstellen und Skills nutzen](/de/platform/chat/files-and-skills).
 
 ## Einen Vertraulichkeitshinweis im Chat anzeigen
 

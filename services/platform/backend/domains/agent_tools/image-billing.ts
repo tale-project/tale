@@ -52,7 +52,58 @@ export function turnImageBilling(
     unit: 'reply' | 'run';
   },
 ): ImageBilling {
+  // The images this turn may still create are counted the moment an admission
+  // starts, before anything is awaited: a round's calls run together, and ten
+  // of them asking for four images each must meet the ceiling one after the
+  // other, not all see none admitted yet. A refused or failed admission gives
+  // its count back.
   let admitted = 0;
+
+  /** The budget half of an admission: every cap that binds the person,
+   * measured beside everything in flight, and the hold raised by the
+   * estimate. */
+  const admitWithinBudget = async (
+    images: number,
+  ): Promise<
+    { admitted: true; holdCents: number } | { admitted: false; message: string }
+  > => {
+    const holdCents = images * SANDBOX_IMAGE_HOLD_CENTS;
+    if (!(await budgetPolicyActive(sql, turn.organizationId))) {
+      return { admitted: true, holdCents: 0 };
+    }
+    const verdict = await sql.begin(async (tx) => {
+      await lockBudgetAdmission(tx, turn.organizationId);
+      const subject = await loadBudgetSubject(tx, {
+        organizationId: turn.organizationId,
+        userId: turn.userId,
+        ...(turn.apiKeyId !== undefined ? { apiKeyId: turn.apiKeyId } : {}),
+        projectIds: turn.projectIds,
+      });
+      const violation = await findBudgetViolation(tx, subject, {
+        reservations: await readInFlightReservations(tx, subject),
+        prospectiveCostCents: holdCents,
+        // The gate refuses at `used + prospective >= cap`, the first image
+        // being the request it measures: room for N images is N - 1 more.
+        prospectiveRequests: Math.max(0, images - 1),
+      });
+      if (violation !== null) {
+        return { refused: budgetRefusalMessage(violation) };
+      }
+      await tx`
+        UPDATE app.generations SET
+          reserved_cost_cents = reserved_cost_cents + ${holdCents},
+          updated_at_ms = ${Date.now()}
+        WHERE thread_id = ${turn.threadId}
+          AND org_id = ${turn.organizationId}
+      `;
+      return { refused: null };
+    });
+    if (verdict.refused !== null) {
+      return { admitted: false, message: verdict.refused };
+    }
+    return { admitted: true, holdCents };
+  };
+
   return {
     async admit(images) {
       if (admitted + images > TURN_MAX_GENERATED_IMAGES) {
@@ -65,43 +116,15 @@ export function turnImageBilling(
               : `This ${turn.unit} may create ${left} more ${left === 1 ? 'image' : 'images'}, not ${images}.`,
         };
       }
-      const holdCents = images * SANDBOX_IMAGE_HOLD_CENTS;
-      if (!(await budgetPolicyActive(sql, turn.organizationId))) {
-        admitted += images;
-        return { admitted: true, holdCents: 0 };
-      }
-      const verdict = await sql.begin(async (tx) => {
-        await lockBudgetAdmission(tx, turn.organizationId);
-        const subject = await loadBudgetSubject(tx, {
-          organizationId: turn.organizationId,
-          userId: turn.userId,
-          ...(turn.apiKeyId !== undefined ? { apiKeyId: turn.apiKeyId } : {}),
-          projectIds: turn.projectIds,
-        });
-        const violation = await findBudgetViolation(tx, subject, {
-          reservations: await readInFlightReservations(tx, subject),
-          prospectiveCostCents: holdCents,
-          // The gate refuses at `used + prospective >= cap`, the first image
-          // being the request it measures: room for N images is N - 1 more.
-          prospectiveRequests: Math.max(0, images - 1),
-        });
-        if (violation !== null) {
-          return { refused: budgetRefusalMessage(violation) };
-        }
-        await tx`
-          UPDATE app.generations SET
-            reserved_cost_cents = reserved_cost_cents + ${holdCents},
-            updated_at_ms = ${Date.now()}
-          WHERE thread_id = ${turn.threadId}
-            AND org_id = ${turn.organizationId}
-        `;
-        return { refused: null };
-      });
-      if (verdict.refused !== null) {
-        return { admitted: false, message: verdict.refused };
-      }
       admitted += images;
-      return { admitted: true, holdCents };
+      try {
+        const verdict = await admitWithinBudget(images);
+        if (!verdict.admitted) admitted -= images;
+        return verdict;
+      } catch (error) {
+        admitted -= images;
+        throw error;
+      }
     },
 
     async settle({ holdCents, charges, provider, model }) {
