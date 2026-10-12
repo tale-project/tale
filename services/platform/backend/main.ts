@@ -117,7 +117,7 @@ async function main(): Promise<void> {
   }
   // The additive custody schema exists before this can inventory legacy
   // factors. Refuse an altered/removed active fence before serving requests.
-  if (auth !== undefined)
+  if (auth !== null)
     await databaseWait(() => auth.initializeSessionAuthority());
 
   // Metrics collectors need the pool and read app tables, so they register

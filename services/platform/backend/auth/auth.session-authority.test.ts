@@ -74,7 +74,10 @@ function cookies(response: Response): string {
 describe('the production scoped-session plugin after every identity injector', () => {
   let db: MemoryDb;
   let factory: ReturnType<typeof createAuth>;
-  let auth: ReturnType<typeof betterAuth>;
+  // Keep the fixture's seam structural. Better Auth's inferred plugin tuple
+  // is intentionally narrower than its broad factory generic after the
+  // coding-agent provider was added; this test only drives the handler.
+  let auth: { handler(request: Request): Promise<Response> };
   let cookie: string;
 
   const call = (
