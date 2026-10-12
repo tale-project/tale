@@ -421,6 +421,7 @@ function AutomationEditorScope({
   const { toast } = useToast();
   const { t: tCommon } = useT('common');
   const inspectorId = useId();
+  const editorTitleId = useId();
   const saveMessageId = useId();
   const ability = useAbility();
   // Mirrors the backend split: reads and mock runs are member acts, while
@@ -2896,10 +2897,18 @@ function AutomationEditorScope({
       <div
         ref={editorRegionRef}
         role="region"
-        aria-label={t('navigation.editor')}
+        aria-labelledby={editorTitleId}
         tabIndex={-1}
         className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[var(--mobile-floating-actions-pad,0px)] lg:min-h-0"
       >
+        {/* The tab's own heading, as Runs and Versions have theirs. The
+            canvas fills the tab, so it is not drawn, but the page's outline
+            needs this level between the breadcrumb's title and the
+            inspector's, whose title is a level 3 and whose sections go on
+            from there. The phone's sheet brings its own level 2. */}
+        <h2 id={editorTitleId} className="sr-only">
+          {t('navigation.editor')}
+        </h2>
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.

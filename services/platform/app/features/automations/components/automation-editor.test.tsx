@@ -2980,6 +2980,62 @@ describe('Start, End and the Source view', () => {
   });
 });
 
+describe('AutomationEditor outline', () => {
+  const withTests = {
+    name: 'billing/dunning',
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
+    tests: [{ name: 'smoke', input: {}, expect: { output: 'ok' } }],
+  };
+
+  /** The headings under `root`, level and name, in reading order. */
+  const outline = (root: HTMLElement) =>
+    within(root)
+      .getAllByRole('heading')
+      .map((heading) => ({
+        level: Number(heading.tagName.slice(1)),
+        name: heading.textContent ?? '',
+      }));
+
+  /** The headings that sit more than one level below the one before them. The
+   * breadcrumb above the editor holds the page's own title, level 1, so the
+   * first heading here may be level 2 and no deeper. */
+  const skipped = (headings: ReturnType<typeof outline>) =>
+    headings.filter(
+      ({ level }, index) => level > (headings[index - 1]?.level ?? 1) + 1,
+    );
+
+  it('names the editor by a level-two heading, as Runs and Versions name their tabs', () => {
+    renderPage();
+    const region = screen.getByRole('region', { name: 'Editor' });
+    expect(outline(region)[0]).toEqual({ level: 2, name: 'Editor' });
+  });
+
+  it.each([
+    ['a node', { node: 'summary' }, 'Summary'],
+    ['Start', { node: '__start' }, 'Start'],
+    ['End', { node: '__end' }, 'End'],
+    ['a test', { panel: 'tests', test: 0 }, 'smoke'],
+  ] as const)(
+    "puts %s's inspector under that heading, without skipping a level",
+    (_what, props, title) => {
+      state.document = withTests;
+      renderPage({ ...props });
+      const headings = outline(screen.getByRole('region', { name: 'Editor' }));
+      expect(headings.map(({ name }) => name)).toContain(title);
+      expect(skipped(headings)).toEqual([]);
+    },
+  );
+
+  it("keeps the phone's sheet in order too: its own title, then the inspector", () => {
+    state.document = withTests;
+    state.compact = true;
+    renderPage({ node: 'summary' });
+    // The sheet opens over the page, outside the editor region: what a screen
+    // reader lists is the whole screen's headings.
+    expect(skipped(outline(document.body))).toEqual([]);
+  });
+});
+
 describe('AutomationEditor on an older version', () => {
   beforeEach(() => {
     state.latestVersion = 5;
