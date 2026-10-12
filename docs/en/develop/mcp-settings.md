@@ -38,7 +38,7 @@ Some changes stay in Tale:
 ## Make a change {#make-a-change}
 
 1. Call `get_settings` without arguments. It lists every kind, whether this deployment serves it, and whether your role may read and change it.
-2. Read what you want to change with `get_settings` and `kinds` (and `ids`). Each resource comes with its `key`, its `config` and its `hash`.
+2. Read what you want to change with `get_settings` and `kinds` (and `ids`). Each resource comes with its `key`, its `config` and its `hash`. A kind with many resources answers a page and its cursor under `cursors`; read the next page with that one kind and `cursor`.
 3. Plan the change with `plan_settings`. A `set` replaces the whole resource with its `config`, so send every field it should keep, as you read it. The plan names each change's action, its diff, its effects and its risk, or the refusal that stops it. Nothing is written.
 4. Show the plan to the person and wait for their decision. Put the effects and the risk first.
 5. Apply the same changes with `apply_settings`. `expected` maps each changed resource's `key` to the hash you read, or to `null` for one you create.
@@ -121,9 +121,10 @@ A refusal is data with an `error`, a `code`, a `hint` and sometimes `data`, neve
 | `SETTINGS_INVALID`                                           | The config is not the kind's. `data.issues` names every problem by its place in the config, including a field the setting does not have and text Tale cannot store, such as a NUL character. |
 | `SECRET_ARGUMENT_REFUSED`                                    | The change carries a secret. `data.places` says where.                                                                                   |
 | `SETTINGS_TALE_ONLY`                                         | The change is made in Tale alone, for example a credential with a key.                                                                   |
+| `USE_SUBSCRIPTION_FLOW`                                      | A subscription is connected through Tale's own flow, never set by a change. Tell the person to connect it under **Settings > AI providers**; removing one works here. |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | The person's role cannot make this change in Tale either. Retrying does not help.                                                        |
 | `EMBEDDING_CORPUS_NOT_EMPTY`                                 | The embedding model changes only while the knowledge base is empty. `data` names how many documents and websites it holds.               |
 | `BRANDING_IMAGE_UNKNOWN`                                     | A branding file name names no image uploaded to the organization.                                                                        |
 | `PROVIDER_IN_USE`, `CREDENTIAL_IN_USE`                       | Credentials still name the provider, or the embedding model uses the credential. Change those first.                                     |
 
-The settings reference lists every code. The [MCP endpoint](/develop/mcp-endpoint#settings) page describes the tools' arguments and answers.
+The settings reference lists the codes the settings tools answer themselves; the writer of a kind answers its own too, each with its sentence and a hint. The [MCP endpoint](/develop/mcp-endpoint#settings) page describes the tools' arguments and answers.

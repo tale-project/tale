@@ -361,7 +361,7 @@ export async function checkVersionHistory(
 /** The production MCP adapter and dispatch must keep their complete-history
  * default across both the app's 50-row default and its 200-row page ceiling.
  * The caller owns this fixture name and removes it in its cleanup. */
-export async function checkMcpVersionHistory(
+async function checkMcpVersionHistory(
   sql: Sql,
   record: (name: string, ok: boolean, detail: string) => void,
   args: { orgId: string; userId: string; name: string },

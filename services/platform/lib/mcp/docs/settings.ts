@@ -72,7 +72,7 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
   ],
   [
     'SETTINGS_NOT_FOUND',
-    'An act names a resource that does not exist: get_settings lists what does.',
+    'A change names a resource that does not exist, or one that is no setting of the organization (a provider Tale ships): get_settings lists what does exist.',
   ],
   [
     'SETTINGS_DUPLICATE',
@@ -91,10 +91,14 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
     'The change is made in Tale alone — a secret entered there, or a workflow of its own: tell the person where.',
   ],
   [
+    'USE_SUBSCRIPTION_FLOW',
+    "A subscription is connected through Tale's own flow, never set by a change: tell the person to connect it in Tale under Settings > AI providers. Removing one works over MCP.",
+  ],
+  [
     'SECRET_ARGUMENT_REFUSED',
     'A change carries a secret, or a masked value where nothing is stored: data.places names where, never the value. A person enters a secret in Tale.',
   ],
-  ['INVALID_CURSOR', 'Pass the nextCursor a listing answered, or none.'],
+  ['INVALID_CURSOR', "Pass the cursor this kind's listing answered, or none."],
   [
     'UNKNOWN_POLICY_TYPE',
     'The id names no policy the governance kind takes: the governance section above lists them.',
@@ -152,7 +156,7 @@ const WORKFLOW = [
   '## How a change is made',
   '',
   '1. get_settings without kinds: the catalog — each kind, its operations and acts, its base risk, the Settings pages it covers, whether this deployment serves it, and whether your role may read and change it.',
-  '2. get_settings with kinds (and ids): each resource with its `key`, its `config` and its `hash`. A listing that has more answers `nextCursor`.',
+  '2. get_settings with kinds (and ids): each resource with its `key`, its `config` and its `hash`. A listing that has more answers its cursor under `cursors`, by kind (and as `nextCursor` after a read of one kind); read the next page with that one kind and its cursor — a cursor reads only the kind that issued it.',
   '3. plan_settings with the changes: for each, the `action` (create, update, delete, act or unchanged), the `diff`, its `effects` and its `risk`, or why it is refused. Nothing is written. Show the plan to the person, the effects and the risk first.',
   '4. apply_settings with the same changes and `expected`: every changed resource by its key, with the hash you read (null for one you create). Every change is planned again against what is stored now; one refusal or one resource that moved applies nothing.',
   '',

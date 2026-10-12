@@ -11,6 +11,10 @@ import { isRecord } from '../../../lib/utils/type-utils';
 import { codedAppError } from '../../lib/app-error-response';
 import { rateLimitExceededCause } from '../../lib/rate-limit-response';
 
+/** How many issues one refusal lists — enough to fix any real call in one
+ * round trip, never a hostile call echoed back at length. */
+export const MAX_ARGUMENT_ISSUES = 50;
+
 /** A refusal as the agent reads it. */
 export interface McpRefusal {
   error: string;

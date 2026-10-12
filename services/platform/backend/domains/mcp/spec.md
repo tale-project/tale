@@ -300,8 +300,10 @@ refused with the reason the app's check gives, and nothing in the call is applie
 
 ### MCP-R11 · A settings call applies only when each setting is still what the agent read
 
-Every change names the hash of the setting the agent read, or none for a setting it creates.
-Before anything is written, each change is planned again against what is stored now: when one
+Every change names the hash of the setting the agent read, or none for a setting it creates;
+a call that names a hash for a setting no change in it changes, or leaves one out, is refused
+(`INVALID_ARGUMENTS`) listing the first fifty such problems and counting the rest. Before
+anything is written, each change is planned again against what is stored now: when one
 setting has moved since it was read, or one change is refused, nothing in the call is applied,
 and the agent learns the hash stored now (`SETTINGS_STALE`). The changes then run one setting at
 a time, each checking its hash again; a failure stops the rest, and the agent is told what was
@@ -354,6 +356,46 @@ reads and changes them as the person may in the app.
   deployment's editor allowlist. Ada, an admin at Acme, makes the key "Billing sync" for Mia;
   Ada's agent reads the deployment's settings with it → refused, and a change of the sandbox
   runtime is refused too. Mia's own key reads and changes them.
+
+### MCP-R35 · Settings are read a page at a time, by kind, and a page fits the answer
+
+`get_settings` reads a kind's resources a page at a time. Each kind that has another page answers
+its cursor under `cursors`, by kind, and after a read of one kind also as `nextCursor`; a read of
+several kinds answers no `nextCursor`, so no page is taken for another kind's. A cursor reads only
+the kind that issued it: another kind's, or one no listing answered, is refused (`INVALID_CURSOR`)
+beside what the other kinds read. A page of the listings of free text — a project's instructions,
+an agent's instructions, tools and model — ends once what it read would crowd the answer (about
+200,000 characters), and agents are paged over their (project, agent) pairs, so reading them all
+takes as many pages as it takes, never repeating or skipping one.
+
+- **Example**: Ada's agent reads the instructions of her 25 projects, each as long as one may be.
+  The first page holds ten of them and the cursor under `cursors["project-instructions"]`; it
+  passes that back with `kinds: ["project-instructions"]` and reads ten more, then five. Asked for
+  project and agent instructions together it gets a cursor for each, by kind; it hands the project
+  cursor with the agent kind → refused as a cursor no agent listing answered, and nothing is read.
+
+### MCP-R36 · A subscription is connected through Tale's own flow, never by a change
+
+A change that creates a provider credential which is a subscription, or changes one that is, is
+refused (`USE_SUBSCRIPTION_FLOW`) with where a person connects it — not as a key entered in Tale
+(`SETTINGS_TALE_ONLY`), which is what a credential with a key is. Removing one works, as for any
+credential, unless something still uses it (`CREDENTIAL_IN_USE`).
+
+- **Example**: Ada's agent asks to add a ChatGPT subscription as a credential → refused, and the
+  hint says to connect it under **Settings > AI providers**; asked to add an API key it is refused
+  as a secret entered in Tale; asked to remove the subscription nobody uses → it is removed.
+
+### MCP-R37 · A provider Tale ships is no setting; the keys that serve it are
+
+Reading, refreshing the catalog of or removing a provider Tale ships (such as `openai`) is
+refused as no setting of the organization (`SETTINGS_NOT_FOUND`), its hint naming where the
+organization's keys for it are: the `provider-credential` kind. A change that would define a
+provider of the organization under a shipped name is still refused as a name no provider of the
+organization may take (`PROVIDER_NAME_RESERVED`).
+
+- **Example**: Ada's agent asks to refresh the model catalog of `openai` → refused as no setting
+  with a hint to the credential kind; asked to define its own provider named `openai` → refused as
+  a name it may not take; asked to refresh its own `local-chat` → it is refreshed.
 
 ## Answers and refusals
 

@@ -3,6 +3,7 @@ import type { SettingsEffect } from '@tale/shared/schemas/settings-kinds';
 import { configurationHash } from '@tale/shared/utils/configuration-hash';
 
 import { isRecord } from '../../../lib/utils/type-utils.ts';
+import { loadProviderDefinitions } from '../../core/lib/providers/load_system_config.ts';
 import { loadOrgCustomProviders } from '../../core/lib/providers/org_providers.ts';
 import {
   identityOf,
@@ -54,10 +55,31 @@ function assertProviderManager(role: string): void {
   }
 }
 
+/** Whether Tale ships a provider of this name: it is no setting, so it is
+ * never read as one. */
+function isShipped(name: string): boolean {
+  return loadProviderDefinitions().some((provider) => provider.name === name);
+}
+
+/** The refusal for a change or a read that names a provider Tale ships: not
+ * a setting of the organization, with where its keys are kept. */
+function shipped(name: string): SettingsRefusalError {
+  return new SettingsRefusalError(
+    'SETTINGS_NOT_FOUND',
+    `${name} is a provider Tale ships, not one of this organization's settings`,
+    {
+      status: 404,
+      hint: 'the organization changes the keys that serve it: kind provider-credential, ids beginning with the provider name; the providers it defines itself are this kind',
+    },
+  );
+}
+
 async function readProvider(
   ctx: SettingsContext,
   name: string,
 ): Promise<SettingsResource | null> {
+  // A provider Tale ships is none the organization defined.
+  if (isShipped(name)) return null;
   const snapshot = await readProviderDefinition(ctx.caller.orgSlug, name);
   if (snapshot.config === null || snapshot.hash === null) return null;
   return { id: name, config: snapshot.config, hash: snapshot.hash };
@@ -90,9 +112,17 @@ export const providerSettings: SettingsKindHandler = {
     const allowed = mayManageProviders(caller.role);
     return { read: allowed, write: allowed };
   },
-  identify: (change) => nameOf(change),
+  identify: (change) => {
+    const name = nameOf(change);
+    // Only a change that would define it meets the writer's own word for a
+    // shipped name; anything else about one is no setting at all.
+    if (change.op !== 'set' && isShipped(name)) throw shipped(name);
+    return name;
+  },
   list: async (ctx, query) => {
     assertProviderManager(ctx.caller.role);
+    const asked = query.ids?.find((id) => isShipped(id));
+    if (asked !== undefined) throw shipped(asked);
     const names =
       query.ids ??
       loadOrgCustomProviders(ctx.caller.orgSlug)

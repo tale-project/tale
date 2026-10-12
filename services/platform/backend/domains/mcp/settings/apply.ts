@@ -16,7 +16,11 @@
 
 import { reportError } from '../../../error-reporting.ts';
 import { currentRequestChannel } from '../../../lib/request-channel.ts';
-import { type McpRefusal, refusalFromThrown } from '../refusals.ts';
+import {
+  MAX_ARGUMENT_ISSUES,
+  type McpRefusal,
+  refusalFromThrown,
+} from '../refusals.ts';
 import {
   addressOf,
   type PreparedChange,
@@ -69,7 +73,9 @@ function invalidExpected(
     error: `invalid arguments for apply_settings: "${first?.path ?? 'expected'}" ${first?.message ?? 'does not match the changes'}${more}`,
     code: 'INVALID_ARGUMENTS',
     hint: 'expected names every changed resource by its key, with the hash get_settings or plan_settings answered (null for one you create), and nothing else',
-    data: { issues: sorted },
+    // The first fifty, as an argument refusal lists: the count above says
+    // how many there are.
+    data: { issues: sorted.slice(0, MAX_ARGUMENT_ISSUES) },
   };
 }
 

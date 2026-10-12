@@ -4,8 +4,11 @@
  * branding, providers, credentials, embedding model and project
  * instructions through the MCP door, each change leaves the audit row its
  * Settings page leaves, stamped as coming through MCP, and a member's
- * agent is refused what a member is refused in the app. The lane works in
- * an organization of its own, so nothing it changes reaches another lane.
+ * agent is refused what a member is refused in the app. Listings are read a
+ * page at a time by kind, each page small enough for the answer, a
+ * subscription and a provider Tale ships are refused as what they are, and a
+ * call that names too many hashes is cut at fifty. The lane works in an
+ * organization of its own, so nothing it changes reaches another lane.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -384,5 +387,171 @@ export async function checkMcpSettingsConfig(
       })) &&
       memberInstructions.isError,
     `owner=${instructions.raw.slice(0, 160)}, member=${String(memberInstructions.value.code)}`,
+  );
+
+  // Listings are paged by kind, and by size: twenty-five more projects, each
+  // with the longest instructions one may hold, make several pages, each under
+  // the answer the tool advertises, that together read every project once.
+  await sql`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms, instructions)
+    SELECT ${org.id}, 'Long instructions ' || n, ${owner.userId},
+           ${now}::bigint + n, ${now}::bigint + n, repeat('x', 20000)
+    FROM generate_series(1, 25) AS n
+  `;
+  const pageIds: string[] = [];
+  const pageChars: number[] = [];
+  const pageCursors: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 10; page += 1) {
+    const read = await tool('get_settings', {
+      kinds: ['project-instructions'],
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    // The answer's own text: the envelope also carries it as structured content.
+    pageChars.push(JSON.stringify(read.value).length);
+    const listed = z
+      .array(z.object({ id: z.string() }).loose())
+      .safeParse(read.value.resources);
+    if (listed.success) pageIds.push(...listed.data.map((item) => item.id));
+    const next = z.string().nullable().safeParse(read.value.nextCursor);
+    const byKind = z
+      .record(z.string(), z.string())
+      .safeParse(read.value.cursors);
+    if (
+      !next.success ||
+      !byKind.success ||
+      next.data !== (byKind.data['project-instructions'] ?? null)
+    ) {
+      pageCursors.push('inconsistent');
+      break;
+    }
+    if (next.data === null) break;
+    pageCursors.push(next.data);
+    cursor = next.data;
+  }
+  const wrongKind = await tool('get_settings', {
+    kinds: ['agent-instructions'],
+    cursor: pageCursors[0] ?? 'none',
+  });
+  const refusedCursor = z
+    .array(z.object({ kind: z.string(), code: z.string() }).loose())
+    .safeParse(wrongKind.value.refused);
+  const several = await tool('get_settings', {
+    kinds: ['project-instructions', 'agent-instructions'],
+  });
+  record(
+    'MCP get_settings pages the free-text listings by kind and by size: every project once, each page under the answer the tool advertises, a cursor read by the kind that issued it alone (MCP-R35)',
+    pageIds.length === 26 &&
+      new Set(pageIds).size === 26 &&
+      pageCursors.length >= 2 &&
+      !pageCursors.includes('inconsistent') &&
+      Math.max(...pageChars) < 250_000 &&
+      refusedCursor.success &&
+      refusedCursor.data[0]?.code === 'INVALID_CURSOR' &&
+      refusedCursor.data[0]?.kind === 'agent-instructions' &&
+      several.value.nextCursor === null &&
+      JSON.stringify(
+        Object.keys(
+          z.record(z.string(), z.string()).parse(several.value.cursors),
+        ),
+      ) === JSON.stringify(['project-instructions']),
+    `projects=${pageIds.length}/${new Set(pageIds).size}, pages=${pageCursors.length + 1}, largest answer=${Math.max(...pageChars)} chars, wrong kind=${JSON.stringify(wrongKind.value.refused).slice(0, 160)}, several: nextCursor=${String(several.value.nextCursor)} cursors=${JSON.stringify(several.value.cursors)}`,
+  );
+
+  // A subscription is connected through Tale's own flow, a provider Tale
+  // ships is no setting, and a call that names too many hashes is cut.
+  const subscription = await tool('plan_settings', {
+    changes: [
+      {
+        kind: 'provider-credential',
+        op: 'set',
+        config: {
+          providerSlug: 'openai',
+          authMethod: 'subscription-key',
+          name: 'Itest subscription',
+          envName: null,
+          endpointUrl: null,
+          modelAllowlist: null,
+          status: 'active',
+          isDefault: false,
+        },
+      },
+    ],
+  });
+  const apiKey = await tool('plan_settings', {
+    changes: [
+      {
+        kind: 'provider-credential',
+        op: 'set',
+        config: {
+          providerSlug: 'openai',
+          authMethod: 'api-key',
+          name: 'Itest key entered in Tale',
+          envName: null,
+          endpointUrl: null,
+          modelAllowlist: null,
+          status: 'active',
+          isDefault: false,
+        },
+      },
+    ],
+  });
+  const refusalOf = (answer: ToolAnswer): string => {
+    const changes = z
+      .array(
+        z
+          .object({
+            refusal: z.object({ code: z.string() }).loose().optional(),
+          })
+          .loose(),
+      )
+      .safeParse(answer.value.changes);
+    return changes.success
+      ? (changes.data[0]?.refusal?.code ?? 'none')
+      : 'unread';
+  };
+  const shippedRead = await tool('get_settings', {
+    kinds: ['provider'],
+    ids: ['openai'],
+  });
+  const shippedRefused = z
+    .array(z.object({ code: z.string(), hint: z.string().optional() }).loose())
+    .safeParse(shippedRead.value.refused);
+  const shippedRefresh = await tool('plan_settings', {
+    changes: [
+      { kind: 'provider', id: 'openai', op: 'act', act: 'refresh-catalogs' },
+    ],
+  });
+  const strays = Object.fromEntries(
+    Array.from({ length: 80 }, (_, index) => [
+      `governance/stray-${index}`,
+      null,
+    ]),
+  );
+  const flagsKey = 'governance/feature_flags';
+  const tooMany = await tool('apply_settings', {
+    changes: [flags],
+    expected: {
+      [flagsKey]: await hashOf('governance', 'feature_flags'),
+      ...strays,
+    },
+  });
+  const issues = z
+    .object({ issues: z.array(z.unknown()) })
+    .safeParse(tooMany.value.data);
+  record(
+    'MCP refuses a subscription as one connected through Tale, a provider Tale ships as no setting, and lists at most fifty of the hashes a call names for nothing (MCP-R36, MCP-R37, MCP-R11)',
+    refusalOf(subscription) === 'USE_SUBSCRIPTION_FLOW' &&
+      refusalOf(apiKey) === 'SETTINGS_TALE_ONLY' &&
+      shippedRefused.success &&
+      shippedRefused.data[0]?.code === 'SETTINGS_NOT_FOUND' &&
+      (shippedRefused.data[0]?.hint ?? '').includes('provider-credential') &&
+      refusalOf(shippedRefresh) === 'SETTINGS_NOT_FOUND' &&
+      tooMany.isError &&
+      tooMany.value.code === 'INVALID_ARGUMENTS' &&
+      issues.success &&
+      issues.data.issues.length === 50,
+    `subscription=${refusalOf(subscription)}, key=${refusalOf(apiKey)}, shipped read=${JSON.stringify(shippedRead.value.refused).slice(0, 200)}, refresh=${refusalOf(shippedRefresh)}, strays=${tooMany.isError}/${String(tooMany.value.code)}/${issues.success ? issues.data.issues.length : 'unread'}`,
   );
 }
