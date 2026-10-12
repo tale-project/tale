@@ -313,7 +313,7 @@ export async function readTestReport(
 
 /** The version a restore brings back, read before the save: a saved version
  * never changes, so it needs no lock. */
-export async function readRestoreSource(
+async function readRestoreSource(
   sql: Sql,
   organizationId: string,
   name: string,
@@ -339,7 +339,7 @@ export async function readRestoreSource(
  * the history. The app's door hands it to the shared save path, which adds
  * the version's own tests verdict.
  */
-export function restoreSaveArgs(
+function restoreSaveArgs(
   source: VersionRow,
   request: {
     organizationId: string;

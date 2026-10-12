@@ -10,6 +10,7 @@ import type {
   RunPage,
   RunSummary,
   TriggerView,
+  VersionPage,
   VersionSummary,
   VersionView,
 } from '../../../lib/engine/api/dispatch.ts';
@@ -33,6 +34,7 @@ import {
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
+import { memberNamesOf } from './author-names.ts';
 import { recentDeployments } from './deployments.ts';
 import { walkLlmServingForOrganization } from './llm-serving.ts';
 import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
@@ -83,6 +85,7 @@ import {
   beginRunIdempotent,
   beginRunIdempotentInTx,
 } from './store.ts';
+import { listVersionHistory, versionHistoryWire } from './versions.ts';
 import { withinBudget } from './within-budget.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
@@ -420,7 +423,7 @@ export function pgAutomationStore(
       return triggerInputSample(row, Date.now());
     },
     save: async (automation, message, options) => {
-      const name = assertAutomationName(automation.name ?? '');
+      const name = assertAutomationName(options?.name ?? automation.name ?? '');
       // Ownership travels with the scope: a project-scoped authoring caller
       // pins its first save to that project; a caller naming one installs a
       // new automation there — a write on the project, so it must be one
@@ -489,6 +492,16 @@ export function pgAutomationStore(
           : {}),
         ...(options?.create === true ? { create: true } : {}),
         ...(projectId !== undefined ? { projectId } : {}),
+        // A restore: the content is a copy of an older version, recorded as
+        // based on and restored from it, and nothing is saved when the
+        // latest version already holds it.
+        ...(options?.restoredFrom !== undefined
+          ? {
+              basedOnVersion: options.restoredFrom,
+              restoredFromVersion: options.restoredFrom,
+              unlessIdentical: true,
+            }
+          : {}),
         // The engine's caller names only what it changes: the version
         // fields it leaves out are kept from the latest version.
         ...(metadata === undefined
@@ -884,6 +897,36 @@ export function pgAutomationStore(
         versions.push(version);
       }
       return versions;
+    },
+    listVersionHistory: async (name, page): Promise<VersionPage> => {
+      if (await hidden(name)) {
+        return {
+          versions: [],
+          nextBefore: null,
+          latestVersion: null,
+          deployedVersion: null,
+        };
+      }
+      const history = await listVersionHistory(
+        sql,
+        organizationId,
+        name,
+        page ?? {},
+      );
+      const names = await memberNamesOf(
+        sql,
+        organizationId,
+        history.versions.map((row) => row.createdBy),
+      );
+      return {
+        versions: history.versions.map((row) => ({
+          ...versionHistoryWire(row),
+          createdByName: names.get(row.createdBy) ?? null,
+        })),
+        nextBefore: history.nextBefore,
+        latestVersion: history.latestVersion,
+        deployedVersion: history.deployedVersion,
+      };
     },
     listTriggers: async (name): Promise<TriggerView[]> => {
       const views: TriggerView[] = [];

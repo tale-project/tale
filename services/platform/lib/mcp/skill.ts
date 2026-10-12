@@ -171,6 +171,23 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
     ],
   },
   {
+    heading: 'Versions and rollback',
+    lines: [
+      {
+        text: '- list_versions pages the history (limit, then nextBefore as before): each version says who saved it through which door, what it changed, how its tests went and whether it is live.',
+        tools: ['list_versions'],
+      },
+      {
+        text: '- get_automation with against says what the version you read changed against another (diff): the default is the version before it, "deployed" the live one. Look before you deploy.',
+        tools: ['get_automation'],
+      },
+      {
+        text: '- save_automation with name and restoreVersion brings an older version back as the newest; the live version stays live. deploy_automation of an older version rolls the live one back: ask the person first.',
+        tools: ['save_automation', 'deploy_automation'],
+      },
+    ],
+  },
+  {
     heading: 'Triggers',
     lines: [
       {

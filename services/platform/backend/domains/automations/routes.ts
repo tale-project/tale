@@ -120,9 +120,7 @@ import { listTemplateCards, prepareTemplateInstance } from './templates.ts';
 import { uploadAutomationPg } from './upload.ts';
 import {
   listVersionHistory,
-  readRestoreSource,
   readTestReport,
-  restoreSaveArgs,
   versionHistoryWire,
 } from './versions.ts';
 
@@ -479,7 +477,7 @@ export function authoringRefusalBody(
   const code =
     typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
   const status =
-    code === 'AUTOMATION_VERSION_UNKNOWN'
+    code === 'AUTOMATION_VERSION_UNKNOWN' || code === 'AUTOMATION_NOT_FOUND'
       ? 404
       : code === 'AUTOMATION_NAME_TAKEN' ||
           code === 'AUTOMATION_TESTS_FAILING' ||
@@ -1663,11 +1661,12 @@ export function createAutomationRoutes(deps: {
     }
   });
 
-  // Bring an older version back as the newest. Its document passes the
-  // save's own checks and runs its own tests, as any save does, and is then
-  // saved restored from that version (201) — or nothing is saved when its
-  // content is the latest already (200, `unchanged`). Never a deploy: the
-  // live version stays live.
+  // Bring an older version back as the newest: the engine's own restore
+  // (`save_automation` with `restoreVersion`), the call a coding agent makes.
+  // The version's document passes the save's checks and runs its own tests,
+  // as any save does, and is saved restored from that version (201) — or
+  // nothing is saved when its content is the latest already (200,
+  // `unchanged`). Never a deploy: the live version stays live.
   app.post('/:name{.+}/restore', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
@@ -1675,75 +1674,56 @@ export function createAutomationRoutes(deps: {
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       assembleAutomationAuthoringHost();
-      const organizationId = c.get('orgId');
       const name = nameFrom(c, 'restore');
-      const source = await readRestoreSource(
-        deps.sql,
-        organizationId,
-        name,
-        body.data.version,
-      );
-      const restore = restoreSaveArgs(source, {
-        organizationId,
-        name,
-        origin: editorOrigin(c),
-        ...(body.data.message !== undefined && { message: body.data.message }),
-        ...(body.data.baseVersion !== undefined && {
-          baseVersion: body.data.baseVersion,
-        }),
-      });
       const store = pgAutomationStore(deps.sql, {
-        organizationId,
-        origin: restore.origin,
+        organizationId: c.get('orgId'),
+        origin: editorOrigin(c),
       });
+      // The store's own refusals (a base version saved since, 409) keep
+      // their status: they are thrown on, not answered as data.
       let storeError: unknown;
-      let saved: SavedVersion | undefined;
       const result = await dispatch(
         'save_automation',
-        { automation: source.document, message: restore.message },
+        {
+          name,
+          restoreVersion: body.data.version,
+          ...(body.data.message !== undefined && {
+            message: body.data.message,
+          }),
+          ...(body.data.baseVersion !== undefined && {
+            baseVersion: body.data.baseVersion,
+          }),
+        },
         {
           store: {
             ...store,
-            save: (automation, _message, options) =>
-              saveVersion(deps.sql, {
-                ...restore,
-                document: automation,
-                ...(options?.testsPassed !== undefined
-                  ? { testsPassed: options.testsPassed }
-                  : {}),
-                ...(options?.testReport !== undefined
-                  ? { testReport: options.testReport }
-                  : {}),
-              }).then(
-                (answer) => {
-                  saved = answer;
-                  return answer;
-                },
-                (error: unknown) => {
+            save: (automation, message, options) =>
+              store
+                .save(automation, message, options)
+                .catch((error: unknown) => {
                   storeError = error;
                   throw error;
-                },
-              ),
+                }),
           },
         },
       );
       if (storeError !== undefined) throw storeError;
       const refused = authoringRefusal(c, result);
       if (refused !== null) return refused;
-      if (saved === undefined) {
+      if (!isRecord(result) || typeof result.version !== 'number') {
         throw new Error('the restore passed its checks but saved nothing');
       }
-      const unchanged = saved.unchanged === true;
+      const unchanged = result.unchanged === true;
       return c.json(
         {
           name,
-          version: saved.version,
-          restoredFrom: source.version,
+          version: result.version,
+          restoredFrom: body.data.version,
           ...(unchanged && { unchanged: true }),
-          ...(isRecord(result) && typeof result.testsPassed === 'boolean'
+          ...(typeof result.testsPassed === 'boolean'
             ? { testsPassed: result.testsPassed }
             : {}),
-          ...(isRecord(result) && Array.isArray(result.warnings)
+          ...(Array.isArray(result.warnings)
             ? { warnings: result.warnings }
             : {}),
         },

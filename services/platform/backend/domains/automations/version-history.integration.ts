@@ -5,13 +5,19 @@
  * the older content as the newest version (and nothing when it is the
  * latest already), the versions a retention sweep must keep are the live
  * and deployed ones, the newest twenty and their lineage, and a new name
- * cannot end in a word an automation's own pages use. The lane deletes what
- * it wrote before it ends. */
+ * cannot end in a word an automation's own pages use, the history names the
+ * member behind each actor — and no one else — and an agent's restore saves
+ * under the automation it restores, whatever name an old document carries.
+ * The lane deletes what it wrote before it ends. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { dispatch } from '../../../lib/engine/api/dispatch.ts';
+import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
 import { appOrigin } from '../../lib/write-origin.ts';
+import { memberNamesOf } from './author-names.ts';
+import { pgAutomationStore } from './dispatch-store.ts';
 import {
   AutomationError,
   deleteAutomationCascade,
@@ -36,6 +42,15 @@ export async function checkVersionHistory(
   const origin = appOrigin(userId);
   const name = `itest-versions-${suffix}`;
   const kept = `itest-versions-kept-${suffix}`;
+  const people = {
+    member: `itest-named-${suffix}`,
+    nameless: `itest-nameless-${suffix}`,
+    former: `itest-former-${suffix}`,
+    outsider: `itest-outsider-${suffix}`,
+  };
+  const otherOrg = `itest-names-org-${suffix}`;
+  const agentRestored = `itest-versions-restore-${suffix}`;
+  const namedInstead = `itest-versions-named-${suffix}`;
   const node = (id: string) => ({
     id,
     type: 'transform',
@@ -193,8 +208,135 @@ export async function checkVersionHistory(
         reserved.message.includes('"versions" at its end'),
       reserved instanceof AutomationError ? reserved.message : String(reserved),
     );
+
+    // An agent's restore saves under the automation it was asked to restore:
+    // a version whose document carries another automation's name (the app
+    // never checked) is brought back under the requested name, and the
+    // automation the document names is not created or touched.
+    assembleAutomationAuthoringHost();
+    const asAgent = pgAutomationStore(sql, {
+      organizationId: orgId,
+      origin: appOrigin(userId),
+    });
+    await saveVersion(sql, {
+      organizationId: orgId,
+      name: agentRestored,
+      document: {
+        version: 1,
+        name: namedInstead,
+        nodes: [node('a')],
+        output: '{{ nodes.a.output }}',
+      },
+      origin,
+    });
+    await save(agentRestored, ['a', 'b'], { baseVersion: 1 });
+    const brought = await dispatch(
+      'save_automation',
+      { name: agentRestored, restoreVersion: 1, baseVersion: 2 },
+      { store: asAgent },
+    );
+    const rows = await sql<
+      { name: string; version: number; from: number | null }[]
+    >`
+      SELECT name, version, restored_from_version AS "from"
+      FROM app.automations
+      WHERE org_id = ${orgId} AND name = ANY(${[agentRestored, namedInstead]})
+      ORDER BY name, version
+    `;
+    record(
+      'an agent’s restore saves under the automation it restores, never on the one an old document names [MCP-R32]',
+      JSON.stringify(brought).includes('"version":3') &&
+        rows.filter((entry) => entry.name === agentRestored).length === 3 &&
+        rows.find(
+          (entry) => entry.name === agentRestored && entry.version === 3,
+        )?.from === 1 &&
+        rows.every((entry) => entry.name !== namedInstead),
+      JSON.stringify({ brought, rows }),
+    );
+
+    // The names a history answers beside its actors: a member's display
+    // name for the person an actor names, whichever door they came through;
+    // nothing for a nameless member, a former member, a person who belongs
+    // to another organization only, or an actor that is no person; never an
+    // e-mail address.
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${otherOrg}, 'Names Elsewhere', ${otherOrg}, ${new Date()})
+    `;
+    for (const [id, personName] of [
+      [people.member, '  Ada Lovelace '],
+      [people.nameless, '   '],
+      [people.former, 'Gone Person'],
+      [people.outsider, 'Outside Person'],
+    ] as const) {
+      await sql`
+        INSERT INTO "user" ("id", "name", "email", "emailVerified",
+                            "createdAt", "updatedAt")
+        VALUES (${id}, ${personName}, ${`${id}@example.com`}, true,
+                ${new Date()}, ${new Date()})
+      `;
+    }
+    for (const [id, organization] of [
+      [people.member, orgId],
+      [people.nameless, orgId],
+      [people.outsider, otherOrg],
+    ] as const) {
+      await sql`
+        INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                              "createdAt")
+        VALUES (${`m-${id}`}, ${organization}, ${id}, 'member', ${new Date()})
+      `;
+    }
+    const names = await memberNamesOf(sql, orgId, [
+      people.member,
+      `api-key:${people.member}`,
+      `user:${people.member}`,
+      people.nameless,
+      people.former,
+      `api-key:${people.outsider}`,
+      'system:pack',
+      'trigger:t-1',
+    ]);
+    const answered = JSON.stringify([...names.values()]);
+    record(
+      'a history names the member behind each actor, never a former member, another organization’s person, a system actor or an e-mail address',
+      names.get(people.member) === 'Ada Lovelace' &&
+        names.get(`api-key:${people.member}`) === 'Ada Lovelace' &&
+        names.get(`user:${people.member}`) === 'Ada Lovelace' &&
+        names.get(people.nameless) === null &&
+        names.get(people.former) === null &&
+        names.get(`api-key:${people.outsider}`) === null &&
+        names.get('system:pack') === null &&
+        names.get('trigger:t-1') === null &&
+        !answered.includes('@'),
+      answered,
+    );
   } finally {
-    for (const automation of [name, kept]) {
+    await sql`DELETE FROM "member" WHERE "userId" = ANY(${Object.values(people)})`.catch(
+      (error: unknown) => {
+        console.warn(
+          '[itest] cleanup of the name probe members:',
+          error instanceof Error ? error.message : error,
+        );
+      },
+    );
+    await sql`DELETE FROM "user" WHERE "id" = ANY(${Object.values(people)})`.catch(
+      (error: unknown) => {
+        console.warn(
+          '[itest] cleanup of the name probe users:',
+          error instanceof Error ? error.message : error,
+        );
+      },
+    );
+    await sql`DELETE FROM "organization" WHERE "id" = ${otherOrg}`.catch(
+      (error: unknown) => {
+        console.warn(
+          '[itest] cleanup of the name probe organization:',
+          error instanceof Error ? error.message : error,
+        );
+      },
+    );
+    for (const automation of [name, kept, agentRestored]) {
       await deleteAutomationCascade(sql, {
         organizationId: orgId,
         name: automation,

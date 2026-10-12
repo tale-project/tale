@@ -669,5 +669,16 @@
  * a document, a spreadsheet, a chart, an image: `MessagePart` gains
  * `ArtifactPart` (`fileId`, `name`, `mediaType`, `sizeBytes`, `callId`),
  * after the tool result that produced the file.
+ *
+ * 3.37.0 — 2026-10-12: over MCP, `list_versions` answers a page of an
+ * automation's version history (`limit`, `before`, `nextBefore`,
+ * `latestVersion`) and, for each version, the door and client it came
+ * through, what it was based on and restored from, what it changed, how its
+ * tests went and when it last went live; `get_automation` takes `against`
+ * (and `diffFormat`) and answers what the version it reads changed against
+ * another as `diff`; `save_automation` takes `name` and `restoreVersion`
+ * instead of a document to bring an older version back as the newest; and
+ * `deploy_automation` answers `kind`: `rollback` for a deploy of an older
+ * version, `deploy` for any other.
  */
-export const API_CONTRACT_VERSION = '3.36.0';
+export const API_CONTRACT_VERSION = '3.37.0';

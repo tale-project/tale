@@ -92,11 +92,64 @@ false`).
 A deploy may name the version the agent read as live (`expectedDeployedVersion`, `null` for none).
 When another version went live meanwhile it is refused (`AUTOMATION_DEPLOYMENT_STALE`) with the
 version that is live, and nothing changes. Every deploy answers the version that was live before
-(`previousVersion`): deploying it again rolls back.
+(`previousVersion`) and what kind of deploy it was (`kind`: `rollback` when it put an older
+version live, `deploy` otherwise): deploying the previous version again rolls back.
 
 - **Example**: Ada's agent read v5 as live and deploys v7 naming v5. Ben deployed v6 a minute ago →
   refused, naming v6, and v6 stays live. Deploying v7 naming v6 succeeds and answers
-  `previousVersion: 6`.
+  `previousVersion: 6` and `kind: "deploy"`; deploying v3 naming v7 answers `kind: "rollback"`.
+
+## Reading and bringing back versions
+
+A version never changes once it is saved, so an older one is always there to read, compare and
+bring back. What an agent reads here is what the version screens show the person (`AUTO-R47`,
+`AUTO-R48`), and it reaches only the automations the person may see (MCP-R9).
+
+### MCP-R30 · An agent reads the version history a page at a time
+
+`list_versions` answers an automation's versions, newest first: all of them without `limit`, or
+`limit` of them (1 to 200) with `nextBefore` while older ones remain — passed back as `before`, it
+reads the next page. Each version says who saved it (`createdBy`, and `createdByName` while that
+person is still a member of the organization, never an e-mail address), through which door and
+client, which version it was based on and restored from, what it changed against the version saved
+before it (counts and flags, never content), how its tests went, and whether it is the live
+version and when it last went live; the answer also names the live version and the newest. A limit
+outside 1 to 200 is refused as invalid arguments.
+
+- **Example**: `billing/dunning` has seven versions and v5 is live. Ada's agent asks for a page of
+  three → v7, v6 and v5 with `nextBefore: 5`, `latestVersion: 7` and v5 marked live; it asks again
+  with `before: 5` → v4, v3 and v2; once more → v1 and `nextBefore: null`. v7 names Ada as its
+  author, saved through the MCP door by Claude Code.
+
+### MCP-R31 · An agent reads what a version changed against another before it deploys it
+
+`get_automation` with `against` answers the version it reads and, beside it, a `diff` of what that
+version changed against another: a version number, `previous` (the version saved before it, the
+default), `deployed` or `latest`. The diff lists what changed node by node, in the input schema,
+the output, the description, the tests and what a version keeps beside its document;
+`diffFormat: "unified"` answers a patch over the two versions' YAML instead (cut at 256 KB, and
+`truncated` says so), and `"both"` answers both. The first version compares with nothing. A version
+the automation never had is refused (`AUTOMATION_VERSION_UNKNOWN`), and so is `deployed` while
+nothing is live (`AUTOMATION_NOT_DEPLOYED`).
+
+- **Example**: Ada's agent is about to deploy v7 of `billing/dunning`, and v5 is live. It reads v7
+  against `deployed` → the diff names the nodes v6 and v7 changed; it tells Ada what would go
+  live, and deploys only when she agrees.
+
+### MCP-R32 · An agent brings an older version back as the newest; the live one stays live
+
+`save_automation` with `name` and `restoreVersion`, instead of a document, saves an older
+version's content as the newest version: its document with the settings, task contract and
+presentation it kept, through a save's own checks and tests, recorded as based on and restored from
+that version. It takes `message` ("Restore v3" when left out) and `baseVersion`, refused
+(`AUTOMATION_VERSION_STALE`) when another version was saved since, as any save is; nothing else
+may be sent with it. Nothing is saved, and the answer says `unchanged`, when the latest version
+already holds that content, and a version that no longer validates is refused
+(`AUTOMATION_INVALID`). Restoring never deploys: the live version stays live.
+
+- **Example**: `billing/dunning` has seven versions, and Ben's v6 is live and worse than v3. Ada's
+  agent restores v3 naming `baseVersion: 7` → v8 is saved, restored from v3, and v6 stays live; Ada
+  reads v8 against v6, agrees, and the agent deploys v8.
 
 ## Running
 
@@ -429,8 +482,8 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
 
 ## Not yet
 
-- What a call does once it reaches an automation beyond the rules above (versions, deployment,
-  runs and triggers) is held by the [automations spec](../automations/spec.md); the capability
+- What a call does once it reaches an automation beyond the rules above (deployment, runs and
+  triggers) is held by the [automations spec](../automations/spec.md); the capability
   surface's own rules (searching and invoking capabilities, retrieving knowledge) are not covered
   beyond what an approval leaves to a person (MCP-R6).
 - A client of the 2025 protocol revisions names itself only when it connects, not on each call, so

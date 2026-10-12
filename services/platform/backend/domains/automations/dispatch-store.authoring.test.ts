@@ -24,6 +24,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
+import { memberNamesOf } from './author-names.ts';
 import { recentDeployments } from './deployments.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
@@ -41,6 +42,7 @@ import {
   unbindProjectInTx,
   versionRow,
 } from './store.ts';
+import { listVersionHistory } from './versions.ts';
 
 vi.mock('./store.ts', async (original) => ({
   ...(await original<typeof import('./store.ts')>()),
@@ -59,6 +61,11 @@ vi.mock('./store.ts', async (original) => ({
   versionRow: vi.fn(),
 }));
 vi.mock('./ask-answer.ts', () => ({ answerRunAskAs: vi.fn() }));
+vi.mock('./author-names.ts', () => ({ memberNamesOf: vi.fn() }));
+vi.mock('./versions.ts', async (original) => ({
+  ...(await original<typeof import('./versions.ts')>()),
+  listVersionHistory: vi.fn(),
+}));
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(),
 }));
@@ -176,6 +183,13 @@ describe('reads follow what the app would show the person [MCP-R9]', () => {
     expect(await s.deployedVersion(NAME)).toBeNull();
     expect(await s.getVersionView?.(NAME)).toBeNull();
     expect(await s.listVersions?.(NAME)).toEqual([]);
+    expect(await s.listVersionHistory?.(NAME)).toEqual({
+      versions: [],
+      nextBefore: null,
+      latestVersion: null,
+      deployedVersion: null,
+    });
+    expect(listVersionHistory).not.toHaveBeenCalled();
     expect(await s.listTriggers?.(NAME)).toEqual([]);
     expect(await s.listTriggers?.()).toEqual([]);
     expect(await s.listDeployments?.(NAME)).toEqual([]);
@@ -259,6 +273,98 @@ describe('getVersionView', () => {
   });
 });
 
+describe('listVersionHistory', () => {
+  const record = (version: number, createdBy: string) => ({
+    version,
+    message: `cut ${String(version)}`,
+    createdBy,
+    createdAt: 1_000 + version,
+    via: 'mcp' as const,
+    viaInferred: false,
+    apiKeyId: 'key-1',
+    clientName: 'Claude Code',
+    basedOnVersion: version - 1,
+    restoredFromVersion: null,
+    changes: { nodes: { added: 0, removed: 0, changed: 1 } },
+    testsPassed: true,
+    testsCheckedAt: 5,
+    tests: { passed: 2, failed: 0, total: 2, via: 'save' as const },
+    live: version === 6,
+    lastDeployedAt: version === 6 ? 6_000 : null,
+  });
+
+  it('answers a page as the app reads it, each row with the name of the member who saved it [MCP-R30]', async () => {
+    vi.mocked(listVersionHistory).mockResolvedValue({
+      versions: [record(7, 'api-key:user-1'), record(6, 'system:pack')],
+      nextBefore: 6,
+      latestVersion: 7,
+      deployedVersion: 6,
+    });
+    vi.mocked(memberNamesOf).mockResolvedValue(
+      new Map([
+        ['api-key:user-1', 'Ada Lovelace'],
+        ['system:pack', null],
+      ]),
+    );
+    const page = await store().listVersionHistory?.(NAME, {
+      limit: 2,
+      before: 8,
+    });
+    expect(listVersionHistory).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG,
+      NAME,
+      {
+        limit: 2,
+        before: 8,
+      },
+    );
+    expect(memberNamesOf).toHaveBeenCalledWith(expect.anything(), ORG, [
+      'api-key:user-1',
+      'system:pack',
+    ]);
+    expect(page).toMatchObject({
+      nextBefore: 6,
+      latestVersion: 7,
+      deployedVersion: 6,
+    });
+    expect(page?.versions[0]).toMatchObject({
+      version: 7,
+      createdBy: 'api-key:user-1',
+      createdByName: 'Ada Lovelace',
+      createdVia: 'mcp',
+      clientName: 'Claude Code',
+      basedOnVersion: 6,
+      restoredFromVersion: null,
+      tests: { passed: 2, failed: 0, total: 2 },
+      deployed: false,
+    });
+    expect(page?.versions[1]).toMatchObject({
+      version: 6,
+      createdByName: null,
+      deployed: true,
+      lastDeployedAt: 6_000,
+    });
+  });
+
+  it('asks for the whole first page when the call names none', async () => {
+    vi.mocked(listVersionHistory).mockResolvedValue({
+      versions: [],
+      nextBefore: null,
+      latestVersion: null,
+      deployedVersion: null,
+    });
+    vi.mocked(memberNamesOf).mockResolvedValue(new Map());
+    await store().listVersionHistory?.(NAME);
+    expect(listVersionHistory).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG,
+      NAME,
+      {},
+    );
+  });
+});
+
 describe('save', () => {
   const doc = { version: 1 as const, name: NAME, nodes: [] };
 
@@ -285,6 +391,66 @@ describe('save', () => {
       origin: ORIGIN,
       authorize: expect.any(Function),
     });
+  });
+
+  it('records a restore as based on and restored from the older version, and saves nothing when the latest already is that content', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({
+      name: NAME,
+      version: 7,
+      unchanged: true,
+    });
+    const saved = await store().save(doc as never, 'Restore v3', {
+      testsPassed: true,
+      restoredFrom: 3,
+      metadata: {
+        settings: { forms: [] },
+        taskContract: null,
+        presentation: null,
+      },
+    });
+    expect(saved).toMatchObject({ version: 7, unchanged: true });
+    expect(saveVersion).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        basedOnVersion: 3,
+        restoredFromVersion: 3,
+        unlessIdentical: true,
+        testsPassed: true,
+        metadataMode: 'carry',
+        settings: { forms: [] },
+        taskContract: null,
+        presentation: null,
+      }),
+    );
+  });
+
+  it('saves a restore under the automation it restores, never on the one an old document names', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 8 });
+    await store().save(
+      { version: 1 as const, name: 'someone/else', nodes: [] } as never,
+      'Restore v3',
+      { restoredFrom: 3, name: NAME },
+    );
+    const args = vi.mocked(saveVersion).mock.calls.at(-1)?.[1];
+    expect(args).toMatchObject({
+      organizationId: ORG,
+      name: NAME,
+      restoredFromVersion: 3,
+    });
+    // An ordinary save still names the automation by its document.
+    await store().save(doc as never, 'why');
+    expect(vi.mocked(saveVersion).mock.calls.at(-1)?.[1]).toMatchObject({
+      name: NAME,
+    });
+  });
+
+  it('saves an ordinary version without a restore’s marks', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 8 });
+    await store().save(doc as never, 'why');
+    const args = vi.mocked(saveVersion).mock.calls.at(-1)?.[1];
+    expect(args).not.toHaveProperty('restoredFromVersion');
+    expect(args).not.toHaveProperty('basedOnVersion');
+    expect(args).not.toHaveProperty('unlessIdentical');
   });
 
   /** The check the store hands the save to run under the name lock, as the

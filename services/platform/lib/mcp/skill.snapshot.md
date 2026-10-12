@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Needs Tale's MCP server connected (https://<your Tale>/api/v1/mcp); works with any MCP client that reads skills."
 metadata:
   publisher: tale
-  contract: "3.36.0"
+  contract: "3.37.0"
 ---
 
 # Tale
@@ -42,6 +42,12 @@ A save refused with AUTOMATION_VERSION_STALE means someone saved meanwhile: read
 
 - run_automation runs a draft on the mocks; test_automation runs the tests of a draft, or of a saved version (name, version) and records the verdict on it.
 - start_run with mode "mock" runs a saved version on the mocks and records the run, so the person can review it in Tale. Without mode, start_run is live.
+
+## Versions and rollback
+
+- list_versions pages the history (limit, then nextBefore as before): each version says who saved it through which door, what it changed, how its tests went and whether it is live.
+- get_automation with against says what the version you read changed against another (diff): the default is the version before it, "deployed" the live one. Look before you deploy.
+- save_automation with name and restoreVersion brings an older version back as the newest; the live version stays live. deploy_automation of an older version rolls the live one back: ask the person first.
 
 ## Triggers
 

@@ -1,7 +1,7 @@
 /**
  * A unified patch between two texts — two versions' YAML (`documentYaml`) —
- * as MCP's `diff_versions` and the REST compare answer it in their
- * `unified` format.
+ * as MCP's `get_automation {against}` and the REST compare answer it in
+ * their `unified` format.
  *
  * The patch is `@tale/ui`'s `toUnifiedPatch`, the same bytes the app's
  * "Copy patch" writes: jsdiff's `createTwoFilesPatch` with file headers
