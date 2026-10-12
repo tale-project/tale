@@ -26,7 +26,8 @@ test.each([
 import { join } from 'node:path';
 const nativeSpawn = Bun.spawn;
 Bun.spawn = (command, options) => {
-  if (!Array.isArray(command) || command[0] !== process.env.TALE_BINARY)
+  // Intercept only this regression's owned stub path.
+  if (!Array.isArray(command) || command[0] !== ${JSON.stringify(binary)})
     return nativeSpawn(command, options);
   appendFileSync(process.env.TALE_SMOKE_GUARD_CALLS, JSON.stringify(command.slice(1)) + '\\n');
   if (command.length !== 2 || command[1] !== 'dev')
