@@ -4,6 +4,7 @@ import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  RETENTION_CATEGORIES,
   retentionDefaultsConfigSchema,
   type RetentionCategory,
 } from '../../../lib/shared/schemas/retention.ts';
@@ -11,8 +12,10 @@ import {
   applyEnvTighteningAll,
   clampConfigToBounds,
   isRetentionDisabled,
+  withCatalogCategories,
   type EffectiveBoundDef,
 } from '../../core/governance/retention_floors.ts';
+import { resolveBuiltinCatalogRoot } from '../../core/lib/config_store/builtin_catalog.ts';
 import { readDomainConfigFile } from '../../core/lib/config_store/read_domain_file.ts';
 import { getConfigRoot } from '../../core/lib/file_io.ts';
 import { toJson } from '../../db/sql.ts';
@@ -21,6 +24,10 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  namesWithAgedVersions,
+  pruneVersions,
+} from '../automations/versions.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   indexedMessageRefsOf,
@@ -78,14 +85,10 @@ export class RetentionError extends Error {
 
 const MAX_RETENTION_FILE_BYTES = 256 * 1024;
 
-/** The org's retention DEFAULTS/BOUNDS file (its OWN file only — every org
- * is seeded from the catalog at create; no cross-org fallback). A file that
- * exists but does not parse — a bound below its compliance floor, say —
- * reads as no file, so its reason goes to the log: the editor shows only
- * that the bounds are missing. */
-export async function loadOrgRetentionConfig(orgSlug: string) {
-  const path = await import('node:path');
-  const dir = path.join(getConfigRoot('retention'), orgSlug, 'governance');
+/** One retention bounds file in `dir`, or null — a file that exists but does
+ * not parse (a bound below its compliance floor, say) reads as no file, with
+ * its reason in the log after `unreadable`. */
+async function readRetentionBoundsFile(dir: string, unreadable: string) {
   const result = await readDomainConfigFile(
     dir,
     'retention',
@@ -94,11 +97,36 @@ export async function loadOrgRetentionConfig(orgSlug: string) {
   );
   if (result.ok) return result.data;
   if (result.error !== 'not_found') {
-    console.warn(
-      `[retention] bounds file unreadable for org ${orgSlug}: ${result.message}`,
-    );
+    console.warn(`[retention] ${unreadable}: ${result.message}`);
   }
   return null;
+}
+
+/** The org's retention DEFAULTS/BOUNDS file — its OWN file, never another
+ * org's — plus the categories a release added after it was seeded, which
+ * take the built-in catalog's entry (see `withCatalogCategories`). A file
+ * that exists but does not parse reads as no file: the editor shows only
+ * that the bounds are missing. */
+export async function loadOrgRetentionConfig(orgSlug: string) {
+  const path = await import('node:path');
+  const own = await readRetentionBoundsFile(
+    path.join(getConfigRoot('retention'), orgSlug, 'governance'),
+    `bounds file unreadable for org ${orgSlug}`,
+  );
+  if (own === null) return null;
+  // The catalog is read only when the org's file lacks a category.
+  if (RETENTION_CATEGORIES.every((category) => own[category] !== undefined)) {
+    return own;
+  }
+  const root = resolveBuiltinCatalogRoot();
+  const catalog =
+    root === null
+      ? null
+      : await readRetentionBoundsFile(
+          path.join(root, 'governance'),
+          'built-in bounds catalog unreadable',
+        );
+  return withCatalogCategories(own, catalog);
 }
 
 export type AppliedBounds = Partial<
@@ -319,6 +347,7 @@ const DELETED_ACTION: Record<SweepCategory, string> = {
   externalConversations: 'external_conversation.retention_deleted',
   agentRuns: 'agent_run.retention_deleted',
   automationRuns: 'automation_run.retention_deleted',
+  automationVersions: 'automation_version.retention_deleted',
   auditLogs: 'audit_log.retention_deleted',
   tempFiles: 'file_metadata.retention_deleted',
   sandboxLedgers: 'sandbox_ledger.retention_deleted',
@@ -852,6 +881,7 @@ interface Phase2Stats {
   externalConversations: number;
   agentRuns: number;
   automationRuns: number;
+  automationVersions: number;
   auditLogs: number;
   tempFiles: number;
   sandboxLedgers: number;
@@ -1497,6 +1527,57 @@ async function sweepAutomationRuns(
   });
 }
 
+/** Automations one run takes up: the ones it does not reach are reached on
+ * another night (the order rotates with the day). */
+const AUTOMATION_VERSION_MAX_NAMES = 500;
+
+/**
+ * The `automationVersions` category: saved versions older than the window,
+ * except the ones the product still reads — the live one, the last ten
+ * deploys' versions, every version a run used, the newest twenty and the
+ * versions those were built from (`pruneVersions`, which also takes each
+ * automation's lock, as every writer does). A version number is never
+ * reused. One transaction and one audit row per automation, naming the
+ * versions it lost (the first two hundred); versions a held custodian saved
+ * stay, and an organization under hold is not swept at all.
+ */
+async function sweepAutomationVersions(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.automationVersionsEnabled !== true) return;
+  const cutoff = cutoffFor(
+    org.config.automationVersionsRetentionDays,
+    org.config.deletionGraceDays ?? 0,
+  );
+  if (cutoff === null) return;
+  const names = await namesWithAgedVersions(
+    sql,
+    org.organizationId,
+    cutoff,
+    AUTOMATION_VERSION_MAX_NAMES,
+    Math.floor(Date.now() / DAY_MS),
+  );
+  for (const name of names) {
+    await destroyInTx(sql, trail, async (tx) => {
+      const removed = await pruneVersions(tx, {
+        organizationId: org.organizationId,
+        name,
+        cutoffMs: cutoff,
+        limit: BATCH_LIMIT,
+        heldAuthors: [...holds.userMembershipIds],
+      });
+      return {
+        deleted: removed.length,
+        counts: { versions: removed.length },
+        detail: { automation: name, versions: removed.slice(0, 200) },
+      };
+    });
+  }
+}
+
 /** The audit-log sweep's cutoff for one clamped policy: rows with `ts`
  * below it are reap candidates; null when the category is off. */
 function auditLogCutoffFor(config: RetentionPolicyConfig): number | null {
@@ -1763,6 +1844,7 @@ export async function sweepOrgPhase2(
     externalConversations: 0,
     agentRuns: 0,
     automationRuns: 0,
+    automationVersions: 0,
     auditLogs: 0,
     tempFiles: 0,
     sandboxLedgers: 0,
@@ -1781,6 +1863,10 @@ export async function sweepOrgPhase2(
     ],
     ['agentRuns', (trail) => sweepAgentRuns(sql, org, holds, trail)],
     ['automationRuns', (trail) => sweepAutomationRuns(sql, org, trail)],
+    [
+      'automationVersions',
+      (trail) => sweepAutomationVersions(sql, org, holds, trail),
+    ],
     ['auditLogs', (trail) => sweepAuditLogs(sql, org, holds, trail)],
     ['tempFiles', (trail) => sweepTempFiles(sql, org, holds, trail)],
     ['sandboxLedgers', (trail) => sweepSandboxLedgers(sql, org, holds, trail)],

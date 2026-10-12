@@ -9,6 +9,8 @@
 
 import type { PolicyType } from '@tale/shared/schemas/governance';
 
+import type { RetentionCategory } from '@/lib/shared/schemas/retention';
+
 /** One row of the competence register (`GET /governance/competences`) —
  * revoked and expired grants included, because the register is the audit
  * trail, not only the current roster. */
@@ -934,21 +936,7 @@ export interface GovernanceContract {
     args: { organizationId: string };
     returns: {
       bounds: Array<{
-        category:
-          | 'notifications'
-          | 'contacts'
-          | 'documents'
-          | 'chatFilterEvents'
-          | 'usageLedger'
-          | 'messageFeedback'
-          | 'auditLog'
-          | 'userTempHours'
-          | 'agentTempHours'
-          | 'chatHistory'
-          | 'workflowLog'
-          | 'loginAttempt'
-          | 'externalConversations'
-          | 'agentRuns';
+        category: RetentionCategory;
         min: number;
         max: number;
         default: number;

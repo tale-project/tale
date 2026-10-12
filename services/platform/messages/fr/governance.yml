@@ -473,6 +473,11 @@ retentionPolicy:
       stockage de variables/sorties par exécution.
     placeholder: ex. 30
     helper: Les exécutions d'automatisation plus anciennes seront supprimées.
+  automationVersions:
+    title: Versions d'automatisation
+    description: 'Supprime les versions enregistrées d''automatisations plus anciennes que la période de rétention, sauf celles qui servent encore : la version en service et les dernières mises en service, celles qu''une exécution a utilisées et les vingt plus récentes.'
+    placeholder: ex. 365
+    helper: Les versions plus anciennes dont plus rien ne se sert seront supprimées.
   auditLogs:
     title: Journaux d'audit
     description: "Supprime automatiquement les entrées du journal d'audit plus

@@ -44,6 +44,11 @@ const NEXT_DUE_PARAM = 13;
 const RUN_INPUT_PARAM = 14;
 const MANAGED_PARAM = 17;
 
+/** Whether a tagged template is a fragment nested in a statement (an empty
+ * one, or a lock clause) rather than a statement of its own. */
+const isFragment = (text: string): boolean =>
+  text.trim() === '' || text.trim() === 'FOR KEY SHARE';
+
 /**
  * Scripted `sql`: the locked read of the row being replaced answers
  * `existing` (nothing on a first bind); the upsert answers with the
@@ -81,6 +86,9 @@ function fakeUpsert(
   const sequence: Statement[] = [];
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    // A nested template (an empty fragment, `FOR KEY SHARE`) is part of the
+    // statement it sits in, not a statement of its own.
+    if (isFragment(text)) return { fragment: text };
     sequence.push({ text, values });
     if (text.includes('INSERT INTO app_realtime.outbox')) {
       hints.push({ text, values });
@@ -645,6 +653,7 @@ function fakeWakeBind(
   const order: string[] = [];
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    if (isFragment(text)) return { fragment: text };
     if (text.includes('INSERT INTO app_realtime.outbox')) {
       order.push('hint');
       return Promise.resolve([]);

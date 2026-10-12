@@ -51,6 +51,7 @@ export const BOUNDS_FILE = [
   ['externalConversations', 1, 'days'],
   ['notifications', 1, 'days'],
   ['agentRuns', 1, 'days'],
+  ['automationVersions', 1, 'days'],
 ]
   .map(([category, min, unit]) =>
     [

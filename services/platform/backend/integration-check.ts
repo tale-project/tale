@@ -89,6 +89,7 @@ import { checkTestReports } from './domains/automations/test-reports.integration
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
+import { checkVersionRetention } from './domains/automations/version-retention.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
@@ -51642,6 +51643,8 @@ async function checkRetention(
       bound(1),
       'agentRuns:',
       bound(1),
+      'automationVersions:',
+      bound(1),
     ].join('\n'),
   );
   await writeFile(
@@ -65190,6 +65193,10 @@ async function main(): Promise<void> {
         () => checkDeploymentHistory(sql, authCtx, record),
       ],
       ['checkVersionHistory', () => checkVersionHistory(sql, authCtx, record)],
+      [
+        'checkVersionRetention',
+        () => checkVersionRetention(sql, authCtx, record),
+      ],
       ['checkTestReports', () => checkTestReports(sql, authCtx, record)],
       [
         'checkAutomationTemplates',

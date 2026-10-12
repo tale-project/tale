@@ -200,8 +200,11 @@ describe('VersionComparePage', () => {
     });
     // The panel settles on one entry for the node: while it loads under a
     // busy machine its content can be drawn twice for a moment.
-    await waitFor(() =>
-      expect(within(panel).getByText('Summarize')).toBeVisible(),
+    await waitFor(
+      () => expect(within(panel).getByText('Summarize')).toBeVisible(),
+      // The suite runs beside other heavy ones: the settling can take longer
+      // than the default second.
+      { timeout: 10_000 },
     );
     renderPage(2, { node: 'collect' });
     expect(
@@ -246,6 +249,38 @@ describe('VersionComparePage', () => {
         name: 'There is no v? of this automation.',
       }),
     ).toBeVisible();
+  });
+
+  it('says a version below the latest that is gone was removed by retention, one above it never was', () => {
+    // v2 is gone and v4 is the latest: version numbers are never reused, so
+    // the retention policy removed it.
+    delete store.versions[2];
+    renderPage(2);
+    expect(
+      screen.getByRole('heading', {
+        name: 'v2 was removed by the retention policy.',
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText(/There is no v2/)).not.toBeInTheDocument();
+  });
+
+  it('says the version it was asked to compare with was removed, in the page that still shows the version', () => {
+    delete store.versions[2];
+    renderPage(3, { from: 2 });
+    expect(
+      screen.getByText('v2 was removed by the retention policy.'),
+    ).toBeVisible();
+  });
+
+  it('opens against the nearest older version left when the one just before was removed', () => {
+    delete store.versions[3];
+    renderPage(4);
+    expect(
+      screen.queryByText('v3 was removed by the retention policy.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: 'Compare with' }),
+    ).toHaveTextContent('v2');
   });
 
   it('passes an axe audit', async () => {

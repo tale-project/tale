@@ -604,6 +604,8 @@ editor:
     title: "Version {version} doesn't exist"
     description: This automation has no version with that number — the link may be stale, or the number mistyped.
     openLatest: Open latest
+    removedTitle: 'Version {version} was removed'
+    removedDescription: Your organization's retention policy removes old versions that nothing uses any more. Open the latest version instead.
   controlFlowTitle: Control flow
   nodeSheetDescription: Edit the node's fields, then save or discard the change.
   agent:
@@ -819,6 +821,7 @@ restore:
 compare:
   title: 'Changes from v{from} to v{to}'
   missing: 'There is no v{version} of this automation.'
+  removed: 'v{version} was removed by the retention policy.'
   backToVersions: Back to the versions
   moreActions: 'More actions for v{version}'
   from:

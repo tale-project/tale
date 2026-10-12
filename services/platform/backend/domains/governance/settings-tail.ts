@@ -316,6 +316,7 @@ const RETENTION_CATEGORY_LABELS: Record<RetentionCategory, string> = {
   externalConversations: 'external conversations',
   notifications: 'notifications',
   agentRuns: 'agent runs',
+  automationVersions: 'automation versions',
 };
 
 /** The 0.4 shortening detector — a category disabled in the new config

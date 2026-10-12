@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   RETENTION_CATEGORIES,
   type RetentionDefaultsConfig,
+  unitForCategory,
 } from '../../../lib/shared/schemas/retention';
 import {
   RETENTION_POLICY_FIELD_BY_CATEGORY,
@@ -15,6 +16,7 @@ import {
   clampConfigToBounds,
   clampToBounds,
   isRetentionDisabled,
+  withCatalogCategories,
 } from './retention_floors';
 
 // A complete config covering a few representative categories used
@@ -251,6 +253,117 @@ describe('applyEnvTightening — _metadata.envNames map resolution', () => {
     expect(out.maxEnv.source).toBe('none');
     expect(out.maxEnv.envName).toBe('');
     expect(out.defaultEnv.source).toBe('none');
+  });
+});
+
+describe('withCatalogCategories', () => {
+  // What the built-in catalog says now: it gained a category the org's file,
+  // seeded at the org's creation, has never heard of.
+  const catalog: RetentionDefaultsConfig = {
+    _metadata: {
+      envPrefix: 'TALE_RETENTION_',
+      envNames: {
+        AUDIT_MIN: 'auditLog.min',
+        VERSIONS_MIN: 'automationVersions.min',
+        VERSIONS_MAX: 'automationVersions.max',
+        VERSIONS_DEFAULT: 'automationVersions.default',
+      },
+    },
+    auditLog: { min: 180, max: 3650, default: 730, unit: 'days' },
+    automationVersions: { min: 90, max: 3650, default: 3650, unit: 'days' },
+  };
+
+  /** An org seeded before the category existed: every other one is there. */
+  function seededBefore(): RetentionDefaultsConfig {
+    const file: RetentionDefaultsConfig = { ...baseConfig };
+    for (const category of RETENTION_CATEGORIES) {
+      if (category === 'automationVersions' || file[category] !== undefined) {
+        continue;
+      }
+      file[category] = {
+        min: 1,
+        max: 3650,
+        default: 30,
+        unit: unitForCategory(category),
+      };
+    }
+    return file;
+  }
+
+  it('gives an existing org the category its file lacks, which it otherwise refuses', () => {
+    const own = seededBefore();
+    expect(() => applyEnvTighteningAll(own)).toThrow(
+      RetentionConfigMissingError,
+    );
+    const merged = withCatalogCategories(own, catalog);
+    expect(merged.automationVersions).toEqual({
+      min: 90,
+      max: 3650,
+      default: 3650,
+      unit: 'days',
+    });
+    // The rows the editor lists now include it, and the file's own rows
+    // are untouched.
+    const bounds = buildBoundsByCategory(merged);
+    expect(bounds.automationVersions.max).toBe(3650);
+    expect(bounds.auditLog.min).toBe(365);
+    expect(applyEnvTighteningAll(merged)).toHaveLength(
+      RETENTION_CATEGORIES.length,
+    );
+  });
+
+  it('brings the category’s env bindings, and only those, so an operator can still tighten it', () => {
+    const merged = withCatalogCategories(baseConfig, catalog);
+    expect(merged._metadata?.envNames).toMatchObject({
+      VERSIONS_MIN: 'automationVersions.min',
+      VERSIONS_MAX: 'automationVersions.max',
+      VERSIONS_DEFAULT: 'automationVersions.default',
+      // The org's own bindings stay.
+      AUDIT_MIN: 'auditLog.min',
+    });
+    vi.stubEnv('TALE_RETENTION_VERSIONS_MAX', '730');
+    const tightened = applyEnvTightening(merged, 'automationVersions');
+    expect(tightened.max).toBe(730);
+    expect(tightened.source).toBe('env');
+  });
+
+  it('leaves what the org’s file says alone, a category it has and a binding it names', () => {
+    const own: RetentionDefaultsConfig = {
+      ...baseConfig,
+      automationVersions: { min: 365, max: 1825, default: 730, unit: 'days' },
+      _metadata: {
+        envPrefix: 'TALE_RETENTION_',
+        envNames: { VERSIONS_MIN: 'automationVersions.max' },
+      },
+    };
+    const merged = withCatalogCategories(own, catalog);
+    expect(merged).toBe(own);
+  });
+
+  it('does not bring env bindings built on another prefix, nor into a file that has none', () => {
+    const otherPrefix: RetentionDefaultsConfig = {
+      ...baseConfig,
+      _metadata: {
+        envPrefix: 'ACME_',
+        envNames: { AUDIT_MIN: 'auditLog.min' },
+      },
+    };
+    const merged = withCatalogCategories(otherPrefix, catalog);
+    expect(merged.automationVersions?.max).toBe(3650);
+    expect(merged._metadata?.envNames).toEqual({ AUDIT_MIN: 'auditLog.min' });
+
+    const { _metadata: _dropped, ...unbound } = baseConfig;
+    const noBindings = withCatalogCategories(unbound, catalog);
+    expect(noBindings.automationVersions?.max).toBe(3650);
+    expect(noBindings._metadata).toBeUndefined();
+  });
+
+  it('adds nothing without a catalog, or when the catalog has nothing the file lacks', () => {
+    expect(withCatalogCategories(baseConfig, null)).toBe(baseConfig);
+    const same: RetentionDefaultsConfig = {
+      auditLog: { min: 180, max: 3650, default: 730, unit: 'days' },
+    };
+    expect(withCatalogCategories(baseConfig, same)).toBe(baseConfig);
   });
 });
 

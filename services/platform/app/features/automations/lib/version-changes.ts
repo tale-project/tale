@@ -132,6 +132,30 @@ export interface CompareOption {
  * other earlier or later version, newest first. `to` itself is never
  * offered.
  */
+/**
+ * The version a comparison opens against: the one just before, or — when the
+ * retention policy removed that one — the nearest older version that is left.
+ * Until the versions are known, and when nothing older is left, it is the one
+ * just before: a removed neighbour is then said to be removed, rather than
+ * the version being passed off as the first.
+ */
+export function versionBefore(
+  version: number,
+  known: readonly number[] | undefined,
+): number | undefined {
+  const usual = version > 1 ? version - 1 : undefined;
+  if (usual === undefined || known === undefined || known.includes(usual)) {
+    return usual;
+  }
+  let nearest: number | undefined;
+  for (const candidate of known) {
+    if (candidate < version && (nearest === undefined || candidate > nearest)) {
+      nearest = candidate;
+    }
+  }
+  return nearest ?? usual;
+}
+
 export function compareOptions(
   versions: readonly number[],
   context: { to: number; live: number | null; basedOn: number | null },

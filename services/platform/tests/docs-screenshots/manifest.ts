@@ -3083,8 +3083,10 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/settings/governance/policies-limits',
     readyWhen: (page) => page.getByText(t('governance.budgets.title')).first(),
     // Land the fold ON a section boundary (measured), not mid-row: any height is
-    // a cut somewhere, so cut where the page already has a seam.
-    viewport: { width: 1440, height: 1530 },
+    // a cut somewhere, so cut where the page already has a seam. Here it is the
+    // gap under the Retention policy card, which ends at 1595 where Feature
+    // controls begins at 1660.
+    viewport: { width: 1440, height: 1628 },
   },
   {
     // A budget rule that caps one project: the Project scope, its picker with

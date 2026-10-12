@@ -1446,6 +1446,7 @@ logs:
       workflow_trigger_log.retention_deleted: Journal de trigger d'automatisation supprimé (rétention)
       audit_log.retention_deleted: Journal d'audit supprimé (rétention)
       automation_run.retention_deleted: Exécution d'automatisation supprimée (rétention)
+      automation_version.retention_deleted: Version d'automatisation supprimée (rétention)
       agent_run.retention_deleted: Exécution d'agent supprimée (rétention)
       message_feedback.retention_deleted: Retour sur message supprimé (rétention)
       notification.retention_deleted: Notification supprimée (rétention)

@@ -610,6 +610,8 @@ editor:
     title: 'Version {version} gibt es nicht'
     description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
     openLatest: Neueste öffnen
+    removedTitle: 'Version {version} wurde entfernt'
+    removedDescription: Die Aufbewahrungsrichtlinie deiner Organisation entfernt alte Versionen, die nichts mehr verwendet. Öffne stattdessen die neueste Version.
   controlFlowTitle: Ablaufsteuerung
   nodeSheetDescription: Bearbeite die Felder dieser Node, dann speichere die
     Änderung oder verwirf sie.
@@ -828,6 +830,7 @@ restore:
 compare:
   title: 'Änderungen von v{from} zu v{to}'
   missing: 'Diese Automatisierung hat keine v{version}.'
+  removed: 'v{version} wurde durch die Aufbewahrungsrichtlinie entfernt.'
   backToVersions: Zurück zu den Versionen
   moreActions: 'Weitere Aktionen für v{version}'
   from:

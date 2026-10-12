@@ -43,7 +43,10 @@
       "NOTIFICATIONS_DEFAULT": "notifications.default",
       "AGENT_RUNS_MIN": "agentRuns.min",
       "AGENT_RUNS_MAX": "agentRuns.max",
-      "AGENT_RUNS_DEFAULT": "agentRuns.default"
+      "AGENT_RUNS_DEFAULT": "agentRuns.default",
+      "VERSIONS_MIN": "automationVersions.min",
+      "VERSIONS_MAX": "automationVersions.max",
+      "VERSIONS_DEFAULT": "automationVersions.default"
     }
   },
   "documents": {
@@ -128,6 +131,12 @@
     "min": 30,
     "max": 400,
     "default": 180,
+    "unit": "days"
+  },
+  "automationVersions": {
+    "min": 90,
+    "max": 3650,
+    "default": 3650,
     "unit": "days"
   }
 }
