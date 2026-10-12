@@ -23,6 +23,7 @@ import {
 
 import {
   ExpressionError,
+  type Expr,
   foldTemplate,
   hasExpression,
   parseExpression,
@@ -120,7 +121,7 @@ export function rootOf(doc: Document): YAMLMap {
 }
 
 function mapAt(map: YAMLMap, key: string): YAMLMap | undefined {
-  const node = map.get(key, true);
+  const node = map.get(key);
   return isMap(node) ? node : undefined;
 }
 
@@ -149,13 +150,13 @@ export function jobOf(doc: Document, id: string): YAMLMap | undefined {
 }
 
 export function stepsOf(job: YAMLMap): YAMLSeq | undefined {
-  const steps = job.get('steps', true);
+  const steps = job.get('steps');
   return isSeq(steps) ? steps : undefined;
 }
 
 /** The ids a job needs, whether `needs:` is one name or a list. */
 export function needsOf(job: YAMLMap): string[] {
-  const node = job.get('needs', true);
+  const node = job.get('needs');
   const single = stringOf(node);
   if (single !== undefined) return [single];
   if (!isSeq(node)) return [];
@@ -228,6 +229,32 @@ export interface FoldContext {
   readonly file: string;
   readonly facts: Facts;
   readonly report: Report;
+  /** Facts that hold inside one job only, such as the size of its own matrix. */
+  readonly jobFacts?: ReadonlyMap<string, Facts>;
+}
+
+/** The facts of a context with another set added on top. */
+export function withFacts(
+  context: FoldContext,
+  extra: Facts | undefined,
+): FoldContext {
+  if (!extra) return context;
+  const values = new Map([
+    ...(context.facts.values ?? []),
+    ...(extra.values ?? []),
+  ]);
+  const oneOf = new Map([
+    ...(context.facts.oneOf ?? []),
+    ...(extra.oneOf ?? []),
+  ]);
+  return {
+    ...context,
+    facts: {
+      values,
+      oneOf,
+      absent: [...(context.facts.absent ?? []), ...(extra.absent ?? [])],
+    },
+  };
 }
 
 /**
@@ -243,13 +270,14 @@ export function foldWorkflow(doc: Document, context: FoldContext): string[] {
     const job = isMap(pair.value) ? pair.value : undefined;
     if (id === undefined || !job) continue;
     const at = `jobs.${id}`;
-    if (foldIf(job, at, context) === 'dead') {
+    const here = withFacts(context, context.jobFacts?.get(id));
+    if (foldIf(job, at, here) === 'dead') {
       dead.push(id);
       continue;
     }
     const steps = stepsOf(job);
-    if (steps) foldSteps(steps, at, context);
-    foldMapValues(job, at, context, new Set(['if', 'steps']));
+    if (steps) foldSteps(steps, at, here);
+    foldMapValues(job, at, here, new Set(['if', 'steps']));
   }
   foldMapValues(rootOf(doc), '', context, new Set(['jobs']));
   return dead;
@@ -273,7 +301,7 @@ function foldIf(
   at: string,
   context: FoldContext,
 ): 'alive' | 'dead' {
-  const source = stringOf(owner.get('if', true));
+  const source = stringOf(owner.get('if'));
   if (source === undefined) return 'alive';
   let outcome: Condition;
   try {
@@ -450,4 +478,44 @@ function sameTemplate(a: string, b: string): boolean {
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Change one `if:` with a function of its expression. The function returns the new
+ * expression, or `undefined` when nothing is left of the condition (it always holds).
+ * Returns whether the condition changed.
+ */
+export function editCondition(
+  owner: YAMLMap,
+  edit: (expression: Expr) => Expr | undefined,
+): boolean {
+  const source = stringOf(owner.get('if'));
+  if (source === undefined) return false;
+  const wrapped = hasExpression(source);
+  let expression: Expr;
+  if (wrapped) {
+    const parts = parseTemplate(source);
+    const only = parts.length === 1 ? parts[0] : undefined;
+    if (only?.kind !== 'expr')
+      throw new ExpressionError(
+        'A condition must be one expression',
+        source,
+        0,
+      );
+    expression = only.expr;
+  } else expression = parseExpression(source);
+  const edited = edit(expression);
+  if (edited === undefined) {
+    owner.delete('if');
+    return true;
+  }
+  if (printExpression(edited) === printExpression(expression)) return false;
+  const text = printExpression(edited);
+  owner.set('if', new Scalar(wrapped ? `\${{ ${text} }}` : text));
+  return true;
+}
+
+/** The text of a step's or job's `if:`, as written. */
+export function conditionOf(owner: YAMLMap): string | undefined {
+  return stringOf(owner.get('if'));
 }
