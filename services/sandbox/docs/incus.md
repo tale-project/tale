@@ -106,12 +106,15 @@ starts without Incus's synchronous DHCP wait. The backend still runs the OCI
 
 What it costs, and how that is bounded:
 
-- **Docker inside is unproven** on an OCI container, so it stays opt-in
-  (`SANDBOX_DOCKER_IN_CONTAINER=true`) and a boot warning says so. The manual
-  box below decides it.
-- The start waits for the instance's DHCP lease (about 5 seconds), which the
+- **Docker inside** on an OCI container is proven by the CI lab (the inner
+  engine, `docker run`, `docker build` and the containment of nested
+  containers) on one kernel and storage driver only, so it stays opt-in
+  (`SANDBOX_DOCKER_IN_CONTAINER=true`) and a boot warning says so. The node
+  checks below decide it for yours.
+- The start waits for the instance's DHCP lease (at most five seconds, and the
+  lab's cold create takes three to four in all), which the
   [warm pool](#the-warm-pool) hides by handing out an instance that has
-  already started.
+  already started: a claim takes under a second.
 
 ## Trust boundary
 

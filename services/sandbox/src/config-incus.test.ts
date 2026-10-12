@@ -137,19 +137,19 @@ describe('SANDBOX_BACKEND=incus', () => {
     expect(() => loadConfig()).toThrow('SANDBOX_RUNTIME must be one of');
   });
 
-  test('has no Docker inside unless it is asked for, and then says it is unproven', () => {
+  test('has no Docker inside unless it is asked for, and then says where it is proven', () => {
     useIncus();
     const off = loadConfig();
     expect(off.dockerInContainer).toBe(false);
     expect(off.dockerBuildCache).toBe(false);
-    expect(mentions('not proven')).toHaveLength(0);
+    expect(mentions('one kernel and storage driver')).toHaveLength(0);
 
     warn.mockClear();
     useIncus({ SANDBOX_DOCKER_IN_CONTAINER: 'true' });
     const on = loadConfig();
     expect(on.dockerInContainer).toBe(true);
     expect(on.session.agentProfile.memory).toBe('8g');
-    expect(mentions('not proven')).toHaveLength(1);
+    expect(mentions('one kernel and storage driver')).toHaveLength(1);
   });
 
   test('never has the shared build cache, and says so when it is asked for', () => {

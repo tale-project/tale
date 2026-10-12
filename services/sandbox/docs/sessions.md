@@ -1061,7 +1061,8 @@ unavailable to a restricted certificate, and the optional **warm pool**
 of waiting for an instance's DHCP lease, never exceeding `SANDBOX_MAX_SESSIONS`
 together with the sessions. Fenced operations (stop, pin, endpoint) compare the
 instance's creation stamp and Incus's own creation time, because Incus has no
-preconditioned delete. Docker inside is opt-in and unproven on this backend.
+preconditioned delete. Docker inside is opt-in on this backend; the CI lab proves it on one kernel and
+storage driver.
 
 ## Testing
 
