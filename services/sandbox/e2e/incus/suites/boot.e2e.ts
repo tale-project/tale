@@ -226,7 +226,7 @@ describe('boot refusals against the real node', () => {
       // administrators only.
       const asRestricted = await asSpawner(
         'GET',
-        `/1.0/networks/${lab.network}`,
+        `/1.0/networks/${lab.network}?project=${lab.project}`,
       );
       expectStatus(asRestricted, 200, 'GET the network as the spawner');
       const seen = field(asRestricted.json, 'metadata', 'config');
