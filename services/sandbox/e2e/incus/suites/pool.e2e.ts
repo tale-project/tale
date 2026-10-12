@@ -39,7 +39,9 @@ const peer = spawnerOf({ name: 'pool-b', port: 18007, token, env });
 const api = spawner.api;
 const ORG = 'e2e-pool';
 
-/** `warm=<ready>/<target>` of the health detail. */
+/** `warm=<ready>/<target>` of the health detail. The spawner caches its health
+ * for a minute, so this lags the node; it is read only where the point is that
+ * a spawner reports its pool. */
 async function warm(
   from: SpawnerApi,
 ): Promise<{ ready: number; target: number }> {
@@ -60,6 +62,22 @@ async function standbys() {
   );
 }
 
+/** The standbys that wait for a claim, as the node shows them: running, with
+ * the ready marker their script writes. */
+async function readyStandbys() {
+  const waiting = [];
+  for (const standby of await standbys()) {
+    if (standby.status !== 'Running') continue;
+    const marker = await admin.exec(
+      standby.name,
+      ['test', '-f', '/run/tale-standby/ready'],
+      { allowFailure: true },
+    );
+    if (marker.code === 0) waiting.push(standby);
+  }
+  return waiting;
+}
+
 async function occupied(): Promise<number> {
   return (await admin.instances()).filter(
     (instance) =>
@@ -67,16 +85,13 @@ async function occupied(): Promise<number> {
   ).length;
 }
 
-async function waitForPool(from: SpawnerApi, count: number, what: string) {
+/** Wait until exactly `count` standbys wait on the node; the time it took. */
+async function waitForPool(count: number, what: string): Promise<number> {
   const started = performance.now();
-  await until(
-    what,
-    async () => {
-      const current = await warm(from);
-      return current.ready === count || undefined;
-    },
-    { timeoutMs: 5 * 60_000, intervalMs: 1_000 },
-  );
+  await until(what, async () => (await readyStandbys()).length === count, {
+    timeoutMs: 5 * 60_000,
+    intervalMs: 1_000,
+  });
   return performance.now() - started;
 }
 
@@ -95,18 +110,8 @@ describe('the warm pool on a real node', () => {
   });
 
   step('the pool fills to its size with standbys that wait', async () => {
-    const started = performance.now();
-    await until(
-      'two standbys ready',
-      async () => (await warm(api)).ready === POOL_SIZE || undefined,
-      {
-        timeoutMs: 5 * 60_000,
-      },
-    );
-    report.add(
-      `fill the pool (${POOL_SIZE} standbys, from boot)`,
-      performance.now() - started,
-    );
+    const fill = await waitForPool(POOL_SIZE, 'two standbys ready');
+    report.add(`fill the pool (${POOL_SIZE} standbys, from boot)`, fill);
     const waiting = await standbys();
     expect(waiting).toHaveLength(POOL_SIZE);
     for (const standby of waiting) {
@@ -188,7 +193,7 @@ describe('the warm pool on a real node', () => {
       expect(await sessionVolume(id)).toBeDefined();
 
       // The pool refills behind the claim.
-      const refill = await waitForPool(api, POOL_SIZE, 'the pool to refill');
+      const refill = await waitForPool(POOL_SIZE, 'the pool to refill');
       report.add('refill the pool after a claim', refill);
       expectStatus(await api.destroy(id), 200, 'destroy the claimed session');
     },
@@ -244,10 +249,10 @@ describe('the warm pool on a real node', () => {
     // Destroying two gives the room back to the pool, and it refills.
     for (const id of ids.slice(0, 2))
       expectStatus(await api.destroy(id), 200, `destroy ${id}`);
-    await waitForPool(api, 2, 'the pool to refill after the sessions went');
+    await waitForPool(2, 'the pool to refill after the sessions went');
     for (const id of ids.slice(2))
       expectStatus(await api.destroy(id), 200, `destroy ${id}`);
-    await waitForPool(api, POOL_SIZE, 'a full pool again');
+    await waitForPool(POOL_SIZE, 'a full pool again');
   });
 
   step(
@@ -270,7 +275,7 @@ describe('the warm pool on a real node', () => {
       });
       expectStatus(result.reply, 201, 'create after a standby stopped');
       expect(await sh(api, id, 'id -u')).toBe('10001\n');
-      await waitForPool(api, POOL_SIZE, 'the pool to heal');
+      await waitForPool(POOL_SIZE, 'the pool to heal');
       expect((await standbys()).map((s) => s.name)).not.toContain(victim.name);
       expectStatus(await api.destroy(id), 200, 'destroy');
     },
@@ -312,7 +317,7 @@ describe('the warm pool on a real node', () => {
         result.elapsedMs,
       );
       expect(waiting.has((await sessionInstance(id))?.name ?? '')).toBe(true);
-      await waitForPool(peer.api, POOL_SIZE, 'the replacement to refill');
+      await waitForPool(POOL_SIZE, 'the replacement to refill');
       // The draining one made none: the pool holds its size, not twice it.
       expect(await standbys()).toHaveLength(POOL_SIZE);
       expectStatus(await peer.api.destroy(id), 200, 'destroy');

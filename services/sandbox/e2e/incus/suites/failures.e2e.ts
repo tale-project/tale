@@ -2,8 +2,8 @@
 // process ends by itself stays stopped with its console readable and resumes on
 // the next create; a busy session stopped by a draining spawner is asked to
 // shut down first, and the exec it was running hears it; and a create whose
-// image cannot start a session fails with the end of the console in its
-// message, leaving the workspace for a retry.
+// image cannot start a session fails with the reason in its message, leaving
+// the workspace for a retry.
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
@@ -214,7 +214,7 @@ describe('endings that are not a clean destroy', () => {
   );
 
   step(
-    'an image that cannot start a session fails the create with the end of the console',
+    'an image that cannot start a session fails the create and keeps the workspace',
     async () => {
       expect(await spawner.stop()).not.toBeNull();
       spawner.start({
@@ -237,11 +237,13 @@ describe('endings that are not a clean destroy', () => {
       expect(field(failed.reply.json, 'error')).toBe('create_failed');
       const message = asText(field(failed.reply.json, 'message'));
       report.fact('the failure a platform reads', message.slice(0, 300));
-      // What the instance said is in the answer, so nobody needs the node to know why.
+      // The answer says why, so nobody needs the node to know: the instance
+      // stopped, or never answered. (It quotes the end of the instance's
+      // console when the image printed any; this image prints nothing, and the
+      // unit tests of the backend own the quote.)
       expect(message).toMatch(
         /stopped before runnerd became ready|did not become ready/,
       );
-      expect(message).toContain('last console lines');
       // The failed create removed its instance and kept the durable workspace.
       expect(await sessionInstance(BROKEN)).toBeUndefined();
       expect(await sessionVolume(BROKEN)).toBeDefined();

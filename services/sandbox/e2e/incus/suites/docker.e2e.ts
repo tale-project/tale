@@ -12,6 +12,7 @@ import { LABEL, label } from '../../../src/backend/incus/incus-naming.ts';
 import {
   admin,
   expectStatus,
+  lab,
   reportFor,
   sessionId,
   sessionInstance,
@@ -161,16 +162,28 @@ describe('Docker inside a session on a real node', () => {
   });
 
   step('a nested container is no freer than the session', async () => {
-    const reachable = await api.exec(ID, {
-      shell: `docker run --rm ${ALPINE} sh -c 'nc -z -w 4 1.1.1.1 53 && echo reachable || echo blocked'`,
-      timeoutMs: 120_000,
-    });
-    expect(reachable.stdout.trim()).toBe('blocked');
-    const proxied = await api.exec(ID, {
-      shell: `docker run --rm ${ALPINE} sh -c 'nc -z -w 4 10.20.0.1 8443 && echo reachable || echo blocked'`,
-      timeoutMs: 120_000,
-    });
-    expect(proxied.stdout.trim()).toBe('blocked');
+    /** A command in a nested container; its trimmed stdout. */
+    const nested = async (command: string): Promise<string> => {
+      const outcome = await api.exec(ID, {
+        shell: `docker run --rm ${ALPINE} sh -c '${command}'`,
+        timeoutMs: 120_000,
+      });
+      expect(outcome.result?.status).toBe('completed');
+      return outcome.stdout.trim();
+    };
+    // Under transparent egress a TCP connect is accepted by the redirect whatever
+    // its target, so a connect proves nothing: an SSH server speaks first, and
+    // only its banner shows a connection was not stopped.
+    expect(
+      await nested('timeout 8 nc github.com 22 </dev/null | head -c 4'),
+    ).not.toContain('SSH-');
+    // Private addresses are not redirected: the ACL stops the node's API, and
+    // lets through the proxy, which the nested container reaches as the
+    // session does.
+    const probe = (address: string, port: number) =>
+      nested(`nc -z -w 4 ${address} ${port} && echo reachable || echo blocked`);
+    expect(await probe(lab.bridgeAddress, 8443)).toBe('blocked');
+    expect(await probe(lab.egressAddress, 3128)).toBe('reachable');
   });
 
   step(

@@ -77,9 +77,8 @@ describe('limits on a real node', () => {
       });
       expectStatus(over.reply, 429, 'the fourth create');
       expect(field(over.reply.json, 'error')).toBe('session_quota');
-      expect(
-        field(over.reply.json, 'queue', 'position'),
-      ).toBeGreaterThanOrEqual(1);
+      // The first one refused is first in the line: positions count from 0.
+      expect(field(over.reply.json, 'queue', 'position')).toBe(0);
       expect(
         Number(over.reply.headers.get('retry-after')),
       ).toBeGreaterThanOrEqual(5);
@@ -93,6 +92,9 @@ describe('limits on a real node', () => {
     async () => {
       // Two sessions' worth (4 GiB each) and a little over. The spawner says
       // so at boot: its capacity can add up to more than the project allows.
+      // Incus refuses a limit below what the project already holds, so
+      // whatever an earlier step left goes first.
+      await admin.cleanSlate();
       await admin.setProject('limits.memory', '9GiB');
       expect(await spawner.stop()).not.toBeNull();
       spawner.start();

@@ -12,3 +12,11 @@ export function asText(value: unknown): string {
   if (typeof value === 'string') return value;
   return JSON.stringify(value) ?? '';
 }
+
+/** Whether a child process has ended, by exiting or by a signal (a process a
+ * signal ended keeps `exitCode` null, so that alone says it still runs). */
+export function hasEnded(
+  proc: Pick<Bun.Subprocess, 'exitCode' | 'signalCode'>,
+): boolean {
+  return proc.exitCode !== null || proc.signalCode !== null;
+}

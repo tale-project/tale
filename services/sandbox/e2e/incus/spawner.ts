@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 
 import { type LabConfig, logDir } from './lab-config.ts';
 import { field, SpawnerApi } from './spawner-api.ts';
-import { asText, describeError } from './util.ts';
+import { asText, describeError, hasEnded } from './util.ts';
 
 const SANDBOX_DIR = resolve(import.meta.dir, '../..');
 
@@ -89,7 +89,7 @@ export class Spawner {
   }
 
   get running(): boolean {
-    return this.proc !== undefined && this.proc.exitCode === null;
+    return this.proc !== undefined && !hasEnded(this.proc);
   }
 
   get log(): string {
@@ -149,9 +149,9 @@ export class Spawner {
     const deadline = performance.now() + (options.timeoutMs ?? 30 * 60_000);
     let last = 'no answer yet';
     for (;;) {
-      if (this.proc !== undefined && this.proc.exitCode !== null) {
+      if (this.proc !== undefined && hasEnded(this.proc)) {
         throw new Error(
-          `spawner ${this.settings.name} exited ${this.proc.exitCode} before it was ready:\n${this.logTail()}`,
+          `spawner ${this.settings.name} exited ${await this.proc.exited} before it was ready:\n${this.logTail()}`,
         );
       }
       try {
@@ -174,39 +174,35 @@ export class Spawner {
     }
   }
 
-  /** SIGTERM, then SIGKILL after `graceMs`; the exit code. */
+  /** SIGTERM, then SIGKILL after `graceMs`; the status it ended with (128
+   * plus the signal when a signal ended it, as a shell reports it). */
   async stop(graceMs = 30_000): Promise<number | null> {
     const proc = this.proc;
-    if (proc === undefined || proc.exitCode !== null)
-      return proc?.exitCode ?? null;
+    if (proc === undefined) return null;
+    if (hasEnded(proc)) return proc.exited;
     proc.kill('SIGTERM');
     const exited = await Promise.race([
       proc.exited,
       Bun.sleep(graceMs).then(() => null),
     ]);
-    if (exited === null) {
-      proc.kill('SIGKILL');
-      await proc.exited;
-    }
-    return proc.exitCode;
+    if (exited !== null) return exited;
+    proc.kill('SIGKILL');
+    return proc.exited;
   }
 
   /** SIGKILL: a crash, nothing flushed. */
   async kill(): Promise<void> {
     const proc = this.proc;
-    if (proc === undefined || proc.exitCode !== null) return;
+    if (proc === undefined || hasEnded(proc)) return;
     proc.kill('SIGKILL');
     await proc.exited;
   }
 
-  /** Wait for the process to end by itself (a boot that must be refused). */
+  /** Wait for the process to end by itself (a boot that must be refused);
+   * its status, or null when it still runs after `timeoutMs`. */
   async exited(timeoutMs = 120_000): Promise<number | null> {
     const proc = this.proc;
     if (proc === undefined) return null;
-    const code = await Promise.race([
-      proc.exited,
-      Bun.sleep(timeoutMs).then(() => null),
-    ]);
-    return code === null ? null : proc.exitCode;
+    return Promise.race([proc.exited, Bun.sleep(timeoutMs).then(() => null)]);
   }
 }
