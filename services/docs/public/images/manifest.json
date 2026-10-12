@@ -1113,11 +1113,12 @@
       "route": "/dashboard/:orgId/settings/governance/policies-limits",
       "viewport": {
         "width": 1440,
-        "height": 1530
+        "height": 1628
       },
       "dpr": 2,
       "width": 2880,
-      "height": 3060
+      "height": 3256,
+      "locale": "en"
     },
     {
       "file": "images/platform/governance-security-monitoring.webp",

@@ -71,6 +71,8 @@ Under **Retention policy**, select **Edit** and configure the categories your or
 
 Check the deployment's minimum and maximum bounds before changing a period. Changes that require review or a delay appear as proposals or pending changes; read their effective time instead of assuming they apply immediately.
 
+**Automation versions** is off until you enable it. When it is on, saved versions older than the period are deleted, except the live version, the versions of the last ten deployments, every version a run used, the newest twenty versions, the versions those were restored from or based on, and versions saved by a person under a legal hold. A version number is never reused, and a link to a removed version says that it no longer exists.
+
 The deletion grace period is the recovery window for supported soft-deleted records. A positive value leaves time to restore them in [Trash](/platform/admin/governance/trash); zero permits immediate permanent cleanup. Not every category has a restore path. A [legal hold](/platform/admin/governance/legal-hold) protects covered data from cleanup.
 
 For self-hosted deployments, [Retention configuration](/self-hosted/configuration/retention) explains the operator controls and category-specific behavior. Do not infer an archive guarantee from a disabled policy or a displayed period alone.

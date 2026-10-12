@@ -2127,12 +2127,24 @@ function AutomationEditorScope({
     automationQuery.isError &&
     automationErrorCode(automationQuery.error) === 'AUTOMATION_VERSION_UNKNOWN'
   ) {
+    // Version numbers are never reused, so a number below the latest that
+    // is gone was removed by the retention policy; a higher one never was.
+    const latestKnown = automationErrorLatestVersion(automationQuery.error);
+    const removed = typeof latestKnown === 'number' && version < latestKnown;
     return (
       <ContentArea variant="narrow">
         <EmptyState
           icon={SearchX}
-          title={t('editor.versionNotFound.title', { version })}
-          description={t('editor.versionNotFound.description')}
+          title={
+            removed
+              ? t('editor.versionNotFound.removedTitle', { version })
+              : t('editor.versionNotFound.title', { version })
+          }
+          description={
+            removed
+              ? t('editor.versionNotFound.removedDescription')
+              : t('editor.versionNotFound.description')
+          }
           headingLevel={2}
           action={
             <Button

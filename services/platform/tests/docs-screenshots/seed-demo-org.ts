@@ -2469,6 +2469,17 @@ async function ensureCustomInstructions(
 }
 
 /**
+ * The demo organization has applied the operator's retention bounds, as an
+ * organization that has saved a retention policy has (its first save applies
+ * them). Until then the Retention policy section opens on "Operator retention
+ * bounds need your initial approval", which no organization in use shows.
+ * Applying again changes nothing while the bounds are the same.
+ */
+async function ensureRetentionBounds(page: Page, orgId: string): Promise<void> {
+  await appApiOk(page, orgId, '/retention/bounds/apply', {});
+}
+
+/**
  * Governance > Legal hold: a matter, and a hold placed under it. The subject is
  * HELD_MEMBER — never the erasure subject, because a hold legitimately BLOCKS
  * erasure of the same person.
@@ -2751,6 +2762,7 @@ export async function seedDemoOrg(
   await step('custom instructions', () =>
     ensureCustomInstructions(page, orgId),
   );
+  await step('retention bounds', () => ensureRetentionBounds(page, orgId));
   await step('legal hold', () => ensureLegalHold(page, orgId));
   await step('erasure request', () => ensureErasureRequest(page, orgId));
 

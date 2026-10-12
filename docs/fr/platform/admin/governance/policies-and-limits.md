@@ -71,6 +71,8 @@ Dans la règle de rétention, choisis **Modifier** et configure les catégories 
 
 Vérifie les bornes minimales et maximales du déploiement avant de modifier une durée. Les changements qui demandent une revue ou un délai apparaissent comme propositions ou changements en attente. Lis leur date d’effet sans supposer une application immédiate.
 
+**Versions d'automatisation** est désactivée tant que tu ne l’actives pas. Lorsqu’elle est active, les versions enregistrées plus anciennes que la période sont supprimées, sauf la version en service, les versions des dix dernières mises en service, toute version utilisée par une exécution, les vingt versions les plus récentes, les versions à partir desquelles celles-ci ont été restaurées ou sur lesquelles elles sont basées, et les versions enregistrées par une personne sous conservation légale. Un numéro de version n’est jamais réutilisé, et un lien vers une version supprimée indique qu’elle n’existe plus.
+
 Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation légale](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
 
 Pour les déploiements autohébergés, la [configuration de rétention](/fr/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.

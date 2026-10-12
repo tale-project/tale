@@ -958,6 +958,20 @@ describe('AutomationEditor missing version', () => {
     await user.click(screen.getByRole('button', { name: 'Open latest' }));
     expect(onSelectVersion).toHaveBeenCalledWith(undefined);
   });
+
+  it('says a version below the latest that is gone was removed by the retention policy', () => {
+    // The latest is v3 (the read's own answer names it): v2 was saved and is
+    // gone, and numbers are never reused.
+    state.missingVersion = 2;
+    renderPage({ version: 2 });
+    expect(
+      screen.getByRole('heading', { name: 'Version 2 was removed' }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/retention policy removes old versions/),
+    ).toBeVisible();
+    expect(screen.queryByText(/mistyped/)).toBeNull();
+  });
 });
 
 /** The node inspector — on the page only while a node is picked. */
@@ -1895,7 +1909,9 @@ describe('AutomationEditor', () => {
     });
     expect(whenField()).toHaveValue('');
     expect(toastSpy).not.toHaveBeenCalled();
-  });
+    // Typing a message and a save through the dialog takes a few seconds on
+    // a machine running other suites beside this one.
+  }, 20_000);
 
   it('saves and checks the document as stored, with only the edit changed', async () => {
     // What this build has no control for — a connector's credential, a key

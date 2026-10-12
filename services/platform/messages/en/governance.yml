@@ -445,6 +445,11 @@ retentionPolicy:
       blobs.
     placeholder: e.g. 30
     helper: Automation runs older than this will be deleted.
+  automationVersions:
+    title: Automation versions
+    description: 'Delete saved versions of automations that are older than the retention period, except versions still in use: the live and recently deployed ones, ones a run used, and the newest twenty.'
+    placeholder: e.g. 365
+    helper: Older versions that nothing uses any more will be deleted.
   auditLogs:
     title: Audit logs
     description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.

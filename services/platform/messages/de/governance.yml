@@ -457,6 +457,11 @@ retentionPolicy:
       Variablen-/Output-Blobs ein.
     placeholder: z. B. 30
     helper: Automatisierungsläufe, die älter sind, werden gelöscht.
+  automationVersions:
+    title: Automatisierungsversionen
+    description: 'Gespeicherte Versionen von Automatisierungen löschen, die älter als die Aufbewahrungsfrist sind – ausgenommen Versionen, die noch gebraucht werden: die Live-Version und die zuletzt live geschalteten, solche, die ein Lauf verwendet hat, und die neuesten zwanzig.'
+    placeholder: z. B. 365
+    helper: Ältere Versionen, die nichts mehr verwendet, werden gelöscht.
   auditLogs:
     title: Audit-Logs
     description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.

@@ -654,6 +654,11 @@ export const retentionPolicyConfigSchema = z.object({
    * states only. */
   agentRunsEnabled: z.boolean().optional(),
   agentRunsRetentionDays: z.number().int().nonnegative().optional(),
+  /** Saved automation versions older than this are removed — except the
+   * live one, the last ten deploys' versions, every version a run used,
+   * the newest twenty and the versions those were built from. */
+  automationVersionsEnabled: z.boolean().optional(),
+  automationVersionsRetentionDays: z.number().int().nonnegative().optional(),
   deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;

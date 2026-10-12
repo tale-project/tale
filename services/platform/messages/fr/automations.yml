@@ -609,6 +609,8 @@ editor:
     title: 'La version {version} n’existe pas'
     description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.
     openLatest: Ouvrir la plus récente
+    removedTitle: 'La version {version} a été supprimée'
+    removedDescription: La politique de rétention de ton organisation supprime les anciennes versions dont plus rien ne se sert. Ouvre plutôt la version la plus récente.
   controlFlowTitle: Contrôle du flux
   nodeSheetDescription: Modifie les champs de ce nœud, puis enregistre la
     modification ou abandonne-la.
@@ -829,6 +831,7 @@ restore:
 compare:
   title: 'Modifications de la v{from} à la v{to}'
   missing: 'Cette automatisation n’a pas de v{version}.'
+  removed: 'La v{version} a été supprimée par la politique de rétention.'
   backToVersions: Retour aux versions
   moreActions: 'Autres actions pour la v{version}'
   from:

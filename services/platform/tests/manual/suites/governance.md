@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 96 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 98 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -588,6 +588,22 @@ agent.
   (`settings.logs.integrity.awaitingSealNote`) appears at most right after
   the burst and is gone on a second click a few seconds later; no **Chain
   integrity broken** at any point.
+- [ ] `GOV-F67` · **Old automation versions leave when the period says so,
+  and never one still read** — On an automation with more than twenty saved
+  versions (save it twenty-five times), `policies-limits` → **Retention
+  policy** → **Edit retention policy** → **Automation versions**
+  (`governance.retentionPolicy.automationVersions.title`) is off and allows
+  90 to 3650 days; on an organization created by an earlier release it is
+  listed all the same, with the bundled bounds. Enable it at 90 days, save and
+  apply. With the first versions back-dated past the period (a database edit
+  on a test organization), the next cleanup removes them except the live one,
+  the last ten deployments', any a run used and the newest twenty; **Audit
+  logs** shows one **Automation version retention deleted**
+  (`settings.logs.audit.actionLabels.automation_version.retention_deleted`)
+  naming the automation and the versions. A link to a removed version opens
+  **Version N was removed** (`automations.editor.versionNotFound.removedTitle`)
+  and **Open latest** works; the next save is still one more than the latest.
+  **Restore the policy afterwards.**
 - [ ] `GOV-F33` · **A blocked erasure receipt tells the truth about the
   hold** — Place a custodian hold on a member (GOV-F7), then file an erasure
   request for them (GOV-F8) → the receipt is **Blocked** and its panel reads

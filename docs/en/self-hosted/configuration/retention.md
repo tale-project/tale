@@ -33,6 +33,8 @@ Most categories use days; `userTempHours` and `agentTempHours` use hours. The to
 
 Environment overrides are declared explicitly by the file’s root `_metadata.envNames`, with an optional `_metadata.envPrefix`. The bundled file maps `TALE_RETENTION_AUDIT_MIN` to `auditLog.min`, for example. A minimum override can only raise the floor; a maximum override can only lower the ceiling. Restart the backend processes after changing their environment.
 
+A release can add a category after an organization’s file was created; `automationVersions` is one. Until the organization’s file lists it, Tale takes that category’s bounds, and its environment bindings, from the bundled file. The bundled file maps `TALE_RETENTION_VERSIONS_MIN`, `TALE_RETENTION_VERSIONS_MAX` and `TALE_RETENTION_VERSIONS_DEFAULT` to it. Add the category to the organization’s own file to give it its own bounds; once the file has the category, the file wins. As for any change of bounds, the organization’s admin sees the proposal in **Policies & Limits** and applies it before cleanup enforces the category.
+
 Two floors are fixed: `auditLog.min` cannot be lower than 180 days, and `loginAttempt.min` cannot be lower than 90 days. Tale does not load a file that undercuts either. Until you correct it, the organization’s **Retention policy** shows no allowed ranges and cannot be saved, and the backend log names both floors. Scheduled cleanup keeps using the bounds applied last.
 
 The bundled file lets an organization keep audit logs for 180 to 3650 days. Upgrading Tale does not rewrite an organization’s file, so an organization created by an earlier release can still have `auditLog.min: 365`. Lower that value to allow a shorter audit retention, or raise it when a regulation or contract requires a longer audit history.
@@ -54,6 +56,8 @@ Test a shorter policy on synthetic data first. Confirm that a record inside the 
 The backend worker runs scheduled cleanup per organization. Threads, documents, contacts and external conversations have lifecycle handling; row-level categories can be deleted directly after their applicable retention and grace period. Do not assume that every deleted record appears in Trash.
 
 Each run deletes a limited number of records per category and organization: up to 50,000 chat filter events, and batches of up to 1,000 records for every other category. A larger backlog, such as a long history when a category is first enabled, takes several daily runs to clear.
+
+`automationVersions` removes saved automation versions that are older than its period. It is off until an admin enables it, and the bundled bounds allow 90 to 3650 days. Whatever the period, the cleanup keeps what the product still reads: the live version, the versions of the last ten deployments, every version a run used, the newest twenty versions, the versions those were restored from or based on, and versions saved by a person under a legal hold. A version number is never reused. The cleanup writes one audit event for each automation that lost versions, naming them.
 
 Audit retention is also organization-scoped. It removes the oldest eligible prefix of that organization’s audit chain, stopping when a held row must remain. One tenant’s shorter window does not shorten another tenant’s history.
 

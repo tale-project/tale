@@ -275,6 +275,8 @@ Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wi
 
 **Versionen** zeigt, was live läuft und wie die Automatisierung dorthin kam. Die Karte oben nennt die Live-Version, seit wann sie live ist, wer sie live geschaltet hat und wie, etwa **in der App** oder **mit Claude Code über MCP**, und wie viele ihrer Läufe noch in Arbeit sind. Diese Läufe enden auf der Version, mit der sie gestartet sind, egal was danach live geht. **v1 mit v2 vergleichen** zeigt, was die Live-Version gegenüber der ersetzten geändert hat. Ist noch keine Version live, bietet die Karte an, die neueste live zu schalten.
 
+Versionen bleiben bestehen, bis du die Automatisierung löschst – es sei denn, ein Admin legt für Automatisierungsversionen einen [Aufbewahrungszeitraum](/de/platform/admin/governance/policies-and-limits) fest. Dieser entfernt alte Versionen, die nichts mehr verwendet; die Live-Version, die Versionen der letzten Live-Schaltungen, jede Version, die ein Lauf verwendet hat, und die neuesten zwanzig bleiben immer erhalten.
+
 <Frame caption="Der Tab Versionen: oben die Live-Version, darunter jede gespeicherte Version mit Notiz, Autor, Änderungen und Tests.">
 
 ![Der Tab Versions von Weekly digest: Eine Karte meldet v3 is live, seit wann und von wem, mit Compare v2 with v3 und Roll back to v2; darunter listet die Tabelle Versions v4 bis v1 mit ihren Notizen, You in the app, dem Datum, Änderungen wie 1 changed und 1 renamed sowie No result unter Tests.](/images/platform/automation-versions.webp)

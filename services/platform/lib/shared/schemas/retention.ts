@@ -27,6 +27,11 @@ export const RETENTION_CATEGORIES = [
   // Task-ops: per-task agent run records (prompt traces ride external runs
   // later; the run rows themselves carry task/agent linkage worth bounding).
   'agentRuns',
+  // Saved automation versions: every save appends one. The sweep keeps the
+  // live version, the last ten deploys' versions, every version a run used,
+  // the newest twenty and the versions those were built from, whatever
+  // their age — the category only bounds the rest.
+  'automationVersions',
 ] as const;
 
 export type RetentionCategory = (typeof RETENTION_CATEGORIES)[number];

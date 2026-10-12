@@ -48,7 +48,11 @@ import { readDocument } from '../../lib/document';
 import type { VersionCompareView } from '../../lib/editor-search';
 import { isMissingAutomationRead } from '../../lib/errors';
 import { nodeCatalogView } from '../../lib/node-face';
-import { changeFlags, compareOptions } from '../../lib/version-changes';
+import {
+  changeFlags,
+  compareOptions,
+  versionBefore,
+} from '../../lib/version-changes';
 import { AUTOMATION_WORKBENCH_COMPACT_QUERY } from '../../lib/workbench';
 import { yamlSource } from '../../lib/yaml-source';
 import {
@@ -127,8 +131,15 @@ export function VersionComparePage({
   const [restoring, setRestoring] = useState<number | null>(null);
   const [triggerOff, setTriggerOff] = useState<DeployedTrigger | null>(null);
 
+  const versionsQuery = useAutomationVersions(organizationId, automationSlug);
   const fromVersion =
-    search.from ?? (version !== null && version > 1 ? version - 1 : undefined);
+    search.from ??
+    (version === null
+      ? undefined
+      : versionBefore(
+          version,
+          versionsQuery.data?.map((entry) => entry.version),
+        ));
   const latestQuery = useAutomation(organizationId, automationSlug);
   const afterQuery = useAutomationAtVersion(
     organizationId,
@@ -140,7 +151,6 @@ export function VersionComparePage({
     automationSlug,
     fromVersion,
   );
-  const versionsQuery = useAutomationVersions(organizationId, automationSlug);
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const catalog = useMemo(
     () =>
@@ -204,13 +214,22 @@ export function VersionComparePage({
   const view: VersionCompareView =
     search.view ?? (compact ? 'changes' : 'graph');
 
+  // A number below the latest that is gone was removed by the retention
+  // policy (numbers are never reused); a higher one never existed.
+  const wasRemoved = (gone: number | null | undefined): boolean =>
+    gone !== null &&
+    gone !== undefined &&
+    latest !== undefined &&
+    gone < latest;
   // An address that names no version, or a version this automation does
   // not have, is a dead end with a way back.
   const missingState = (
     <ContentArea variant="narrow">
       <EmptyState
         icon={SearchX}
-        title={t('compare.missing', { version: version ?? '?' })}
+        title={t(wasRemoved(version) ? 'compare.removed' : 'compare.missing', {
+          version: version ?? '?',
+        })}
         headingLevel={2}
         action={
           <Button asChild variant="secondary">
@@ -282,7 +301,10 @@ export function VersionComparePage({
       return (
         <Alert
           variant="warning"
-          description={t('compare.missing', { version: fromVersion })}
+          description={t(
+            wasRemoved(fromVersion) ? 'compare.removed' : 'compare.missing',
+            { version: fromVersion },
+          )}
         />
       );
     }

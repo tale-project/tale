@@ -71,6 +71,8 @@ Wähle im Bereich der Aufbewahrungsrichtlinie **Bearbeiten** und richte die ben�
 
 Prüfe vor einer Änderung die Mindest- und Höchstgrenzen des Deployments. Änderungen mit Prüfung oder Wartezeit erscheinen als Vorschläge oder vorgemerkte Änderungen. Lies ihren Wirksamkeitszeitpunkt, statt von einer sofortigen Anwendung auszugehen.
 
+**Automatisierungsversionen** ist ausgeschaltet, bis du die Kategorie aktivierst. Ist sie an, werden gespeicherte Versionen gelöscht, die älter als der Zeitraum sind. Ausgenommen sind die Live-Version, die Versionen der letzten zehn Live-Schaltungen, jede Version, die ein Lauf verwendet hat, die neuesten zwanzig Versionen, die Versionen, aus denen diese wiederhergestellt wurden oder auf denen sie basieren, und Versionen, die eine Person unter Aufbewahrungssperre gespeichert hat. Eine Versionsnummer wird nie erneut vergeben, und ein Link auf eine entfernte Version sagt, dass es sie nicht mehr gibt.
+
 Die Schonfrist für Löschungen ist das Wiederherstellungsfenster unterstützter vorläufig gelöschter Datensätze. Ein positiver Wert lässt Zeit für die Wiederherstellung im [Papierkorb](/de/platform/admin/governance/trash); null erlaubt die sofortige endgültige Bereinigung. Nicht jede Kategorie lässt sich wiederherstellen. Ein [Legal Hold](/de/platform/admin/governance/legal-hold) schützt betroffene Daten vor Bereinigung.
 
 Für selbst gehostete Deployments beschreibt die [Aufbewahrungskonfiguration](/de/self-hosted/configuration/retention) Betreiberkontrollen und Unterschiede zwischen Kategorien. Leite aus einer deaktivierten Richtlinie oder einem angezeigten Zeitraum allein keine Archivgarantie ab.

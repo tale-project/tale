@@ -147,9 +147,9 @@ started from, or the one a restore copies) and what it changed against the versi
 before it: how many nodes were added, removed, changed and renamed, and whether the inputs,
 the output, the description, the tests or the package data changed — never the content itself.
 The first version counts the nodes it starts with. Versions are kept until the automation is
-deleted. A history is read a page at a time, newest first, each version with who saved it and
-through which door; a version saved before doors were recorded reads its door from who saved
-it, marked as inferred.
+deleted, or until governance sets a period for them (`AUTO-R51`). A history is read a page at a
+time, newest first, each version with who saved it and through which door; a version saved
+before doors were recorded reads its door from who saved it, marked as inferred.
 
 - **Example**: Ada opens version 5, adds a step and saves → version 6 is based on 5 and reads
   "1 node added". Her coding agent then saves version 7 without saying where it started → it
@@ -282,6 +282,27 @@ the current one. Running a draft's tests, or only some of a version's, records n
 - **Example**: Ada runs the tests of v4 by hand and one fails → v4 reads as failing, its
   report names the failing test and says Ada ran them by hand; the report of the save before is
   gone.
+
+### AUTO-R51 · Governance can remove old versions, never one that is still read
+
+When an organization sets a period for automation versions, the daily cleanup removes the
+versions saved before it, except those the product still reads: the live version, the versions
+of the last ten deployments, every version a run used, the newest twenty, the versions any of
+those was restored from or based on, and the versions a person under a legal hold saved (an API
+key's included). An organization under a legal hold is not cleaned at all. A version number is
+never used again: the newest twenty stay, so the next version is always one more than the
+latest. Each automation that loses versions gets one audit row naming them. A run starting on a
+version and the cleanup reaching it at the same moment agree: the cleanup waits for the run and
+keeps the version, or the run finds the version gone and does not start. Off by default; the
+bounds allow 90 to 3650 days.
+
+- **Example**: Ada's automation has 40 versions, a 90-day period, and versions 1 to 20 are
+  older than that. Version 5 is live, and version 9 is the one it was restored from → the
+  cleanup removes versions 1 to 4, 6 to 8 and 10 to 20, and keeps 5, 9 and 21 to 40. The next
+  save is version 41.
+- **Example**: A schedule fires on version 2 while the cleanup is removing it → whichever
+  reaches the row first decides: the run starts and version 2 stays, or version 2 goes and the
+  schedule finds nothing to start.
 
 ## Starting a run
 

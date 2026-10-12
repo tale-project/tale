@@ -26,3 +26,5 @@ notificationsEnabled: true
 notificationsRetentionDays: 30
 agentRunsEnabled: false
 agentRunsRetentionDays: 180
+automationVersionsEnabled: false
+automationVersionsRetentionDays: 3650

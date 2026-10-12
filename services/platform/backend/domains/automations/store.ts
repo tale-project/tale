@@ -738,6 +738,10 @@ export async function versionRow(
   organizationId: string,
   name: string,
   version: number | undefined,
+  /** `'key-share'`: the row cannot be removed until the transaction ends —
+   * a run starting on a version, so that a retention sweep reading its kept
+   * set afterwards sees that run. */
+  lock?: 'key-share',
 ): Promise<VersionRow | null> {
   // Omitted version = the LATEST saved one (the 0.4 `versionRow` contract);
   // in-tx callers always resolve a concrete version first.
@@ -753,6 +757,7 @@ export async function versionRow(
       AND (${version ?? null}::int IS NULL OR version = ${version ?? null})
     ORDER BY version DESC
     LIMIT 1
+    ${lock === 'key-share' ? sql`FOR KEY SHARE` : sql``}
   `;
   return rows[0] ?? null;
 }
@@ -3416,7 +3421,14 @@ export async function beginRunInTx(
     }
     const version = args.version ?? deployed;
     if (version === undefined) return null;
-    const row = await versionRow(tx, args.organizationId, args.name, version);
+    // Key-share: the version cannot be removed under the run being started.
+    const row = await versionRow(
+      tx,
+      args.organizationId,
+      args.name,
+      version,
+      'key-share',
+    );
     if (!row) return null;
     if (isRecord(row.document) && isRecord(row.document.inputs)) {
       // A saved version is immutable, so its compiled schema is cached by

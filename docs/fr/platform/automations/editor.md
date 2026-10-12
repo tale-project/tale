@@ -275,6 +275,8 @@ Un déclencheur utilise aussi la version déployée. Configure-le lorsque tu es 
 
 **Versions** montre ce qui s’exécute en service et comment l’automatisation en est arrivée là. La carte du haut nomme la version en service, depuis quand elle l’est, qui l’a mise en service et comment, par exemple **dans l’app** ou **avec Claude Code via MCP**, et combien de ses exécutions sont encore en cours. Ces exécutions se terminent sur la version avec laquelle elles ont démarré, quelle que soit la version mise en service ensuite. **Comparer la v1 avec la v2** montre ce que la version en service a changé par rapport à celle qu’elle a remplacée. Tant qu’aucune version n’est en service, la carte propose de mettre en service la plus récente.
 
+Les versions restent jusqu’à la suppression de l’automatisation, sauf si un admin définit une [période de rétention](/fr/platform/admin/governance/policies-and-limits) pour les versions d’automatisation. Elle supprime les anciennes versions dont plus rien ne se sert ; la version en service, les versions des dernières mises en service, toute version utilisée par une exécution et les vingt plus récentes restent toujours.
+
 <Frame caption="L’onglet Versions : la version en service en haut, puis chaque version enregistrée avec sa note, son auteur, ses modifications et ses tests.">
 
 ![L’onglet Versions de Weekly digest : une carte indique v3 is live, depuis quand et par qui, avec Compare v2 with v3 et Roll back to v2 ; en dessous, le tableau Versions liste v4 à v1 avec leurs notes, You in the app, la date, des modifications comme 1 changed et 1 renamed, et No result sous Tests.](/images/platform/automation-versions.webp)

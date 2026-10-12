@@ -1416,6 +1416,7 @@ logs:
       workflow_trigger_log.retention_deleted: Automatisierungs-Trigger-Log per Aufbewahrung gelöscht
       audit_log.retention_deleted: Audit-Log per Aufbewahrung gelöscht
       automation_run.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
+      automation_version.retention_deleted: Automatisierungsversion per Aufbewahrung gelöscht
       agent_run.retention_deleted: Agentenlauf per Aufbewahrung gelöscht
       message_feedback.retention_deleted: Nachrichten-Feedback per Aufbewahrung gelöscht
       notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
