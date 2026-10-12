@@ -476,7 +476,11 @@ describe('CLI command test targets', () => {
     const directory = fileURLToPath(new URL('../tests/', import.meta.url));
     const suites: string[] = [];
     for await (const file of new Bun.Glob('*.test.ts').scan(directory)) {
-      if (file === 'smoke.test.ts') continue;
+      // The smoke suite, and the suite for its parent-directory fixture, run
+      // their own binary; every other command suite shares the selector.
+      if (file === 'smoke.test.ts' || file === 'smoke-fixture.test.ts') {
+        continue;
+      }
       const contents = await readFile(resolve(directory, file), 'utf8');
       expect(contents, file).not.toContain('src/index.ts');
       if (!contents.includes('process.env.TALE_BINARY')) continue;
