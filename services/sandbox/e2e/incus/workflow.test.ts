@@ -171,6 +171,15 @@ describe('the workflow', () => {
     );
   });
 
+  test('a push supersedes a pull request run, and a dispatch never cancels another', () => {
+    const concurrency = record(document.concurrency, 'concurrency');
+    expect(concurrency['cancel-in-progress']).toBe(true);
+    const group = text(concurrency.group, 'the concurrency group');
+    expect(group).toContain("github.event_name == 'workflow_dispatch'");
+    expect(group).toContain('github.run_id');
+    expect(group).toContain('github.ref');
+  });
+
   test('a pull request runs on the hosted runner; a dispatch names its runner', () => {
     expect(text(job['runs-on'], 'runs-on')).toBe(
       "${{ inputs.runner || 'ubuntu-latest' }}",

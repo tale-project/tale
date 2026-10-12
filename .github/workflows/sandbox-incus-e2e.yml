@@ -49,8 +49,10 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes its run; dispatches are each their
+# own (one of suite A must not cancel one of suite B).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 env:
