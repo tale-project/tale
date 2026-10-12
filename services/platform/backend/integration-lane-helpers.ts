@@ -20,6 +20,14 @@ export const ITEST_VECTOR_WIDTH = 256;
 export type RecordCheck = (name: string, ok: boolean, detail: string) => void;
 
 /**
+ * For assertions of separately committed, sequential audit writes. The
+ * migration0194 writer transaction witness survives timestamp ties and
+ * asynchronous sealing. Rows from one transaction have no causal order;
+ * ts/id only break those ties (or order legacy rows without a writer xid).
+ */
+export const AUDIT_WRITE_ORDER = 'writer_xid ASC NULLS FIRST, ts ASC, id ASC';
+
+/**
  * `ITEST_REQUIRE_ALL_LANES=1` asks for full coverage, the mode a gating run
  * uses: the harness refuses to start without what every lane needs
  * ({@link fullCoverageBlockers}), and a check that cannot run fails instead
