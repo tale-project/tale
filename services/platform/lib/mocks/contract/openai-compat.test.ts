@@ -270,6 +270,40 @@ describe('chat/completions override', () => {
     },
   );
 
+  test('a work trigger asked again after an earlier turn used tools calls the tool again, not the closing reply', async () => {
+    const wire = (messages: unknown[]) =>
+      post('/v1/chat/completions', { model: 'm', stream: true, messages });
+    const trigger = `${MOCK_TRIGGERS.runLongCode} again`;
+    const call = {
+      id: 'call_1',
+      type: 'function',
+      function: { name: 'run_code', arguments: '{}' },
+    };
+    const second = events(
+      await (
+        await wire([
+          { role: 'user', content: `${MOCK_TRIGGERS.runLongCode} first` },
+          { role: 'assistant', content: null, tool_calls: [call] },
+          {
+            role: 'tool',
+            tool_call_id: 'call_1',
+            content: '{"status":"cancelled"}',
+          },
+          { role: 'assistant', content: 'It was stopped.' },
+          { role: 'user', content: trigger },
+        ])
+      ).text(),
+    );
+
+    const calls = second.flatMap((chunk) => {
+      const choice = (
+        chunk.choices as { delta?: { tool_calls?: unknown[] } }[]
+      )[0];
+      return choice?.delta?.tool_calls ?? [];
+    });
+    expect(calls).toHaveLength(1);
+  });
+
   test('a plain stream names no upstream and no region', async () => {
     const res = await post('/v1/chat/completions', {
       model: 'm',

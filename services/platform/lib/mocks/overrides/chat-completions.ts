@@ -232,6 +232,24 @@ function isToolResume(messages: ParsedMessage[]): boolean {
 }
 
 /**
+ * Whether the turn in progress — the messages after the last user message —
+ * already carries a tool call or result: a resume of this turn's own tool
+ * round. A work scenario answers its closing reply only then; the tools of an
+ * earlier turn of the conversation must not make a new request for the same
+ * work look like a resume (a second request after Stop would never run).
+ */
+function isToolResumeInTurn(messages: ParsedMessage[]): boolean {
+  let lastUser = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') {
+      lastUser = i;
+      break;
+    }
+  }
+  return isToolResume(messages.slice(lastUser + 1));
+}
+
+/**
  * The scripted structured output when this request is the task-triage
  * workflow's `score` step (its prompt carries the candidate-list marker AND a
  * seeded task title), else null. Checked across every user message because the
@@ -272,7 +290,7 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
     last.includes(MOCK_TRIGGERS.runLongCode) ||
     last.includes(MOCK_TRIGGERS.useWorkspace)
   ) {
-    if (resume) return 'workDone';
+    if (isToolResumeInTurn(messages)) return 'workDone';
     return last.includes(MOCK_TRIGGERS.makeFile)
       ? 'makeFile'
       : last.includes(MOCK_TRIGGERS.makeSpreadsheet)
