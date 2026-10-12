@@ -95,6 +95,7 @@ export const ACTIONABLE_INBOX_KEYS = [
   'agentRunFailed',
   'agentRunFailedBody',
   'agentRunFailedBudgetBody',
+  'agentRunFailedPolicyBody',
   'agentRunFailedSetupBody',
   'email.cta',
   'email.openLink',
@@ -179,6 +180,8 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'The agent couldn\'t finish "{title}". Open the task to see why and start it again.',
     agentRunFailedBudgetBody:
       'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.',
+    agentRunFailedPolicyBody:
+      'Your organization\'s content policy stopped the agent on "{title}". Change the task or ask an Admin about the policy, then start the agent again.',
     agentRunFailedSetupBody:
       'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project\'s Agents tab.',
     'email.cta': 'Open in Tale',
@@ -265,6 +268,8 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.',
     agentRunFailedBudgetBody:
       'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.',
+    agentRunFailedPolicyBody:
+      'Die Inhaltsrichtlinie deiner Organisation hat den Agenten bei "{title}" gestoppt. Passe die Aufgabe an oder frag einen Admin nach der Richtlinie, und starte den Agenten dann erneut.',
     agentRunFailedSetupBody:
       'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.',
     'email.cta': 'In Tale öffnen',
@@ -350,6 +355,8 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.',
     agentRunFailedBudgetBody:
       'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.',
+    agentRunFailedPolicyBody:
+      'La politique de contenu de ton organisation a arrêté l’agent sur « {title} ». Modifie la tâche ou interroge un admin sur cette politique, puis relance l’agent.',
     agentRunFailedSetupBody:
       'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.',
     'email.cta': 'Ouvrir dans Tale',

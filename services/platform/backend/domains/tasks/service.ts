@@ -4682,6 +4682,7 @@ export async function dispatchMentionedProjectAgent(
       execId: string;
       sessionId: string;
       harness: string;
+      engine: string;
       model: string;
       modelProvider: string | null;
       deadlineAt: number;
@@ -4689,7 +4690,7 @@ export async function dispatchMentionedProjectAgent(
     }[]
   >`
     SELECT id, agent_id AS "agentId", status, exec_id AS "execId",
-           session_id AS "sessionId", harness, model,
+           session_id AS "sessionId", harness, engine, model,
            model_provider AS "modelProvider",
            deadline_at_ms::float8 AS "deadlineAt",
            started_by AS "startedBy"
@@ -4699,6 +4700,11 @@ export async function dispatchMentionedProjectAgent(
     LIMIT 1
   `;
   const run = runs[0];
+  // The native run a comment replaces, when the live run is one: a native
+  // turn takes no word mid-way, so the comment stops it and starts the next
+  // run with the comment as its message — the idle lane below, inside one
+  // savepoint with the stop.
+  let replacedNativeRun: { id: string; agentId: string } | undefined;
   if (run !== undefined) {
     // A queued run needs nothing (its start reads the brief after this
     // write commits); a live run of an UNMENTIONED instance is never
@@ -4706,6 +4712,18 @@ export async function dispatchMentionedProjectAgent(
     if (run.status !== 'running' || !mentionedAgentIds.has(run.agentId)) {
       return;
     }
+    if (run.engine === 'native') {
+      // Stopping and restarting is working the task: the work gate's alone.
+      if (!mayWork) {
+        console.warn(
+          `[tasks] agent mention on ${args.task.id} stays a plain mention (the author may not work this task)`,
+        );
+        return;
+      }
+      replacedNativeRun = { id: run.id, agentId: run.agentId };
+    }
+  }
+  if (run !== undefined && replacedNativeRun === undefined) {
     // Steering is the work gate's, and the run's own starter's.
     if (!mayWork && run.startedBy !== args.auth.userId) {
       console.warn(
@@ -4787,6 +4805,14 @@ export async function dispatchMentionedProjectAgent(
     | undefined;
   for (const mention of args.mentions) {
     if (mention.type !== 'agent') continue;
+    // Replacing a native run restarts ITS agent, whichever agent the
+    // comment names first.
+    if (
+      replacedNativeRun !== undefined &&
+      mention.id !== replacedNativeRun.agentId
+    ) {
+      continue;
+    }
     const candidates = await tx<
       {
         id: string;
@@ -4823,6 +4849,13 @@ export async function dispatchMentionedProjectAgent(
     // reassignment with it: the text stays a plain mention, as with the
     // lane's other refusals, and the comment or task still saves.
     await tx.savepoint(async (sp) => {
+      if (replacedNativeRun !== undefined) {
+        await cancelAgentRunInTx(sp, {
+          organizationId: args.auth.organizationId,
+          runId: replacedNativeRun.id,
+          taskId: args.task.id,
+        });
+      }
       if (
         args.task.assigneeType !== 'agent' ||
         args.task.assigneeId !== agent.id

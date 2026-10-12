@@ -1,9 +1,11 @@
 import type { Sql } from 'postgres';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { CHAT_GENERATION_STALE_MS } from '../chat/watchdogs.ts';
 import { releaseProjectAgentSessionSlot } from '../sandbox/sessions.ts';
 import {
   failAgentRun,
+  failAgentRunFromTurn,
   listOverdueAgentRuns,
   listParkedAgentRunOrganizations,
   wakeOrganizationParkedAgentRun,
@@ -11,6 +13,51 @@ import {
 
 /** Parked runs one watchdog tick wakes per organization (see the wake). */
 const PARKED_WAKES_PER_TICK = 4;
+
+/** How long a native run may be `running` with no transcript at all — the
+ * job claimed it and died before opening one — before it is failed. */
+const NATIVE_OPEN_GRACE_MS = 5 * 60_000;
+/** How long a native run's turn may be over (or not yet begun) before its
+ * settle is taken for lost. The turn ends, then the host settles within
+ * seconds; this is the slack for a slow database, not for work. */
+const NATIVE_SETTLE_GRACE_MS = 2 * 60_000;
+
+/**
+ * Native runs whose turn is gone: `running`, with no engine to ask — a
+ * native run has no exec and no op row — so the question is asked of its
+ * transcript's generation, the row a live turn keeps beating. Three ways to
+ * be lost:
+ *  - the job claimed the run and died before it opened a transcript;
+ *  - the transcript's turn is over, or never began, yet the run was not
+ *    settled: the host died between the two;
+ *  - the turn's heartbeat went silent for as long as a chat reply's may
+ *    (`CHAT_GENERATION_STALE_MS`, the window every tool of a turn ends well
+ *    inside): the process was killed mid-turn.
+ * The chat generation sweep clears a silent generation too; either order
+ * ends with the run failed here.
+ */
+async function listLostNativeRuns(
+  sql: Sql,
+  limit = 50,
+): Promise<{ id: string; organizationId: string; execId: string }[]> {
+  const now = Date.now();
+  return sql<{ id: string; organizationId: string; execId: string }[]>`
+    SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId"
+    FROM app.project_agent_runs r
+    LEFT JOIN app.generations g ON g.thread_id = r.thread_id
+    WHERE r.engine = 'native' AND r.status = 'running'
+      AND (
+        (r.thread_id IS NULL
+          AND r.updated_at_ms < ${now - NATIVE_OPEN_GRACE_MS})
+        OR (r.thread_id IS NOT NULL AND g.thread_id IS NULL
+          AND r.updated_at_ms < ${now - NATIVE_SETTLE_GRACE_MS})
+        OR (g.thread_id IS NOT NULL
+          AND g.heartbeat_at_ms < ${now - CHAT_GENERATION_STALE_MS})
+      )
+    ORDER BY r.updated_at_ms
+    LIMIT ${limit}
+  `;
+}
 
 /**
  * The task-agent lane's 2-minute backstops — the 0.5 twins of
@@ -52,6 +99,17 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
     });
     if (!didFail) continue;
     failed += 1;
+    // A native run has no exec to stop and no worker slot to free: ending
+    // its turn is the flag a Stop sets on its transcript's generation.
+    if (run.engine === 'native') {
+      if (run.threadId !== null) {
+        await sql`
+          UPDATE app.generations SET cancel_requested = true
+          WHERE thread_id = ${run.threadId} AND org_id = ${run.organizationId}
+        `;
+      }
+      continue;
+    }
     // Stop the process, not just its ledger: the exec keeps running until
     // its own end otherwise (its gateway key is revoked, so it grinds on
     // auth errors), burning the slot this sweep is about to free. Best-
@@ -77,6 +135,26 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
       organizationId: run.organizationId,
       agentId: run.agentId,
     });
+  }
+
+  // A native run whose turn is gone fails as interrupted — retried, like a
+  // harness run whose exec vanished — and its leftover turn, if it still
+  // runs, is told to stop.
+  for (const run of await listLostNativeRuns(sql)) {
+    const didFail = await failAgentRunFromTurn(sql, {
+      runId: run.id,
+      execId: run.execId,
+      error: 'the agent run was interrupted before it finished',
+      failureCode: 'turn_crashed',
+    });
+    if (!didFail) continue;
+    failed += 1;
+    await sql`
+      UPDATE app.generations SET cancel_requested = true
+      WHERE thread_id = (
+        SELECT thread_id FROM app.project_agent_runs WHERE id = ${run.id}
+      )
+    `;
   }
 
   const overdueParked = await sql<

@@ -710,8 +710,8 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   sandbox service: send `e2e:make-spreadsheet` → The timeline shows
   **Running Python in a light sandbox** (`chat.thinking.runningCode`); a
   **planets.xlsx** card appears under the reply and its preview shows the
-  Planets sheet. Settings > Sandboxes lists a row with your name and **Chat
-  sandbox** (`sandboxes.chatSandbox`); send `e2e:make-spreadsheet` again in
+  Planets sheet. Settings > Sandboxes lists a row with your name and **Light
+  sandbox** (`sandboxes.lightSandbox`); send `e2e:make-spreadsheet` again in
   the same chat → still one such row. Six minutes after the last run, refresh
   → the row is gone.
 - [ ] `CHAT-F69` · **The lightest way that does the job** — Mode B, one new

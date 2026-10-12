@@ -1791,7 +1791,7 @@ standardAgent:
   description: Der Agent, den Tale in jedem Projekt ohne eigene Agenten bereitstellt. So kann jeder, der das Projekt öffnen kann, ihm eine Aufgabe übergeben, auch Mitglieder.
   enabledLabel: Standard-Agenten bereitstellen
   harnessLabel: Agent-Laufzeit
-  harnessHint: Automatisch nutzt Claude Code oder die Agent-Laufzeit, an die ein Abo-Modell gebunden ist.
+  harnessHint: Automatisch arbeitet mit denselben Tools wie der Chat und übergibt an Claude Code oder an die Agent-Laufzeit, an die ein Abo-Modell gebunden ist, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht. Wähle eine Agent-Laufzeit, damit jede Aufgabe darauf läuft.
   modelLabel: Modell
   modelHint: Automatisch wählt ein empfohlenes Modell, das die Person nutzen darf, die die Aufgabe startet. Ein gewähltes Modell bleibt in Kraft, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
   automaticLabel: Automatisch
@@ -1801,6 +1801,7 @@ standardAgent:
   instructionsHint: Was der Standard-Agent immer beachten soll. Lass das Feld leer, um die eingebauten Anweisungen zu nutzen.
   instructionsPlaceholder: Eingebaute Anweisungen
   current: Für dich läuft er mit {harness} und {model}.
+  currentNative: Für dich arbeitet er mit {model} und übergibt an {harness}, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht.
   refusal:
     switchedOff: Der Standard-Agent ist ausgeschaltet.
     unreadable: Die gespeicherten Einstellungen können nicht gelesen werden. Versuche es erneut oder speichere sie noch einmal, um sie zu reparieren.

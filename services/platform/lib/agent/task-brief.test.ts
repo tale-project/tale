@@ -4,6 +4,8 @@ import {
   composeTaskBrief,
   discussionBeforeFeedback,
   handoffSection,
+  NATIVE_DELIVERY,
+  nativeInputsBlock,
   requesterFeedbackSection,
   requesterStartLine,
   TASK_REPORT_INSTRUCTION,
@@ -126,6 +128,62 @@ describe('the shared helpers', () => {
     );
     expect(handoffSection({ reason: ' why ', brief: ' what ' })).toMatch(
       /why\n\nIts brief for you:\n\nwhat/,
+    );
+  });
+});
+
+describe('nativeInputsBlock', () => {
+  const file = (name: string) => ({ ref: `s3:${name}`, name });
+
+  it('says nothing for a task with no files', () => {
+    expect(nativeInputsBlock({ attachments: [], outputs: [] })).toBeUndefined();
+  });
+
+  it('names each file with the ref a tool reads it by, attachments before deliverables', () => {
+    const text = nativeInputsBlock({
+      attachments: [file('brief.pdf')],
+      outputs: [file('deck.pptx')],
+    });
+    expect(text).toContain('- brief.pdf (ref: s3:brief.pdf)');
+    expect(text).toContain('- deck.pptx (ref: s3:deck.pptx)');
+    expect(text?.indexOf('brief.pdf')).toBeLessThan(
+      text?.indexOf('deck.pptx') ?? -1,
+    );
+    expect(text).toMatch(/SAME file name/);
+  });
+
+  it('keeps the revision rule out when there is no deliverable to revise', () => {
+    expect(
+      nativeInputsBlock({ attachments: [file('brief.pdf')], outputs: [] }),
+    ).not.toMatch(/SAME file name/);
+  });
+
+  it('says how many older deliverables it left out', () => {
+    expect(
+      nativeInputsBlock({
+        attachments: [],
+        outputs: [file('deck.pptx')],
+        omittedOutputs: 3,
+      }),
+    ).toContain('3 older deliverables stay on the task');
+  });
+});
+
+describe('a native brief', () => {
+  it('names its files and its delivery between the facts and the report', () => {
+    const text = composeTaskBrief({
+      brief: BRIEF,
+      inputsBlock: nativeInputsBlock({
+        attachments: [{ ref: 's3:a', name: 'a.pdf' }],
+        outputs: [],
+      }),
+      delivery: NATIVE_DELIVERY,
+    });
+    expect(text.indexOf('(ref: s3:a)')).toBeLessThan(
+      text.indexOf(NATIVE_DELIVERY),
+    );
+    expect(text.indexOf(NATIVE_DELIVERY)).toBeLessThan(
+      text.indexOf(TASK_REPORT_INSTRUCTION),
     );
   });
 });

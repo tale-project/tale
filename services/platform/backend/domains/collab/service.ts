@@ -1348,6 +1348,7 @@ export async function notifyTaskMentions(
  * reader's to start again, and the task says what happened. */
 const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
   budget: 'agentRunFailedBudgetBody',
+  policy: 'agentRunFailedPolicyBody',
   setup: 'agentRunFailedSetupBody',
   input: 'agentRunFailedInputBody',
   time_limit: 'agentRunFailedBody',

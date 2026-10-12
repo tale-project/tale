@@ -43,7 +43,7 @@ quota:
     project: Jede Aufgabe, an der ein Agent gleichzeitig arbeitet, läuft in einer eigenen Sandbox.
     workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
     render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
-    light: Chats führen Code in einer kleinen Wegwerf-Sandbox aus, um Dokumente und Diagramme zu erstellen; eine unbenutzte macht dem nächsten Chat Platz.
+    light: Chats und Aufgabenläufe führen Code in einer kleinen Wegwerf-Sandbox aus, um Dokumente und Diagramme zu erstellen; eine unbenutzte macht der nächsten Platz.
 cleanup:
   title: Bereinigung der Arbeitsbereiche
   description:
@@ -147,7 +147,7 @@ worker:
   agent: Worker {number}
   member: Mitglieder-Worker {number}
 deletedAgent: Gelöschter Agent
-chatSandbox: Chat-Sandbox
+lightSandbox: Leichte Sandbox
 devices:
   title: Geräte
   description:

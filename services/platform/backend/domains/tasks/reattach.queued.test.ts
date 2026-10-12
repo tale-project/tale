@@ -84,6 +84,30 @@ describe('recoverStuckQueuedTaskAgentRuns', () => {
     expect(typeof sent[0]?.data.execId).toBe('string');
   });
 
+  it('re-kicks a stranded native run on the native queue, not the harness’s [TASK-R34]', async () => {
+    const sent: SentJob[] = [];
+    fakeBoss(sent);
+    const sql = scriptedSql([
+      [
+        {
+          runId: 'run_n',
+          organizationId: 'org_1',
+          execId: 'exec_old',
+          engine: 'native',
+          agentPresent: true,
+        },
+      ],
+      [{ id: 'run_n' }],
+    ]);
+
+    await recoverStuckQueuedTaskAgentRuns(sql);
+
+    // The harness's start job would skip a native run, leaving it stranded
+    // again: the engine decides which start job wakes it.
+    expect(sent.map((job) => job.name)).toEqual(['task.agent_native']);
+    expect(sent[0]?.data.runId).toBe('run_n');
+  });
+
   it('does not re-kick when the claim is lost to a concurrent winner', async () => {
     const sent: SentJob[] = [];
     fakeBoss(sent);

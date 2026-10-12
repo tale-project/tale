@@ -761,7 +761,7 @@ describe('SandboxesSettings Destroy', () => {
     expect(within(bob).queryByText('Destroying')).not.toBeInTheDocument();
   });
 
-  it('names a chat’s light sandbox by its person and offers Destroy, not Pin', async () => {
+  it('names a light sandbox by its person and offers Destroy, not Pin', async () => {
     listing([
       {
         ...hibernatedRow,
@@ -780,7 +780,7 @@ describe('SandboxesSettings Destroy', () => {
     ]);
     const { user } = renderSettings();
     const row = await openRowMenu(user, 'Carla');
-    expect(within(row).getByText('Chat sandbox')).toBeVisible();
+    expect(within(row).getByText('Light sandbox')).toBeVisible();
     expect(
       await screen.findByRole('menuitem', { name: 'Destroy' }),
     ).toBeInTheDocument();

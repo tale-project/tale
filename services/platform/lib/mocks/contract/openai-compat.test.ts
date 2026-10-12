@@ -191,6 +191,14 @@ describe('chat/completions override', () => {
       'run_code',
       { language: 'python', code: MOCK_WORK_TOOLS.spreadsheetCode },
     ],
+    [
+      MOCK_TRIGGERS.useWorkspace,
+      'use_workspace',
+      {
+        reason: MOCK_WORK_TOOLS.workspaceReason,
+        brief: MOCK_WORK_TOOLS.workspaceBrief,
+      },
+    ],
   ])(
     'work trigger %s calls %s, then closes once the result is in',
     async (trigger, tool, args) => {

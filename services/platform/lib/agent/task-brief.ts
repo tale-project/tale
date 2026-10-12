@@ -50,7 +50,7 @@ export interface TaskHandoff {
   readonly brief: string;
 }
 
-export function requesterPhrase(requester: TaskRequester): string {
+function requesterPhrase(requester: TaskRequester): string {
   return requester.kind === 'automation'
     ? `the automation "${requester.name}"`
     : `${requester.name}, another agent of this project,`;
@@ -110,6 +110,54 @@ export function discussionBeforeFeedback<
   }
   return discussion;
 }
+
+/** A file a task holds, named for a turn that reads files by ref. */
+export interface TaskFileRef {
+  readonly ref: string;
+  readonly name: string;
+}
+
+/**
+ * How the task's files reach a native turn: nothing is staged on a disk, so
+ * each file is named with the ref its tools read it by. `run_code` copies a
+ * file into the light sandbox when its ref is among the call's `files`.
+ * Absent when the task holds no file.
+ */
+export function nativeInputsBlock(files: {
+  readonly attachments: readonly TaskFileRef[];
+  readonly outputs: readonly TaskFileRef[];
+  /** Older deliverables the task keeps but this brief leaves out. */
+  readonly omittedOutputs?: number;
+}): string | undefined {
+  const line = (file: TaskFileRef) => `- ${file.name} (ref: ${file.ref})`;
+  const omitted = files.omittedOutputs ?? 0;
+  if (files.attachments.length === 0 && files.outputs.length === 0) {
+    return undefined;
+  }
+  return [
+    'Task files — to read one, pass its ref in the `files` of a run_code call; it is copied to /agent/inputs/ before the program runs:',
+    ...(files.attachments.length > 0
+      ? ['Attached to the task by its people:', ...files.attachments.map(line)]
+      : []),
+    ...(files.outputs.length > 0
+      ? [
+          "The task's current deliverables, made by earlier runs:",
+          ...files.outputs.map(line),
+          ...(omitted > 0
+            ? [
+                `${omitted} older deliverables stay on the task and are left out here.`,
+              ]
+            : []),
+          'To revise a deliverable, start from its copy and make the updated file under the SAME file name — it replaces the previous version on the task.',
+        ]
+      : []),
+  ].join('\n');
+}
+
+/** How a native turn's deliverables leave it: through the tools that make
+ * files. */
+export const NATIVE_DELIVERY =
+  'Deliverables: make every file you produce with a tool — create_file, generate_image, or run_code writing to /agent/output/. Each file you make is attached to this task when you finish; a file only in your reply text is not.';
 
 /** The instruction every brief ends on. */
 export const TASK_REPORT_INSTRUCTION =

@@ -971,8 +971,8 @@ run.
   **Total organization sessions** (`sandboxes.limits.total`) counts it with the
   other three.
 - [ ] `SET-F84` · **A chat's light sandbox** — After a chat ran code
-  (CHAT-F68), its row reads your name with **Chat sandbox**
-  (`sandboxes.chatSandbox`) beneath it; the row menu offers **Destroy**
+  (CHAT-F68), its row reads your name with **Light sandbox**
+  (`sandboxes.lightSandbox`) beneath it; the row menu offers **Destroy**
   (`sandboxes.actions.destroy`) but no **Pin**. **Destroy** it → the row goes;
   the chat's next code run starts a fresh sandbox and still succeeds.
 

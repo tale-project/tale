@@ -94,6 +94,10 @@ export type TaskRunFailureCode =
   /** The org's spend cap refused the start — the cap only moves with the
    * period or an admin, so a retry would only be refused again. */
   | 'budget_exceeded'
+  /** The organization's content guardrails refused the task's brief or the
+   * agent's reply — a rule of the organization, which a retry meets again.
+   * Changing the task or the policy is a person's call. */
+  | 'policy_refused'
   /** The vendor answered 401 to a turn the subscription broker served: the
    * broker refreshed the account under the running turn, and the refresh
    * revoked the token the turn was started with. The account is healthy and
@@ -124,6 +128,7 @@ const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'equipment_missing',
   'input_missing',
   'budget_exceeded',
+  'policy_refused',
 ] satisfies TaskRunFailureCode[]);
 
 export function isAutoRetryableFailure(code: string | undefined): boolean {

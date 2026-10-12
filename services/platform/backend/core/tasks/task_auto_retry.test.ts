@@ -29,7 +29,7 @@ describe('isAutoRetryableFailure', () => {
     }
   });
 
-  it('never retries what a retry cannot change — a burned window, a gone agent, a missing skill, a gone attachment, a cap', () => {
+  it('never retries what a retry cannot change — a burned window, a gone agent, a missing skill, a gone attachment, a cap [TASK-R34]', () => {
     // A skill the run cannot reach is the agent's configuration: the retry
     // budget used to burn three runs on it before the author could act
     // (2026-09-26 evaluation, C-09). An attachment whose bytes left the
@@ -42,6 +42,8 @@ describe('isAutoRetryableFailure', () => {
       'equipment_missing',
       'input_missing',
       'budget_exceeded',
+      // The organization's own content policy refused the brief or the reply.
+      'policy_refused',
     ]) {
       expect(isAutoRetryableFailure(code), code).toBe(false);
     }

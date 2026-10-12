@@ -42,7 +42,12 @@ function fakeTx(answer: (text: string) => Row[]) {
     return Promise.resolve(answer(text));
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-  return { tx: tag as unknown as TransactionSql, calls };
+  return {
+    tx: Object.assign(tag, {
+      json: (value: unknown) => value,
+    }) as unknown as TransactionSql,
+    calls,
+  };
 }
 
 const KICK = {
@@ -67,6 +72,7 @@ describe('kickAgentRun — the standard agent runs what its policy says at the s
       harness: 'claude-code',
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
+      engine: 'harness',
     });
     const { tx, calls } = fakeTx((text) =>
       text.startsWith('INSERT INTO app.project_agent_runs')
@@ -118,6 +124,124 @@ describe('kickAgentRun — the standard agent runs what its policy says at the s
       expect(addJobInTx).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('kickAgentRun — which engine a run starts on [TASK-R30]', () => {
+  const serving = (engine: 'native' | 'harness') => ({
+    harness: 'claude-code',
+    model: 'claude-sonnet-5',
+    modelProvider: 'anthropic',
+    engine,
+  });
+
+  it.each([
+    [
+      'a person started a run the serving puts on the native engine',
+      'native',
+      {},
+      'native',
+      'task.agent_native',
+    ],
+    [
+      'an API key started it',
+      'native',
+      { startedBy: 'api-key:member-1' },
+      'native',
+      'task.agent_native',
+    ],
+    [
+      'the serving names the harness: a pinned runtime, a subscription model',
+      'harness',
+      {},
+      'harness',
+      'task.agent_turn',
+    ],
+    [
+      'a schedule started it: no person to act as',
+      'native',
+      { startedBy: 'trigger:t-1' },
+      'harness',
+      'task.agent_turn',
+    ],
+    [
+      'an automation put the agent to work',
+      'native',
+      {
+        startedVia: {
+          kind: 'automation',
+          runId: 'ar-1',
+          nodeId: 'n-1',
+          automation: 'Triage',
+        },
+      },
+      'harness',
+      'task.agent_turn',
+    ],
+    [
+      'another agent delegated it',
+      'native',
+      { startedVia: { kind: 'agent', runId: 'r-0', agentId: 'agent-2' } },
+      'harness',
+      'task.agent_turn',
+    ],
+    [
+      'the retry of a run that already handed its work over',
+      'native',
+      { handoff: { reason: 'needs a repository', brief: 'Clone and test.' } },
+      'harness',
+      'task.agent_turn',
+    ],
+  ] as const)(
+    'when %s, the run is %s → %s and queues %s',
+    async (_label, served, extra, engine, job) => {
+      vi.mocked(standardAgentServingForKick).mockResolvedValue(serving(served));
+      const { tx, calls } = fakeTx((text) =>
+        text.startsWith('INSERT INTO app.project_agent_runs')
+          ? [{ id: 'run-new' }]
+          : [],
+      );
+
+      await kickAgentRun(tx, { ...KICK, ...extra });
+
+      const insert = calls.find((call) =>
+        call.text.startsWith('INSERT INTO app.project_agent_runs'),
+      );
+      // The column's value rides after the harness in the insert's values.
+      const values = insert?.values ?? [];
+      expect(values[values.indexOf('claude-code') + 1]).toBe(engine);
+      expect(addJobInTx).toHaveBeenCalledWith(
+        tx,
+        job,
+        expect.objectContaining({ runId: 'run-new' }),
+        {},
+      );
+    },
+  );
+});
+
+describe('kickAgentRun — a retry carries the brief of the hand-over [TASK-R31]', () => {
+  it('writes the handoff on the retried run, so the harness reads the same brief', async () => {
+    vi.mocked(standardAgentServingForKick).mockResolvedValue({
+      harness: 'claude-code',
+      model: 'm',
+      modelProvider: 'p',
+      engine: 'native',
+    });
+    const { tx, calls } = fakeTx((text) =>
+      text.startsWith('INSERT INTO app.project_agent_runs')
+        ? [{ id: 'run-new' }]
+        : [],
+    );
+    const handoff = { reason: 'needs a repository', brief: 'Clone and test.' };
+
+    await kickAgentRun(tx, { ...KICK, trigger: 'auto_retry', handoff });
+
+    const insert = calls.find((call) =>
+      call.text.startsWith('INSERT INTO app.project_agent_runs'),
+    );
+    expect(insert?.text).toContain('handoff');
+    expect(insert?.values).toContainEqual(handoff);
+  });
 });
 
 describe('isStandardAgentRefusal', () => {

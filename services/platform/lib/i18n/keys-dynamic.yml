@@ -196,6 +196,7 @@ entries:
   - 'inbox.agentRunFailed'
   - 'inbox.agentRunFailedBody'
   - 'inbox.agentRunFailedBudgetBody'
+  - 'inbox.agentRunFailedPolicyBody'
   - 'inbox.agentRunFailedSetupBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are

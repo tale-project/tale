@@ -116,6 +116,7 @@ agentRun:
   runReadFailed: L’exécution de l’agent n’a pas pu être chargée. Réessaie.
   failure:
     budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
+    policy: La politique de contenu de ton organisation a arrêté cette exécution. Modifie la tâche pour qu’elle la respecte, ou interroge un admin sur cette politique — puis relance l’agent.
     setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
     input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
     time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.

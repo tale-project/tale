@@ -150,6 +150,15 @@ export interface TaskPayloads {
   'automation.liveness': Record<string, never>;
   /** One project-agent turn against a task (driver lands with 25b). */
   'task.agent_turn': { organizationId: string; runId: string; execId: string };
+  /** One project-agent run on the native engine: the whole turn, the model's
+   * tool rounds included, runs inside this job — the same loop a chat reply
+   * runs on, against a task. Its own queue, so a turn that lasts minutes
+   * never holds one of the harness starts' slots. */
+  'task.agent_native': {
+    organizationId: string;
+    runId: string;
+    execId: string;
+  };
   /** Wake ONE run parked because the sandbox host refused its start, when
    * the spawner said its place in line comes up: a no-op unless that run,
    * under that exec, is still parked. */
@@ -589,6 +598,12 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once LLM spend: the run ledger owns retries (auto-retry kicks a
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  // At-most-once model spend, like `chat.api_turn`: a turn lost with its
+  // worker settles through the native-run watchdog (a retryable failure the
+  // auto-retry takes up), never through a silent second run of the same
+  // exec. The hour covers the longest native turn — twelve tool rounds, each
+  // with a light sandbox call of up to three minutes.
+  'task.agent_native': { retryLimit: 0, expireInSeconds: 3_600 },
   // A wake claims its run or finds it gone: delivered twice, the second
   // finds nothing parked. A lost one leaves the watchdog's wake.
   'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
@@ -781,6 +796,9 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
     // behind it, and live turns past a batch were drained only in turns.
     'task.agent_turn',
     'task.agent_drive',
+    // A native run's whole turn: minutes of waiting on a model and a
+    // sandbox, one slot each.
+    'task.agent_native',
     'automation.agent_turn',
     'automation.agent_drive',
     // A step walks for up to its minute-long budget, or longer inside one
@@ -836,6 +854,9 @@ const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   ['automation.agent_turn', 8],
   ['task.agent_drive', 16],
   ['automation.agent_drive', 16],
+  // A native run waits on the model for nearly all of its minutes: many can
+  // share a worker.
+  ['task.agent_native', 16],
 ]);
 
 /** The agent queues whose slots the operator sets: a turn's start (a
@@ -883,4 +904,6 @@ export const TASK_WORKER_IDLE_POLL_SECONDS: ReadonlyMap<string, number> =
   new Map<TaskIdentifier, number>([
     ['task.agent_drive', 10],
     ['automation.agent_drive', 10],
+    // Enqueued with no delay, like a drive window: the insert wakes a slot.
+    ['task.agent_native', 10],
   ]);

@@ -46,7 +46,15 @@ const TASKS = [
   },
 ];
 
-function fakeTx(held = false): { tx: TransactionSql; statements: Statement[] } {
+function fakeTx(
+  held = false,
+  /** The transcript threads of the tasks' native runs, and the refs of the
+   * files those runs made. */
+  nativeRuns: { threadIds: string[]; fileRefs: string[] } = {
+    threadIds: [],
+    fileRefs: [],
+  },
+): { tx: TransactionSql; statements: Statement[] } {
   const statements: Statement[] = [];
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
@@ -66,10 +74,29 @@ function fakeTx(held = false): { tx: TransactionSql; statements: Statement[] } {
         return Promise.resolve(held ? [{ id: 'held' }] : []);
       return Promise.resolve([{ id: 'wf-run-1' }]);
     }
+    if (
+      text.startsWith(
+        'SELECT thread_id AS "threadId" FROM app.project_agent_runs',
+      )
+    ) {
+      return Promise.resolve(
+        nativeRuns.threadIds.map((threadId) => ({ threadId })),
+      );
+    }
+    if (
+      text.startsWith('UPDATE app.file_metadata SET') &&
+      text.includes('thread_id = ANY')
+    ) {
+      return Promise.resolve(nativeRuns.fileRefs.map((ref) => ({ ref })));
+    }
     if (text.startsWith('SELECT r.ref FROM unnest')) {
-      // `s3:shared` is still listed by a surviving task; only the other ref
-      // is orphaned.
-      return Promise.resolve([{ ref: 's3:only-mine' }]);
+      // `s3:shared` is still listed by a surviving task; every other ref is
+      // orphaned.
+      return Promise.resolve(
+        (values[0] as string[])
+          .filter((ref) => ref !== 's3:shared')
+          .map((ref) => ({ ref })),
+      );
     }
     return Promise.resolve([]);
   };
@@ -163,6 +190,68 @@ describe('retireTasksInTx [TASK-R13]', () => {
       organizationId: 'org_1',
       refs: ['s3:only-mine'],
     });
+  });
+});
+
+describe('retireTasksInTx — the transcripts of native runs [TASK-R35]', () => {
+  const NATIVE = { threadIds: ['run-thread-1'], fileRefs: ['s3:run-made'] };
+
+  it('ends the transcript threads and the files their runs made with the task', async () => {
+    const { tx, statements } = fakeTx(false, NATIVE);
+
+    await retireTasksInTx(tx, ARGS);
+
+    const trash = statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.file_metadata SET') &&
+        s.text.includes('thread_id = ANY'),
+    );
+    expect(trash?.text).toContain("lifecycle_status = 'trashed'");
+    expect(trash?.values).toContainEqual(['run-thread-1']);
+    const threadDeletes = statements.filter((s) =>
+      s.text.startsWith('DELETE FROM app.threads'),
+    );
+    expect(threadDeletes.map((s) => s.values)).toEqual([
+      [['thread-1']],
+      [['run-thread-1']],
+    ]);
+  });
+
+  it('ends the rows before it asks whether anything still holds the bytes, and releases them with the task’s own', async () => {
+    const { tx, statements } = fakeTx(false, NATIVE);
+
+    const result = await retireTasksInTx(tx, ARGS);
+
+    // A file a thread binds is held by the thread: only once its rows are
+    // trashed does the release see the bytes dead.
+    const trash = statements.findIndex(
+      (s) =>
+        s.text.startsWith('UPDATE app.file_metadata SET') &&
+        s.text.includes('thread_id = ANY'),
+    );
+    const orphanCheck = statements.findIndex((s) =>
+      s.text.startsWith('SELECT r.ref FROM unnest'),
+    );
+    expect(trash).toBeGreaterThan(-1);
+    expect(trash).toBeLessThan(orphanCheck);
+    expect(result.releasedRefs.toSorted()).toEqual([
+      's3:only-mine',
+      's3:run-made',
+    ]);
+  });
+
+  it('asks nothing about transcripts for a task whose runs never opened one', async () => {
+    const { tx, statements } = fakeTx();
+
+    await retireTasksInTx(tx, ARGS);
+
+    expect(
+      statements.some(
+        (s) =>
+          s.text.startsWith('UPDATE app.file_metadata SET') &&
+          s.text.includes('thread_id = ANY'),
+      ),
+    ).toBe(false);
   });
 });
 

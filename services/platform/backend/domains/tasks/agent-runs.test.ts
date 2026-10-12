@@ -7,6 +7,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   AGENT_RUN_FEEDBACK_EXCERPT_CHARS,
+  agentRunJobName,
   agentRunWorkerNumber,
   cancelAgentRunInTx,
   failAgentRun,
@@ -129,6 +130,66 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
       harness: 'opencode',
       deadlineAt: 1000,
     });
+  });
+});
+
+describe('cancelAgentRunInTx — a native run has no exec to reap [TASK-R33]', () => {
+  beforeEach(() => {
+    vi.mocked(recordTaskAgentRunLedgerEntry).mockReset();
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  const nativeRun = (threadId: string | null) => ({
+    id: 'run-1',
+    execId: 'exec-1',
+    sessionId: 'pa-1',
+    agentId: 'agent-1',
+    harness: 'claude-code',
+    engine: 'native',
+    threadId,
+    deadlineAt: 1000,
+  });
+
+  it('flags the turn on its transcript to stop, as a chat reply’s Stop does, and queues no drive cleanup', async () => {
+    const { tx, calls } = fakeTx((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [nativeRun('thread-1')]
+        : [],
+    );
+
+    await expect(cancelAgentRunInTx(tx, KEYS)).resolves.toBe(true);
+
+    const flag = calls.find((call) =>
+      call.text.startsWith(
+        'UPDATE app.generations SET cancel_requested = true',
+      ),
+    );
+    expect(flag?.values).toEqual(['thread-1', 'org-1']);
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(recordTaskAgentRunLedgerEntry).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ finalStatus: 'cancelled' }),
+    );
+  });
+
+  it('has nothing to flag for a run whose turn has not opened its transcript: the settle finds the run ended', async () => {
+    const { tx, statements } = fakeTx((text) =>
+      text.startsWith('UPDATE app.project_agent_runs') ? [nativeRun(null)] : [],
+    );
+
+    await expect(cancelAgentRunInTx(tx, KEYS)).resolves.toBe(true);
+
+    expect(
+      statements.some((text) => text.startsWith('UPDATE app.generations')),
+    ).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('agentRunJobName', () => {
+  it('names the start job of the engine that drives the run', () => {
+    expect(agentRunJobName('native')).toBe('task.agent_native');
+    expect(agentRunJobName('harness')).toBe('task.agent_turn');
   });
 });
 

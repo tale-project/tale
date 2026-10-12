@@ -173,6 +173,7 @@ import { checkTaskExternalStatusProjection } from './domains/tasks/external-stat
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
+import { checkNativeAgentRuns } from './domains/tasks/native-runs.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
@@ -65171,6 +65172,10 @@ async function main(): Promise<void> {
       [
         'checkAgentRunFailureNotice',
         () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkNativeAgentRuns',
+        () => checkNativeAgentRuns(sql, authCtx, record),
       ],
       [
         'checkTaskNotificationAccess',

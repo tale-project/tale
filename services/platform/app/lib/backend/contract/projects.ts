@@ -237,6 +237,9 @@ export interface ProjectsContract {
       modelLabel?: string;
       modelProvider?: string;
       source?: 'pinned' | 'preferred' | 'cheapest';
+      /** `native` works with the chat's own tools and hands over to the
+       * runtime when a task needs a full workspace; `harness` runs there. */
+      engine?: 'native' | 'harness';
     };
   };
   'projects/queries:listProjectDocuments': {
