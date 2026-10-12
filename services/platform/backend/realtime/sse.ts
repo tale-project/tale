@@ -30,9 +30,12 @@ const ERROR_BACKOFF_MS = 1_000;
  * unavailable: a restart takes seconds to a minute, so the streams of a
  * process stop polling a dead database every second, and a stream lags the
  * database's return by at most this. Inside the heartbeat interval, so an
- * idle lane still gets its heartbeats on time.
+ * idle lane still gets its heartbeats on time. Five seconds: a restart of
+ * three, polled on a ten-second ceiling, left hints stalled for up to ten more
+ * after the database answered (the tail polls a database that is down at no
+ * cost worth that wait).
  */
-const UNAVAILABLE_BACKOFF_MAX_MS = 10_000;
+const UNAVAILABLE_BACKOFF_MAX_MS = 5_000;
 /**
  * How long the database may stay unavailable before the streams say so to
  * error tracking — once per outage, at warning level. A managed upgrade
