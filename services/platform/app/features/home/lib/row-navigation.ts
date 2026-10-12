@@ -48,20 +48,40 @@ function isEditable(target: EventTarget | null): boolean {
 /**
  * The row ⌥↑/⌥↓ lead to from the open one: the previous or next item of the
  * list on screen — the first or last when nothing in it is open. `null`
- * when the keys are not this shortcut, or belong to a text field.
+ * when the keys belong to another handler, a text field or a dialog, or
+ * the navigator is hidden/inert.
  */
 export function adjacentRow(
   event: Pick<
     KeyboardEvent,
-    'key' | 'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'target'
+    | 'key'
+    | 'altKey'
+    | 'metaKey'
+    | 'ctrlKey'
+    | 'shiftKey'
+    | 'target'
+    | 'defaultPrevented'
   >,
   root: ParentNode,
 ): HTMLAnchorElement | null {
+  if (event.defaultPrevented) return null;
   if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
     return null;
   }
   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return null;
   if (isEditable(event.target)) return null;
+  if (
+    event.target instanceof Element &&
+    event.target.closest(
+      'dialog, [role="dialog"], [role="alertdialog"], [aria-modal="true"]',
+    )
+  )
+    return null;
+  if (
+    root instanceof Element &&
+    root.closest('[inert], [hidden], [aria-hidden="true"]')
+  )
+    return null;
   // The work lists only (`ol`) — the projects above them are doors, not items.
   const rows = Array.from(
     root.querySelectorAll<HTMLAnchorElement>(`ol ${ROW_LINK}`),

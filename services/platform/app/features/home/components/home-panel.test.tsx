@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -329,6 +330,71 @@ describe('HomeNavigator', () => {
     expect(
       within(stream()).getByRole('link', { current: 'page' }),
     ).toHaveAttribute('href', '/dashboard/org-1/chat/t1');
+  });
+
+  it('opens the adjacent Home row outside a modal and leaves editable shortcuts alone', () => {
+    render(
+      <>
+        <HomeNavigator organizationId="org-1" />
+        <input aria-label="Editor" />
+      </>,
+    );
+    const next = screen.getByRole('link', {
+      name: /Review the launch checklist/,
+    });
+    const click = vi.spyOn(next, 'click').mockImplementation(() => {});
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Editor' }), {
+      key: 'ArrowDown',
+      altKey: true,
+    });
+    expect(click).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 'ArrowDown', altKey: true });
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it('leaves a shortcut handled by a foreground control alone', () => {
+    render(
+      <>
+        <HomeNavigator organizationId="org-1" />
+        <button onKeyDown={(event) => event.preventDefault()}>
+          Foreground
+        </button>
+      </>,
+    );
+    const next = screen.getByRole('link', {
+      name: /Review the launch checklist/,
+    });
+    const click = vi.spyOn(next, 'click').mockImplementation(() => {});
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Foreground' }), {
+      key: 'ArrowDown',
+      altKey: true,
+    });
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it('keeps Home navigation behind Search isolated from a focused modal button', () => {
+    render(
+      <>
+        <HomeNavigator organizationId="org-1" />
+        <Dialog open onOpenChange={() => {}} title="Search">
+          <button>Chats</button>
+        </Dialog>
+      </>,
+    );
+    const rows = document.querySelectorAll<HTMLAnchorElement>(
+      'ol a[data-indicator-key]',
+    );
+    expect(rows.length).toBeGreaterThan(1);
+    const clicks = Array.from(rows, (row) =>
+      vi.spyOn(row, 'click').mockImplementation(() => {}),
+    );
+    const button = screen.getByRole('button', { name: 'Chats' });
+    button.focus();
+    for (const key of ['ArrowDown', 'ArrowUp'])
+      fireEvent.keyDown(button, { key, altKey: true });
+    for (const click of clicks) expect(click).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Search' })).toBeInTheDocument();
   });
 
   // A long list re-rendered every row on every navigation — 600 chats and
