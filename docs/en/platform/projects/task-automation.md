@@ -122,7 +122,7 @@ Answering an automation's question and deciding a workflow approval stay with pe
 
 | State or symptom | What to do |
 | --- | --- |
-| **Waiting for a worker**, **Waiting for room**, **Waiting for a workspace**, **Waiting for its sandbox** | The run waits for room and says why under **Run**: every [agent worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of your organization is busy, the deployment is full or short of memory or disk, an administrator is deleting the workspace the run would use, or its sandbox is still finishing an earlier process. It starts on its own once room frees, and waiting uses up no automatic retry. When the agent workers are all busy, Owners and Admins can raise the limit in [Sandboxes](/platform/admin/sandboxes#identify-the-limit-that-matters). **Cancel run** takes back a run that waits. |
+| **Waiting for a worker**, **Waiting for room**, **Waiting for a workspace**, **Waiting for its sandbox** | The run waits for room and says why under **Run**: every [agent worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of your organization is busy, the deployment is full or short of memory or disk, an administrator is deleting the workspace the run would use, or its sandbox is still finishing an earlier process. It starts on its own once room frees, and waiting uses up no automatic retry. When the agent workers are all busy, Owners and Admins can raise the limit in [Sandboxes](/platform/admin/sandboxes#identify-the-limit-that-matters). **Cancel run** takes back a run that waits. A [standard agent run that needs no worker](/platform/projects/project-agents#standard-agent-runs) never waits for one. |
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | **The agent couldn't finish this task** | No automatic retry follows. The notice says what went wrong and who can fix it, and **Details** beside the run shows what the run itself reported; [When the agent can't finish](#when-the-agent-cant-finish) lists the cases. Resolve the cause, then use **Retry** to continue the conversation. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. A run that is still waiting for room never blocks a reassignment: it is cancelled with it. |
@@ -151,6 +151,7 @@ When a run fails and nothing retries it, because its automatic retries are used 
 | The notice says | Who acts |
 | --- | --- |
 | A usage limit stopped the run | An Admin raises the limit; then start the agent again. |
+| Your organization's content policy stopped the run | Change the task so it complies, or ask an Admin about the policy; then start the agent again. |
 | Something the agent needs is missing: its model, one of its skills, or the agent itself | An Editor or Admin fixes the agent on the project's **Agents** tab. |
 | An attachment on this task is no longer in storage | Whoever can change the task removes the attachment or uploads it again; **Details** beside the run names the file. Then start the agent again. |
 | The run reached its time limit | Start the agent again, or split the task into smaller ones. |

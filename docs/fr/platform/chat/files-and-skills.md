@@ -19,6 +19,8 @@ L’assistant choisit la voie la plus légère qui fait l’affaire et ne démar
 | Un fichier Word, Excel, PowerPoint ou PDF, un graphique, un calcul sur des données, une modification d’un fichier joint | Exécute du code dans une sandbox légère | Une sandbox légère, en une seconde environ |
 | Un travail sur un dépôt, dans une session de navigateur ou qui dure des heures | Propose une [tâche de projet](/fr/platform/projects/tasks) | Rien dans le chat ; l’agent de la tâche travaille dans sa propre sandbox |
 
+Un fichier qui doit être relu, conservé avec d’autres travaux ou créé plus tard a sa place dans une tâche : l’[agent standard](/fr/platform/projects/project-agents#standard-agent-runs) du projet y utilise les mêmes outils, et les fichiers qu’il crée deviennent les résultats de la tâche.
+
 Pendant qu’il travaille, les étapes au-dessus de la réponse indiquent ce qu’il fait, par exemple **Rédaction de contacts.csv**, **Lecture du skill xlsx** ou **Exécution de Python dans une sandbox légère**. Une étape en échec explique ce qui n’a pas marché, et l’assistant corrige le plus souvent son code avant de réessayer.
 
 ## Ouvrir et télécharger les fichiers

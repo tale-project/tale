@@ -19,6 +19,8 @@ The assistant uses the lightest way that does the job, and starts nothing it doe
 | A Word, Excel, PowerPoint or PDF file, a chart, a calculation over data, a change to a file you attached | Runs code in a light sandbox | A light sandbox, in about a second |
 | Work on a repository, in a browser session, or lasting hours | Suggests a [project task](/platform/projects/tasks) | Nothing in the chat; the task’s agent works in its own sandbox |
 
+A file that should be reviewed, kept with other work or made later belongs on a task: the project's [standard agent](/platform/projects/project-agents#standard-agent-runs) uses the same tools there, and the files it makes become the task's deliverables.
+
 While it works, the steps above the reply say what it is doing, such as **Writing contacts.csv**, **Reading the xlsx skill** or **Running Python in a light sandbox**. A failed step says what went wrong, and the assistant usually corrects its code and tries again.
 
 ## Open and download the files

@@ -12,7 +12,7 @@ Open **Settings > Sandboxes** when agent work, chat or crawling cannot obtain an
 | **Agent workers** | 2 | A worker starting or doing work: one for each task an agent works on at the same time. Each worker is a sandbox with its own workspace, reused for the agent’s later tasks. |
 | **Workflow sessions** | 2 | A workflow run’s sandbox, shared by its sandbox work. Concurrent runs use separate slots. |
 | **Render sessions** | 2 | A temporary sandbox rendering pages during website crawling. |
-| **Light sandboxes** | 2 | A short-lived sandbox in which the chat assistant runs code for one conversation. An idle one gives way to the next chat; see [Light sandboxes for chat](#light-sandboxes). |
+| **Light sandboxes** | 2 | A short-lived sandbox in which the chat assistant runs code for one conversation, or the standard agent for one task run. An idle one gives way to the next request; see [Light sandboxes for chat and tasks](#light-sandboxes). |
 
 These are concurrency limits, not a count of tasks or a spending budget. An agent working three tasks at once holds three agent workers; a run that finds them all busy [waits for one](#resolve-a-blocked-start) and starts on its own when one is free. Under **Agent workers**, Owners and Admins see how many agent runs are waiting for a free worker: the runs a higher limit would start now. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
 
@@ -33,13 +33,13 @@ For example, the defaults total 8. If deployment capacity is 10, a total of 10 i
 
 Lowering a limit affects future admissions; it does not interrupt active work. If infrastructure data is unavailable, reductions remain possible but increases need a fresh capacity observation. If the operator lowered capacity below your existing total, reduce your limits before saving again. If organization allocation data itself cannot load, the fields remain unavailable instead of showing editable defaults.
 
-## Light sandboxes for chat {#light-sandboxes}
+## Light sandboxes for chat and tasks {#light-sandboxes}
 
-When a member asks the chat assistant for a Word, Excel, PowerPoint, or PDF file, a chart, or a calculation, it runs code in a light sandbox: an isolated environment that starts in about a second and keeps no workspace of its own. [Make files and use skills in chat](/platform/chat/files-and-skills) describes what members see.
+When a member asks the chat assistant for a Word, Excel, PowerPoint, or PDF file, a chart, or a calculation, it runs code in a light sandbox: an isolated environment that starts in about a second and keeps no workspace of its own. [Make files and use skills in chat](/platform/chat/files-and-skills) describes what members see. The standard agent does the same when a person starts it on a task: [How a standard agent run works](/platform/projects/project-agents#standard-agent-runs) explains when it uses a worker instead.
 
-Each conversation uses at most one light sandbox. It keeps its files between the assistant's steps and the member's follow-up messages, and Tale removes it after about five minutes without use. When the organization runs as many light sandboxes as **Light sandboxes** allows, a new request takes the slot of the one that has been idle longest, if it has been idle for at least 30 seconds. When every light sandbox is busy, the assistant tells the member to try again in a minute; nothing waits in a queue.
+Each conversation, and each task run, uses at most one light sandbox. A conversation's keeps its files between the assistant's steps and the member's follow-up messages, and Tale removes it after about five minutes without use; a task run's goes away as soon as the run ends. When the organization runs as many light sandboxes as **Light sandboxes** allows, a new request takes the slot of the one that has been idle longest, if it has been idle for at least 30 seconds. When every light sandbox is busy, the assistant tells the member to try again in a minute. A task run, which has nobody to ask again, waits up to about 90 seconds for one to free before it gives up; nothing else waits in a queue.
 
-A light sandbox appears under **Workspaces** with the name of the person chatting and the label **Chat sandbox**. You can destroy it like any workspace; it cannot be pinned, because Tale removes it as soon as it is idle. To keep chat from running code at all, turn off **Code** under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools).
+A light sandbox appears under **Workspaces** with the name of the person chatting, or of the person who started the task run, and the label **Light sandbox**. You can destroy it like any workspace; it cannot be pinned, because Tale removes it as soon as it is idle. To keep chat from running code at all, turn off **Code** under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools); that setting governs the chat assistant only.
 
 ## Read the infrastructure measurements
 
