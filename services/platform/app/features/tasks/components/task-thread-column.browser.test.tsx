@@ -89,6 +89,23 @@ function inView(element: HTMLElement, scroller: HTMLElement) {
   return box.bottom > port.top && box.top < port.bottom;
 }
 
+/** How far the reader is from the newest end of the thread. */
+function distanceToEnd(scroller: HTMLElement) {
+  return scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+}
+
+/** A whole frame, resize observers included: they run after a frame's
+ *  animation callbacks, so the second callback is the first to see their work.
+ *  A test that asserts nothing moved waits like this, or it reads before the
+ *  column has had its turn and passes whatever the column does. */
+async function settledLayout() {
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    }),
+  );
+}
+
 /** A reader's wheel: far enough in one direction to reach that end. */
 async function wheelToTop(over: HTMLElement) {
   await userEvent.wheel(over, { delta: { y: -10_000 } });
@@ -166,7 +183,7 @@ describe('TaskThreadColumn on its newest end', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Add comments' }));
     await screen.findByText('Comment 45');
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await settledLayout();
 
     expect(brief.getBoundingClientRect().top).toBeCloseTo(before, 0);
     expect(inView(screen.getByText('Comment 45'), scrollport())).toBe(false);
@@ -182,6 +199,46 @@ describe('TaskThreadColumn on its newest end', () => {
     await waitFor(() =>
       expect(inView(screen.getByText('Comment 45'), scrollport())).toBe(true),
     );
+  });
+
+  it('follows the thread again once the reader is a few lines from its end', async () => {
+    render(<Growing rows={40} />);
+    await wheelToTop(screen.getByText('Comment 40'));
+    const scroller = scrollport();
+
+    await userEvent.wheel(screen.getByText('The brief'), {
+      delta: { y: scroller.scrollHeight - scroller.clientHeight - 30 },
+    });
+    await waitFor(() => {
+      expect(distanceToEnd(scroller)).toBeGreaterThan(20);
+      expect(distanceToEnd(scroller)).toBeLessThan(40);
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Add comments' }));
+
+    await waitFor(() =>
+      expect(inView(screen.getByText('Comment 45'), scrollport())).toBe(true),
+    );
+  });
+
+  it('leaves a reader who is a screen above the end where they are', async () => {
+    render(<Growing rows={40} />);
+    await wheelToTop(screen.getByText('Comment 40'));
+    const scroller = scrollport();
+
+    await userEvent.wheel(screen.getByText('The brief'), {
+      delta: { y: scroller.scrollHeight - scroller.clientHeight - 400 },
+    });
+    await waitFor(() => {
+      expect(distanceToEnd(scroller)).toBeGreaterThan(380);
+      expect(distanceToEnd(scroller)).toBeLessThan(420);
+    });
+    const reading = screen.getByText('Comment 38');
+    const before = reading.getBoundingClientRect().top;
+    await userEvent.click(screen.getByRole('button', { name: 'Add comments' }));
+    await screen.findByText('Comment 45');
+    await settledLayout();
+
+    expect(reading.getBoundingClientRect().top).toBeCloseTo(before, 0);
   });
 });
 
@@ -249,7 +306,7 @@ async function growAboveTheReader() {
       264,
     ),
   );
-  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await settledLayout();
 
   return reading.getBoundingClientRect().top - before;
 }
