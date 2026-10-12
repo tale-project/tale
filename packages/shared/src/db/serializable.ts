@@ -15,7 +15,12 @@
 
 import type { ReservedSql, TransactionSql } from 'postgres';
 
-import { isTransientDbError, withRetry, type RetryOptions } from './retry.ts';
+import {
+  isSerializationFailure,
+  isTransientDbError,
+  withRetry,
+  type RetryOptions,
+} from './retry.ts';
 
 /**
  * Minimal structural contract for the options-taking `begin` overload of a
@@ -34,17 +39,10 @@ export interface SerializableTransactionRunner {
   reserve?(): Promise<ReservedSql>;
 }
 
-const SERIALIZATION_SQLSTATES = new Set(['40001', '40P01']);
-
-/** True for errors that mean "rerun the whole transaction" (40001/40P01). */
-export function isSerializationFailure(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    SERIALIZATION_SQLSTATES.has(error.code)
-  );
-}
+// Defined beside the other error classifiers in `retry.ts`, which imports
+// nothing: the error handler classifies a lost write with it, and a test that
+// replaces this module must not take that with it.
+export { isSerializationFailure };
 
 /**
  * Sleep with ±50% jitter. Two transactions that aborted each other retry on
@@ -63,7 +61,7 @@ function jitteredSleep(ms: number): Promise<void> {
  * transaction's FIRST statement — an advisory lock taken inside the
  * transaction is therefore acquired after the snapshot and cannot protect a
  * hot row (a task's comment count, bumped by every comment on it). Under a
- * burst the five attempts all lose and the caller sees a 40001.
+ * burst every attempt loses and the caller sees a 40001.
  *
  * A callback that knows which resource it lost on marks the failure with a
  * queue key ({@link markRetryQueueKey}). The next attempt then reserves one
@@ -319,6 +317,19 @@ function isSubsetOf(
 }
 
 /**
+ * How many times a serializable transaction runs before the caller sees its
+ * serialization failure. With a 20 ms base, jittered, the delays between them
+ * come to about two and a half seconds on average (3.8 at worst), inside a
+ * request's patience.
+ *
+ * Five (about 300 ms) failed 4-9% of a burst of 200 writers over 20 hot rows,
+ * and 77% of 300 over five; eight fail almost none of the first and under a
+ * fifth of the second. Rows hot enough to need more are the retry queue's
+ * (`markRetryQueueKey`), which makes the rerun wait its turn.
+ */
+export const SERIALIZABLE_ATTEMPTS = 8;
+
+/**
  * Open a SERIALIZABLE transaction and execute `callback`, retrying the entire
  * transaction on serialization failures (40001/40P01) and on transient
  * connection faults. Each retry runs in a fresh transaction; a retry after a
@@ -340,7 +351,7 @@ export function transactSerializable<T>(
     ((error: unknown) =>
       isSerializationFailure(error) || isTransientDbError(error));
   return withRetry(attempt, {
-    attempts: 5,
+    attempts: SERIALIZABLE_ATTEMPTS,
     baseDelayMs: 20,
     timeoutMs: 30_000,
     sleep: jitteredSleep,

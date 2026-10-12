@@ -224,7 +224,7 @@ single warm sample.
   backend-api)`) and note its `docker inspect --format '{{.RestartCount}}'`,
   then `docker compose start db` within half a minute. → The api does not
   exit: while the database is away its log shows `[db] transient error on
-  attempt …, retrying in …ms: …` lines, and once `db` answers, the boot
+  attempt …, retrying in …ms (<file>:<line>): …` lines, and once `db` answers, the boot
   carries on to `api listening on :3005`. The restart count has not moved
   since you noted it, and with `SENTRY_DSN` set no event arrives. Leave `db`
   stopped for more than a minute instead → about a minute after the first
@@ -240,8 +240,8 @@ single warm sample.
   once its log shows the migrations done but no `api listening` yet, run
   `docker compose restart db`. → The restart ends the `psql` session and cuts
   pg-boss's start mid-statement, and the api does not exit: its log shows `[db]
-  transient error on attempt …, retrying in …ms: terminating connection due to
-  administrator command`, then, once `db` answers, `api listening on :3005`.
+  transient error on attempt …, retrying in …ms (<file>:<line>): terminating
+  connection due to administrator command`, then, once `db` answers, `api listening on :3005`.
   The restart count has not moved, and with `SENTRY_DSN` set no event arrives
   — none titled `error: terminating connection due to administrator command`.
 - [ ] `PERF-B8` · **A write and a list while the app tier is away** — With

@@ -877,6 +877,56 @@ describe('/api/v1 door — an unavailable database', () => {
   });
 });
 
+/**
+ * A write that kept losing to concurrent writers is not a defect of the
+ * request: eight reruns of its serializable transaction ran out. The door
+ * answers a retryable 503 in its flat envelope, with the generic code a
+ * client falls back to the status for, where it was a 500.
+ */
+describe('/api/v1 door — a write that lost to concurrent writers', () => {
+  it('answers a retryable 503 with the request id, and logs one line, not a stack', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.use(async (c, next) => {
+      c.set('requestId', 'req-conflict');
+      await next();
+    });
+    app.post('/tasks', () => {
+      throw Object.assign(new Error('could not serialize access'), {
+        code: '40001',
+      });
+    });
+    try {
+      const res = await app.request('http://localhost/tasks', {
+        method: 'POST',
+        ...bearer(GOOD_KEY),
+      });
+
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('1');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(await res.json()).toEqual({
+        error:
+          'Other changes were being written at the same moment and this one could not be applied; retry',
+        code: 'HTTP_ERROR',
+        requestId: 'req-conflict',
+      });
+      expect(errors).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[backend] write conflict — 503 for POST /tasks',
+        ),
+      );
+    } finally {
+      warn.mockRestore();
+      errors.mockRestore();
+    }
+  });
+});
+
 /** F-B-32: exercise the verified door AND the persisted-row writer, not a
  * mock of either attribution boundary. The transaction only stands in for
  * the chain head and captures the INSERT values. */

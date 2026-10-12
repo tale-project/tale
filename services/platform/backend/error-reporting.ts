@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { callSiteOf, isSerializationFailure } from '@tale/shared/db/retry';
 import { scrubEvent, scrubUrl } from '@tale/shared/monitoring/privacy';
 import type { Context, ErrorHandler } from 'hono';
 
@@ -222,6 +223,61 @@ export function databaseUnavailableResponse(
   );
 }
 
+/** The wait a write that lost to concurrent writers asks for, in seconds: one
+ * lost round is over in milliseconds, and eight reruns already waited. */
+const WRITE_CONFLICT_RETRY_AFTER_SECONDS = 1;
+
+/**
+ * The 503 a request answers when its write kept losing to concurrent writers
+ * and its serializable transaction (`transactSerializable`) ran out of
+ * reruns — or `undefined` when `err` is something else. The caller is not at
+ * fault and nothing was applied, so a retry is the right answer and says so:
+ * `Retry-After`, in the door's flat envelope with the generic `HTTP_ERROR`
+ * code (a client that does not know a code reads the status, a retryable
+ * 503). It used to be a plain 500 with the error's stack on the console.
+ *
+ * Still reported, at warning level and tagged: rows this hot are the
+ * engineering team's to find (`markRetryQueueKey` makes a rerun wait its
+ * turn), and the log line names the write that kept losing.
+ */
+export function writeConflictResponse(
+  err: unknown,
+  c: Context,
+): Response | undefined {
+  if (!isSerializationFailure(err)) return undefined;
+  const requestId = requestIdOf(c);
+  const site = callSiteOf(err);
+  console.warn(
+    `[backend] write conflict — 503 for ${c.req.method} ${scrubUrl(c.req.path)}${site === undefined ? '' : ` (${site})`}: ${describeDatabaseError(err)}`,
+  );
+  reportError(err, {
+    level: 'warning',
+    tags: {
+      'tale.reason': 'write_conflict',
+      'http.method': methodClass(c.req.method),
+      'http.route_class': routeClass(c.req.path),
+      ...(requestId === undefined ? {} : { 'http.request_id': requestId }),
+    },
+    extra: {
+      path: scrubUrl(c.req.path),
+      ...(site === undefined ? {} : { site }),
+    },
+  });
+  return c.json(
+    {
+      error:
+        'Other changes were being written at the same moment and this one could not be applied; retry',
+      code: 'HTTP_ERROR',
+      ...(requestId === undefined ? {} : { requestId }),
+    },
+    503,
+    {
+      'Retry-After': String(WRITE_CONFLICT_RETRY_AFTER_SECONDS),
+      'Cache-Control': 'no-store',
+    },
+  );
+}
+
 /**
  * `response` — an answer a library built for a request — or, when the database
  * failed while the request ran, the 503 {@link databaseUnavailableResponse}
@@ -313,6 +369,8 @@ export const appErrorHandler: ErrorHandler = (err, c) => {
   }
   const unavailable = databaseUnavailableResponse(err, c);
   if (unavailable !== undefined) return unavailable;
+  const conflict = writeConflictResponse(err, c);
+  if (conflict !== undefined) return conflict;
   const abandoned = clientAbortResponse(err, c);
   if (abandoned !== undefined) return abandoned;
   reportRequestError(err, c);
