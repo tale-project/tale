@@ -492,10 +492,19 @@ default means deleting the override and fixing what surfaces:
   **v4 was live** row. A version saved over MCP names the client by the name it gave itself in
   `initialize` — self-reported until OAuth clients identify it (P6). Triggers and project bindings
   belong to the automation, not a version: their history is the audit log, which only admins read.
-  Versions are kept until the automation is deleted; there is no retention category for them.
-  Paying it down means a backfill writing `change_summary` from consecutive stored documents (the
-  engine's diff is pure), client identity from OAuth, and a governance category
-  (`automationVersions`) with its sweep that never prunes a live or protected version.
+  Versions are kept until the automation is deleted, unless governance bounds them: the retention
+  category `automationVersions` (off by default, 90–3650 days) removes versions older than its
+  period except the live one, the last ten deployments', every version a run used, the newest
+  twenty, what those were restored from or based on, and a held custodian's (2026-10-12). Paying it
+  down means a backfill writing `change_summary` from consecutive stored documents (the engine's
+  diff is pure) and client identity from OAuth.
+- **Forced colours are proven on the testing and versioning surfaces only** — `@tale/ui` keeps the
+  current choice (an underlined or pill tab, a segmented option, a pressed chip, the page strip's
+  line, the slider's track and fill) and keyboard focus visible in a contrast theme, held by
+  `forced-colors.browser.test.tsx` (2026-10-12); the other primitives were not audited. Known
+  candidates: the docs site's theme switcher (its checked option is a tint), `Switch` and the
+  `DataTable` selected row (each also says its state another way). Paying it down means one case
+  per primitive in that test, red first.
 - **An identical zip upload rewrites the bundle** — `POST /api/app/skills/upload` (the app's
   bundle upload) stages and swaps every file and snapshots the superseded `SKILL.md` into the
   history trail even when the zip is byte-identical to the stored bundle, so `updatedAt` moves and
