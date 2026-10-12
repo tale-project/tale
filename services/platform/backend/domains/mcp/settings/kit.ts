@@ -60,9 +60,12 @@ function escapeToken(token: string): string {
   return token.replaceAll('~', '~0').replaceAll('/', '~1');
 }
 
-/** An RFC 6901 pointer into the change's config. */
-function configPointer(path: readonly PropertyKey[]): string {
-  return `/config${path.map((part) => `/${escapeToken(String(part))}`).join('')}`;
+/** Where in a change a value sits: its config, or the arguments of its act. */
+type ChangePart = '/config' | '/args';
+
+/** An RFC 6901 pointer into the change's config or act arguments. */
+function changePointer(part: ChangePart, path: readonly PropertyKey[]): string {
+  return `${part}${path.map((token) => `/${escapeToken(String(token))}`).join('')}`;
 }
 
 /** A parse's failure as a schema library reports it. */
@@ -75,9 +78,9 @@ interface ParseFailure {
 }
 
 /** The problems of a failed parse, as issues of the change. */
-function configIssues(error: ParseFailure): SettingsIssue[] {
+function parseIssues(part: ChangePart, error: ParseFailure): SettingsIssue[] {
   return error.issues.map((issue) => ({
-    path: configPointer(issue.path),
+    path: changePointer(part, issue.path),
     code: issue.code,
     message: issue.message,
   }));
@@ -92,20 +95,21 @@ export function droppedMembers(
   sent: unknown,
   parsed: unknown,
   at: readonly PropertyKey[] = [],
+  part: ChangePart = '/config',
 ): SettingsIssue[] {
   if (Array.isArray(sent)) {
     if (!Array.isArray(parsed)) return [];
     return sent.flatMap((item, index) =>
-      droppedMembers(item, parsed[index], [...at, index]),
+      droppedMembers(item, parsed[index], [...at, index], part),
     );
   }
   if (!isRecord(sent) || !isRecord(parsed)) return [];
   return Object.entries(sent).flatMap(([name, value]) =>
     Object.hasOwn(parsed, name)
-      ? droppedMembers(value, parsed[name], [...at, name])
+      ? droppedMembers(value, parsed[name], [...at, name], part)
       : [
           {
-            path: configPointer([...at, name]),
+            path: changePointer(part, [...at, name]),
             code: 'unrecognized_key',
             message: 'is not a field of this setting',
           },
@@ -176,10 +180,32 @@ export function parseSettingsConfig<T>(
   config: unknown,
   what: string,
 ): T {
-  const parsed = schema.safeParse(config);
+  return parseChangePart('/config', schema, config, what);
+}
+
+/**
+ * What an act takes, read through its schema as a config is: what the
+ * writer would receive, or a refusal naming every problem — an argument the
+ * act does not take among them — by its pointer into `/args`.
+ */
+export function parseSettingsArgs<T>(
+  schema: ConfigSchema<T>,
+  args: unknown,
+  what: string,
+): T {
+  return parseChangePart('/args', schema, args, what);
+}
+
+function parseChangePart<T>(
+  part: ChangePart,
+  schema: ConfigSchema<T>,
+  value: unknown,
+  what: string,
+): T {
+  const parsed = schema.safeParse(value);
   const issues = parsed.success
-    ? droppedMembers(config, parsed.data)
-    : configIssues(parsed.error);
+    ? droppedMembers(value, parsed.data, [], part)
+    : parseIssues(part, parsed.error);
   if (!parsed.success || issues.length > 0) {
     throw invalidSettings(what, issues);
   }

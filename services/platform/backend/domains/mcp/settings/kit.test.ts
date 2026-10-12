@@ -11,6 +11,7 @@ import {
   PAGE_CONFIG_CHARS,
   pageOf,
   pageOfRead,
+  parseSettingsArgs,
   parseSettingsConfig,
   SettingsRefusalError,
 } from './kit.ts';
@@ -98,6 +99,43 @@ describe('reading a change through its kind', () => {
       },
       {
         path: '/config/rules/0/nmae',
+        code: 'unrecognized_key',
+        message: 'is not a field of this setting',
+      },
+    ]);
+  });
+
+  it('reads what an act takes the same way, pointing at its arguments', () => {
+    const args = z.object({ types: z.array(z.string().min(3)).min(1) });
+    expect(parseSettingsArgs(args, { types: ['a.b'] }, 'the grant')).toEqual({
+      types: ['a.b'],
+    });
+    const error = refused(() =>
+      parseSettingsArgs(args, { types: ['x'], extra: 1 }, 'the grant'),
+    );
+    expect(error.code).toBe('SETTINGS_INVALID');
+    expect(error.data?.issues).toEqual([
+      {
+        path: '/args/types/0',
+        code: 'too_small',
+        message: expect.any(String),
+      },
+    ]);
+    // A field the act does not take is named, not dropped.
+    expect(
+      refused(() =>
+        parseSettingsArgs(args, { types: ['a.b'], extra: 1 }, 'the grant'),
+      ).data?.issues,
+    ).toEqual([
+      {
+        path: '/args/extra',
+        code: 'unrecognized_key',
+        message: 'is not a field of this setting',
+      },
+    ]);
+    expect(droppedMembers({ a: 1 }, {}, [], '/args')).toEqual([
+      {
+        path: '/args/a',
         code: 'unrecognized_key',
         message: 'is not a field of this setting',
       },

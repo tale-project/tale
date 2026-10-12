@@ -397,6 +397,43 @@ organization may take (`PROVIDER_NAME_RESERVED`).
   with a hint to the credential kind; asked to define its own provider named `openai` → refused as
   a name it may not take; asked to refresh its own `local-chat` → it is refreshed.
 
+### MCP-R38 · An agent reads what an automation may write unapproved; admins change it
+
+The kind `automation-approval` holds, for each automation (its id is the automation's name), the
+writes to outside systems it may make without a person approving each run: what the **Runs
+without approval** switches of its General tab list. Owners, admins and developers read it —
+`allowed`, `used` (the writes the latest version makes), `requiredByPolicy` (the ones a rule of
+the approval policy still requires a person for) and `grants` (who allowed what and when, by
+name, never by address) — and any other member's read is refused (`FORBIDDEN`). Only owners and
+admins change it, by the acts `grant` and `revoke` with the step types as `args.types`, through
+the writer the tab saves with, so each change leaves the tab's own audit row
+(`automation.approval_allowance.granted` or `.revoked`), made over MCP. An automation the person
+cannot see reads as one that does not exist. A read lists the automations that hold an allowance;
+one that holds none is read by naming it.
+
+- **Example**: Ada, an admin, asks her agent to let `ops/morning-digest` post to Slack without
+  approval → it reads the automation's allowances (none), plans a `grant` of `slack.send_message`
+  and applies it, and the audit log shows the write allowed, made over MCP. Dev, a developer,
+  reads the same allowances; his agent's `grant` is refused (`FORBIDDEN`) when it is planned, and
+  nothing is written.
+
+### MCP-R39 · Allowing a write says what it removes; a set that moved is never changed
+
+Allowing a write takes a person out of that automation's live runs, so the plan of a `grant`
+names the effect `removes-human-approval`, at critical risk, unless a rule of the approval policy
+already decides the write; a `revoke` names none. Only a write to an outside system of the
+connector catalog can be allowed (`APPROVAL_ALLOWANCE_INVALID`); one still on file whose action
+the catalog has lost can still be withdrawn. A change that changes nothing plans and applies as
+`unchanged`. The hash a read answers covers the automation and the writes allowed alone, so a
+new version of the automation or an edit of the policy never makes a plan stale, and another
+person's change to the allowances does (`SETTINGS_STALE`): the writer checks it under the
+automation's name lock, and the other allowances stay as they are.
+
+- **Example**: Ada's agent plans allowing `github.create_issue` → critical risk,
+  `removes-human-approval`. Before she decides, Ben allows `http.send` for the same automation;
+  applying with the hash Ada's agent read is refused as stale and nothing changes. The agent
+  reads again, plans again and applies, and both allowances stand.
+
 ## Answers and refusals
 
 ### MCP-R18 · A refusal comes back as an answer the agent can read, not a protocol error

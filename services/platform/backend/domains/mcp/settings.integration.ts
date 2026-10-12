@@ -7,8 +7,11 @@
  * agent is refused what a member is refused in the app. Listings are read a
  * page at a time by kind, each page small enough for the answer, a
  * subscription and a provider Tale ships are refused as what they are, and a
- * call that names too many hashes is cut at fifty. The lane works in an
- * organization of its own, so nothing it changes reaches another lane.
+ * call that names too many hashes is cut at fifty. An owner's agent allows an
+ * automation a write without approval through the General tab's writer, a
+ * developer's agent reads that and is refused a change, and a set that moved
+ * is stale. The lane works in an organization of its own, so nothing it
+ * changes reaches another lane.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -21,6 +24,10 @@ import {
   type RecordCheck,
   signUpUser,
 } from '../../integration-lane-helpers.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
+import { evaluateApprovalGate } from '../approvals/gate.ts';
+import { setApprovalAllowances } from '../automations/approval-allowances.ts';
+import { deleteAutomationCascade, saveVersion } from '../automations/store.ts';
 
 const answerSchema = z.object({
   result: z.object({
@@ -511,6 +518,12 @@ export async function checkMcpSettingsConfig(
       ? (changes.data[0]?.refusal?.code ?? 'none')
       : 'unread';
   };
+  /** The codes get_settings refused its kinds with. */
+  const refusalCodes = (answer: ToolAnswer): string[] =>
+    z
+      .array(z.object({ code: z.string() }).loose())
+      .safeParse(answer.value.refused)
+      .data?.map((entry) => entry.code) ?? [];
   const shippedRead = await tool('get_settings', {
     kinds: ['provider'],
     ids: ['openai'],
@@ -554,4 +567,249 @@ export async function checkMcpSettingsConfig(
       issues.data.issues.length === 50,
     `subscription=${refusalOf(subscription)}, key=${refusalOf(apiKey)}, shipped read=${JSON.stringify(shippedRead.value.refused).slice(0, 200)}, refresh=${refusalOf(shippedRefresh)}, strays=${tooMany.isError}/${String(tooMany.value.code)}/${issues.success ? issues.data.issues.length : 'unread'}`,
   );
+
+  // What an automation may write without approval: a developer's agent reads
+  // it and is refused a change, a member's is refused the read, an owner's
+  // allows a write through the General tab's writer — the gate then lets that
+  // automation's write pass while another still asks — a set that moved is
+  // stale, and withdrawing makes the write ask again.
+  const developer = await signUpUser(base, 'mcp-settings-developer');
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (gen_random_uuid(), ${org.id}, ${developer.userId}, 'developer',
+            ${new Date()})
+  `;
+  const developerKey = await mint(
+    developer.cookie,
+    'itest-mcp-settings-developer',
+  );
+  const approvalSuffix = randomUUID().slice(0, 8);
+  const approved = `approval-probe-${approvalSuffix}`;
+  const asking = `approval-other-${approvalSuffix}`;
+  const approvalKey = `automation-approval/${approved}`;
+  const gate = (automation: string) =>
+    evaluateApprovalGate(sql, {
+      organizationId: org.id,
+      source: 'automation',
+      resourceKey: `${automation}:post`,
+      connector: 'slack',
+      action: 'send_message',
+      effect: 'write',
+      platformInternal: false,
+      automation,
+      policyOnly: true,
+    });
+  const allowancesOf = async (automation: string): Promise<string[]> =>
+    (
+      await sql<{ connector: string; action: string }[]>`
+        SELECT connector, action FROM app.automation_approval_allowances
+        WHERE org_id = ${org.id} AND automation_name = ${automation}
+        ORDER BY connector, action
+      `
+    ).map((row) => `${row.connector}.${row.action}`);
+  const grantOf = (types: string[], act: 'grant' | 'revoke' = 'grant') => ({
+    kind: 'automation-approval',
+    id: approved,
+    op: 'act',
+    act,
+    args: { types },
+  });
+  try {
+    for (const automation of [approved, asking]) {
+      await saveVersion(sql, {
+        organizationId: org.id,
+        name: automation,
+        document: {
+          version: 1,
+          name: automation,
+          nodes: [{ id: 'post', type: 'slack.send_message' }],
+        },
+        origin: appOrigin(owner.userId),
+      });
+    }
+    const developerRead = await tool(
+      'get_settings',
+      { kinds: ['automation-approval'], ids: [approved] },
+      developerKey,
+    );
+    const memberRead = await tool(
+      'get_settings',
+      { kinds: ['automation-approval'], ids: [approved] },
+      memberKey,
+    );
+    const developerCatalog = kinds.safeParse(
+      (await tool('get_settings', {}, developerKey)).value.kinds,
+    );
+    const emptyRead = await readOf('automation-approval', approved);
+    const developerPlan = await tool(
+      'plan_settings',
+      { changes: [grantOf(['slack.send_message'])] },
+      developerKey,
+    );
+    const developerApply = await apply(
+      grantOf(['slack.send_message']),
+      approvalKey,
+      emptyRead?.hash ?? null,
+      developerKey,
+    );
+    const readOnce = z
+      .object({
+        allowed: z.array(z.string()),
+        used: z.array(z.string()),
+        requiredByPolicy: z.array(z.string()),
+        grants: z.array(z.unknown()),
+      })
+      .safeParse(
+        z
+          .array(z.object({ config: z.unknown() }).loose())
+          .safeParse(developerRead.value.resources).data?.[0]?.config,
+      );
+    record(
+      "MCP automation-approval: a developer's agent reads what an automation may write without approval and is refused a change, a member's is refused the read, and the kind is served (MCP-R38)",
+      readOnce.success &&
+        readOnce.data.allowed.length === 0 &&
+        readOnce.data.used.join() === 'slack.send_message' &&
+        readOnce.data.grants.length === 0 &&
+        refusalCodes(memberRead).join() === 'FORBIDDEN' &&
+        access(developerCatalog, 'automation-approval') === '[[true,false]]' &&
+        refusalOf(developerPlan) === 'FORBIDDEN' &&
+        developerApply.isError &&
+        developerApply.value.code === 'FORBIDDEN' &&
+        (await allowancesOf(approved)).length === 0,
+      `developer read=${developerRead.raw.slice(0, 200)}, member=${refusalCodes(memberRead).join()}, catalog=${access(developerCatalog, 'automation-approval')}, plan=${refusalOf(developerPlan)}, apply=${String(developerApply.value.code)}`,
+    );
+
+    const grantPlan = await tool('plan_settings', {
+      changes: [grantOf(['slack.send_message'])],
+    });
+    const plannedGrant = z
+      .array(
+        z
+          .object({
+            action: z.string(),
+            risk: z.string(),
+            effects: z.array(z.string()),
+          })
+          .loose(),
+      )
+      .safeParse(grantPlan.value.changes);
+    const granted = await apply(
+      grantOf(['slack.send_message']),
+      approvalKey,
+      emptyRead?.hash ?? null,
+    );
+    const afterGrant = await readOf('automation-approval', approved);
+    const grantedConfig = z
+      .object({
+        allowed: z.array(z.string()),
+        grants: z.array(
+          z
+            .object({
+              type: z.string(),
+              grantedBy: z.string(),
+              grantedByName: z.string().nullable(),
+            })
+            .loose(),
+        ),
+      })
+      .loose()
+      .safeParse(afterGrant?.config);
+    const passes = await gate(approved);
+    const stillAsks = await gate(asking);
+    const appliedHash = z
+      .array(z.object({ hash: z.string() }).loose())
+      .safeParse(granted.value.applied).data?.[0]?.hash;
+    record(
+      "MCP automation-approval: an owner's agent allows a write through the General tab's writer — critical in the plan, audited as coming through MCP, the granter named — and the gate lets that automation's write pass while another still asks (MCP-R38, MCP-R39)",
+      plannedGrant.success &&
+        plannedGrant.data[0]?.action === 'act' &&
+        plannedGrant.data[0]?.risk === 'critical' &&
+        plannedGrant.data[0]?.effects.join() === 'removes-human-approval' &&
+        !granted.isError &&
+        (await allowancesOf(approved)).join() === 'slack.send_message' &&
+        (await auditedViaMcp('automation.approval_allowance.granted', {
+          resourceId: approved,
+        })) &&
+        appliedHash === afterGrant?.hash &&
+        grantedConfig.success &&
+        grantedConfig.data.allowed.join() === 'slack.send_message' &&
+        grantedConfig.data.grants[0]?.grantedBy === owner.userId &&
+        typeof grantedConfig.data.grants[0]?.grantedByName === 'string' &&
+        !JSON.stringify(afterGrant).includes('@') &&
+        passes.decision === 'allow' &&
+        stillAsks.decision === 'needs-approval',
+      `plan=${grantPlan.raw.slice(0, 200)}, applied=${granted.raw.slice(0, 160)}, allowances=${(await allowancesOf(approved)).join()}, gate=${passes.decision}/${stillAsks.decision}`,
+    );
+
+    // Another person allows a second write while the agent still holds the
+    // hash it read: its change is stale, and nothing of it lands.
+    const readHash = afterGrant?.hash ?? null;
+    await setApprovalAllowances(sql, {
+      organizationId: org.id,
+      automation: approved,
+      allowed: ['slack.send_message', 'http.send'],
+      origin: appOrigin(owner.userId),
+      grantedBy: owner.userId,
+    });
+    const staleGrant = await apply(
+      grantOf(['github.create_issue']),
+      approvalKey,
+      readHash,
+    );
+    const staleData = z
+      .object({ currentHash: z.string() })
+      .safeParse(staleGrant.value.data);
+    const afterMove = await readOf('automation-approval', approved);
+    const withdrawn = await apply(
+      grantOf(['slack.send_message'], 'revoke'),
+      approvalKey,
+      afterMove?.hash ?? null,
+    );
+    const asksAgain = await gate(approved);
+    const invalid = await tool('plan_settings', {
+      changes: [grantOf(['http.get', 'made.up'])],
+    });
+    const invalidCode = z
+      .array(
+        z
+          .object({
+            refusal: z
+              .object({ code: z.string(), data: z.unknown() })
+              .loose()
+              .optional(),
+          })
+          .loose(),
+      )
+      .safeParse(invalid.value.changes);
+    record(
+      'MCP automation-approval: a set that moved is stale and nothing of the change lands, a name that is no write is refused, and withdrawing makes the write ask again (MCP-R39)',
+      staleGrant.isError &&
+        staleGrant.value.code === 'SETTINGS_STALE' &&
+        staleData.success &&
+        staleData.data.currentHash === afterMove?.hash &&
+        afterMove?.hash !== readHash &&
+        (await allowancesOf(approved)).join() === 'http.send' &&
+        !withdrawn.isError &&
+        asksAgain.decision === 'needs-approval' &&
+        (await auditedViaMcp('automation.approval_allowance.revoked', {
+          resourceId: approved,
+        })) &&
+        invalidCode.success &&
+        invalidCode.data[0]?.refusal?.code === 'APPROVAL_ALLOWANCE_INVALID',
+      `stale=${String(staleGrant.value.code)}, allowances=${(await allowancesOf(approved)).join()}, gate=${asksAgain.decision}, invalid=${invalid.raw.slice(0, 200)}`,
+    );
+  } finally {
+    for (const automation of [approved, asking]) {
+      await deleteAutomationCascade(sql, {
+        organizationId: org.id,
+        name: automation,
+        origin: appOrigin(owner.userId),
+      }).catch((error: unknown) => {
+        console.warn(
+          `[itest] cleanup of ${automation}:`,
+          error instanceof Error ? error.message : error,
+        );
+      });
+    }
+  }
 }
