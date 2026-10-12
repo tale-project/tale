@@ -230,6 +230,16 @@ export class IncusBackend implements HostBackend {
     const sessionIds = new Set<string>(this.runtime.inFlight);
     for (const instance of instances) {
       if (isWarmupInstanceName(instance.name)) {
+        // A peer spawner's warm-up under way is not debris: its create waits
+        // for the unpack up to WARMUP_WAIT_MS, and removing it from under
+        // that wait only costs the peer its head start on the image.
+        const born = Date.parse(instance.createdAt);
+        if (
+          Number.isFinite(born) &&
+          nowMs - born < WARMUP_WAIT_MS + STARTUP_SLACK_MS
+        ) {
+          continue;
+        }
         if (
           await this.removeDebris(client, instance.name, 'warm-up instance')
         ) {

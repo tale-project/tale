@@ -285,9 +285,9 @@ describe('sweepOrphans', () => {
     expect(f.fake.instances.has(incusInstanceName('dead'))).toBe(true);
   });
 
-  test('removes the debris of a crashed warm-up', async () => {
+  test('removes the debris of a crashed warm-up, and leaves a peer’s that is under way', async () => {
     const f = hostFixture();
-    f.fake.seedInstance(
+    const warmup = f.fake.seedInstance(
       incusWarmupInstanceName('abc'),
       {},
       {
@@ -295,6 +295,14 @@ describe('sweepOrphans', () => {
         ephemeral: false,
       },
     );
+    const born = Date.parse(warmup.createdAt);
+    // A warm-up waits for the image's unpack up to five minutes: inside that
+    // it may be a peer's, in flight.
+    f.clock.now = born + 60_000;
+    expect(await f.host.sweepOrphans()).toBe(0);
+    expect(f.fake.instances.size).toBe(1);
+    // Past it, nobody is waiting on it any more.
+    f.clock.now = born + 5 * 60_000 + 60_000 + 1_000;
     expect(await f.host.sweepOrphans()).toBe(1);
     expect(f.fake.instances.size).toBe(0);
   });
@@ -369,7 +377,7 @@ describe('sweepOrphans', () => {
 
   test('reports what it removed and goes on past what it could not', async () => {
     const f = hostFixture();
-    f.fake.seedInstance(
+    const first = f.fake.seedInstance(
       incusWarmupInstanceName('a'),
       {},
       {
@@ -384,6 +392,11 @@ describe('sweepOrphans', () => {
         status: 'Stopped',
         ephemeral: false,
       },
+    );
+    late(f);
+    f.clock.now = Math.max(
+      f.clock.now,
+      Date.parse(first.createdAt) + 3_600_000,
     );
     f.fake.fail({
       match: 'DELETE /1.0/instances/*',

@@ -29,6 +29,7 @@ const token = newToken();
 const a = spawnerOf({ name: 'adopt-a', port: 18020, token });
 const b = spawnerOf({ name: 'adopt-b', port: 18021, token });
 const ORG = 'e2e-adopt';
+const MIN_PEER_BOOTS = 12;
 
 const ADOPTED = sessionId('adopt');
 const REBOOTED = sessionId('reboot');
@@ -271,8 +272,13 @@ describe('re-adoption and fencing on a real node', () => {
       })();
       let boots = 0;
       const peers = (async () => {
-        while (progress.creating || boots < 12) {
-          b.start();
+        // At least a dozen boots, and as many as the creates take; no more
+        // than a few hundred, whatever happens to them.
+        while (boots < MIN_PEER_BOOTS || (progress.creating && boots < 300)) {
+          // No image warm-up: this boot is about adopting and sweeping, and a
+          // peer killed seconds after it starts would leave the throwaway
+          // instance of its warm-up (and its create operation) behind.
+          b.start({ SANDBOX_SKIP_IMAGE_WARMUP: '1' });
           await b.ready();
           await b.stop();
           boots += 1;
@@ -284,6 +290,10 @@ describe('re-adoption and fencing on a real node', () => {
         String(boots),
       );
       expect(failures).toEqual([]);
+      // Every create was answered and destroyed, and nothing is left behind.
+      expect(
+        (await admin.instances()).map((instance) => instance.name),
+      ).toEqual([]);
     },
     15 * 60_000,
   );
