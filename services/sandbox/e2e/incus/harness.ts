@@ -16,12 +16,13 @@ import { Admin, type AdminInstance } from './admin.ts';
 import { loadLab, reportDir } from './lab-config.ts';
 import { Report } from './report.ts';
 import {
+  field,
   type Reply,
   type SpawnerApi,
   watchSlowCreates,
 } from './spawner-api.ts';
 import { Spawner, type SpawnerSettings } from './spawner.ts';
-import { describeError } from './util.ts';
+import { asText, describeError } from './util.ts';
 
 // A cold create waits for DHCP and runnerd; the first suite also pulls the
 // runtime image. Nothing here is quick, and nothing hangs for good: every wait
@@ -221,28 +222,47 @@ async function describeNode(): Promise<string[]> {
     const leases = await admin.leases();
     return `${leases.length} lease(s); the last ten:\n${leases.slice(-10).join('\n')}`;
   });
-  await note('operations under way', async () =>
-    (
-      await admin.run(['operation', 'list', '--project', lab.project])
-    ).stdout.trim(),
-  );
-  await note('the Incus daemon, the last three minutes', async () =>
-    tail(
-      (
-        await admin.host(
-          [
-            'journalctl',
-            '-u',
-            'incus',
-            '--no-pager',
-            '--since',
-            '3 minutes ago',
-          ],
-          { allowFailure: true },
-        )
-      ).stdout,
-      60,
-    ),
+  await note('operations of the project (with what failed them)', async () => {
+    const raw: unknown = await admin.query(
+      `/1.0/operations?recursion=1&project=${lab.project}`,
+    );
+    const found: string[] = [];
+    if (typeof raw === 'object' && raw !== null) {
+      for (const [status, list] of Object.entries(raw)) {
+        if (!Array.isArray(list)) continue;
+        for (const op of list) {
+          found.push(
+            `${status} ${asText(field(op, 'created_at')).slice(11, 23)} ${asText(field(op, 'description'))} ${asText(field(op, 'err'))} ${asText(field(op, 'resources')).slice(0, 160)}`,
+          );
+        }
+      }
+    }
+    return found.toSorted().slice(-40).join('\n');
+  });
+  await note(
+    'the Incus daemon, warnings and errors of the last three minutes',
+    async () =>
+      tail(
+        (
+          await admin.host(
+            [
+              'journalctl',
+              '-u',
+              'incus',
+              '-p',
+              'warning',
+              '--no-pager',
+              '--since',
+              '3 minutes ago',
+            ],
+            { allowFailure: true },
+          )
+        ).stdout
+          .split('\n')
+          .filter((line) => !line.includes('Failed to close connection'))
+          .join('\n'),
+        60,
+      ),
   );
   for (const volume of await admin.volumes()) {
     lines.push(`-- volume ${volume.name}: ${JSON.stringify(volume.config)}`);

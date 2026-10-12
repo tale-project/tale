@@ -18,6 +18,8 @@
 #   operator   the operator's block of docs/incus.md, verbatim
 #   egress     Tale's own sandbox-egress image as an instance on the sandbox
 #              bridge, and the stand-ins for the LLM gateway and the backend
+#   events     records the node's instance lifecycle events (who created,
+#              started, stopped and deleted what) in the background
 #   next-context  the build context of the "next version" of the runtime image
 #              (the current image and one file more), for the upgrade suite
 #   lab-file   writes lab.json, which the suites read
@@ -368,6 +370,21 @@ start_egress() {
   ip -br addr show dev "$NETWORK"
 }
 
+# ---- the node's events ----------------------------------------------------------------------
+
+# What the node did, as it says so itself: every lifecycle event of an instance
+# (created, started, stopped, deleted) names who asked, so that an instance that
+# vanished during its create can be traced to the caller that deleted it.
+record_events() {
+  mkdir -p "$dir/logs"
+  # The file is the runner's own (the redirect is meant to run as the runner).
+  # shellcheck disable=SC2024
+  sudo -b /usr/bin/incus monitor --type=lifecycle --all-projects --format=json \
+    >"$dir/logs/incus-events.jsonl" 2>&1 </dev/null
+  sleep 1
+  log "recording lifecycle events to $dir/logs/incus-events.jsonl"
+}
+
 # ---- the next version -----------------------------------------------------------------------
 
 # The build context of the runtime image's "next version": the current image and
@@ -532,7 +549,7 @@ main() {
   case "$command" in
     env) print_env ;;
     suites) pick_suites "${2:-}" ;;
-    install | storage | api | registry | operator | egress | next-context | lab-file | facts | diagnose)
+    install | storage | api | registry | operator | egress | events | next-context | lab-file | facts | diagnose)
       guard
       ensure_dir
       case "$command" in
@@ -542,13 +559,14 @@ main() {
         registry) phase registry start_registry ;;
         operator) phase operator operator_setup ;;
         egress) phase egress start_egress ;;
+        events) record_events ;;
         next-context) next_context ;;
         lab-file) write_lab_file ;;
         facts) facts ;;
         diagnose) diagnose ;;
       esac
       ;;
-    *) die "usage: lab.sh install|storage|api|registry|operator|egress|next-context|lab-file|facts|diagnose|env|suites" ;;
+    *) die "usage: lab.sh install|storage|api|registry|operator|egress|events|next-context|lab-file|facts|diagnose|env|suites" ;;
   esac
 }
 

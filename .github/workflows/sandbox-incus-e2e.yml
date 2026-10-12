@@ -221,6 +221,11 @@ jobs:
       - name: Start the egress proxy on the sandbox bridge
         run: bash services/sandbox/e2e/incus/lab.sh egress
 
+      # Who created, started, stopped and deleted what, as the node reports it:
+      # the artifact of a run that hung or lost an instance can say who did it.
+      - name: Record the node's lifecycle events
+        run: bash services/sandbox/e2e/incus/lab.sh events
+
       - name: Write the lab file
         id: lab
         run: bash services/sandbox/e2e/incus/lab.sh lab-file
