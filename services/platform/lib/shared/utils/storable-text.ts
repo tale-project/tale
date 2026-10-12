@@ -68,6 +68,21 @@ export function storableText(text: string): string {
     : wellFormed;
 }
 
+/** How many characters of a value a report quotes. */
+export const REPORT_CHARS = 200;
+
+/**
+ * Text as a test report keeps it: storable, and past `chars` characters cut
+ * there with "…" (never through a character that takes two units). It lives
+ * here, with the text helpers it is made of, so the wire schemas that cut
+ * stored names the same way do not load the value diff.
+ */
+export function reportText(text: string, chars = REPORT_CHARS): string {
+  return text.length > chars
+    ? `${storableText(cutText(text, chars))}…`
+    : storableText(text);
+}
+
 /** A JSON value with every string in it, member names included, made
  * storable; a value that needs no change is returned as it is. */
 export function storableJson<T>(value: T): T {

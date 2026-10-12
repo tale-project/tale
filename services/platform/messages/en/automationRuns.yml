@@ -147,6 +147,9 @@ list:
   entity:
     one: run
     other: runs
+  actions:
+    menu: 'More for the run of {when}'
+    open: Open run
   noMatch: No runs match these filters
 attempts:
   title: Attempts

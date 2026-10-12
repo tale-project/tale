@@ -56,7 +56,7 @@ When the automation has more to start from, **Add test** opens a menu. **Blank t
 
 ### Save a run as a test {#save-a-run}
 
-A run that did what it should, or one that went wrong, makes a test of its own. **From a run** in the **Add test** menu lists the five newest runs, a run's page offers **Save as test…** in its menu, and a [try of the draft](/platform/automations/editor#try-the-draft) offers **Save as test** in its strip. The dialog makes the test from the run, with its input:
+A run that did what it should, or one that went wrong, makes a test of its own. **From a run** in the **Add test** menu lists the five newest runs, a run's page and its row in the **Runs** tab offer **Save as test…** in their menus, and a [try of the draft](/platform/automations/editor#try-the-draft) offers **Save as test** in its strip. The dialog makes the test from the run, with its input:
 
 - **The test expects** follows how the run ended: **It returns this output**, or **Its output includes this**, for a run that succeeded; **It succeeds** for one that failed, so the test fails until the failure is fixed, or **It fails at Score** when it failed at Score. **Nothing yet** only checks that the run succeeds.
 - **Simulate with this run's data** lists the steps that called a model, an agent, a connector or another automation, each on by default: in the test it answers as it did in the run. A code step stays off, because your code is what the test checks.

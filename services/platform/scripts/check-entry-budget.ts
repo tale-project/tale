@@ -41,7 +41,7 @@ export const FORBIDDEN_PRELOADS = [
  * validation and YAML (the MCP settings page), its expression parser and
  * scope analysis (the automation editor and the run dialogs), cron schedules
  * (automations), the table library (list pages), the HTML sanitizer
- * (diagrams, previews, email).
+ * (diagrams, previews, email), the text diff the version comparisons draw.
  * Read from the chunks' source maps, so a static import that pulls one into
  * the entry fails the build.
  */
@@ -66,15 +66,25 @@ export const FORBIDDEN_PACKAGES = [
   'cron-parser',
   '@tanstack/table-core',
   'dompurify',
+  'diff',
 ];
 
 /**
- * The service's own catalogs no preloaded chunk may carry, from its root, a
+ * The service's own files no preloaded chunk may carry, from its root, a
  * path ending in `/` naming every file under it: a session reads one
  * language, and German, French and the Swiss overrides load per topic as a
  * session in them first needs one (`lib/i18n/i18n.ts`). English rides with
  * the modules that read it, so the largest topics the first pages do not
  * read stay with the pages that do.
+ *
+ * The automation editor's own screens are held the same way: the tests
+ * panel and its dialogs, the version history and the comparisons load with
+ * the editor's routes (the feature's `components/`), and so does what only
+ * they draw — the automation engine (`lib/engine/`), the value and text
+ * diffs and the test-result list, the docked panels and the flow canvas
+ * components of `@tale/ui` (named by their path from this root). What a
+ * route needs to match its address (`lib/` and `hooks/` of the feature, the
+ * wire schemas) stays in the entry.
  */
 export const FORBIDDEN_SOURCES = [
   'messages/de/',
@@ -84,6 +94,17 @@ export const FORBIDDEN_SOURCES = [
   'messages/en/governance.yml',
   'messages/en/documents.yml',
   'messages/en/projects.yml',
+  'messages/en/automations.yml',
+  'messages/en/automationRuns.yml',
+  'messages/en/automationIssues.yml',
+  'app/features/automations/components/',
+  'lib/engine/',
+  '../../packages/ui/src/data/value-diff.ts',
+  '../../packages/ui/src/components/data-display/code-diff/',
+  '../../packages/ui/src/components/data-display/data-diff/',
+  '../../packages/ui/src/components/feedback/test-results.tsx',
+  '../../packages/ui/src/components/editor/workbench-dock.tsx',
+  '../../packages/ui/src/components/flow/',
 ];
 
 /**

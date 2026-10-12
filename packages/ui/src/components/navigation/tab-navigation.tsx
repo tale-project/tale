@@ -640,6 +640,9 @@ export function TabNavigation({
             className={cn(
               'pointer-events-none absolute bottom-0 h-0.5',
               !accentColor && 'bg-foreground',
+              // A contrast theme repaints a tint to the page's colour, an
+              // accent set inline too: the line keeps the selection colour.
+              'forced-colors:[background-color:Highlight]!',
               shouldAnimate &&
                 'transition-all duration-200 ease-out motion-reduce:transition-none',
             )}

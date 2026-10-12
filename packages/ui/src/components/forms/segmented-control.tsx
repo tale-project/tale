@@ -116,6 +116,11 @@ export function SegmentedControl({
               'flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs font-medium transition-all duration-150',
               'text-muted-foreground',
               'dark:data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:bg-white data-[state=on]:shadow-xs',
+              // A contrast theme repaints every tint, drops the shadow and
+              // paints a backplate behind text whose background was set: the
+              // chosen option takes its own colours back, in the system's
+              // selection pair.
+              'forced-colors:data-[state=on]:[background-color:Highlight] forced-colors:data-[state=on]:[color:HighlightText] forced-colors:data-[state=on]:[forced-color-adjust:none]',
               'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
               'disabled:pointer-events-none disabled:opacity-50',
             )}

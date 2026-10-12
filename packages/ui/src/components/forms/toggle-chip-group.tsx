@@ -79,6 +79,10 @@ export function ToggleChipGroup({
             'inline-flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-medium transition-colors duration-150',
             'ring-border text-muted-foreground hover:bg-accent hover:text-foreground ring-1 ring-inset',
             'data-[state=on]:bg-(--color-accent-base) data-[state=on]:text-(--color-accent-fg) data-[state=on]:ring-(--color-accent-base) data-[state=on]:hover:bg-(--color-accent-base)',
+            // A contrast theme repaints the fill and drops the ring: a
+            // pressed chip takes its colours back, in the system's
+            // selection pair.
+            'forced-colors:data-[state=on]:[background-color:Highlight] forced-colors:data-[state=on]:[color:HighlightText] forced-colors:data-[state=on]:[forced-color-adjust:none]',
             // An outline, not a ring: the ring is the chip's own edge, and
             // on a pressed chip it is the fill's colour.
             'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 240 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 244 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1671,6 +1671,16 @@ output:
       a test fails. The picker's tests icon and the Versions table's Tests
       column read `automations.versions.testsCount` with
       `automations.versions.testsChecked`.
+- [ ] `AUTO-F180` · **Save a run as a test from the Runs tab, and play a run
+      back on a phone** → each row of the Runs tab has a menu named
+      `automationRuns.list.actions.menu` with **Open run**
+      (`automationRuns.list.actions.open`) and, for a developer, **Save as
+      test…** (`automationRuns.again.saveAsTest`), which opens the editor on
+      Tests with the dialog for that run; a member sees only **Open run**,
+      and a click in the menu never opens the row. At 390 px the playback
+      bar (`flow.playback.label`) holds its buttons, the time and the speed
+      in one row and the scrubber in a row under them, with nothing cut off
+      at either edge.
 
 ## Boundary & error tests
 
@@ -2025,6 +2035,24 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       focus stays in the dialog. At 390 px the band's actions wrap under its
       text, and the review scrolls inside the dialog without sideways
       scrolling.
+- [ ] `AUTO-A28` · **A dialog of code fields by keyboard** → In the dialog
+      `automations.stepTest.title` the first field has focus; Escape, then Tab
+      (`codeEditor.legend.leave`) moves to the next field, then **Cancel**,
+      then **Test node**, and Shift+Tab walks back the same way. Focus never
+      lands on the dialog itself. At 200 % browser zoom the body scrolls under
+      the title while both buttons stay in view.
+- [ ] `AUTO-A29` · **The editor and the comparison in a contrast theme** →
+      With a Windows contrast theme on (or Chromium's DevTools → Rendering →
+      Emulate CSS media feature forced-colors: active), the open tab of the
+      page's strip is underlined, **Canvas / List / Source**
+      (`automations.canvas.view.label`) shows the chosen option filled, the
+      open tab of the dock (**Problems** / **Tests**) and of the test
+      inspector (**Setup** / **Result**) is underlined and the others are not,
+      the run timeline's track is an outline with the played part solid
+      (`flow.playback.label`), and a pressed day in a repeat rule is filled.
+      Tab shows an outline round every control that takes focus, the test
+      rows and the dock's tabs included. Every label stays readable, and a
+      diff's added and removed lines keep their signs.
 
 ## Performance
 
@@ -2044,3 +2072,10 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       (`automations.runs.status.queued`); A's run list shows about two
       **Running** at a time — never five, one per worker slot — and all ten
       succeed. Remove the setting and restart the worker afterwards.
+- [ ] `AUTO-P4` · **Fifty tests in the editor** → On a production build, with
+      an automation of 50 tests, **Tests** opens the dock with all 50 rows in
+      under 200 ms; holding ArrowDown through them leaves no task over 50 ms
+      in the browser's Performance panel; **Run all**
+      (`automations.tests.runAll`) answers every row within 2 s. A try of a
+      10-node draft answers in under 300 ms server time (the run's `ms`) and a
+      suite of 20 tests in under 3 s.

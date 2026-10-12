@@ -452,7 +452,11 @@
 /* Windows contrast themes repaint text in their own colours; the selection
    and the problem underlines follow the system's highlight and text colours
    so they stay visible. A diff's tints drop: its signs, its words and a
-   2 px border in the text colour say what changed. */
+   2 px border in the text colour say what changed. They also drop
+   box-shadows, and most controls draw their focus as a ring (a box-shadow)
+   with the browser's own outline turned off: whatever has keyboard focus
+   gets an outline in the system's highlight colour, or nothing would show
+   where the keyboard is. */
 @media (forced-colors: active) {
   :root,
   .dark {
@@ -469,6 +473,11 @@
     --diff-removed-bg: transparent;
     --diff-removed-emphasis: transparent;
     --diff-removed-hatch: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
   }
 }
 

@@ -8,11 +8,12 @@ import { HStack } from '@tale/ui/layout';
 import { type RefObject, useRef } from 'react';
 
 /**
- * A row's actions menu in the version and deployment histories. It owns its
- * button, so an action that answers after the menu has closed — a deploy
- * refused in a dialog — returns focus to the row it was chosen in.
+ * A row's actions menu in the automation tables (versions, deployments,
+ * runs). It owns its button, so an action that answers after the menu has
+ * closed — a deploy refused in a dialog — returns focus to the row it was
+ * chosen in.
  */
-export function VersionRowMenu({
+export function RowMenu({
   label,
   actions,
 }: {
@@ -22,8 +23,8 @@ export function VersionRowMenu({
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   return (
-    // The menu's clicks stay with the menu: the row itself opens the
-    // version in the editor.
+    // The menu's clicks stay with the menu: the row itself opens its own
+    // page.
     <HStack
       justify="end"
       onClick={(event) => {

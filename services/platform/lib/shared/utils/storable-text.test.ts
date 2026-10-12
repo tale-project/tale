@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cutText,
+  reportText,
   storableJson,
   storableText,
   unstorableTextProblem,
@@ -14,6 +15,17 @@ describe('cutText', () => {
     expect(cutText('ab😀', 4)).toBe('ab😀');
     expect(cutText('abc', 2)).toBe('ab');
     expect(cutText('abc', 9)).toBe('abc');
+  });
+});
+
+describe('reportText', () => {
+  it('cuts text the one way, to whatever length a report keeps of it', () => {
+    expect(reportText('short')).toBe('short');
+    expect(reportText('y'.repeat(5000), 4096)).toBe(`${'y'.repeat(4096)}…`);
+    expect(reportText(`${'a'.repeat(4095)}😀`, 4096)).toBe(
+      `${'a'.repeat(4095)}…`,
+    );
+    expect(reportText('a\u0000b', 4096)).toBe('a�b');
   });
 });
 

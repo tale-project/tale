@@ -24,12 +24,12 @@ import type { DiffKind } from '@tale/ui/data/value-diff';
 import type { ValueKind } from '@tale/ui/data/value-summary';
 import { z } from 'zod';
 
-import { reportText } from '../../engine/api/expect';
 import type { TestFailure, TestReport } from '../../engine/api/tests';
 import type { TransientRecord } from '../../engine/core/record/transient';
 import type { EvalTrace, ValueRedaction } from '../../engine/core/record/types';
 import type { BenchMark } from '../../engine/core/types';
 import { isRecord } from '../../utils/type-utils';
+import { reportText } from '../utils/storable-text';
 import { issueSchema } from './automation-issues';
 
 /**

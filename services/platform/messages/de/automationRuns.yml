@@ -147,6 +147,9 @@ list:
   entity:
     one: Lauf
     other: Läufe
+  actions:
+    menu: 'Mehr zum Lauf vom {when}'
+    open: Lauf öffnen
   noMatch: Keine Läufe passen zu diesen Filtern
 attempts:
   title: Versuche

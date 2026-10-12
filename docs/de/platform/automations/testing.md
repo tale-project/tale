@@ -56,7 +56,7 @@ Gibt es mehr, wovon ein Test ausgehen kann, öffnet **Test hinzufügen** ein Men
 
 ### Einen Lauf als Test speichern {#save-a-run}
 
-Ein Lauf, der getan hat, was er sollte, oder einer, der schiefging, wird zu einem eigenen Test. **Aus einem Lauf** im Menü **Test hinzufügen** listet die fünf neuesten Läufe, die Seite eines Laufs bietet **Als Test speichern…** in ihrem Menü, und ein [Versuch mit dem Entwurf](/de/platform/automations/editor#try-the-draft) bietet **Als Test speichern** in seinem Streifen. Der Dialog macht aus dem Lauf einen Test, mit seiner Eingabe:
+Ein Lauf, der getan hat, was er sollte, oder einer, der schiefging, wird zu einem eigenen Test. **Aus einem Lauf** im Menü **Test hinzufügen** listet die fünf neuesten Läufe, die Seite eines Laufs und seine Zeile im Tab **Läufe** bieten **Als Test speichern…** in ihren Menüs, und ein [Versuch mit dem Entwurf](/de/platform/automations/editor#try-the-draft) bietet **Als Test speichern** in seinem Streifen. Der Dialog macht aus dem Lauf einen Test, mit seiner Eingabe:
 
 - **Der Test erwartet** folgt dem Ende des Laufs: **Er gibt diese Ausgabe zurück** oder **Seine Ausgabe enthält das** bei einem erfolgreichen Lauf; **Er ist erfolgreich** bei einem fehlgeschlagenen, sodass der Test fehlschlägt, bis der Fehler behoben ist, oder **Er schlägt bei Score fehl**, wenn er bei Score fehlschlug. **Noch nichts** prüft nur, dass der Lauf erfolgreich ist.
 - **Mit den Daten dieses Laufs simulieren** listet die Schritte, die ein Modell, einen Agenten, einen Connector oder eine andere Automatisierung aufgerufen haben, jeweils standardmäßig eingeschaltet: Im Test antworten sie so wie im Lauf. Ein Code-Schritt bleibt aus, denn dein Code ist das, was der Test prüft.
