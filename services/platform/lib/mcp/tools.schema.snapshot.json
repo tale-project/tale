@@ -2143,7 +2143,7 @@
           }
         },
         "cursor": {
-          "description": "The nextCursor a read of one kind answered, for its next page.",
+          "description": "The cursor a read answered for this kind (cursors.<kind>, or nextCursor after a read of one kind), for its next page. A cursor reads only the kind that issued it.",
           "type": "string",
           "minLength": 1,
           "maxLength": 1000,
@@ -2225,6 +2225,15 @@
             "additionalProperties": {}
           }
         },
+        "cursors": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "nextCursor": {
           "anyOf": [
             {
@@ -2239,7 +2248,7 @@
           "type": "string"
         }
       },
-      "required": ["resources", "refused", "nextCursor", "hint"],
+      "required": ["resources", "refused", "cursors", "nextCursor", "hint"],
       "additionalProperties": {}
     }
   },

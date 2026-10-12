@@ -105,6 +105,7 @@ describe('the Tale skill', () => {
       '../../backend/domains/mcp/settings/apply.ts',
       '../../backend/domains/mcp/settings/secrets.ts',
       '../../backend/domains/governance/settings-resource.ts',
+      '../../backend/domains/provider_credentials/settings-resource.ts',
     ]
       .map((file) => readFileSync(new URL(file, import.meta.url), 'utf8'))
       .join('\n');

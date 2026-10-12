@@ -25,7 +25,7 @@ import { requestChannelOf } from '../../lib/write-origin';
 import { houseIssueMessage } from '../../rest/shared';
 import type { McpCallOutcome } from './activity';
 import { callerOrigin, type McpCaller } from './caller';
-import { refusalFromThrown } from './refusals';
+import { MAX_ARGUMENT_ISSUES, refusalFromThrown } from './refusals';
 
 /** The whole inventory, in the advertised order. */
 export function listTools(): McpToolListing[] {
@@ -42,10 +42,6 @@ export interface ArgumentIssue {
   readonly code: string;
   readonly message: string;
 }
-
-/** How many issues one refusal lists — enough to fix any real call in one
- * round trip, never a hostile call echoed back at length. */
-const MAX_ARGUMENT_ISSUES = 50;
 
 function byPath(a: ArgumentIssue, b: ArgumentIssue): number {
   if (a.path === b.path) return 0;

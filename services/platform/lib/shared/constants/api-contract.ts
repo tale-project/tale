@@ -608,8 +608,9 @@
  * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The kinds served are the
  * organization's own providers and their environment credentials, its
  * policies, embedding model and branding, the deployment's settings, and a
- * project's instructions and its agents' instructions and tools and a
- * task's description, each through the writer its Settings page uses.
+ * project's instructions, its agents' instructions, tools and model, and a
+ * task's description and review context, each through the writer its
+ * Settings page uses.
  * `get_docs` takes the topic `settings` (also `tale://docs/settings`): every
  * kind with its config's fields, the effects of a plan and every refusal.
  * The server instructions and the Tale skill name the settings loop. No
@@ -728,5 +729,18 @@
  * run them. `GET /automations/{name}/versions/{version}/tests` reads the
  * version's latest check: the verdict, when, which act made it and who, and
  * the report. No error code joins the registry.
+ *
+ * 3.41.0 — 2026-10-12: over MCP, `get_settings` answers the cursor of each
+ * kind that has another page under `cursors`, by kind; `nextCursor` stays
+ * for a read of one kind and is null for several, where it named only the
+ * last kind's page. A cursor names the kind that issued it and reads only
+ * that kind (`INVALID_CURSOR` otherwise). The project and agent listings end
+ * a page once the configurations it read would crowd the answer (about
+ * 200,000 characters), the agents paged over their (project, agent) pairs.
+ * A change to a subscription credential answers `USE_SUBSCRIPTION_FLOW`,
+ * where it answered `SETTINGS_TALE_ONLY`; a provider Tale ships answers as
+ * no setting (`SETTINGS_NOT_FOUND`), where it read as a refused name; and an
+ * `expected` that names resources no change names lists at most fifty of
+ * them. No REST operation changes.
  */
-export const API_CONTRACT_VERSION = '3.40.0';
+export const API_CONTRACT_VERSION = '3.41.0';

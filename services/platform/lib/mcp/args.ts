@@ -889,7 +889,7 @@ export const PLATFORM_TOOL_ARGS = {
         .max(1000)
         .optional()
         .describe(
-          'The nextCursor a read of one kind answered, for its next page.',
+          'The cursor a read answered for this kind (cursors.<kind>, or nextCursor after a read of one kind), for its next page. A cursor reads only the kind that issued it.',
         ),
     })
     .superRefine((args, ctx) => {

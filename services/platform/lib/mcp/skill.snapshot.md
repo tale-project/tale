@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Needs Tale's MCP server connected (https://<your Tale>/api/v1/mcp); works with any MCP client that reads skills."
 metadata:
   publisher: tale
-  contract: "3.40.0"
+  contract: "3.41.0"
 ---
 
 # Tale
@@ -88,6 +88,7 @@ A refusal is data, never a crash: {error, code, hint, data}. Branch on code and 
 | SETTINGS_STALE | The setting changed since you read it: read it again with get_settings, plan against what is stored, apply with data.currentHash. |
 | SECRET_ARGUMENT_REFUSED | Take the secret out of the change (data.places says where); the person enters it in Tale. |
 | SETTINGS_TALE_ONLY | The change is made in Tale alone: tell the person where. |
+| USE_SUBSCRIPTION_FLOW | A subscription is connected through Tale, never by a change: tell the person to connect it under Settings > AI providers. |
 | RATE_LIMITED | Wait data.retryAfterMs, then call again. |
 | INTERNAL_ERROR | Tell the person data.requestId; whoever runs Tale can look it up. |
 

@@ -38,7 +38,7 @@ Manche Änderungen bleiben in Tale:
 ## Eine Änderung vornehmen {#make-a-change}
 
 1. Ruf `get_settings` ohne Argumente auf. Die Antwort listet jede Art, ob dieses Deployment sie bedient und ob deine Rolle sie lesen und ändern darf.
-2. Lies mit `get_settings` und `kinds` (und `ids`), was du ändern willst. Jede Ressource kommt mit ihrem `key`, ihrer `config` und ihrem `hash`.
+2. Lies mit `get_settings` und `kinds` (und `ids`), was du ändern willst. Jede Ressource kommt mit ihrem `key`, ihrer `config` und ihrem `hash`. Eine Art mit vielen Ressourcen antwortet mit einer Seite und ihrem Cursor unter `cursors`; die nächste Seite liest du mit genau dieser Art und `cursor`.
 3. Plane die Änderung mit `plan_settings`. Ein `set` ersetzt die ganze Ressource durch ihre `config`. Schick deshalb jedes Feld mit, das erhalten bleiben soll, so wie du es gelesen hast. Der Plan nennt für jede Änderung ihre Aktion, ihren Diff, ihre Auswirkungen und ihr Risiko oder die Ablehnung, an der sie scheitert. Geschrieben wird dabei nichts.
 4. Zeig der Person den Plan und warte auf ihre Entscheidung. Stell die Auswirkungen und das Risiko an den Anfang.
 5. Nimm dieselben Änderungen mit `apply_settings` vor. `expected` ordnet dem `key` jeder geänderten Ressource den Hash zu, den du gelesen hast, oder `null` für eine, die du anlegst.
@@ -121,9 +121,10 @@ Eine Ablehnung kommt als Daten zurück, mit `error`, `code`, `hint` und manchmal
 | `SETTINGS_INVALID`                                           | Die Konfiguration passt nicht zur Art. `data.issues` nennt jedes Problem mit seiner Stelle in der Konfiguration, auch ein Feld, das die Einstellung nicht kennt, und Text, den Tale nicht speichern kann, etwa ein NUL-Zeichen. |
 | `SECRET_ARGUMENT_REFUSED`                                    | Die Änderung enthält ein Secret. `data.places` nennt die Stelle.                                                                                                 |
 | `SETTINGS_TALE_ONLY`                                         | Diese Änderung geht nur in Tale, zum Beispiel bei Zugangsdaten mit Schlüssel.                                                                                    |
+| `USE_SUBSCRIPTION_FLOW`                                      | Ein Abonnement wird über den eigenen Ablauf von Tale verbunden, nie durch eine Änderung gesetzt. Sag der Person, dass sie es unter **Einstellungen > KI-Anbieter** verbindet; Entfernen geht auch hier. |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Die Rolle der Person erlaubt diese Änderung auch in Tale nicht. Ein neuer Versuch hilft nicht.                                                                   |
 | `EMBEDDING_CORPUS_NOT_EMPTY`                                 | Das Embedding-Modell ändert sich nur, solange das Wissen der Organisation leer ist. `data` nennt, wie viele Dokumente und Websites es enthält.                                    |
 | `BRANDING_IMAGE_UNKNOWN`                                     | Ein Branding-Dateiname nennt kein Bild, das in die Organisation hochgeladen wurde.                                                                               |
 | `PROVIDER_IN_USE`, `CREDENTIAL_IN_USE`                       | Zugangsdaten nennen den Anbieter noch, oder das Embedding-Modell nutzt die Zugangsdaten. Ändere zuerst diese.                                                    |
 
-Die Einstellungsreferenz listet jeden Code. Die Seite zum [MCP-Endpunkt](/de/develop/mcp-endpoint#settings) beschreibt die Argumente und Antworten der Tools.
+Die Einstellungsreferenz listet die Codes, mit denen die Einstellungs-Tools selbst antworten; der Writer einer Art antwortet zusätzlich mit eigenen, jeweils mit Satz und Hinweis. Die Seite zum [MCP-Endpunkt](/de/develop/mcp-endpoint#settings) beschreibt die Argumente und Antworten der Tools.

@@ -51,6 +51,17 @@ import {
 const ID_FORM =
   'the provider and the credential name joined by a slash, the name URI-encoded, such as openai/Production%20key';
 
+/** Whether a credential's authentication method is a subscription. */
+function isSubscription(authMethod: unknown): boolean {
+  return (
+    typeof authMethod === 'string' && authMethod.startsWith('subscription')
+  );
+}
+
+/** Where a person connects a subscription. */
+const SUBSCRIPTION_HINT =
+  'tell the person to connect the subscription in Tale, under Settings > AI providers; over MCP only a credential that reads its key from an environment variable is created or changed, and any credential can be removed';
+
 /** Where a person enters a credential that carries a secret. */
 const TALE_ONLY_HINT =
   'tell the person to add or change it in Tale, under Settings > AI providers; over MCP only a credential that reads its key from an environment variable is created or changed';
@@ -288,15 +299,26 @@ export const providerCredentialSettings: SettingsKindHandler = {
         : {};
     }
     const sent = isRecord(change.config) ? change.config.authMethod : undefined;
+    const stored =
+      current !== null && isRecord(current.config)
+        ? current.config.authMethod
+        : undefined;
+    // A subscription is connected through its own flow, whatever the change
+    // says; a key is entered in Tale. Neither is set by a change.
+    if (isSubscription(sent) || isSubscription(stored)) {
+      throw new SettingsRefusalError(
+        'USE_SUBSCRIPTION_FLOW',
+        `${id} is a subscription, which is connected through Tale's own flow and not set by a change`,
+        { hint: SUBSCRIPTION_HINT },
+      );
+    }
     if (
       (sent !== undefined && sent !== 'env') ||
-      (current !== null &&
-        isRecord(current.config) &&
-        current.config.authMethod !== 'env')
+      (stored !== undefined && stored !== 'env')
     ) {
       throw new SettingsRefusalError(
         'SETTINGS_TALE_ONLY',
-        `${id} holds a key or a subscription entered in Tale`,
+        `${id} holds a key entered in Tale`,
         { hint: TALE_ONLY_HINT },
       );
     }

@@ -187,6 +187,8 @@ export const READ_TOOL_RESULTS = {
     refused: z.array(
       z.looseObject({ kind: z.string(), code: z.string(), error: z.string() }),
     ),
+    // The cursor of each kind that has another page, by kind.
+    cursors: z.record(z.string(), z.string()),
     nextCursor: z.string().nullable(),
     hint: z.string(),
   }),

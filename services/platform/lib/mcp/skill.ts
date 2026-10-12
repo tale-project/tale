@@ -309,6 +309,10 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
         tools: [],
       },
       {
+        text: '| USE_SUBSCRIPTION_FLOW | A subscription is connected through Tale, never by a change: tell the person to connect it under Settings > AI providers. |',
+        tools: [],
+      },
+      {
         text: '| RATE_LIMITED | Wait data.retryAfterMs, then call again. |',
         tools: [],
       },

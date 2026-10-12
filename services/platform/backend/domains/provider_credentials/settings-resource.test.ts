@@ -261,14 +261,28 @@ describe('planning a credential change', () => {
       code: 'SETTINGS_TALE_ONLY',
       hint: expect.stringContaining('Settings > AI providers'),
     });
-    const created = await planSettings(contextOf('admin'), registry, [
-      {
-        kind: 'provider-credential',
-        op: 'set',
-        config: { ...ENV_KEY, name: 'Other', authMethod: 'subscription-key' },
-      },
+  });
+
+  it('sends a subscription to the flow that connects one, by its own code and not as a key entered in Tale [MCP-R36]', async () => {
+    for (const authMethod of ['subscription-key', 'subscription-broker']) {
+      const created = await planSettings(contextOf('admin'), registry, [
+        {
+          kind: 'provider-credential',
+          op: 'set',
+          config: { ...ENV_KEY, name: 'Other', authMethod },
+        },
+      ]);
+      expect(created.changes[0]?.refusal, authMethod).toMatchObject({
+        code: 'USE_SUBSCRIPTION_FLOW',
+        hint: expect.stringContaining('Settings > AI providers'),
+      });
+    }
+    // A subscription already stored is changed the same way: in Tale.
+    stored('cred-sub', { authMethod: 'subscription-key', envName: null });
+    const existing = await planSettings(contextOf('admin'), registry, [
+      { kind: 'provider-credential', op: 'set', config: ENV_KEY },
     ]);
-    expect(created.changes[0]?.refusal?.code).toBe('SETTINGS_TALE_ONLY');
+    expect(existing.changes[0]?.refusal?.code).toBe('USE_SUBSCRIPTION_FLOW');
   });
 
   it('refuses a key typed into the change, naming where, never the key', async () => {

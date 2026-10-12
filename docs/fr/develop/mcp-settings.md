@@ -38,7 +38,7 @@ Certaines modifications restent dans Tale :
 ## Faire une modification {#make-a-change}
 
 1. Appelle `get_settings` sans arguments. La réponse liste chaque type, indique si ce déploiement le sert et si ton rôle peut le lire et le modifier.
-2. Lis ce que tu veux modifier avec `get_settings` et `kinds` (et `ids`). Chaque ressource arrive avec sa `key`, sa `config` et son `hash`.
+2. Lis ce que tu veux modifier avec `get_settings` et `kinds` (et `ids`). Chaque ressource arrive avec sa `key`, sa `config` et son `hash`. Un type qui a beaucoup de ressources répond avec une page et son curseur sous `cursors` ; lis la page suivante avec ce seul type et `cursor`.
 3. Planifie la modification avec `plan_settings`. Un `set` remplace toute la ressource par sa `config` : envoie donc chaque champ qui doit rester, tel que tu l’as lu. Le plan indique pour chaque modification son action, son diff, ses effets et son risque, ou le refus qui l’arrête. Rien n’est écrit.
 4. Montre le plan à la personne et attends sa décision. Commence par les effets et le risque.
 5. Applique les mêmes modifications avec `apply_settings`. `expected` associe la `key` de chaque ressource modifiée au hash que tu as lu, ou `null` pour une ressource que tu crées.
@@ -121,9 +121,10 @@ Un refus arrive sous forme de données, avec un `error`, un `code`, un `hint` et
 | `SETTINGS_INVALID` | La configuration ne correspond pas au type. `data.issues` indique chaque problème avec son emplacement dans la configuration, y compris un champ que le paramètre ne connaît pas et un texte que Tale ne peut pas enregistrer, comme un caractère NUL. |
 | `SECRET_ARGUMENT_REFUSED` | La modification contient un secret. `data.places` indique où. |
 | `SETTINGS_TALE_ONLY` | Cette modification se fait uniquement dans Tale, par exemple pour des identifiants avec une clé. |
+| `USE_SUBSCRIPTION_FLOW` | Un abonnement se connecte par le parcours propre à Tale, jamais par une modification. Dis à la personne de le connecter sous **Paramètres > Fournisseurs IA** ; le supprimer reste possible ici. |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Le rôle de la personne ne permet pas non plus cette modification dans Tale. Réessayer ne sert à rien. |
 | `EMBEDDING_CORPUS_NOT_EMPTY` | Le modèle d’embedding ne change que tant que les connaissances de l’organisation sont vides. `data` indique combien de documents et de sites web elles contiennent. |
 | `BRANDING_IMAGE_UNKNOWN` | Un nom de fichier du branding ne désigne aucune image téléversée dans l’organisation. |
 | `PROVIDER_IN_USE`, `CREDENTIAL_IN_USE` | Des identifiants désignent encore le fournisseur, ou le modèle d’embedding utilise ces identifiants. Modifie-les d’abord. |
 
-La référence des paramètres liste chaque code. La page du [point d’accès MCP](/fr/develop/mcp-endpoint#settings) décrit les arguments et les réponses des outils.
+La référence des paramètres liste les codes que les outils de paramètres renvoient eux-mêmes ; le rédacteur d’un type en renvoie aussi les siens, chacun avec sa phrase et un conseil. La page du [point d’accès MCP](/fr/develop/mcp-endpoint#settings) décrit les arguments et les réponses des outils.

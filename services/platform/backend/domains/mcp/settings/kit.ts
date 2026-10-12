@@ -10,7 +10,11 @@ import type { SettingsKind } from '@tale/shared/schemas/settings-kinds';
 
 import { unstorableTexts } from '../../../../lib/shared/utils/storable-text.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
-import type { SettingsChange, SettingsContext } from './registry.ts';
+import type {
+  SettingsChange,
+  SettingsContext,
+  SettingsResource,
+} from './registry.ts';
 
 /** One problem with a change, as a refusal lists it: where (a pointer into
  * the change), what kind of problem, and why — never the value sent. */
@@ -231,6 +235,22 @@ export function identityOf(
 /** A cursor this listing answered: the place its next page starts. */
 const CURSOR = /^p([1-9]\d{0,6})$/;
 
+/** Where the page a cursor names starts; the first page when there is none. */
+function offsetOf(cursor: string | undefined): number {
+  if (cursor === undefined) return 0;
+  const match = CURSOR.exec(cursor);
+  if (match === null) {
+    throw new SettingsRefusalError(
+      'INVALID_CURSOR',
+      'the cursor is not one this listing answered',
+      {
+        hint: 'pass the nextCursor get_settings answered for this kind, or none for its first page',
+      },
+    );
+  }
+  return Number(match[1]);
+}
+
 /**
  * One page of a listing that reads everything it lists at once: `size`
  * resources from where the cursor says, and the cursor of the next page
@@ -241,25 +261,46 @@ export function pageOf<T>(
   cursor: string | undefined,
   size: number,
 ): { items: T[]; nextCursor: string | null } {
-  let offset = 0;
-  if (cursor !== undefined) {
-    const match = CURSOR.exec(cursor);
-    if (match === null) {
-      throw new SettingsRefusalError(
-        'INVALID_CURSOR',
-        'the cursor is not one this listing answered',
-        {
-          hint: 'pass the nextCursor get_settings answered for this kind, or none for its first page',
-        },
-      );
-    }
-    offset = Number(match[1]);
-  }
+  const offset = offsetOf(cursor);
   const end = offset + size;
   return {
     items: items.slice(offset, end),
     nextCursor: end < items.length ? `p${end}` : null,
   };
+}
+
+/** The most the configurations of one page may take, as JSON text. A page
+ * of free text (instructions run to 20,000 characters each) stays under the
+ * 250,000 characters `get_settings` advertises for its answer, whatever
+ * `size` says. */
+export const PAGE_CONFIG_CHARS = 200_000;
+
+/**
+ * One page of a listing whose resources are read one at a time: from where
+ * the cursor says, up to `size` of them, cut once the configurations read so
+ * far take {@link PAGE_CONFIG_CHARS} — the resource that crosses the line is
+ * the last of its page, and a page always holds one — with the cursor of the
+ * next page when ones remain. Reads only the resources it answers.
+ */
+export async function pageOfRead<T>(
+  ids: readonly T[],
+  cursor: string | undefined,
+  size: number,
+  read: (id: T) => Promise<SettingsResource>,
+): Promise<{ items: SettingsResource[]; nextCursor: string | null }> {
+  const items: SettingsResource[] = [];
+  let next = offsetOf(cursor);
+  let chars = 0;
+  while (next < ids.length && items.length < size) {
+    const id = ids[next];
+    if (id === undefined) break;
+    const item = await read(id);
+    items.push(item);
+    next += 1;
+    chars += (JSON.stringify(item.config) ?? '').length;
+    if (chars >= PAGE_CONFIG_CHARS) break;
+  }
+  return { items, nextCursor: next < ids.length ? `p${next}` : null };
 }
 
 /** The person a change acts as and is recorded under. */

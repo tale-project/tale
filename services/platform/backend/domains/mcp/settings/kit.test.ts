@@ -8,7 +8,9 @@ import {
   droppedMembers,
   identifySingle,
   identityOf,
+  PAGE_CONFIG_CHARS,
   pageOf,
+  pageOfRead,
   parseSettingsConfig,
   SettingsRefusalError,
 } from './kit.ts';
@@ -167,4 +169,75 @@ describe('pages of a listing', () => {
       );
     },
   );
+});
+
+describe('pages of a listing read one resource at a time', () => {
+  const resourceOf = (id: number, chars: number) => ({
+    id: String(id),
+    hash: `h${id}`,
+    config: { text: 'x'.repeat(chars) },
+  });
+  /** What a page of them holds, as ids, and the cursor it answered. */
+  async function walk(
+    ids: readonly number[],
+    size: number,
+    chars: (id: number) => number,
+  ) {
+    const pages: string[][] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await pageOfRead(ids, cursor, size, async (id) =>
+        resourceOf(id, chars(id)),
+      );
+      pages.push(page.items.map((item) => item.id ?? ''));
+      if (page.nextCursor === null) return pages;
+      cursor = page.nextCursor;
+    }
+  }
+  const ids = Array.from({ length: 25 }, (_, index) => index);
+
+  it('cuts a page at the number of resources it may hold [MCP-R35]', async () => {
+    const pages = await walk(ids, 10, () => 10);
+    expect(pages.map((page) => page.length)).toEqual([10, 10, 5]);
+    expect(pages.flat()).toEqual(ids.map(String));
+  });
+
+  it('cuts a page once what it read takes the room an answer has, however few that is [MCP-R35]', async () => {
+    // Each configuration is about a tenth of the room: ten make a page.
+    const tenth = PAGE_CONFIG_CHARS / 10;
+    const pages = await walk(ids, 50, () => tenth);
+    expect(pages.map((page) => page.length)).toEqual([10, 10, 5]);
+    expect(pages.flat()).toEqual(ids.map(String));
+  });
+
+  it('holds at least one resource on a page, even one that takes all the room [MCP-R35]', async () => {
+    const pages = await walk([0, 1, 2], 50, () => PAGE_CONFIG_CHARS * 2);
+    expect(pages).toEqual([['0'], ['1'], ['2']]);
+  });
+
+  it('starts where the cursor says, and refuses one no page answered', async () => {
+    const page = await pageOfRead(ids, 'p20', 10, async (id) =>
+      resourceOf(id, 1),
+    );
+    expect(page.items.map((item) => item.id)).toEqual([
+      '20',
+      '21',
+      '22',
+      '23',
+      '24',
+    ]);
+    expect(page.nextCursor).toBeNull();
+    await expect(
+      pageOfRead(ids, 'x20', 10, async (id) => resourceOf(id, 1)),
+    ).rejects.toMatchObject({ code: 'INVALID_CURSOR' });
+  });
+
+  it('reads nothing past the page it answers', async () => {
+    const read: number[] = [];
+    await pageOfRead(ids, undefined, 3, async (id) => {
+      read.push(id);
+      return resourceOf(id, 1);
+    });
+    expect(read).toEqual([0, 1, 2]);
+  });
 });
