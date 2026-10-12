@@ -48,13 +48,13 @@ membership is refused too (`MEMBER_SELF_REMOVAL_FORBIDDEN`).
 
 ## Removing a member's sign-in factor
 
-### MEMBER-R6 · Only owners and admins can revoke a passkey or reset two-factor authentication
+### MEMBER-R6 · Only admins of every target workspace can remove sign-in factors
 
-Anyone else is refused (`FORBIDDEN`) and nothing is changed.
+The caller must be an owner or admin in every organization where the target has a membership. Listing a member's passkeys follows the same authority rule. Anyone else is refused (`FORBIDDEN`) and nothing is changed.
 
 - **Example**: Mia is a member. She revokes Noah's passkey → refused.
 
-### MEMBER-R7 · An admin cannot reset an owner's two-factor authentication
+### MEMBER-R7 · An admin cannot reset an owner's sign-in factors in any workspace
 
 (`FORBIDDEN`)
 
@@ -79,6 +79,17 @@ instead. It never makes a member of someone who has no seat in the organization.
 
 - **Example**: Mia's seat is Member. Her company's proxy signs her in as Admin → the app shows
   her what an admin sees.
+
+## Member-management routes
+
+### MEMBER-R10 · Role changes and removals use the guarded member-management routes
+
+The sign-in handler's organization role-change and member-removal routes are closed
+(404). Members are managed through the app's member-management routes, which enforce
+the role and removal rules above.
+
+- **Example**: Ada sends a member removal to the sign-in handler → the route is closed,
+  and Mia keeps her seat.
 
 ## Not yet
 

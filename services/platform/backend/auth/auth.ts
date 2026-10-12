@@ -781,6 +781,9 @@ export function createAuth(config: AuthConfig) {
     // `tale:` capability grants would outlive it (its remove-member sibling
     // at least fires afterRemoveMember, which this config hooks). Nothing in
     // the product calls it; leaving an organization is an administered act.
+    // Role changes and removals use the app's members routes, whose
+    // creator, owner, last-admin, self-removal and legal-hold guards the
+    // plugin does not carry. Its afterRemoveMember cleanup is not a guard.
     // The plugin's team-membership doors are closed for the same reason:
     // they write `teamMember` rows with no audit row and no last-member
     // rule, while the app's own `/api/app/teams/:teamId/members` doors —
@@ -792,6 +795,8 @@ export function createAuth(config: AuthConfig) {
       // never calls it, and those fields are the server's (below).
       '/update-session',
       '/organization/leave',
+      '/organization/update-member-role',
+      '/organization/remove-member',
       '/organization/add-team-member',
       '/organization/remove-team-member',
     ],
@@ -1267,8 +1272,8 @@ export function createAuth(config: AuthConfig) {
           // team-sync provenance, and the member's live platform-capability
           // grants, which a re-added member would get back carrying a right
           // no admin re-granted. The app door runs the cascade inside its
-          // own transaction (domains/members/service.ts); this runs the same
-          // one for the plugin's.
+          // own transaction (domains/members/service.ts); retain this for
+          // trusted server-side plugin calls. The HTTP door is disabled.
           afterRemoveMember: async ({ member, organization: org }) => {
             await sql.begin((tx) =>
               removeMembershipCascade(tx, org.id, member.userId),

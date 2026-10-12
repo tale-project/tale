@@ -77,6 +77,8 @@ During the grace period, members see a reminder. After it expires, Tale blocks o
 
 ## Help a locked-out member
 
+To view a member's passkeys, remove one, or reset their authenticator, you must be an Owner or Admin in every organization where they have a membership, including disabled memberships. To remove a factor from an Owner, you must also be a different Owner in each organization where they hold that role. Owners manage their own factors in **Settings > Account**.
+
 Verify the person's identity through your organization's recovery process first. Then open **Settings > Members**, edit the member, and select **Reset two-factor**. Confirming clears their authenticator setup and ends all active sessions. They can sign in again and set up a new authenticator; an enforced policy requires enrollment before they continue.
 
 For a lost passkey, remove that credential in the member dialog's **Passkeys** section instead. Admin removal also ends all of that member's sessions. Review recovery actions in [audit logs](/platform/admin/governance/audit-logs).

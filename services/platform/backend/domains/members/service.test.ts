@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MemberServiceError,
+  listPasskeysForMember,
   resetTwoFactorForMember,
   revokePasskeyForMember,
 } from './service.ts';
@@ -35,6 +36,8 @@ interface Scenario {
   passkeyDeleteReturns?: { id: string }[];
   /** Make the audit insert fail (a ledger write error). */
   auditFails?: boolean;
+  actorMemberships?: { organizationId: string; role: string }[];
+  targetMemberships?: { organizationId: string; role: string }[];
 }
 
 function createRecordingTx(scenario: Scenario): {
@@ -42,6 +45,7 @@ function createRecordingTx(scenario: Scenario): {
   statements: Statement[];
 } {
   const statements: Statement[] = [];
+  let orgQuery = 0;
   const answer = (text: string): unknown[] => {
     if (
       text.startsWith(
@@ -73,6 +77,33 @@ function createRecordingTx(scenario: Scenario): {
               role: scenario.callerRole,
             },
           ];
+    }
+    if (text.startsWith('SELECT "organizationId", "role" FROM "member"')) {
+      const rows =
+        orgQuery++ === 0
+          ? scenario.actorMemberships
+          : scenario.targetMemberships;
+      return (
+        rows ?? [
+          {
+            organizationId: ORG_ID,
+            role:
+              (orgQuery > 1 ? scenario.targetRole : scenario.callerRole) ??
+              'member',
+          },
+        ]
+      );
+    }
+    if (text.includes('FROM "passkey" WHERE "userId"')) {
+      return [
+        {
+          id: 'pk-1',
+          name: 'private device',
+          deviceType: 'singleDevice',
+          backedUp: false,
+          createdAt: null,
+        },
+      ];
     }
     if (text.startsWith('DELETE FROM "passkey"')) {
       return scenario.passkeyDeleteReturns ?? [{ id: 'pk-1' }];
@@ -248,5 +279,169 @@ describe('resetTwoFactorForMember', () => {
       ),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
     expect(adminOnOwner.statements.filter(isWrite)).toEqual([]);
+  });
+});
+
+describe('cross-workspace account security authority', () => {
+  const base = {
+    callerRole: 'admin',
+    targetRole: 'member',
+    actorMemberships: [{ organizationId: 'a', role: 'admin' }],
+  };
+  it('R1 refuses a target with a seat in another workspace before DELETE [MEMBER-R6]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      targetMemberships: [
+        { organizationId: 'a', role: 'member' },
+        { organizationId: 'b', role: 'member' },
+      ],
+    });
+    await expect(
+      resetTwoFactorForMember(x.tx, { userId: ADMIN_ID }, TARGET_MEMBER_ID),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(x.statements.filter(isWrite)).toEqual([]);
+  });
+  it('R2 protects an owner seat in any workspace [MEMBER-R7]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      actorMemberships: [
+        { organizationId: 'a', role: 'admin' },
+        { organizationId: 'b', role: 'admin' },
+      ],
+      targetMemberships: [
+        { organizationId: 'a', role: 'member' },
+        { organizationId: 'b', role: 'owner' },
+      ],
+    });
+    await expect(
+      resetTwoFactorForMember(x.tx, { userId: ADMIN_ID }, TARGET_MEMBER_ID),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(x.statements.filter(isWrite)).toEqual([]);
+  });
+  it('R3 audits the caller role [MEMBER-R8]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      targetMemberships: [{ organizationId: 'a', role: 'member' }],
+    });
+    await resetTwoFactorForMember(x.tx, { userId: ADMIN_ID }, TARGET_MEMBER_ID);
+    const audit = x.statements.find((q) =>
+      q.text.startsWith('INSERT INTO app.audit_logs'),
+    );
+    expect(audit?.values).toContain('admin');
+  });
+  it('R4 allows a legitimate same-workspace admin action [MEMBER-R6] [MEMBER-R8]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      targetMemberships: [{ organizationId: 'a', role: 'member' }],
+    });
+    await resetTwoFactorForMember(x.tx, { userId: ADMIN_ID }, TARGET_MEMBER_ID);
+    expect(
+      x.statements.some((q) => q.text.startsWith('DELETE FROM "session"')),
+    ).toBe(true);
+  });
+  it('R5 consent-less add path grants no account-level control [MEMBER-R6]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      targetMemberships: [
+        { organizationId: 'a', role: 'member' },
+        { organizationId: 'b', role: 'member' },
+      ],
+    });
+    await expect(
+      revokePasskeyForMember(
+        x.tx,
+        { userId: ADMIN_ID },
+        { memberId: TARGET_MEMBER_ID, passkeyId: 'pk-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(x.statements.filter(isWrite)).toEqual([]);
+  });
+  it('Review R4 allows administration across two workspaces [MEMBER-R6] [MEMBER-R8]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      actorMemberships: [
+        { organizationId: 'a', role: 'admin' },
+        { organizationId: 'b', role: 'admin' },
+      ],
+      targetMemberships: [
+        { organizationId: 'a', role: 'member' },
+        { organizationId: 'b', role: 'member' },
+      ],
+    });
+    await resetTwoFactorForMember(x.tx, { userId: ADMIN_ID }, TARGET_MEMBER_ID);
+    expect(
+      x.statements.some((q) => q.text.startsWith('DELETE FROM "session"')),
+    ).toBe(true);
+  });
+  it.each(['reset', 'revoke'])(
+    'Review R5 different owner in other workspace allows %s [MEMBER-R7] [MEMBER-R8]',
+    async (action) => {
+      const x = createRecordingTx({
+        ...base,
+        actorMemberships: [
+          { organizationId: 'a', role: 'admin' },
+          { organizationId: 'b', role: 'owner' },
+        ],
+        targetMemberships: [
+          { organizationId: 'a', role: 'member' },
+          { organizationId: 'b', role: 'owner' },
+        ],
+      });
+      if (action === 'reset')
+        await resetTwoFactorForMember(
+          x.tx,
+          { userId: ADMIN_ID },
+          TARGET_MEMBER_ID,
+        );
+      else
+        await revokePasskeyForMember(
+          x.tx,
+          { userId: ADMIN_ID },
+          { memberId: TARGET_MEMBER_ID, passkeyId: 'pk-1' },
+        );
+      expect(
+        x.statements.some((q) => q.text.startsWith('DELETE FROM "session"')),
+      ).toBe(true);
+    },
+  );
+  it('Review R5 admin in both workspaces cannot revoke another workspace owner factor [MEMBER-R7]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      actorMemberships: [
+        { organizationId: 'a', role: 'admin' },
+        { organizationId: 'b', role: 'admin' },
+      ],
+      targetMemberships: [
+        { organizationId: 'a', role: 'member' },
+        { organizationId: 'b', role: 'owner' },
+      ],
+    });
+    await expect(
+      revokePasskeyForMember(
+        x.tx,
+        { userId: ADMIN_ID },
+        { memberId: TARGET_MEMBER_ID, passkeyId: 'pk-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(x.statements.filter(isWrite)).toEqual([]);
+  });
+  it('Review R6 refuses passkey listing without authority in every workspace [MEMBER-R6]', async () => {
+    const x = createRecordingTx({
+      ...base,
+      targetMemberships: [
+        { organizationId: 'a', role: 'member' },
+        { organizationId: 'b', role: 'member' },
+      ],
+    });
+    // Recording tag supports both pool and transaction readers.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- structural SQL reader stub
+    const sql = x.tx as unknown as import('postgres').Sql;
+    await expect(
+      listPasskeysForMember(sql, { userId: ADMIN_ID }, TARGET_MEMBER_ID),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(x.statements.some((q) => q.text.includes('FROM "passkey"'))).toBe(
+      false,
+    );
+    expect(x.statements.filter(isWrite)).toEqual([]);
   });
 });
