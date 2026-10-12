@@ -311,13 +311,13 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   test_automation:
     "Run an automation's own acceptance tests — of a draft (automation), or of a saved version (name, version), whose verdict is then recorded on it.",
   save_automation:
-    'Save an automation document as a new immutable version; the answer lists its warnings. Pass baseVersion (the version you read) so a version saved meanwhile is never overwritten. Settings, task contract and presentation you leave out are kept from the latest version (carried names them).',
+    'Save an automation document as a new immutable version; the answer lists its warnings. Pass baseVersion (the version you read) so a version saved meanwhile is never overwritten. Settings, task contract and presentation you leave out are kept from the latest version (carried names them). With name and restoreVersion instead of a document, an older version is brought back as the newest — the live version stays live.',
   get_automation:
-    'Read one saved version (the latest when unversioned): the document, its settings, task contract and presentation, latestVersion, deployedVersion, who saved it and through which door, its installations and its trigger.',
+    'Read one saved version (the latest when unversioned): the document, its settings, task contract and presentation, latestVersion, deployedVersion, who saved it and through which door, its installations and its trigger. With against, the answer also says what the version changed against another (diff).',
   list_automations:
     "The organization's automations with their latest and deployed versions and the projects each is installed in (projectIds).",
   deploy_automation:
-    'Promote one saved version to be the live version; an older one rolls back. Pass expectedDeployedVersion so another deploy meanwhile is never replaced; the answer names the previousVersion.',
+    'Promote one saved version to be the live version; an older one rolls back. Pass expectedDeployedVersion so another deploy meanwhile is never replaced; the answer names the previousVersion and whether it was a rollback (kind).',
   delete_automation:
     'Delete an automation: every version, its trigger and its installations; the run history stays. expectedLatestVersion must be the latest version you read.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
@@ -339,7 +339,7 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   answer_run_ask:
     'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
   list_versions:
-    "One automation's immutable version history — who saved each version through which door — and when each version went live (deployments).",
+    "One automation's immutable version history, newest first — who saved each version through which door and client, what it was based on and changed, how its tests went and whether it is live. limit pages it; nextBefore is the before of the next page.",
   set_automation_projects:
     'Install an automation in projects (add) and remove it from others (remove), in one change.',
   list_triggers: 'What starts the automations (never the webhook secret).',

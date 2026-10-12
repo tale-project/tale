@@ -468,7 +468,13 @@ describe('list_versions', () => {
       { name: NAME },
       { store: store({ listDeployments: async () => deployments }) },
     );
-    expect(result).toEqual({ deployedVersion: 5, versions: [], deployments });
+    expect(result).toEqual({
+      deployedVersion: 5,
+      latestVersion: null,
+      versions: [],
+      nextBefore: null,
+      deployments,
+    });
   });
 });
 

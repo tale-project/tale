@@ -91,7 +91,9 @@ export const READ_TOOL_RESULTS = {
   }),
   list_versions: z.looseObject({
     deployedVersion: z.number().nullable(),
+    latestVersion: z.number().nullable(),
     versions: z.array(z.looseObject({ version: z.number() })),
+    nextBefore: z.number().nullable(),
     deployments: z
       .array(
         z.looseObject({

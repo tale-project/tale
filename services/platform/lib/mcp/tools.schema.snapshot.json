@@ -254,6 +254,18 @@
           "additionalProperties": {},
           "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
         },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "With restoreVersion: the automation whose older version is brought back. Not used with automation — the document carries its own name."
+        },
+        "restoreVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Instead of a document: bring this saved version of name back as the newest, through a save’s checks and tests; the live version stays live. list_versions shows the versions, get_automation {against} what a version changed. Takes message and baseVersion; nothing is saved when the latest version already holds that content."
+        },
         "message": {
           "description": "Why this version — shown in the version history.",
           "type": "string",
@@ -323,7 +335,6 @@
           ]
         }
       },
-      "required": ["automation"],
       "additionalProperties": false
     }
   },
@@ -350,6 +361,33 @@
               "const": "deployed"
             }
           ]
+        },
+        "against": {
+          "description": "Also say what the version read changed against another one: a number, \"latest\", \"deployed\" or \"previous\" (the one saved before it). The answer adds diff: the changes node by node, in the input schema, the output, the description and the tests.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "const": "latest"
+            },
+            {
+              "type": "string",
+              "const": "deployed"
+            },
+            {
+              "type": "string",
+              "const": "previous"
+            }
+          ]
+        },
+        "diffFormat": {
+          "description": "With against: \"changes\" (the default) lists what changed; \"unified\" is a patch over the two versions’ YAML (cut at 256 KB, truncated says so); \"both\" answers both.",
+          "type": "string",
+          "enum": ["changes", "unified", "both"]
         }
       },
       "required": ["name"],
@@ -1454,6 +1492,18 @@
           "minLength": 1,
           "pattern": "\\S",
           "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "limit": {
+          "description": "How many to answer, 1 to 200, newest first. Left out, the whole history; with it, page on with nextBefore as before.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "before": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The nextBefore of the last page: this page holds the versions below it."
         }
       },
       "required": ["name"],
@@ -1463,6 +1513,16 @@
       "type": "object",
       "properties": {
         "deployedVersion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latestVersion": {
           "anyOf": [
             {
               "type": "number"
@@ -1484,6 +1544,16 @@
             "required": ["version"],
             "additionalProperties": {}
           }
+        },
+        "nextBefore": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "deployments": {
           "type": "array",
@@ -1512,7 +1582,12 @@
           }
         }
       },
-      "required": ["deployedVersion", "versions"],
+      "required": [
+        "deployedVersion",
+        "latestVersion",
+        "versions",
+        "nextBefore"
+      ],
       "additionalProperties": {}
     }
   },

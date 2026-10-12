@@ -177,6 +177,33 @@ function crossField(
   return check;
 }
 
+/** The page size of a history: 1 to 200, or left out for all of it. */
+const historyLimit = z
+  .int({ error: 'must be a whole number from 1 to 200' })
+  .min(1)
+  .max(200)
+  .optional()
+  .describe(
+    'How many to answer, 1 to 200, newest first. Left out, the whole history; with it, page on with nextBefore as before.',
+  );
+
+/** A version a comparison names: a number, the newest, or the live one. */
+const versionRef = (description: string, previous: boolean) =>
+  z
+    .union(
+      [
+        z.int().min(1),
+        z.literal('latest'),
+        z.literal('deployed'),
+        ...(previous ? [z.literal('previous')] : []),
+      ],
+      {
+        error: `must be a saved version number (1 or more), "latest", "deployed"${previous ? ' or "previous"' : ''}`,
+      },
+    )
+    .optional()
+    .describe(description);
+
 /** A list of project ids, at most 50. */
 const projectIds = (description: string) =>
   z.array(nonBlank()).max(50).optional().describe(description);
@@ -266,45 +293,133 @@ export const ENGINE_TOOL_ARGS = {
           : []),
       ]),
     ),
-  save_automation: z.strictObject({
-    automation: automationDocument,
-    message: nonBlank()
-      .max(500)
-      .optional()
-      .describe('Why this version — shown in the version history.'),
-    baseVersion: savedVersion(
-      'The version your edit started from (get_automation answers it). If another version was saved since, the save is refused with the latest version number instead of overwriting it. Always pass it.',
-    ).optional(),
-    create: z
-      .boolean()
-      .optional()
-      .describe(
-        'true: refuse the save when an automation of that name already exists (a new automation, never a new version of someone else’s).',
+  save_automation: z
+    .strictObject({
+      automation: automationDocument.optional(),
+      name: automationName(
+        'With restoreVersion: the automation whose older version is brought back. Not used with automation — the document carries its own name.',
+      ).optional(),
+      restoreVersion: savedVersion(
+        'Instead of a document: bring this saved version of name back as the newest, through a save’s checks and tests; the live version stays live. list_versions shows the versions, get_automation {against} what a version changed. Takes message and baseVersion; nothing is saved when the latest version already holds that content.',
+      ).optional(),
+      message: nonBlank()
+        .max(500)
+        .optional()
+        .describe('Why this version — shown in the version history.'),
+      baseVersion: savedVersion(
+        'The version your edit started from (get_automation answers it). If another version was saved since, the save is refused with the latest version number instead of overwriting it. Always pass it.',
+      ).optional(),
+      create: z
+        .boolean()
+        .optional()
+        .describe(
+          'true: refuse the save when an automation of that name already exists (a new automation, never a new version of someone else’s).',
+        ),
+      projectId: nonBlank()
+        .optional()
+        .describe(
+          'Install a NEW automation in this project with its first version; you need edit access to it. Ignored for an automation that exists.',
+        ),
+      settings: versionField(
+        'The settings form the task screen shows. Leave it out to keep the latest version’s; null stores none.',
+        automationSettingsSchema,
       ),
-    projectId: nonBlank()
-      .optional()
-      .describe(
-        'Install a NEW automation in this project with its first version; you need edit access to it. Ignored for an automation that exists.',
+      taskContract: versionField(
+        'The task contract (how tasks start and review this automation). Leave it out to keep the latest version’s; null stores none.',
+        taskSubjectContractSchema,
       ),
-    settings: versionField(
-      'The settings form the task screen shows. Leave it out to keep the latest version’s; null stores none.',
-      automationSettingsSchema,
+      presentation: versionField(
+        'The display name, description and icon on the automations list. Leave it out to keep the latest version’s; null stores none on this version, and the list keeps showing the newest earlier one.',
+        automationPresentationSchema,
+      ),
+    })
+    .check(
+      crossField((args) => [
+        ...((args.automation === undefined) ===
+        (args.restoreVersion === undefined)
+          ? [
+              args.automation === undefined
+                ? {
+                    path: ['automation'],
+                    code: 'exactly_one_of',
+                    message: 'is required unless restoreVersion is given',
+                  }
+                : {
+                    path: ['restoreVersion'],
+                    code: 'exactly_one_of',
+                    message: 'cannot be given together with automation',
+                  },
+            ]
+          : []),
+        ...(args.restoreVersion !== undefined && args.name === undefined
+          ? [
+              {
+                path: ['name'],
+                code: 'requires',
+                message: 'is required with restoreVersion',
+              },
+            ]
+          : []),
+        ...(args.restoreVersion === undefined && args.name !== undefined
+          ? [
+              {
+                path: ['name'],
+                code: 'requires',
+                message:
+                  'is only used with restoreVersion — the document carries its own name',
+              },
+            ]
+          : []),
+        ...(args.restoreVersion === undefined
+          ? []
+          : (
+              [
+                'settings',
+                'taskContract',
+                'presentation',
+                'create',
+                'projectId',
+              ] as const
+            )
+              .filter((key) => args[key] !== undefined)
+              .map((key) => ({
+                path: [key],
+                code: 'forbidden_with',
+                message:
+                  'cannot be given with restoreVersion — a restore brings the version back as it was',
+              }))),
+      ]),
     ),
-    taskContract: versionField(
-      'The task contract (how tasks start and review this automation). Leave it out to keep the latest version’s; null stores none.',
-      taskSubjectContractSchema,
+  get_automation: z
+    .strictObject({
+      name: automationName(),
+      version: versionOrDeployed(
+        'Read this saved version instead of the latest one; "deployed" reads the version that actually runs (list_automations shows deployedVersion).',
+      ),
+      against: versionRef(
+        'Also say what the version read changed against another one: a number, "latest", "deployed" or "previous" (the one saved before it). The answer adds diff: the changes node by node, in the input schema, the output, the description and the tests.',
+        true,
+      ),
+      diffFormat: z
+        .enum(['changes', 'unified', 'both'])
+        .optional()
+        .describe(
+          'With against: "changes" (the default) lists what changed; "unified" is a patch over the two versions’ YAML (cut at 256 KB, truncated says so); "both" answers both.',
+        ),
+    })
+    .check(
+      crossField((args) =>
+        args.diffFormat !== undefined && args.against === undefined
+          ? [
+              {
+                path: ['diffFormat'],
+                code: 'requires',
+                message: 'needs against',
+              },
+            ]
+          : [],
+      ),
     ),
-    presentation: versionField(
-      'The display name, description and icon on the automations list. Leave it out to keep the latest version’s; null stores none on this version, and the list keeps showing the newest earlier one.',
-      automationPresentationSchema,
-    ),
-  }),
-  get_automation: z.strictObject({
-    name: automationName(),
-    version: versionOrDeployed(
-      'Read this saved version instead of the latest one; "deployed" reads the version that actually runs (list_automations shows deployedVersion).',
-    ),
-  }),
   list_automations: z.strictObject({}),
   deploy_automation: z.strictObject({
     name: automationName(),
@@ -480,7 +595,13 @@ export const ENGINE_TOOL_ARGS = {
         'Your answer, in words — the run resumes on it as the person’s answer.',
       ),
   }),
-  list_versions: z.strictObject({ name: automationName() }),
+  list_versions: z.strictObject({
+    name: automationName(),
+    limit: historyLimit,
+    before: savedVersion(
+      'The nextBefore of the last page: this page holds the versions below it.',
+    ).optional(),
+  }),
   set_automation_projects: z
     .strictObject({
       name: automationName(),

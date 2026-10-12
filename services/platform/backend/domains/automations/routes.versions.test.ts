@@ -5,8 +5,10 @@ import type { OrgEnv } from '../../auth/org.ts';
 
 const io = vi.hoisted(() => ({
   role: 'admin',
+  exists: true,
   document: {} as unknown,
   save: vi.fn(),
+  storeSave: vi.fn(),
   deploy: vi.fn(),
   verdict: vi.fn(),
   versionRow: vi.fn(),
@@ -49,13 +51,41 @@ vi.mock('./deployments.ts', async (original) => ({
 }));
 vi.mock('./dispatch-store.ts', () => ({
   pgAutomationStore: () => ({
-    get: async () => ({ meta: { version: 2 }, automation: io.document }),
+    get: async () =>
+      io.exists ? { meta: { version: 2 }, automation: io.document } : null,
+    // A version in full, read from the same rows the store functions answer.
+    getVersionView: async (_name: string, version?: number) => {
+      const found = await io.versionRow(undefined, 'o1', 'double', version);
+      return found === null
+        ? null
+        : {
+            name: 'double',
+            version: found.version,
+            latestVersion: 4,
+            deployedVersion: null,
+            document: found.document,
+            settings: found.settings,
+            taskContract: found.taskContract,
+            presentation: found.presentation,
+            message: found.message,
+            testsPassed: found.testsPassed,
+            testsCheckedAt: found.testsCheckedAt,
+            createdBy: found.createdBy,
+            createdAt: found.createdAt,
+            createdVia: found.createdVia,
+            clientName: found.clientName,
+            projectIds: [],
+            trigger: null,
+          };
+    },
+    save: io.storeSave,
     deploy: io.deploy,
     recordTestVerdict: io.verdict,
   }),
 }));
 
 import { createAutomationRoutes } from './routes.ts';
+import { AutomationError } from './store.ts';
 
 function document(multiplier: number) {
   return {
@@ -137,8 +167,10 @@ async function get(path: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   io.role = 'admin';
+  io.exists = true;
   io.document = document(2);
   io.save.mockResolvedValue({ name: 'double', version: 5 });
+  io.storeSave.mockResolvedValue({ name: 'double', version: 5 });
   io.deploy.mockResolvedValue({ name: 'double', version: 2 });
   io.versionRow.mockImplementation(
     async (_sql: unknown, _org: string, _name: string, version?: number) =>
@@ -158,25 +190,26 @@ describe('restoring a version at the app door [AUTO-R48]', () => {
       testsPassed: true,
       warnings: [],
     });
-    expect(io.save).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        organizationId: 'o1',
-        name: 'double',
-        document: document(2),
-        message: 'Restore v1',
+    // The engine's own restore: the version's document with what it kept
+    // beside it, restored from it; the store records the rest.
+    expect(io.storeSave).toHaveBeenCalledWith(document(2), 'Restore v1', {
+      testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
+      restoredFrom: 1,
+      metadata: {
+        settings: null,
+        taskContract: null,
         presentation: { name: 'Double' },
-        basedOnVersion: 1,
-        restoredFromVersion: 1,
-        unlessIdentical: true,
-        testsPassed: true,
-        origin: { actor: 'u1', via: 'app' },
-      }),
-    );
+      },
+    });
   });
 
   it('answers 200 and unchanged when the content is the latest already', async () => {
-    io.save.mockResolvedValue({ name: 'double', version: 4, unchanged: true });
+    io.storeSave.mockResolvedValue({
+      name: 'double',
+      version: 4,
+      unchanged: true,
+    });
     const result = await post('/double/restore', {
       version: 1,
       message: 'Back to the March flow',
@@ -188,12 +221,10 @@ describe('restoring a version at the app door [AUTO-R48]', () => {
       restoredFrom: 1,
       unchanged: true,
     });
-    expect(io.save).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        message: 'Back to the March flow',
-        baseVersion: 4,
-      }),
+    expect(io.storeSave).toHaveBeenCalledWith(
+      document(2),
+      'Back to the March flow',
+      expect.objectContaining({ baseVersion: 4, restoredFrom: 1 }),
     );
   });
 
@@ -206,7 +237,7 @@ describe('restoring a version at the app door [AUTO-R48]', () => {
     const result = await post('/double/restore', { version: 1 });
     expect(result.status).toBe(400);
     expect(await result.json()).toMatchObject({ error: 'AUTOMATION_INVALID' });
-    expect(io.save).not.toHaveBeenCalled();
+    expect(io.storeSave).not.toHaveBeenCalled();
   });
 
   it('refuses a version the automation does not have', async () => {
@@ -218,11 +249,43 @@ describe('restoring a version at the app door [AUTO-R48]', () => {
     });
   });
 
+  it('refuses an automation that does not exist as not found, saving nothing', async () => {
+    io.exists = false;
+    const result = await post('/ghost/restore', { version: 1 });
+    expect(result.status).toBe(404);
+    expect(await result.json()).toMatchObject({
+      error: 'AUTOMATION_NOT_FOUND',
+    });
+    expect(io.storeSave).not.toHaveBeenCalled();
+  });
+
   it('is an author’s write: a member is refused', async () => {
     io.role = 'member';
     const result = await post('/double/restore', { version: 1 });
     expect(result.status).toBe(403);
-    expect(io.save).not.toHaveBeenCalled();
+    expect(io.storeSave).not.toHaveBeenCalled();
+  });
+
+  it('keeps the store’s own status when a version was saved since the one the restore read', async () => {
+    io.storeSave.mockRejectedValue(
+      new AutomationError(
+        'AUTOMATION_VERSION_STALE',
+        'v5 was saved since',
+        409,
+        {
+          latestVersion: 5,
+          baseVersion: 4,
+        },
+      ),
+    );
+    const result = await post('/double/restore', {
+      version: 1,
+      baseVersion: 4,
+    });
+    expect(result.status).toBe(409);
+    expect(await result.json()).toMatchObject({
+      error: 'AUTOMATION_VERSION_STALE',
+    });
   });
 });
 
