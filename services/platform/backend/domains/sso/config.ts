@@ -65,6 +65,21 @@ export async function readSsoConnection(
   return { organizationId, orgSlug, config: result.data };
 }
 
+/** Cross-tenant discovery skips only unreadable connections, already logged
+ * by the strict reader. Explicit tenant reads must use readSsoConnection;
+ * database, deployment configuration and unexpected errors still propagate. */
+export async function readSsoConnectionForDiscovery(
+  sql: Sql,
+  organizationId: string,
+): Promise<LoadedSsoConnection | null> {
+  try {
+    return await readSsoConnection(sql, organizationId);
+  } catch (error) {
+    if (error instanceof SsoConnectionReadError) return null;
+    throw error;
+  }
+}
+
 /**
  * The ONLY enabled connection across orgs (single-org deployments). With two
  * or more enabled there is no right answer without org context — return
@@ -78,7 +93,7 @@ async function loadSingleEnabled(
   `;
   let found: LoadedSsoConnection | null = null;
   for (const org of orgs) {
-    const conn = await readSsoConnection(sql, org.id);
+    const conn = await readSsoConnectionForDiscovery(sql, org.id);
     if (conn === null || !conn.config.enabled) continue;
     if (found) return 'ambiguous';
     found = conn;
@@ -104,7 +119,7 @@ export async function getSsoDiscoveryStatus(sql: Sql): Promise<{
   let first: { providerType?: string } | null = null;
   let enabledCount = 0;
   for (const org of orgs) {
-    const conn = await readSsoConnection(sql, org.id);
+    const conn = await readSsoConnectionForDiscovery(sql, org.id);
     if (conn === null || !conn.config.enabled) continue;
     enabledCount += 1;
     first ??= {
@@ -141,7 +156,7 @@ export async function listSelectableSsoConnections(
     protocol: string;
   }[] = [];
   for (const org of orgs) {
-    const conn = await readSsoConnection(sql, org.id);
+    const conn = await readSsoConnectionForDiscovery(sql, org.id);
     if (conn === null || !conn.config.enabled || !conn.config.protocol) {
       continue;
     }
