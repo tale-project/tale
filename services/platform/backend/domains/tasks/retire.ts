@@ -6,6 +6,7 @@ import { cancelAgentRunInTx } from './agent-runs.ts';
 import { taskHoldsBlobRef } from './blob-holders.ts';
 import { TaskError } from './errors.ts';
 import { assertReviewContextsRetirable } from './review-context-retention.ts';
+import { endRunTranscripts } from './run-transcripts.ts';
 
 /**
  * The ONE retirement walk for a set of tasks that are about to be hard
@@ -131,20 +132,10 @@ export async function retireTasksInTx(
         AND thread_id IS NOT NULL
     `
   ).map((row) => row.threadId);
-  let runFileRefs: string[] = [];
-  if (runThreadIds.length > 0) {
-    runFileRefs = (
-      await tx<{ ref: string }[]>`
-        UPDATE app.file_metadata SET
-          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
-        WHERE org_id = ${args.organizationId}
-          AND thread_id = ANY(${runThreadIds})
-          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-        RETURNING storage_ref AS ref
-      `
-    ).map((row) => row.ref);
-    await tx`DELETE FROM app.threads WHERE id = ANY(${runThreadIds})`;
-  }
+  const runFileRefs = await endRunTranscripts(tx, {
+    organizationId: args.organizationId,
+    threadIds: runThreadIds,
+  });
   await tx`
     UPDATE app.approvals SET
       status = 'rejected', reviewed_at_ms = ${Date.now()},

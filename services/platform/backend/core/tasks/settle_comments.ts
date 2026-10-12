@@ -8,7 +8,8 @@ import { TASK_COMMENT_MAX } from './helpers';
  * delivered, which it could not — as a separate system notice in every
  * locale. One builder for both engines: a harness run's files are harvested
  * from its delivery box, a native run's are the ones its tools made, and a
- * native run skips none.
+ * run past the per-run file cap (`lib/shared/run-output-cap.ts`) names the
+ * rest here.
  */
 
 /** Keep the agent report in its own language. Runtime delivery facts are a

@@ -11,6 +11,10 @@
 
 import { randomUUID } from 'node:crypto';
 
+import {
+  MAX_RUN_OUTPUT_FILES,
+  overFileCapReasons,
+} from '../../../../lib/shared/run-output-cap';
 import type { TaskCommentBodies } from '../../../../lib/shared/schemas/task-comment';
 import { traceSandboxPhase } from '../../../tracing';
 import type { ActionCtx } from '../../lib/ctx';
@@ -25,12 +29,10 @@ import {
   sessionReadFile,
 } from './helpers/session_client';
 
-/** Runaway-output backstop, NOT a working budget. It sat at 16 and a real
- * run's legitimate delivery reached 18 files — the cap silently dropped the
- * two that listed last (one of them the primary deliverable) and every run
- * then read as "produced nothing". Over-cap files are reported in
- * `harvestSkipped`; consumers surface them, never drop them silently. */
-const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 64;
+/** The per-run output cap (`lib/shared/run-output-cap.ts`): over-cap files
+ * are reported in `harvestSkipped`; consumers surface them, never drop them
+ * silently. */
+const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = MAX_RUN_OUTPUT_FILES;
 
 export interface HarvestSkippedOutput {
   path: string;
@@ -352,13 +354,7 @@ export async function harvestSessionOutput(
       if (e.type !== 'file') continue;
       const absPath = `${outputDir}/${e.name}`;
       if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) {
-        harvestSkipped.push(
-          skippedOutput(absPath, {
-            en: `over the ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN}-file per-run harvest cap`,
-            de: `Die Grenze von ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} Dateien pro Lauf ist erreicht.`,
-            fr: `La limite de ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} fichiers par exécution est atteinte.`,
-          }),
-        );
+        harvestSkipped.push(skippedOutput(absPath, overFileCapReasons()));
         continue;
       }
       if (e.size > HARVEST_READ_MAX_BYTES) {

@@ -97,6 +97,8 @@ describe('recoverStuckQueuedTaskAgentRuns', () => {
           agentPresent: true,
         },
       ],
+      // 2: no start job is waiting for it
+      [{ pending: false }],
       [{ id: 'run_n' }],
     ]);
 
@@ -106,6 +108,31 @@ describe('recoverStuckQueuedTaskAgentRuns', () => {
     // again: the engine decides which start job wakes it.
     expect(sent.map((job) => job.name)).toEqual(['task.agent_native']);
     expect(sent[0]?.data.runId).toBe('run_n');
+  });
+
+  it('leaves a native run alone while its start job waits its turn in the queue [TASK-R38]', async () => {
+    const sent: SentJob[] = [];
+    fakeBoss(sent);
+    const sql = scriptedSql([
+      [
+        {
+          runId: 'run_w',
+          organizationId: 'org_1',
+          execId: 'exec_w',
+          engine: 'native',
+          agentPresent: true,
+        },
+      ],
+      // The organization's share of working runs is full: the job is queued.
+      [{ pending: true }],
+    ]);
+
+    const result = await recoverStuckQueuedTaskAgentRuns(sql);
+
+    // Re-kicking would only queue a second job behind the first, which the
+    // rotated exec would orphan.
+    expect(result).toEqual({ examined: 1, requeued: 0, failed: 0 });
+    expect(sent).toHaveLength(0);
   });
 
   it('does not re-kick when the claim is lost to a concurrent winner', async () => {

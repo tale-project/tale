@@ -430,6 +430,7 @@ export async function releaseProjectAgentSessionSlot(
       AND NOT EXISTS (
         SELECT 1 FROM app.project_agent_runs r
         WHERE r.org_id = s.org_id AND r.session_id = s.session_id
+          AND r.engine = 'harness'
           AND r.status IN ('queued', 'running')
           AND r.waiting_for_capacity_at_ms IS NULL
       )

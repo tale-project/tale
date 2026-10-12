@@ -1033,6 +1033,7 @@ async function wakeOldestParkedAgentRun(
       ORDER BY (
           SELECT count(*) FROM app.project_agent_runs working
           WHERE working.org_id = r.org_id AND working.agent_id = r.agent_id
+            AND working.engine = 'harness'
             AND (working.status = 'running'
               OR (working.status = 'queued'
                 AND working.waiting_for_capacity_at_ms IS NULL))

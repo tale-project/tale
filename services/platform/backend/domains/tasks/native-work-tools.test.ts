@@ -3,12 +3,13 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { findActingMember } from '../../auth/membership.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { storeThreadArtifact } from '../agent_tools/artifacts.ts';
 import { turnWorkToolsFor } from '../agent_tools/executor.ts';
 import { turnImageBilling } from '../agent_tools/image-billing.ts';
 import { offeredImageModel } from '../agent_tools/image-model.ts';
-import { listSkillCatalog } from '../agent_tools/skills.ts';
+import { listSkillCatalog, readSkillCatalog } from '../agent_tools/skills.ts';
 import { readProjectAgentSkillScope } from './agent-skill-scope.ts';
 import {
   missingEquippedSkills,
@@ -17,6 +18,7 @@ import {
   readRunFiles,
 } from './native-work-tools.ts';
 
+vi.mock('../../auth/membership.ts', () => ({ findActingMember: vi.fn() }));
 vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(),
 }));
@@ -38,6 +40,7 @@ vi.mock('../agent_tools/image-model.ts', () => ({
 vi.mock('../agent_tools/skills.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../agent_tools/skills.ts')>()),
   listSkillCatalog: vi.fn(),
+  readSkillCatalog: vi.fn(),
 }));
 vi.mock('./agent-skill-scope.ts', () => ({
   readProjectAgentSkillScope: vi.fn(),
@@ -58,6 +61,12 @@ const TURN = {
 const sql = {} as unknown as Sql;
 
 beforeEach(() => {
+  vi.mocked(findActingMember).mockReset().mockResolvedValue({
+    id: 'member-row',
+    organizationId: 'org-1',
+    userId: 'user-1',
+    role: 'member',
+  });
   vi.mocked(resolveOrgSlug).mockReset().mockResolvedValue('acme');
   vi.mocked(readProjectAgentSkillScope)
     .mockReset()
@@ -69,6 +78,9 @@ beforeEach(() => {
       { slug: 'docx', description: 'Word documents' },
       { slug: 'xlsx', description: 'Spreadsheets' },
     ]);
+  vi.mocked(readSkillCatalog)
+    .mockReset()
+    .mockResolvedValue([{ slug: 'docx' }, { slug: 'xlsx' }]);
   vi.mocked(storeThreadArtifact).mockReset();
   vi.mocked(turnImageBilling).mockClear();
   vi.mocked(turnWorkToolsFor).mockClear();
@@ -188,6 +200,27 @@ describe('nativeWorkTools — the tools a task run makes things with [TASK-R30]'
 
     await expect(nativeWorkTools(sql, TURN)).resolves.toBeUndefined();
   });
+
+  it.each([
+    ['is no longer a member', null],
+    [
+      'has been disabled',
+      {
+        id: 'member-row',
+        organizationId: 'org-1',
+        userId: 'user-1',
+        role: 'disabled',
+      },
+    ],
+  ])(
+    'makes nothing for a person who %s, as a chat does',
+    async (_label, member) => {
+      vi.mocked(findActingMember).mockResolvedValue(member);
+
+      await expect(nativeWorkTools(sql, TURN)).resolves.toBeUndefined();
+      expect(findActingMember).toHaveBeenCalledWith(sql, 'org-1', 'user-1');
+    },
+  );
 });
 
 describe('missingEquippedSkills [TASK-R34]', () => {
@@ -198,7 +231,7 @@ describe('missingEquippedSkills [TASK-R34]', () => {
   };
 
   it('names the equipped skills its project cannot reach', async () => {
-    vi.mocked(listSkillCatalog).mockResolvedValue([{ slug: 'docx' }]);
+    vi.mocked(readSkillCatalog).mockResolvedValue([{ slug: 'docx' }]);
 
     await expect(missingEquippedSkills(sql, ARGS)).resolves.toEqual([
       'brand-voice',
@@ -209,7 +242,13 @@ describe('missingEquippedSkills [TASK-R34]', () => {
     await expect(
       missingEquippedSkills(sql, { ...ARGS, skills: [] }),
     ).resolves.toEqual([]);
-    expect(listSkillCatalog).not.toHaveBeenCalled();
+    expect(readSkillCatalog).not.toHaveBeenCalled();
+  });
+
+  it('does not read a library that cannot be listed as one without the skills', async () => {
+    vi.mocked(readSkillCatalog).mockRejectedValue(new Error('disk gone'));
+
+    await expect(missingEquippedSkills(sql, ARGS)).rejects.toThrow('disk gone');
   });
 
   it('reads every skill as missing when the organization cannot be named', async () => {

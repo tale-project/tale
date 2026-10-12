@@ -5,6 +5,7 @@ import {
   composeTaskBrief,
   NATIVE_DELIVERY,
   nativeInputsBlock,
+  selectTaskOutputsForStaging,
 } from '../../../lib/agent/task-brief.ts';
 import { taskAgentFor } from '../../../lib/agent/task-persona.ts';
 import type { TurnOutcome, TurnStore } from '../../../lib/chat/turn.ts';
@@ -14,7 +15,12 @@ import {
   classifyChatErrorCode,
   describeChatError,
 } from '../../../lib/shared/chat-errors.ts';
+import {
+  MAX_RUN_OUTPUT_FILES,
+  overFileCapReasons,
+} from '../../../lib/shared/run-output-cap.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { executeTurn } from '../../core/chat/turn_action.ts';
 import { SkillUnavailableError } from '../../core/skills/skill_unavailable_error.ts';
 import { buildSettleComments } from '../../core/tasks/settle_comments.ts';
@@ -183,15 +189,19 @@ export function nativeTaskPrompt(args: {
     args.mentionSource === 'description'
       ? undefined
       : (args.feedback ?? undefined);
+  // A long-lived task accumulates deliverables; the brief carries the newest,
+  // as a harness run's staged inputs do, and says how many it leaves out.
+  const outputs = selectTaskOutputsForStaging(brief.outputs);
   const inputs = nativeInputsBlock({
     attachments: brief.attachments.map((file) => ({
       ref: file.fileId,
       name: file.fileName,
     })),
-    outputs: brief.outputs.map((file) => ({
+    outputs: outputs.selected.map((file) => ({
       ref: file.fileId,
       name: file.fileName,
     })),
+    ...(outputs.omitted > 0 ? { omittedOutputs: outputs.omitted } : {}),
   });
   return composeTaskBrief({
     brief,
@@ -246,15 +256,43 @@ async function runIsLive(sql: Sql, input: NativeTurnInput): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** How often a working turn proves the run alive and asks whether it still is. */
+const RUN_LIVENESS_MS = 15_000;
+
 /**
  * The run's turn store: the chat's, over the run's transcript thread, with
- * one addition. A Stop (or a move of the task) that landed before the turn's
- * generation row existed had no flag to set; the open checks the run once
- * its row is there and, when the run is no longer live, sets the flag itself
- * — so the turn ends at its first boundary instead of working for nobody.
+ * three additions that tie the turn to its run.
+ *
+ * A Stop (or a move of the task) that landed before the turn's generation row
+ * existed had no flag to set; the open checks the run once its row is there
+ * and, when the run is no longer live, sets the flag itself — so the turn ends
+ * at its first boundary instead of working for nobody.
+ *
+ * The flag lives on the generation row, which dies with the transcript when a
+ * task is deleted under a working run. So the turn also asks the run itself,
+ * every few seconds, whether it is still the live one, and stops when it is
+ * not. The same write is the run's own proof of life: it keeps `updated_at_ms`
+ * moving for as long as the turn works, which is what an image that does not
+ * know this engine reads to tell a working run from a dead start.
+ *
+ * And the turn's end starts the clock the watchdog gives a settle: the
+ * generation row, whose absence says the turn is over, goes only after the
+ * run was touched, so the settle that follows is measured from now, not from
+ * the last write of a turn that ran for minutes.
  */
 function runTurnStore(sql: Sql, input: NativeTurnInput): TurnStore {
   const base = createPgTurnStore(sql);
+  let checkedAt = Date.now();
+  /** Touch the run; whether it is still the live one this exec owns. */
+  const touch = async (): Promise<boolean> => {
+    const rows = await sql<{ id: string }[]>`
+      UPDATE app.project_agent_runs SET updated_at_ms = ${Date.now()}
+      WHERE id = ${input.runId} AND org_id = ${input.organizationId}
+        AND exec_id = ${input.execId} AND status = 'running'
+      RETURNING id
+    `;
+    return rows.length > 0;
+  };
   return {
     ...base,
     async beginTurn(setup) {
@@ -267,6 +305,31 @@ function runTurnStore(sql: Sql, input: NativeTurnInput): TurnStore {
         `;
       }
       return opened;
+    },
+    async streamProgress(update) {
+      const progress = await base.streamProgress(update);
+      if (progress?.cancelRequested === true) return progress;
+      const now = Date.now();
+      if (now - checkedAt < RUN_LIVENESS_MS) return progress;
+      checkedAt = now;
+      try {
+        return (await touch()) ? progress : { cancelRequested: true };
+      } catch (error) {
+        console.warn(
+          `[task-agent] native turn for ${input.execId} could not check its run:`,
+          error,
+        );
+        return progress;
+      }
+    },
+    async endGeneration(generation) {
+      await touch().catch((error: unknown) => {
+        console.warn(
+          `[task-agent] native turn for ${input.execId} could not stamp its end:`,
+          error,
+        );
+      });
+      return base.endGeneration(generation);
     },
   };
 }
@@ -331,11 +394,25 @@ export async function runNativeAgentTurn(
 
   // The agent's equipment is the same on both engines: a skill it equips and
   // cannot reach fails the run as configuration, not as a fault.
-  const missing = await missingEquippedSkills(sql, {
-    organizationId: input.organizationId,
-    agentId: run.agentId,
-    skills: agent.skills,
-  });
+  let missing: string[];
+  try {
+    missing = await missingEquippedSkills(sql, {
+      organizationId: input.organizationId,
+      agentId: run.agentId,
+      skills: agent.skills,
+    });
+  } catch (error) {
+    // Unreadable is not absent: the retry the interruption earns reads again.
+    console.warn(
+      `[task-agent] native turn for ${input.execId} could not read the skill library:`,
+      error,
+    );
+    await fail({
+      code: 'turn_crashed',
+      reason: 'the skill library could not be read',
+    });
+    return;
+  }
   if (missing[0] !== undefined) {
     const failure = classifyStartFailure(new SkillUnavailableError(missing[0]));
     await fail({ code: failure.failureCode, reason: failure.reason });
@@ -393,6 +470,17 @@ async function workRun(
       failureCode: failure.code,
     });
 
+  // The run acts as its starter, who may have left since: a chat turn is not
+  // served to a person who is no longer a member, and nor is this one.
+  const member = await findActingMember(sql, input.organizationId, userId);
+  if (member === null || member.role === 'disabled') {
+    await fail({
+      code: 'turn_crashed',
+      reason:
+        'the person who started the run is no longer an active member of the organization',
+    });
+    return;
+  }
   const brief = await readTaskBrief(sql, run.taskId);
   if (brief === null) {
     // The task is gone: its retirement cancelled this run with it.
@@ -439,6 +527,22 @@ async function workRun(
     options.signal !== undefined
       ? AbortSignal.any([options.signal, deadline])
       : deadline;
+  /** What ended a turn that was aborted from outside, if anything did. The
+   * engine reports an abort as a failed model call, not as a stop, so the
+   * host reads the signals itself: a run past its limit is over for good, a
+   * worker being stopped is a fault the retry covers. */
+  const abortedBy = (): NativeFailure | null =>
+    deadline.aborted
+      ? {
+          code: 'deadline',
+          reason: 'the agent run ran past its time limit and was stopped',
+        }
+      : options.signal?.aborted === true
+        ? {
+            code: 'turn_crashed',
+            reason: 'the worker stopped while the agent was working',
+          }
+        : null;
 
   const shim = createCtxShim(chatShimHandlers(sql));
   const engine = options.engine ?? executeTurn;
@@ -516,35 +620,38 @@ async function workRun(
       },
     );
   } catch (error) {
-    await fail(classifyNativeFailure(error));
+    await fail(abortedBy() ?? classifyNativeFailure(error));
     return;
   }
 
   if (outcome.status === 'refused') {
-    await fail(failureOfRefusal(outcome));
+    await fail(abortedBy() ?? failureOfRefusal(outcome));
     return;
   }
   if (outcome.cancelled === true) {
     // A Stop or a move of the task already ended the run, and this finds it
     // so (a no-op); a worker being stopped, or the time limit, did not.
     await fail(
-      deadline.aborted
-        ? {
-            code: 'deadline',
-            reason: 'the agent run ran past its time limit and was stopped',
-          }
-        : {
-            code: 'turn_crashed',
-            reason: 'the worker stopped while the agent was working',
-          },
+      abortedBy() ?? {
+        code: 'turn_crashed',
+        reason: 'the worker stopped while the agent was working',
+      },
     );
     return;
   }
 
-  const files = await listRunFiles(sql, {
+  const made = await listRunFiles(sql, {
     organizationId: input.organizationId,
     threadId,
   });
+  // A run delivers at most what a harness run delivers; the rest stay the
+  // transcript's and are named in the notice, never dropped silently.
+  const files = made.slice(0, MAX_RUN_OUTPUT_FILES);
+  const skipped = made.slice(MAX_RUN_OUTPUT_FILES).map((file) => ({
+    path: file.fileName,
+    reason: overFileCapReasons().en,
+    reasonByLocale: overFileCapReasons(),
+  }));
   if (handoff !== undefined) {
     const execId = await sql.begin((tx) =>
       moveRunToHarnessInTx(tx, {
@@ -575,7 +682,7 @@ async function workRun(
   const comments = buildSettleComments({
     resultText,
     fileNames: files.map((file) => file.fileName),
-    skipped: [],
+    skipped,
   });
   await transactSerializable(sql, (tx) =>
     completeAgentRunInTx(tx, {

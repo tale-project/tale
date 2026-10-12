@@ -602,8 +602,16 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // worker settles through the native-run watchdog (a retryable failure the
   // auto-retry takes up), never through a silent second run of the same
   // exec. The hour covers the longest native turn — twelve tool rounds, each
-  // with a light sandbox call of up to three minutes.
-  'task.agent_native': { retryLimit: 0, expireInSeconds: 3_600 },
+  // with a light sandbox call of up to three minutes. The heartbeat tells a
+  // killed worker's turn apart within about two minutes: an organization's
+  // working turns are counted from the active jobs of its group
+  // (`TASK_JOB_GROUP`), and a dead worker's would otherwise hold its share
+  // until the expiry.
+  'task.agent_native': {
+    retryLimit: 0,
+    expireInSeconds: 3_600,
+    heartbeatSeconds: 60,
+  },
   // A wake claims its run or finds it gone: delivered twice, the second
   // finds nothing parked. A lost one leaves the watchdog's wake.
   'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
@@ -820,19 +828,32 @@ export const TASK_JOB_GROUP: {
   ) => string | undefined;
 } = {
   'automation.step': (payload) => payload.organizationId,
+  'task.agent_native': (payload) => payload.organizationId,
 };
+
+/**
+ * How many native task runs one organization works at once across every
+ * worker. A turn holds a slot for as long as it waits on the model — up to
+ * fifty minutes — and the slots are shared by every organization, so without
+ * a share per organization one person's burst of starts would hold every
+ * other organization's runs back. The run past the limit waits its turn in
+ * the queue, queued, and starts when one of the organization's runs ends.
+ */
+export const NATIVE_RUNS_PER_ORG = 4;
 
 /**
  * How many jobs of one group a queue runs at once across all workers, or
  * `undefined` for no limit. Automation steps take the operator's
  * AUTOMATION_ORG_CONCURRENCY, so one organization's burst of runs cannot
  * take every worker's step slots while another organization's runs wait
- * behind it; 0 turns the limit off.
+ * behind it; 0 turns the limit off. Native task runs take the fixed
+ * {@link NATIVE_RUNS_PER_ORG}.
  */
 export function queueGroupConcurrency(
   name: string,
   options: { automationOrgConcurrency?: number | undefined },
 ): number | undefined {
+  if (name === 'task.agent_native') return NATIVE_RUNS_PER_ORG;
   if (name !== 'automation.step') return undefined;
   const limit = options.automationOrgConcurrency;
   return limit !== undefined && limit > 0 ? limit : undefined;

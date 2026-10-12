@@ -112,7 +112,7 @@ const EXPECTED_ROWS: [string, number, Record<string, number> | null][] = [
     1,
     { conversations: 1, attachments: 0 },
   ],
-  ['agent_run.retention_deleted', 1, null],
+  ['agent_run.retention_deleted', 2, null],
   ['automation_run.retention_deleted', 2, null],
   ['audit_log.retention_deleted', 2, null],
   [
@@ -269,6 +269,8 @@ export async function checkRetentionAuditTrail(
         freshContacts: 1,
         freshChatFilterEvents: 1,
         runningAutomation: 1,
+        liveTranscriptFiles: 0,
+        keptDeliverables: 1,
       }),
     `actions=${sweep.map((row) => row.action).join(',')}, mismatches=${mismatches.join('; ') || 'none'}, framed=${framed}, total=${String(closing?.metadata?.deleted)} (want ${totalDeleted}), survivors=${JSON.stringify(survivors)}`,
   );
@@ -519,6 +521,39 @@ async function seedSweep(
       ${ancient}, ${ancient}, ${ancient}
     )
   `;
+  // A run on the native engine: its transcript is a bare thread of its own
+  // kind (no chat-history rule lists it), with one file only the transcript
+  // held, and a deliverable its task keeps. The sweep of agent runs takes
+  // the first two with the run's row, and leaves the third.
+  const transcript = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${userId}, 'rta transcript', 'task_run', ${ancient},
+            ${ancient})
+    RETURNING id
+  `;
+  const transcriptId = transcript[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, engine, thread_id, model, started_by, started_at_ms,
+      settled_at_ms, deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, 'rta-agent', ${`rta-native-${tag}`},
+      'rta-sess', 'settled', 'claude-code', 'native', ${transcriptId}, 'm',
+      ${userId}, ${ancient}, ${ancient}, ${ancient}, ${ancient}
+    )
+  `;
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source, uploaded_by,
+      thread_id, created_at_ms
+    ) VALUES
+      (${orgId}, ${`s3:rta-scratch-${tag}`}, 'scratch.txt', 'text/plain', 1,
+       'agent', ${userId}, ${transcriptId}, ${ancient}),
+      (${orgId}, ${`s3:rta-deliverable-${tag}`}, 'report.csv', 'text/csv', 1,
+       'task-output', NULL, NULL, ${ancient})
+  `;
   await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx`
@@ -594,6 +629,8 @@ async function sweepSurvivors(
       freshContacts: number;
       freshChatFilterEvents: number;
       runningAutomation: number;
+      liveTranscriptFiles: number;
+      keptDeliverables: number;
     }[]
   >`
     SELECT
@@ -634,7 +671,17 @@ async function sweepSurvivors(
         AS "freshChatFilterEvents",
       (SELECT count(*) FROM app.automation_runs
        WHERE org_id = ${orgId} AND status = 'running')::int
-        AS "runningAutomation"
+        AS "runningAutomation",
+      -- What only a native run's transcript held ends with it; what its task
+      -- keeps does not.
+      (SELECT count(*) FROM app.file_metadata
+       WHERE org_id = ${orgId} AND storage_ref = ${`s3:rta-scratch-${tag}`}
+         AND (lifecycle_status IS NULL OR lifecycle_status = 'active'))::int
+        AS "liveTranscriptFiles",
+      (SELECT count(*) FROM app.file_metadata
+       WHERE org_id = ${orgId} AND storage_ref = ${`s3:rta-deliverable-${tag}`}
+         AND (lifecycle_status IS NULL OR lifecycle_status = 'active'))::int
+        AS "keptDeliverables"
   `;
   return (
     rows[0] ?? {
@@ -643,6 +690,8 @@ async function sweepSurvivors(
       freshContacts: -1,
       freshChatFilterEvents: -1,
       runningAutomation: -1,
+      liveTranscriptFiles: -1,
+      keptDeliverables: -1,
     }
   );
 }

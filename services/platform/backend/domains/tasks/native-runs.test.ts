@@ -12,8 +12,8 @@ import {
   listRunFiles,
   moveRunToHarnessInTx,
   readNativeRunOp,
-  TASK_RUN_THREAD_KIND,
 } from './native-runs.ts';
+import { TASK_RUN_THREAD_KIND } from './run-transcripts.ts';
 import { agentRecordTaskOutputsTrusted } from './service.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));

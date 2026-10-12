@@ -14,6 +14,7 @@ import {
   type TaskAgentRunSandboxOp,
 } from './agent-runs.ts';
 import { queuedOnTask } from './comments.ts';
+import { TASK_RUN_THREAD_KIND } from './run-transcripts.ts';
 import { agentRecordTaskOutputsTrusted } from './service.ts';
 
 /**
@@ -23,11 +24,6 @@ import { agentRecordTaskOutputsTrusted } from './service.ts';
  * settle, fail, cancel — is the one every run shares (`agent-runs.ts`,
  * `agent-run-completion.ts`).
  */
-
-/** The `app.threads.kind` of a run's transcript thread. Such a thread has no
- * `thread_metadata` row, so no chat list ever shows it: it is read through
- * the task, by the people who can read the task. */
-export const TASK_RUN_THREAD_KIND = 'task_run';
 
 /** A file a native run made, as a task's outputs keep it. */
 export interface RunFile {
@@ -159,6 +155,15 @@ export async function moveRunToHarnessInTx(
       FOR UPDATE
     `;
     if (owned.length === 0) return null;
+    // Then the task, as a settle takes it: the deliverables are recorded by
+    // reading the task's list and writing it back, so a writer that slipped
+    // in between would lose its update.
+    const tasks = await tx<{ id: string }[]>`
+      SELECT id FROM app.tasks
+      WHERE id = ${run.taskId} AND org_id = ${args.organizationId}
+      FOR UPDATE
+    `;
+    if (tasks.length === 0) return null;
     const files = args.files ?? [];
     for (const file of files) {
       await saveAgentFileMetadata(tx, {

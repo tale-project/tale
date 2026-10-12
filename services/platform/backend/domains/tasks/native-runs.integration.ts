@@ -53,6 +53,7 @@ import {
   failAgentRunFromTurn,
   getLatestAgentRunCardForTask,
 } from './agent-runs.ts';
+import { claimAgentWorker } from './agent-workers.ts';
 import { readNativeRunOp } from './native-runs.ts';
 import { runNativeAgentTurn } from './native-turn.ts';
 import {
@@ -303,7 +304,9 @@ export async function checkNativeAgentRuns(
       await sql<
         {
           status: string;
-          outputs: { fileName: string; runId?: string }[] | null;
+          outputs:
+            | { fileId: string; fileName: string; runId?: string }[]
+            | null;
           comments: number;
         }[]
       >`
@@ -623,6 +626,11 @@ export async function checkNativeAgentRuns(
         `thread=${JSON.stringify(threadRow)} chat rows=${chatRows[0]?.n} roles=${transcript.map((m) => m.role).join()} parts=${assistantParts.map((p) => p.type).join()} generations=${generation[0]?.n} light=${light[0]?.n}`,
       );
 
+      // Every file the run's tools made: the ones its transcript still binds,
+      // and the ones it delivered, which the task lists.
+      const deliveredRefs = (settledTask?.outputs ?? []).map(
+        (output) => output.fileId,
+      );
       const fileRows = await sql<
         {
           name: string;
@@ -636,25 +644,36 @@ export async function checkNativeAgentRuns(
         SELECT file_name AS name, source, uploaded_by AS "uploadedBy",
                thread_id AS "threadId", storage_ref AS ref, size::float8 AS size
         FROM app.file_metadata
-        WHERE org_id = ${orgId} AND thread_id = ${runThread}
+        WHERE org_id = ${orgId}
+          AND (thread_id = ${runThread} OR storage_ref = ANY(${deliveredRefs}))
         ORDER BY created_at_ms, id
       `;
       const sources = fileRows
         .map((file) => `${file.name}:${file.source}`)
         .toSorted();
+      const delivered = fileRows.filter(
+        (file) => file.source === 'task-output',
+      );
+      const scratch = fileRows.filter((file) => file.source === 'agent');
       record(
-        'native runs: every file a tool made is bound to the run’s transcript under the person it acts for, the last version of a revised one claimed as the task’s deliverable and the earlier version left as the run’s own',
+        'native runs: the files a tool made are bound to the run’s transcript under the person it acts for until the run delivers them; a deliverable is then the task’s alone — bound to neither the transcript nor its starter — and the earlier version of a revised file stays the run’s own [TASK-R36]',
         fileRows.length === 3 &&
-          fileRows.every((file) => file.uploadedBy === starter) &&
           JSON.stringify(sources) ===
             JSON.stringify([
               'contacts.csv:task-output',
               'notes.md:agent',
               'notes.md:task-output',
             ]) &&
+          delivered.length === 2 &&
+          delivered.every(
+            (file) => file.uploadedBy === null && file.threadId === null,
+          ) &&
+          scratch.length === 1 &&
+          scratch[0]?.uploadedBy === starter &&
+          scratch[0].threadId === runThread &&
           fileRows.find((file) => file.name === 'contacts.csv')?.size ===
             CONTACTS_CSV.length,
-        `files=${JSON.stringify(sources)} uploaders=${fileRows.map((f) => f.uploadedBy).join()}`,
+        `files=${JSON.stringify(fileRows.map((f) => `${f.name}:${f.source}:${f.uploadedBy ?? '-'}:${f.threadId === null ? '-' : 'thread'}`))}`,
       );
 
       const op = await readNativeRunOp(sql, orgId, settle.runId);
@@ -704,6 +723,36 @@ export async function checkNativeAgentRuns(
         'native runs: a file a run made — one the task does not even list, an earlier version — reads for the people who can read the task’s project, and for nobody outside it',
         byStarter && byTeammate && !byOutsider,
         `starter=${byStarter} teammate=${byTeammate} outsider=${byOutsider} (want true/true/false)`,
+      );
+      // A deliverable reads through the task that lists it, as a harness
+      // run's always did.
+      const contactsRef =
+        delivered.find((file) => file.name === 'contacts.csv')?.ref ?? '';
+      const readDelivered = async (who: string, role: string) =>
+        resolveFileReadAccess(
+          sql,
+          await getProjectAuthContext(sql, {
+            organizationId: orgId,
+            userId: who,
+            role,
+          }),
+          {
+            organizationId: orgId,
+            storageRef: contactsRef,
+            uploadedBy: null,
+            documentId: null,
+            threadId: null,
+            conversationId: null,
+          },
+        );
+      const [deliveredToTeammate, deliveredToOutsider] = [
+        await readDelivered(teammate, 'member'),
+        await readDelivered(outsider, 'member'),
+      ];
+      record(
+        'native runs: a deliverable reads through the task that lists it — for the people who can read the project, and for nobody outside it — whoever started the run',
+        contactsRef !== '' && deliveredToTeammate && !deliveredToOutsider,
+        `teammate=${deliveredToTeammate} outsider=${deliveredToOutsider} (want true/false)`,
       );
 
       // ---- a run that needs the full workspace ----------------------------
@@ -907,6 +956,40 @@ export async function checkNativeAgentRuns(
         `thread=${afterDelete.thread[0]?.n} run=${afterDelete.run[0]?.n} files=${JSON.stringify(afterDelete.files)} queued=${queued.size}/${refs.length}`,
       );
     }
+
+    // ---- a native run holds no worker ------------------------------------
+    // It names the agent's first worker like every kick does, and works in
+    // none: a run of the full workspace started beside it takes that worker,
+    // and the end of the native run, a failed one included, keeps none for a
+    // retry.
+    const beside = await mkRun(await mkTask('Native run beside a worker'), {
+      engine: 'native',
+      status: 'running',
+    });
+    const failedBeside = await mkRun(await mkTask('Failed native run'), {
+      engine: 'native',
+      status: 'running',
+    });
+    await failAgentRunFromTurn(held, {
+      runId: failedBeside.runId,
+      execId: failedBeside.execId,
+      error: 'the provider fell over',
+      failureCode: 'harness_error',
+    });
+    const needsWorker = await mkRun(await mkTask('Run in the full workspace'), {
+      engine: 'harness',
+      status: 'queued',
+    });
+    const claim = await claimAgentWorker(sql, input(needsWorker));
+    record(
+      'native runs: a run without a workspace holds no worker — a run of the same agent in the full workspace takes the agent’s first worker beside it, running or failed, not a second one [TASK-R37]',
+      beside.runId !== '' &&
+        claim !== null &&
+        'sessionId' in claim &&
+        claim.sessionId === `pa-${agentId}` &&
+        !claim.moved,
+      `claim=${JSON.stringify(claim)} (want worker 1 = pa-${agentId}, not moved)`,
+    );
 
     // ---- Stop -------------------------------------------------------------
     const stopTask = await mkTask('Stopped while working');

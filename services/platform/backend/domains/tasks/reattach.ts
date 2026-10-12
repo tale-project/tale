@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 
 import { sessionExecStatus } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import {
   claimRecoveryResume,
   driveJobPending,
@@ -227,6 +228,24 @@ export async function recoverStalledTaskAgentTurns(
  * (a healthy start flips to `running` within seconds), and the claim bumps
  * `updated_at_ms`, so a re-kicked run is not swept again on the next tick.
  */
+/**
+ * A native run's start job still waits its turn in the queue (the
+ * organization's share of working runs is full), or has just been taken: the
+ * run is not stranded, only queued, and a second job for it would only be
+ * orphaned by the first one's launch.
+ */
+async function nativeStartPending(sql: Sql, execId: string): Promise<boolean> {
+  const rows = await sql<{ pending: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM pgboss.job
+      WHERE name = ${physicalTaskQueue('task.agent_native')}
+        AND data ->> 'execId' = ${execId}
+        AND state IN ('created', 'retry', 'active')
+    ) AS pending
+  `;
+  return rows[0]?.pending ?? false;
+}
+
 export async function recoverStuckQueuedTaskAgentRuns(
   sql: Sql,
   options: { staleMs?: number } = {},
@@ -272,6 +291,12 @@ export async function recoverStuckQueuedTaskAgentRuns(
           `[task-agent-watchdog] failed stranded queued run ${run.runId} — its agent was deleted`,
         );
       }
+      continue;
+    }
+    if (
+      run.engine === 'native' &&
+      (await nativeStartPending(sql, run.execId))
+    ) {
       continue;
     }
     // Single-winner claim: rotate the exec id so a lost-but-slow original

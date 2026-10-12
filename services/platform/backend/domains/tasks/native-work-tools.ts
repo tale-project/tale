@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
 import type { SkillViewer } from '../../../lib/skills/visibility.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
@@ -16,7 +17,7 @@ import type {
   InputFile,
   WorkToolScope,
 } from '../agent_tools/scope.ts';
-import { listSkillCatalog } from '../agent_tools/skills.ts';
+import { listSkillCatalog, readSkillCatalog } from '../agent_tools/skills.ts';
 import { readProjectAgentSkillScope } from './agent-skill-scope.ts';
 import type { TaskBriefFile } from './task-brief-read.ts';
 
@@ -108,7 +109,7 @@ export async function readRunFiles(
  * does not exist, or one not shared with the project's teams. The harness
  * fails a run over the first of them when it stages the skills; the native
  * engine checks the same set before it starts, so the two engines refuse the
- * same runs.
+ * same runs. Throws when the library cannot be read.
  */
 export async function missingEquippedSkills(
   sql: Sql,
@@ -120,9 +121,11 @@ export async function missingEquippedSkills(
     readProjectAgentSkillScope(sql, args.agentId),
   ]);
   if (orgSlug === null) return [...args.skills];
+  // Unreadable is not absent: a library that cannot be listed right now must
+  // not fail the run for good, as a skill that is not there does.
   const reachable = new Set(
     (
-      await listSkillCatalog(
+      await readSkillCatalog(
         orgSlug,
         projectSkillViewer(skillScope),
         args.skills,
@@ -144,12 +147,16 @@ export async function nativeWorkTools(
   sql: Sql,
   turn: NativeWorkTurn,
 ): Promise<TurnWorkTools | undefined> {
-  const [orgSlug, skillScope, imageModel] = await Promise.all([
+  const [orgSlug, skillScope, imageModel, member] = await Promise.all([
     resolveOrgSlug(sql, turn.organizationId),
     readProjectAgentSkillScope(sql, turn.agentId),
     offeredImageModel(sql, turn.organizationId),
+    findActingMember(sql, turn.organizationId, turn.userId),
   ]);
-  if (orgSlug === null) return undefined;
+  // As in a chat: nothing is made for a person who is not a member.
+  if (orgSlug === null || member === null || member.role === 'disabled') {
+    return undefined;
+  }
   const skillViewer = projectSkillViewer(skillScope);
   const skillCatalog = await listSkillCatalog(
     orgSlug,

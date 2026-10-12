@@ -1,7 +1,7 @@
 import type { TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
-import { selectTaskOutputsForStaging } from '../../core/tasks/agent_run_host.ts';
+import { selectTaskOutputsForStaging } from '../../../lib/agent/task-brief.ts';
 import {
   agentRecordTaskOutputsTrusted,
   type TaskOutputEntry,

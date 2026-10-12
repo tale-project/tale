@@ -52313,6 +52313,61 @@ async function checkErasure(
     ) VALUES (${orgId}, ${encodeUploadRef(uploadKey)}, 'subject-upload.txt',
               'text/plain', 20, ${subject}, ${now})
   `;
+  // A task run the subject started on the native engine: its transcript is a
+  // bare thread of their own, a scratch file only the transcript held carries
+  // their name, and the deliverable its task keeps carries none. Their
+  // erasure takes the transcript and the scratch file, leaves the
+  // deliverable, and keeps the run's record without them.
+  const runProject = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Erasure native run', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const runTaskId = randomUUID();
+  await sql`
+    INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
+      created_by, created_by_type, created_at_ms, updated_at_ms)
+    VALUES (${runTaskId}, ${orgId}, ${runProject[0]?.id ?? ''},
+            'Native run of the subject', 'in_review', ${runTaskId}, ${userId},
+            'user', ${now}, ${now})
+  `;
+  const runThreadRows = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${subject}, 'Native run transcript', 'task_run', ${now},
+            ${now})
+    RETURNING id
+  `;
+  const runThread = runThreadRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES (${runThread}, ${orgId}, 0, 0, 'user', 'the subject’s brief',
+              'complete', ${now})
+  `;
+  const runRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, engine, thread_id, model, started_by, started_at_ms,
+      settled_at_ms, deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${runProject[0]?.id ?? ''}, ${runTaskId}, 'erasure-agent',
+      ${`erasure-native-${subject}`}, 'erasure-sess', 'settled', 'claude-code',
+      'native', ${runThread}, 'm', ${subject}, ${now}, ${now}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source, uploaded_by,
+      thread_id, created_at_ms
+    ) VALUES
+      (${orgId}, ${`s3:erasure-scratch-${subject}`}, 'scratch.txt',
+       'text/plain', 1, 'agent', ${subject}, ${runThread}, ${now}),
+      (${orgId}, ${`s3:erasure-deliverable-${subject}`}, 'report.csv',
+       'text/csv', 1, 'task-output', NULL, NULL, ${now})
+  `;
 
   const selfRefused = await post(`/api/app/erasure?orgId=${orgId}`, {
     targetUserId: userId,
@@ -52534,8 +52589,46 @@ async function checkErasure(
     receiptStatus === 'done' &&
       uploadRowsLeft[0]?.count === '0' &&
       uploadBlobAfter === null &&
-      receiptCounts[0]?.counts?.uploads === 1,
-    `receipt=${receiptStatus} (want done), rowsLeft=${uploadRowsLeft[0]?.count} (want 0), blobHead=${uploadBlobAfter === null ? '404' : 'present'} (want 404), counts.uploads=${receiptCounts[0]?.counts?.uploads} (want 1)`,
+      // The upload, and the scratch file of the subject's native run.
+      receiptCounts[0]?.counts?.uploads === 2,
+    `receipt=${receiptStatus} (want done), rowsLeft=${uploadRowsLeft[0]?.count} (want 0), blobHead=${uploadBlobAfter === null ? '404' : 'present'} (want 404), counts.uploads=${receiptCounts[0]?.counts?.uploads} (want 2)`,
+  );
+  const runAfter = await sql<
+    {
+      threads: number;
+      messages: number;
+      scratch: number;
+      deliverable: number;
+      startedBy: string;
+      threadId: string | null;
+    }[]
+  >`
+    SELECT
+      (SELECT count(*)::int FROM app.threads WHERE id = ${runThread})
+        AS threads,
+      (SELECT count(*)::int FROM app.messages WHERE thread_id = ${runThread})
+        AS messages,
+      (SELECT count(*)::int FROM app.file_metadata
+       WHERE org_id = ${orgId}
+         AND storage_ref = ${`s3:erasure-scratch-${subject}`}) AS scratch,
+      (SELECT count(*)::int FROM app.file_metadata
+       WHERE org_id = ${orgId}
+         AND storage_ref = ${`s3:erasure-deliverable-${subject}`}
+         AND (lifecycle_status IS NULL OR lifecycle_status = 'active'))
+        AS deliverable,
+      r.started_by AS "startedBy", r.thread_id AS "threadId"
+    FROM app.project_agent_runs r WHERE r.id = ${runRows[0]?.id ?? ''}
+  `;
+  record(
+    'erasure: the transcript of a native run the subject started goes with them — its thread, its messages and the file only it held — while the run’s record stays without them and the task keeps its deliverable [TASK-R36]',
+    receiptStatus === 'done' &&
+      runAfter[0]?.threads === 0 &&
+      runAfter[0].messages === 0 &&
+      runAfter[0].scratch === 0 &&
+      runAfter[0].deliverable === 1 &&
+      runAfter[0].startedBy !== subject &&
+      runAfter[0].threadId === null,
+    `receipt=${receiptStatus}; ${JSON.stringify(runAfter[0])} (want 0 threads/messages/scratch, 1 deliverable, started_by not the subject, no thread)`,
   );
 
   // Cancel lane: a fresh subject inside a real cooling window.

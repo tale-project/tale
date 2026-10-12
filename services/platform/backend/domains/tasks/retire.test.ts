@@ -213,7 +213,7 @@ describe('retireTasksInTx — the transcripts of native runs [TASK-R35]', () => 
     );
     expect(threadDeletes.map((s) => s.values)).toEqual([
       [['thread-1']],
-      [['run-thread-1']],
+      ['org_1', ['run-thread-1']],
     ]);
   });
 

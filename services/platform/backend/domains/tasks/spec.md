@@ -387,9 +387,10 @@ Starting the organization's standard agent with Start, with an @mention in a com
 description, or over the API runs it with the tools a chat reply has. It makes its files with
 the same file, image and code tools, runs code in the same light sandbox a chat starts rather
 than in one of the agent's workers, and acts as the person who started it, within the
-project. A start by an automation, a schedule or another agent, an agent with connectors,
-tools or secrets of its own, a runtime an Admin pinned, and a model only a runtime can serve
-all work in the agent's full workspace from the start.
+project, for as long as that person is an active member. A start by an automation, a schedule
+or another agent, an agent with connectors, tools or secrets of its own, a runtime an Admin
+pinned, and a model only a runtime can serve all work in the agent's full workspace from the
+start.
 
 - **Example**: Mia starts the standard agent on "Onboarding contacts" and asks for a CSV and a
   chart → both are attached to the task, and no worker of the agent was started.
@@ -413,14 +414,15 @@ over starts in the full workspace, with the same brief.
 ### TASK-R32 · A run without a workspace finishes like any other run
 
 Its closing message is posted as the agent's report, the files it made are the task's
-deliverables (a file revised under the same name replaces the earlier one), and the task
-moves to In review. The run card shows what it did, tool by tool, and everyone who can read
+deliverables (a file revised under the same name replaces the earlier one; a run delivers at
+most 64 files, as a run in the full workspace does, and names the rest as not delivered), and
+the task moves to In review. The run card shows what it did, tool by tool, and everyone who can read
 the project can open the files it made; nobody else can. Its work is booked to the person who
 started it, under the agent, and to the project, and a limit that binds that person refuses
 the run before it spends anything. The light sandbox it used is given back when it ends.
 
 - **Example**: Mia's run finishes → the report says what was made, "contacts.csv" is under
-  Output and the task waits at In review. Noor, who is in the project's team, opens the file;
+  Deliverables and the task waits at In review. Noor, who is in the project's team, opens the file;
   Sam, who is not, cannot.
 - **Example**: Mia's daily limit is spent → the run fails at once, saying so, and nothing was
   spent.
@@ -451,10 +453,43 @@ whose model, agent or skill is gone fail for good, and the person who started th
 ### TASK-R35 · Deleting a task deletes what its runs without a workspace kept
 
 The transcripts of its runs and the files they made go with the task, and their bytes are
-released unless another task or document still holds them.
+released unless another task or document still holds them. A run still working when its task
+is deleted stops at its next step, within seconds, and spends nothing more.
 
 - **Example**: Ada deletes "Onboarding contacts" → its runs' transcripts are gone, and
   "contacts.csv" is released.
+- **Example**: Ada deletes the task while Mia's run is on its third step → the run ends at the
+  next step instead of working on, and no file lands on a task that is gone.
+
+### TASK-R36 · A run without a workspace is kept as long as its record, and no longer
+
+What the run said, did and read goes when the organization's retention window deletes the
+run's record, and when the person who started the run is erased. A deliverable stays with its
+task whoever started the run; the files only the transcript held are released with it.
+
+- **Example**: The retention window of agent runs passes for Mia's run → the run and its
+  transcript are deleted, and "contacts.csv" stays on the task.
+- **Example**: Mia is erased → the transcripts of the runs she started are gone, the runs
+  name no one, and the deliverables stay.
+
+### TASK-R37 · A run without a workspace takes no worker
+
+It is never counted as using one of its agent's workers: a run of the same agent in the
+full workspace, started at the same time, takes the agent's first worker; a worker with only
+such runs left goes idle and stops; and the end of such a run frees no slot and wakes nothing.
+
+- **Example**: Mia's run works while a schedule starts the same agent on another task → the
+  schedule's run takes the first worker, and a third run waits for a worker only when the
+  organization's real workers are all busy.
+
+### TASK-R38 · An organization works at most four runs without a workspace at once
+
+The next one waits its turn, queued, in the order it was started, and begins as soon as one of
+the organization's runs ends; no other organization's run waits behind it. A run whose
+process died stops counting within two minutes.
+
+- **Example**: Ada starts six agent runs at once → four work and two wait; when one ends, the
+  next begins. Another organization's run starts at once.
 
 ## Operational review batches
 
@@ -493,7 +528,7 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
 
 ## Not yet
 
-- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27` and `TASK-R30`–`TASK-R35`, and how a run moves the card between statuses (`agent-runs.ts`,
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27` and `TASK-R30`–`TASK-R38`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22` and `TASK-R28`–`TASK-R29`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).

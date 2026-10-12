@@ -100,6 +100,7 @@ interface ReleasedRun {
   taskId: string;
   agentId: string;
   sessionId: string;
+  engine: string;
   status: string;
   launched: boolean;
   startedVia: string | null;
@@ -247,7 +248,7 @@ export async function recordSlotReleaseInTx(
   const runs = await tx<ReleasedRun[]>`
     SELECT org_id AS "organizationId", project_id AS "projectId",
            task_id AS "taskId", agent_id AS "agentId",
-           session_id AS "sessionId", status,
+           session_id AS "sessionId", engine, status,
            launched_at_ms IS NOT NULL AS launched,
            started_via AS "startedVia",
            started_via_run_id AS "startedViaRunId",
@@ -258,6 +259,8 @@ export async function recordSlotReleaseInTx(
   `;
   const run = runs[0];
   if (run === undefined || !TERMINAL_STATUSES.has(run.status)) return;
+  // A native run held no worker, so its end frees none: nothing to signal.
+  if (run.engine === 'native') return;
   const triggerId = await wakeTargetOf(tx, run);
   if (triggerId === null) return;
   if (await startedByTarget(tx, run, triggerId)) {
@@ -282,6 +285,7 @@ export async function recordSlotReleaseInTx(
         SELECT id FROM app.project_agent_runs
         WHERE org_id = ${run.organizationId}
           AND session_id = ${run.sessionId} AND agent_id = ${run.agentId}
+          AND engine = 'harness'
           AND (status = 'running'
             OR (status = 'queued' AND waiting_for_capacity_at_ms IS NULL
               AND session_claimed_at_ms IS NOT NULL))

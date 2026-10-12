@@ -5,8 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
 import type { TurnOutcome } from '../../../lib/chat/turn.ts';
+import { MAX_RUN_OUTPUT_FILES } from '../../../lib/shared/run-output-cap.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { executeTurn } from '../../core/chat/turn_action.ts';
 import { assertChatTurnBudget } from '../chat/budget-admission.ts';
+import { createPgTurnStore } from '../chat/store.ts';
 import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
 import { releaseLightSession } from '../sandbox/light-sessions.ts';
 import { completeAgentRunInTx } from './agent-run-completion.ts';
@@ -25,6 +28,7 @@ import {
 import { missingEquippedSkills, nativeWorkTools } from './native-work-tools.ts';
 import { readTaskBrief } from './task-brief-read.ts';
 
+vi.mock('../../auth/membership.ts', () => ({ findActingMember: vi.fn() }));
 vi.mock('../../core/chat/turn_action.ts', () => ({ executeTurn: vi.fn() }));
 vi.mock('../chat/budget-admission.ts', () => ({
   assertChatTurnBudget: vi.fn(),
@@ -35,6 +39,8 @@ vi.mock('../chat/store.ts', () => ({
     beginTurn: vi.fn(async () => ({
       assistantMessage: { id: 'm', sequence: 1 },
     })),
+    streamProgress: vi.fn(async () => ({ cancelRequested: false })),
+    endGeneration: vi.fn(async () => undefined),
   })),
   createPgUsageLedger: vi.fn(() => ({ record: vi.fn() })),
 }));
@@ -119,7 +125,9 @@ function fakeSql(
   overrides: {
     run?: object | null;
     agent?: object | null;
-    live?: boolean;
+    /** Whether the run is still the live one this exec owns; a function is
+     * asked on every probe. */
+    live?: boolean | (() => boolean);
   } = {},
 ): Sql & { statements: { text: string; values: unknown[] }[] } {
   const statements: { text: string; values: unknown[] }[] = [];
@@ -130,7 +138,11 @@ function fakeSql(
       text.includes('AND exec_id = ') &&
       text.includes("status = 'running'")
     ) {
-      return Promise.resolve(overrides.live === false ? [] : [{ id: 'run-1' }]);
+      const live =
+        typeof overrides.live === 'function'
+          ? overrides.live()
+          : overrides.live !== false;
+      return Promise.resolve(live ? [{ id: 'run-1' }] : []);
     }
     if (text.includes('FROM app.project_agent_runs')) {
       return Promise.resolve(
@@ -176,6 +188,12 @@ const refused = (
 });
 
 beforeEach(() => {
+  vi.mocked(findActingMember).mockReset().mockResolvedValue({
+    id: 'member-row',
+    organizationId: 'org-1',
+    userId: 'member-1',
+    role: 'member',
+  });
   vi.mocked(executeTurn).mockReset();
   vi.mocked(assertChatTurnBudget).mockReset().mockResolvedValue(undefined);
   vi.mocked(eligibleProjectAgentHarnesses)
@@ -270,6 +288,26 @@ describe('nativeTaskPrompt', () => {
     ).toBe(true);
   });
 
+  it('lists the newest deliverables a long-lived task holds and says how many older ones it leaves out [TASK-R32]', () => {
+    const outputs = Array.from({ length: 70 }, (_, index) => ({
+      fileId: `s3:out-${index}`,
+      fileName: `receipt-${index}.md`,
+    }));
+
+    const prompt = nativeTaskPrompt({
+      brief: { ...BRIEF, outputs },
+      feedback: null,
+      mentionSource: null,
+    });
+
+    expect(prompt).toContain('receipt-69.md (ref: s3:out-69)');
+    expect(prompt).toContain('receipt-6.md (ref: s3:out-6)');
+    expect(prompt).not.toContain('receipt-5.md');
+    expect(prompt).toContain(
+      '6 older deliverables stay on the task and are left out here.',
+    );
+  });
+
   it('leads with the comment that sent the run, but not with a description that named the agent', () => {
     expect(
       nativeTaskPrompt({
@@ -347,6 +385,22 @@ describe('runNativeAgentTurn — the gate', () => {
       expect.objectContaining({
         failureCode: 'equipment_missing',
         error: expect.stringContaining('brand-voice'),
+      }),
+    );
+    expect(launchAgentRun).not.toHaveBeenCalled();
+  });
+
+  it('does not read a skill library it could not list as one without the skill, which would fail the run for good [TASK-R34]', async () => {
+    vi.mocked(missingEquippedSkills).mockRejectedValue(new Error('disk gone'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runNativeAgentTurn(fakeSql(), INPUT);
+
+    expect(failAgentRunFromTurn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        failureCode: 'turn_crashed',
+        error: 'the skill library could not be read',
       }),
     );
     expect(launchAgentRun).not.toHaveBeenCalled();
@@ -487,6 +541,36 @@ describe('runNativeAgentTurn — the turn', () => {
       }),
     );
   });
+
+  it.each([
+    ['is no longer a member', null],
+    [
+      'has been disabled',
+      {
+        id: 'member-row',
+        organizationId: 'org-1',
+        userId: 'member-1',
+        role: 'disabled',
+      },
+    ],
+  ])(
+    'fails the run before a transcript opens when its starter %s [TASK-R30]',
+    async (_label, member) => {
+      vi.mocked(findActingMember).mockResolvedValue(member);
+
+      await runNativeAgentTurn(fakeSql(), INPUT);
+
+      expect(attachRunThread).not.toHaveBeenCalled();
+      expect(executeTurn).not.toHaveBeenCalled();
+      expect(failAgentRunFromTurn).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          failureCode: 'turn_crashed',
+          error: expect.stringContaining('no longer an active member'),
+        }),
+      );
+    },
+  );
 
   it('stops a run whose task or transcript vanished without failing anything', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -702,6 +786,87 @@ describe('runNativeAgentTurn — the settle', () => {
     }
   });
 
+  it.each([
+    [
+      'a failed model call the abort caused',
+      async (): Promise<TurnOutcome> =>
+        refused('stream', 'The operation was aborted', true),
+    ],
+    [
+      'a thrown abort',
+      async (): Promise<TurnOutcome> => {
+        throw new DOMException('The operation was aborted', 'AbortError');
+      },
+    ],
+  ])(
+    'fails a run that outlasted its time limit as past its deadline when the engine reports %s [TASK-R34]',
+    async (_label, outcome) => {
+      const timeout = vi
+        .spyOn(AbortSignal, 'timeout')
+        .mockReturnValue(AbortSignal.abort());
+      try {
+        vi.mocked(executeTurn).mockImplementation(outcome);
+
+        await runNativeAgentTurn(fakeSql(), INPUT);
+
+        expect(failAgentRunFromTurn).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ failureCode: 'deadline' }),
+        );
+      } finally {
+        timeout.mockRestore();
+      }
+    },
+  );
+
+  it('fails a run a worker shutdown cut short as interrupted when the engine reports a failed model call [TASK-R34]', async () => {
+    const shutdown = new AbortController();
+    shutdown.abort();
+    vi.mocked(executeTurn).mockResolvedValue(
+      refused('stream', 'The operation was aborted', true),
+    );
+
+    await runNativeAgentTurn(fakeSql(), INPUT, { signal: shutdown.signal });
+
+    expect(failAgentRunFromTurn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        failureCode: 'turn_crashed',
+        error: expect.stringContaining('worker stopped'),
+      }),
+    );
+  });
+
+  it('delivers at most the per-run file cap and names the rest as not delivered [TASK-R32]', async () => {
+    const made = Array.from(
+      { length: MAX_RUN_OUTPUT_FILES + 2 },
+      (_, index) => ({
+        fileId: `s3:${index}`,
+        fileName: `file-${index}.txt`,
+        fileType: 'text/plain',
+        fileSize: 1,
+      }),
+    );
+    vi.mocked(listRunFiles).mockResolvedValue(made);
+    vi.mocked(executeTurn).mockResolvedValue(completed('Made many.'));
+
+    await runNativeAgentTurn(fakeSql(), INPUT);
+
+    expect(completeAgentRunInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        files: made.slice(0, MAX_RUN_OUTPUT_FILES),
+        noticeByLocale: expect.objectContaining({
+          en: expect.stringContaining(
+            `Not delivered:\n- file-${MAX_RUN_OUTPUT_FILES}.txt — over the ${MAX_RUN_OUTPUT_FILES}-file per-run harvest cap`,
+          ),
+          de: expect.stringContaining('Nicht bereitgestellt:'),
+          fr: expect.stringContaining('Fichiers non remis'),
+        }),
+      }),
+    );
+  });
+
   describe('the run’s turn store [TASK-R33]', () => {
     /** The store the engine writes through, as `executeTurn` receives it. */
     async function openTurn(sql: ReturnType<typeof fakeSql>) {
@@ -737,6 +902,119 @@ describe('runNativeAgentTurn — the settle', () => {
           statement.text.includes('SET cancel_requested = true'),
         ),
       ).toBe(false);
+    });
+  });
+
+  describe('the run’s turn store keeps the turn tied to its run [TASK-R35]', () => {
+    const PROGRESS = {
+      organizationId: 'org-1',
+      threadId: 'thread-1',
+      text: '',
+      poll: true,
+    } as const;
+    const touches = (sql: ReturnType<typeof fakeSql>) =>
+      sql.statements.filter((statement) =>
+        statement.text.includes('SET updated_at_ms = '),
+      );
+
+    /** Run the host with an engine that does `work` on the store it is given. */
+    async function withStore(
+      sql: ReturnType<typeof fakeSql>,
+      work: (store: TurnStoreLike) => Promise<void>,
+    ) {
+      vi.mocked(executeTurn).mockImplementation(
+        async (_ctx, _args, overrides) => {
+          await work(overrides.deps.store);
+          return completed('Done.');
+        },
+      );
+      await runNativeAgentTurn(sql, INPUT);
+    }
+    type TurnStoreLike = Parameters<typeof executeTurn>[2]['deps']['store'];
+
+    it('ends the turn at its next progress write once its run is no longer live, however the flag was lost', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        let live = true;
+        const sql = fakeSql({ live: () => live });
+        const answers: unknown[] = [];
+        await withStore(sql, async (store) => {
+          vi.setSystemTime(Date.now() + 16_000);
+          answers.push(await store.streamProgress(PROGRESS));
+          // The task was deleted: the run is cancelled, and the flag set on
+          // its generation row went with the transcript.
+          live = false;
+          vi.setSystemTime(Date.now() + 16_000);
+          answers.push(await store.streamProgress(PROGRESS));
+        });
+
+        expect(answers).toEqual([
+          { cancelRequested: false },
+          { cancelRequested: true },
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('proves the run alive while it works, no oftener than every few seconds', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        const sql = fakeSql();
+        await withStore(sql, async (store) => {
+          await store.streamProgress(PROGRESS);
+          vi.setSystemTime(Date.now() + 5_000);
+          await store.streamProgress(PROGRESS);
+          expect(touches(sql)).toHaveLength(0);
+          vi.setSystemTime(Date.now() + 11_000);
+          await store.streamProgress(PROGRESS);
+          expect(touches(sql)).toHaveLength(1);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not ask about the run once the turn was told to stop', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        const sql = fakeSql();
+        const base = vi.mocked(createPgTurnStore).mock.results;
+        await withStore(sql, async (store) => {
+          const inner = base.at(-1)?.value;
+          vi.mocked(inner.streamProgress).mockResolvedValueOnce({
+            cancelRequested: true,
+          });
+          vi.setSystemTime(Date.now() + 20_000);
+          await expect(store.streamProgress(PROGRESS)).resolves.toEqual({
+            cancelRequested: true,
+          });
+          expect(touches(sql)).toHaveLength(0);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('starts the settle’s clock before the generation row goes, so the watchdog’s grace is measured from the end of the turn', async () => {
+      const sql = fakeSql();
+      await withStore(sql, async (store) => {
+        const inner = vi.mocked(createPgTurnStore).mock.results.at(-1)?.value;
+        vi.mocked(inner.endGeneration).mockImplementation(async () => {
+          sql.statements.push({ text: 'BASE endGeneration', values: [] });
+        });
+        await store.endGeneration({
+          organizationId: 'org-1',
+          threadId: 'thread-1',
+        });
+      });
+
+      const texts = sql.statements.map((statement) => statement.text);
+      const touched = texts.findIndex((text) =>
+        text.includes('SET updated_at_ms = '),
+      );
+      expect(touched).toBeGreaterThan(-1);
+      expect(touched).toBeLessThan(texts.indexOf('BASE endGeneration'));
     });
   });
 

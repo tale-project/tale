@@ -51,11 +51,11 @@ whose credential is a subscription broker on a local Tale AI gateway
 (TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
 **Member**, the default of **Add member** (SETUP.md extras); TASK-F50 also
 needs a project agent that can run, and TASK-B27 a team the member is not in.
-The boxes under **Runs without a workspace** (TASK-F86–TASK-F90, TASK-B53)
+The boxes under **Runs without a workspace** (TASK-F86–TASK-F91, TASK-B53)
 need a project without agents of its own, so its tasks go to the standard
 agent, and a model the organization serves directly; TASK-F88 and TASK-F90
-also need a harness that can run, and TASK-F89 a model slow enough to answer
-after you comment. In Mode A the mock gateway drives TASK-F86–TASK-F88 from
+also need a harness that can run, and TASK-F89 and TASK-F91 a model slow
+enough to answer after you comment. In Mode A the mock gateway drives TASK-F86–TASK-F88 from
 the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
 `e2e:use-workspace` make it call `create_file`, `run_code` and `use_workspace`.
 
@@ -1635,4 +1635,5 @@ TASK-F86 is a Member of the project's team.
 - [ ] `TASK-F88` · **A run that needs the full workspace hands itself over** — Start the standard agent on a task that needs a repository checked out (Mode A: add `e2e:use-workspace`) → The Run row leaves **Working…** and reads **Waiting for a worker** or **Working…** again as the agent's full workspace takes over; the agent shows over **Worker 1** on Sandboxes; the task stays **In progress** and the first pass posts no report. A file the first pass made is under **Deliverables** before the workspace finishes. Without a runnable harness the second pass fails at its start (**ENVIRONMENT**); its automatic retry then starts in the full workspace again, never as a run without one.
 - [ ] `TASK-F89` · **A comment stops the run and starts the next from it** — While the run of `TASK-F86` works on a model slow enough to catch, comment `@Standard agent also add the moons column` → the first run reads **Cancelled** (`tasks.agentRun.status.cancelled`), a new run starts at once, its **Details** shows the comment among what it works from, and the task stays **In progress**. Press **Cancel run** (`tasks.agentRun.cancel`) on a working run instead → it reads **Cancelled** and nothing starts.
 - [ ] `TASK-F90` · **A start by an automation works in a worker** — Deploy an automation whose step starts the agent on a task (as in AUTO-F32) and run it on a task assigned to the standard agent → the run works in a worker of the agent (**Worker 1** on Sandboxes) and **Details** shows a live harness transcript, as before; a person pressing **Start agent** on the same agent works without one (`TASK-F86`).
+- [ ] `TASK-F91` · **An organization works four such runs at a time** — With a model slow enough to catch (Mode A: `TALE_MOCK_STREAM_PACE_MS=1500` on the mock gateway), start the standard agent on five tasks within a few seconds → four Run rows read **Working…** (`tasks.agentRun.status.running`) and the fifth reads **Queued** (`tasks.agentRun.status.queued`), never **Waiting for a worker**; when one of the four reads **Finished**, the fifth starts by itself. A start in another organization at the same time reads **Working…** at once. Press **Cancel run** on the queued one instead → it reads **Cancelled** and never starts.
 - [ ] `TASK-B53` · **A policy that blocks the task's text stops the run for good** — Under **Governance**, add a guardrail that blocks a word; put that word in a task's description and start the standard agent → The Run row reads **Failed** and the failure sentence is `tasks.agentRun.failure.policy`; no **Auto-retry** caption appears and no new run starts; the starter's notifications show a row with `inbox.agentRunFailedPolicyBody`. Remove the guardrail, press **Retry** (`tasks.agentRun.retry`) → the run works.

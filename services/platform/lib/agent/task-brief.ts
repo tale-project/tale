@@ -154,6 +154,25 @@ export function nativeInputsBlock(files: {
   ].join('\n');
 }
 
+/** Keep worker starts bounded when a long-lived task has accumulated
+ * one receipt or deliverable per run. The task's output list remains intact;
+ * only the newest entries are mirrored into this turn's read-only inputs. */
+export const MAX_STAGED_TASK_OUTPUTS = 64;
+
+export function selectTaskOutputsForStaging<T>(
+  outputs: ReadonlyArray<T>,
+  maxOutputs = MAX_STAGED_TASK_OUTPUTS,
+): { selected: T[]; omitted: number } {
+  if (maxOutputs <= 0) return { selected: [], omitted: outputs.length };
+  if (outputs.length <= maxOutputs) {
+    return { selected: [...outputs], omitted: 0 };
+  }
+  return {
+    selected: outputs.slice(-maxOutputs),
+    omitted: outputs.length - maxOutputs,
+  };
+}
+
 /** How a native turn's deliverables leave it: through the tools that make
  * files. */
 export const NATIVE_DELIVERY =

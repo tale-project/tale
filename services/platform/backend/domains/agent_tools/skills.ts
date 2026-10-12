@@ -34,28 +34,39 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** The skills the viewer may load, for the catalog block: name, the
  * description excerpt's source, and the explicit-only flag. `only` narrows
- * the list to the skills an agent is equipped with. A library that cannot be
- * read lists nothing (and the tools then answer not found). */
+ * the list to the skills an agent is equipped with. Throws when the library
+ * cannot be read — a check that must tell "none" from "unreadable" asks this;
+ * a turn's catalog asks {@link listSkillCatalog}. */
+export async function readSkillCatalog(
+  orgSlug: string,
+  viewer: SkillViewer,
+  only?: readonly string[],
+): Promise<SkillCatalogEntry[]> {
+  const listing = await listSkillsForViewer({ orgSlug, viewer });
+  return listing.skills
+    .filter((skill) => only === undefined || only.includes(skill.slug))
+    .map((skill): SkillCatalogEntry => {
+      const entry: {
+        slug: string;
+        description?: string;
+        explicitOnly?: boolean;
+      } = { slug: skill.slug };
+      if (skill.description !== '') entry.description = skill.description;
+      if (skill.disableModelInvocation === true) entry.explicitOnly = true;
+      return entry;
+    })
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+/** {@link readSkillCatalog} for a turn: a library that cannot be read lists
+ * nothing (and the tools then answer not found). */
 export async function listSkillCatalog(
   orgSlug: string,
   viewer: SkillViewer,
   only?: readonly string[],
 ): Promise<SkillCatalogEntry[]> {
   try {
-    const listing = await listSkillsForViewer({ orgSlug, viewer });
-    return listing.skills
-      .filter((skill) => only === undefined || only.includes(skill.slug))
-      .map((skill): SkillCatalogEntry => {
-        const entry: {
-          slug: string;
-          description?: string;
-          explicitOnly?: boolean;
-        } = { slug: skill.slug };
-        if (skill.description !== '') entry.description = skill.description;
-        if (skill.disableModelInvocation === true) entry.explicitOnly = true;
-        return entry;
-      })
-      .sort((a, b) => a.slug.localeCompare(b.slug));
+    return await readSkillCatalog(orgSlug, viewer, only);
   } catch (error) {
     console.warn(
       `[agent-tools] the skill library of ${orgSlug} could not be listed for a turn:`,
