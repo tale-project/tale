@@ -1,0 +1,9 @@
+node_modules
+storybook-static
+.turbo
+*.tsbuildinfo
+.env
+.env.local
+# Vitest browser failure captures, not snapshot baselines.
+__screenshots__/
+.vitest-attachments/

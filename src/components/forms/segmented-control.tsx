@@ -1,0 +1,129 @@
+'use client';
+
+import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
+import { cn } from '@tale/ui/cn';
+import { useId, useRef } from 'react';
+
+import { FieldShell } from './field-shell';
+import { Label } from './label';
+
+interface SegmentedControlOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+interface SegmentedControlProps {
+  id?: string;
+  label?: string;
+  required?: boolean;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: SegmentedControlOption[];
+  disabled?: boolean;
+  className?: string;
+  /** Names the group when there is no visible `label`. */
+  'aria-label'?: string;
+  /** Names the group after visible text elsewhere, when there is no `label`. */
+  'aria-labelledby'?: string;
+}
+
+/**
+ * A segmented button group for choosing between a small set of mutually
+ * exclusive options — the compact alternative to radio buttons when there
+ * are only 2–4 options and descriptions are not needed.
+ *
+ * Selection is never cleared: if the user clicks the active option, nothing
+ * changes (preventing an empty state).
+ */
+export function SegmentedControl({
+  id: providedId,
+  label,
+  required,
+  value,
+  onValueChange,
+  options,
+  disabled,
+  className,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+}: SegmentedControlProps) {
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
+  const isNavigationKeyPressed = useRef(false);
+  const navigationKeyGeneration = useRef(0);
+
+  const handleValueChange = (next: string) => {
+    // Radix calls this with '' when the user re-clicks the active item.
+    // We treat the control as always-selected, so ignore empty.
+    if (next) onValueChange(next);
+  };
+
+  return (
+    <FieldShell
+      {...(label
+        ? {
+            label: (
+              <Label id={`${id}-label`} required={required}>
+                {label}
+              </Label>
+            ),
+          }
+        : {})}
+    >
+      <ToggleGroupPrimitive.Root
+        type="single"
+        value={value}
+        onValueChange={handleValueChange}
+        disabled={disabled}
+        onKeyDown={(event) => {
+          const generation = ++navigationKeyGeneration.current;
+          isNavigationKeyPressed.current = [
+            'ArrowRight',
+            'ArrowLeft',
+            'ArrowDown',
+            'ArrowUp',
+            'Home',
+            'End',
+          ].includes(event.key);
+          if (isNavigationKeyPressed.current) {
+            setTimeout(() => {
+              // A newer key can arrive before this older reset runs.
+              if (navigationKeyGeneration.current === generation) {
+                isNavigationKeyPressed.current = false;
+              }
+            });
+          }
+        }}
+        aria-label={label ? undefined : ariaLabel}
+        aria-labelledby={label ? `${id}-label` : ariaLabelledBy}
+        className={cn(
+          'border-border bg-muted inline-flex gap-0.5 rounded-md border p-0.5',
+          className,
+        )}
+      >
+        {options.map((option) => (
+          <ToggleGroupPrimitive.Item
+            key={option.value}
+            value={option.value}
+            disabled={option.disabled}
+            onFocus={() => {
+              if (isNavigationKeyPressed.current && option.value !== value) {
+                onValueChange(option.value);
+              }
+            }}
+            className={cn(
+              'flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs font-medium transition-all duration-150',
+              'text-muted-foreground',
+              'dark:data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:bg-white data-[state=on]:shadow-xs',
+              'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
+              'disabled:pointer-events-none disabled:opacity-50',
+            )}
+          >
+            {option.label}
+          </ToggleGroupPrimitive.Item>
+        ))}
+      </ToggleGroupPrimitive.Root>
+    </FieldShell>
+  );
+}
