@@ -6,8 +6,8 @@ A person can connect a coding agent to an organization by signing in from the ag
 MCP endpoint. The organization keeps one record of each connection: who connected which app, with
 which access, and when and why it ended; the endpoint's own count of calls says when it was last used.
 These rules cover who may connect an agent and with which access, who sees a connection and who ends
-it, what ending one takes away, and what ends one without anyone asking. What the consent page looks
-like and what a call may do with the access it was given are left to Not yet.
+it, what ending one takes away, what ends one without anyone asking, and whether the access token the
+agent then presents opens the endpoint. What the consent page looks like is left to Not yet.
 
 ## Connecting an agent
 
@@ -125,10 +125,69 @@ An app that was disconnected and is allowed again makes a new connection.
   access. She disconnects it and allows it again → a new connection, and the old one stays in the
   history an admin can read.
 
+## Using a connection
+
+The MCP endpoint takes a coding agent's access token in place of an API key, once the operator lets
+agents sign in. What a call may do with the access the token carries is the [MCP spec](../mcp/spec.md)
+(MCP-R40–R42); these rules cover whether the token opens the endpoint at all.
+
+### AGCONN-R15 · A token opens the endpoint only if this server issued it for this endpoint
+
+The endpoint proves the token itself, asking the sign-in server nothing: its signature against the
+keys the server publishes (RS256 only), its issuer, its audience — the MCP endpoint, on an address the
+deployment answers on —, its type, and that it has not run out. A token made by anyone else, for another
+endpoint, of another type, signed another way (no signature, a shared secret) or bound to a key of the
+agent's is refused. If the keys cannot be fetched, the endpoint is unavailable; the token is not
+called wrong.
+
+- **Example**: A token signed by an unknown key, one meant for another site's endpoint and one with no
+  signature at all → each refused with 401. The sign-in server's own token for Acme's endpoint → opens it.
+
+### AGCONN-R11 · A token works only while its connection lives and its person keeps a seat
+
+On every call the endpoint reads the connection the token was issued under: it must not have ended,
+must have been made no later than the token (a token from before a disconnect belongs to the earlier
+connection of the same app), and its person must still have a seat in that organization, which was not
+switched off. The call acts as that person with the role they have now, not the one in the token. The
+access it may use is what the token carries and the connection still holds.
+
+- **Example**: Ada disconnects Cursor while its token has four minutes left → Cursor's next call is
+  refused with 401, and its refresh no longer works. Olav demotes Ada from admin to member → her
+  agent's next call acts as a member.
+
+### AGCONN-R12 · A connection works in the organization it was made for, and in no other
+
+A call acts in the organization of the connection, whichever organizations its person belongs to. A
+call that names another organization is refused with 403 `ORG_MISMATCH`, which names the organization
+the connection is for and nothing of what was asked; naming the right one, in any case, is fine. A
+person who wants an agent in two organizations connects it to each.
+
+- **Example**: Noah belongs to Acme and Beta and connected Cursor to Acme. A call that names Beta →
+  403 `ORG_MISMATCH` naming Acme. A call that names Acme, or none → acts in Acme.
+
+### AGCONN-R13 · Only the MCP endpoint takes an agent's token
+
+On every other route a value of that shape is read as the API key it can only be, and refused as one.
+While the operator keeps agents out, the MCP endpoint reads it the same way.
+
+- **Example**: Cursor presents its token at the automations list → 401 "Invalid API key". The operator
+  has not let agents in, and Cursor presents it at the MCP endpoint → the same.
+
+### AGCONN-R14 · A refusal on the endpoint tells an agent where to sign in
+
+When agents may sign in, every 401 on the MCP endpoint carries a challenge that names where the
+endpoint's metadata is and which scopes to ask for, and says `invalid_token` when a credential was
+presented and refused. A token that has merely run out is refused without counting against its source,
+since refreshing is what an agent does next; a token that was never good counts, like a wrong key. The
+challenge holds nothing a caller wrote.
+
+- **Example**: A request with no credentials → 401 naming the metadata address and the scopes. A token
+  that ran out → 401 `invalid_token` saying so, not counted against its source. A token no one issued
+  → 401, counted, and 429 once the source has failed too often.
+
 ## Not yet
 
-- What the consent page shows and how it reads, and what a call may do with the access a connection was
-  given (the MCP door checking the connection on every call), are not covered yet.
+- What the consent page shows and how it reads is not covered yet.
 - A password change or reset, an admin's sign-out of every session, and an account's deletion should
   disconnect the person's agents too; only leaving an organization does today.
 - A refresh token that is used twice, which should disconnect the agent and tell the person, is not

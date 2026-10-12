@@ -13,6 +13,7 @@ import {
   protectedResourceMetadataAnswer,
   withAgentOAuth,
 } from './auth/agent-oauth.ts';
+import { agentIssuer } from './auth/agent-token.ts';
 import { API_KEY_HEADER, loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
 import { requestWithMintedCookie } from './auth/minted-cookie.ts';
@@ -311,8 +312,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     '/api/auth/get-session',
     trustedHeadersSessionMint({ sql: deps.sql }),
   );
-  const oidcRealm = () =>
-    `${(deps.auth.options.baseURL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')}/api/auth`;
+  const oidcRealm = () => agentIssuer(deps.auth);
   // How coding agents may sign in to the MCP endpoint, read once like the
   // provider's own configuration (`auth/agent-oauth-config.ts`).
   const agentOAuth = agentOAuthOptionsFromEnv();
@@ -429,7 +429,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/trusted-headers', trustedRoutes);
   app.route('/http_api/api/trusted-headers', trustedRoutes);
   // The REST machine door (Bearer API key), with its JSON 404 catch-all.
-  mountRestV1Routes(app, deps);
+  mountRestV1Routes(app, { ...deps, agentOAuth });
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));
