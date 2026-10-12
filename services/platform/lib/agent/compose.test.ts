@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChatToolExecutor } from '../chat/tools';
+import type { ChatToolExecutor, ToolCallOptions } from '../chat/tools';
 import { composeToolExecutors } from './compose';
 
 function executor(names: readonly string[], tag: string): ChatToolExecutor {
@@ -40,6 +40,28 @@ describe('composeToolExecutors', () => {
     await expect(
       joined?.execute({ id: '2', name: 'rag_search', input: {} }),
     ).resolves.toEqual({ by: 'retrieval', name: 'rag_search' });
+  });
+
+  it('hands the turn’s options — its abort signal — to the executor that owns the call', async () => {
+    const seen: (ToolCallOptions | undefined)[] = [];
+    const work: ChatToolExecutor = {
+      wireTools: [
+        { name: 'run_code', description: 'x', parameters: { type: 'object' } },
+      ],
+      execute: (_call, options) => {
+        seen.push(options);
+        return Promise.resolve({ status: 'ok' });
+      },
+    };
+    const joined = composeToolExecutors([executor(['rag_search'], 'r'), work]);
+    const stop = new AbortController();
+
+    await joined?.execute(
+      { id: '1', name: 'run_code', input: {} },
+      { signal: stop.signal },
+    );
+
+    expect(seen).toEqual([{ signal: stop.signal }]);
   });
 
   it('answers a call to a tool nobody offered without throwing', async () => {

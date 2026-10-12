@@ -302,6 +302,27 @@ describe('a round of tool calls', () => {
     );
   });
 
+  it('answers a tool that threw before it returned a promise, without ending the round', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const { outputs } = await runToolBatch({
+      calls: [call('1'), call('2', 'create_file')],
+      execute: (c) => {
+        if (c.name === 'run_code') throw new Error('threw synchronously');
+        return Promise.resolve({ status: 'ok' });
+      },
+      poll: async () => false,
+    });
+
+    expect(outputs).toEqual([
+      {
+        status: 'error',
+        message: 'The tool failed unexpectedly. Tell the user.',
+      },
+      { status: 'ok' },
+    ]);
+  });
+
   it('leaves no timer behind once the round is over', async () => {
     await runToolBatch({
       calls: [call('1')],

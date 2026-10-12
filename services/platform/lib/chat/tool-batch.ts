@@ -160,7 +160,16 @@ export async function runToolBatch(
       output: undefined,
       done: Promise.resolve(),
     };
-    execution.done = args.execute(call, { signal }).then(
+    // A tool that throws before it returns a promise is the same breach as one
+    // that rejects: it must not end the round.
+    const run = (): Promise<unknown> => {
+      try {
+        return args.execute(call, { signal });
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    };
+    execution.done = run().then(
       (output) => {
         execution.output = output;
         execution.settled = true;
