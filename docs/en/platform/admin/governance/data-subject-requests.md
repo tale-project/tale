@@ -26,6 +26,8 @@ Tasks that name the person as **Reviewer** lose that designation. A task review 
 
 An erasure leaves saved automation version content and test reports unchanged. It replaces the person's attribution with a pseudonym where they saved a version or checked its tests, deployed it, set its trigger, installed it in a project or deleted it.
 
+Run erasure does not rewrite values copied into tests in retained automation versions. Review these authored values separately using your organization's data process. [Use synthetic examples when saving a run as a test](/platform/automations/testing#save-a-run).
+
 ## Check the policy before filing
 
 | Setting | Effect |

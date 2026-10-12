@@ -9,6 +9,7 @@ import type {
 } from '../../hooks/use-automation-tests';
 import {
   TestFields,
+  type TestFieldsProps,
   type TestInspectorTab,
   type TestSetupMode,
 } from './test-inspector';
@@ -106,26 +107,36 @@ function renderFields(
     replace?: Replace;
     setupMode?: TestSetupMode;
     onShowRun?: () => void;
+    test?: unknown;
+    doc?: TestFieldsProps['doc'];
+    readOnly?: boolean;
+    lastRunOutputOf?: (nodeId: string) => unknown;
   } = {},
 ) {
   const onTabChange = vi.fn();
   const onSetupModeChange = vi.fn();
   const onSelectNode = vi.fn();
-  const tests = controller(row, options.replace);
+  const tests = {
+    ...controller(row, options.replace),
+    tests: [options.test ?? TEST],
+  };
   const view = render(
     <TestFields
       headingId="test-heading"
       tests={tests}
       index={0}
-      settledTest={TEST}
+      settledTest={options.test ?? TEST}
       issues={[]}
       diagnosticsStatus="ready"
-      readOnly={false}
+      readOnly={options.readOnly ?? false}
       tab={options.tab ?? 'result'}
       onTabChange={onTabChange}
       setupMode={options.setupMode ?? 'form'}
       onSetupModeChange={onSetupModeChange}
-      doc={DOC}
+      doc={options.doc ?? DOC}
+      {...(options.lastRunOutputOf !== undefined && {
+        lastRunOutputOf: options.lastRunOutputOf,
+      })}
       text={{}}
       onSelectNode={onSelectNode}
       {...(options.onShowRun !== undefined && { onShowRun: options.onShowRun })}
@@ -261,6 +272,86 @@ describe('the test inspector', () => {
       ...TEST,
       expect: { failure: {} },
     });
+  });
+
+  it.each([false, true])(
+    'starts a new mock empty without copying the displayed run (forEach=%s)',
+    async (forEach) => {
+      const replace = vi.fn<Replace>();
+      const source = {
+        customer: 'Synthetic Ada',
+        email: 'ada@example.invalid',
+      };
+      const lastRunOutputOf = vi.fn(() => source);
+      const { mocks: _mocks, ...withoutMocks } = TEST;
+      const { user } = renderFields(FAILED, {
+        tab: 'setup',
+        replace,
+        test: withoutMocks,
+        doc: {
+          ...DOC,
+          nodes: DOC.nodes.map((node) =>
+            node.id === 'fetch_rates' && forEach
+              ? Object.assign({}, node, { forEach: '{{ input.items }}' })
+              : node,
+          ),
+        },
+        lastRunOutputOf,
+      });
+      await user.click(
+        screen.getByRole('combobox', { name: "Simulate a node's output" }),
+      );
+      await user.click(screen.getByRole('option', { name: 'Fetch rates' }));
+      expect(replace).toHaveBeenLastCalledWith(0, {
+        ...withoutMocks,
+        mocks: { fetch_rates: forEach ? [] : {} },
+      });
+      expect(lastRunOutputOf).not.toHaveBeenCalled();
+      expect(TEST.mocks).toEqual({ fetch_rates: { chf: 1 } });
+    },
+  );
+
+  it('keeps a saved mock until its author explicitly copies the last run output', async () => {
+    const replace = vi.fn<Replace>();
+    const source = { customer: 'Synthetic Ada', email: 'ada@example.invalid' };
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      lastRunOutputOf: () => source,
+    });
+    expect(replace).not.toHaveBeenCalled();
+    expect(TEST.mocks).toEqual({ fetch_rates: { chf: 1 } });
+    expect(
+      screen.getByText(
+        /The copies can remain after the source run is deleted or removed through retention or erasure/,
+      ),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: "Use the last run's output" }),
+    );
+    expect(replace).toHaveBeenLastCalledWith(0, {
+      ...TEST,
+      mocks: { fetch_rates: source },
+    });
+    expect(TEST.mocks).toEqual({ fetch_rates: { chf: 1 } });
+  });
+
+  it('keeps read-only saved mocks without a copy or add action', () => {
+    const replace = vi.fn<Replace>();
+    renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      readOnly: true,
+      lastRunOutputOf: () => ({ customer: 'Synthetic Ada' }),
+    });
+    expect(
+      screen.queryByRole('button', { name: "Use the last run's output" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('combobox', { name: "Simulate a node's output" }),
+    ).not.toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+    expect(TEST.mocks).toEqual({ fetch_rates: { chf: 1 } });
   });
 
   it('keeps the result tab closed until the test has a result', () => {
