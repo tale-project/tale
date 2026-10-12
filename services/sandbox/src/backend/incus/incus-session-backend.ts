@@ -579,7 +579,7 @@ export class IncusSessionBackend implements SessionBackend {
       }
       if (this.runtime.now() > deadlineMs) {
         throw new Error(
-          `runnerd did not become ready within ${this.cfg.session.createHealthTimeoutMs}ms${baseUrl === undefined ? ' (the instance never got an address)' : ''}${quoted(await this.consoleTail(client, name))}`,
+          `runnerd did not become ready within ${this.cfg.session.createHealthTimeoutMs}ms${baseUrl === undefined ? ' (the instance never got an address)' : ` at ${baseUrl} (an address the node itself holds, or a route or rule that drops the spawner's calls, looks like this)`}${quoted(await this.consoleTail(client, name))}`,
         );
       }
       await this.runtime.sleep(

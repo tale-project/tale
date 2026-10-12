@@ -369,6 +369,20 @@ describe('a create that fails', () => {
     expect(error.message).not.toContain('console');
   });
 
+  test('names the address of an instance that runs but never answers, and says when it has none', async () => {
+    const f = sessionFixture();
+    f.runnerd.failFirst = 1_000_000;
+    const answering = await rejection(f.backend.createSession(specOf(ID)));
+    expect(answering.message).toMatch(/at http:\/\/10\.9\.0\.\d+:8200 /);
+    expect(answering.message).not.toContain('never got an address');
+
+    const g = sessionFixture();
+    g.fake.assignAddresses = false;
+    const silent = await rejection(g.backend.createSession(specOf(ID)));
+    expect(silent.message).toContain('the instance never got an address');
+    expect(silent.message).not.toContain(' at http://');
+  });
+
   test('quotes the console of an instance that runs but never answers', async () => {
     const f = sessionFixture();
     f.fake.onStarted = (instance) => {
