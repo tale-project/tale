@@ -73,6 +73,10 @@ import {
 import { markAutoRetryRetired } from './kick-plan.ts';
 import { laneBarrier } from './lane-barrier.ts';
 import { agentUpdateTaskStatusTrusted } from './service.ts';
+import {
+  observeWakeManagerAdmission,
+  readWakeAdmissionFailure,
+} from './standing-role-wake-admission.ts';
 import { observeWakeOccurrence } from './standing-role-wake.integration.ts';
 
 const WAIT_MS = 30_000;
@@ -1428,46 +1432,23 @@ export async function checkStandingRoleWakeScenarios(
     // ---- W18 variants: a cancel after launch, then a closed circuit -------
     await scenario('W18 variants', async () => {
       const s = await setup('w18');
-      const scanTrace: unknown[] = [];
-      const startManager = async (
-        expectedCount: number,
-      ): Promise<ManagerRun> => {
-        const before = new Set((await managerRuns(s)).map((run) => run.id));
-        let manager: ManagerRun | undefined;
-        await backdate(s);
-        const admitted = await waitFor(async () => {
-          // A global scan may legitimately skip an audit-busy organization.
-          // Wait for this occurrence's actual receipt, not an optional row.
-          const result = await fireDueProjectWakes(sql);
-          const state = await wake(s);
-          const runs = await managerRuns(s);
-          manager = runs.find((run) => !before.has(run.id));
-          const ended = await occurrence(state?.firedRunId ?? null);
-          scanTrace.push({
-            expectedCount,
-            result,
-            state,
-            runs: runs.length,
-            occurrence: ended?.status,
-          });
-          if (scanTrace.length > 8) scanTrace.shift();
-          const output = ended?.output;
-          return (
-            runs.length === expectedCount &&
-            manager !== undefined &&
-            ended?.status === 'success' &&
-            typeof output === 'object' &&
-            output !== null &&
-            'runId' in output &&
-            output.runId === manager.id
-          );
-        }, WAIT_MS);
-        if (!admitted || manager === undefined)
-          throw new Error(
-            `itest: W18 manager admission not observed: ${show(scanTrace)}`,
-          );
-        return manager;
+      const scanTrace: { first: unknown[]; last: unknown[] } = {
+        first: [],
+        last: [],
       };
+      const startManager = (expectedCount: number): Promise<ManagerRun> =>
+        observeWakeManagerAdmission({
+          expectedCount,
+          timeoutMs: WAIT_MS,
+          backdate: () => backdate(s),
+          managerRuns: () => managerRuns(s),
+          scan: () => fireDueProjectWakes(sql),
+          wake: () => wake(s),
+          occurrence,
+          readFailure: (runId) => readWakeAdmissionFailure(sql, s.orgId, runId),
+          trace: scanTrace,
+          waitFor,
+        });
       await releaseOnce(s);
       const m = await startManager(1);
       const cancelledAt = Date.now();
