@@ -59,6 +59,14 @@ export function turnImageBilling(
   // its count back.
   let admitted = 0;
 
+  // The reply the holds were raised on, by its message. A thread has one live
+  // generation row at a time, and a call can outlive its turn — a tool a Stop
+  // or the round's time abandoned finishes after the next turn has taken the
+  // thread — so the thread alone cannot say whose hold a settle is lowering.
+  // Every raise and every release names the reply; a settle that finds
+  // another turn's row lowers nothing.
+  let heldOn: string | null = null;
+
   /** The budget half of an admission: every cap that binds the person,
    * measured beside everything in flight, and the hold raised by the
    * estimate. */
@@ -89,18 +97,26 @@ export function turnImageBilling(
       if (violation !== null) {
         return { refused: budgetRefusalMessage(violation) };
       }
-      await tx`
+      const raised = await tx<{ messageId: string | null }[]>`
         UPDATE app.generations SET
           reserved_cost_cents = reserved_cost_cents + ${holdCents},
           updated_at_ms = ${Date.now()}
         WHERE thread_id = ${turn.threadId}
           AND org_id = ${turn.organizationId}
+          AND (${heldOn}::text IS NULL OR message_id = ${heldOn})
+        RETURNING message_id AS "messageId"
       `;
-      return { refused: null };
+      return { refused: null, raised: raised[0] };
     });
     if (verdict.refused !== null) {
       return { admitted: false, message: verdict.refused };
     }
+    if (verdict.raised === undefined) {
+      // No live row of this reply to hold on — the turn has ended: there is
+      // nothing raised, so nothing for the settle to give back.
+      return { admitted: true, holdCents: 0 };
+    }
+    heldOn = verdict.raised.messageId;
     return { admitted: true, holdCents };
   };
 
@@ -154,6 +170,7 @@ export function turnImageBilling(
               updated_at_ms = ${timestamp}
             WHERE thread_id = ${turn.threadId}
               AND org_id = ${turn.organizationId}
+              AND (${heldOn}::text IS NULL OR message_id = ${heldOn})
           `;
         }
       });

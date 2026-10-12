@@ -34,11 +34,23 @@ interface Statement {
   values: unknown[];
 }
 
-function fakeSql(): { sql: Sql; statements: Statement[] } {
+/** `liveRow` is the reply's generation row: a hold raised on it answers with
+ * the reply's message; with no row (`null`) nothing is raised. */
+function fakeSql(
+  liveRow: { messageId: string } | null = { messageId: 'msg_1' },
+): {
+  sql: Sql;
+  statements: Statement[];
+} {
   const statements: Statement[] = [];
   const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    statements.push({ text: strings.join('?'), values });
-    return Promise.resolve([]);
+    const text = strings.join('?');
+    statements.push({ text, values });
+    return Promise.resolve(
+      text.includes('RETURNING message_id') && liveRow !== null
+        ? [liveRow]
+        : [],
+    );
   };
   const sql = Object.assign(tx, {
     begin: (work: (inner: typeof tx) => Promise<unknown>) => work(tx),
@@ -83,6 +95,52 @@ describe('turnImageBilling', () => {
     );
     expect(hold?.values).toContain(50);
     expect(hold?.values).toContain('thread_1');
+  });
+
+  it('raises the hold on the reply’s own row and lowers it there, naming the reply on every statement [CHAT-R22]', async () => {
+    const { sql, statements } = fakeSql({ messageId: 'msg_7' });
+    const billing = turnImageBilling(sql, TURN);
+
+    await billing.admit(1);
+    await billing.admit(1);
+    await billing.settle({
+      holdCents: 25,
+      charges: [4],
+      provider: 'openrouter',
+      model: 'img-1',
+    });
+
+    const holds = statements.filter((s) =>
+      s.text.includes('UPDATE app.generations'),
+    );
+    expect(holds).toHaveLength(3);
+    // The first raise does not know the reply yet and takes the thread's live
+    // row; everything after it is bound to the reply that row belongs to.
+    expect(holds[0]?.values).toContain(null);
+    expect(holds[1]?.values).toContain('msg_7');
+    expect(holds[2]?.values).toContain('msg_7');
+    expect(holds[2]?.text).toContain('message_id =');
+  });
+
+  it('holds nothing, and so gives nothing back, when the reply’s row is already gone [CHAT-R22]', async () => {
+    const { sql, statements } = fakeSql(null);
+    const billing = turnImageBilling(sql, TURN);
+
+    const admission = await billing.admit(2);
+
+    // The turn ended while the call was starting: no row took a hold.
+    expect(admission).toEqual({ admitted: true, holdCents: 0 });
+    await billing.settle({
+      holdCents: admission.admitted ? admission.holdCents : 0,
+      charges: [4, 3],
+      provider: 'openrouter',
+      model: 'img-1',
+    });
+    // The spend is still booked; no row is lowered.
+    expect(incrementUsageLedger).toHaveBeenCalledTimes(2);
+    expect(
+      statements.filter((s) => s.text.includes('greatest(0, reserved_cost')),
+    ).toHaveLength(0);
   });
 
   it('refuses with the cap’s own words, holding nothing [CHAT-R22]', async () => {
