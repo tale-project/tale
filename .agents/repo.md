@@ -179,7 +179,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
-  [`.github/RELEASING.md`](../.github/RELEASING.md).
+  [`.github/RELEASING.md`](../.github/RELEASING.md). No per-day limit holds a release back;
+  a red `main` does, so read and repair it first
+  ([a release that has to go out](../.github/RELEASING.md#a-release-that-has-to-go-out)).
 - **No conflict markers** — `bun run lint:conflicts` (`scripts/check-conflict-markers.ts`)
   refuses a `<<<<<<<`, `|||||||` or `>>>>>>>` line in any tracked text file: the pre-commit hook
   runs it on the staged files, CI's Format job and `bun run check` on the whole tree. Markdown and
