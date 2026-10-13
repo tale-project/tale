@@ -36,8 +36,10 @@ interface AgentConnectionsTableConfig {
  * hidden. The agent and its menu always show; the person (where more than one
  * person's agents are listed) from a large phone, the access and when the
  * agent last called from a tablet, and the day it connected beside the
- * settings page's rail on a wide screen. At every width the declared sizes
- * add up to what the page holds.
+ * settings page's rail on a wide screen. What a left-out column held that a
+ * person needs to tell the agents apart — whose it is, what it may do, when
+ * it last called — moves under the agent's name. At every width the declared
+ * sizes add up to what the page holds.
  */
 export function useAgentConnectionsTableConfig(args: {
   organizationId: string;
@@ -59,7 +61,13 @@ export function useAgentConnectionsTableConfig(args: {
       header: t('list.columns.agent'),
       size: 180,
       meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
-      cell: ({ row }) => <AgentCell connection={row.original} />,
+      cell: ({ row }) => (
+        <AgentCell
+          connection={row.original}
+          viewerUserId={viewerUserId}
+          carries={{ person: everyone && belowSm, access: belowMd }}
+        />
+      ),
     };
     const person: ColumnDef<AgentConnection> = {
       id: 'person',

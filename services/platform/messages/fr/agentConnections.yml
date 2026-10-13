@@ -79,6 +79,8 @@ list:
     lastUsed: Dernière utilisation
     actions: Actions
   never: Jamais
+  lastUsedAt: 'Dernière utilisation {when}'
+  neverUsed: Jamais utilisé
   unverified: Non vérifiée
   you: Toi
   unknownPerson: Personne inconnue

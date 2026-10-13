@@ -1005,7 +1005,12 @@ Restore any toggled setting after the run.
   warmer tint where it acts live or changes something, a long word wrapping in
   its badge rather than cut short; **Connected** shows the day; **Last used**
   reads **Never** (`agentConnections.list.never`) until the agent calls the MCP
-  endpoint and a relative time after a `tools/list` call and a reload;
+  endpoint and a relative time after a `tools/list` call and a reload; at a
+  phone width (below 768 px) those columns are left out, and each agent's cell
+  carries the access badges and a line **Last used 3 hours ago**
+  (`agentConnections.list.lastUsedAt`) or **Never used**
+  (`agentConnections.list.neverUsed`) under its name — and, in the view of
+  everyone's agents below 640 px, whose agent it is;
   **Connect a coding agent** (`agentConnections.list.connectAction`) leads to
   the MCP page. As a person who connected nothing the page shows **No coding
   agents connected** with the same button inside it.
