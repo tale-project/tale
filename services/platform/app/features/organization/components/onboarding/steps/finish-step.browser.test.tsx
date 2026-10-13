@@ -135,13 +135,13 @@ describe('the coding agent row', () => {
     ).not.toBeInTheDocument();
 
     await user.keyboard('{Escape}');
+    // The dialog's focus scope moves focus a task after it unmounts.
     await vi.waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Coding agent connected: Claude Code.').closest('li'),
+      ).toHaveFocus();
     });
-    const row = screen
-      .getByText('Coding agent connected: Claude Code.')
-      .closest('li');
-    expect(row).toHaveFocus();
   });
 
   it('hands focus back to its button when nothing connected', async () => {
@@ -154,8 +154,8 @@ describe('the coding agent row', () => {
     await user.keyboard('{Escape}');
     await vi.waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(button).toHaveFocus();
     });
-    expect(button).toHaveFocus();
   });
 
   for (const theme of ['light', 'dark']) {

@@ -128,10 +128,11 @@ describe('the way to a coding agent', () => {
       ),
     ).toBeVisible();
     await user.keyboard('{Escape}');
+    // The dialog's focus scope hands focus back a task after it unmounts.
     await vi.waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(fix).toHaveFocus();
     });
-    expect(fix).toHaveFocus();
   });
 
   for (const theme of ['light', 'dark']) {
