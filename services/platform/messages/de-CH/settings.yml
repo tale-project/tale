@@ -42,3 +42,5 @@ providers:
       den Anbieter Zugangsdaten per API-Schlüssel oder Umgebungsvariable hinzu.
   broker:
     maxResponseBytes: Maximale Antwortgrösse (Bytes)
+teams:
+  membershipRefreshConflict: Die Teammitglieder wurden in einer anderen Sitzung geändert. Schliesse diesen Dialog und öffne ihn erneut, um die aktuelle Liste zu prüfen.
