@@ -22,6 +22,10 @@ export interface AgentConnection {
   scopes: string[];
   /** Epoch milliseconds. */
   createdAt: number;
+  /** Epoch milliseconds: when the person last allowed the app to work here.
+   * Allowing an app that is already connected changes the same connection
+   * rather than adding one, so this moves on every sign-in of the agent. */
+  updatedAt: number;
   /** When the agent last called, from the endpoint's own counters; null
    * before its first call. */
   lastUsedAt: number | null;

@@ -36,6 +36,7 @@ function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
     clientHost: 'claude.ai',
     scopes: ['tale:mcp', 'tale:automations.write'],
     createdAt: Date.UTC(2026, 9, 1, 12),
+    updatedAt: Date.UTC(2026, 9, 1, 12),
     lastUsedAt: null,
     revokedAt: null,
     revokeReason: null,

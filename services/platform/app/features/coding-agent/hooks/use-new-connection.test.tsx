@@ -22,6 +22,7 @@ function connection(
   id: string,
   clientName: string,
   createdAt: number,
+  updatedAt = createdAt,
 ): AgentConnection {
   return {
     id,
@@ -31,6 +32,7 @@ function connection(
     clientHost: null,
     scopes: ['tale:mcp'],
     createdAt,
+    updatedAt,
     lastUsedAt: null,
     revokedAt: null,
     revokeReason: null,
@@ -100,6 +102,38 @@ describe('useNewConnection', () => {
     );
   });
 
+  it('reports an agent that was connected before and signs in again', async () => {
+    h.backendFetch.mockResolvedValueOnce(
+      answer(connection('old', 'Claude Code', 1)),
+    );
+    const { result } = renderHook(() => useNewConnection('org-1'), { wrapper });
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData(
+          agentConnectionsQuery('org-1', { scope: 'mine', ended: false })
+            .queryKey,
+        ),
+      ).toBeDefined(),
+    );
+    expect(result.current).toEqual({ state: 'waiting' });
+
+    // The same connection, allowed again: its id is unchanged, its
+    // `updatedAt` is later.
+    h.backendFetch.mockResolvedValue(
+      answer(connection('old', 'Claude Code', 1, 7)),
+    );
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+
+    await waitFor(() =>
+      expect(result.current).toEqual({
+        state: 'connected',
+        clientName: 'Claude Code',
+      }),
+    );
+  });
+
   it('does not take a list cached from before for the baseline', async () => {
     // The page already holds a stale list that lacks an agent connected since.
     queryClient.setQueryData(
@@ -121,6 +155,21 @@ describe('useNewConnection', () => {
       await Promise.resolve();
     });
     expect(result.current).toEqual({ state: 'waiting' });
+  });
+
+  it('reads the list again when it mounts, even when the cached one is fresh', async () => {
+    // A page whose lists are never stale would not read again on its own:
+    // the baseline must still be a read made when the dialog opened.
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    queryClient.setQueryData(
+      agentConnectionsQuery('org-1', { scope: 'mine', ended: false }).queryKey,
+      answer(connection('old', 'Cursor', 1)),
+    );
+    h.backendFetch.mockResolvedValue(answer(connection('old', 'Cursor', 1)));
+    renderHook(() => useNewConnection('org-1'), { wrapper });
+    await waitFor(() => expect(h.backendFetch).toHaveBeenCalledTimes(1));
   });
 
   it('keeps waiting when the read fails', async () => {
