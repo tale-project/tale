@@ -129,6 +129,8 @@ Alles andere arbeitet von Anfang an in einem Worker: ein Lauf, den eine Automati
 
 ## Einen Agenten ändern oder entfernen
 
+Wenn du einen bestehenden Agenten bearbeitest, prüft Tale beim Speichern, ob seine Einstellungen seit dem Öffnen geändert wurden. Hat jemand anderes zuerst gespeichert, wird dein Speichern abgelehnt und deine ungespeicherten Änderungen bleiben im Dialog. Kopiere die Änderungen, die du behalten möchtest, bevor du ihn schließt. Öffne den Agenten dann erneut, um die aktuellen Einstellungen zu laden, und füge deine Änderungen ein, bevor du wieder speicherst.
+
 Bearbeite oder lösche den Agenten über sein Zeilenmenü. Der Standard-Agent hat nur **Agent löschen**. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Sie löscht außerdem die [Arbeitsbereiche aller seiner Worker](/de/platform/admin/sandboxes#explain-why-a-workspace-disappeared) samt Dateien, auch die der Mitglieder. Prüfe laufende Arbeit und sichere benötigte Ergebnisse, bevor du den Agenten entfernst.
 
 Scheitert das Erstellen, lies die Begründung: Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell und unsichtbare Skills sind unterschiedliche Ursachen. Ein Lauf, der endgültig scheitert, sagt oben in seiner Aufgabe, was schiefging und wer es beheben kann; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Neue Anweisungen beheben diese Voraussetzungen nicht.
