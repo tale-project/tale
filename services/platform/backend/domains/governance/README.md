@@ -16,7 +16,8 @@ provider because wire model IDs are only unique within a provider catalog.
 Ordinary reads and deletes of the parent include both tables, so budgets,
 metrics, erasure and retention continue to use the same logical ledger. Do not
 use `ONLY app.usage_ledger` in those readers. Indexes are not inherited: future
-ledger index changes must cover both tables.
+ledger index changes must cover both tables. `tests/guards/usage-ledger-tree.guard.test.ts`
+holds both rules.
 
 During rolling deployment the previous image can still upsert the parent using
 its original conflict target. Those writes retain the old attribution behavior
