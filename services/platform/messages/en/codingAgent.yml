@@ -1,0 +1,29 @@
+dialog:
+  title: Connect a coding agent
+  description: Your agent signs in with your Tale account. You choose the organization and what it may do.
+  guide: Setup guide
+  done: Done
+clients:
+  label: Coding agent
+  other: Other
+steps:
+  claudeCodeAdd: Add Tale to Claude Code. Run this in your terminal.
+  claudeCodeSignIn: Sign in. Your browser opens Tale; choose the organization and what the agent may do.
+  codexAdd: Add Tale to Codex. Run this in your terminal.
+  codexSignIn: Sign in. Your browser opens Tale; choose the organization and what the agent may do.
+  otherAddress: Add this address to your client as a remote MCP server.
+  otherSignIn: Choose browser sign-in (OAuth) when it asks how to authenticate. The guide has the steps for Cursor, opencode and Claude on the web.
+copy:
+  command: Copy command
+  address: Copy address
+  prompt: Copy prompt
+  copied: Copied
+status:
+  waiting: Waiting for your agent to sign in…
+  connected: 'Connected: {client}'
+prompt:
+  label: Then ask your agent
+  labelConnected: Try this first
+  replace: Replace the part in brackets before you send it.
+  general: Use the tale MCP server. Call get_docs first, then list my automations with list_automations and tell me what you can do in this workspace. Ask me before you deploy anything or change a setting.
+  edit: Use the tale MCP server. Call get_docs, then open the automation {name} with get_automation. [Describe the change you want.] Check it with validate_automation and test it with test_automation before you save it as a new version with save_automation. Ask me before you deploy it.

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
+import { ConnectAgentDialog } from '@/app/features/coding-agent/components/connect-agent-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -26,11 +27,12 @@ export function AgentConnectionsSection({
 }: AgentConnectionsSectionProps) {
   const { t } = useT('agentConnections');
   const { t: tNav } = useT('navigation');
-  // Where a new agent is connected is the MCP tab, which opens for the roles
-  // that hold the developer settings, and only while agents may sign in; a
-  // member this page is open to for the agents they hold is offered nothing
-  // to open.
-  const { developer, connectAgents } = useApiSettingsAccess(organizationId);
+  // A new agent is connected from the dialog this page opens, for whoever may
+  // connect one here, while agents may sign in; a member this page is open to
+  // for the agents they hold is offered nothing to open.
+  const { connectAgents } = useApiSettingsAccess(organizationId);
+  const [connecting, setConnecting] = useState(false);
+  const connectTrigger = useRef<HTMLButtonElement>(null);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const viewer = memberContext?.status === 'ok' ? memberContext : undefined;
   const canSeeEveryone = viewer?.isAdmin === true;
@@ -47,34 +49,44 @@ export function AgentConnectionsSection({
   const { data, error, refetch } = useAgentConnections(organizationId, view);
 
   return (
-    <SettingsSection
-      title={tNav('connectedAgents')}
-      description={
-        view.scope === 'everyone'
-          ? t('list.adminDescription')
-          : t('list.description')
-      }
-    >
-      <AgentConnectionsTable
-        connections={data?.connections}
-        organizationId={organizationId}
-        viewerUserId={viewer?.userId}
-        everyone={view.scope === 'everyone'}
-        connectHref={
-          developer && connectAgents
-            ? `/dashboard/${organizationId}/settings/api/mcp`
-            : undefined
+    <>
+      <SettingsSection
+        title={tNav('connectedAgents')}
+        description={
+          view.scope === 'everyone'
+            ? t('list.adminDescription')
+            : t('list.description')
         }
-        {...(canSeeEveryone
-          ? {
-              filters: (
-                <AgentConnectionFilters view={view} onViewChange={setChosen} />
-              ),
-            }
-          : {})}
-        error={error}
-        onRetry={() => void refetch()}
-      />
-    </SettingsSection>
+      >
+        <AgentConnectionsTable
+          connections={data?.connections}
+          organizationId={organizationId}
+          viewerUserId={viewer?.userId}
+          everyone={view.scope === 'everyone'}
+          onConnect={connectAgents ? () => setConnecting(true) : undefined}
+          connectTriggerRef={connectTrigger}
+          {...(canSeeEveryone
+            ? {
+                filters: (
+                  <AgentConnectionFilters
+                    view={view}
+                    onViewChange={setChosen}
+                  />
+                ),
+              }
+            : {})}
+          error={error}
+          onRetry={() => void refetch()}
+        />
+      </SettingsSection>
+      {connectAgents ? (
+        <ConnectAgentDialog
+          organizationId={organizationId}
+          open={connecting}
+          onOpenChange={setConnecting}
+          restoreFocusRef={connectTrigger}
+        />
+      ) : null}
+    </>
   );
 }

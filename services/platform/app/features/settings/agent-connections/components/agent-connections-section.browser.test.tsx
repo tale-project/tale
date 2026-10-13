@@ -41,7 +41,10 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('../hooks/mutations', () => ({
   useDisconnectAgent: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('../hooks/queries', () => ({ useAgentConnections: h.list }));
+vi.mock('../hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/queries')>()),
+  useAgentConnections: h.list,
+}));
 vi.mock(
   '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
   () => ({
@@ -208,7 +211,7 @@ describe('the connected agents fit the screen [AGCONN-R24]', () => {
       screen.getByRole('radio', { name: 'Mine' }),
       screen.getByRole('radio', { name: 'Everyone' }),
       screen.getByRole('checkbox', { name: 'Show disconnected' }),
-      screen.getByRole('link', { name: 'Connect a coding agent' }),
+      screen.getByRole('button', { name: 'Connect a coding agent' }),
     ]) {
       expect(control).toBeVisible();
       const box = control.getBoundingClientRect();
@@ -220,7 +223,7 @@ describe('the connected agents fit the screen [AGCONN-R24]', () => {
     for (const target of [
       screen.getByRole('radio', { name: 'Mine' }),
       screen.getByRole('radio', { name: 'Everyone' }),
-      screen.getByRole('link', { name: 'Connect a coding agent' }),
+      screen.getByRole('button', { name: 'Connect a coding agent' }),
     ]) {
       expect(target.getBoundingClientRect().height).toBeGreaterThanOrEqual(24);
     }

@@ -48,6 +48,21 @@ vi.mock(
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: h.member }),
 }));
+// The dialog has a suite of its own; here only that the page opens it.
+vi.mock('@/app/features/coding-agent/components/connect-agent-dialog', () => ({
+  ConnectAgentDialog: ({
+    open,
+    organizationId,
+  }: {
+    open: boolean;
+    organizationId: string;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Connect a coding agent">
+        the setup for {organizationId}
+      </div>
+    ) : null,
+}));
 
 function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
   return {
@@ -228,30 +243,37 @@ describe('AgentConnectionsSection [AGCONN-R24]', () => {
     expect(lastView()).toEqual({ scope: 'mine', ended: true });
   });
 
-  it('leads a developer on to where an agent is connected', () => {
-    h.developer = true;
-    render(<AgentConnectionsSection organizationId="org-1" />);
+  it('opens the setup for whoever may connect an agent here', async () => {
+    h.developer = false;
+    const { user } = render(<AgentConnectionsSection organizationId="org-1" />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Connect a coding agent' }),
+    );
+
     expect(
-      screen.getByRole('link', { name: 'Connect a coding agent' }),
-    ).toHaveAttribute('href', '/dashboard/org-1/settings/api/mcp');
+      screen.getByRole('dialog', { name: 'Connect a coding agent' }),
+    ).toHaveTextContent('the setup for org-1');
   });
 
   it('offers no way to connect while the deployment does not let agents sign in', () => {
-    h.developer = true;
     h.connectAgents = false;
     render(<AgentConnectionsSection organizationId="org-1" />);
     expect(screen.getByText('Claude Code')).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Connect a coding agent' }),
+      screen.queryByRole('button', { name: 'Connect a coding agent' }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('leads a member who holds agents nowhere, as the page that connects one is not theirs', () => {
+  it('offers a member who holds agents but may not connect one nothing to open', () => {
     h.developer = false;
+    h.connectAgents = false;
     render(<AgentConnectionsSection organizationId="org-1" />);
     expect(screen.getByText('Claude Code')).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Connect a coding agent' }),
+      screen.queryByRole('button', { name: 'Connect a coding agent' }),
     ).not.toBeInTheDocument();
   });
 

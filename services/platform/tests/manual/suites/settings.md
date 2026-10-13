@@ -1045,6 +1045,25 @@ Restore any toggled setting after the run.
   that person's only agent → on the open page, with no reload, the row goes,
   the empty state shows and the bell gains the notice; an agent connected on
   the consent page in another tab appears in the open list on its own.
+- [ ] `SET-F89` · **Connect a coding agent from the list** — As an owner with
+  the agent sign-in on, open `/dashboard/{org}/settings/api/agents` and select
+  **Connect a coding agent** (`agentConnections.list.connectAction`) → the
+  dialog **Connect a coding agent** (`codingAgent.dialog.title`) opens over
+  the page, on the **Claude Code** tab of **Claude Code**, **Codex** and
+  **Other**: step 1 is `claude mcp add --transport http tale` followed by this
+  deployment's MCP address, step 2 `claude mcp login tale`, each in its own
+  block with a copy button; **Codex** shows `codex mcp add tale --url` and
+  the address, then `codex mcp login tale`; **Other** shows the address alone
+  and says to choose browser sign-in. Under the steps a line reads **Waiting
+  for your agent to sign in…** (`codingAgent.status.waiting`), under **Then ask
+  your agent** a prompt that names `get_docs` and `list_automations`. Copy
+  each command and run it in a terminal as AUTH-F34 describes, finishing the
+  browser sign-in → without a reload the line reads **Connected: Claude Code**
+  (`codingAgent.status.connected`), the prompt's heading becomes **Try this
+  first**, and the list behind the dialog gains the row. **Done** closes the
+  dialog and gives focus back to the button. A member whose competence lets
+  them create a key, with no developer role, sees the same button and dialog
+  (SET-B38); a member who holds an agent but may not connect one does not.
 
 ## Boundary & error tests
 
@@ -1361,8 +1380,9 @@ Restore any toggled setting after the run.
 - [ ] `SET-B38` · **Who opens Connected agents** — With the agent sign-in on,
   sign in as a member who holds a competence that is used with a key, with no
   developer role (SET-B26's setup) → the rail's **API** row lists **REST** and **Connected agents** and
-  no other; the page lists their own agents, with no **Mine** / **Everyone**,
-  no **Show disconnected** and no **Connect a coding agent**; `…/api/mcp` and
+  no other; the page lists their own agents, with no **Mine** / **Everyone**
+  and no **Show disconnected** but with **Connect a coding agent** (it opens
+  the same dialog as SET-F89); `…/api/mcp` and
   `…/api/webdav` by URL show **This page is for Owners, Admins and
   Developers.** (`accessDenied.apiTab`). Revoke the competence and the API key
   → **API** keeps **Connected agents** alone while they hold a live agent;
@@ -1443,6 +1463,18 @@ Restore any toggled setting after the run.
   tablet adds **Access** and **Last used**, a wide screen **Connected**; a
   very long app name ends in an ellipsis with its full name on hover.
 
+- [ ] `SET-A12` · **The connect dialog by keyboard and screen reader** — Open
+  **Connect a coding agent** on `/dashboard/{org}/settings/api/agents` →
+  focus lands on the selected agent's tab; the tabs form one group named
+  **Coding agent** (`codingAgent.clients.label`) and ← and → move between
+  them and show that agent's own commands; Tab goes on to the steps, each
+  **Copy command** button, **Copy prompt**, **Setup guide** and **Done**, and
+  last to **Close**, each with visible focus; copying announces **Copied**
+  (`codingAgent.copy.copied`) once, and the status line is read when an agent
+  connects, not on every poll; no state is colour alone. At 320, 390, 768 and
+  1280 px in `en`, `de` and `fr` the dialog (a bottom sheet on a phone) never
+  scrolls sideways and a long command wraps at its spaces; in the dark theme
+  the blocks, the line and the prompt keep their contrast.
 ## Performance
 
 - [ ] `SET-P1` · **Rail navigation** → < 1 s to switch between two
