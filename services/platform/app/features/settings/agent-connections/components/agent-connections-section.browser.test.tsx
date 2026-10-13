@@ -266,6 +266,17 @@ describe('the connected agents fit the screen [AGCONN-R24]', () => {
       screen.queryByRole('columnheader', { name: 'Last used' }),
     ).not.toBeInTheDocument();
   });
+
+  it('tells the agents apart on a phone: what each may do and when it last called, under its name', async () => {
+    await page.viewport(320, 700);
+    renderPage();
+    // The first agent holds one level and called three hours ago; the second
+    // holds everything, an app that registered itself, and never called.
+    expect(screen.getByText('Edit automations')).toBeVisible();
+    expect(screen.getAllByText('Last used 3 hours ago')[0]).toBeVisible();
+    expect(screen.getByText('Connect AI subscriptions')).toBeVisible();
+    expect(screen.getByText('Never used')).toBeVisible();
+  });
 });
 
 describe('the connected agents in both themes [AGCONN-R24]', () => {

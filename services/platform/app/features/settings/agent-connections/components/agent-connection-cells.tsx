@@ -32,6 +32,15 @@ function useEndReason() {
 
 interface AgentCellProps {
   connection: AgentConnection;
+  /** The signed-in person, so their own agents read as theirs. */
+  viewerUserId?: string | undefined;
+  /**
+   * What the table has no column for at this width, carried under the
+   * agent's name instead: on a phone a person still has to tell three
+   * "Claude Code" rows apart — whose they are, what they may do, whether
+   * they are in use — before cutting one off.
+   */
+  carries?: { person?: boolean; access?: boolean };
 }
 
 /**
@@ -40,7 +49,11 @@ interface AgentCellProps {
  * registered itself and chose its own name. An ended connection says when
  * and why instead.
  */
-export function AgentCell({ connection }: AgentCellProps) {
+export function AgentCell({
+  connection,
+  viewerUserId,
+  carries,
+}: AgentCellProps) {
   const { t } = useT('agentConnections');
   const { formatDate } = useFormatDate();
   const endReason = useEndReason();
@@ -67,13 +80,45 @@ export function AgentCell({ connection }: AgentCellProps) {
     caption = <Badge variant="orange">{t('list.unverified')}</Badge>;
   }
 
-  return (
+  const cell = (
     <TableIconCell
       icon={<Bot />}
       label={connection.clientName}
       title={connection.clientName}
       caption={caption}
     />
+  );
+  if (!carries?.person && !carries?.access) return cell;
+
+  const lastUsed =
+    connection.lastUsedAt === null
+      ? t('list.neverUsed')
+      : t('list.lastUsedAt', {
+          when: formatDate(new Date(connection.lastUsedAt), 'relative'),
+        });
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      {cell}
+      {/* Under the name, not the mark: the mark's 20px slot and the 8px gap
+          are the cell's own. */}
+      <div className="flex min-w-0 flex-col gap-1 pl-7">
+        {carries.person ? (
+          <AgentPersonCell
+            connection={connection}
+            viewerUserId={viewerUserId}
+          />
+        ) : null}
+        {carries.access ? (
+          <>
+            <AgentAccessCell scopes={connection.scopes} />
+            <Text as="span" variant="caption">
+              {lastUsed}
+            </Text>
+          </>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

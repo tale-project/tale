@@ -43,12 +43,14 @@ export type AgentConsentContext = z.infer<typeof agentConsentContextSchema>;
 export type AgentConsentOrganization =
   AgentConsentContext['organizations'][number];
 
-/** An answer is deterministic unless the server or the network failed. */
+/** An answer is deterministic unless the server or the network failed: only
+ * a failure of that kind is worth asking for again. */
+export function isRetryableFailure(error: unknown): boolean {
+  return !(error instanceof BackendApiError && error.status < 500);
+}
+
 function retryTransportOnly(failureCount: number, error: unknown): boolean {
-  return (
-    !(error instanceof BackendApiError && error.status < 500) &&
-    failureCount < 2
-  );
+  return isRetryableFailure(error) && failureCount < 2;
 }
 
 export function agentConsentContextQuery(args: {
