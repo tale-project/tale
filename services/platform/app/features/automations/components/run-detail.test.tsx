@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { act, render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { i18n } from '../../../../lib/i18n/i18n';
 
@@ -43,6 +43,14 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
   refetchRun: vi.fn(() => Promise.resolve()),
 }));
 
+const viewer = vi.hoisted(() => ({ canAuthor: false }));
+vi.mock('@/app/hooks/use-ability', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/hooks/use-ability')>()),
+  useAbility: () => ({
+    can: () => viewer.canAuthor,
+    cannot: () => !viewer.canAuthor,
+  }),
+}));
 vi.mock('../hooks/queries', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../hooks/queries')>();
   return {
@@ -241,6 +249,7 @@ vi.mock('@tale/ui/json-viewer', () => ({
 import { RunDetail } from './run-detail';
 
 beforeEach(() => {
+  viewer.canAuthor = false;
   state.failureCode = undefined;
   state.record = null;
   state.replayOf = undefined;
@@ -820,6 +829,36 @@ describe('RunDetail starter and reason', () => {
     // The English stays under Technical details, never in the sentence.
     expect(screen.getByText('Technical details')).toBeInTheDocument();
     expect(screen.getByText(/no usable credential/)).not.toBeVisible();
+  });
+
+  it('offers a failed run to a coding agent, to the reader who authors', async () => {
+    viewer.canAuthor = true;
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
+    state.waitingFor = undefined;
+    renderRun();
+    const card = screen.getByRole('region', { name: 'The run failed' });
+    const fix = within(card).getByRole('button', {
+      name: 'Fix with your coding agent',
+    });
+    expect(fix).toHaveAttribute('aria-haspopup', 'dialog');
+    await checkAccessibility(card);
+  });
+
+  it('leaves the coding agent out for a reader who may not change the automation', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
+    state.waitingFor = undefined;
+    renderRun();
+    const card = screen.getByRole('region', { name: 'The run failed' });
+    expect(card).toHaveTextContent('A service call failed');
+    expect(
+      screen.queryByRole('button', { name: 'Fix with your coding agent' }),
+    ).toBeNull();
   });
 
   it('names the step a run failed at from its record, and offers the ways on', async () => {

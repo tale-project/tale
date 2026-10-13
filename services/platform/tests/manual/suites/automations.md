@@ -993,6 +993,25 @@ output:
       it stands out while other nodes step back; End says
       `automations.canvas.end.failedAt`; selecting a node opens its inspector
       on **Last run** (`automations.editor.inspector.tabs.run`).
+- [ ] `AUTO-F182` · **Open a failed run and select Fix with your coding agent**
+      (`automations.codingAgent.fixAction`) → as an Owner, Admin or Developer
+      the button stands after **Show step** and **Retry from this step** on
+      the failure card, and is its only button when the run names no step; a
+      reader without the developer capability sees the card without it. Its
+      dialog is titled **Fix with your coding agent** and says a coding agent
+      can read this run step by step (`automations.codingAgent.fixBody`);
+      below it stands what SET-F89 shows — the client tabs with their
+      commands and the line that waits for an agent to sign in — and a prompt
+      that names the run's ID and its automation (`codingAgent.prompt.run`)
+      with no part in brackets, so no hint to replace one. Give the prompt to
+      a connected agent → it reads the run with `get_run`, explains why it
+      failed and proposes a fix, and asks before it saves one. With agent
+      sign-in switched off (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) the dialog shows
+      **Name of this automation** and **ID of this run**
+      (`automations.codingAgent.runLabel`) to copy, **Set up MCP** and **How
+      to connect a coding agent** instead. At 390 px the card's buttons wrap
+      and the dialog is a bottom sheet.
 - [ ] `AUTO-F90` · **Expand a node's Code field, edit, then go back** →
       **Expand editor** (`codeEditor.expand`) opens the larger editor; **Back
       to the field** (`codeEditor.collapse`) returns with the edit in place and
