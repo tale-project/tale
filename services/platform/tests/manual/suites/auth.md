@@ -80,6 +80,20 @@ compute codes from the enrollment secret.
   (`common.actions.next`) → **Go to Home**
   (`onboarding.finish.goToDashboard`) → URL becomes `/dashboard/{org}` (a 16+
   char id); the new org's chat loads.
+- [ ] `AUTH-F37` · **Connect a coding agent from the wizard's last step** —
+  Reach **Step 2 of 2: Finish** (`AUTH-F5` or `AUTH-F6`) as an owner on a
+  deployment where agents may sign in → under **Connect a provider** and
+  **Invite teammates** a third row reads `onboarding.finish.agentItem` with
+  **Connect an agent** (`onboarding.finish.agentCta`); a deployment that
+  switched agent sign-in off, or a person who may not connect one, shows no
+  such row. **Connect an agent** opens **Connect a coding agent** over the
+  wizard (`SET-F89`) and does not mark onboarding complete. Run the commands
+  for Claude Code or Codex and sign in → the dialog reads **Connected:**
+  *agent*; **Done** → the row is a check with
+  `onboarding.finish.agentConnected` naming the agent, focus rests on it, and
+  **Go to Home** still lands on `/dashboard/{org}`. At 320 px in Deutsch and
+  Français every row keeps its sentence over its button, none of them
+  clipped.
 - [ ] `AUTH-F7` · **Change password** — `/dashboard/{org}/settings/account` →
   **Change password** (`auth.changePassword.title`); fill **Current password**
   (`auth.changePassword.currentPassword`), **New password**
