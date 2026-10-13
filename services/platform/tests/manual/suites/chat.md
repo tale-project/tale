@@ -764,8 +764,8 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-F75` · **Skills for a whole conversation** — Open the composer
   picker (`chat.picker.ariaLabel`) → **Skills** (`chat.picker.sectionSkills`)
   and check two skills → the trigger shows a book icon with **2**. Send two
-  messages → the first reply reads both skills before it answers, the second
-  reads neither again. Reload → both stay checked. Open **New chat** → none is
+  messages → each reply reads both skills before it answers (two **Reading
+  the … skill** steps on each). Reload → both stay checked. Open **New chat** → none is
   checked; check one there, then send the first message → after reload the new
   conversation still has it. With four checked, a fifth cannot be checked
   (`chat.picker.skillsLimit`).

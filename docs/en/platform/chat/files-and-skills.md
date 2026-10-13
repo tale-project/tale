@@ -49,7 +49,7 @@ To use a skill for one message, type `/` at the start of the message box, or cho
 
 ![A new chat with a slash typed in the message box. Above the box, a list of skills: docx, pdf, pptx, visual-aspect-analyzer and xlsx, each with the start of its description, and docx highlighted.](/images/platform/chat-skill-picker.webp)
 
-To use skills for a whole conversation, open the model picker, go to **Skills** and check up to four. Every reply in that conversation reads them before it answers, unless it already read them earlier in the conversation. A new chat starts without any.
+To use skills for a whole conversation, open the model picker, go to **Skills** and check up to four. Every reply in that conversation reads them before it answers. A new chat starts without any.
 
 The assistant also reads a skill on its own when one fits your request, or when you name it in your words. It sees the name and description of every skill in your library; in a library of more than 40 skills, it sees the first 40 in alphabetical order, so choose any other one with `/`. A skill whose author marked it for explicit use only is meant for when you choose it: the assistant is asked not to use it otherwise.
 

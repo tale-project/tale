@@ -43,7 +43,6 @@ import {
   type HarnessTable,
 } from '../shared/providers/resolve_execution';
 import { languageDisplayName } from '../shared/utils/language-name';
-import { isRecord } from '../utils/type-utils';
 import {
   assembleContext,
   type AssembledContext,
@@ -654,6 +653,9 @@ function assembleTurnContext(
   request: TurnRequest,
   filteredUserText: string,
   now: Date,
+  /** Input the first round carries beside the context: the history gives
+   * it room. */
+  reservedTokens = 0,
 ): AssembledContext {
   const appendix =
     (request.audioTranscriptAppendix ?? '') +
@@ -694,20 +696,30 @@ function assembleTurnContext(
     ...(request.historyOmittedCount !== undefined
       ? { historyOmittedCount: request.historyOmittedCount }
       : {}),
-    budget: request.budget ?? {
-      maxTokens: request.model.contextWindow,
-      // The reserve mirrors what the wire will actually request, so budget
-      // and reality can never disagree.
-      reserveOutputTokens: fitSamplingToWindow(
-        resolveTurnSampling(
-          request.model,
-          request.reasoningEffort,
-          outputCap(request.maxOutputTokens),
-        ),
-        request.model.contextWindow,
-      ).maxTokens,
-    },
+    budget: lessInput(
+      request.budget ?? {
+        maxTokens: request.model.contextWindow,
+        // The reserve mirrors what the wire will actually request, so budget
+        // and reality can never disagree.
+        reserveOutputTokens: fitSamplingToWindow(
+          resolveTurnSampling(
+            request.model,
+            request.reasoningEffort,
+            outputCap(request.maxOutputTokens),
+          ),
+          request.model.contextWindow,
+        ).maxTokens,
+      },
+      reservedTokens,
+    ),
   });
+}
+
+/** `budget` with `tokens` of its window already spoken for. */
+function lessInput(budget: ContextBudget, tokens: number): ContextBudget {
+  return tokens === 0
+    ? budget
+    : { ...budget, maxTokens: Math.max(0, budget.maxTokens - tokens) };
 }
 
 /** The caller's reply ceiling as `resolveTurnSampling` takes it — an empty
@@ -1292,27 +1304,6 @@ async function recordUsage(
 // ----------------------------------------------------------------- the turn
 
 /**
- * Put a produced file on the reply. A document the reply already carries
- * under the same name was revised by a later call: the new version takes
- * the earlier one's place, so the person gets the file once, as it ended
- * up. Images are each a result of their own and always add.
- */
-/** Whether `messages` show the skill `name` read: a `load_skill` result
- * that answered with it. */
-function skillReadIn(messages: readonly ChatMessage[], name: string): boolean {
-  return messages.some((message) =>
-    message.parts.some(
-      (part) =>
-        part.type === 'tool-result' &&
-        part.capabilityId === 'load_skill' &&
-        isRecord(part.output) &&
-        part.output.status === 'ok' &&
-        part.output.name === name,
-    ),
-  );
-}
-
-/**
  * The call id of the turn's own read of a chosen skill: nine letters and
  * digits — the strictest spelling a provider accepts — from the reply's id
  * and the skill's place, so the turn's ids never meet another reply's.
@@ -1325,43 +1316,59 @@ export function chosenSkillCallId(replyId: string, index: number): string {
   return `sk${tail}${index % 10}`;
 }
 
+/** What the read of a chosen skill answered, kept until the reply exists
+ * to carry it. */
+interface ChosenSkillRead {
+  readonly name: string;
+  readonly output: unknown;
+}
+
 /**
- * Read each chosen skill the conversation does not already show read, as
- * the parts of the reply's opening step: a `load_skill` call and its result
- * per skill. A skill gone since it was chosen answers not found there, as
- * any read would.
+ * Read each chosen skill. Every reply reads them again: a read earlier in
+ * the conversation reaches the model only as the short copy the history
+ * keeps of a tool result, too little to work from. A skill gone since it
+ * was chosen answers not found, as any read would.
  */
 async function readChosenSkills(
   names: readonly string[],
-  messages: readonly ChatMessage[],
   executor: ChatToolExecutor,
-  replyId: string,
   signal: AbortSignal | undefined,
-): Promise<MessagePart[]> {
-  const parts: MessagePart[] = [];
+): Promise<ChosenSkillRead[]> {
+  const reads: ChosenSkillRead[] = [];
   for (const [index, name] of names.entries()) {
-    if (skillReadIn(messages, name)) continue;
-    const callId = chosenSkillCallId(replyId, index);
-    const input = { name };
-    parts.push({
-      type: 'tool-call',
-      callId,
-      capabilityId: 'load_skill',
-      input,
-    });
     const output = await executor.execute(
-      { id: callId, name: 'load_skill', input },
+      { id: chosenSkillCallId('', index), name: 'load_skill', input: { name } },
       signal !== undefined ? { signal } : {},
     );
-    parts.push({
-      type: 'tool-result',
-      callId,
-      capabilityId: 'load_skill',
-      output,
-      structured: true,
-    });
+    reads.push({ name, output });
   }
-  return parts;
+  return reads;
+}
+
+/** The reads as the parts of the reply's opening step: a `load_skill` call
+ * and its result per skill, with ids from the reply's own. */
+function chosenSkillParts(
+  reads: readonly ChosenSkillRead[],
+  replyId: string,
+): MessagePart[] {
+  return reads.flatMap(({ name, output }, index): MessagePart[] => {
+    const callId = chosenSkillCallId(replyId, index);
+    return [
+      {
+        type: 'tool-call',
+        callId,
+        capabilityId: 'load_skill',
+        input: { name },
+      },
+      {
+        type: 'tool-result',
+        callId,
+        capabilityId: 'load_skill',
+        output,
+        structured: true,
+      },
+    ];
+  });
 }
 
 /** The refs of the files `parts` show. */
@@ -1371,6 +1378,12 @@ function artifactRefs(parts: readonly MessagePart[]): string[] {
   );
 }
 
+/**
+ * Put a produced file on the reply. A document the reply already carries
+ * under the same name was revised by a later call: the new version takes
+ * the earlier one's place, so the person gets the file once, as it ended
+ * up. Images are each a result of their own and always add.
+ */
 export function attachArtifact(
   parts: MessagePart[],
   artifact: Extract<MessagePart, { type: 'artifact' }>,
@@ -1470,8 +1483,27 @@ export async function runTurn(
     return refuse('resolve-execution', execution.reason, input.text);
   }
 
+  // The skills the person chose are read before the context is fitted:
+  // their instructions ride the first round, so the history makes room for
+  // them and the round's hold counts them.
+  const chosenReads =
+    deps.tools !== undefined
+      ? await readChosenSkills(
+          request.chosenSkills ?? [],
+          deps.tools,
+          request.signal,
+        )
+      : [];
+  const chosenTokens =
+    chosenReads.length === 0
+      ? 0
+      : estimateMessageTokens({
+          role: 'assistant',
+          parts: chosenSkillParts(chosenReads, ''),
+        });
+
   steps.push('assemble-context');
-  const context = assembleTurnContext(request, input.text, now());
+  const context = assembleTurnContext(request, input.text, now(), chosenTokens);
 
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
@@ -1498,9 +1530,11 @@ export async function runTurn(
       projectIds: request.projectId !== undefined ? [request.projectId] : [],
       ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
       tokens:
-        context.estimatedTokens + (request.budget?.reserveOutputTokens ?? 0),
+        context.estimatedTokens +
+        chosenTokens +
+        (request.budget?.reserveOutputTokens ?? 0),
       costCents: estimateCostCents(
-        context.estimatedTokens,
+        context.estimatedTokens + chosenTokens,
         request.budget?.reserveOutputTokens ?? 0,
         request.model.pricing,
       ),
@@ -1621,21 +1655,12 @@ export async function runTurn(
       });
     };
 
-    // The skills the person chose are read before the model writes a word:
-    // a `load_skill` the turn makes for them, on the reply like the model's
-    // own, so the first round reads its instructions and the step shows it.
-    if (executor !== undefined) {
-      const opening = await readChosenSkills(
-        request.chosenSkills ?? [],
-        context.messages,
-        executor,
-        placeholder.id,
-        request.signal,
-      );
-      if (opening.length > 0) {
-        settledParts.push(...opening);
-        await persistSettledParts();
-      }
+    // The chosen skills' reads open the reply: a `load_skill` the turn made
+    // for each, on the reply like the model's own, so the first round reads
+    // their instructions and the step shows it.
+    if (chosenReads.length > 0) {
+      settledParts.push(...chosenSkillParts(chosenReads, placeholder.id));
+      await persistSettledParts();
     }
 
     // The tool loop. Each pass is one model round: a round that ends in tool

@@ -348,17 +348,17 @@ that reply says nothing about it.
 ### CHAT-R29 · A skill the person chooses is read before the reply
 
 A message that starts with `/` and a skill's name chooses that skill; so does checking it under
-**Skills** in the composer, for every reply of the conversation. The reply reads each chosen
-skill before the model answers, as a step of its own that costs the model none of its steps,
-unless the conversation already shows it read. Only skills the person can see count, at most
-four a reply; any other name stays text. A conversation's skills are kept with it, every version
-of it reads them, and only its owner changes them. A conversation is named from what its first
-message says after the names it starts with.
+**Skills** in the composer, for every reply of the conversation. Each reply reads every chosen
+skill again before the model answers, as a step of its own that costs the model none of its steps,
+and what it reads counts against the reply's window: older turns give way to it. Only skills the
+person can see count, at most four a reply; any other name stays text. A conversation's skills are
+kept with it, every version of it reads them, and only its owner changes them. A conversation is
+named from what its first message says after the names it starts with.
 
 - **Example**: Mia sends "/docx Write the cover letter" → the reply's first step reads the docx
   skill, then the model answers.
 - **Example**: Mia checks `docx` and `xlsx` under **Skills** in a chat → every later reply in it
-  reads both before it answers, unless the chat already shows them read.
+  reads both before it answers.
 - **Example**: Mia is not in the Finance team and sends "/finance-review Check this" → nothing is
   read, and the message is sent as written.
 

@@ -2041,7 +2041,9 @@ describe('runTurn — the skills the person chose [CHAT-R29]', () => {
     );
   });
 
-  it('does not read again a skill the conversation already shows read', async () => {
+  it('reads a chosen skill again although the conversation shows an earlier read', async () => {
+    // The history keeps only a short copy of a tool result, so an earlier
+    // read is no read to work from.
     const { executor, executed } = skillExecutor();
     const { model, requests } = recordingModel();
     const d = deps({ model, tools: executor });
@@ -2075,9 +2077,61 @@ describe('runTurn — the skills the person chose [CHAT-R29]', () => {
       d.deps,
     );
 
-    expect(executed.map((call) => call.input)).toEqual([{ name: 'xlsx' }]);
+    expect(executed.map((call) => call.input)).toEqual([
+      { name: 'docx' },
+      { name: 'xlsx' },
+    ]);
     expect(requests[0]?.system).toContain(
       'The person chose these skills for this reply: docx, xlsx.',
+    );
+  });
+
+  it('makes room for the chosen skills in the history and holds them in the first round', async () => {
+    const instructions = 'Keep to the house style. '.repeat(1_300);
+    const executor: ChatToolExecutor = {
+      wireTools: [{ name: 'load_skill', description: 'Load.', parameters: {} }],
+      execute: () =>
+        Promise.resolve({ status: 'ok', name: 'docx', instructions }),
+    };
+    const history: ChatMessage[] = Array.from({ length: 10 }, (_, index) => ({
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      parts: [{ type: 'text', text: `Turn ${index}. ${'word '.repeat(800)}` }],
+    }));
+    const open = async (chosenSkills: string[], maxTokens: number) => {
+      const { store } = fakeStore();
+      const setups: Parameters<TurnDeps['store']['beginTurn']>[0][] = [];
+      const d = deps({
+        tools: executor,
+        store: {
+          ...store,
+          beginTurn(setup) {
+            setups.push(setup);
+            return store.beginTurn(setup);
+          },
+        },
+      });
+      await runTurn(
+        request({
+          chosenSkills,
+          history,
+          budget: { maxTokens, reserveOutputTokens: 1_000 },
+        }),
+        d.deps,
+      );
+      return setups[0];
+    };
+
+    // Without the skill the whole history fits; with it, the oldest turns
+    // make way.
+    expect((await open([], 20_000))?.truncation).toBeUndefined();
+    expect(
+      (await open(['docx'], 20_000))?.truncation?.droppedMessages,
+    ).toBeGreaterThan(0);
+    // With room for both, the first round's hold carries the read too.
+    const roomy = (await open([], 128_000))?.spend?.tokens ?? 0;
+    const roomyWithSkill = (await open(['docx'], 128_000))?.spend?.tokens ?? 0;
+    expect(roomyWithSkill - roomy).toBeGreaterThanOrEqual(
+      estimateTokens(instructions),
     );
   });
 
