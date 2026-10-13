@@ -101,6 +101,12 @@ La vérification actuelle des déploiements par tag ne prend en charge que la ba
 
 Les anciennes CLI et le remplacement manuel d’images n’appliquent pas cette protection du déploiement. La barrière d’écriture de la base et les files d’exécution séparées restent nécessaires pendant la coexistence des versions. Une sauvegarde restaure les données stockées, pas les messages, paiements ou autres effets déjà envoyés à un service externe ; elle n’autorise pas un runtime utilisant l’ancien protocole après ce changement. Répare avec une version compatible et conserve les exécutions retenues et leurs preuves.
 
+## Vérifie le seuil d’espace disque des sandboxes avant la mise à niveau
+
+Le spawner Docker refuse désormais toute nouvelle session avec HTTP 429 `host_disk` quand le disque contenant les espaces de travail des sessions passe sous `SANDBOX_MIN_FREE_DISK`. Cela concerne aussi un hôte déjà sous le seuil au moment de la mise à niveau, même avec une valeur explicite de `SANDBOX_MAX_SESSIONS`. Les sessions existantes continuent de fonctionner, mais les nouveaux travaux attendent que de l’espace se libère. Arrêter des sessions inactives ne libère pas leurs espaces de travail conservés.
+
+Vérifie l’espace libre avant le déploiement. Le seuil par défaut est un vingtième de ce disque, au moins 2 GiB et au plus 20 GiB. Libère de l’espace sans mettre tes données en danger ou choisis délibérément un autre seuil. `SANDBOX_MIN_FREE_DISK=0` désactive cette protection ; tu dois alors éviter toi-même que le disque se remplisse. Le spawner peut supprimer les caches de build inutilisés d’organisations arrêtées, mais interrompt cette récupération pendant six heures après trois suppressions consécutives apportant chacune moins de 1 MiB. Ne compte pas sur ces suppressions pour sauver un hôte plein. Consulte la [référence d’environnement](/fr/self-hosted/configuration/environment-reference) pour la configuration et les limites de récupération.
+
 ## Bifrost 1.6 → 2.2 : le stockage de la passerelle de modèles est migré
 
 Une version postérieure à 0.5.64 fait passer la passerelle de modèles (`sandbox-llm-gateway`) de Bifrost 1.6 à Bifrost 2.2 ; ses notes de version signalent ce changement. À son premier démarrage, la nouvelle passerelle migre sur place son stockage dans `llm-gateway-data` et conserve ses fournisseurs, clés, budgets et compte d’administration ; rien n’est à faire à la main. La migration indexe aussi le journal des requêtes de la passerelle, si bien que ce démarrage peut durer plus longtemps sur une instance à long historique de requêtes.
