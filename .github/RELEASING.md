@@ -331,9 +331,13 @@ order.
    The scheduled E2E run is where a browser regression shows first: pull request
    checks skip the browser E2E and the suites that run only in the queue, and a direct
    merge skips the queue, so a defect can sit on `main` for hours.
-2. **A failure on `main` is a defect of `main`.** Never re-dispatch a candidate hoping
-   it clears and never waive a job. Repair it through the queue, then choose a
-   candidate that contains the repair. What cost a release attempt on 2026-10-13:
+2. **A failure every run of the same source shows is a defect of `main`.** Never
+   re-dispatch a candidate hoping it clears and never waive a job: repair it through
+   the queue, then choose a candidate that contains the repair. A failure that the
+   same source also passes (a `Backend integration` check that failed on one run and
+   passed on the next, tracked in #4921) is a flake: re-run all jobs of that single
+   run, put the check's name on the issue that tracks it, and let a green attempt be
+   the evidence. What cost a release attempt on 2026-10-13:
    - `Unit (workspaces)` refusing "native CLI scopes cover every imported platform
      backend module": a backend file the CLI now imports must be named in
      `.github/ci-scope.yml`, `.github/workflows/cli.yml` and `tools/cli/turbo.json`.
