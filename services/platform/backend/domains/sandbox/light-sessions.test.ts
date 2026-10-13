@@ -292,7 +292,7 @@ describe('acquireLightSession', () => {
     warn.mockRestore();
   });
 
-  describe('when the host cannot start a sandbox', () => {
+  describe('when the host cannot start a sandbox [CHAT-R30]', () => {
     const startFailure = async (
       error: Error,
       spawnerOverrides: Partial<LightSessionSpawner> = {},

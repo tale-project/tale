@@ -1081,9 +1081,11 @@ L’en-tête facultatif `Idempotency-Key` doit contenir de 1 à 255 caractères 
 
 ### Comprendre l’assistant et les limites de tokens
 
-Chaque tour utilise l’assistant intégré de l’espace de travail, avec ses instructions, ses règles de sécurité et ses trois outils de recherche. Il ne s’agit pas d’un appel direct au modèle sans instructions. Les demandes de livrables, comme un document ou un rapport, sont orientées vers les tâches.
+Chaque tour utilise l’assistant intégré de l’espace de travail, avec ses instructions, ses règles de sécurité et ses outils : trois outils de recherche, et les outils de travail que la politique Outils du chat de ton organisation autorise, avec lesquels il crée les fichiers demandés et les renvoie sous forme de parties `artifact`. Il ne s’agit pas d’un appel direct au modèle sans instructions.
 
-Ces instructions représentent environ 3 000 tokens d’entrée par appel au modèle et sont incluses dans `usage.inputTokens`. Un tour qui utilise des outils peut effectuer jusqu’à cinq appels au modèle ; chacun compte à nouveau son prompt complet.
+Pour choisir des skills pour un message, commence `content` par `/` et le nom d’un skill, par exemple `"content": "/docx Rédige la lettre de motivation"` : le tour lit le skill avant que le modèle réponde, et les parties de la réponse commencent par cet appel `load_skill` et son résultat. Jusqu’à quatre noms peuvent ouvrir le contenu (`/xlsx /brand-voice …`). Seuls les skills que le titulaire de la clé peut utiliser comptent, et `GET /api/v1/skills` les liste ; tout autre nom, ainsi qu’un `/` plus loin dans le texte, fait partie du message tel quel. Les skills qu’une conversation utilise pour chaque réponse se choisissent dans l’app, et un fil poursuivi ici les lit aussi.
+
+Ces instructions représentent environ 3 000 tokens d’entrée par appel au modèle, davantage avec les outils de travail, et sont incluses dans `usage.inputTokens`. Un tour qui utilise des outils peut effectuer jusqu’à cinq appels au modèle, treize avec les outils de travail ; chacun compte à nouveau son prompt complet.
 
 Le périmètre dépend de l’URL. Dans `/api/v1/projects/{id}/threads`, `rag_search` et `rag_fetch` peuvent consulter les fichiers de ce projet et les connaissances de l’organisation, mais aucun autre projet. Dans `/api/v1/threads`, ils consultent uniquement les connaissances de l’organisation. Le même fil garde ce comportement dans l’application.
 

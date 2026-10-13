@@ -512,7 +512,7 @@ describe('run_code', () => {
     ).resolves.toMatchObject({ status: 'busy', reason: 'sandboxes_busy' });
   });
 
-  it('tells a busy sandbox host from a full budget', async () => {
+  it('tells a busy sandbox host from a full budget [CHAT-R30]', async () => {
     vi.mocked(acquireLightSession).mockRejectedValueOnce(
       new LightSandboxBusyError(
         'The sandbox host is busy right now.',
@@ -526,7 +526,7 @@ describe('run_code', () => {
     ).resolves.toMatchObject({ status: 'busy', reason: 'sandbox_host_busy' });
   });
 
-  describe('when no light sandbox can start', () => {
+  describe('when no light sandbox can start [CHAT-R30]', () => {
     it.each([
       ['not_ready', 'sandbox_not_ready', /try again in a few minutes/],
       ['unreachable', 'sandbox_unreachable', /do not call run_code again/],

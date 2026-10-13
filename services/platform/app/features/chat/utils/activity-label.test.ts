@@ -211,7 +211,7 @@ describe('stepActivityLabel — the work tools', () => {
   });
 });
 
-describe('stepOutcomeLabel — what became of a step', () => {
+describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
   const t = fakeT();
 
   it('names the cause a result gives before its status', () => {

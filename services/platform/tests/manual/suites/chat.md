@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 119 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 126 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -8,10 +8,11 @@ edit/branch/regenerate/stop, the thought timeline and source cards, share
 links and forking, arena mode, the chat header, the chat rows of the Home
 panel (pin, rename, move to a project, archive, delete), and the degraded
 states (backend unavailable, no provider, budget exceeded). There is **no
-agent picker** anymore: the composer picks a **model** and a reasoning effort;
-agents and connectors are equipped per **project** (see
-[projects.md](projects.md)); chat reads skills from the person's own skill
-library and makes files with its own tools (CHAT-F66–CHAT-F72). The Home panel itself — its views,
+agent picker** anymore: the composer picks a **model**, a reasoning effort and
+the skills a reply reads (CHAT-F73–CHAT-F75); agents and connectors are
+equipped per **project** (see [projects.md](projects.md)); chat reads skills
+from the person's own skill library and makes files with its own tools
+(CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77). The Home panel itself — its views,
 bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
 list of its own any more.
 
@@ -88,7 +89,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   generated title — not **Untitled chat** (`home.row.untitledChat` /
   `chat.history.untitled`); the title persists after reload.
 - [ ] `CHAT-F6` · **Model picker** — Open the combined picker (trigger
-  `chat.picker.ariaLabel` = "Choose model and reasoning effort"); search
+  `chat.picker.ariaLabel` = "Choose model, reasoning effort and skills"); search
   (`chat.picker.searchPlaceholder`); pick a model under the **Model** section
   (`chat.picker.sectionModel`) → The trigger shows the chosen model's name
   (falls back to **Select model** `chat.modelSelector.label` with none); a
@@ -745,6 +746,42 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   and leave it → the reply stays in progress for the full run, never reads as
   failed while it works, and ends with the file. In the Sandboxes settings the
   chat's light sandbox is not still running the program after Stop.
+- [ ] `CHAT-F73` · **Choose a skill for one message** — With a skill your
+  library holds (e.g. SKILL-F1's `brief-summary`), in a new chat type `/` → a
+  list of your skills (`chat.skillPicker.listLabel`) opens above the message
+  box, each with its description; type `bri` → only matching skills stay;
+  press Enter → the field reads `/brief-summary ` and the list closes. Add a
+  short brief and send → your message shows **brief-summary** as a chip in
+  front of your words, and the reply's first step is **Reading the
+  brief-summary skill** (`chat.thinking.loadingSkill`), before any other.
+  Reload → the chip and the step stay. Type a slash and zzz → **No skill is
+  named "zzz"** (`chat.skillPicker.empty`), and Enter sends it as text.
+- [ ] `CHAT-F74` · **Use a skill from the + menu** — Type "Summarize this",
+  open the **+** menu (`composer.openMenu`) and choose **Use a skill**
+  (`composer.useSkill`) → the field reads `/ Summarize this` with the caret
+  after the slash and the skills list open; click a skill → it stands in
+  front of your words with one space after it.
+- [ ] `CHAT-F75` · **Skills for a whole conversation** — Open the composer
+  picker (`chat.picker.ariaLabel`) → **Skills** (`chat.picker.sectionSkills`)
+  and check two skills → the trigger shows a book icon with **2**. Send two
+  messages → the first reply reads both skills before it answers, the second
+  reads neither again. Reload → both stay checked. Open **New chat** → none is
+  checked; check one there, then send the first message → after reload the new
+  conversation still has it. With four checked, a fifth cannot be checked
+  (`chat.picker.skillsLimit`).
+- [ ] `CHAT-F76` · **A failed step says why** — Mode A with the sandbox
+  service, then stop the spawner and send `e2e:make-spreadsheet` → under
+  **Running Python in a light sandbox** a red line reads **The sandbox service
+  can't be reached** (`chat.thinking.outcome.sandboxUnreachable`), and the
+  reply says code cannot run right now; start the spawner, send it again → the
+  file arrives. With **Light sandboxes** at 1 and another chat's program still
+  running, the line reads **All light sandboxes are in use**
+  (`chat.thinking.outcome.sandboxesBusy`).
+- [ ] `CHAT-F77` · **A reply tried again keeps its file** — Mode A with the
+  sandbox service: send `e2e:make-spreadsheet` → a **planets.xlsx** card; press
+  **Try again** (`chat.tryAgain`) on the reply → the new reply shows its own
+  **planets.xlsx** card; switch back to the first version → its card is still
+  there.
 
 ## Boundary & error tests
 
@@ -943,12 +980,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-B25` · **A Chat tools policy file that cannot be read** — On a
   disposable organization, break `governance/chat-tools.yml` under
   `TALE_CONFIG_DIR/<org>/` (an unknown key, or invalid YAML); in a new chat
-  (mode B) ask for an Excel file → no tool step appears and the reply says it
-  cannot make files here; **Governance › Policies & Limits** shows the
-  policy read failure (`governance.policyReadFailed`) with **Retry**
-  (`governance.policyReadRetry`) where the Chat tools switches would be.
-  Delete the file → the defaults return and the same request runs code. Write a
-  valid file with **Code** off → only code is gone.
+  (mode B) ask for an Excel file → no tool step appears, the reply says files
+  cannot be made in this reply, and under it **Files couldn't be made in this
+  reply because your organization's Chat tools policy can't be read**
+  (`chat.workToolsUnavailable.policyUnreadable`); **Governance › Policies &
+  Limits** shows the policy read failure (`governance.policyReadFailed`) with
+  **Retry** (`governance.policyReadRetry`) where the Chat tools switches would
+  be. Delete the file → the defaults return and the same request runs code.
+  Write a valid file with **Code** off → only code is gone.
 - [ ] `CHAT-B26` · **A failed send stays in its own conversation** — In a
   chat, attach a text file, send a message and go offline while the reply
   streams (as `CHAT-B4`); at once open another chat from the Home panel →
@@ -957,6 +996,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   whose draft is still empty after a reload; opening the first chat again
   shows its message box holding the message and its tray the file, ready
   to send once more.
+- [ ] `CHAT-B27` · **Skills switched off** — As an admin, turn off **Skills**
+  under **Chat tools** (`governance.chatTools.skills`) and save → in chat,
+  typing `/` opens no list, the **+** menu has no **Use a skill**, and the
+  picker has no **Skills** section; send `/brief-summary Hello` → the message
+  reads `/brief-summary Hello` as text, with no chip and no **Reading the …
+  skill** step. Restore **Skills**.
 - [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
   newline; a blocked send announces its reason (toast) instead of silently
   no-opping.
@@ -1019,6 +1064,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   gallery; a file card is announced as **Open planets.csv** and Enter opens its
   preview; the next stop is **Download planets.csv**; each stop shows a visible
   focus ring; the files sit in a region named **Files from this reply**.
+- [ ] `CHAT-A11` · **Choosing a skill by keyboard and screen reader** → Type
+  `/` in the message box: the screen reader announces how many skills match
+  (`chat.skillPicker.count`); Down and Up move the highlighted option, read as
+  the active option of the **Skills** list while focus stays in the field;
+  Enter or Tab writes it; Escape closes the list and keeps the text. A sent
+  message's chip reads as **Skill brief-summary** (`chat.skillChip.label`). A
+  failed step's line (CHAT-F76) is read as the step's description.
 
 ## Performance
 

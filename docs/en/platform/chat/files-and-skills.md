@@ -21,7 +21,7 @@ The assistant uses the lightest way that does the job, and starts nothing it doe
 
 A file that should be reviewed, kept with other work or made later belongs on a task: the project's [standard agent](/platform/projects/project-agents#standard-agent-runs) uses the same tools there, and the files it makes become the task's deliverables.
 
-While it works, the steps above the reply say what it is doing, such as **Writing contacts.csv**, **Reading the xlsx skill** or **Running Python in a light sandbox**. A failed step says what went wrong, and the assistant usually corrects its code and tries again.
+While it works, the steps above the reply say what it is doing, such as **Writing contacts.csv**, **Reading the xlsx skill** or **Running Python in a light sandbox**. A failed step says what went wrong on the line under it, such as **All light sandboxes are in use** or **The program ended with an error**, and the assistant usually corrects its code and tries again.
 
 ## Open and download the files
 
@@ -43,11 +43,15 @@ Files belong to the conversation: whoever can open the conversation can open its
 
 ## Use a skill
 
-A skill is a tested procedure for a kind of work, such as a document format or a house style. The assistant sees the name and description of every skill in your skill library: those shared with the whole organization and with your teams. When one fits your request, it reads the skill before it starts and follows it; the steps then show, for example, **Reading the docx skill**. The built-in skills `docx`, `xlsx`, `pptx` and `pdf` cover the Office and PDF formats.
+A skill is a tested procedure for a kind of work, such as a document format or a house style. Your skill library holds the skills shared with the whole organization and with your teams; the built-in skills `docx`, `xlsx`, `pptx` and `pdf` cover the Office and PDF formats.
 
-To be sure a skill is used, name it: “Use the brief-summary skill to summarize the attached brief.” A skill whose author marked it for explicit use only is used only when you ask for it by name. In a library of more than 40 skills, the assistant sees the first 40 in alphabetical order and uses any other one when you name it.
+To use a skill for one message, type `/` at the start of the message box, or choose **Use a skill** in the composer’s **+** menu. The skills you can use appear above the box; type to narrow them, then press Enter or select one. Your message then starts with the skill’s name, such as `/docx Write the cover letter`, and shows it as a chip once sent. The reply reads the skill before it answers: its first step is **Reading the docx skill**.
 
-A skill guides the assistant; it does not change what the assistant is allowed to do. A skill’s scripts and templates run in the light sandbox, like the assistant’s own code.
+To use skills for a whole conversation, open the model picker, go to **Skills** and check up to four. Every reply in that conversation reads them before it answers, unless it already read them earlier in the conversation. A new chat starts without any.
+
+The assistant also reads a skill on its own when one fits your request, or when you name it in your words. It sees the name and description of every skill in your library; in a library of more than 40 skills, it sees the first 40 in alphabetical order, so choose any other one with `/`. A skill whose author marked it for explicit use only is meant for when you choose it: the assistant is asked not to use it otherwise.
+
+A skill guides the assistant; it does not change what the assistant is allowed to do. A skill’s scripts and templates run in the light sandbox, like the assistant’s own code. When an administrator turns off **Skills** under Chat tools, there is nothing to choose, and a message that starts with `/` is sent as written.
 
 ## Know the limits
 
@@ -55,5 +59,6 @@ A skill guides the assistant; it does not change what the assistant is allowed t
 - One run of code may take up to three minutes, and the tools of one step may run for at most five minutes together. At most 16 tools run in one step. Press **Stop generating** and a running program is cut off within seconds. A run attaches up to 10 files, each up to 20 MB; when a program writes many more, the reply names a few and counts the rest.
 - A file the assistant writes itself holds up to 1 MB of text.
 - One request creates up to 4 images, and one reply up to 16. Images are billed to your organization and count against you, like the reply itself.
+- When the tools for making files cannot be set up for a reply, for example because your organization’s Chat tools policy cannot be read, the reply says so under it. Ask again later, or ask an administrator to check the policy.
 
 An administrator decides what chat can make under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools), whether it can create images under [Image generation](/platform/admin/governance/content-models#let-agents-generate-images), and how many light sandboxes your organization runs at once under [Sandboxes](/platform/admin/sandboxes#light-sandboxes). A tool that is switched off is gone from every chat; the assistant then answers in the reply or suggests a task instead.

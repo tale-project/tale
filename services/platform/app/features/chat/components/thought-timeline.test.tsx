@@ -280,7 +280,7 @@ describe('ThoughtTimeline header', () => {
   });
 });
 
-describe('ThoughtTimeline — a failed step says what became of it', () => {
+describe('ThoughtTimeline — a failed step says what became of it [CHAT-R30]', () => {
   const failedRun = (output: Record<string, unknown>): MessagePart[] => [
     {
       type: 'tool-call',

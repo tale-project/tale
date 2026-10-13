@@ -21,7 +21,7 @@ Der Assistent wählt den leichtesten Weg, der zum Ziel führt, und startet nicht
 
 Eine Datei, die geprüft, mit anderer Arbeit aufbewahrt oder erst später erstellt werden soll, gehört in eine Aufgabe: Der [Standard-Agent](/de/platform/projects/project-agents#standard-agent-runs) des Projekts nutzt dort dieselben Tools, und die Dateien, die er erstellt, werden zu den Ergebnisdateien der Aufgabe.
 
-Während der Assistent arbeitet, zeigen die Schritte über der Antwort, was er gerade tut, etwa **Schreibt contacts.csv**, **Liest den Skill xlsx** oder **Führt Python in einer leichten Sandbox aus**. Ein fehlgeschlagener Schritt sagt, was schiefging; meist korrigiert der Assistent dann seinen Code und versucht es erneut.
+Während der Assistent arbeitet, zeigen die Schritte über der Antwort, was er gerade tut, etwa **Schreibt contacts.csv**, **Liest den Skill xlsx** oder **Führt Python in einer leichten Sandbox aus**. Ein fehlgeschlagener Schritt sagt in der Zeile darunter, was schiefging, etwa **Alle leichten Sandboxen sind belegt** oder **Das Programm wurde mit einem Fehler beendet**; meist korrigiert der Assistent dann seinen Code und versucht es erneut.
 
 ## Die Dateien öffnen und herunterladen
 
@@ -43,11 +43,15 @@ Die Dateien gehören zum Gespräch: Wer das Gespräch öffnen kann, kann auch se
 
 ## Einen Skill nutzen
 
-Ein Skill ist ein erprobtes Vorgehen für eine bestimmte Arbeit, etwa ein Dokumentformat oder einen Hausstil. Der Assistent sieht Name und Beschreibung jedes Skills in deiner Skill-Bibliothek, also der Skills, die mit der ganzen Organisation oder mit deinen Teams geteilt sind. Passt einer zu deiner Anfrage, liest er ihn, bevor er beginnt, und befolgt ihn; die Schritte zeigen dann zum Beispiel **Liest den Skill docx**. Die eingebauten Skills `docx`, `xlsx`, `pptx` und `pdf` decken die Office-Formate und PDF ab.
+Ein Skill ist ein erprobtes Vorgehen für eine bestimmte Arbeit, etwa ein Dokumentformat oder einen Hausstil. Deine Skill-Bibliothek enthält die Skills, die mit der ganzen Organisation oder mit deinen Teams geteilt sind; die eingebauten Skills `docx`, `xlsx`, `pptx` und `pdf` decken die Office-Formate und PDF ab.
 
-Soll ein bestimmter Skill sicher zum Einsatz kommen, nenne ihn: „Nutze den Skill brief-summary, um das angehängte Briefing zusammenzufassen.“ Einen Skill, den sein Autor nur für den ausdrücklichen Aufruf vorgesehen hat, nutzt der Assistent nur, wenn du ihn beim Namen nennst. Umfasst die Bibliothek mehr als 40 Skills, sieht der Assistent die ersten 40 in alphabetischer Reihenfolge und nutzt jeden weiteren, sobald du ihn nennst.
+Für eine einzelne Nachricht tippst du `/` an den Anfang des Nachrichtenfelds oder wählst im **+**-Menü des Eingabebereichs **Skill verwenden**. Über dem Feld erscheinen die Skills, die du nutzen kannst; tippe weiter, um die Liste einzugrenzen, und drück dann die Eingabetaste oder wähle einen aus. Deine Nachricht beginnt dann mit dem Namen des Skills, etwa `/docx Schreib das Anschreiben`, und zeigt ihn nach dem Senden als Chip. Die Antwort liest den Skill, bevor sie antwortet: Ihr erster Schritt ist **Liest den Skill docx**.
 
-Ein Skill leitet den Assistenten an; er ändert nicht, was der Assistent darf. Die Skripte und Vorlagen eines Skills laufen in der leichten Sandbox, wie der eigene Code des Assistenten.
+Für ein ganzes Gespräch öffnest du die Modellauswahl, gehst zu **Skills** und hakst bis zu vier an. Jede Antwort in diesem Gespräch liest sie, bevor sie antwortet, es sei denn, sie wurden im Gespräch schon gelesen. Ein neuer Chat beginnt ohne.
+
+Der Assistent liest einen Skill auch von sich aus, wenn einer zu deiner Anfrage passt oder du ihn in deinen Worten nennst. Er sieht Name und Beschreibung jedes Skills deiner Bibliothek; umfasst sie mehr als 40 Skills, sieht er die ersten 40 in alphabetischer Reihenfolge; jeden weiteren wählst du mit `/`. Einen Skill, den sein Autor nur für den ausdrücklichen Aufruf vorgesehen hat, solltest du selbst wählen: Der Assistent wird gebeten, ihn sonst nicht zu nutzen.
+
+Ein Skill leitet den Assistenten an; er ändert nicht, was der Assistent darf. Die Skripte und Vorlagen eines Skills laufen in der leichten Sandbox, wie der eigene Code des Assistenten. Schaltet ein Admin unter Chat-Tools **Skills** aus, gibt es nichts zu wählen, und eine Nachricht, die mit `/` beginnt, wird so gesendet, wie sie ist.
 
 ## Die Grenzen kennen
 
@@ -55,5 +59,6 @@ Ein Skill leitet den Assistenten an; er ändert nicht, was der Assistent darf. D
 - Ein Code-Lauf darf bis zu drei Minuten dauern, und die Tools eines Schritts dürfen zusammen höchstens fünf Minuten laufen. In einem Schritt laufen höchstens 16 Tools. Klickst du auf **Generierung stoppen**, wird ein laufendes Programm innerhalb weniger Sekunden abgebrochen. Ein Lauf hängt bis zu 10 Dateien an, jede bis zu 20 MB groß; schreibt ein Programm sehr viel mehr, nennt die Antwort einige und zählt den Rest.
 - Eine Datei, die der Assistent selbst schreibt, fasst bis zu 1 MB Text.
 - Eine Anfrage erstellt bis zu 4 Bilder, eine Antwort bis zu 16. Bilder werden deiner Organisation berechnet und zählen wie die Antwort selbst für dich.
+- Lassen sich die Tools zum Erstellen von Dateien für eine Antwort nicht einrichten, etwa weil die Chat-Tools-Richtlinie deiner Organisation nicht lesbar ist, sagt die Antwort das darunter. Frag später noch einmal oder bitte einen Admin, die Richtlinie zu prüfen.
 
 Was der Chat erstellen darf, legt ein Admin unter [Chat-Tools](/de/platform/admin/governance/policies-and-limits#chat-tools) fest, ob er Bilder erzeugen darf, unter [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images), und wie viele leichte Sandboxes deine Organisation gleichzeitig betreibt, unter [Sandboxes](/de/platform/admin/sandboxes#light-sandboxes). Ein ausgeschaltetes Tool fehlt in jedem Chat; der Assistent antwortet dann direkt oder schlägt stattdessen eine Aufgabe vor.
