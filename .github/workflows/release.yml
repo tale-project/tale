@@ -18,8 +18,10 @@ on:
         type: boolean
         default: false
 
-# Share admission across tags: a later run must see the previous publication.
-# Releases must not cancel mid-flight (partial manifests would break deploys).
+# One group for every tag, so two releases never publish at once and a later one
+# repoints `latest` only after the earlier one has published. Releases must not
+# cancel mid-flight (partial manifests would break deploys). How many releases a
+# day admits is not limited here: a release goes out whenever one is needed.
 concurrency:
   group: tale-release
   cancel-in-progress: false
@@ -57,8 +59,6 @@ jobs:
           INPUT_VERSION: ${{ github.event.inputs.version }}
           SITES_ONLY: ${{ inputs.sites_only || false }}
           SOURCE_SHA: ${{ github.sha }}
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
@@ -72,23 +72,6 @@ jobs:
           VERSION_NUMBER="${VERSION#v}"
           if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo '::error::Version must be an exact semantic version'; exit 1
-          fi
-          # Keep the public release train to one full cohort per UTC day. A
-          # rerun of the same tag remains available for recovery; a different
-          # tag must wait for the next day so services and CLI assets cannot
-          # churn through several partially adopted cohorts.
-          if [ "$SITES_ONLY" != true ]; then
-            TODAY="$(date -u +%F)"
-            LATEST_RELEASE="$({
-              gh api "repos/${REPOSITORY}/releases" --paginate --jq '.[] | select(.draft == false and .prerelease == false and .published_at != null) | [.published_at, .tag_name] | @tsv'
-            } | sort | tail -n 1)"
-            if [ -n "$LATEST_RELEASE" ]; then
-              LATEST_PUBLISHED="${LATEST_RELEASE%%$'\t'*}"
-              LATEST_TAG="${LATEST_RELEASE#*$'\t'}"
-              if [ "${LATEST_PUBLISHED%%T*}" = "$TODAY" ] && [ "$LATEST_TAG" != "v${VERSION_NUMBER}" ]; then
-                echo "::error::A release was already published today (${LATEST_TAG}); release at most one full cohort per UTC day"; exit 1
-              fi
-            fi
           fi
           # Start the longest native builds first within the bounded matrix.
           SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","ai-gateway","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
