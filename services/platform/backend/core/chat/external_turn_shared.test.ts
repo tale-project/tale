@@ -212,6 +212,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
 
 const {
   drainHarnessWindow,
+  classifyProviderExecFailure,
   classifyHarnessEnd,
   harnessOutputTail,
   isSpendRefusal,
@@ -1677,27 +1678,13 @@ describe('classifyHarnessEnd', () => {
   });
 
   it('classifies a provider 429 when the CLI exits before turn-ended', () => {
-    const result = classifyHarnessEnd({
-      text: '',
-      timeline: [],
-      exited: true,
-      execResult: {
-        status: 'failed',
-        exitCode: 1,
-        durationMs: 5,
-        stdoutBase64: '',
-        stderrBase64: '',
-        truncated: { stdout: false, stderr: false },
-        errorMessage:
-          'exceeded retry limit, last status: 429 Too Many Requests, request id: req-1',
-      },
-    });
+    const result = classifyProviderExecFailure(
+      'exceeded retry limit, last status: 429 Too Many Requests, request id: req-1',
+    );
 
     expect(result).toMatchObject({
-      errored: true,
       apiErrorStatus: 429,
       providerErrorKind: 'model_capacity',
-      emptyAnswer: false,
     });
   });
 });

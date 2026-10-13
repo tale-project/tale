@@ -40,6 +40,7 @@ import {
 } from '../automations/agent_host';
 import {
   buildExternalTurnExec,
+  classifyProviderExecFailure,
   classifyHarnessEnd,
   sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
@@ -1908,6 +1909,9 @@ function isResumeLaunchFailure(
 ): boolean {
   if (window.kind !== 'terminal') return false;
   const classified = classifyHarnessEnd(window);
+  const execFailure = classifyProviderExecFailure(
+    window.ended === undefined ? window.execResult?.errorMessage : undefined,
+  );
   const { errored, emptyAnswer } = classified;
   return (
     errored &&
@@ -1917,7 +1921,7 @@ function isResumeLaunchFailure(
     sandboxEndOf(window) === undefined &&
     // A model-wide capacity refusal says nothing about the resume handle.
     // Keep it for the counted delayed retry instead of launching fresh now.
-    classified.providerErrorKind !== 'model_capacity' &&
+    execFailure.providerErrorKind !== 'model_capacity' &&
     window.text === '' &&
     window.timeline.length === 0 &&
     (window.agentSessionId === undefined ||
@@ -2018,13 +2022,12 @@ async function continueOrSettle(
     return;
   }
   const classified = classifyHarnessEnd(window);
-  const {
-    errored,
-    reason: classifiedReason,
-    emptyAnswer,
-    apiErrorStatus: classifiedApiErrorStatus,
-    providerErrorKind: classifiedProviderErrorKind,
-  } = classified;
+  const execFailure = classifyProviderExecFailure(
+    window.ended === undefined ? window.execResult?.errorMessage : undefined,
+  );
+  const { errored, reason: classifiedReason, emptyAnswer } = classified;
+  const classifiedApiErrorStatus = execFailure.apiErrorStatus;
+  const classifiedProviderErrorKind = execFailure.providerErrorKind;
   // An exec the sandbox ended (a hang) is named as such, not as a crash.
   const sandboxEnd = sandboxEndOf(window);
   const endReason = sandboxEnd?.reason ?? classifiedReason;

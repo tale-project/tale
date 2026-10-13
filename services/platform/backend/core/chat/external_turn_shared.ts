@@ -1223,6 +1223,22 @@ function providerStatusFromExecFailure(
   return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
+/** Classification for the narrow exit envelope above. Kept separate from
+ * the legacy `classifyHarnessEnd` body so the released automation flow's
+ * byte-bound helper remains unchanged. */
+export function classifyProviderExecFailure(errorMessage: string | undefined): {
+  apiErrorStatus?: number;
+  providerErrorKind?: 'model_capacity';
+} {
+  const apiErrorStatus = providerStatusFromExecFailure(errorMessage);
+  return {
+    ...(apiErrorStatus !== undefined ? { apiErrorStatus } : {}),
+    ...(apiErrorStatus === 429
+      ? { providerErrorKind: 'model_capacity' as const }
+      : {}),
+  };
+}
+
 /** The settle reason for a spend refusal: names the cause (the harness's
  * own last words only quote the gateway's 402 line) and keeps that line as
  * the detail. */
@@ -1250,10 +1266,6 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   reason?: string;
   /** A completed turn with nothing from its model (`isEmptyAnswer`). */
   emptyAnswer: boolean;
-  /** Provider status preserved when a CLI exits before `turn-ended`. */
-  apiErrorStatus?: number;
-  /** A 429 from that exit is the same capacity refusal as a typed event. */
-  providerErrorKind?: 'model_capacity';
 } {
   const { ended, execResult } = window;
   if (unreplayableExecResult(execResult)) {
@@ -1266,9 +1278,6 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   }
   if (ended === undefined) {
     if (!window.exited) return { errored: false, emptyAnswer: false };
-    const apiErrorStatus = providerStatusFromExecFailure(
-      execResult?.errorMessage,
-    );
     const crashed =
       execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
         ? `The harness stopped: ${execResult.errorMessage}`
@@ -1282,15 +1291,7 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
       window.stderrTail !== undefined && window.stderrTail !== ''
         ? `${crashed} Last output: ${window.stderrTail}`
         : crashed;
-    return {
-      errored: true,
-      reason,
-      emptyAnswer: false,
-      ...(apiErrorStatus !== undefined ? { apiErrorStatus } : {}),
-      ...(apiErrorStatus === 429
-        ? { providerErrorKind: 'model_capacity' as const }
-        : {}),
-    };
+    return { errored: true, reason, emptyAnswer: false };
   }
   if (ended.isError === true) {
     const named = window.harnessError?.trim() ?? '';

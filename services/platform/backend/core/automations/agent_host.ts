@@ -38,6 +38,7 @@ import type { SkillViewer } from '../../../lib/skills/visibility';
 import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
+  classifyProviderExecFailure,
   classifyHarnessEnd,
   sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
@@ -2729,12 +2730,12 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[agent-host] final progress write failed:', err),
     );
-  const {
-    errored,
-    reason: classifiedReason,
-    apiErrorStatus: classifiedApiErrorStatus,
-    providerErrorKind: classifiedProviderErrorKind,
-  } = classifyHarnessEnd(window);
+  const { errored, reason: classifiedReason } = classifyHarnessEnd(window);
+  const execFailure = classifyProviderExecFailure(
+    window.ended === undefined ? window.execResult?.errorMessage : undefined,
+  );
+  const classifiedApiErrorStatus = execFailure.apiErrorStatus;
+  const classifiedProviderErrorKind = execFailure.providerErrorKind;
   // An exec the sandbox ended (a hang) is named as such, not as a crash.
   const sandboxEnd = sandboxEndOf(window);
   const reason = sandboxEnd?.reason ?? classifiedReason;
