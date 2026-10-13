@@ -972,8 +972,16 @@ output:
       (`automations.codingAgent.button`) → it is the last button at the
       canvas's top right in Canvas, List and Source, and the primary action of
       a version with no nodes (`automations.canvas.empty.title`); its dialog
-      shows **Name of this automation** (`automations.codingAgent.nameLabel`)
-      to copy, **Set up MCP** (`automations.codingAgent.setUp`) opening
+      shows what SET-F89 shows — the **Claude Code**, **Codex** and **Other**
+      tabs with their commands, the line that waits for an agent to sign in and
+      then names it, and a prompt that names this automation
+      (`codingAgent.prompt.edit`) with **[Describe the change you want.]**
+      marked — and **Setup guide** (`codingAgent.dialog.guide`) opening the
+      guide in a new tab. With the agent sign-in switched off
+      (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) it shows **Name of
+      this automation** (`automations.codingAgent.nameLabel`) to copy, **Set up
+      MCP** (`automations.codingAgent.setUp`) opening
       `/dashboard/{org}/settings/api/mcp`, and **How to connect a coding
       agent** (`automations.codingAgent.learnMore`) opening the MCP endpoint
       guide in a new tab.
