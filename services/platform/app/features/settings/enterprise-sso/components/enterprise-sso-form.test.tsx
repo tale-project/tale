@@ -272,14 +272,18 @@ describe('EnterpriseSsoForm validation + save', () => {
 
   it('preserves stored Generic OIDC claim mappings on an unrelated edit', async () => {
     upsertOidcMock.mockClear();
+    // The read view omits the client id; the form reveals it on mount and the
+    // schema requires it, so seed the reveal or Save never enables.
+    revealClientIdMock.mockResolvedValueOnce('client-123');
     const { user } = renderForm(connectedGenericOidc);
 
-    await user.clear(screen.getByRole('textbox', { name: /display name/i }));
-    await user.type(
-      screen.getByRole('textbox', { name: /display name/i }),
-      'Renamed SSO',
-    );
-    await user.click(await screen.findByRole('button', { name: /^save$/i }));
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
+    await user.clear(displayName);
+    await user.type(displayName, 'Renamed SSO');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
 
     await waitFor(() => expect(upsertOidcMock).toHaveBeenCalledTimes(1));
     expect(upsertOidcMock.mock.calls[0][0].claimMappings).toEqual({
