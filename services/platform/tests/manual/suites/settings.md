@@ -1274,7 +1274,7 @@ run.
   goes through. Repeat with B's **Reset** (`common.actions.reset`) confirmed
   while A holds an unsaved color → A's **Save** is refused the same way and the
   reset stays after a reload.
-- [ ] `SET-B38` · **A roster draft survives another session's change** — On a
+- [ ] `SET-B39` · **A roster draft survives another session's change** — On a
   throwaway organization with a team of one member and two more people, open
   `/dashboard/{org}/settings/teams` in two windows, A and B, and **Edit team**
   (`settings.teams.editTeam`) in both. In A tick a second person under
