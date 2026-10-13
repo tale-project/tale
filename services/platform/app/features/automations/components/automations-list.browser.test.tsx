@@ -24,7 +24,7 @@ import { AutomationsList } from './automations-list';
 import '@/app/globals.css';
 
 /**
- * The automations list's Trigger column in real Chromium (#4019), for what
+ * The automations list's Trigger column in real Chromium, for what
  * jsdom cannot judge: every state names itself in words at AA contrast in
  * both themes, whole in every shipped language at a laptop width, and a
  * keyboard that reaches a row reads its trigger beside its deployed version

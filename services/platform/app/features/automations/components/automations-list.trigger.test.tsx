@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The Trigger column over the real listing read (#4019): `useAutomations`,
+ * The Trigger column over the real listing read: `useAutomations`,
  * the adapter row and `backendFetch` run unchanged, and only `fetch` is
  * answered here, as the listing door answers it. Each row says, apart from
  * its deployed version, whether its trigger starts runs on its own — in

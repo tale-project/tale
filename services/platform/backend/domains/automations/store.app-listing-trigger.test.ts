@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 /**
- * The app listing says what starts each automation on its own (#4019): the
+ * The app listing says what starts each automation on its own: the
  * list's Trigger column reads the binding's kind, its switch and its pause
  * stamp from the one trigger read the REST listing makes too — never a
  * guess, and never the binding's other fields (its fixed input, its webhook
@@ -99,7 +99,7 @@ function listingSql(): {
   return { sql: tag as unknown as Sql, reads };
 }
 
-describe('the app listing names what starts each automation (#4019)', () => {
+describe('the app listing names what starts each automation', () => {
   it('reads the binding kind, switch and pause stamp, and null when nothing is bound', async () => {
     const { sql } = listingSql();
     const rows = await listAutomationsForApp(sql, ORG);
