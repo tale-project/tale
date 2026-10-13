@@ -3163,6 +3163,27 @@ describe('runTurn — the files a tool made', () => {
     ]);
   });
 
+  it('tells the tools nothing about shown files when the history was trimmed [CHAT-R24]', async () => {
+    const seen: (ReadonlySet<string> | undefined)[] = [];
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        { name: 'run_code', description: 'Run code.', parameters: {} },
+      ],
+      execute(_call, options) {
+        seen.push(options?.shownFiles);
+        return Promise.resolve({ status: 'ok', artifacts: [ARTIFACT] });
+      },
+    };
+    const d = deps({
+      model: workModel([{ id: 'call_1', name: 'run_code', input: {} }]),
+      tools: executor,
+    });
+
+    await runTurn(request({ historyOmittedCount: 40 }), d.deps);
+
+    expect(seen).toEqual([undefined]);
+  });
+
   it('lifts each produced file onto the reply, after the result that names it', async () => {
     const { executor } = workExecutor({ status: 'ok', artifacts: [ARTIFACT] });
     const d = deps({

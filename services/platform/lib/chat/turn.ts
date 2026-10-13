@@ -1597,10 +1597,13 @@ export async function runTurn(
 
     const executor = deps.tools;
     const maxToolRounds = deps.maxToolRounds ?? MAX_TOOL_ROUNDS;
-    /** The files the turn's history already shows, by ref. */
-    const historyFileRefs = request.history.flatMap((message) =>
-      artifactRefs(message.parts),
-    );
+    /** The files the turn's history already shows, by ref — known only
+     * when the history holds the whole conversation: a trimmed window leaves
+     * out replies that may still show a file above it. */
+    const historyFileRefs =
+      (request.historyOmittedCount ?? 0) > 0
+        ? undefined
+        : request.history.flatMap((message) => artifactRefs(message.parts));
     /** Parts settled by finished tool rounds, in authored order. */
     const settledParts: MessagePart[] = [];
     /** The TTFT anchor is the FIRST round's first provider text SSE;
@@ -1824,15 +1827,19 @@ export async function runTurn(
       let stoppedByBatch = false;
       const runBatch = async (): Promise<readonly unknown[]> => {
         // What the conversation shows at this step: the files its history
-        // carries and those earlier steps of this reply attached.
-        const shownFiles = new Set([
-          ...historyFileRefs,
-          ...artifactRefs(settledParts),
-        ]);
+        // carries and those earlier steps of this reply attached. Unknown
+        // past a trimmed history, where a tool keeps to what it delivered.
+        const shownFiles =
+          historyFileRefs === undefined
+            ? undefined
+            : new Set([...historyFileRefs, ...artifactRefs(settledParts)]);
         const batch = await runToolBatch({
           calls,
           execute: (call, options) =>
-            executor.execute(call, { ...options, shownFiles }),
+            executor.execute(
+              call,
+              shownFiles === undefined ? options : { ...options, shownFiles },
+            ),
           signal: request.signal,
           poll: async () => {
             // The same write that keeps a streaming reply alive and reads
