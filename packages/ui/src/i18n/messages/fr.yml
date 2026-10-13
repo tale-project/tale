@@ -708,6 +708,10 @@ changeList:
   after: Après
   empty: Aucune modification
 
+permissionSummary:
+  allowed: 'Autorisé :'
+  notAllowed: 'Non autorisé :'
+
 flow:
   canvas:
     roleDescription: diagramme de flux
