@@ -14,6 +14,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 const service = vi.hoisted(() => ({
   listAgentConnections: vi.fn(),
   disconnectAgent: vi.fn(),
+  readAgentConnectionAccess: vi.fn(),
 }));
 const consent = vi.hoisted(() => ({ readAgentConsentContext: vi.fn() }));
 /** The session the mocked sign-in answers with, and the organization gate
@@ -58,8 +59,12 @@ import { ConsentContextError } from './consent-context.ts';
 import { createAgentConnectionRoutes } from './routes.ts';
 import { AgentConnectionError } from './service.ts';
 
-function app() {
-  return createAgentConnectionRoutes({ sql: {} as never, auth: {} as never });
+function app(signInOn = false) {
+  return createAgentConnectionRoutes({
+    sql: {} as never,
+    auth: {} as never,
+    signInOn,
+  });
 }
 
 beforeEach(() => {
@@ -115,6 +120,40 @@ describe('GET /api/app/agent-connections', () => {
       expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
     }
     expect(service.listAgentConnections).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/app/agent-connections/access [AGCONN-R23]', () => {
+  it('asks what the signed-in person has to do with agents in this organization, in the role they hold here', async () => {
+    service.readAgentConnectionAccess.mockResolvedValue({
+      mayConnect: true,
+      holdsConnection: false,
+    });
+    const res = await app().request('/access');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      mayConnect: true,
+      holdsConnection: false,
+      signInOn: false,
+    });
+    expect(service.readAgentConnectionAccess.mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org-1',
+      userId: 'ada',
+      role: 'developer',
+    });
+    // The page is for a member of the organization: the gate ran first.
+    expect(session.orgGateRuns).toBe(1);
+  });
+
+  it('says whether the deployment lets agents sign in, which the page is not offered without', async () => {
+    service.readAgentConnectionAccess.mockResolvedValue({
+      mayConnect: true,
+      holdsConnection: false,
+    });
+    const on = await app(true).request('/access');
+    expect(await on.json()).toMatchObject({ signInOn: true });
+    const off = await app(false).request('/access');
+    expect(await off.json()).toMatchObject({ signInOn: false });
   });
 });
 

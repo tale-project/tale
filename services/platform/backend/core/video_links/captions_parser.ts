@@ -357,10 +357,44 @@ function lineWeight(words: string): number {
 export function captionsToParagraphSegments(
   segments: CaptionSegment[],
 ): ParagraphSegment[] {
-  return segments.map((s) => ({
-    startSec: s.startSec,
-    endSec: s.endSec,
-    text: s.text,
-    ...(s.speaker ? { speaker: s.speaker } : {}),
+  return segments.map((segment, index) => ({
+    startSec: segment.startSec,
+    endSec: segment.endSec,
+    text:
+      captionSeparator(segments[index - 1]?.text ?? '', segment.text) +
+      segment.text,
+    ...(segment.speaker ? { speaker: segment.speaker } : {}),
   }));
+}
+
+function captionSeparator(previous: string, next: string): string {
+  if (!previous || !next || /\s$/u.test(previous) || /^\s/u.test(next)) {
+    return '';
+  }
+  if (
+    /[\p{Ps}“‘«]$/u.test(previous) ||
+    /(?:^|\s)["']$/u.test(previous) ||
+    /^[\p{Pe}\p{Pf},.!?;:%…]/u.test(next) ||
+    /^["'](?:$|[,.!?;:])/u.test(next) ||
+    /^\p{M}/u.test(next) ||
+    /[-‐‑]$/u.test(previous) ||
+    /^[-‐‑]/u.test(next) ||
+    /^'(?:s|t|re|ve|ll|d|m)\b/iu.test(next) ||
+    (/[\p{L}\p{N}]['’]$/u.test(previous) &&
+      /^[\p{L}\p{N}]/u.test(next) &&
+      !/(?:^|[^\p{L}\p{N}])["'‘“][\p{L}\p{N}]/u.test(previous))
+  ) {
+    return '';
+  }
+  const previousBoundary =
+    previous.match(/[\p{L}\p{N}\p{M}][\p{P}\p{S}]*$/u)?.[0] ?? '';
+  const nextBoundary =
+    next.match(/^[\p{P}\p{S}]*[\p{L}\p{N}\p{M}]/u)?.[0] ?? '';
+  if (
+    UNSPACED_SCRIPT.test(previousBoundary) ||
+    UNSPACED_SCRIPT.test(nextBoundary)
+  ) {
+    return '';
+  }
+  return ' ';
 }

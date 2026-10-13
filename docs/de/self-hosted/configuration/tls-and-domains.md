@@ -67,7 +67,7 @@ Wenn du stattdessen ein eigenes Tale-Proxy-Image mit eigener Caddyfile verwaltes
 
 Bei einem verwalteten Deployment mit `identity.bootstrap: "fresh"` gehört die [Migration des verwalteten Hostnamens](/de/self-hosted/install/cli-install#managed-origin-migration) zu diesem Wechsel. Sie benötigt den gespeicherten Deployment-Zustand und ein ausdrückliches `identity.migrateOriginFrom`. Nur `HOST` und `SITE_URL` zu ändern aktualisiert die verwalteten Identitäts- und Client-Journale nicht. Behalte Konto, Organisation und Client-Zugangsdaten bei und exportiere nach dem abgeschlossenen Deployment die Client-Konfiguration für den neuen Issuer.
 
-Setze für einen Unterpfad wie `https://example.com/app` zusätzlich `BASE_PATH=/app`. Erhalte dieses Präfix bei Anfragen an Tales Proxy: Seine erzeugten Routen entfernen es intern. Prüfe absolute Links und Callbacks, nicht nur die Startseite. Halte bei einem geplanten Übergang die alte Domain erreichbar, solange Nutzer deren Links oder Sitzungen benötigen.
+Setze für einen Unterpfad wie `https://example.com/app` zusätzlich `BASE_PATH=/app`. Erhalte dieses Präfix bei Anfragen an Tales Proxy: Seine erzeugten Routen entfernen es intern. Prüfe absolute Links und Callbacks, nicht nur die Startseite. Halte bei einem geplanten Übergang die alte Domain erreichbar, solange Nutzer deren Links oder Sitzungen benötigen. Coding-Agents, die an der alten Adresse verbunden waren, melden sich an der neuen erneut an.
 
 ## Mehrere Domains bedienen {#mehrere-domains-gleichzeitig}
 
@@ -98,3 +98,14 @@ Bei einem verwalteten Deployment deklarierst du diese Ursprünge als `additional
 ### Alle Anbieter-Callbacks registrieren
 
 Kopiere unter **Einstellungen > Enterprise-SSO** die OIDC-Weiterleitungs- oder SAML-ACS-URL jeder Domain. Die SAML-Metadaten enthalten die konfigurierten ACS-Einträge. Für Connectors findest du die Weiterleitungs-URLs je Domain unter **Einstellungen > Connectors > OAuth-Apps**. Registriere die benötigten URLs bei jedem Anbieter und teste eine neue Anmeldung von jedem unterstützten Ursprung.
+
+## Die Anmeldedokumente für Coding-Agents weiterleiten {#agent-sign-in-domains}
+
+Coding-Agents finden den Anmeldeserver von Tale in Dokumenten auf der obersten Ebene des Hosts, unter welchem Basispfad Tale auch läuft. Der Proxy von Tale leitet sie weiter. Ein eigener Proxy oder Load Balancer muss diese Pfade an jeder Adresse, die du bedienst, an das Backend schicken:
+
+| Pfad | Was es ist |
+| --- | --- |
+| `/.well-known/oauth-protected-resource` und `/.well-known/oauth-protected-resource/api/v1/mcp` | Der MCP-Endpunkt und der Anmeldeserver, der ihn schützt. |
+| `/.well-known/oauth-authorization-server/api/auth` | Die Metadaten des Anmeldeservers. Unter einem Basispfad enthält der Pfad ihn, etwa `/.well-known/oauth-authorization-server/app/api/auth` für `/app`. |
+
+Alles Weitere, was ein Agent aufruft, liegt wie jede andere Route unter dem eigenen Präfix von Tale: `/api/auth/oauth2/authorize`, `/api/auth/oauth2/token` und, für einen Agent, der sich selbst registriert, `/api/auth/oauth2/register`. Jede Adresse in `ADDITIONAL_SITE_URLS` hat ein eigenes Protected-Resource-Dokument, leite also die Well-known-Pfade an jeder von ihnen weiter. Siehe [Coding-Agents anmelden lassen](/de/self-hosted/configuration/authentication#coding-agent-sign-in).

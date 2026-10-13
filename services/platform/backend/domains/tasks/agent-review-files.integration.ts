@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { TaskAgentReviewInput } from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
 import { z } from 'zod/v4';
@@ -25,6 +26,12 @@ import {
 } from '../../lib/object-store.ts';
 import { deleteFile } from '../files/service.ts';
 import { ensureDefaultObjectStore } from '../object_storage/bootstrap.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
+import {
+  agentRecordTaskOutputsTrusted,
+  updateTask,
+  type TaskAttachmentEntry,
+} from './service.ts';
 
 type Body = Record<string, unknown>;
 const isRecord = (value: unknown): value is Body =>
@@ -42,8 +49,10 @@ const stageBody = z
 
 export async function checkAgentReviewFiles(args: {
   sql: Sql;
+  auth: ProjectAuthContext;
   base: string;
   orgId: string;
+  foreignOrgId: string;
   orgSlug: string;
   reviewerId: string;
   sessionId: string;
@@ -219,6 +228,121 @@ export async function checkAgentReviewFiles(args: {
       `status=${String(replay.status)}`,
     );
 
+    const acceptedMetadata = [
+      { fileName: 'blank.bin', fileType: '' },
+      {
+        fileName: 'long-mime.bin',
+        fileType: `application/x-${'a'.repeat(241)}`,
+      },
+      ...[240, 241, 255].map((length) => ({
+        fileName: 'a'.repeat(length),
+        fileType: 'application/octet-stream',
+      })),
+      { fileName: 'é'.repeat(121), fileType: 'application/octet-stream' },
+      {
+        fileName: `${'🦀'.repeat(60)}é.bin`,
+        fileType: 'application/octet-stream',
+      },
+      {
+        fileName: `../${'界'.repeat(80)}.bin`,
+        fileType: 'application/octet-stream',
+      },
+      { fileName: `${'界'.repeat(80)}/a.bin`, fileType: '' },
+      { fileName: `${'界'.repeat(80)}\\b.bin`, fileType: '' },
+      { fileName: 'unknown.bin', fileType: 'unknown' },
+    ];
+    for (const kind of ['attachment', 'output'] as const) {
+      const metadataTask = await args.submit(`Accepted ${kind} metadata`);
+      const selectedFiles: TaskAttachmentEntry[] = [];
+      for (const [index, display] of acceptedMetadata.entries()) {
+        const objectKey = buildObjectKey(store, args.orgSlug);
+        const exactBytes = Buffer.concat([bytes, Buffer.from([index])]);
+        await s3PutObject(
+          store,
+          objectKey,
+          exactBytes,
+          'application/octet-stream',
+        );
+        const id = randomUUID();
+        const storageRef = `s3:${objectKey}`;
+        await sql`INSERT INTO app.file_metadata (id, org_id, storage_ref, file_name, content_type, size, uploaded_by, created_at_ms)
+          VALUES (${id}, ${orgId}, ${storageRef}, ${display.fileName}, 'application/octet-stream', ${exactBytes.length}, ${args.auth.userId}, ${Date.now()})`;
+        selectedFiles.push({
+          ...display,
+          fileId: storageRef,
+          fileSize: exactBytes.length,
+        });
+      }
+      await transactSerializable(sql, async (tx) => {
+        if (kind === 'attachment') {
+          await updateTask(tx, args.auth, {
+            taskId: metadataTask.taskId,
+            attachments: selectedFiles,
+          });
+        } else {
+          await agentRecordTaskOutputsTrusted(tx, {
+            organizationId: orgId,
+            taskId: metadataTask.taskId,
+            runId: metadataTask.runId,
+            files: selectedFiles,
+          });
+        }
+      });
+      const selectedInput = await args.inputFor(metadataTask.taskId);
+      const selectedSnapshot = await args.snapshot(metadataTask.taskId);
+      const listed = output(
+        await dispatch(token, { taskId: metadataTask.taskId }, 'task_get'),
+      ).reviewFiles;
+      const listedFiles =
+        isRecord(listed) && Array.isArray(listed.files) ? listed.files : [];
+      const paths = [];
+      for (const [index, selected] of selectedFiles.entries()) {
+        const listedFile: unknown = listedFiles[index];
+        const receipt = await stage(selectedInput, selected.fileId);
+        const staged = output(receipt);
+        const destination = String(staged.path);
+        const leaf = path.basename(destination);
+        const actual =
+          receipt.status === 'ok'
+            ? await readFile(localFile(receipt))
+            : Buffer.alloc(0);
+        const exactBytes = Buffer.concat([bytes, Buffer.from([index])]);
+        record(
+          `agent review files: accepted ${kind} metadata ${index} preserves display and exact bytes with a bounded leaf`,
+          isRecord(listedFile) &&
+            listedFile.unavailableReason === null &&
+            listedFile.fileId === selected.fileId &&
+            listedFile.fileName === selected.fileName &&
+            listedFile.fileType === selected.fileType &&
+            listedFile.kind === kind &&
+            receipt.status === 'ok' &&
+            staged.fileId === selected.fileId &&
+            staged.fileName === selected.fileName &&
+            staged.fileType === selected.fileType &&
+            staged.kind === kind &&
+            (kind === 'attachment' || staged.runId === metadataTask.runId) &&
+            checksum(actual) === checksum(exactBytes) &&
+            staged.bytes === exactBytes.length &&
+            Buffer.byteLength(leaf) <= 240 &&
+            !/[\\/\x00-\x1f\x7f�]/.test(leaf) &&
+            !['', '.', '..'].includes(leaf) &&
+            destination.split('/').length === 9,
+          `status=${String(receipt.status)} nameUnits=${selected.fileName.length} leafBytes=${Buffer.byteLength(leaf)} checksumMatches=${checksum(actual) === checksum(exactBytes)}`,
+        );
+        paths.push(destination);
+      }
+      record(
+        `agent review files: ${kind} shared-prefix leaves retain distinct blob destinations and immutable task state`,
+        new Set(paths).size === selectedFiles.length &&
+          path.basename(paths[8] ?? '') === path.basename(paths[9] ?? '') &&
+          isDeepStrictEqual(
+            selectedSnapshot,
+            await args.snapshot(metadataTask.taskId),
+          ),
+        `destinations=${new Set(paths).size}`,
+      );
+    }
+
     // A task holds the production storage-ref form even after its upload
     // row goes. Retaining those bytes does not recreate metadata authority
     // for the review tool, including a trusted size and document bindings.
@@ -281,6 +405,65 @@ export async function checkAgentReviewFiles(args: {
     );
 
     const callsBeforeArchive = stageCalls;
+    const foreignKey = `foreign-review-fixture/${randomUUID()}`;
+    const foreignRef = `s3:${foreignKey}`;
+    await s3PutObject(store, foreignKey, bytes, 'application/octet-stream');
+    await sql`INSERT INTO app.file_metadata (id, org_id, storage_ref, file_name, content_type, size, created_at_ms)
+      VALUES (${randomUUID()}, ${args.foreignOrgId}, ${foreignRef}, 'foreign.bin', 'application/octet-stream', ${bytes.length}, ${Date.now()})`;
+    const deniedTask = await args.submit(
+      'Invalid review metadata stays unavailable',
+    );
+    for (const [reason, sourceFiles] of [
+      ['invalid_metadata', [{ ...entry, fileName: 'bad\u0001name' }]],
+      ['invalid_metadata', [{ ...entry, fileType: 'text/plain\r\n' }]],
+      ['ambiguous_membership', [entry, entry]],
+      ['invalid_metadata', [{ ...entry, fileSize: bytes.length - 1 }]],
+      ['metadata_missing', [{ ...entry, fileId: foreignRef }]],
+    ] as const) {
+      await sql`UPDATE app.tasks SET outputs = ${sql.json([...sourceFiles])} WHERE id = ${deniedTask.taskId}`;
+      const deniedInput = await args.inputFor(deniedTask.taskId);
+      const deniedRead = output(
+        await dispatch(token, { taskId: deniedTask.taskId }, 'task_get'),
+      ).reviewFiles;
+      const deniedFiles =
+        isRecord(deniedRead) && Array.isArray(deniedRead.files)
+          ? deniedRead.files
+          : [];
+      const deniedStage = await stage(deniedInput, sourceFiles[0].fileId);
+      record(
+        `agent review files: ${reason} negative control refuses a staging receipt`,
+        isRecord(deniedFiles[0]) &&
+          deniedFiles[0].unavailableReason === reason &&
+          deniedStage.status === 'invalid_args' &&
+          String(deniedStage.message).startsWith(
+            'TASK_REVIEW_FILE_UNAVAILABLE:',
+          ) &&
+          stageCalls === callsBeforeArchive,
+        `status=${String(deniedStage.status)} newStages=${stageCalls - callsBeforeArchive}`,
+      );
+    }
+    const oversizedId = randomUUID();
+    const oversizedSize = 20 * 1024 * 1024 + 1;
+    await sql`INSERT INTO app.file_metadata (id, org_id, storage_ref, file_name, content_type, size, created_at_ms)
+      VALUES (${oversizedId}, ${orgId}, ${ref}, 'large.bin', 'application/octet-stream', ${oversizedSize}, ${Date.now()})`;
+    await sql`UPDATE app.tasks SET outputs = ${sql.json([{ ...entry, fileId: oversizedId, fileSize: oversizedSize }])} WHERE id = ${deniedTask.taskId}`;
+    const oversizedInput = await args.inputFor(deniedTask.taskId);
+    const oversizedRead = output(
+      await dispatch(token, { taskId: deniedTask.taskId }, 'task_get'),
+    ).reviewFiles;
+    const oversizedFiles =
+      isRecord(oversizedRead) && Array.isArray(oversizedRead.files)
+        ? oversizedRead.files
+        : [];
+    const oversizedStage = await stage(oversizedInput, oversizedId);
+    record(
+      'agent review files: the 20 MiB metadata ceiling still refuses before transfer',
+      isRecord(oversizedFiles[0]) &&
+        oversizedFiles[0].unavailableReason === 'too_large' &&
+        oversizedStage.status === 'invalid_args' &&
+        stageCalls === callsBeforeArchive,
+      `status=${String(oversizedStage.status)} newStages=${stageCalls - callsBeforeArchive}`,
+    );
     await sql`UPDATE app.tasks SET archived_at_ms = ${Date.now()} WHERE id = ${target.taskId}`;
     const archived = await stage(input, fileId);
     await sql`UPDATE app.tasks SET archived_at_ms = NULL WHERE id = ${target.taskId}`;

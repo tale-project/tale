@@ -210,7 +210,6 @@ export async function checkAgentOAuth(
     });
     const refusals = await Promise.all([
       register({ redirect_uris: ['https://evil.example/callback'] }),
-      register({ redirect_uris: [AGENT_REDIRECT], scope: 'openid tale:mcp' }),
       register({ redirect_uris: [AGENT_REDIRECT], jwks_uri: 'https://x.test' }),
       register({
         redirect_uris: [AGENT_REDIRECT],
@@ -218,15 +217,35 @@ export async function checkAgentOAuth(
       }),
     ]);
     check(
-      'a known agent host registers; a foreign web redirect, a scope beyond the agent ones, keys of its own and another grant are refused',
+      'a known agent host registers; a foreign web redirect, keys of its own and another grant are refused',
       hosted.status === 201 &&
-        refusals.map((refusal) => refusal.status).join() ===
-          '400,400,400,400' &&
+        refusals.map((refusal) => refusal.status).join() === '400,400,400' &&
         refusals[0]?.answer.error === 'invalid_redirect_uri' &&
         refusals
           .slice(1)
           .every((r) => r.answer.error === 'invalid_client_metadata'),
       JSON.stringify(refusals.map((r) => [r.status, r.answer.error])),
+    );
+
+    // A client that registers with every scope the sign-in server lists is
+    // registered for the agent ones: what is beyond them is dropped, never
+    // granted, and never a reason to refuse it.
+    const wide = await register({
+      client_name: 'Lane wide agent',
+      redirect_uris: [AGENT_REDIRECT],
+      token_endpoint_auth_method: 'none',
+      scope: 'openid profile email tale:organization offline_access tale:mcp',
+    });
+    const wideId = wide.answer.client_id;
+    if (typeof wideId === 'string') created.push(wideId);
+    const wideStored = await sql<{ scopes: string[] }[]>`
+      SELECT "scopes" FROM "oauthClient" WHERE "clientId" = ${String(wideId)}
+    `;
+    check(
+      'an agent that registers with identity scopes beside the agent ones is registered, for the agent scopes alone',
+      wide.status === 201 &&
+        wideStored[0]?.scopes.join() === AGENT_SCOPE_SET.join(),
+      `${wide.status} ${JSON.stringify(wide.answer)} ${JSON.stringify(wideStored)}`,
     );
 
     // An authorization request, signed in, as a browser navigates it.
@@ -297,6 +316,43 @@ export async function checkAgentOAuth(
         documentClient[0]?.clientDiscoveryId === 'cimd' &&
         documentClient[0].name === 'Lane Agent',
       `${documentAsk.status} ${documentNext.href} ${JSON.stringify(documentClient)}`,
+    );
+    // Codex asks for every scope the sign-in server lists, identity scopes
+    // included: it is sent on to consent for the agent ones, not refused.
+    const everything = [
+      'openid',
+      'profile',
+      'email',
+      'tale:organization',
+      ...AGENT_SCOPE_SET,
+    ].join(' ');
+    const wideAsk = await authorize({
+      client_id: DOCUMENT_URL,
+      redirect_uri: AGENT_REDIRECT,
+      scope: everything,
+      resource: mcp,
+    });
+    const wideNext = await locationOf(wideAsk);
+    check(
+      'an agent that asks for every listed scope, identity scopes included, goes on to consent for the agent scopes alone',
+      wideNext.pathname === '/oauth/consent' &&
+        wideNext.searchParams.get('scope') === AGENT_SCOPE_SET.join(' ') &&
+        wideNext.searchParams.get('error') === null,
+      `${wideAsk.status} ${wideNext.href}`,
+    );
+    // Identity scopes alone ask for nothing the endpoint grants: refused,
+    // not given the agent scopes in their place.
+    const identityAsk = await authorize({
+      client_id: DOCUMENT_URL,
+      redirect_uri: AGENT_REDIRECT,
+      scope: 'openid profile email',
+    });
+    const identityNext = await locationOf(identityAsk);
+    check(
+      'an agent that asks for identity scopes alone is refused, not given the agent scopes in their place',
+      identityNext.pathname !== '/oauth/consent' &&
+        identityNext.searchParams.get('error') === 'invalid_scope',
+      `${identityAsk.status} ${identityNext.href}`,
     );
     // The deployment's own host, on the scheme a document needs.
     const ownDocument = `https://${new URL(base).host}/agents/client.json`;

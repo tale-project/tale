@@ -95,9 +95,14 @@ async function main(): Promise<void> {
   }
 
   // A database that is restarting as this process boots is waited out for
-  // up to a minute from its first refusal, not reported: by the migrations,
-  // pg-boss's start and the schedules alike, on one clock for the whole boot
-  // (db/boot-wait.ts). Only an outage past that fails the boot below.
+  // up to a minute from its first refusal, not reported, by the steps the
+  // boot cannot do without: the migrations, the MCP resources, pg-boss's
+  // start and the schedules, on one clock for the whole boot
+  // (db/boot-wait.ts). Only an outage past that fails the boot below. The
+  // other steps that touch the database do not wait: the best-effort ones
+  // (aligning the queue policies, the boot's liveness sweep, the dev seed)
+  // log a warning and carry on, and the knowledge and object-store
+  // bootstraps report what they meet.
   const databaseWait = createBootDatabaseWait();
 
   // App migrations (numbered .sql files and .ts data migrations) run in every
@@ -112,7 +117,7 @@ async function main(): Promise<void> {
   if (auth !== null) {
     // The MCP endpoint as the sign-in server's resource, on every address
     // the deployment answers on — once the provider's tables exist, and
-    // through the boot's wait like every step that needs the database.
+    // through the boot's wait, like the migrations before it.
     await databaseWait(() => seedMcpResources(sql, configuredMcpResources()));
   }
   // The additive custody schema exists before this can inventory legacy

@@ -67,7 +67,7 @@ Modifie `HOST` et `SITE_URL` ensemble, ainsi que les points d’accès de stocka
 
 Pour un déploiement géré créé avec `identity.bootstrap: "fresh"`, suis aussi la [procédure de migration du nom d’hôte](/fr/self-hosted/install/cli-install#managed-origin-migration). Elle exige l’état conservé du déploiement et un `identity.migrateOriginFrom` explicite. Modifier uniquement `HOST` et `SITE_URL` ne met pas à jour les journaux de l’identité et des clients gérés. Conserve le compte, l’organisation et les identifiants client, puis exporte la configuration des applications clientes pour le nouvel émetteur une fois le déploiement prêt.
 
-Pour un sous-chemin comme `https://example.com/app`, définis aussi `BASE_PATH=/app`. Garde ce préfixe dans les requêtes envoyées au proxy Tale : ses routes générées le retirent en interne. Vérifie les liens absolus et callbacks, pas seulement l’accueil. Lors d’une transition planifiée, conserve l’ancien domaine tant que les utilisateurs ont besoin de ses liens ou sessions.
+Pour un sous-chemin comme `https://example.com/app`, définis aussi `BASE_PATH=/app`. Garde ce préfixe dans les requêtes envoyées au proxy Tale : ses routes générées le retirent en interne. Vérifie les liens absolus et callbacks, pas seulement l’accueil. Lors d’une transition planifiée, conserve l’ancien domaine tant que les utilisateurs ont besoin de ses liens ou sessions. Les agents de code connectés à l’ancienne adresse se reconnectent à la nouvelle.
 
 ## Servir plusieurs domaines {#plusieurs-domaines-a-la-fois}
 
@@ -98,3 +98,14 @@ Pour un déploiement géré, déclare ces origines dans `additionalOrigins` de l
 ### Enregistrer chaque callback fournisseur
 
 Ouvre **Paramètres > SSO d'entreprise** pour copier l’URL de redirection OIDC ou ACS SAML de chaque domaine. Les métadonnées SAML contiennent les entrées ACS configurées. Pour le consentement des connectors, utilise les URL par domaine sous **Paramètres > Connectors > Apps OAuth**. Enregistre les URL nécessaires chez chaque fournisseur et teste une nouvelle connexion depuis chaque origine prise en charge.
+
+## Acheminer les documents de connexion des agents de code {#agent-sign-in-domains}
+
+Les agents de code trouvent le serveur de connexion de Tale dans des documents situés à la racine de l’hôte, quel que soit le chemin de base sous lequel Tale tourne. Le proxy de Tale les transmet. Un proxy ou un répartiteur de charge à toi doit envoyer ces chemins au backend sur chaque adresse que tu sers :
+
+| Chemin | Ce que c’est |
+| --- | --- |
+| `/.well-known/oauth-protected-resource` et `/.well-known/oauth-protected-resource/api/v1/mcp` | Le point d’accès MCP et le serveur de connexion qui le protège. |
+| `/.well-known/oauth-authorization-server/api/auth` | Les métadonnées du serveur de connexion. Sous un chemin de base, le chemin l’inclut, comme `/.well-known/oauth-authorization-server/app/api/auth` pour `/app`. |
+
+Tout le reste de ce qu’appelle un agent se trouve, comme n’importe quelle autre route, sous le préfixe propre de Tale : `/api/auth/oauth2/authorize`, `/api/auth/oauth2/token` et, pour un agent qui s’enregistre lui-même, `/api/auth/oauth2/register`. Chaque adresse de `ADDITIONAL_SITE_URLS` a son propre document de ressource protégée : achemine donc les chemins well-known sur chacune. Voir [Laisser les agents de code se connecter](/fr/self-hosted/configuration/authentication#coding-agent-sign-in).

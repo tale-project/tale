@@ -1418,6 +1418,9 @@ legalHold:
       Rejette la demande et fais déposer une nouvelle par un admin actuel.
     bulkTooLarge: Au maximum 200 entrées par lot.
 modelAccess:
+  targetRequired: Sélectionne une cible pour cette règle.
+  missingTarget: Cible manquante
+  targetsNeedRepair: Certaines règles n’ont pas de cible et ne s’appliquent à personne. Sélectionne une cible pour chaque règle ou supprime-la. Les modifications ne sont enregistrées que lorsque toutes les règles ont une cible.
   title: Accès aux modèles
   description:
     Contrôle quels modèles d'IA sont disponibles pour les utilisateurs,
@@ -1857,7 +1860,8 @@ standardAgent:
     harnessInvalid: L'environnement d'agent choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre environnement d'agent ou Automatique.
     noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Ajoute un accès dans Fournisseurs IA, ou vérifie l'accès aux modèles.
     pinUnavailable: Le modèle choisi ne t'est pas accessible, l'agent standard ne peut donc pas démarrer pour toi. Choisis un autre modèle ou Automatique. Tale ne passe pas à un autre modèle tant que ce choix est enregistré.
-  invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Enregistre-les à nouveau pour les réparer.
+  invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Dans Modèle, choisis un modèle ou Automatique, puis enregistre pour les réparer.
+  invalidSelection: Configuration enregistrée invalide
   savedUnavailable: La sélection enregistrée est actuellement indisponible
   searchHarnesses: Rechercher un environnement d'agent
   noHarnessesFound: Aucun environnement d'agent correspondant

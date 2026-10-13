@@ -93,6 +93,9 @@ function sameList(
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
+/** Whether two servings render the same — every field `sameServedBy`
+ * (`lib/chat/serving.ts`) tells apart, and the endpoint's region too: the
+ * dialog renders both, and the client never validated the blob. */
 function sameServing(
   a: ChatMessageUsage['serving'],
   b: ChatMessageUsage['serving'],
@@ -102,7 +105,9 @@ function sameServing(
   return (
     sameList(a.providers, b.providers) &&
     sameList(a.regions, b.regions) &&
-    sameList(a.models, b.models)
+    sameList(a.models, b.models) &&
+    a.endpoint?.host === b.endpoint?.host &&
+    a.endpoint?.region === b.endpoint?.region
   );
 }
 
@@ -121,6 +126,8 @@ function sameUsage(
     a.durationMs === b.durationMs &&
     a.timeToFirstTokenMs === b.timeToFirstTokenMs &&
     a.perceivedWaitMs === b.perceivedWaitMs &&
+    a.setupMs === b.setupMs &&
+    a.timeToFirstReasoningMs === b.timeToFirstReasoningMs &&
     sameServing(a.serving, b.serving)
   );
 }

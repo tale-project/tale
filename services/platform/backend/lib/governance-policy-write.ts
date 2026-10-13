@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  POLICY_SCHEMAS,
+  POLICY_READ_SCHEMAS as POLICY_SCHEMAS,
   policyTypeToFileBase,
   type FilePolicyType,
 } from '@tale/shared/schemas/governance';

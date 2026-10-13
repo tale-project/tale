@@ -103,6 +103,7 @@ export interface ProjectsContract {
   'projects/mutations:updateProjectAgent': {
     kind: 'mutation';
     args: {
+      expectedUpdatedAt?: number;
       secrets?: string[];
       modelProvider?: string;
       tools?: string[];
@@ -165,6 +166,7 @@ export interface ProjectsContract {
       openTaskCount?: number;
       doneTaskCount?: number;
       projectAgentCount?: number;
+      managedAgentCount?: number;
       taskLabelColors?: Record<string, string>;
       sharedWithTeamIds?: string[];
       /** The audience — every team the project is scoped to; [] = org-wide. */

@@ -25,6 +25,8 @@ Open a team's row to inspect its members. The row menu offers **View**, **Edit**
 
 A team keeps at least one member. To remove the last one, delete the team instead.
 
+If someone else changes the team's members while you are editing it, the dialog keeps your selection and says the membership changed in another session. **Save changes** stays unavailable. Close the dialog and open it again to see the current members, then repeat your change.
+
 A person can belong to more than one team. Their access can come from several teams or from a direct assignment, so removing them from one team does not necessarily remove all access to a resource. Review those other routes when withdrawing access.
 
 Notifications follow the same rule. Someone who can no longer open a project gets no new notifications or emails about its tasks, not even about the tasks they watch. What they were already told stays in their notifications. If they regain access, the tasks they watch notify them again.

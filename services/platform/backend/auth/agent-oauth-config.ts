@@ -5,9 +5,10 @@
  * may register itself (open dynamic client registration, restricted), and
  * to which web hosts a self-registered agent may send the person back.
  *
- * Both ways in are off unless the operator turns them on: an agent can only
- * sign in once every part of the sign-in is in place, and nothing here
- * advertises or opens a way in before then.
+ * Both ways in are on unless the operator turns them off (`false`): a person
+ * signs a coding agent in from the agent itself, and the API key stays the
+ * way for scripts. An operator who does not want agents to sign in turns
+ * both off, and nothing here then advertises or opens a way in.
  *
  * Read once where the authorization server is built (`auth.ts`) and where
  * its endpoints are mounted (`app.ts`); `backend/env.ts` refuses a
@@ -27,13 +28,13 @@ export const DEFAULT_DCR_WEB_REDIRECT_HOSTS = [
 
 export interface AgentOAuthOptions {
   /** Whether an agent may identify itself by an HTTPS client metadata
-   * document (`TALE_MCP_CLIENT_METADATA_DOCUMENTS`, off by default). */
+   * document (`TALE_MCP_CLIENT_METADATA_DOCUMENTS`, on unless `false`). */
   readonly metadataDocuments: boolean;
   /** The hosts such a document may come from; empty: any public HTTPS host
    * (`TALE_MCP_CLIENT_METADATA_HOSTS`). */
   readonly metadataHosts: readonly string[];
   /** Whether an agent may register itself (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION`,
-   * off by default). */
+   * on unless `false`). */
   readonly dynamicRegistration: boolean;
   /** The HTTPS redirect hosts a self-registered agent may name
    * (`TALE_MCP_DCR_WEB_REDIRECT_HOSTS`). */
@@ -71,9 +72,9 @@ function hostList(value: string | undefined): string[] {
   ];
 }
 
-/** `true` only when the variable says `true`. */
-function onOnlyWhenTrue(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === 'true';
+/** `true` unless the variable says `false`. */
+function onUnlessFalse(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() !== 'false';
 }
 
 export function agentOAuthOptionsFromEnv(
@@ -81,9 +82,9 @@ export function agentOAuthOptionsFromEnv(
 ): AgentOAuthOptions {
   const webRedirectHosts = env.TALE_MCP_DCR_WEB_REDIRECT_HOSTS;
   return {
-    metadataDocuments: onOnlyWhenTrue(env.TALE_MCP_CLIENT_METADATA_DOCUMENTS),
+    metadataDocuments: onUnlessFalse(env.TALE_MCP_CLIENT_METADATA_DOCUMENTS),
     metadataHosts: hostList(env.TALE_MCP_CLIENT_METADATA_HOSTS),
-    dynamicRegistration: onOnlyWhenTrue(
+    dynamicRegistration: onUnlessFalse(
       env.TALE_MCP_DYNAMIC_CLIENT_REGISTRATION,
     ),
     webRedirectHosts:

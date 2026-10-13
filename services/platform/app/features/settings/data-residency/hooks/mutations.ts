@@ -48,7 +48,12 @@ export function useDeleteOrgObjectStorageConnection(organizationId: string) {
 
 /** Probe a candidate bucket with a real PUT+GET+DELETE round-trip. */
 export function useTestOrgObjectStorageConnection() {
-  return useBackendAction('object_storage/actions:testObjectStorageConnection');
+  return useBackendAction(
+    'object_storage/actions:testObjectStorageConnection',
+    {
+      errorToast: false,
+    },
+  );
 }
 
 /**
@@ -91,7 +96,9 @@ export function useDeleteOrgKnowledgeConnection(organizationId: string) {
 
 /** Probe a candidate knowledge Postgres (pgvector/ParadeDB availability). */
 export function useTestOrgKnowledgeConnection() {
-  return useBackendAction('knowledge/actions:testKnowledgeConnection');
+  return useBackendAction('knowledge/actions:testKnowledgeConnection', {
+    errorToast: false,
+  });
 }
 
 function useInvalidateOrgEmbedding(organizationId: string) {

@@ -35,6 +35,7 @@ import {
   detachSkillFromAgents,
   getProjectAuthContext,
   insertManagedProjectAgent,
+  listProjects,
   updateProjectAgent,
 } from './service.ts';
 import { ensureStandardAgent } from './standard-agent.ts';
@@ -171,6 +172,26 @@ export async function checkStandardAgent(
         [first.created, second.created].filter(Boolean).length === 1 &&
         counted[0]?.count === 1,
       `rows=${managedRows.length} first=${JSON.stringify(first)} second=${JSON.stringify(second)} count=${counted[0]?.count}`,
+    );
+
+    // ---- the project list counts it apart ----------------------------------
+    // The hand-over tells a project whose only agent is the standard agent
+    // from one with agents of its own, in the full and the summary read.
+    const countsOf = async (summary: boolean) => {
+      const rows = await listProjects(sql, auth, { summary });
+      const of = (id: string) => {
+        const row = rows.find((listed) => listed.id === id);
+        return `${row?.projectAgentCount}/${row?.managedAgentCount}`;
+      };
+      return `${of(projectId)} ${of(curatedProjectId)} ${of(emptyProjectId)}`;
+    };
+    // The curated project's agent went in by a plain insert, which leaves the
+    // denormalized total alone: its managed count is what this proves.
+    const listedCounts = [await countsOf(false), await countsOf(true)];
+    record(
+      'standard agent: the project list counts the managed row apart from the total',
+      listedCounts.every((counts) => counts === '1/1 0/0 0/0'),
+      `full=${listedCounts[0]} summary=${listedCounts[1]} (total/managed for the standard, curated and empty projects)`,
     );
 
     // ---- nobody edits it ---------------------------------------------------

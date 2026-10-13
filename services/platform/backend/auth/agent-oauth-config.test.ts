@@ -10,11 +10,11 @@ import {
 } from './agent-oauth-config.ts';
 
 describe('how a deployment lets coding agents sign in', () => {
-  it('opens neither way in by default, so nothing is advertised before the sign-in is complete', () => {
+  it('opens both ways in by default, so a deployment needs no setting for agents to sign in', () => {
     expect(agentOAuthOptionsFromEnv({})).toEqual({
-      metadataDocuments: false,
+      metadataDocuments: true,
       metadataHosts: [],
-      dynamicRegistration: false,
+      dynamicRegistration: true,
       webRedirectHosts: [...DEFAULT_DCR_WEB_REDIRECT_HOSTS],
     });
     expect(DEFAULT_DCR_WEB_REDIRECT_HOSTS).toEqual([
@@ -26,24 +26,39 @@ describe('how a deployment lets coding agents sign in', () => {
     ]);
   });
 
-  it('turns either way on only for the word true', () => {
+  it('turns either way off only for the word false', () => {
     expect(
       agentOAuthOptionsFromEnv({
-        TALE_MCP_CLIENT_METADATA_DOCUMENTS: ' TRUE ',
-        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'true',
-      }),
-    ).toMatchObject({ metadataDocuments: true, dynamicRegistration: true });
-    expect(
-      agentOAuthOptionsFromEnv({
-        TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'false',
-        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: '',
+        TALE_MCP_CLIENT_METADATA_DOCUMENTS: ' FALSE ',
+        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'false',
       }),
     ).toMatchObject({ metadataDocuments: false, dynamicRegistration: false });
+    expect(
+      agentOAuthOptionsFromEnv({
+        TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'true',
+        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: '',
+      }),
+    ).toMatchObject({ metadataDocuments: true, dynamicRegistration: true });
+  });
+
+  it('lets an operator turn off one way and keep the other', () => {
+    expect(
+      agentOAuthOptionsFromEnv({
+        TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'false',
+      }),
+    ).toMatchObject({ metadataDocuments: true, dynamicRegistration: false });
+    expect(
+      agentOAuthOptionsFromEnv({ TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'false' }),
+    ).toMatchObject({ metadataDocuments: false, dynamicRegistration: true });
   });
 
   it('gives agents a way in when either way is on, and none when both are off', () => {
-    const off = agentOAuthOptionsFromEnv({});
+    const off = agentOAuthOptionsFromEnv({
+      TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'false',
+      TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'false',
+    });
     expect(agentSignInOn(off)).toBe(false);
+    expect(agentSignInOn(agentOAuthOptionsFromEnv({}))).toBe(true);
     expect(agentSignInOn({ ...off, metadataDocuments: true })).toBe(true);
     expect(agentSignInOn({ ...off, dynamicRegistration: true })).toBe(true);
     expect(

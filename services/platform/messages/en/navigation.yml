@@ -21,6 +21,7 @@ account: Account
 usage: Usage
 agents: Agents
 mcp: MCP
+connectedAgents: Connected agents
 webdav: WebDAV
 myTeams:
   label: Teams

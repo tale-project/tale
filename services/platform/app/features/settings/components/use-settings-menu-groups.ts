@@ -57,7 +57,10 @@ export function useSettingsMenuGroups(
   const { t: tSettings } = useT('settings');
   const apiAccess = useApiSettingsAccess(organizationId);
   const apiVisible =
-    apiAccess.developer || apiAccess.apiKeys || apiAccess.modelApi;
+    apiAccess.developer ||
+    apiAccess.apiKeys ||
+    apiAccess.modelApi ||
+    apiAccess.agents;
 
   return useMemo<SettingsSectionListGroup[]>(() => {
     const personalConfig: SectionConfig[] = [

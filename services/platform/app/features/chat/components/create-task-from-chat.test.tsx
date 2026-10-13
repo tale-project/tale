@@ -16,7 +16,7 @@ import type { ChatMessageView, ChatProjectSummary } from '../types';
 
 const state = vi.hoisted(() => ({
   projects: [] as ChatProjectSummary[],
-  agentsByProject: {} as Record<string, { _id: string }[]>,
+  agentsByProject: {} as Record<string, { _id: string; managed?: boolean }[]>,
   projectsFailed: false,
   messages: [] as ChatMessageView[],
   navigate: vi.fn(),
@@ -276,6 +276,44 @@ describe('CreateTaskFromChat', () => {
     ).toBeInTheDocument();
   });
 
+  it('treats an unavailable managed-only project as having no agent', async () => {
+    state.standardAgent = { enabled: false, available: false };
+    state.projects = [
+      {
+        ...WEBSITE,
+        agentCount: 1,
+        managedAgentCount: 1,
+        canEdit: false,
+      },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(screen.queryByText('With an agent')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('option', {
+        name: /Website relaunch.*An Editor or Admin can add one/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps an available managed-only project under with-agent projects', async () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.projects = [
+      { ...WEBSITE, agentCount: 1, managedAgentCount: 1, canEdit: false },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(
+      screen.getByRole('option', { name: /Website relaunch.*1 agent/ }),
+    ).toBeInTheDocument();
+  });
+
   it('lists a project without agents as one the standard agent takes, while the organization provides it', async () => {
     state.standardAgent = { enabled: true, available: true };
     state.projects = [
@@ -386,5 +424,41 @@ describe('CreateTaskFromChat', () => {
     open({ projectId: WEBSITE.id });
 
     expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
+  });
+
+  it('hands the task to the standard agent set up in the project while it can run', () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.agentsByProject = {
+      [WEBSITE.id]: [{ _id: 'agent-standard', managed: true }],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toHaveTextContent('agent-standard');
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+
+  it('opens the task unassigned when the project’s only agent is the standard agent and it cannot run', () => {
+    state.standardAgent = { enabled: false, available: false };
+    state.agentsByProject = {
+      [WEBSITE.id]: [{ _id: 'agent-standard', managed: true }],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('project')).toHaveTextContent(WEBSITE.id);
+    expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+
+  it('hands the task to the project’s own agent when the standard agent that cannot run stands beside it', () => {
+    state.standardAgent = { enabled: false, available: false };
+    state.agentsByProject = {
+      [WEBSITE.id]: [
+        { _id: 'agent-standard', managed: true },
+        { _id: 'agent-own' },
+      ],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toHaveTextContent('agent-own');
   });
 });

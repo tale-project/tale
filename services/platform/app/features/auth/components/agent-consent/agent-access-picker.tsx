@@ -3,14 +3,16 @@ import { RadioGroup } from '@tale/ui/radio-group';
 import type { ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import type { AccessLevel } from '@/lib/shared/agent-access';
+import {
+  type AccessLevel,
+  EXTRA_SCOPES,
+  type ExtraScope,
+} from '@/lib/shared/agent-access';
 
 import {
   ACCESS_LEVEL_ORDER,
   type AccessChoice,
   type ConsentOffer,
-  EXTRA_SCOPES,
-  type ExtraScope,
   extraAvailability,
   levelAvailability,
   type Unavailable,

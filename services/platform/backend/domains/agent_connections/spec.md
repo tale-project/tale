@@ -7,7 +7,8 @@ MCP endpoint. The organization keeps one record of each connection: who connecte
 which access, and when and why it ended; the endpoint's own count of calls says when it was last used.
 These rules cover who may connect an agent and with which access, who sees a connection and who ends
 it, what ending one takes away, what ends one without anyone asking, and whether the access token the
-agent then presents opens the endpoint. What the consent page looks like is left to Not yet.
+agent then presents opens the endpoint, and what the page of connected agents in Settings shows and
+does.
 
 ## Connecting an agent
 
@@ -58,6 +59,20 @@ be recorded, the agent gets no code and the person is told to try again
 
 - **Example**: Ada allows Claude Code while the database is unreachable → she is told to try again, and
   Claude Code never receives a code to sign in with.
+
+### AGCONN-R25 · An agent that asks for more than the endpoint grants is given what it grants
+
+A coding agent that asks to sign in, or to register, for every scope the sign-in server lists is not
+refused: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes
+and `offline_access`. Tale takes what the endpoint grants — the agent scopes and `offline_access` — and
+leaves the rest out, so the consent page offers exactly those, the connection holds only those and the
+token says which. An agent is never granted an identity scope. An agent that asks for nothing the
+endpoint grants — identity scopes alone — is refused with `invalid_scope`, not given the agent scopes
+in their place.
+
+- **Example**: Codex asks for `openid profile email tale:organization offline_access tale:mcp
+  tale:automations.write` → the consent page offers Read and test or Edit automations, Ada allows Edit
+  automations, and the token's scope is `tale:mcp tale:automations.write offline_access`; no `id_token`.
 
 ## Who sees and ends a connection
 
@@ -239,7 +254,7 @@ of their password or sign-in method, or by an owner or admin, the person finds a
 in the organization the connection was to, saying which agent was disconnected and why — an admin by
 name. A person who disconnects an agent themselves, leaving an organization and an erasure leave no
 notice. It is never e-mailed and never shown to anyone else, and one that cannot be written does not
-undo the disconnect.
+undo the disconnect. The notice opens the person's connected agents.
 
 - **Example**: Ada connected Claude Code to Acme and to Beta, and a copy of its refresh token is
   used → the bell of Acme and the bell of Beta each say that Claude Code was disconnected because an
@@ -280,7 +295,41 @@ still chosen on the page that follows.
   still chosen. In Beta, where she is a plain member, Edit and deploy is unavailable and says her role
   does not allow it.
 
+## The page in Settings
+
+### AGCONN-R23 · Settings opens the connected agents to those who work with them
+
+Settings › API › Connected agents exists once the deployment lets coding agents sign in. It opens for
+whoever may connect an agent in this organization — an Owner, Admin or Developer, or a member with a
+competence for it — and, whatever the deployment says, for a member who still holds a live connection
+here, so they can see and disconnect theirs. The server answers those facts for the person asking, in
+the organization they are in: another organization's connection, an ended one and another person's
+never count. Anyone else finds no such page in Settings, and opening its address says why. Nothing
+offers a way to connect an agent while agents may not sign in.
+
+- **Example**: Mia is a member and an Admin withdrew her competence, but Cursor is still connected for
+  her → the page stays for her, lists Cursor alone and offers no way to connect another; once she
+  disconnects Cursor the page closes for her. Noah is a member with no competence and no connection →
+  he finds no such page. A deployment that has not turned agent sign-in on shows Olav, the owner, no
+  such page either, until an agent is connected.
+
+### AGCONN-R24 · The connected agents page lists each agent and disconnects one once confirmed
+
+The page lists the agents the person connected. An Owner or Admin can switch to everyone's, with who
+connected each, and show the disconnected ones with when and why. A row names the app and where it is
+from — the domain it proved, or "Unverified" for an app that chose its own name —, the access it was
+given in the words the person chose it with, when it connected and when it last called, "Never" before
+the first. Disconnecting asks first, in words that fit whose agent it is and say that it loses access at
+once; a refusal keeps the question open with the reason. A screen shows as many columns as it holds,
+so the menu that disconnects an agent is always in reach and the table never scrolls sideways.
+
+- **Example**: Olav, the owner, opens the page and switches to everyone's → he sees Ada's Claude Code
+  with her name and "Edit automations", Mia's Cursor, and his own. He disconnects Ada's agent after being
+  told it is Ada's, and the row turns into "Disconnected" with the date and "by an Admin". On a phone
+  the same page shows each agent's name and its menu.
+
 ## Not yet
 
-- The list of connected agents in Settings, where a person finds what they connected and disconnects
-  it, is not covered yet.
+- Connecting an agent from the page itself: the button leads to the MCP page, where the endpoint and the
+  way to connect are shown. A member who may connect an agent cannot open that page, so the page offers
+  them no button.

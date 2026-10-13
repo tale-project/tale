@@ -3,6 +3,8 @@ import {
   type AccessLevel,
   AGENT_SCOPES,
   type AgentScope,
+  EXTRA_SCOPES,
+  type ExtraScope,
   levelOf,
 } from '@/lib/shared/agent-access';
 
@@ -21,15 +23,6 @@ export const ACCESS_LEVEL_ORDER: readonly AccessLevel[] = [
   'edit',
   'deploy',
 ];
-
-/** The scopes that are a choice of their own, beside the level. */
-export const EXTRA_SCOPES = [
-  'tale:settings.read',
-  'tale:settings.write',
-  'tale:subscriptions.connect',
-] as const satisfies readonly AgentScope[];
-
-export type ExtraScope = (typeof EXTRA_SCOPES)[number];
 
 /** Why a scope is not on offer: the app did not ask for it, or the person's
  * role there does not allow it. */

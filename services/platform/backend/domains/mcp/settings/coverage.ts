@@ -15,6 +15,8 @@ export const SETTINGS_NOT_EXPOSED: Readonly<
 > = {
   'api/mcp':
     'It shows the endpoint itself — its address, its tools and how to connect — which no setting changes.',
+  'api/agents':
+    'It lists the coding agents people connected and disconnects them, which an agent never does: it could cut off the very people supervising it.',
 };
 
 /** Pages no settings kind covers yet, each with what an agent cannot do
