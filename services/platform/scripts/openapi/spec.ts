@@ -90,6 +90,10 @@ import { TURN_FINISH_REASONS } from '../../lib/chat/types.ts';
 import { REPORT_DETAILS } from '../../lib/engine/api/report-details.ts';
 import { STEP_FAILURE_REASONS } from '../../lib/engine/core/record/failure.ts';
 import { MAX_TESTS } from '../../lib/engine/core/test-limits.ts';
+import {
+  type AgentScope,
+  OFFLINE_ACCESS,
+} from '../../lib/shared/agent-access.ts';
 import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
 import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
@@ -124,6 +128,26 @@ export type Json = Record<string, unknown>;
 
 const sec = [{ bearerAuth: [] }];
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
+
+/** What each scope the MCP endpoint grants lets a coding agent do, in the
+ * consent page's words. Keyed by the shared scope list, so a scope the
+ * endpoint starts to grant cannot be left out of the document. */
+const AGENT_OAUTH_SCOPES: Record<AgentScope | typeof OFFLINE_ACCESS, string> = {
+  'tale:mcp':
+    'Read and test: read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.',
+  'tale:automations.write':
+    'Edit automations: save new versions. Deploying stays with the person.',
+  'tale:automations.deploy':
+    'Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.',
+  'tale:settings.read':
+    'Read settings: the settings the person’s role can see. Secrets stay hidden.',
+  'tale:settings.write':
+    'Change settings: the settings the person’s role can change. Every change is recorded in the audit log.',
+  'tale:subscriptions.connect':
+    'Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.',
+  [OFFLINE_ACCESS]:
+    'Stay connected: a refresh token, valid for thirty days without use.',
+};
 
 /** The flat error envelope every non-2xx response carries. */
 function errorResponse(description: string) {
@@ -8757,22 +8781,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               authorizationUrl: '/api/auth/oauth2/authorize',
               tokenUrl: '/api/auth/oauth2/token',
               refreshUrl: '/api/auth/oauth2/token',
-              scopes: {
-                'tale:mcp':
-                  'Read and test: read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.',
-                'tale:automations.write':
-                  'Edit automations: save new versions. Deploying stays with the person.',
-                'tale:automations.deploy':
-                  'Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.',
-                'tale:settings.read':
-                  'Read settings: the settings the person’s role can see. Secrets stay hidden.',
-                'tale:settings.write':
-                  'Change settings: the settings the person’s role can change. Every change is recorded in the audit log.',
-                'tale:subscriptions.connect':
-                  'Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.',
-                offline_access:
-                  'Stay connected: a refresh token, valid for thirty days without use.',
-              },
+              scopes: AGENT_OAUTH_SCOPES,
             },
           },
         },
