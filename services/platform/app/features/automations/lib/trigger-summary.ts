@@ -75,7 +75,16 @@ export const TRIGGER_WRAPPER_KEYS: ReadonlySet<string> = new Set([
   'payload',
 ]);
 
-function stateOf(binding: TriggerBinding, deployed: boolean): TriggerState {
+/**
+ * Whether a binding would start a run now — what Start's line says, and the
+ * automations list's Trigger column beside the deployed version. Paused is
+ * off AND stamped `paused_after_failures`, as the Trigger section's banner
+ * reads it; a binding that is on waits while no version is deployed.
+ */
+export function triggerStateOf(
+  binding: Pick<TriggerBinding, 'enabled' | 'lastSkipReason'>,
+  deployed: boolean,
+): TriggerState {
   if (!binding.enabled) {
     return binding.lastSkipReason === 'paused_after_failures'
       ? 'paused'
@@ -100,7 +109,7 @@ export function triggerLines(
 ): TriggerLine[] {
   const lines: TriggerLine[] = [];
   for (const binding of bindings) {
-    const state = stateOf(binding, ctx.deployed);
+    const state = triggerStateOf(binding, ctx.deployed);
     switch (binding.kind) {
       case 'schedule': {
         const stored = storedRule(binding);

@@ -642,6 +642,12 @@ export interface AutomationsContract {
       name: string;
       latest: number;
       projectIds: string[];
+      /** What starts it on its own: the bound trigger's kind, whether it is
+       * switched on, and why it last started nothing (a schedule its
+       * failures paused is off with `paused_after_failures`). Null when
+       * nothing is bound — it runs by hand, through the API or MCP. Absent
+       * from a server that predates it, which then says nothing either way. */
+      trigger?: Pick<TriggerView, 'kind' | 'enabled' | 'lastSkipReason'> | null;
     }>;
   };
   'automations/queries:listRunsPaginated': {

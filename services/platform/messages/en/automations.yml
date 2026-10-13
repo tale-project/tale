@@ -41,8 +41,17 @@ list:
   columnProjects: Projects
   columnVersions: Versions
   columnStatus: Status
+  columnTrigger: Trigger
   versionCount: '{count, plural, one {# version} other {# versions}}'
   notDeployed: Not deployed
+  trigger:
+    on: Enabled
+    off: 'Off'
+    paused: Paused
+    notLive: Not live
+    manual: Manual
+    manualHow: By hand, API or MCP
+    unknown: Unknown
   projectBound: Project
   loadFailed: "Couldn't load automations: {error}"
   empty:
