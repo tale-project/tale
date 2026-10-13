@@ -1060,7 +1060,11 @@ Restore any toggled setting after the run.
   each command and run it in a terminal as AUTH-F34 describes, finishing the
   browser sign-in → without a reload the line reads **Connected: Claude Code**
   (`codingAgent.status.connected`), the prompt's heading becomes **Try this
-  first**, and the list behind the dialog gains the row. **Done** closes the
+  first**, and the list behind the dialog gains the row. An agent that was
+  connected before counts too: open the dialog again, run `claude mcp logout
+  tale` and the login again → the line reads **Connected: Claude Code** and
+  the list still shows its one row (allowing an app again changes its
+  connection), also while the page sits behind the terminal. **Done** closes the
   dialog and gives focus back to the button. A member whose competence lets
   them create a key, with no developer role, sees the same button and dialog
   (SET-B38); a member who holds an agent but may not connect one does not.

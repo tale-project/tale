@@ -70,6 +70,7 @@ function row(overrides: Partial<AgentConnection>): AgentConnection {
     clientHost: 'claude.ai',
     scopes: ['tale:mcp', 'tale:automations.write'],
     createdAt: Date.now() - 20 * DAY,
+    updatedAt: Date.now() - 20 * DAY,
     lastUsedAt: Date.now() - 3 * 60 * 60 * 1000,
     revokedAt: null,
     revokeReason: null,
