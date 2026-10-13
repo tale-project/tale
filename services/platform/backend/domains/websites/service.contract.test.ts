@@ -278,6 +278,59 @@ describe('registerWebsite', () => {
     ]);
   });
 
+  it.each([
+    ['docs.example', 'www.docs.example'],
+    ['xyz.example', 'www.xyz.example'],
+  ])(
+    'takes the same lock for %s and for %s [WEB-R2]',
+    async (apex, sibling) => {
+      const lockOf = async (domain: string) => {
+        const { sql, queries } = transactingSql((text) =>
+          coveringLookup(text) ? [stored({ kind: 'site' })] : [],
+        );
+        await expect(
+          registerWebsite(sql, {
+            organizationId: 'org-1',
+            domain,
+            scanInterval: '1d',
+          }),
+        ).rejects.toMatchObject({ code: 'WEBSITE_DUPLICATE_DOMAIN' });
+        return queries.filter((query) =>
+          query.text.includes('pg_advisory_xact_lock'),
+        );
+      };
+
+      const [first, second] = [await lockOf(apex), await lockOf(sibling)];
+      expect(first).toHaveLength(1);
+      expect(second).toEqual(first);
+    },
+  );
+
+  it('takes the lock within the organization, so another organization adding the same website never waits [WEB-R2]', async () => {
+    const lockOf = async (organizationId: string) => {
+      const { sql, queries } = transactingSql((text) =>
+        coveringLookup(text) ? [stored({ kind: 'site' })] : [],
+      );
+      await expect(
+        registerWebsite(sql, {
+          organizationId,
+          domain: 'docs.example',
+          scanInterval: '1d',
+        }),
+      ).rejects.toMatchObject({ code: 'WEBSITE_DUPLICATE_DOMAIN' });
+      return queries.find((query) =>
+        query.text.includes('pg_advisory_xact_lock'),
+      )?.values;
+    };
+
+    expect(await lockOf('org-1')).toEqual([
+      'website-registration:org-1:docs.example',
+    ]);
+    expect(await lockOf('org-2')).toEqual([
+      'website-registration:org-2:docs.example',
+    ]);
+  });
+
   it('validates the list against the domain before looking anything up [WEB-R4]', async () => {
     const { sql, queries } = transactingSql(() => []);
     await expect(
