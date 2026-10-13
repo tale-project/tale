@@ -164,6 +164,18 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
       },
     },
   ),
+  // Current CLI names the collaboration service in its native backend path scope; its job and verdict graph remain unchanged.
+  profile(
+    'CLI',
+    '9b9b32c6c5336a29372723408e4e7eea215bf5145cee23956340d138f6af9084',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+  ),
   profile(
     'Build',
     '61b540685f2f0c2250026e1ffab2d3e184864e1787837ce92bd688fa942f47b1',
