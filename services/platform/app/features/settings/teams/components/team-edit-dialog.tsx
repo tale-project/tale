@@ -74,6 +74,10 @@ export function TeamEditDialog({
   const initialMemberIdsRef = useRef(new Set<string>());
   const selectedMemberIdsRef = useRef(selectedMemberIds);
   const hasLoadedMembersRef = useRef(false);
+  // On while this dialog's own save runs, and after a refused write until the
+  // roster is edited again: the roster refreshes those writes cause are this
+  // dialog's own, not another session's.
+  const ownRefreshRef = useRef(false);
   selectedMemberIdsRef.current = selectedMemberIds;
 
   const { teamMembers }: { teamMembers: TeamMemberItem[] | undefined } =
@@ -83,11 +87,21 @@ export function TeamEditDialog({
 
   // Sync selected members when team members data loads or dialog opens. Once
   // the user has edited the roster, keep the draft and require them to reopen
-  // before saving against a different server roster.
+  // before saving against a different server roster. This dialog's own
+  // writes refresh the roster too: that refresh is what the save produced,
+  // and the draft takes it.
   useEffect(() => {
-    if (teamMembers && open) {
+    if (!open) {
+      // Closed by any path, a saved edit included: the next open starts from
+      // the roster the server holds.
+      hasLoadedMembersRef.current = false;
+      ownRefreshRef.current = false;
+      setHasRemoteMemberConflict(false);
+      return;
+    }
+    if (teamMembers) {
       const memberIds = new Set(teamMembers.map((m) => m.userId));
-      if (hasLoadedMembersRef.current) {
+      if (hasLoadedMembersRef.current && !ownRefreshRef.current) {
         const initial = initialMemberIdsRef.current;
         const hasLocalChanges =
           initial.size !== selectedMemberIdsRef.current.size ||
@@ -122,6 +136,8 @@ export function TeamEditDialog({
   }, [team.name, open, formState.isDirty, reset]);
 
   const handleToggleMember = useCallback((userId: string) => {
+    // An edited roster is the person's draft again, whatever refresh follows.
+    ownRefreshRef.current = false;
     setSelectedMemberIds((prev) => {
       const next = new Set(prev);
       if (next.has(userId)) {
@@ -145,6 +161,9 @@ export function TeamEditDialog({
 
   const onSubmit = async (data: TeamFormData) => {
     setIsSubmitting(true);
+    ownRefreshRef.current = true;
+    // A refused write leaves its refresh still to come after the save.
+    let refreshPending = false;
     try {
       // Update team name if changed
       if (formState.isDirty) {
@@ -222,6 +241,9 @@ export function TeamEditDialog({
                   }),
             variant: 'destructive',
           });
+          // The toast says the list was refreshed: the roster that comes
+          // back replaces the draft, as the roster of any save does.
+          refreshPending = true;
           await queryClient.invalidateQueries({
             queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
           });
@@ -244,6 +266,7 @@ export function TeamEditDialog({
         variant: 'destructive',
       });
     } finally {
+      ownRefreshRef.current = refreshPending;
       setIsSubmitting(false);
     }
   };

@@ -1274,6 +1274,19 @@ run.
   goes through. Repeat with B's **Reset** (`common.actions.reset`) confirmed
   while A holds an unsaved color → A's **Save** is refused the same way and the
   reset stays after a reload.
+- [ ] `SET-B38` · **A roster draft survives another session's change** — On a
+  throwaway organization with a team of one member and two more people, open
+  `/dashboard/{org}/settings/teams` in two windows, A and B, and **Edit team**
+  (`settings.teams.editTeam`) in both. In A tick a second person under
+  **Members** (`settings.teams.manageMembers`) without saving; in B tick a
+  third person → **Save changes** (`settings.teams.saveChanges`). Back in A →
+  One alert says the membership changed in another session
+  (`settings.teams.membershipRefreshConflict`); A's ticked person stays ticked
+  and **Save changes** stays disabled. Close A's dialog and open it again → it lists the team as B saved it, no
+  alert shows and **Save changes** is disabled until the next edit. Then
+  tick a person in A and save → the dialog closes with the toast
+  (`settings.teams.teamUpdated`); opening it right after shows the saved roster
+  with no alert.
 
 ## Accessibility (WCAG 2.1 AA)
 
