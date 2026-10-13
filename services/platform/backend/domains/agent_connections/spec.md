@@ -262,6 +262,25 @@ sign-in that belongs to one organization is refused, as it may not connect an ag
   allowed before, Beta and Zed are listed as places she may not connect an agent, and none is chosen for
   her.
 
+### AGCONN-R22 · The consent page offers what the gate accepts, and keeps the person's choice
+
+The consent page of a coding agent says who is asking, lets the person choose the organization the
+agent will work in and how much access to give, and says what that comes to. It offers only what the
+app asked for and the person's role there allows, and says why for the rest. It starts on the
+organization they are working in, and on what they chose there before; for an app that asks for
+everything, on editing; for an app that asks for less, on what it asked for, held to their role.
+Connecting sends the signed request as it came, with the organization and the access chosen. When
+more than reading and reading settings is chosen and the sign-in is more than a day old, the page asks
+for the password first (or sends an account without one to sign in again), and what was chosen is
+still chosen on the page that follows.
+
+- **Example**: Ada opens Claude Code's request. It asks for everything and her role in Acme is
+  Developer, so Edit automations is chosen; she picks Edit and deploy while her sign-in is two days old
+  → the page asks for her password, and after she gives it the page opens again with Edit and deploy
+  still chosen. In Beta, where she is a plain member, Edit and deploy is unavailable and says her role
+  does not allow it.
+
 ## Not yet
 
-- What the consent page shows and how it reads is not covered yet.
+- The list of connected agents in Settings, where a person finds what they connected and disconnects
+  it, is not covered yet.

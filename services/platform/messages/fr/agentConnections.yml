@@ -1,0 +1,70 @@
+consent:
+  title: 'Connecter {client} à Tale'
+  picture: '{client} se connecte à Tale'
+  lead: '{client} demande à utiliser les outils de Tale en ton nom.'
+  account: 'Compte : {email}'
+  verified: 'Domaine vérifié : {host}'
+  verifiedHelp: 'Tale a lu les informations de cette application sur {host}. Seul le propriétaire de ce domaine peut les publier.'
+  unverified: Application non vérifiée
+  unverifiedHelp: Cette application s’est enregistrée elle-même auprès de Tale et a choisi son nom. Continue seulement si tu viens de lancer cette connexion depuis ton agent de programmation.
+  returnsToComputer: 'Après la connexion, Tale te renvoie vers cet ordinateur ({host}).'
+  returnsToSite: 'Après la connexion, Tale te renvoie vers {host}.'
+  organization:
+    label: Organisation
+    description: L’agent travaille uniquement dans cette organisation. Pour en utiliser une autre, connecte-le à nouveau.
+    option: '{name} · {role}'
+    notAllowed: Pour connecter un agent de programmation ici, il faut le rôle Propriétaire, Admin ou Développeur, ou une compétence attribuée par un Admin.
+    none: Aucune de tes organisations ne te permet de connecter un agent de programmation. Demande le rôle Développeur à un Admin.
+    disabled: Ton compte est désactivé dans cette organisation.
+  access:
+    label: Accès
+    summary: 'Ton rôle s’applique toujours : l’agent ne peut jamais faire plus que toi dans {organization}.'
+    read:
+      label: Lire et tester
+      description: Lire les automatisations, les exécutions et les connaissances, vérifier des brouillons et les essayer avec des données de test. Ne modifie rien.
+    edit:
+      label: Modifier les automatisations
+      description: Enregistrer aussi de nouvelles versions. La mise en service reste entre tes mains.
+    deploy:
+      label: Modifier et mettre en service
+      description: Mettre aussi en service, définir des déclencheurs et lancer des exécutions en réel qui agissent sur tes services connectés.
+    notRequested: L’agent ne l’a pas demandé.
+    roleCannot: 'Ton rôle dans {organization} ne le permet pas.'
+  extras:
+    label: Autoriser aussi
+    settingsRead: Lire les paramètres
+    settingsReadDescription: Lire les paramètres visibles pour ton rôle. Les secrets restent masqués.
+    settingsWrite: Modifier les paramètres
+    settingsWriteDescription: Modifier les paramètres que ton rôle peut modifier. Chaque modification est inscrite au journal d’audit.
+    subscriptions: Connecter des abonnements IA
+    subscriptionsDescription: Demander l’ajout d’un abonnement IA. Rien n’est ajouté avant que tu le confirmes dans Tale.
+  summary:
+    title: 'Ce que {client} peut faire'
+  duration: La connexion reste active jusqu’à ce que tu la coupes dans Paramètres > API > Agents connectés, ou après 30 jours sans utilisation.
+  fresh:
+    title: Confirme que c’est bien toi
+    body: Confirme ton mot de passe pour permettre à un agent de modifier des éléments dans Tale.
+    ssoOnly: Ton compte se connecte via l’authentification de ton entreprise. Reconnecte-toi pour continuer.
+    signInAgain: Se reconnecter
+  connect: Connecter
+  cancel: Annuler
+  connecting: Connexion…
+  loading: Chargement…
+  errors:
+    expired: Cette demande a expiré. Relance la connexion depuis ton agent de programmation.
+    orgRequired: Choisis une organisation.
+    notMember: Tu n’es plus membre de cette organisation.
+    notEligible: 'Ton compte ne peut pas encore connecter d’agents : confirme ton adresse e-mail ou active l’authentification à deux facteurs.'
+    scopeNotAllowed: Ton rôle ne permet pas l’accès choisi. Choisis un accès plus restreint.
+    notFresh: Confirme d’abord ton mot de passe.
+    clientUnavailable: Tale n’a pas pu lire les informations de cette application. Réessaie dans un instant.
+    unavailable: La connexion n’a pas pu être établie pour le moment. Réessaie dans un instant.
+    scopedSession: Cette connexion ne concerne qu’une seule organisation et ne peut donc pas connecter d’agent de programmation. Connecte-toi avec ton propre compte pour continuer.
+    failed: Cette connexion n’a pas pu aboutir. Relance-la depuis ton agent de programmation.
+scopes:
+  mcp: Lire et tester
+  automationsWrite: Modifier les automatisations
+  automationsDeploy: Mettre en service et exécuter en réel
+  settingsRead: Lire les paramètres
+  settingsWrite: Modifier les paramètres
+  subscriptionsConnect: Connecter des abonnements

@@ -1,0 +1,70 @@
+consent:
+  title: '{client} mit Tale verbinden'
+  picture: '{client} wird mit Tale verbunden'
+  lead: '{client} möchte die Werkzeuge von Tale in deinem Namen nutzen.'
+  account: 'Angemeldet als {email}'
+  verified: 'Bestätigte Domain: {host}'
+  verifiedHelp: 'Tale hat die Angaben zu dieser App von {host} gelesen. Nur wer diese Domain besitzt, kann sie veröffentlichen.'
+  unverified: Nicht bestätigte App
+  unverifiedHelp: Diese App hat sich selbst bei Tale registriert und ihren Namen selbst gewählt. Fahre nur fort, wenn du die Verbindung gerade in deinem Coding-Agenten gestartet hast.
+  returnsToComputer: 'Nach dem Verbinden schickt dich Tale zurück auf diesen Computer ({host}).'
+  returnsToSite: 'Nach dem Verbinden schickt dich Tale zurück zu {host}.'
+  organization:
+    label: Organisation
+    description: Der Agent arbeitet nur in dieser Organisation. Für eine andere verbindest du ihn erneut.
+    option: '{name} · {role}'
+    notAllowed: Um hier einen Coding-Agenten zu verbinden, brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin vergibt.
+    none: In keiner deiner Organisationen darfst du einen Coding-Agenten verbinden. Bitte einen Admin um die Rolle Entwickler.
+    disabled: Dein Konto ist in dieser Organisation deaktiviert.
+  access:
+    label: Zugriff
+    summary: 'Deine Rolle gilt weiter: Der Agent darf nie mehr als du in {organization}.'
+    read:
+      label: Lesen und testen
+      description: Automatisierungen, Läufe und Wissen lesen, Entwürfe prüfen und mit Testdaten ausprobieren. Ändert nichts.
+    edit:
+      label: Automatisierungen bearbeiten
+      description: Zusätzlich neue Versionen speichern. Das Live-Schalten bleibt bei dir.
+    deploy:
+      label: Bearbeiten und live schalten
+      description: Zusätzlich live schalten, Auslöser setzen und Live-Läufe starten, die in deinen verbundenen Diensten handeln.
+    notRequested: Der Agent hat das nicht angefragt.
+    roleCannot: 'Deine Rolle in {organization} erlaubt das nicht.'
+  extras:
+    label: Zusätzlich erlauben
+    settingsRead: Einstellungen lesen
+    settingsReadDescription: Die Einstellungen lesen, die deine Rolle sieht. Geheimnisse bleiben verborgen.
+    settingsWrite: Einstellungen ändern
+    settingsWriteDescription: Die Einstellungen ändern, die deine Rolle ändern darf. Jede Änderung steht im Audit-Log.
+    subscriptions: KI-Abos verbinden
+    subscriptionsDescription: Das Hinzufügen eines KI-Abos anfragen. Nichts wird hinzugefügt, bevor du es in Tale bestätigst.
+  summary:
+    title: 'Was {client} darf'
+  duration: Die Verbindung bleibt, bis du sie unter Einstellungen > API > Verbundene Agenten trennst oder sie 30 Tage lang ungenutzt ist.
+  fresh:
+    title: Bestätige, dass du es bist
+    body: Bestätige dein Passwort, damit ein Agent in Tale etwas ändern darf.
+    ssoOnly: Dein Konto meldet sich über die Anmeldung deines Unternehmens an. Melde dich erneut an, um fortzufahren.
+    signInAgain: Erneut anmelden
+  connect: Verbinden
+  cancel: Abbrechen
+  connecting: Wird verbunden…
+  loading: Wird geladen…
+  errors:
+    expired: Diese Anfrage ist abgelaufen. Starte die Verbindung erneut in deinem Coding-Agenten.
+    orgRequired: Wähle eine Organisation.
+    notMember: Du bist kein Mitglied dieser Organisation mehr.
+    notEligible: 'Dein Konto kann noch keine Agenten verbinden: Bestätige deine E-Mail-Adresse oder richte die Zwei-Faktor-Authentifizierung ein.'
+    scopeNotAllowed: Deine Rolle erlaubt den gewählten Zugriff nicht. Wähle weniger Zugriff.
+    notFresh: Bestätige zuerst dein Passwort.
+    clientUnavailable: Tale konnte die Angaben zu dieser App nicht lesen. Versuche es gleich noch einmal.
+    unavailable: Die Verbindung konnte gerade nicht hergestellt werden. Versuche es gleich noch einmal.
+    scopedSession: Diese Anmeldung gehört zu einer einzelnen Organisation und kann deshalb keinen Coding-Agenten verbinden. Melde dich mit deinem eigenen Konto an, um fortzufahren.
+    failed: Diese Verbindung konnte nicht abgeschlossen werden. Starte sie erneut in deinem Coding-Agenten.
+scopes:
+  mcp: Lesen und testen
+  automationsWrite: Automatisierungen bearbeiten
+  automationsDeploy: Live schalten und live ausführen
+  settingsRead: Einstellungen lesen
+  settingsWrite: Einstellungen ändern
+  subscriptionsConnect: Abos verbinden
