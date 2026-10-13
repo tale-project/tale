@@ -40,11 +40,13 @@ A failed run opens with a card that says where it failed and why: **The run fail
 
 Below the card, the step and its field, such as **Greet › input.email**, sit beside **Show in editor**, which opens the editor on the version the run ran with that step selected. **Show step** selects the step on the run’s canvas, and **Retry from this step** prepares the retry described in [Retry from a step](#retry-from-step).
 
+**Fix with your coding agent**, which Owners, Admins and Developers see beside these buttons, opens the setup that [Connected agents](/platform/admin/connected-agents) describes, with a prompt that names this run and its automation. Your agent reads the run’s record, explains why it failed and proposes the smallest fix; the prompt tells it to ask before it saves a fix, and again before it deploys one. A fix it saves arrives in the editor as a new version. Where your operator has turned agent sign-in off, the dialog shows the automation’s name and the run’s ID to hand to an agent that holds your API key.
+
 On the canvas, the failed node is framed in red and its bottom line repeats the failure’s title; the nodes the run went through to reach it stand out while the others step back; and End says where the run failed, such as **Failed at Propose**. The **Runs** list names a failed run’s cause with the same title.
 
 <Frame caption="A failed run opens on where and why it failed; on the canvas, the way to the failed node stands out.">
 
-![The run page of a failed test run of Invoice digest: the card The run failed at Totals with the title Its code threw an error, the cause, How to fix, Technical details, Totals › Code with Show in editor, Show step and Retry from this step; on the canvas below, Start and Invoices succeeded, Totals is framed in red with Its code threw an error, and Digest, which didn’t run, is dashed.](/images/platform/automation-run-failed.webp)
+![The run page of a failed test run of Invoice digest: the card The run failed at Totals with the title Its code threw an error, the cause, How to fix, Technical details, Totals › Code with Show in editor, Show step, Retry from this step and Fix with your coding agent; on the canvas below, Start and Invoices succeeded, Totals is framed in red with Its code threw an error, and Digest, which didn’t run, is dashed.](/images/platform/automation-run-failed.webp)
 
 </Frame>
 

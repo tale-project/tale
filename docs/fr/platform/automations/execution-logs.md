@@ -40,11 +40,13 @@ Une exécution en échec s’ouvre sur une carte qui dit où et pourquoi elle a 
 
 Sous la carte, l’étape et son champ, par exemple **Greet › input.email**, côtoient **Afficher dans l’éditeur**, qui ouvre l’éditeur sur la version exécutée avec cette étape sélectionnée. **Afficher l’étape** la sélectionne sur le canevas de l’exécution, et **Relancer à partir de cette étape** prépare la relance décrite dans [Relancer à partir d’une étape](#retry-from-step).
 
+**Corriger avec ton agent de code**, que les propriétaires, les admins et les développeurs voient à côté de ces boutons, ouvre la configuration que décrit [Agents connectés](/fr/platform/admin/connected-agents), avec un prompt qui nomme cette exécution et son automatisation. Ton agent lit l’enregistrement de l’exécution, explique pourquoi elle a échoué et propose la plus petite correction ; le prompt lui demande de te consulter avant d’enregistrer une correction, puis de nouveau avant de la mettre en service. Une correction enregistrée apparaît dans l’éditeur comme nouvelle version. Si ton opérateur a désactivé la connexion des agents, le dialogue montre le nom de l’automatisation et l’identifiant de l’exécution, à donner à un agent qui détient ta clé API.
+
 Sur le canevas, le nœud en échec est encadré de rouge et sa ligne du bas reprend le titre de l’échec ; les nœuds par lesquels l’exécution est passée pour l’atteindre ressortent, tandis que les autres passent au second plan ; et Fin indique où l’exécution a échoué, par exemple **Échec à Propose**. La liste **Exécutions** nomme la cause d’une exécution en échec avec le même titre.
 
 <Frame caption="Une exécution en échec s’ouvre sur l’endroit et la raison de l’échec ; sur le canevas, le chemin jusqu’au nœud en échec ressort.">
 
-![La page d’une exécution de test en échec de Invoice digest : la carte The run failed at Totals avec le titre Its code threw an error, la cause, How to fix, Technical details, Totals › Code avec Show in editor, Show step et Retry from this step ; sur le canevas en dessous, Start et Invoices ont réussi, Totals est encadré de rouge avec Its code threw an error, et Digest, qui ne s’est pas exécuté, est en pointillés.](/images/platform/automation-run-failed.webp)
+![La page d’une exécution de test en échec de Invoice digest : la carte The run failed at Totals avec le titre Its code threw an error, la cause, How to fix, Technical details, Totals › Code avec Show in editor, Show step, Retry from this step et Fix with your coding agent ; sur le canevas en dessous, Start et Invoices ont réussi, Totals est encadré de rouge avec Its code threw an error, et Digest, qui ne s’est pas exécuté, est en pointillés.](/images/platform/automation-run-failed.webp)
 
 </Frame>
 
