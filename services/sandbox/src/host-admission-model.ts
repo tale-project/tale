@@ -4,7 +4,7 @@
 import { memoryReserveBytes } from './host-memory.ts';
 
 const GIB = 1024 ** 3;
-export const HOST_PHASE_LIMIT = 2;
+const HOST_PHASE_LIMIT = 2;
 
 export interface HostAdmissionIdentity {
   daemonId: string;
