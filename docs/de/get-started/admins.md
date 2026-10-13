@@ -49,6 +49,10 @@ Bleibt die Modellauswahl leer oder lehnt der Anbieter die Anfrage ab, folge der 
 
 Wähle die Rolle nach der Aufgabe: Mitglieder nutzen den Arbeitsbereich, Bearbeiter pflegen gemeinsame Inhalte, Entwickler arbeiten an Integrationen und Automatisierungen, Admins verwalten die Organisation. Bei Grenzfällen hilft die genaue Berechtigungstabelle. Teams und Projektfreigaben bestimmen zusätzlich, auf welche Projektarbeit eine Person zugreifen kann.
 
+## Einen Coding-Agent verbinden
+
+Inhaber, Admins und Entwickler bauen und korrigieren Automatisierungen mit einem Coding-Agent wie Claude Code oder Codex. Im letzten Schritt des Einrichtungsassistenten bietet **Agent verbinden** den Einstieg, und unter **Einstellungen > API > Verbundene Agenten** steht **Coding-Agent verbinden**: Beides öffnet einen Dialog mit den Befehlen für deinen Agent und sagt dir, wann er sich angemeldet hat. Der Agent arbeitet als du und nie über deiner Rolle; [Verbundene Agenten](/de/platform/admin/connected-agents) erklärt die Zustimmungsseite und wie du eine Verbindung beendest. Hat dein Betreiber die Anmeldung von Agents abgeschaltet, nutzen Agents stattdessen einen [API-Schlüssel](/de/platform/admin/api-keys).
+
 ## Den ersten Teamablauf prüfen
 
 Bitte ein Teammitglied, sich mit dem eigenen Konto anzumelden, eine Nachricht zu senden und das benötigte Projekt zu öffnen. Prüfe gemeinsame Quellen ebenfalls mit diesem Konto. Tests nur als Inhaber können fehlende Rechte oder zu weitgehenden Zugriff verdecken.
