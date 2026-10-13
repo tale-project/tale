@@ -135,6 +135,7 @@ function fixture(
         session: { id: 'session-video' },
       })),
     },
+    resolveSessionAuthority: async (bundle: unknown) => bundle,
   } as unknown as Auth;
   const app = new Hono<OrgEnv>();
   app.onError(appErrorHandler);
