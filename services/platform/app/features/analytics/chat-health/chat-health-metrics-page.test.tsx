@@ -278,6 +278,8 @@ describe('ChatHealthMetricsPage guardrail read failures', () => {
     expect(screen.getByText(/Guardrail read unavailable/)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
     expect(screen.queryByText('Assistant turns')).not.toBeInTheDocument();
+    expect(screen.queryByText('0 blocked')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No guardrail events/)).not.toBeInTheDocument();
   });
 
   it.each([true, false])(
@@ -286,6 +288,8 @@ describe('ChatHealthMetricsPage guardrail read failures', () => {
       fixtures.health.summary.hasAnyData = hasAnyData;
       fixtures.guardrailsError = new Error('Guardrail read unavailable');
       const { user, rerender } = render(page());
+      expect(screen.queryByText('0')).not.toBeInTheDocument();
+      expect(screen.queryByText(/No guardrail events/)).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Try again' }));
       expect(fixtures.refetchGuardrails).toHaveBeenCalledExactlyOnceWith();
       expect(fixtures.refetchHealth).not.toHaveBeenCalled();
