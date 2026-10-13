@@ -55,7 +55,6 @@ passkeys:
     revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
     listFailed: Deine Passkeys konnten nicht geladen werden.
     refreshFailed: Deine Passkeys konnten nicht aktualisiert werden. Die angezeigte Liste ist womöglich veraltet.
-    confirmFailed: Dein Passwort konnte nicht bestätigt werden. Versuch es nochmal.
 setup:
   title: Zwei-Faktor-Authentifizierung einrichten
   qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
@@ -78,6 +77,7 @@ confirmPassword:
   label: Passwort
   submit: Bestätigen
   wrongPassword: Falsches Passwort. Nach wiederholten Fehlversuchen wird dein Konto vorübergehend gesperrt.
+  failed: Dein Passwort konnte nicht bestätigt werden. Versuch es nochmal.
 verify:
   title: Identität bestätigen
   description: Gib den 6-stelligen Code aus deiner Authenticator-App ein.

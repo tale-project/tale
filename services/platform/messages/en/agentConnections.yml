@@ -1,0 +1,70 @@
+consent:
+  title: 'Connect {client} to Tale'
+  picture: '{client} connecting to Tale'
+  lead: '{client} asks to use Tale’s tools as you.'
+  account: 'Signed in as {email}'
+  verified: 'Verified domain: {host}'
+  verifiedHelp: 'Tale read this app’s details from {host}. Only the owner of that domain can publish them.'
+  unverified: Unverified app
+  unverifiedHelp: This app registered itself with Tale and chose its own name. Continue only if you started this connection from your coding agent just now.
+  returnsToComputer: 'After you connect, Tale sends you back to this computer ({host}).'
+  returnsToSite: 'After you connect, Tale sends you back to {host}.'
+  organization:
+    label: Organization
+    description: The agent works in this organization only. To use another one, connect it again.
+    option: '{name} · {role}'
+    notAllowed: Connecting a coding agent here takes the Owner, Admin or Developer role, or a competence an Admin grants.
+    none: None of your organizations lets you connect a coding agent. Ask an Admin for the Developer role.
+    disabled: Your account is disabled in this organization.
+  access:
+    label: Access
+    summary: 'Your role still applies: the agent never does more than you can in {organization}.'
+    read:
+      label: Read and test
+      description: Read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.
+    edit:
+      label: Edit automations
+      description: Also save new versions. Deploying stays with you.
+    deploy:
+      label: Edit and deploy
+      description: Also deploy, set triggers and start live runs that act on your connected services.
+    notRequested: The agent did not ask for this.
+    roleCannot: 'Your role in {organization} does not allow this.'
+  extras:
+    label: Also allow
+    settingsRead: Read settings
+    settingsReadDescription: Read the settings your role can see. Secrets stay hidden.
+    settingsWrite: Change settings
+    settingsWriteDescription: Change the settings your role can change. Every change is recorded in the audit log.
+    subscriptions: Connect AI subscriptions
+    subscriptionsDescription: Ask to add an AI subscription. Nothing is added until you confirm it in Tale.
+  summary:
+    title: 'What {client} can do'
+  duration: It stays connected until you disconnect it under Settings > API > Connected agents, or after 30 days without use.
+  fresh:
+    title: Confirm it’s you
+    body: Confirm your password to let an agent change things in Tale.
+    ssoOnly: Your account signs in through your company’s sign-in. Sign in again to continue.
+    signInAgain: Sign in again
+  connect: Connect
+  cancel: Cancel
+  connecting: Connecting…
+  loading: Loading…
+  errors:
+    expired: This request has expired. Start the connection again from your coding agent.
+    orgRequired: Choose an organization.
+    notMember: You are no longer a member of this organization.
+    notEligible: 'Your account cannot connect agents yet: confirm your email address or set up two-factor authentication.'
+    scopeNotAllowed: Your role does not allow the access you chose. Choose less access.
+    notFresh: Confirm your password first.
+    clientUnavailable: Tale could not read this app’s details. Try again in a moment.
+    unavailable: The connection could not be made right now. Try again in a moment.
+    scopedSession: This sign-in belongs to one organization, so it cannot connect a coding agent. Sign in with your own account to continue.
+    failed: This connection could not be completed. Start it again from your coding agent.
+scopes:
+  mcp: Read and test
+  automationsWrite: Edit automations
+  automationsDeploy: Deploy and run live
+  settingsRead: Read settings
+  settingsWrite: Change settings
+  subscriptionsConnect: Connect subscriptions
