@@ -1,3 +1,8 @@
+editor:
+  stale: Dieser Skill hat sich geändert, nachdem du ihn geöffnet hast, deshalb
+    wurde nichts gespeichert. Deine Änderungen sind noch da. Kopiere, was du
+    brauchst, schliesse den Skill und öffne ihn erneut, um die neueste Version
+    zu sehen.
 loadErrorDetail:
   title:
     frontmatterTooLarge: Frontmatter ist zu gross

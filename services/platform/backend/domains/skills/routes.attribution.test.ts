@@ -10,6 +10,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { parseEntityTagList } from '@tale/shared/http/entity-tag';
 import type { Context } from 'hono';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -264,6 +265,37 @@ describe('the app skill door under a reserved organization-wide audience', () =>
     });
   });
 
+  it('passes an edit’s If-Match through the locked save, beside a create-only If-None-Match', async () => {
+    mocks.saveSkillForViewer.mockResolvedValue({
+      skill: { ...summary, body: '' },
+      previous: revision('"t1"'),
+      current: revision('"t2"'),
+    });
+    const put = (headers: Record<string, string>) =>
+      routes().request('/house-voice?orgId=o1', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify({ description: 'd', body: '' }),
+      });
+
+    expect((await put({ 'if-match': '"t1"' })).status).toBe(200);
+    const edit = mocks.saveSkillForViewer.mock.calls.at(-1)?.[0];
+    expect(edit).toMatchObject({
+      precondition: { ifMatch: parseEntityTagList('"t1"') },
+    });
+    expect(edit.precondition).not.toHaveProperty('ifNoneMatch');
+
+    expect(
+      (await put({ 'if-match': '"t1"', 'if-none-match': '*' })).status,
+    ).toBe(200);
+    expect(mocks.saveSkillForViewer.mock.calls.at(-1)?.[0]).toMatchObject({
+      precondition: {
+        ifMatch: parseEntityTagList('"t1"'),
+        ifNoneMatch: { kind: 'any' },
+      },
+    });
+  });
+
   it('hands the answer to the save, and answers and audits its refusal', async () => {
     const refusal = new AppError({
       code: 'SKILL_PUBLISH_FORBIDDEN',
@@ -429,6 +461,84 @@ describe('the app skill door with the native file store', () => {
       expect(mocks.saveSkillForViewer.mock.lastCall?.[0]).not.toHaveProperty(
         'precondition',
       );
+    } finally {
+      if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+      else process.env.TALE_CONFIG_DIR = savedConfigDir;
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an edit that read a document another save has replaced, and takes one that read the current document', async () => {
+    const configRoot = await mkdtemp(path.join(tmpdir(), 'tale-skill-stale-'));
+    const savedConfigDir = process.env.TALE_CONFIG_DIR;
+    process.env.TALE_CONFIG_DIR = configRoot;
+    try {
+      const actual = await vi.importActual<
+        typeof import('../../core/skills/file_actions.ts')
+      >('../../core/skills/file_actions.ts');
+      const viewer = {
+        kind: 'user' as const,
+        userId: 'u1',
+        teamIds: ['team-1'],
+        isOrgAdmin: false,
+      };
+      const save = (description: string, body: string) =>
+        actual.saveSkillForViewer({
+          orgSlug: 'acme',
+          slug: 'house-voice',
+          viewer,
+          mayPublishOrgWide: true,
+          description,
+          body,
+          visibility: 'org',
+        });
+      const read = () =>
+        actual.readSkillForViewer({
+          orgSlug: 'acme',
+          slug: 'house-voice',
+          viewer,
+        });
+      await save('Original description.', 'Original instructions.\n');
+      const opened = await read();
+      // Another editor saves newer instructions while this editor sits open.
+      await save('Original description.', 'Newer instructions.\n');
+      const skillPath = path.join(
+        configRoot,
+        'acme',
+        'skills',
+        'house-voice',
+        'SKILL.md',
+      );
+      const before = await readFile(skillPath);
+      mocks.saveSkillForViewer.mockImplementation(
+        (args: Parameters<typeof actual.saveSkillForViewer>[0]) =>
+          actual.saveSkillForViewer(args),
+      );
+      const edit = (etag: string) =>
+        routes().request('/house-voice?orgId=o1', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', 'if-match': etag },
+          body: JSON.stringify({
+            description: 'Local description.',
+            body: 'Original instructions.\n',
+          }),
+        });
+
+      const stale = await edit(opened?.etag ?? '');
+      expect(opened?.etag).toBeTruthy();
+      expect(stale.status).toBe(412);
+      expect(await stale.json()).toMatchObject({ error: 'SKILL_STALE' });
+      expect(await readFile(skillPath)).toEqual(before);
+      expect(mocks.auditSkillWrite).not.toHaveBeenCalled();
+
+      const current = await read();
+      const fresh = await edit(current?.etag ?? '');
+      expect(fresh.status).toBe(200);
+      expect(await read()).toMatchObject({
+        description: 'Local description.',
+        body: 'Original instructions.\n',
+      });
+      expect(mocks.auditSkillWrite).toHaveBeenCalledTimes(1);
     } finally {
       if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
       else process.env.TALE_CONFIG_DIR = savedConfigDir;

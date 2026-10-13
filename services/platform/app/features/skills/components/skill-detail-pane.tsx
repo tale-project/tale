@@ -23,6 +23,7 @@ import { useT } from '@/lib/i18n/client';
 
 import {
   isSkillPublishRefusal,
+  isSkillStaleRefusal,
   useDeleteSkill,
   useSaveSkill,
 } from '../hooks/mutations';
@@ -42,6 +43,17 @@ import type { SkillSharingValue } from './skill-visibility-field';
 interface SkillFormState {
   readonly metadata: SkillMetadataValues;
   readonly body: string;
+}
+
+/** The document the editor started from: what its form was filled with, and
+ * the tag that document carried when it was read. */
+interface SeededDocument {
+  readonly form: SkillFormState;
+  readonly etag: string | undefined;
+}
+
+function sameForm(a: SkillFormState, b: SkillFormState): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /**
@@ -76,6 +88,7 @@ export function SkillDetailPane({
 
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
   const [form, setForm] = useState<SkillFormState | null>(null);
+  const [seed, setSeed] = useState<SeededDocument | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const savedForm = useMemo<SkillFormState | null>(() => {
@@ -100,14 +113,23 @@ export function SkillDetailPane({
   // `form` null forever and the editor pane empty.
   useEffect(() => {
     setForm(null);
+    setSeed(null);
     setSelectedPath('SKILL.md');
   }, [slug]);
 
-  // Seed once the document is available; edits in flight survive unrelated
-  // refetches because the seed only fills from null.
+  // Seed once the document is available. Edits in flight survive refetches,
+  // a newer document another editor saved included: the draft keeps the
+  // document it started from, and its save names that document's tag, so
+  // the door refuses a save the newer one would lose. An editor nobody has
+  // touched follows the newer document instead.
   useEffect(() => {
-    setForm((current) => current ?? savedForm);
-  }, [savedForm]);
+    if (savedForm === null || seed?.form === savedForm) return;
+    const untouched =
+      seed === null || form === null || sameForm(form, seed.form);
+    if (!untouched) return;
+    setForm(savedForm);
+    setSeed({ form: savedForm, etag: skill?.etag });
+  }, [savedForm, seed, form, skill?.etag]);
 
   const dirty =
     form !== null &&
@@ -163,7 +185,9 @@ export function SkillDetailPane({
       await saveSkill.mutateAsync({
         organizationId,
         slug,
-        etag: skill.etag,
+        // The document the form started from, not the newest one the cache
+        // holds: the door refuses a save whose document has changed since.
+        etag: seed?.etag,
         description: form.metadata.description.trim(),
         body: form.body,
         visibility: form.metadata.sharing.visibility,
@@ -177,17 +201,21 @@ export function SkillDetailPane({
           ? { labels: parseLabelsInput(form.metadata.labels) }
           : {}),
       });
-      setForm(null); // Re-seed from the fresh document.
+      // Re-seed from the fresh document.
+      setForm(null);
+      setSeed(null);
       toast({ title: t('editor.saved'), variant: 'success' });
     } catch (error) {
       console.error('Failed to save skill', error);
       toast({
         title: t('editor.saveFailed'),
-        // A refused audience in the viewer's language, any other refusal
-        // in the door's words.
+        // A refused audience and a document saved since this one was opened
+        // in the viewer's language, any other refusal in the door's words.
         description: isSkillPublishRefusal(error)
           ? t('publishing.refused')
-          : failureDetail(error),
+          : isSkillStaleRefusal(error)
+            ? t('editor.stale')
+            : failureDetail(error),
         variant: 'destructive',
       });
     }
