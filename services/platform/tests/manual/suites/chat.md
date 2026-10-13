@@ -891,7 +891,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   root deployment the same link has no prefix.
 - [ ] `CHAT-B20` · **A hand-over where no project has an agent** — With the
   organization's standard agent switched off ([governance.md](governance.md)
-  `GOV-F52`), as a Member whose projects all lack agents, **Create task** in
+  `GOV-F52`), as a Member whose projects all lack agents — a project the
+  standard agent was set up in earlier (`CHAT-F56`; its **Agents** tab still
+  lists it as **Standard**) counts as lacking one too — **Create task** in
   the chat header
   (`chat.createTask.headerButton`) → every project sits under **No agent
   yet** (`chat.createTask.withoutAgents`) reading **An Editor or Admin can
