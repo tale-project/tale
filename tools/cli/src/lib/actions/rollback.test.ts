@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -446,6 +446,50 @@ describe('rollback confirmation', () => {
       });
     }
   }
+
+  test('rollback refuses while a cutover this workspace started is unfinished', async () => {
+    arrangePatchRollback();
+    mkdirSync(join(env.DEPLOY_DIR, '.tale'), { recursive: true });
+    writeFileSync(
+      join(env.DEPLOY_DIR, '.tale', 'automation-cutover.json'),
+      '{}',
+    );
+    await expect(
+      rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('Finish it with `tale deploy`');
+    expect(pullImageMock).not.toHaveBeenCalled();
+    expect(ensureVolumesMock).not.toHaveBeenCalled();
+    expect(dockerComposeMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+  });
+
+  test('deploy refuses a protocol-1 workspace it cannot cut over before any mutation, naming the way', async () => {
+    arrangePatchRollback();
+    targetProtocol = '2';
+    const failure = await deploy({
+      env,
+      version: '0.9.2',
+      stop: false,
+      hostAlias: '',
+      dryRun: false,
+      skipBackup: true,
+    }).catch((error: unknown) => error);
+    expect((failure as Error).message).toContain('tale update -v 0.5.77');
+    expect((failure as Error).message).toContain('Nothing was changed');
+    expect(ensureVolumesMock).not.toHaveBeenCalled();
+    expect(ensureNetworkMock).not.toHaveBeenCalled();
+    expect(dockerComposeMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+    expect(
+      dockerMock.mock.calls.some((call) => ['tag', 'stop'].includes(call[0])),
+    ).toBe(false);
+    expect(
+      execMock.mock.calls.some((call) => {
+        const args = (call as unknown[])[1];
+        return Array.isArray(args) && ['tag', 'stop'].includes(String(args[0]));
+      }),
+    ).toBe(false);
+  });
 
   test('a compatible protocol image retains ordinary rollback behavior', async () => {
     arrangePatchRollback();

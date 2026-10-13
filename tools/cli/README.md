@@ -169,7 +169,8 @@ handoff: while new writers exist, or after a first boot was cut before `0163`
 committed (the ledger is then v0.5.77's plus newer migrations only, so no census
 can run), it verifies the recorded stopped writers instead. While the ledger is
 still exactly v0.5.77's, an earlier attempt's receipt proves nothing and a fresh
-held census decides. `tale rollback` never crosses the cutover.
+held census decides. `tale rollback` never crosses the cutover, and refuses
+while one this workspace started is unfinished.
 `scripts/workspace-upgrade-check.ts` (the **Workspace upgrade** workflow, nightly)
 upgrades a real v0.5.77 workspace and one on the previous release with the CLI
 built from `main`.

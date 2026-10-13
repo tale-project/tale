@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { sameMinor } from '../../utils/compare-versions';
-import { externalDepError } from '../../utils/fail';
+import { externalDepError, preconditionError } from '../../utils/fail';
 import {
   getProjectId,
   getReplicaCounts,
@@ -164,6 +167,16 @@ export async function rollback(
     }
 
     const installedProtocol = await tagDeploymentProtocol(getProjectId(), true);
+    // A cutover `tale deploy` started stopped the old backend for good; the
+    // database may already hold part of the new release's migrations. Old
+    // writers started beside it would leave no census the cutover could take.
+    if (
+      installedProtocol === 1 &&
+      existsSync(join(env.DEPLOY_DIR, '.tale', 'automation-cutover.json'))
+    )
+      throw preconditionError(
+        'An automation writer protocol cutover is in progress on this workspace (.tale/automation-cutover.json). Finish it with `tale deploy`; rollback cannot cross it. Nothing was changed.',
+      );
 
     const rollbackColor = getOppositeColor(currentColor);
 
