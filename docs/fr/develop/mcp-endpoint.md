@@ -18,7 +18,7 @@ Deux voies ouvrent le point d’accès, et tu peux utiliser les deux, pour des c
 - **Se connecter depuis l’agent.** L’agent découvre lui-même comment se connecter à Tale et ouvre ton navigateur ; tu choisis l’organisation et ce qu’il peut faire. Rien n’est copié à la main, et tu peux déconnecter l’agent plus tard. [Se connecter depuis ton agent](#sign-in) décrit le déroulement. Cette voie est active tant que ton opérateur ne l’a pas désactivée.
 - **Une clé API.** [Crées-en une](/fr/platform/admin/api-keys) et conserve-la dans la configuration sécurisée de ton client. Elle convient aux scripts et aux clients qui ne peuvent pas ouvrir de navigateur. Une clé agit au nom de son titulaire et n’a pas de niveau d’accès propre.
 
-La page **Paramètres > API > MCP** affiche le point d’accès, le slug d’organisation et une requête de découverte à copier.
+La page **Paramètres > API > MCP** affiche les commandes qui connectent Claude Code ou Codex, le point d’accès, le slug d’organisation et une requête de découverte à copier.
 
 | Paramètre | Valeur |
 | --- | --- |

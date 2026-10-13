@@ -7,11 +7,11 @@ description: Finde den MCP-Endpunkt von Tale und erfahre, wie externe Clients da
 
 ## Den Endpunkt finden
 
-Öffne **Einstellungen > API > MCP**. Die Seite zeigt die Endpunkt-URL, den Organisations-Slug, die verfügbaren Tool-Gruppen und eine kopierbare Anfrage zum Verbindungstest. Ein Coding-Agent, der es unterstützt, meldet sich selbst an, sobald du ihm diese Adresse gibst ([Verbundene Agenten](/de/platform/admin/connected-agents) zeigt und beendet diese Verbindungen); sonst erstelle einen passenden Schlüssel unter **Einstellungen > API**.
+Öffne **Einstellungen > API > MCP**. Wo sich Agents anmelden dürfen, beginnt die Seite mit **Coding-Agent verbinden**: den Befehlen für Claude Code und Codex, einer Zeile, die sagt, wann sich dein Agent angemeldet hat, und einem ersten Prompt für ihn. Darunter zeigt sie die Endpunkt-URL, den Organisations-Slug, die verfügbaren Tool-Gruppen und eine kopierbare Anfrage zum Verbindungstest. Ein Coding-Agent meldet sich selbst an, sobald er diese Adresse hat ([Verbundene Agenten](/de/platform/admin/connected-agents) zeigt und beendet diese Verbindungen); sonst erstelle einen passenden Schlüssel unter **Einstellungen > API**.
 
-<Frame caption="Die MCP-Einstellungen zeigen Endpunkt, Organisationskontext und verfügbare Tools.">
+<Frame caption="Die MCP-Einstellungen verbinden einen Coding-Agent und zeigen Endpunkt, Organisationskontext und verfügbare Tools.">
 
-![Die MCP-Seite zeigt eine Endpunkt-URL mit /api/v1/mcp, einen Organisations-Slug, Tool-Gruppen und eine Beispielanfrage zum Verbindungstest.](/images/platform/settings-mcp-endpoint.webp)
+![Die MCP-Seite beginnt mit Connect a coding agent: den Tabs Claude Code, Codex und Other, den zwei Befehlen, die Tale hinzufügen und anmelden, einer Zeile, die auf die Anmeldung des Agents wartet, und einem ersten Prompt zum Kopieren. Darunter zeigt der Abschnitt MCP endpoint eine Endpunkt-URL, die auf /api/v1/mcp endet.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

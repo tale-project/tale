@@ -46,6 +46,9 @@ menu:
   dataResidency:
     description: Wo die Wissensdatenbank und die hochgeladenen Dateien dieser
       Organisation liegen und welches Embedding-Modell sie verarbeitet.
+mcpConnect:
+  title: Coding-Agent verbinden
+  description: Claude Code, Codex und andere Coding-Agents arbeiten über den MCP-Server von Tale in dieser Organisation. Du wählst bei der Anmeldung, was ein Agent darf, und er darf nie mehr als du.
 mcpEndpoint:
   title: MCP-Endpunkt
   description: Verbinde einen MCP-Client mit diesem Deployment, um
