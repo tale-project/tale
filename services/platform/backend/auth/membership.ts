@@ -9,6 +9,7 @@ import {
 } from '../domains/api_keys/owners.ts';
 import { retireApiKeysInTx } from '../domains/api_keys/retire.ts';
 import { scheduleMemberWorkspaceRetirement } from '../domains/sandbox/retirement-schedule.ts';
+import { retargetPendingTaskReviewsForUser } from '../domains/tasks/reviews.ts';
 
 /**
  * Org / team membership readers — direct SQL against Better Auth's own
@@ -276,11 +277,12 @@ export function evaluateCredentialResetAuthority(args: {
  * user's teamMember rows in the org's teams (what Better Auth's own
  * deleteMember does when teams are enabled — a raw DELETE FROM "member"
  * does not), the SSO team-sync provenance for them (migration 0071), the
- * per-org preference row, the member's live platform-capability grants,
- * and — through a job that runs once this commits — their sandbox
- * workspaces with the organization's agents. Each caller deletes the member
- * row itself — it has its own guard and audit — and runs this in the same
- * transaction.
+ * per-org preference row, the member's live platform-capability grants, the
+ * task reviews that wait on them (handed on, see
+ * `retargetPendingTaskReviewsForUser`), and — through a job that runs once
+ * this commits — their sandbox workspaces with the organization's agents.
+ * Each caller deletes the member row itself — it has its own guard and
+ * audit — and runs this in the same transaction.
  *
  * Without the cascade a member removed by an admin or de-provisioned by
  * SCIM kept their teamMember rows: a later re-add (or the IdP's next POST,
@@ -328,6 +330,15 @@ export async function removeMembershipCascade(
     WHERE org_id = ${organizationId} AND user_id = ${userId}
       AND revoked_at_ms IS NULL
   `;
+  // The reviews that wait on the member go on: a task that names them as its
+  // reviewer loses that designation, and an open request addressed to them
+  // moves to the next person who can take it — otherwise nobody who can act
+  // is asked, and the board keeps the task for someone who cannot.
+  await retargetPendingTaskReviewsForUser(tx, {
+    organizationId,
+    userId,
+    cause: 'member_removed',
+  });
   // The API keys an Owner or Admin made for the member here act as them in
   // this organization alone; they end with the seat (the member's own keys
   // are theirs and simply stop working here). So do the keys the member

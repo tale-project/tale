@@ -20,6 +20,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import {
   autoSubscribe,
   dismissReviewRequestNotifications,
+  dismissReviewerAssignedNotifications,
   notifyTaskReviewRequested,
 } from '../collab/service.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
@@ -242,7 +243,14 @@ export async function agentReviewBlockedReason(
  */
 async function resolveHumanReviewer(
   tx: TransactionSql | Sql,
-  task: TaskRow,
+  task: Pick<
+    TaskRow,
+    | 'organizationId'
+    | 'projectId'
+    | 'reviewerUserId'
+    | 'createdBy'
+    | 'createdByType'
+  >,
   excluding?: string,
 ): Promise<string | undefined> {
   const projects = await tx<{ createdBy: string; teamIds: string[] | null }[]>`
@@ -454,6 +462,18 @@ async function mintTaskReview(
   return { approvalId, minted: true };
 }
 
+/** What the hand-over of an open review reads of its task. */
+type RetargetTask = Pick<
+  TaskRow,
+  | 'id'
+  | 'organizationId'
+  | 'projectId'
+  | 'title'
+  | 'reviewerUserId'
+  | 'createdBy'
+  | 'createdByType'
+>;
+
 /**
  * Follow a changed designation while the gate is open. MUST run in the
  * same transaction as the `reviewer_user_id` write, with `task` already
@@ -475,19 +495,6 @@ async function mintTaskReview(
  * where an actionable request would point at a card nobody can act on
  * until it is restored.
  */
-type RetargetTask = Pick<
-  TaskRow,
-  | 'id'
-  | 'organizationId'
-  | 'projectId'
-  | 'title'
-  | 'reviewerUserId'
-  | 'reviewerAgentId'
-  | 'createdBy'
-  | 'createdByType'
-  | 'archivedAt'
->;
-
 export async function retargetPendingTaskReview(
   tx: TransactionSql,
   args: {
@@ -551,69 +558,152 @@ export async function retargetPendingTaskReview(
   return reviewer;
 }
 
-/** Revalidate open human reviews after membership or audience access changes. */
+/** What took a person's project access away; the audit row names it. */
+export type ReviewAccessLoss =
+  | 'member_removed'
+  | 'role_changed'
+  | 'team_removed';
+
+/**
+ * Hand on the reviews that wait on a person who can no longer take them: they
+ * were removed from the organization, their role lost project edit access, or
+ * they left the team that gave it. MUST run in the transaction that took the
+ * access away, after its write, so the check reads the new state and the
+ * hand-over commits or rolls back with it.
+ *
+ * It looks at every task that names the person as its reviewer, whatever its
+ * status, and every task whose open human review is addressed to them (the
+ * creator fallback names nobody on the task). Where the person can still
+ * edit the task's project — an admin role, or another team that reaches it —
+ * nothing moves. Otherwise the designation is cleared and the open review
+ * moves on through the chain a cleared designation takes (human task creator
+ * → project creator), never back to the person: the way an erasure moves it,
+ * so nobody made the change and the new reviewer is asked impersonally, and a
+ * task hidden from the board moves without asking anyone. Each task it
+ * changes leaves one audit row (actor `system`, the cause in its metadata)
+ * and one hint. A review that waits on an agent, a workflow-era row and a
+ * decided review are not touched.
+ *
+ * The task row is locked before it is read again, so a reviewer change
+ * either committed before that read or waits for this transaction; a
+ * concurrent decision conflicts on the approval row and the serializable
+ * door runs again against the decided state.
+ */
 export async function retargetPendingTaskReviewsForUser(
   tx: TransactionSql,
-  args: { organizationId: string; userId: string; teamIds?: readonly string[] },
+  args: { organizationId: string; userId: string; cause: ReviewAccessLoss },
 ): Promise<void> {
-  const teamIds = args.teamIds ?? [];
-  const rows = await tx<
-    {
-      id: string;
-      projectId: string;
-      title: string;
-      organizationId: string;
-      reviewerUserId: string | null;
-      reviewerAgentId: string | null;
-      createdBy: string;
-      createdByType: string;
-      archivedAt: number | null;
-    }[]
-  >`
-    SELECT t.id, t.project_id AS "projectId", t.title,
-      t.org_id AS "organizationId", t.reviewer_user_id AS "reviewerUserId",
-      t.reviewer_agent_id AS "reviewerAgentId", t.created_by AS "createdBy",
-      t.created_by_type AS "createdByType",
-      t.archived_at_ms::float8 AS "archivedAt"
-    FROM app.tasks t
-    JOIN app.projects p ON p.id = t.project_id AND p.org_id = t.org_id
-    WHERE t.org_id = ${args.organizationId}
-      AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL.replaceAll('team_ids', 'p.team_ids').replaceAll('team_id', 'p.team_id').replaceAll('shared_with_team_ids', 'p.shared_with_team_ids'))} && ${teamIds}))
+  const { organizationId, userId, cause } = args;
+  // The designations and the open requests are two index-bounded reads, not
+  // a join over every task of the organization.
+  const found = await tx<{ id: string; projectId: string }[]>`
+    SELECT id, project_id AS "projectId" FROM app.tasks
+    WHERE org_id = ${organizationId} AND reviewer_user_id = ${userId}
+    UNION
+    SELECT t.id, t.project_id AS "projectId" FROM app.approvals a
+    JOIN app.tasks t ON t.id = a.resource_id AND t.org_id = a.org_id
+    WHERE a.org_id = ${organizationId} AND a.resource_type = 'task_review'
+      AND a.status = 'pending' AND a.wf_execution_id IS NULL
       AND (
-        t.reviewer_user_id = ${args.userId}
-        OR EXISTS (
-          SELECT 1 FROM app.approvals a
-          WHERE a.org_id = t.org_id AND a.resource_type = 'task_review'
-            AND a.resource_id = t.id AND a.status = 'pending'
-            AND (
-              a.metadata ->> 'requestedFor' = ${args.userId}
-              OR a.metadata -> 'reviewer' ->> 'userId' = ${args.userId}
-            )
+        a.metadata ->> 'requestedFor' = ${userId}
+        OR (
+          a.metadata -> 'reviewer' ->> 'kind' = 'user'
+          AND a.metadata -> 'reviewer' ->> 'userId' = ${userId}
         )
       )
-    FOR UPDATE OF t
+    ORDER BY id
   `;
-  // Clear the live designation for every task, including tasks whose review
-  // gate has not opened yet. The pending approval metadata above preserves
-  // creator fallback intent so open reviews can be rerouted below.
-  await tx`
-    UPDATE app.tasks AS t
-    SET reviewer_user_id = NULL, updated_at_ms = ${Date.now()}
-    FROM app.projects AS p
-    WHERE p.id = t.project_id AND p.org_id = t.org_id
-      AND t.org_id = ${args.organizationId} AND t.reviewer_user_id = ${args.userId}
-      AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL.replaceAll('team_ids', 'p.team_ids').replaceAll('team_id', 'p.team_id').replaceAll('shared_with_team_ids', 'p.shared_with_team_ids'))} && ${teamIds}))
-  `;
-  for (const row of rows) {
-    await retargetPendingTaskReview(tx, {
-      task: { ...row, reviewerUserId: null },
-      excludeUserId: args.userId,
-      silent: row.archivedAt !== null,
+  const eligibilityByProject = new Map<string, ReviewerEligibility>();
+  for (const { id, projectId } of found) {
+    let eligibility = eligibilityByProject.get(projectId);
+    if (eligibility === undefined) {
+      const projects = await tx<{ teamIds: string[] | null }[]>`
+        SELECT ${tx.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+        FROM app.projects WHERE id = ${projectId} AND org_id = ${organizationId}
+      `;
+      eligibility = await reviewerEligibility(tx, {
+        organizationId,
+        projectTeamIds: projects[0]?.teamIds ?? [],
+        userId,
+      });
+      eligibilityByProject.set(projectId, eligibility);
+    }
+    if (eligibility === 'eligible') continue;
+
+    const locked = await tx<(RetargetTask & Pick<TaskRow, 'archivedAt'>)[]>`
+      SELECT id, org_id AS "organizationId", project_id AS "projectId", title,
+        reviewer_user_id AS "reviewerUserId", created_by AS "createdBy",
+        created_by_type AS "createdByType",
+        archived_at_ms::float8 AS "archivedAt"
+      FROM app.tasks WHERE id = ${id} AND org_id = ${organizationId}
+      FOR UPDATE
+    `;
+    const task = locked[0];
+    if (task === undefined) continue;
+    const designated = task.reviewerUserId === userId;
+    // Discovery ran before the lock: the review may have moved on since.
+    const waiting = (await listTaskReviewApprovals(tx, task.id)).filter(
+      (approval) => {
+        const recipient = taskReviewRecipientOf(approval.metadata);
+        return (
+          approval.status === 'pending' &&
+          approval.wfExecutionId === null &&
+          recipient?.kind === 'user' &&
+          recipient.userId === userId
+        );
+      },
+    );
+    if (!designated && waiting.length === 0) continue;
+
+    if (designated) {
+      await tx`
+        UPDATE app.tasks
+        SET reviewer_user_id = NULL, updated_at_ms = ${Date.now()}
+        WHERE id = ${task.id} AND org_id = ${organizationId}
+      `;
+      await dismissReviewerAssignedNotifications(tx, {
+        organizationId,
+        taskId: task.id,
+        userId,
+      });
+    }
+    const keptDesignation = designated ? null : task.reviewerUserId;
+    const movedTo =
+      waiting.length === 0
+        ? undefined
+        : await retargetPendingTaskReview(tx, {
+            task: { ...task, reviewerUserId: keptDesignation },
+            excludeUserId: userId,
+            silent: task.archivedAt !== null,
+          });
+    const approvalId = waiting[0]?.id ?? null;
+    await createAuditLog(tx, {
+      organizationId,
+      actorId: 'system',
+      actorType: 'system',
+      action: 'task.review_retargeted',
+      category: 'data',
+      resourceType: 'task',
+      resourceId: task.id,
+      resourceName: task.title,
+      previousState: {
+        reviewerUserId: task.reviewerUserId,
+        approvalId,
+        reviewer: approvalId === null ? null : { kind: 'user', userId },
+      },
+      newState: {
+        reviewerUserId: keptDesignation,
+        approvalId,
+        reviewer:
+          movedTo === undefined ? null : { kind: 'user', userId: movedTo },
+      },
+      metadata: { cause },
+      status: 'success',
     });
     await emitHintInTx(tx, {
-      orgId: args.organizationId,
+      orgId: organizationId,
       entity: 'task',
-      entityId: row.id,
+      entityId: task.id,
     });
   }
 }

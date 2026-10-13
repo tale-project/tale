@@ -98,6 +98,35 @@ describe('removeMembershipCascade — coding agents [AGCONN-R4]', () => {
   });
 });
 
+describe('removeMembershipCascade — waiting reviews [TASK-R39]', () => {
+  it('looks for the reviews that wait on the member in this organization only, after their teams are gone', async () => {
+    installFakeBoss();
+    const { tx, statements } = fakeTx();
+    await removeMembershipCascade(tx, 'org-1', 'u-1');
+
+    const teamsGoneAt = statements.findIndex((statement) =>
+      statement.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    const candidatesAt = statements.findIndex((statement) =>
+      statement.text.startsWith(
+        'SELECT id, project_id AS "projectId" FROM app.tasks',
+      ),
+    );
+    expect(teamsGoneAt).toBeGreaterThan(-1);
+    // Their access is judged on what is left, so it reads after the delete.
+    expect(candidatesAt).toBeGreaterThan(teamsGoneAt);
+    const candidates = statements[candidatesAt];
+    expect(candidates?.text).toContain('reviewer_user_id = ?');
+    // The designations and the open requests, both in this organization.
+    expect(candidates?.values).toEqual(
+      expect.arrayContaining(['org-1', 'u-1']),
+    );
+    expect(
+      candidates?.values.filter((value) => value === 'org-1'),
+    ).toHaveLength(2);
+  });
+});
+
 describe('removeMembershipCascade — sandbox workspaces', () => {
   it("queues the deletion of the member's workspaces with the organization's agents", async () => {
     const sends = installFakeBoss();
