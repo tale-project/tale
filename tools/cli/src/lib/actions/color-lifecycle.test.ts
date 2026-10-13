@@ -29,6 +29,7 @@ mock.module('../docker/remove-container', () => ({
 }));
 
 const {
+  awaitRunningColorHealthy,
   colorLooksUp,
   colorPlatformVersion,
   isUnfinishedColorFlip,
@@ -231,5 +232,47 @@ describe('removeColorContainers', () => {
       'rm tale-blue-backend-worker-1',
       'rm tale-blue-backend-worker-2',
     ]);
+  });
+});
+
+describe('awaitRunningColorHealthy', () => {
+  const apiReplica = (index: number, running: boolean) => ({
+    name: `tale-green-backend-api-${index}`,
+    service: 'backend-api',
+    index,
+    running,
+  });
+  const args = {
+    color: 'green' as const,
+    services: ['backend-api'] as const,
+    replicas: REPLICAS,
+    healthTimeout: 1,
+  };
+
+  test('waits on running replicas only, so an exited leftover cannot wedge a resumed flip', async () => {
+    const waited: string[] = [];
+    await awaitRunningColorHealthy(args, {
+      list: async () => [apiReplica(1, true), apiReplica(2, false)],
+      wait: async (name) => {
+        waited.push(name);
+        return true;
+      },
+    });
+    expect(waited).toEqual(['tale-green-backend-api-1']);
+  });
+
+  test('refuses a role short of running replicas, or one that is not healthy', async () => {
+    await expect(
+      awaitRunningColorHealthy(args, {
+        list: async () => [apiReplica(1, false)],
+        wait: async () => true,
+      }),
+    ).rejects.toThrow('0 of 1 replicas running');
+    await expect(
+      awaitRunningColorHealthy(args, {
+        list: async () => [apiReplica(1, true)],
+        wait: async () => false,
+      }),
+    ).rejects.toThrow('failed health check');
   });
 });

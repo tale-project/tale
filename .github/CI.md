@@ -410,6 +410,17 @@ without retained checkout credentials or installed dependencies.
 Scorecard remains informational and runs weekly, manually and when branch protections
 change. Blocking source and dependency security gates retain their triggers.
 
+**Workspace upgrade** (`workspace-upgrade.yml`) is informational too and runs nightly and
+manually. It builds the CLI from the checked-out source, stamped with the newest published
+release, and runs `tools/cli/scripts/workspace-upgrade-check.ts` twice: from v0.5.77, the only
+release the automation writer protocol cutover starts from, and from the release before the
+newest. Each leg deploys the older release with its own CLI on the hosted runner, signs up an
+owner and creates an organization, moves the workspace with `tale update -v`, deploys with the
+CLI under test, and requires the migrations, the account, the organization and a sign-in to
+survive, a second deploy to succeed and, across the cutover, `tale rollback` to be refused.
+v0.5.79–v0.5.89 refused every v0.5.77 workspace at that cutover while no check ran an
+operator's upgrade. It is not a release-candidate receipt: check its newest run before tagging.
+
 Security's production Bun audit uses one registry response per attempt for both
 reporting and its blocking HIGH/CRITICAL threshold. Native JSON output retains all
 advisory severities; Bun decides the exit status. Each bounded attempt is retained,

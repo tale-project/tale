@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -47,6 +53,23 @@ const execMock = mock(async () => ({
 }));
 let protocolFloor = 1;
 let installedWriterProtocol = 1;
+/** A ledger other than the two the floor flag selects. */
+let ledgerOverride: string[] | undefined;
+/** v0.5.77's ledger and the first migrations a cut protocol-2 boot applied. */
+const continuedLedger = [
+  ...readdirSync(
+    new URL(
+      '../../../../../services/platform/backend/db/migrations/',
+      import.meta.url,
+    ),
+  )
+    .filter(
+      (name) =>
+        /^\d{4}_.*\.(sql|ts)$/.test(name) && Number(name.slice(0, 4)) <= 153,
+    )
+    .sort(),
+  '0154_api_key_owners.sql',
+];
 let migrateDuringPull = false;
 let targetProtocol: string | undefined;
 const databaseId = 'a'.repeat(64);
@@ -151,6 +174,7 @@ function expectRunbookPrinted(): void {
 beforeEach(() => {
   protocolFloor = 1;
   installedWriterProtocol = 1;
+  ledgerOverride = undefined;
   migrateDuringPull = false;
   targetProtocol = undefined;
   execMock.mockImplementation(
@@ -209,9 +233,10 @@ beforeEach(() => {
         value = {
           schema: 'public',
           ids:
-            protocolFloor === 2
+            ledgerOverride ??
+            (protocolFloor === 2
               ? ['0001_initial.sql', '0163_automation_legacy_protocol.sql']
-              : ['0001_initial.sql'],
+              : ['0001_initial.sql']),
         };
       if (args[0] === 'image')
         value = [
@@ -446,6 +471,61 @@ describe('rollback confirmation', () => {
       });
     }
   }
+
+  test('rollback refuses while a cut first boot left this database partly upgraded', async () => {
+    arrangePatchRollback();
+    ledgerOverride = continuedLedger;
+    await expect(
+      rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+    ).rejects.toThrow('Finish it with `tale deploy`');
+    expect(pullImageMock).not.toHaveBeenCalled();
+    expect(ensureVolumesMock).not.toHaveBeenCalled();
+    expect(dockerComposeMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+  });
+
+  test("an earlier attempt's receipt alone does not block an ordinary rollback", async () => {
+    arrangePatchRollback();
+    mkdirSync(join(env.DEPLOY_DIR, '.tale'), { recursive: true });
+    writeFileSync(
+      join(env.DEPLOY_DIR, '.tale', 'automation-cutover.json'),
+      '{}',
+    );
+    await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+    expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+  });
+
+  test('deploy refuses a protocol-1 workspace it cannot cut over before any mutation, naming the way', async () => {
+    arrangePatchRollback();
+    targetProtocol = '2';
+    // Without --skip-backup: the snapshot (ensureVolumes, `docker run`) would
+    // show if the refusal came after it.
+    const failure = await deploy({
+      env,
+      version: '0.9.2',
+      stop: false,
+      hostAlias: '',
+      dryRun: false,
+    }).catch((error: unknown) => error);
+    expect((failure as Error).message).toContain('tale update -v 0.5.77');
+    expect((failure as Error).message).toContain('Nothing was changed');
+    expect(ensureVolumesMock).not.toHaveBeenCalled();
+    expect(ensureNetworkMock).not.toHaveBeenCalled();
+    expect(dockerComposeMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+    expect(
+      dockerMock.mock.calls.some((call) => ['tag', 'stop'].includes(call[0])),
+    ).toBe(false);
+    expect(
+      execMock.mock.calls.some((call) => {
+        const args = (call as unknown[])[1];
+        return (
+          Array.isArray(args) &&
+          ['tag', 'stop', 'run', 'pause'].includes(String(args[0]))
+        );
+      }),
+    ).toBe(false);
+  });
 
   test('a compatible protocol image retains ordinary rollback behavior', async () => {
     arrangePatchRollback();

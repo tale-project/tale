@@ -213,6 +213,15 @@ records (at most 100 per list). Each receipt archive is limited to 1 MiB compres
 regular `release-candidate.json` member of at most 64 KiB, including the actual decompressed
 read. Extra or duplicate files, directories, links and malformed archives are refused.
 
+Before tagging, also check that the newest **Workspace upgrade** run on `main` passed
+(`gh run list --workflow workspace-upgrade.yml --branch main --limit 1`), or dispatch one with
+`gh workflow run workspace-upgrade.yml --ref main`. It upgrades real `tale deploy` workspaces
+from v0.5.77 and from the previous release with `main`'s CLI, and a red run means the release
+could strand existing workspaces, as v0.5.79–v0.5.89 stranded every v0.5.77 workspace at the
+automation writer protocol cutover. It runs against the newest published images, so a
+candidate's own images are first upgraded to by the nightly run after publication. It is not
+a candidate receipt, and the gate does not read it.
+
 ## 4. Tag the candidate
 
 Only after the gate answers `eligible`:
