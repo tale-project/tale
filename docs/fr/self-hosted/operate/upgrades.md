@@ -10,7 +10,7 @@ Les déploiements gérés utilisent des révisions de sources fixées et des bun
 ## Préparer la mise à niveau
 
 1. Lance `tale status` dans le bon workspace. Note la version active, celle du workspace et l’état du déploiement.
-2. Lis les notes de la version cible : compatibilité, configuration requise et limites connues. Une instance antérieure à 0.5 exige le changement d’installation décrit plus bas.
+2. Lis les notes de la version cible : compatibilité, configuration requise et limites connues. Une instance antérieure à 0.5 exige le changement d’installation décrit plus bas, et un workspace en v0.5.77 ou antérieure franchit une fois le changement de protocole d’écriture des automatisations, décrit lui aussi plus bas.
 3. Confirme une sauvegarde externe restaurable, les clés correspondantes et la couverture des bases et buckets externes. [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) décrit les éléments nécessaires.
 4. Prévois la capacité pour les anciens et nouveaux réplicas ensemble. Réserve une maintenance si les snapshots ou remplacements de sandbox et de services persistants peuvent interrompre un travail nécessaire.
 5. Prévisualise la mise à jour et le déploiement. Examine les avertissements : un aperçu réussi ne prouve pas qu’une migration réelle aboutira.
@@ -90,6 +90,37 @@ tale rollback
 `--yes` supprime la confirmation pour une opération sans surveillance déjà approuvée. La vérification de ligne de version est un garde-fou, pas une preuve indépendante de compatibilité de chaque intégration externe ou configuration personnalisée. Une liste d’anciennes migrations qui forme le préfixe de la nouvelle ne suffit pas à rendre un retour arrière sûr.
 
 `tale rollback` remplace uniquement les images applicatives de `platform`, `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement ordinaire (sans `--services`) qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
+
+## Mise à niveau depuis v0.5.77 ou antérieure
+
+À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend tant qu’aucune exécution n’est inachevée, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.
+
+1. Si le workspace exécute une version antérieure à v0.5.77, amène-le d’abord en v0.5.77. Le changement ne part que de cette version :
+
+   ```bash
+   tale update -v 0.5.77
+   tale deploy
+   ```
+
+   Ces étapes utilisent `-v` : les CLI antérieures à la correction comprennent `tale update --version` comme une demande de leur propre version et ne changent rien.
+
+2. Laisse chaque exécution d’automatisation de chaque organisation se terminer, ou annule-la, et mets en pause les planifications et déclencheurs qui en lanceraient de nouvelles jusqu’à la fin de la mise à niveau.
+3. Confirme ta sauvegarde externe, puis mets à jour et prévisualise. L’aperçu signale tout ce qui bloque encore le changement :
+
+   ```bash
+   tale update -v <target-version>
+   tale deploy --dry-run
+   ```
+
+4. Déploie :
+
+   ```bash
+   tale deploy
+   ```
+
+Avant de modifier quoi que ce soit, `tale deploy` vérifie la version du backend en cours, l’historique des migrations de la base et les exécutions d’automatisation. Si l’un d’eux n’est pas prêt, il s’arrête en indiquant l’étape suivante et laisse le workspace fonctionner tel quel. Sinon, il prend son snapshot et remplace les services sandbox comme d’habitude. Juste avant le démarrage de la nouvelle couleur, il bloque les nouvelles exécutions d’automatisation, confirme qu’aucune n’est inachevée, arrête proprement les anciens conteneurs `backend-api` et `backend-worker` et les consigne dans `.tale/automation-cutover.json`. L’API reste indisponible de cet arrêt jusqu’à ce que la nouvelle couleur soit opérationnelle.
+
+Le premier démarrage de la nouvelle couleur applique toutes les migrations de base depuis v0.5.77 avant de se déclarer opérationnel ; avec une grande base de connaissances, la copie des vecteurs peut dépasser `HEALTH_CHECK_TIMEOUT`. Si le déploiement s’interrompt après l’arrêt de l’ancien backend, relance `tale deploy` avec la même version : il reconnaît son propre relais, y compris un premier démarrage interrompu au milieu de ses migrations, attend la couleur déjà en cours de démarrage au lieu de la recréer et termine la mise à niveau. Conserve `.tale/automation-cutover.json` et ne redémarre pas les anciens conteneurs à la main. Après le changement, `tale rollback` refuse de revenir à v0.5.77 ; répare avec une version compatible, comme le décrit la section suivante.
 
 ## Changement de protocole des automatisations : réparer avec une version compatible
 

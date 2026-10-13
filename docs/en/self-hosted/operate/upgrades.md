@@ -10,7 +10,7 @@ Managed deployments use pinned source revisions and prepared bundles instead of 
 ## Prepare the upgrade
 
 1. Run `tale status` in the intended workspace. Record the running version, workspace version, and current deployment state.
-2. Read the target release notes for compatibility, required configuration, and known limitations. A pre-0.5 instance needs the separate cutover below.
+2. Read the target release notes for compatibility, required configuration, and known limitations. A pre-0.5 instance needs the separate cutover below, and a workspace on v0.5.77 or earlier crosses the automation writer protocol cutover once, also described below.
 3. Confirm a restorable off-host backup, the matching keys, and coverage of external databases and buckets. [Backups and restore](/self-hosted/operate/backups-and-restore) defines the recovery set.
 4. Allow capacity for old and new application replicas at the same time. Agree on a maintenance window when snapshots, sandbox replacement, or stateful updates can interrupt required work.
 5. Preview the selected update and deployment. Inspect warnings rather than treating a successful preview as proof that a live migration will succeed.
@@ -90,6 +90,37 @@ tale rollback
 `--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
 
 `tale rollback` swaps the application images of `platform`, `backend-api`, and `backend-worker` only. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
+
+## Upgrade from v0.5.77 or earlier
+
+Releases from v0.5.78 on write automation runs with writer protocol 2. Their migration `0163` puts every run that is still queued, running or waiting **On hold**, and a held run never resumes. The first upgrade from v0.5.77 therefore stops the old backend while no run is unfinished, and only then starts the new version. `tale deploy` does this itself, once.
+
+1. If the workspace runs a release older than v0.5.77, bring it to v0.5.77 first. The cutover starts only from that release:
+
+   ```bash
+   tale update -v 0.5.77
+   tale deploy
+   ```
+
+   These steps use `-v`: CLIs from before the release that fixed it read `tale update --version` as a request for their own version and change nothing.
+
+2. Let every automation run in every organization finish, or cancel it, and pause schedules and triggers that would start new ones until the upgrade is done.
+3. Confirm your off-host backup, then update and preview. The preview names anything that still blocks the cutover:
+
+   ```bash
+   tale update -v <target-version>
+   tale deploy --dry-run
+   ```
+
+4. Deploy:
+
+   ```bash
+   tale deploy
+   ```
+
+Before it changes anything, `tale deploy` checks the running backend's release, the database's migration history and the automation runs. If one of them is not ready, it stops with the step to take next and leaves the workspace running as it was. Otherwise it takes its snapshot and replaces the sandbox services as usual. Right before the new colour starts, it holds a lock against new automation runs, confirms that none is unfinished, gracefully stops the old `backend-api` and `backend-worker` containers, and records them in `.tale/automation-cutover.json`. The API is unavailable from that stop until the new colour is healthy.
+
+The new colour's first start applies every database migration since v0.5.77 before it reports healthy, and with a large knowledge base the vector copy can take longer than `HEALTH_CHECK_TIMEOUT`. If the deploy stops at any point after the old backend stopped, run `tale deploy` again with the same release: it recognizes its own handoff, including a first start that was cut off partway through its migrations, waits for the colour that is already starting instead of recreating it, and finishes the upgrade. Keep `.tale/automation-cutover.json`, and do not start the old containers by hand. After the cutover, `tale rollback` refuses to return to v0.5.77; recover forward as the next section describes.
 
 ## Automation protocol cutover: repair forward
 
