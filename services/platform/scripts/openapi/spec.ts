@@ -7728,10 +7728,10 @@ export function buildSpec(): Json {
         'instructions; a request carries one message; and every result adds ' +
         '`resultType` and the server under `_meta`, with `ttlMs` and ' +
         '`cacheScope` where a client may cache it. Authenticate with ' +
-        'the same Bearer org API key as the REST API — or, where the operator ' +
-        'lets coding agents sign in, with the access token of a connection a ' +
-        'person made from their agent (OAuth), which this endpoint alone ' +
-        'takes: its 401 carries a `WWW-Authenticate` challenge naming the ' +
+        'the same Bearer org API key as the REST API — or, unless the operator ' +
+        'turned agent sign-in off, with the access token of a connection a ' +
+        'person made from their agent (OAuth, `agentOAuth`), which this ' +
+        'endpoint alone takes: its 401 carries a `WWW-Authenticate` challenge naming the ' +
         'endpoint’s metadata and the scopes to ask for. A connection acts in ' +
         'the organization it was made for (`X-Organization-Slug` naming ' +
         'another answers `ORG_MISMATCH`) and holds the access its person ' +
@@ -7747,7 +7747,7 @@ export function buildSpec(): Json {
         'at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP ' +
         'endpoint page in the developer docs for the full tour.',
       operationId: 'mcp',
-      security: sec,
+      security: [{ bearerAuth: [] }, { agentOAuth: ['tale:mcp'] }],
       requestBody: jsonBody({
         oneOf: [
           jsonRpcMessage,
@@ -8746,7 +8746,35 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'http',
           scheme: 'bearer',
           description:
-            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection, where the operator lets agents sign in.',
+            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection (`agentOAuth`), unless the operator turned agent sign-in off.',
+        },
+        agentOAuth: {
+          type: 'oauth2',
+          description:
+            'A coding agent signs in on a person’s behalf, for the MCP endpoint alone — OAuth 2.1, the authorization code grant with PKCE (S256). The agent finds the sign-in server from the endpoint’s 401, whose `WWW-Authenticate` challenge names `resource_metadata` (RFC 9728, `/.well-known/oauth-protected-resource/api/v1/mcp`), and identifies itself by a client metadata document it publishes or by registering itself. The person signs in to Tale, chooses one organization and the access to give on Tale’s consent page, and the connection then acts in that organization with that access, never above what the person’s role allows. The access token lasts five minutes; the refresh token stays valid for thirty days without use and rotates. Disconnecting the agent, leaving the organization, a new password or a refresh token used twice ends the connection. A deployment whose operator turned agent sign-in off answers none of the discovery documents.',
+          flows: {
+            authorizationCode: {
+              authorizationUrl: '/api/auth/oauth2/authorize',
+              tokenUrl: '/api/auth/oauth2/token',
+              refreshUrl: '/api/auth/oauth2/token',
+              scopes: {
+                'tale:mcp':
+                  'Read and test: read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.',
+                'tale:automations.write':
+                  'Edit automations: save new versions. Deploying stays with the person.',
+                'tale:automations.deploy':
+                  'Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.',
+                'tale:settings.read':
+                  'Read settings: the settings the person’s role can see. Secrets stay hidden.',
+                'tale:settings.write':
+                  'Change settings: the settings the person’s role can change. Every change is recorded in the audit log.',
+                'tale:subscriptions.connect':
+                  'Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.',
+                offline_access:
+                  'Stay connected: a refresh token, valid for thirty days without use.',
+              },
+            },
+          },
         },
       },
       schemas: {

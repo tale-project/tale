@@ -306,7 +306,7 @@ compute codes from the enrollment secret.
   included.
 
 - [ ] `AUTH-F34` · **A coding agent's consent page** — With agent sign-in on
-  (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=true`) register an app
+  (the default) register an app
   (`POST /api/auth/oauth2/register`: a redirect to
   `http://127.0.0.1:54545/callback`, the six `tale:` scopes and
   `offline_access`), sign in as the owner of Acme who is a plain member of Beta

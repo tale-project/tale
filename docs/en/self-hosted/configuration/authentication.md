@@ -2,7 +2,7 @@
 title: Choose an authentication setup
 description: Configure local accounts, enterprise sign-in or a trusted authentication proxy for your deployment.
 ---
-Tale supports local email-and-password accounts, organization-specific enterprise sign-in and identity supplied by a trusted reverse proxy. Choose based on where your team’s identities are managed and who owns account provisioning. Sign-in and provisioning are separate decisions: SSO authenticates a person, while invitations, sign-in provisioning or SCIM control membership.
+Tale supports local email-and-password accounts, organization-specific enterprise sign-in and identity supplied by a trusted reverse proxy. Choose based on where your team’s identities are managed and who owns account provisioning. Sign-in and provisioning are separate decisions: SSO authenticates a person, while invitations, sign-in provisioning or SCIM control membership. Coding agents that edit automations sign in separately, to the MCP endpoint, as [described below](#coding-agent-sign-in).
 
 ## Choose the right integration
 
@@ -11,6 +11,7 @@ Tale supports local email-and-password accounts, organization-specific enterpris
 | Local accounts managed in Tale | Local sign-in and invitations | Stable deployment secrets and a reachable instance URL. |
 | An existing corporate identity provider | Enterprise SSO: Microsoft Entra ID, generic OIDC, OAuth2 or SAML 2.0 | An IdP application configured with Tale’s exact callback or metadata URLs. |
 | An application or proxy already authenticates its users | Trusted headers, per organization | A key from **Settings > Enterprise SSO** and a proxy that injects it with the identity headers. |
+| People connect Claude Code, Codex, Cursor or another coding agent to the MCP endpoint | Coding-agent sign-in, on by default | A public HTTPS address and a proxy that forwards the `/.well-known/` documents. |
 
 Enterprise SSO and trusted headers are both configured per organization. Plan and test changes to identity mapping before moving existing accounts to another mechanism.
 
@@ -59,6 +60,21 @@ The proxy must remove client-supplied identity headers, set its own authenticate
 A proxied visitor is signed in on the app's first own request: when that request carries the key and the identity header but no session cookie, the backend mints the session right there and the app opens signed in — no sign-in page, no redirect. Should the app still land on its sign-in page (a stale cookie, for example), the page hands the browser to the hand-off address by itself, and a refusal comes back to that page with its reason. Routing the proxy's `/log-in` straight to the hand-off address remains supported; the address answers a success with a redirect to the app and a refusal as a page with its status. Because the proxy owns the session, the app offers no sign-out to a proxied member; after an inactivity sign-out the automatic sign-in pauses until the member continues from the notice.
 
 To show Tale inside the application's own page rather than in a tab, an Admin lists that page's origin under **Embedding** on the same settings page. Tale's pages then answer with a `frame-ancestors` policy naming `'self'` and the listed origins instead of refusing every frame, and the `X-Frame-Options` header is left off. The list belongs to one organization, but the sign-in shell is one document for the whole deployment, so an origin any organization admits may load it. The browser sends the session cookie into a frame only when the surrounding page is on the same site as Tale, for example a subdomain of the host or Tale served under the host's own domain; a cross-site frame shows the sign-in page instead.
+
+## Let coding agents sign in {#coding-agent-sign-in}
+
+A person connects a coding agent such as Claude Code, Codex or Cursor to the [MCP endpoint](/develop/mcp-endpoint) by signing in from the agent, so no API key has to be copied into its configuration. The agent sends the person's browser to Tale's own sign-in server. They sign in as they always do, choose one organization and how much the agent may do there, and the agent then works as that person, never above their role. The sign-in is on unless you turn it off. API keys keep working for scripts and for tools that cannot sign in.
+
+What the deployment has to provide:
+
+- **A public address people can open.** The sign-in server answers at `SITE_URL` plus `/api/auth`, and each address in `ADDITIONAL_SITE_URLS` is announced as its own MCP endpoint.
+- **Reachable discovery documents.** An agent finds the sign-in server in documents under `/.well-known/`, at the host root. Tale's proxy routes them. A proxy of your own must forward `/.well-known/oauth-protected-resource*` and `/.well-known/oauth-authorization-server*` to the backend on every address, also when Tale runs under a base path, because these paths always sit at the host root. [TLS and domains](/self-hosted/configuration/tls-and-domains#agent-sign-in-domains) lists them.
+- **Outbound HTTPS to the agent's host.** Claude Code and Codex identify themselves with a client metadata document on their vendor's host (`claude.ai`, `chatgpt.com`), which the backend fetches when an agent connects. Tale refuses addresses on private networks and documents on its own addresses. Set `TALE_MCP_CLIENT_METADATA_HOSTS` to the hosts you accept to narrow it further.
+- **Limits on self-registration.** Cursor, VS Code and Gemini CLI publish no such document and register themselves. Tale accepts ten registrations an hour from one address, 500 a day and 5,000 in all, takes web redirects only to the hosts in `TALE_MCP_DCR_WEB_REDIRECT_HOSTS`, shows such an app as **Unverified** on the consent page, and removes registrations nobody used each day.
+
+Tokens are short-lived. An access token lasts five minutes, and an agent that goes unused for thirty days has to be connected again. A person, or an Owner or Admin, disconnects an agent under **Settings > API > Connected agents**. Removing the person from the organization, a new password and a refresh token used twice end the connection too, and the person finds a notice in their notifications for the last two.
+
+To keep agents on API keys, set `TALE_MCP_CLIENT_METADATA_DOCUMENTS=false` and `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=false` and recreate the backend. The endpoint's `oauth-protected-resource` document then answers `404`, and the access tokens of agents that were connected stop working at once. [Harden a production deployment](/self-hosted/operate/security/hardening#agent-sign-in) lists what to check before leaving it on.
 
 ## Diagnose sign-in failures
 

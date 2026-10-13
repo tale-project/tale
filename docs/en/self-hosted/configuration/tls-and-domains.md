@@ -67,7 +67,7 @@ Update `HOST` and `SITE_URL` together, plus any browser-facing storage endpoint 
 
 For a managed deployment created with `identity.bootstrap: "fresh"`, follow the [managed hostname migration procedure](/self-hosted/install/cli-install#managed-origin-migration) as part of this transition. It requires the retained deployment state and an explicit `identity.migrateOriginFrom`; changing only `HOST` and `SITE_URL` does not update the managed identity and client journals. Keep the existing account, organization and client credentials, then export the consumer configuration for the new issuer after the deployment is ready.
 
-For a subpath such as `https://example.com/app`, also set `BASE_PATH=/app`. Keep that prefix on requests sent to Tale's proxy: its generated routing strips the prefix internally. Check absolute links and callbacks rather than verifying only the home page. Keep the old domain available during a planned transition if users still need its existing links or sessions.
+For a subpath such as `https://example.com/app`, also set `BASE_PATH=/app`. Keep that prefix on requests sent to Tale's proxy: its generated routing strips the prefix internally. Check absolute links and callbacks rather than verifying only the home page. Keep the old domain available during a planned transition if users still need its existing links or sessions. Coding agents connected at the old address sign in again at the new one.
 
 ## Serve several domains {#several-domains-at-once}
 
@@ -98,3 +98,14 @@ In a managed deployment, declare these origins as `additionalOrigins` in the dep
 ### Register every provider callback
 
 Open **Settings > Enterprise SSO** to copy each domain's OIDC redirect or SAML ACS URL. SAML metadata includes the configured ACS entries. For connector consent, use the per-domain redirect URLs under **Settings > Connectors > OAuth apps**. Register the required URLs with each provider and test a fresh sign-in from every supported origin.
+
+## Route the coding-agent sign-in documents {#agent-sign-in-domains}
+
+Coding agents find Tale's sign-in server in documents at the host root, whatever base path Tale runs under. Tale's own proxy forwards them. A proxy or load balancer of your own must send these paths to the backend on every address you serve:
+
+| Path | What it is |
+| --- | --- |
+| `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/v1/mcp` | The MCP endpoint and the sign-in server that protects it. |
+| `/.well-known/oauth-authorization-server/api/auth` | The sign-in server's metadata. Under a base path the path carries it, as `/.well-known/oauth-authorization-server/app/api/auth` for `/app`. |
+
+Everything else an agent calls sits under Tale's own prefix like any other route: `/api/auth/oauth2/authorize`, `/api/auth/oauth2/token` and, for an agent that registers itself, `/api/auth/oauth2/register`. Each address in `ADDITIONAL_SITE_URLS` has its own protected-resource document, so route the well-known paths on each one. See [Let coding agents sign in](/self-hosted/configuration/authentication#coding-agent-sign-in).

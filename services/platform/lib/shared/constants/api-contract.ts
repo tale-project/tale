@@ -771,5 +771,17 @@
  * the same code as a tool error. `tools/list` is unchanged. The codes
  * `INSUFFICIENT_SCOPE` and `ORG_MISMATCH` join the registry. No REST
  * operation changes.
+ *
+ * 3.44.0 — 2026-10-13: coding agents may sign in to the MCP endpoint
+ * unless the operator turns it off (`TALE_MCP_CLIENT_METADATA_DOCUMENTS` and
+ * `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` now default to on): the discovery
+ * documents answer on a default deployment — the endpoint's protected-resource
+ * metadata at `/.well-known/oauth-protected-resource`, and the sign-in
+ * server's own with the agent scopes, `refresh_token`, the metadata-document
+ * flag and, for a client that registers itself, a `registration_endpoint` —
+ * and the 401 of `/api/v1/mcp` carries the challenge 3.43.0 describes.
+ * `agentOAuth` joins the security schemes (OAuth 2.1 authorization code with
+ * PKCE, the seven scopes) and the endpoint's security lists it beside the API
+ * key. No operation, schema or API key behaviour changes.
  */
-export const API_CONTRACT_VERSION = '3.43.0';
+export const API_CONTRACT_VERSION = '3.44.0';

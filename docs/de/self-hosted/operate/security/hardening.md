@@ -21,6 +21,18 @@ Bei Anmeldung über vertrauenswürdige Header darf nur der vorgelagerte Proxy di
 
 Die `robots.txt` der Plattform rät Crawlern von der Indexierung der Anwendung ab, erlaubt aber öffentliche Entwickler- und Statuspfade wie `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` und `/status`. Diese Anweisungen ersetzen keine Zugriffskontrolle. Schütze vertrauliche Daten durch Authentifizierung und prüfe, welche Informationen dein öffentlicher Statusbericht zeigt.
 
+## Entscheiden, ob sich Coding-Agents anmelden dürfen {#agent-sign-in}
+
+Die [Anmeldung für Coding-Agents](/de/self-hosted/configuration/authentication#coding-agent-sign-in) lässt eine Person Claude Code, Codex, Cursor oder einen anderen Agent ohne API-Schlüssel mit dem MCP-Endpunkt verbinden, und sie ist eingeschaltet, solange du sie nicht abschaltest. Sie fügt öffentliche Flächen hinzu: die Discovery-Dokumente unter `/.well-known/oauth-*`, die Endpunkte `/api/auth/oauth2/*` des Anmeldeservers (darunter die ratenbegrenzte Selbstregistrierung) und die Seite zum Erlauben des Zugriffs unter `/oauth/consent`. Eine Verbindung darf nie mehr, als die Rolle ihrer Person erlaubt, gehört zu einer Organisation und dem Zugriff, den die Person gewählt hat, und jedes Verbinden, Ändern und Trennen steht im Audit-Log. Das Entfernen der Person, ein neues Passwort oder ein zweimal verwendetes Refresh-Token trennen sie.
+
+Lässt du sie eingeschaltet, prüfe drei Dinge:
+
+- **Erreichbarkeit.** Agents, die auf dem Computer einer Person laufen (Claude Code, Codex, Cursor, VS Code, Gemini CLI), erreichen Tale über den Browser dieser Person und eine Loopback-Weiterleitung. Sie brauchen keine Freigabe über die öffentliche Adresse hinaus, die Personen ohnehin öffnen. claude.ai, Claude Desktop und die mobile App verbinden sich dagegen aus der Cloud von Anthropic. Für sie erlaubst du eingehendes HTTPS aus dem veröffentlichten ausgehenden Adressbereich von Anthropic (derzeit `160.79.104.0/21`, siehe [IP-Adressen von Anthropic](https://platform.claude.com/docs/en/api/ip-addresses)) auf `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server*`, `/api/auth/.well-known/openid-configuration`, `/api/auth/oauth2/token`, `/api/auth/oauth2/register` und `/api/v1/mcp`. Eine Bereitstellung, die nur in einem privaten Netz erreichbar ist, lässt sich aus diesen gehosteten Apps nicht nutzen.
+- **Ausgehender Verkehr.** Das Backend ruft das Client-Metadatendokument eines Agents vom Host des Agents ab, bei Claude Code von `claude.ai`, bei Codex von `chatgpt.com`. Beschränkst du den ausgehenden Verkehr des Backends, erlaube diese Hosts oder trage die Hosts, die du akzeptierst, in `TALE_MCP_CLIENT_METADATA_HOSTS` ein.
+- **Wer sich verbinden darf.** Inhaber, Admins und Entwickler sowie Mitglieder mit einer Kompetenz, die zusammen mit einem API-Schlüssel genutzt wird. Die Person braucht eine bestätigte Adresse und, wo es erzwungen wird, eine abgeschlossene Zwei-Faktor-Einrichtung, und für mehr als Lesen muss die Anmeldung weniger als einen Tag zurückliegen. Prüfe, wer diese Rollen und Kompetenzen hat, wie bei API-Schlüsseln.
+
+Willst du Agents bei API-Schlüsseln halten, setze `TALE_MCP_CLIENT_METADATA_DOCUMENTS=false` und `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=false` und erstelle das Backend neu.
+
 ## TLS an der öffentlichen Adresse prüfen
 
 Nutze ein vertrauenswürdiges Zertifikat für die Adresse, die deine Benutzer öffnen. Wähle `TLS_MODE=letsencrypt` für den mitgelieferten öffentlichen TLS-Zugang oder `TLS_MODE=external`, wenn dein vorgelagerter Proxy TLS terminiert. Ein selbst signiertes lokales Zertifikat schafft kein öffentliches Zertifikatsvertrauen.
