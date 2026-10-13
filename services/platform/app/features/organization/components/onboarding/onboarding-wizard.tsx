@@ -189,6 +189,7 @@ export function OnboardingWizard({
           <FinishStep
             onFinishTo={finishTo}
             providerConnected={providerConnected}
+            organizationId={createdOrgId}
           />
 
           <WizardFooter

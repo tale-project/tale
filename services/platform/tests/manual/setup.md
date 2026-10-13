@@ -197,8 +197,8 @@ has no users, so the **first** account is created one of two ways:
 A freshly signed-up user lands on `/dashboard/create-organization` — complete
 the create-org wizard, now two steps (verified live 2026-08-04): **Step 1 of
 2: Workspace** (organization name → **Next**) then **Step 2 of 2: Finish**
-("Ready to go", with optional **Connect a provider** / **Invite teammates**
-actions) → **Go to Home**. A user who already has an org goes straight to
+("Ready to go", with optional **Connect a provider** / **Invite teammates** /
+**Connect an agent** actions) → **Go to Home**. A user who already has an org goes straight to
 `/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
