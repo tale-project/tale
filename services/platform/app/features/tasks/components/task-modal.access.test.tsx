@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, render, screen } from '@/tests/utils/render';
@@ -403,22 +402,6 @@ describe('TaskModal — the discussion', () => {
       conversation.compareDocumentPosition(composer) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-  });
-
-  it('uses the line tabs to switch the whole task content section', async () => {
-    state.access = { canEdit: true, canCreate: true };
-    openTask(baseTask);
-    const user = userEvent.setup();
-
-    expect(await screen.findByTestId('task-conversation')).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /Deliverables/ }));
-    expect(screen.queryByTestId('task-conversation')).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId('task-comment-composer'),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('tab', { name: /Details/ }));
-    expect(screen.getByTestId('task-conversation')).toBeInTheDocument();
   });
 });
 

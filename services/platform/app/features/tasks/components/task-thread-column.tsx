@@ -2,8 +2,8 @@
 
 /**
  * A task's reading column — the same on its page and in the board's dialog:
- * the brief that opens the thread (what the task is, what it needs, what it
- * splits into), the conversation under it, and the composer pinned at the
+ * the brief card that opens the thread (what the task is, what it needs, what
+ * it splits into), the conversation under it, and the composer pinned at the
  * foot where a reply goes.
  *
  * The column scrolls on its own and starts at the newest end, the way a chat
@@ -64,10 +64,10 @@ export function TaskThreadColumn({
             contentClassName,
           )}
         >
-          <section className="flex flex-col gap-5">
+          <div className="border-border bg-card flex flex-col gap-5 rounded-2xl border p-5 shadow-xs">
             <h2 className="sr-only">{t('detail.overview')}</h2>
             {brief}
-          </section>
+          </div>
           <section>
             <h2 className="sr-only">{t('detail.conversation')}</h2>
             {conversation}
