@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { sameMinor } from '../../utils/compare-versions';
 import { externalDepError, preconditionError } from '../../utils/fail';
 import {
@@ -19,10 +16,15 @@ import {
   imageRef,
   type ServiceConfig,
 } from '../compose/types';
-import { requireAutomationProtocol } from '../deployment/automation-protocol';
+import { legacyLedgerShape } from '../deployment/automation-cutover-sql';
+import {
+  installedAutomationLedger,
+  requireAutomationProtocol,
+} from '../deployment/automation-protocol';
 import {
   admitPendingAutomationColor,
   admitTagAutomationImage,
+  tagDatabaseId,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
 import { ensureNetwork } from '../docker/ensure-network';
@@ -41,7 +43,7 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
-  awaitColorHealthy,
+  awaitRunningColorHealthy,
   colorLooksUp,
   colorProject,
   colorPlatformVersion,
@@ -167,16 +169,21 @@ export async function rollback(
     }
 
     const installedProtocol = await tagDeploymentProtocol(getProjectId(), true);
-    // A cutover `tale deploy` started stopped the old backend for good; the
-    // database may already hold part of the new release's migrations. Old
-    // writers started beside it would leave no census the cutover could take.
-    if (
-      installedProtocol === 1 &&
-      existsSync(join(env.DEPLOY_DIR, '.tale', 'automation-cutover.json'))
-    )
-      throw preconditionError(
-        'An automation writer protocol cutover is in progress on this workspace (.tale/automation-cutover.json). Finish it with `tale deploy`; rollback cannot cross it. Nothing was changed.',
-      );
+    // A cut first boot of the new release left part of its migrations in
+    // this database (they were written to run beside v0.5.77, no older
+    // release). Only `tale deploy` may finish that cutover.
+    if (installedProtocol === 1) {
+      const database = await tagDatabaseId(getProjectId());
+      if (
+        database !== null &&
+        legacyLedgerShape(
+          (await installedAutomationLedger(database, getProjectId(), {})).ids,
+        ) === 'continued'
+      )
+        throw preconditionError(
+          'An automation writer protocol cutover has begun upgrading this database. Finish it with `tale deploy`; rollback cannot cross it. Nothing was changed.',
+        );
+    }
 
     const rollbackColor = getOppositeColor(currentColor);
 
@@ -310,7 +317,7 @@ export async function rollback(
     } else {
       // A colour left up by an interrupted rollback takes traffic only once
       // every replica is healthy.
-      await awaitColorHealthy({
+      await awaitRunningColorHealthy({
         color: promoting,
         services,
         replicas,

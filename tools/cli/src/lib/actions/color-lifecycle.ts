@@ -7,6 +7,7 @@ import { getContainerVersion } from '../docker/get-container-version';
 import { listComposeContainers } from '../docker/list-service-containers';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
+import { waitForHealthy } from '../docker/wait-for-healthy';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
 import type { FlipPending } from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
@@ -210,7 +211,7 @@ export async function startColor(args: StartColorArgs): Promise<void> {
  * touching the colour. Throws when one is not, so traffic never moves onto
  * it. `wait` is injectable for tests only.
  */
-export async function awaitColorHealthy(
+async function awaitColorHealthy(
   args: Pick<
     StartColorArgs,
     'color' | 'services' | 'replicas' | 'healthTimeout' | 'streamLogs'
@@ -227,6 +228,51 @@ export async function awaitColorHealthy(
     });
     if (!healthy) {
       throw new Error(`Service ${service} (${args.color}) failed health check`);
+    }
+  }
+}
+
+/**
+ * A flip resumed onto a colour that is already up (an earlier deploy timed out
+ * waiting for it, perhaps while its first start was still migrating) takes
+ * traffic only once each role has its replicas running and healthy. An exited
+ * leftover replica does not count and is not waited on (the lister already
+ * leaves out one-off containers). `deps` is injectable
+ * for tests only.
+ */
+export async function awaitRunningColorHealthy(
+  args: Pick<
+    StartColorArgs,
+    'color' | 'services' | 'replicas' | 'healthTimeout' | 'streamLogs'
+  >,
+  deps: {
+    list?: typeof listComposeContainers;
+    wait?: typeof waitForHealthy;
+  } = {},
+): Promise<void> {
+  const list = deps.list ?? listComposeContainers;
+  const wait = deps.wait ?? waitForHealthy;
+  const project = colorProject(args.color);
+  logger.step(`Waiting for the ${args.color} services to be healthy...`);
+  for (const service of args.services) {
+    const running = (await list(project, service)).filter(
+      (container) => container.running,
+    );
+    if (running.length < args.replicas[service])
+      throw new Error(
+        `Service ${service} (${args.color}) has ${running.length} of ${args.replicas[service]} replicas running`,
+      );
+    for (const container of running) {
+      const healthy = await wait(container.name, {
+        timeout: args.healthTimeout,
+        ...(args.streamLogs === undefined
+          ? {}
+          : { streamLogs: args.streamLogs }),
+      });
+      if (!healthy)
+        throw new Error(
+          `Service ${service} (${args.color}) failed health check`,
+        );
     }
   }
 }

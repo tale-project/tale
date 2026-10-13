@@ -3,7 +3,7 @@ import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { externalDepError, preconditionError } from '../../utils/fail';
+import { externalDepError } from '../../utils/fail';
 import {
   getProjectId,
   getReplicaCounts,
@@ -63,7 +63,7 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
-  awaitColorHealthy,
+  awaitRunningColorHealthy,
   colorLooksUp,
   colorPlatformVersion,
   colorProject,
@@ -375,11 +375,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             serviceConfig,
             installedProtocol,
           );
-        if (
-          rotatableToUpdate.length > 0 &&
-          installedProtocol === 1 &&
-          !isFirstDeploy
-        ) {
+        if (rotatableToUpdate.length > 0 && installedProtocol === 1) {
           // The target's protocol is known only once its image is pulled.
           // Every release since v0.5.78 is protocol 2, so say what crossing
           // would need, and refuse nothing: a dry run only reports.
@@ -388,10 +384,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
               project: getProjectId(),
               runningVersion: legacyVersion,
               release: version,
+              deployDir: env.DEPLOY_DIR,
+              firstDeploy: isFirstDeploy,
             });
             if (state !== 'none')
               logger.info(
-                `${prefix}${state === 'resume' ? 'Would finish' : 'Would run'} the one-time automation writer protocol cutover (a v0.5.78 or later image): stop the ${legacyVersion ?? 'old'} backend under a held census of automation runs, then start the new colour.${inPlaceUpdate ? ' It needs a full deploy: --services would be refused.' : ''}`,
+                `${prefix}${state === 'resume' ? 'Would finish' : 'Would run'} the one-time automation writer protocol cutover (a v0.5.78 or later image): stop the ${legacyVersion ?? 'old'} backend under a held census of automation runs, then start the new colour.${inPlaceUpdate ? ' It needs a full deploy: --services would be refused.' : ''}${stop ? ' It keeps the database container: --stop would be refused.' : ''}`,
               );
           } catch (error) {
             logger.warn(
@@ -451,14 +449,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // this deploy retags, snapshots or replaces anything.
           cutover = await planTagAutomationCutover({
             project: getProjectId(),
+            registry: env.GHCR_REGISTRY,
             platformImage: serviceConfig.platformImage,
             runningVersion: legacyVersion,
             release: version,
+            deployDir: env.DEPLOY_DIR,
+            firstDeploy: isFirstDeploy,
+            stop,
+            inPlace: Boolean(inPlaceUpdate),
           });
-          if (cutover !== null && inPlaceUpdate)
-            throw preconditionError(
-              'This deploy upgrades the automation writer protocol once, which needs a full deploy: run `tale deploy` without --services. Nothing was changed.',
-            );
           const pending = await getFlipPending(env.DEPLOY_DIR);
           const promoting = pending?.promoting ?? getNextColor(currentColor);
           if (await colorLooksUp(promoting, rotatableToUpdate, replicas))
@@ -832,7 +831,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               // Resuming onto a colour that is already up: a deploy that
               // timed out waiting for it may have left it still migrating.
               // It takes traffic only once every replica is healthy.
-              await awaitColorHealthy({
+              await awaitRunningColorHealthy({
                 color: promoting,
                 services: rotatableToUpdate,
                 replicas,

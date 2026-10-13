@@ -202,18 +202,90 @@ function workspaceHost() {
       close: async () => {},
     }),
   };
-  return { database, writers, state, mutations, dependencies };
+  const deployDir = mkdtempSync(join(tmpdir(), 'tale-tag-cutover-'));
+  directories.push(deployDir);
+  mkdirSync(join(deployDir, '.tale'));
+  return {
+    database,
+    writers,
+    state,
+    mutations,
+    dependencies,
+    deployDir,
+    /** A host reboot or a Docker daemon restart: same container, new start. */
+    restartDatabase: () => {
+      database.RestartCount += 1;
+      database.State.StartedAt = '2026-10-14T09:00:00Z';
+    },
+    /** Compose created the new colour's writers on the admitted image. */
+    addNewWriters: () => {
+      for (const [index, service] of [
+        'backend-api',
+        'backend-worker',
+      ].entries())
+        writers.push({
+          ...writers[index],
+          Id: (index ? '8' : '9').repeat(64),
+          Image: target.Id,
+          State: {
+            ...writers[index].State,
+            Running: true,
+            Pid: 300 + index,
+            Status: 'running',
+          },
+          Config: {
+            ...writers[index].Config,
+            Labels: {
+              ...writers[index].Config.Labels,
+              'com.docker.compose.project': 'example-green',
+              'com.docker.compose.service': service,
+            },
+          },
+        });
+    },
+  };
 }
 
-const plan = (host: ReturnType<typeof workspaceHost>) =>
+type Host = ReturnType<typeof workspaceHost>;
+const plan = (
+  host: Host,
+  flags: { firstDeploy?: boolean; stop?: boolean; inPlace?: boolean } = {},
+) =>
   planTagAutomationCutover(
     {
       project: 'example',
+      registry: config.registry,
       platformImage: reference,
       runningVersion: '0.5.77',
       release: '0.5.89',
+      deployDir: host.deployDir,
+      firstDeploy: flags.firstDeploy ?? false,
+      stop: flags.stop ?? false,
+      inPlace: flags.inPlace ?? false,
     },
     host.dependencies,
+  );
+const barrier = async (host: Host) => {
+  const settled = await plan(host);
+  expect(settled).not.toBeNull();
+  await runTagAutomationCutover(
+    {
+      project: 'example',
+      registry: config.registry,
+      deployDir: host.deployDir,
+      plan: settled!,
+      release: '0.5.89',
+    },
+    host.dependencies,
+  );
+  return settled!;
+};
+const receipt = (host: Host) =>
+  JSON.parse(
+    readFileSync(
+      join(host.deployDir, '.tale', 'automation-cutover.json'),
+      'utf8',
+    ),
   );
 
 test('tale deploy admits the released v0.5.77 workspace layout it refused from v0.5.79 to v0.5.89', async () => {
@@ -253,59 +325,44 @@ test('the workspace scope follows where tale deploy runs its backend writers', (
 });
 
 test('nothing is crossed for a protocol-1 image, an empty host or a protocol-2 database', async () => {
+  const host = workspaceHost();
+  const flags = {
+    project: 'example',
+    registry: config.registry,
+    runningVersion: null,
+    deployDir: host.deployDir,
+    firstDeploy: false,
+    stop: true,
+    inPlace: true,
+  };
   expect(
     await planTagAutomationCutover(
-      { project: 'example', platformImage: undefined, runningVersion: null },
-      workspaceHost().dependencies,
+      { ...flags, platformImage: undefined },
+      host.dependencies,
     ),
   ).toBeNull();
 
-  const empty = workspaceHost();
   const emptyDependencies: RuntimeDependencies = {
     exec: async (command, args, options) =>
       args[0] === 'ps' && args.includes('label=com.docker.compose.service=db')
         ? ok('')
-        : empty.dependencies.exec!(command, args, options),
+        : host.dependencies.exec!(command, args, options),
   };
   expect(
     await planTagAutomationCutover(
-      { project: 'example', platformImage: reference, runningVersion: null },
+      { ...flags, platformImage: reference, firstDeploy: true },
       emptyDependencies,
     ),
   ).toBeNull();
 
   const upgraded = workspaceHost();
   upgraded.state.ledger = [...legacy, '0163_automation_legacy_protocol.sql'];
-  expect(await plan(upgraded)).toBeNull();
+  expect(await plan(upgraded, { stop: true, inPlace: true })).toBeNull();
 });
 
-test('an interrupted cutover resumes: new writers created, or a first boot cut before 0163', async () => {
-  const continued = workspaceHost();
-  continued.state.ledger = migrations.filter(
-    (name) => Number(name.slice(0, 4)) <= 160,
-  );
-  expect((await plan(continued))?.resume).toBe(true);
-
-  const created = workspaceHost();
-  created.writers.push({
-    ...created.writers[0],
-    Id: '9'.repeat(64),
-    Image: target.Id,
-    Config: {
-      ...created.writers[0].Config,
-      Labels: {
-        ...created.writers[0].Config.Labels,
-        'com.docker.compose.project': 'example-green',
-      },
-    },
-  });
-  expect((await plan(created))?.resume).toBe(true);
-  expect(created.mutations).toEqual([]);
-});
-
-test('every refusal names the way forward, and nothing was changed', async () => {
+test('every refusal comes from the read-only plan, names the way forward, and nothing was changed', async () => {
   const cases: Array<
-    [string, (host: ReturnType<typeof workspaceHost>) => void, string]
+    [string, (host: Host) => void, string, Parameters<typeof plan>[1]?]
   > = [
     [
       'a host older than v0.5.77',
@@ -343,22 +400,48 @@ test('every refusal names the way forward, and nothing was changed', async () =>
       },
       'run `tale deploy` again',
     ],
+    [
+      'a workspace with no record of the deployment that runs the database',
+      () => {},
+      'deployment-color is missing',
+      { firstDeploy: true },
+    ],
+    [
+      '--stop, which would replace the database container',
+      () => {},
+      'without --stop',
+      { stop: true },
+    ],
+    [
+      '--services, which has no colour to start',
+      () => {},
+      'without --services',
+      { inPlace: true },
+    ],
+    [
+      'new writers without the receipt of the handoff before them',
+      (host) => host.addNewWriters(),
+      'automation-cutover.json',
+    ],
   ];
-  for (const [label, arrange, words] of cases) {
+  for (const [label, arrange, words, flags] of cases) {
     const host = workspaceHost();
     arrange(host);
-    const failure = await plan(host).catch((error: unknown) => error);
+    const failure = await plan(host, flags).catch((error: unknown) => error);
     expect(failure, label).toBeInstanceOf(Error);
     const message = (failure as Error).message;
     expect(message, label).toContain(words);
-    expect(message, label).toContain('Nothing was changed');
     expect(message, label).not.toContain('managed deployment apply');
     expect(message, label).not.toContain('update --version');
     if (words.startsWith('tale update'))
       expect(message, label).toContain('tale update -v 0.5.89');
+    if (label !== 'new writers without the receipt of the handoff before them')
+      expect(message, label).toContain('Nothing was changed');
     expect(host.mutations, label).toEqual([]);
     expect(
-      host.writers.every((w) => w.State.Running),
+      host.writers
+        .filter((w) => w.Image !== target.Id)
+        .every((w) => w.State.Running),
       label,
     ).toBe(true);
   }
@@ -366,46 +449,57 @@ test('every refusal names the way forward, and nothing was changed', async () =>
 });
 
 test('the dry-run assessment reads the same answer without an image', async () => {
-  expect(
-    await assessTagAutomationCutover(
-      { project: 'example', runningVersion: '0.5.77' },
-      workspaceHost().dependencies,
-    ),
-  ).toBe('ready');
-  const busy = workspaceHost();
-  busy.state.unfinished = true;
+  const host = workspaceHost();
+  const args = {
+    project: 'example',
+    runningVersion: '0.5.77',
+    deployDir: host.deployDir,
+    firstDeploy: false,
+  };
+  expect(await assessTagAutomationCutover(args, host.dependencies)).toBe(
+    'ready',
+  );
+  host.state.unfinished = true;
+  await expect(
+    assessTagAutomationCutover(args, host.dependencies),
+  ).rejects.toThrow(CUTOVER_BUSY);
   await expect(
     assessTagAutomationCutover(
-      { project: 'example', runningVersion: '0.5.77' },
-      busy.dependencies,
+      { ...args, firstDeploy: true },
+      host.dependencies,
     ),
-  ).rejects.toThrow(CUTOVER_BUSY);
+  ).rejects.toThrow('deployment-color is missing');
 });
 
 test('the barrier stops the live colour writers and keeps its receipt in the workspace', async () => {
   const host = workspaceHost();
-  const deployDir = mkdtempSync(join(tmpdir(), 'tale-tag-cutover-'));
-  directories.push(deployDir);
-  mkdirSync(join(deployDir, '.tale'));
-  const settled = await plan(host);
-  expect(settled).not.toBeNull();
-  await runTagAutomationCutover(
-    {
-      project: 'example',
-      registry: config.registry,
-      deployDir,
-      plan: settled!,
-    },
-    host.dependencies,
-  );
+  await barrier(host);
   expect(host.mutations).toEqual([
     ['stop', '--time=-1', 'c'.repeat(64), 'd'.repeat(64)],
   ]);
   expect(host.writers.every((w) => !w.State.Running)).toBe(true);
-  const receipt = JSON.parse(
-    readFileSync(join(deployDir, '.tale', 'automation-cutover.json'), 'utf8'),
+  expect(receipt(host).phase).toBe('stopped');
+  expect(receipt(host).project).toBe('example');
+  expect(JSON.stringify(receipt(host))).not.toContain('secret');
+});
+
+test('a rerun resumes after the old writers stopped, the new ones were created, or a first boot was cut', async () => {
+  const host = workspaceHost();
+  await barrier(host);
+  // Stopped and recorded, nothing new yet: a fresh census, nothing to stop.
+  expect((await barrier(host)).resume).toBe(true);
+  // The new colour's first boot was cut before 0163, and the host rebooted.
+  host.state.ledger = migrations.filter(
+    (name) => Number(name.slice(0, 4)) <= 160,
   );
-  expect(receipt.phase).toBe('stopped');
-  expect(receipt.project).toBe('example');
-  expect(JSON.stringify(receipt)).not.toContain('secret');
+  host.restartDatabase();
+  expect((await barrier(host)).resume).toBe(true);
+  // The new writers exist: the plan verifies the recorded handoff, read-only.
+  host.state.ledger = legacy;
+  host.addNewWriters();
+  host.restartDatabase();
+  expect((await barrier(host)).resume).toBe(true);
+  expect(host.mutations).toEqual([
+    ['stop', '--time=-1', 'c'.repeat(64), 'd'.repeat(64)],
+  ]);
 });

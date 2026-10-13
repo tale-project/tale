@@ -9,6 +9,7 @@ import { stableJson } from '../config/releases/identity';
 import {
   AUTOMATION_CUTOVER_ACQUIRE_SQL,
   AUTOMATION_CUTOVER_PROBE_SQL,
+  type CensusLedger,
   cutoverLockOwned,
   emptyLegacyCutoverCensus,
   legacyLedgerShape,
@@ -63,9 +64,13 @@ const cutoverReceiptSchema = z.strictObject({
 
 export function requireEmptyLegacyCensus(
   raw: string,
-  message = 'Automation cutover requires the supported legacy schema and zero unfinished runs across all organizations. Keep the old runtime; retry after the existing runs finish.',
+  options: { message?: string; ledger?: CensusLedger } = {},
 ): void {
-  requireRuntime(emptyLegacyCutoverCensus(raw), message);
+  requireRuntime(
+    emptyLegacyCutoverCensus(raw, options.ledger),
+    options.message ??
+      'Automation cutover requires the supported legacy schema and zero unfinished runs across all organizations. Keep the old runtime; retry after the existing runs finish.',
+  );
 }
 
 type InstalledWriter = Awaited<
@@ -110,7 +115,7 @@ export function legacyWriterRefusal(
  * `-v`: before the target release, `tale update --version` printed the CLI's
  * own version and changed nothing, and the way back runs v0.5.77's CLI. */
 export function viaLegacyRelease(release: string | undefined): string {
-  return `Upgrade to v0.5.77 first and then come back: run \`tale update -v 0.5.77\` and \`tale deploy\`, then \`tale update -v ${release ?? '<this release>'}\` and \`tale deploy\` again. Nothing was changed.`;
+  return `Upgrade to v0.5.77 first and then come back: run \`tale update -v 0.5.77\` and \`tale deploy\`, then \`tale update -v ${release ?? '<this release>'}\` and \`tale deploy\` again.`;
 }
 
 /** What a workspace deployment refuses to cut over, in its operator's words. */
@@ -125,9 +130,9 @@ export function workspaceWriterRefusalMessage(
       return `The backend containers do not use the \`unless-stopped\` restart policy the automation writer protocol cutover needs to keep them stopped. Remove the Compose override that changes it, then redeploy v0.5.77. ${viaLegacyRelease(release)}`;
     case 'unrecognized':
     case 'state':
-      return 'The backend containers are in a state the automation writer protocol cutover cannot verify. Check them with `tale status`, bring the v0.5.77 deployment back to a clean running state, then run this deploy again. Nothing was changed.';
+      return 'The backend containers are in a state the automation writer protocol cutover cannot verify. Check them with `tale status`, bring the v0.5.77 deployment back to a clean running state, then run this deploy again.';
     case 'custody':
-      return "Automation cutover found backend writers outside this deployment's Compose projects. Nothing was changed.";
+      return "Automation cutover found backend writers outside this deployment's Compose projects.";
   }
 }
 
@@ -164,6 +169,9 @@ export async function cutoverLegacyAutomation(
     targetRevision: string;
     targetBackendImages: readonly string[];
     workspace?: WorkspaceCutoverScope;
+    /** Read and verify only: never lock or stop. Verifies the recorded
+     * handoff when new writers exist and otherwise returns, unchanged. */
+    verifyOnly?: boolean;
   },
   dependencies: RuntimeDependencies,
 ): Promise<void> {
@@ -250,6 +258,13 @@ export async function cutoverLegacyAutomation(
   };
   const asStopped = (writer: InstalledWriter | z.infer<typeof writerSchema>) =>
     Object.assign({}, writer, { running: false, pid: 0, status: 'exited' });
+  // A workspace's database stays the same container across a host reboot or
+  // a daemon restart; only its start time and restart count move.
+  const custody = (value: typeof database) =>
+    workspace
+      ? { Id: value.Id, Image: value.Image, Config: value.Config }
+      : value;
+  const notStopped = ' The old backend was not stopped.';
   if (before.protocol === 2) {
     // A created protocol-2 image raises the rollback floor, but is not itself
     // proof this legacy transition ever held a zero census. Resume only our
@@ -311,7 +326,7 @@ export async function cutoverLegacyAutomation(
       prior.phase === 'stopped' &&
         prior.targetRevision === options.targetRevision &&
         prior.project === project &&
-        stableJson(prior.database) === stableJson(database) &&
+        stableJson(custody(prior.database)) === stableJson(custody(database)) &&
         before.writers.every((writer) => {
           const old = prior.writers.find(
             (retained) => retained.id === writer.id,
@@ -331,44 +346,21 @@ export async function cutoverLegacyAutomation(
     );
     return;
   }
-  if (workspace) {
-    const shape = legacyLedgerShape(ledger.ids);
-    if (shape === 'continued') {
-      // The new colour's first boot began migrating after our handoff and was
-      // cut before 0163 committed, taking its containers with it. The held
-      // census cannot run against this ledger any more, and need not: resume
-      // only the exact recorded handoff, every remaining old writer stopped.
-      const prior = existsSync(receiptFile) ? readPrior() : null;
-      requireRuntime(
-        prior !== null &&
-          prior.phase === 'stopped' &&
-          prior.targetRevision === options.targetRevision &&
-          prior.project === project &&
-          stableJson(prior.database) === stableJson(database) &&
-          before.writers.every((writer) => {
-            const old = prior.writers.find(
-              (retained) => retained.id === writer.id,
-            );
-            return (
-              old !== undefined &&
-              stableJson(writer) === stableJson(asStopped(old))
-            );
-          }) &&
-          before.identity === (await inventory()).identity &&
-          stableJson(database) === stableJson(await readDatabase()),
-        'An interrupted deploy started upgrading this database, but the stopped backend or the release does not match .tale/automation-cutover.json. Keep the containers and the receipt as they are, do not start the old backend, and finish with the release that started the upgrade.',
-      );
-      return;
-    }
+  if (options.verifyOnly) return;
+  // A workspace's ledger is v0.5.77's, or v0.5.77's continued by the new
+  // colour's first boot that was cut before 0163 committed (the deploy's
+  // interrupt removes that colour). Neither has run a protocol-2 writer, so
+  // both take the held census below; it proves zero again whatever happened
+  // since an earlier attempt, a restarted database included.
+  if (workspace)
     requireRuntime(
-      shape === 'legacy',
-      `This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(workspace.release)}`,
+      legacyLedgerShape(ledger.ids) !== 'unsupported',
+      `This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(workspace.release)}${notStopped}`,
     );
-  }
   const refusal = legacyWriterRefusal(before.writers, writerProjects);
   if (workspace && refusal !== null)
     throw preconditionError(
-      workspaceWriterRefusalMessage(refusal, workspace.release),
+      `${workspaceWriterRefusalMessage(refusal, workspace.release)}${notStopped}`,
     );
   requireRuntime(
     refusal !== 'source' &&
@@ -394,11 +386,11 @@ export async function cutoverLegacyAutomation(
     writers,
   };
   if (workspace && existsSync(receiptFile)) {
-    // Nothing protocol-2 has committed (the ledger is exactly v0.5.77's) and
-    // no protocol-2 writer exists, so an earlier attempt's receipt proves
-    // nothing this one needs: the held census below decides afresh.
+    // No protocol-2 writer exists and 0163 never committed, so an earlier
+    // attempt's receipt proves nothing this one needs: the held census below
+    // decides afresh.
     logger.info(
-      'Automation cutover: an earlier attempt left its receipt but changed nothing in the database; taking a fresh census.',
+      'Automation cutover: an earlier attempt left its receipt; taking a fresh census.',
     );
   } else if (existsSync(receiptFile)) {
     const prior = readPrior();
@@ -444,11 +436,13 @@ export async function cutoverLegacyAutomation(
   try {
     requireEmptyLegacyCensus(
       await session.query(AUTOMATION_CUTOVER_ACQUIRE_SQL),
-      ...(workspace
-        ? [
-            'The automation writer protocol cutover found unfinished automation runs (queued, running or waiting) or a write in progress. Nothing was stopped: let the runs finish or cancel them, then run `tale deploy` again.',
-          ]
-        : []),
+      workspace
+        ? {
+            ledger: 'legacy-or-continued',
+            message:
+              'The automation writer protocol cutover found unfinished automation runs (queued, running or waiting) or a write in progress. Nothing was stopped: let the runs finish or cancel them, then run `tale deploy` again.',
+          }
+        : {},
     );
     requireRuntime(
       before.identity === (await inventory()).identity &&

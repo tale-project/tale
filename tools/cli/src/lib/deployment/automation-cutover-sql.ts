@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 import { AUTOMATION_LEDGER_QUERY } from './automation-floor';
+import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
 
 export const LEGACY_CUTOVER_LEDGER_SHA256 =
   '1fda736a1123667df24f63c3d78f2e0048491ebc4b8482293f6046ac3253e324';
@@ -71,7 +72,15 @@ export function legacyLedgerShape(ids: readonly string[]): LegacyLedgerShape {
   return legacy.length === ids.length ? 'legacy' : 'continued';
 }
 
-export function emptyLegacyCutoverCensus(raw: string): boolean {
+/** Which ledgers a held census accepts: managed apply's exact v0.5.77 one,
+ * or, for a workspace, also v0.5.77's continued by a first protocol-2 boot that
+ * was cut before 0163 committed. Either way no protocol-2 writer has run. */
+export type CensusLedger = 'legacy' | 'legacy-or-continued';
+
+export function emptyLegacyCutoverCensus(
+  raw: string,
+  accept: CensusLedger = 'legacy',
+): boolean {
   try {
     const lines = raw.trim().split('\n');
     if (lines.length !== 2) return false;
@@ -86,6 +95,11 @@ export function emptyLegacyCutoverCensus(raw: string): boolean {
       unfinished: z.literal(false),
       owned: z.literal(true),
     }).parse(JSON.parse(lines[1]));
+    if (accept === 'legacy-or-continued')
+      return (
+        legacyLedgerShape(ledger.ids) !== 'unsupported' &&
+        !ledger.ids.includes(AUTOMATION_PROTOCOL_MIGRATION)
+      );
     return (
       createHash('sha256').update(JSON.stringify(ledger.ids)).digest('hex') ===
       LEGACY_CUTOVER_LEDGER_SHA256

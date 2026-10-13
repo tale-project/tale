@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
@@ -40,7 +43,7 @@ import { tagDatabaseId } from './tag-automation-protocol';
 
 /** What the barrier needs, settled before the deploy changes anything. */
 export interface TagCutoverPlan {
-  /** An earlier `tale deploy` already stopped the old writers. */
+  /** An earlier `tale deploy` already began this cutover. */
   resume: boolean;
   /** The admitted protocol-2 digest every backend role runs. */
   platformImage: string;
@@ -60,15 +63,19 @@ export function workspaceCutoverScope(
   };
 }
 
-export const CUTOVER_BUSY =
-  'This deploy upgrades the automation writer protocol once, and that needs every automation run in every organization to have finished. Some are still queued, running or waiting for an answer: let them finish or cancel them, and pause schedules and triggers so no new ones start, then run `tale deploy` again. Nothing was changed.';
+const UNCHANGED = ' Nothing was changed.';
+
+export const CUTOVER_BUSY = `This deploy upgrades the automation writer protocol once, and that needs every automation run in every organization to have finished. Some are still queued, running or waiting for an answer: let them finish or cancel them, and pause schedules and triggers so no new ones start, then run \`tale deploy\` again.${UNCHANGED}`;
+
+const receiptPath = (deployDir: string) =>
+  join(deployDir, '.tale', 'automation-cutover.json');
 
 /**
  * Where an existing protocol-1 host stands, assuming the target image is
  * protocol 2: `none` when nothing is crossed (an empty host, or a database
- * already at protocol 2), `resume` when an earlier deploy already stopped the
- * old writers, `ready` when the barrier can start. Throws, with the operator's
- * next step, when it cannot. Reads only.
+ * already at protocol 2), `resume` when an earlier deploy began the cutover,
+ * `ready` when it can start. Throws, with the operator's next step, when it
+ * cannot. Reads only.
  */
 export async function assessTagAutomationCutover(
   args: {
@@ -76,6 +83,9 @@ export async function assessTagAutomationCutover(
     runningVersion: string | null;
     /** The release this deploy rolls, named in the way forward. */
     release?: string;
+    deployDir: string;
+    /** The workspace records no live colour (`.tale/deployment-color`). */
+    firstDeploy: boolean;
   },
   dependencies: RuntimeDependencies = {},
 ): Promise<'none' | 'resume' | 'ready'> {
@@ -91,24 +101,28 @@ export async function assessTagAutomationCutover(
     dependencies,
   );
   if (ledgerFloor(ledger) === 2) return 'none';
+  // A first deploy takes no snapshot and replaces the database container: it
+  // must never be the one that crosses the cutover of a database it found.
+  requireRuntime(
+    !args.firstDeploy,
+    `This workspace has no record of the deployment that runs this database (.tale/deployment-color is missing), so a deploy would neither snapshot it nor keep its container. Run \`tale deploy\` from the workspace directory that deployed it.${UNCHANGED}`,
+  );
   const scope = workspaceCutoverScope(project, '');
   const inventory = await bundledBackendIdentity(
     scope.writerProjects,
     dependencies,
   );
-  // Protocol-2 writers already exist, or their first boot began migrating:
-  // the barrier itself verifies the recorded handoff before anything starts.
+  // New writers already exist: the barrier verifies the recorded handoff.
   if (inventory.protocol === 2) return 'resume';
   const shape = legacyLedgerShape(ledger.ids);
-  if (shape === 'continued') return 'resume';
   if (shape === 'unsupported')
     throw preconditionError(
-      `${running}This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(args.release)}`,
+      `${running}This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(args.release)}${UNCHANGED}`,
     );
   const refusal = legacyWriterRefusal(inventory.writers, scope.writerProjects);
   if (refusal !== null)
     throw preconditionError(
-      `${running}${workspaceWriterRefusalMessage(refusal, args.release)}`,
+      `${running}${workspaceWriterRefusalMessage(refusal, args.release)}${UNCHANGED}`,
     );
   let busy: boolean;
   try {
@@ -121,11 +135,13 @@ export async function assessTagAutomationCutover(
     );
   } catch {
     throw preconditionError(
-      'The automation runs could not be counted before the automation writer protocol cutover. Check the database with `tale status`, then run `tale deploy` again. Nothing was changed.',
+      `The automation runs could not be counted before the automation writer protocol cutover. Check the database with \`tale status\`, then run \`tale deploy\` again.${UNCHANGED}`,
     );
   }
   requireRuntime(!busy, CUTOVER_BUSY);
-  return 'ready';
+  return shape === 'continued' || existsSync(receiptPath(args.deployDir))
+    ? 'resume'
+    : 'ready';
 }
 
 /** The plan for a deploy whose admitted image is `platformImage` (undefined
@@ -133,20 +149,43 @@ export async function assessTagAutomationCutover(
 export async function planTagAutomationCutover(
   args: {
     project: string;
+    registry: string;
     platformImage: string | undefined;
     runningVersion: string | null;
     release?: string;
+    deployDir: string;
+    firstDeploy: boolean;
+    /** `--stop`: would replace the database container mid-cutover. */
+    stop: boolean;
+    /** `--services`: an in-place roll has no colour to start after the stop. */
+    inPlace: boolean;
   },
   dependencies: RuntimeDependencies = {},
 ): Promise<TagCutoverPlan | null> {
   if (args.platformImage === undefined) return null;
   const state = await assessTagAutomationCutover(args, dependencies);
   if (state === 'none') return null;
-  return {
+  requireRuntime(
+    !args.inPlace,
+    `This deploy upgrades the automation writer protocol once, which needs a full deploy: run \`tale deploy\` without --services.${UNCHANGED}`,
+  );
+  requireRuntime(
+    !args.stop,
+    `This deploy upgrades the automation writer protocol once and keeps the database container while it does: run \`tale deploy\` without --stop or --override-all, then \`tale deploy --stop\` afterwards to update db, object-store and proxy.${UNCHANGED}`,
+  );
+  const plan: TagCutoverPlan = {
     resume: state === 'resume',
     platformImage: args.platformImage,
     targetRevision: await imageRevision(args.platformImage, dependencies),
   };
+  // With new writers already created, the barrier only verifies the recorded
+  // handoff: ask it now, read-only, before the deploy changes anything.
+  if (state === 'resume')
+    await runTagAutomationCutover(
+      { ...args, plan, verifyOnly: true },
+      dependencies,
+    );
+  return plan;
 }
 
 async function imageRevision(
@@ -177,8 +216,9 @@ async function imageRevision(
   return revision.data;
 }
 
-/** Stop the old writers under the held census, or verify an earlier deploy
- * did. The database is found again: `--stop` may have recreated it. */
+/** Stop the old writers under the held census, or verify the handoff an
+ * earlier deploy recorded when new writers already exist. With `verifyOnly`
+ * it never takes the lock or stops anything. */
 export async function runTagAutomationCutover(
   args: {
     project: string;
@@ -186,6 +226,7 @@ export async function runTagAutomationCutover(
     deployDir: string;
     plan: TagCutoverPlan;
     release?: string;
+    verifyOnly?: boolean;
   },
   dependencies: RuntimeDependencies = {},
 ): Promise<void> {
@@ -206,6 +247,7 @@ export async function runTagAutomationCutover(
         args.registry,
         args.release,
       ),
+      ...(args.verifyOnly ? { verifyOnly: true } : {}),
     },
     dependencies,
   );

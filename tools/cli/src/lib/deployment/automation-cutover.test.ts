@@ -20,7 +20,11 @@ import {
   requireEmptyLegacyCensus,
 } from './automation-cutover';
 import {
+  AUTOMATION_CUTOVER_CENSUS_SQL,
+  AUTOMATION_CUTOVER_ISOLATION,
   AUTOMATION_CUTOVER_READINESS_SQL,
+  AUTOMATION_CUTOVER_SESSION_SQL,
+  emptyLegacyCutoverCensus,
   legacyCutoverBusy,
   legacyLedgerShape,
 } from './automation-cutover-sql';
@@ -621,42 +625,88 @@ test('a workspace resumes only onto target writers in a colour project', async (
   );
 });
 
-test('a first boot cut before 0163 resumes the exact recorded handoff without a census', async () => {
+test('a first boot cut before 0163 takes a fresh held census, also after the database restarted', async () => {
   const f = fixture({ writerProject: 'example-blue', workspace: true });
   await f.run();
   f.events.length = 0;
   f.setLedger(continued);
+  f.database.RestartCount++;
+  f.database.State.StartedAt = '2026-10-14T00:00:00Z';
   await f.run();
-  expect(f.events).toEqual([]);
+  expect(f.events[0]).toBe('acquire');
+  expect(f.events).not.toContain('stop');
+  expect(f.receipt().phase).toBe('stopped');
+  // An old writer someone started again is stopped under the same census.
+  f.events.length = 0;
   f.restart(1);
-  await expect(f.run()).rejects.toThrow('started upgrading this database');
-  expect(f.events).toEqual([]);
+  await f.run();
+  expect(f.events).toContain('stop');
+  expect(f.writers.every((w) => !w.State.Running)).toBe(true);
 
-  const otherRelease = fixture({
-    writerProject: 'example-blue',
-    workspace: true,
-  });
-  await otherRelease.run();
-  otherRelease.setLedger(continued);
-  otherRelease.options.targetRevision = '0'.repeat(40);
-  await expect(otherRelease.run()).rejects.toThrow(
-    'started upgrading this database',
+  const busy = fixture({ writerProject: 'example-blue', workspace: true });
+  busy.setLedger(continued);
+  busy.busy();
+  await expect(busy.run()).rejects.toThrow(
+    'let the runs finish or cancel them',
   );
+  expect(busy.events).toEqual(['acquire', 'close']);
+  expect(busy.writers.every((w) => w.State.Running)).toBe(true);
 
-  const noReceipt = fixture({ writerProject: 'example-blue', workspace: true });
-  noReceipt.setLedger(continued);
-  await expect(noReceipt.run()).rejects.toThrow(
-    'started upgrading this database',
-  );
-  expect(noReceipt.events).toEqual([]);
-  expect(noReceipt.writers.every((w) => w.State.Running)).toBe(true);
-
-  // Managed apply keeps its census, which a continued ledger cannot pass.
+  // Managed apply keeps its census, which accepts only v0.5.77's ledger.
   const managed = fixture();
   await managed.run();
   managed.events.length = 0;
   managed.setLedger(continued);
   await expect(managed.run()).rejects.toThrow('zero unfinished');
+});
+
+test('a workspace resumes onto new writers after its database restarted; managed apply keeps the exact incarnation', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  await f.run();
+  f.events.length = 0;
+  f.addTargetWriters('example-green');
+  f.database.RestartCount++;
+  f.database.State.StartedAt = '2026-10-14T00:00:00Z';
+  await f.run();
+  expect(f.events).toEqual([]);
+
+  const managed = fixture();
+  await managed.run();
+  managed.events.length = 0;
+  managed.replaceWithTargetWriters();
+  managed.database.RestartCount++;
+  await expect(managed.run()).rejects.toThrow('stopped-writer handoff');
+});
+
+test('verify-only reads and never takes the lock or stops a writer', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  f.options.verifyOnly = true;
+  await f.run();
+  expect(f.events).toEqual([]);
+  expect(f.writers.every((w) => w.State.Running)).toBe(true);
+  f.addTargetWriters('example-green');
+  await expect(f.run()).rejects.toThrow('automation-cutover.json');
+  expect(f.events).toEqual([]);
+});
+
+test('a workspace census also accepts v0.5.77 continued by a cut first boot, never one past 0163', () => {
+  expect(emptyLegacyCutoverCensus(census(false, continued))).toBe(false);
+  expect(
+    emptyLegacyCutoverCensus(census(false, continued), 'legacy-or-continued'),
+  ).toBe(true);
+  expect(
+    emptyLegacyCutoverCensus(census(false, ledger), 'legacy-or-continued'),
+  ).toBe(true);
+  for (const raw of [
+    census(true, continued),
+    census(false, [...continued, '0163_automation_legacy_protocol.sql']),
+    census(false, ledger.slice(1)),
+    census(false, continued).replace('"owned":true', '"owned":false'),
+  ])
+    expect(emptyLegacyCutoverCensus(raw, 'legacy-or-continued')).toBe(false);
+  expect(AUTOMATION_CUTOVER_READINESS_SQL).toBe(
+    `BEGIN ${AUTOMATION_CUTOVER_ISOLATION}, READ ONLY;\n${AUTOMATION_CUTOVER_SESSION_SQL}\n${AUTOMATION_CUTOVER_CENSUS_SQL}\nROLLBACK;`,
+  );
 });
 
 test('a workspace takes a fresh census over an earlier attempt that changed nothing', async () => {
@@ -692,7 +742,12 @@ test('a workspace refuses what it cannot cut over, names the way forward and sto
     if (kind === 'ledger') f.setLedger(ledger.slice(1));
     const failure = await f.run().catch((error: unknown) => error);
     expect((failure as Error).message).toContain(words);
-    expect((failure as Error).message).toContain('Nothing was changed');
+    // The barrier runs after the snapshot and the sandbox roll: it says
+    // what it did not do, never that nothing changed.
+    expect((failure as Error).message).toContain(
+      'The old backend was not stopped.',
+    );
+    expect((failure as Error).message).not.toContain('Nothing was changed');
     expect(f.events).toEqual([]);
     expect(f.writers.every((w) => w.State.Running)).toBe(true);
   }

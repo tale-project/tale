@@ -118,6 +118,19 @@ async function checkCutover(
     (await shape()) === 'continued',
     `v0.5.77's ledger plus ${first}`,
   );
+  await db.begin(AUTOMATION_CUTOVER_ISOLATION, async (tx) => {
+    await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+    await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
+    const ledger = await ledgerValue(tx);
+    const result = await tx.unsafe(AUTOMATION_CUTOVER_CENSUS_SQL).values();
+    const raw = `${JSON.stringify(ledger)}\n${JSON.stringify(result[0]?.[0])}`;
+    record(
+      'a workspace held census accepts the continued ledger; managed apply does not',
+      emptyLegacyCutoverCensus(raw, 'legacy-or-continued') &&
+        !emptyLegacyCutoverCensus(raw),
+      'held SHARE lock, zero unfinished, no 0163',
+    );
+  });
   await db`DELETE FROM tale.app_migrations WHERE name = ${first}`;
   const census = async (tx: Pick<Sql, 'unsafe'>) => {
     const ledger = await ledgerValue(tx);
