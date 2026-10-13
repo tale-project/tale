@@ -370,7 +370,11 @@ export function ComposerSelectionPicker({
         <Button
           variant="ghost"
           size="sm"
-          aria-label={t('picker.ariaLabel')}
+          aria-label={
+            chosenSkills.length > 0
+              ? `${t('picker.ariaLabel')}, ${t('picker.skillsChosen', { count: chosenSkills.length })}`
+              : t('picker.ariaLabel')
+          }
           aria-haspopup="menu"
           className="max-w-64 min-w-0 gap-1"
         >

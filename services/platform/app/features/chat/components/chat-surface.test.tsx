@@ -2668,9 +2668,10 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     const { user } = render(
       <ChatSurface organizationId="org-1" threadId="t1" />,
     );
+    // The trigger says how many skills the conversation reads.
     await user.click(
       screen.getByRole('button', {
-        name: 'Choose model, reasoning effort and skills',
+        name: 'Choose model, reasoning effort and skills, 1 skill',
       }),
     );
     await user.click(screen.getByRole('menuitem', { name: /Skills/ }));
