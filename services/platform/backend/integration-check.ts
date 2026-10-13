@@ -182,6 +182,7 @@ import {
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
+import { checkTaskDependencyResolution } from './domains/tasks/dependencies.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
@@ -65581,6 +65582,10 @@ async function main(): Promise<void> {
       [
         'checkTaskSearchPriority',
         () => checkTaskSearchPriority(sql, authCtx, record),
+      ],
+      [
+        'checkTaskDependencyResolution',
+        () => checkTaskDependencyResolution(sql, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',
