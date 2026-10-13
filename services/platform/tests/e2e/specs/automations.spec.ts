@@ -45,7 +45,10 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
     .filter({ hasText: PROBE_DISPLAY_NAME })
     .first();
   await expect(probeRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await probeRow.click();
+  // The slug under the name is plain text in the row. The row's middle is
+  // not: whichever column lands there may be a link of its own (the version
+  // count opens the history), and a new column moves it.
+  await probeRow.getByText(PROBE_SLUG, { exact: true }).click();
   // A row opens the Editor tab directly — the automation's default surface,
   // the way a project row opens Tasks.
   await page.waitForURL(

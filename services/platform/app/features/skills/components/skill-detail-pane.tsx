@@ -318,9 +318,7 @@ export function SkillDetailPane({
                     <Textarea
                       aria-label={t('section.body')}
                       value={form.body}
-                      onChange={(e) =>
-                        edit({ ...form, body: e.target.value })
-                      }
+                      onChange={(e) => edit({ ...form, body: e.target.value })}
                       rows={12}
                       className="font-mono text-sm"
                       disabled={!canEdit}

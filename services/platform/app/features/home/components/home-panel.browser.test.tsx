@@ -1222,6 +1222,12 @@ describe.each(['light', 'dark'] as const)(
               );
             })
             .toBe(true);
+          // The list fades in as a whole and rows ease between hover states.
+          // axe reads the opacity of every ancestor, so colours are judged
+          // once nothing is mid-flight, not 200 ms of wall clock after render.
+          await Promise.allSettled(
+            document.getAnimations().map((animation) => animation.finished),
+          );
           expect(measuredContrast(idle, false)).toBeGreaterThanOrEqual(4.5);
           expect(measuredContrast(current, true)).toBeGreaterThanOrEqual(4.5);
           expect(
