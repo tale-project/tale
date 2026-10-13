@@ -271,9 +271,10 @@ describe('registerWebsite', () => {
     );
     expect(lockIndex).toBeGreaterThanOrEqual(0);
     expect(lockIndex).toBeLessThan(lookupIndex);
+    // The `0` of `hashtextextended(key, 0)` is part of the statement, not a
+    // parameter: the key is the one value it carries.
     expect(queries[lockIndex]?.values).toEqual([
       'website-registration:org-1:docs.example',
-      0,
     ]);
   });
 
