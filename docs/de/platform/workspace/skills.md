@@ -147,6 +147,8 @@ Unter **Labels** trägst du bis zu acht Labels mit je höchstens 40 Zeichen ein,
 
 Kann Tale einen Skill oder eine seiner Dateien nicht laden, sagt der Dialog das und bietet **Erneut versuchen** an. Schlägt eine Aktualisierung fehl, bleibt der bereits angezeigte Stand stehen, ungespeicherte Änderungen eingeschlossen. Eine entfernte Datei meldet der Dialog als nicht mehr im Bundle, eine leere Datei als leer.
 
+Speichert jemand anderes den Skill, nachdem du ihn geöffnet hast, lehnt Tale dein Speichern ab und sagt dir das. Nichts wird überschrieben, und deine Änderungen bleiben im Editor: Kopiere, was du brauchst, schließe den Skill und öffne ihn erneut, um die neueste Version zu sehen. Ein Editor, in dem du nichts geändert hast, übernimmt die neuere Version von selbst.
+
 Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Tale zeigt ihm einen Beschreibungsauszug von bis zu 300 Zeichen als Auswahlhilfe. Beschreibe deshalb zuerst, wann der Skill passt. Ignoriert er einen zugeordneten Skill, nenne ihn in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
 
 Prüfe bei einem Importfehler, ob `SKILL.md` im Stammverzeichnis liegt, gültige Frontmatter enthält und einen gültigen Namen hat. Die Fehlermeldung nennt abgelehnte Pfade oder Größenlimits. Zum Entfernen öffne das Bundle und wähle nach Prüfung der betroffenen Agenten **Skill löschen**.

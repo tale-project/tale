@@ -147,6 +147,8 @@ Open a row to edit its description, instructions, labels, and visibility. The **
 
 If Tale cannot load a skill or one of its files, the dialog says so and offers **Try again**. When a refresh fails, the version already on screen stays, unsaved changes included. A removed file is reported as no longer in the bundle, and an empty file as empty.
 
+If someone else saves the skill after you open it, Tale refuses your save and says so. Nothing is overwritten and your edits stay in the editor: copy what you need, then close the skill and open it again to see the latest version. An editor you have not changed follows the newer version by itself.
+
 If an agent cannot find the skill, check that it is equipped and visible to the project. Tale shows the agent a description excerpt of up to 300 characters to help it choose a relevant skill, so start the description with when the skill applies. If it ignores an equipped skill, name the skill in the task and check the result against its instructions. Read [Skills on agents](/platform/agents/skills) for how the equipped bundle is staged and presented to the agent.
 
 For an import error, check that `SKILL.md` is at the root, its frontmatter is valid, and its name is a valid slug. The error names rejected paths or size limits. To retire a bundle, open it and choose **Delete skill** after checking the affected agents.
