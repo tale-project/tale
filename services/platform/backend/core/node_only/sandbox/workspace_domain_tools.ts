@@ -348,6 +348,24 @@ interface PendingReviewAnswer {
   createdAt: number;
 }
 
+/** A captured agent review whose files can be listed: the exact identity the
+ * review-file read judges its `expected` against. */
+type AgentReviewWithFiles = PendingReviewAnswer & {
+  runId: string;
+  evidenceRevision: string;
+  reviewer: { kind: 'agent'; agentId: string };
+};
+
+function agentReviewWithFiles(
+  review: PendingReviewAnswer | null,
+): review is AgentReviewWithFiles {
+  return (
+    review?.reviewer?.kind === 'agent' &&
+    typeof review.runId === 'string' &&
+    typeof review.evidenceRevision === 'string'
+  );
+}
+
 /** A page's end as the model reads it: `isDone`, and the cursor for the next
  * page only while one follows — never an empty cursor that, passed back,
  * would read as a request for the first page. */
@@ -1279,9 +1297,8 @@ export async function runTaskTool(
       }
       // What works on the task and who reviews it. A read that fails
       // fails the call — never a task that reads as idle for want of runs.
-      let work: TaskWorkStateAnswer | null = await ctx.runQuery(
-        internal.tasks.internal_queries.getTaskWorkStateForAgent,
-        {
+      const readWorkState = (): Promise<TaskWorkStateAnswer | null> =>
+        ctx.runQuery(internal.tasks.internal_queries.getTaskWorkStateForAgent, {
           organizationId,
           projectId: String(scoped.task.projectId),
           taskId,
@@ -1290,24 +1307,21 @@ export async function runTaskTool(
               ? readLimit(callArgs.runLimit, TASK_GET_RUNS_MAX)
               : TASK_GET_RUNS_DEFAULT,
           ...(runsBeforeSeq !== undefined ? { runsBeforeSeq } : {}),
-        },
-      );
+        });
+      const runsUnreadable = {
+        status: 'error',
+        message:
+          "The task's runs could not be read, so whether work is still " +
+          'running on it is unknown. Try again; do not treat it as idle.',
+      } as const;
+      let work = await readWorkState();
       if (work === null || !Array.isArray(work.agentRuns)) {
-        return {
-          status: 'error',
-          message:
-            "The task's runs could not be read, so whether work is still " +
-            'running on it is unknown. Try again; do not treat it as idle.',
-        };
+        return runsUnreadable;
       }
-      const oldestRun = work.agentRuns.at(-1);
       const review = work.pendingReview;
-      const hasReviewFiles =
-        review?.reviewer?.kind === 'agent' &&
-        typeof review.runId === 'string' &&
-        typeof review.evidenceRevision === 'string';
+      const agentReview = agentReviewWithFiles(review) ? review : null;
       if (
-        !hasReviewFiles &&
+        agentReview === null &&
         callArgs.reviewFileCursor != null &&
         callArgs.reviewFileCursor !== ''
       ) {
@@ -1317,32 +1331,33 @@ export async function runTaskTool(
           'read the current review',
         );
       }
-      let reviewFiles = null;
-      if (hasReviewFiles && review.reviewer?.kind === 'agent') {
-        const readReviewFiles = (currentReview: {
-          approvalId: string;
-          runId: string;
-          evidenceRevision: string;
-          reviewer: { kind: 'agent'; agentId: string };
-        }) =>
-          ctx.runQuery(
-            internal.tasks.internal_queries.getTaskReviewFilesForAgent,
-            {
-              organizationId,
-              projectId: String(scoped.task.projectId),
-              taskId,
-              expected: {
-                approvalId: currentReview.approvalId,
-                runId: currentReview.runId,
-                evidenceRevision: currentReview.evidenceRevision,
-              },
-              reviewerAgentId: currentReview.reviewer.agentId,
-              cursor: callArgs.reviewFileCursor,
+      const readReviewFiles = (current: AgentReviewWithFiles) =>
+        ctx.runQuery(
+          internal.tasks.internal_queries.getTaskReviewFilesForAgent,
+          {
+            organizationId,
+            projectId: String(scoped.task.projectId),
+            taskId,
+            expected: {
+              approvalId: current.approvalId,
+              runId: current.runId,
+              evidenceRevision: current.evidenceRevision,
             },
-          );
+            reviewerAgentId: current.reviewer.agentId,
+            cursor: callArgs.reviewFileCursor,
+          },
+        );
+      let reviewFiles = null;
+      if (agentReview !== null) {
         try {
-          reviewFiles = await readReviewFiles(review);
+          reviewFiles = await readReviewFiles(agentReview);
         } catch (error) {
+          // The review moved between the two reads. Read the whole picture
+          // once more, so the answer is one state — its runs, its review and
+          // the review's files — and never the earlier review beside the
+          // later one's files. A second move is refused as stale, for the
+          // caller to read again; so is a cursor, which stays bound to the
+          // review it was minted for.
           if (
             !isStaleReviewFilesError(error) ||
             (typeof callArgs.reviewFileCursor === 'string' &&
@@ -1350,37 +1365,17 @@ export async function runTaskTool(
           ) {
             throw error;
           }
-          const rereadWork: TaskWorkStateAnswer | null = await ctx.runQuery(
-            internal.tasks.internal_queries.getTaskWorkStateForAgent,
-            {
-              organizationId,
-              projectId: String(scoped.task.projectId),
-              taskId,
-              runLimit:
-                typeof callArgs.runLimit === 'number' && callArgs.runLimit > 0
-                  ? readLimit(callArgs.runLimit, TASK_GET_RUNS_MAX)
-                  : TASK_GET_RUNS_DEFAULT,
-              ...(runsBeforeSeq !== undefined ? { runsBeforeSeq } : {}),
-            },
-          );
-          const currentReview =
-            rereadWork !== null && Array.isArray(rereadWork.agentRuns)
-              ? rereadWork.pendingReview
-              : null;
-          if (rereadWork !== null && Array.isArray(rereadWork.agentRuns)) {
-            work = rereadWork;
+          const reread = await readWorkState();
+          if (reread === null || !Array.isArray(reread.agentRuns)) {
+            return runsUnreadable;
           }
-          if (
-            currentReview?.reviewer?.kind !== 'agent' ||
-            typeof currentReview.runId !== 'string' ||
-            typeof currentReview.evidenceRevision !== 'string'
-          ) {
-            reviewFiles = null;
-          } else {
-            reviewFiles = await readReviewFiles(currentReview);
-          }
+          work = reread;
+          reviewFiles = agentReviewWithFiles(work.pendingReview)
+            ? await readReviewFiles(work.pendingReview)
+            : null;
         }
       }
+      const oldestRun = work.agentRuns.at(-1);
       return {
         status: 'ok',
         output: {
