@@ -338,6 +338,7 @@ messageInfo:
     preparing: Vorbereitung
     waiting: Warten auf das Modell
     thinking: Denken
+    tools: Modell und Tools
     writing: Schreiben
   perceivedWait: Auf deinem Bildschirm erschienen die ersten Wörter {duration} nach dem Senden.
   toolCalls: Tool-Aufrufe
