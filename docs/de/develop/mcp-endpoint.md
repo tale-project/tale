@@ -18,7 +18,7 @@ Es gibt zwei Wege zum Endpunkt, und du kannst für verschiedene Clients beide nu
 - **Im Agent anmelden.** Der Agent findet die Anmeldung von Tale selbst und öffnet deinen Browser; du wählst die Organisation und wie viel er darf. Nichts wird von Hand kopiert, und du kannst den Agent später trennen. [Im Agent anmelden](#sign-in) beschreibt den Ablauf. Dieser Weg steht zur Verfügung, solange dein Betreiber ihn nicht abgeschaltet hat.
 - **Ein API-Schlüssel.** [Erstelle einen](/de/platform/admin/api-keys) und hinterlege ihn in der sicheren Konfiguration deines Clients. Er eignet sich für Skripte und Clients, die keinen Browser öffnen können. Ein Schlüssel handelt im Namen seines Inhabers und hat keine eigenen Zugriffsstufen.
 
-Unter **Einstellungen > API > MCP** findest du Endpunkt, Organisations-Slug und eine kopierbare Anfrage zur Tool-Erkennung.
+Unter **Einstellungen > API > MCP** findest du die Befehle, die Claude Code oder Codex verbinden, den Endpunkt, den Organisations-Slug und eine kopierbare Anfrage zur Tool-Erkennung.
 
 | Einstellung | Wert |
 | --- | --- |

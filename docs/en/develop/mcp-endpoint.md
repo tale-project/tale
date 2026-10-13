@@ -18,7 +18,7 @@ Two ways in open the endpoint, and you can use both, for different clients:
 - **Sign in from the agent.** The agent finds Tale's sign-in by itself and opens your browser; you choose the organization and how much it may do. Nothing is copied by hand, and you can disconnect the agent later. [Sign in from your agent](#sign-in) describes it. It is on unless your operator switched it off.
 - **An API key.** [Create one](/platform/admin/api-keys) and keep it in your client's secret configuration. It suits scripts and clients that cannot open a browser. A key acts as its holder and carries no access levels of its own.
 
-The app's **Settings > API > MCP** page shows the endpoint, organization slug, and a copyable discovery request.
+The app's **Settings > API > MCP** page shows the commands that connect Claude Code or Codex, the endpoint, the organization slug, and a copyable discovery request.
 
 | Setting | Value |
 | --- | --- |
