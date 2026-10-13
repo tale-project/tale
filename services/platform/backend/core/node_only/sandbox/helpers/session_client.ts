@@ -814,9 +814,10 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
   });
 }
 
-/** Capture BEFORE releasing the database allocation. The generation binds a
- * later release to this use, so a delayed job cannot release a newer turn. */
-/** Renew a spawner queue lease while a platform start is still live. */
+/** Renew the place a refused create holds in the spawner's first-come line
+ * while a platform start is still live. A 404 means nothing waits under the
+ * id (its place was given up, or it was admitted), so there is nothing to
+ * renew. */
 export async function sessionWaiterLiveness(sessionId: string): Promise<void> {
   const response = await spawnerFetch(
     'POST',
@@ -829,7 +830,7 @@ export async function sessionWaiterLiveness(sessionId: string): Promise<void> {
 }
 
 /** Capture BEFORE releasing the database allocation. The generation binds a
- * later release to this use, so a delayed job can never release a newer turn. */
+ * later release to this use, so a delayed job cannot release a newer turn. */
 export async function sessionReleaseTicket(
   sessionId: string,
 ): Promise<string | null> {
@@ -929,8 +930,15 @@ async function createSession(
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
     if (res.status === 429) {
       const busy = await spawnerBusyErrorOf(res);
+      // A refusal that names a place keeps that place alive; the renewal is
+      // best effort, so its failure never hides the busy answer.
       if (busy.queue !== undefined)
-        await sessionWaiterLiveness(body.sessionId).catch(() => undefined);
+        await sessionWaiterLiveness(body.sessionId).catch((error: unknown) => {
+          console.warn(
+            '[session_client] renewing a place in the sandbox room line failed:',
+            error,
+          );
+        });
       throw busy;
     }
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
