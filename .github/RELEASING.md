@@ -260,14 +260,12 @@ OCI index. `docker manifest inspect` lists the index but hides its annotations;
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 
-Release has no per-day limit: a version goes out whenever it is needed, a second one on
-the same UTC day included. How often to release is the release lane's decision, never the
-workflow's, and Prepare reads no release history. Every tag shares one workflow
-concurrency group, so admission waits for an earlier run to finish publishing. Running
-cohorts are never cancelled by a newer tag. GitHub keeps only one pending run; if a
-pending tag is superseded, dispatch its immutable tag again when it is eligible. Recovery
-of a published tag remains allowed. A `sites_only` dispatch keeps its existing
-publication scope.
+Release admits at most one new full cohort per UTC calendar day. Every tag shares one
+workflow concurrency group, so admission waits for an earlier run to finish publishing.
+Running cohorts are never cancelled by a newer tag. GitHub keeps only one pending run;
+if a pending tag is superseded, dispatch its immutable tag again when it is eligible.
+Recovery of the latest published tag remains allowed, and unreadable release history
+refuses a full release. A `sites_only` dispatch keeps its existing publication scope.
 
 To retry or backfill a version's package tags, dispatch Publish packages the same way, on
 `main`, with the tag and the full commit SHA it names:
@@ -313,10 +311,11 @@ A published version is not a deployment. Deployments follow their own procedure.
 
 ## A release that has to go out
 
-No rule limits how often a version goes out, so a release that cannot wait does not
-wait for a day to pass. What can stop it is `main`: a candidate validates the whole
-graph, and every job that already fails on `main` fails the candidate. Work in this
-order.
+The daily admission rule means a new full cohort waits for the next UTC day after a
+different release has published. Same-tag recovery remains available, and `sites_only`
+content builds remain outside the full-cohort limit. What can stop a release is also
+`main`: a candidate validates the whole graph, and every job that already fails on `main`
+fails the candidate. Work in this order.
 
 1. **Read `main`'s red before choosing the candidate.** Open the newest completed run
    of each workflow on `main`, push and scheduled, and read its failed jobs:
