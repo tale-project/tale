@@ -62,26 +62,34 @@ const SYSTEM_ACTOR: AgentConnectionAuditActor = {
   actorType: 'system',
 };
 
+/** Which connections to end, why, and by whom. */
+export interface EndAgentConnectionsArgs {
+  organizationId?: string;
+  userId?: string;
+  clientId?: string;
+  connectionIds?: readonly string[];
+  reason: AgentConnectionEndReason;
+  /** A user id, or `system`. */
+  revokedBy: string;
+  /** Who the audit rows name; the platform when left out. */
+  actor?: AgentConnectionAuditActor;
+}
+
 /**
  * End the live connections that match every filter given — at least one is
  * required, so a call can never end them all by leaving its filters out —
  * inside the caller's own transaction. Each ending leaves one
  * `agent_connection.revoked` audit row naming who ended it and why, and
  * one hint to the organization. Answers what it ended.
+ *
+ * This ends them quietly. The person is told when something other than
+ * their own hand ended an agent (`end-and-tell.ts`); only an ending that
+ * must tell them nothing — an organization's seat that ended, an erasure —
+ * calls this directly.
  */
 export async function endAgentConnectionsInTx(
   tx: TransactionSql,
-  args: {
-    organizationId?: string;
-    userId?: string;
-    clientId?: string;
-    connectionIds?: readonly string[];
-    reason: AgentConnectionEndReason;
-    /** A user id, or `system`. */
-    revokedBy: string;
-    /** Who the audit rows name; the platform when left out. */
-    actor?: AgentConnectionAuditActor;
-  },
+  args: EndAgentConnectionsArgs,
 ): Promise<EndedAgentConnection[]> {
   if (
     args.organizationId === undefined &&

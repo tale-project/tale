@@ -425,6 +425,26 @@ export async function checkAgentConnections(
       `refused=${String(refused)}, elsewhere=${String(elsewhere)}, again=${String(again)}, ended=${JSON.stringify(ended)}, acme ${JSON.stringify(beforeEnd.acme)}→${JSON.stringify(afterEnd.acme)}, beta ${JSON.stringify(afterEnd.beta)}`,
     );
 
+    // The person's own disconnect tells them nothing; the notices an agent's
+    // ending leaves in a person's bell are read from here on.
+    const noticesOf = (userId: string) =>
+      sql<
+        {
+          bodyKey: string;
+          params: { client?: string; name?: string } | null;
+          actorType: string;
+          actorId: string | null;
+          org: string;
+        }[]
+      >`
+        SELECT body_key AS "bodyKey", params, actor_type AS "actorType",
+               actor_id AS "actorId", org_id AS org
+        FROM app.user_notifications
+        WHERE user_id = ${userId} AND type = 'agent_connection_ended'
+        ORDER BY seq
+      `;
+    const noticesAfterOwnEnd = await noticesOf(ada.userId);
+
     // The same app allowed again is a new connection; an owner ends it as
     // an admin's act.
     await plantGrant(acme, ada.userId, claude);
@@ -445,6 +465,25 @@ export async function checkAgentConnections(
       everyone: true,
       includeEnded: true,
     });
+    const adminNotices = await noticesOf(ada.userId);
+    const ownerName = (
+      await sql<{ name: string }[]>`
+        SELECT name FROM "user" WHERE id = ${owner.userId}
+      `
+    )[0]?.name;
+    record(
+      'agent connections: the person is told in their bell when an owner disconnects an agent of theirs, by name, and is told nothing of their own disconnect (AGCONN-R20)',
+      noticesAfterOwnEnd.length === 0 &&
+        adminNotices.length === 1 &&
+        adminNotices[0]?.bodyKey === 'agentConnectionEndedAdminBody' &&
+        adminNotices[0].org === acme &&
+        adminNotices[0].actorType === 'user' &&
+        adminNotices[0].actorId === owner.userId &&
+        ownerName !== undefined &&
+        adminNotices[0].params?.name === ownerName &&
+        adminNotices[0].params.client === reconnected.connection.clientName,
+      `own end: ${noticesAfterOwnEnd.length} notices, admin end: ${JSON.stringify(adminNotices)}`,
+    );
     record(
       'agent connections: allowing a disconnected app again makes a new connection, an owner can end it as an admin, and the ended ones stay in the history an admin reads (AGCONN-R6, AGCONN-R2)',
       reconnected.created &&
@@ -465,7 +504,8 @@ export async function checkAgentConnections(
       rows: { id: string; revokedBy: string | null; reason: string | null }[];
       refresh: number | undefined;
       beta: number | undefined;
-    } = { rows: [], refresh: undefined, beta: undefined };
+      notices: number | undefined;
+    } = { rows: [], refresh: undefined, beta: undefined, notices: undefined };
     await sql
       .begin(async (tx) => {
         await removeMembershipCascade(tx, acme, ada.userId);
@@ -491,6 +531,14 @@ export async function checkAgentConnections(
               AND revoked_at_ms IS NULL
           `
         )[0]?.n;
+        // A seat that ended tells the person nothing: they can no longer
+        // read that organization's bell.
+        cascade.notices = (
+          await tx<{ n: number }[]>`
+            SELECT count(*)::int AS n FROM app.user_notifications
+            WHERE user_id = ${ada.userId} AND type = 'agent_connection_ended'
+          `
+        )[0]?.n;
         // Everything the cascade did is read; none of it is kept.
         throw new RollBack();
       })
@@ -503,11 +551,13 @@ export async function checkAgentConnections(
         cascade.rows[0]?.id === seatConnection.connection.id &&
         cascade.rows[0].revokedBy === 'system' &&
         cascade.refresh === 0 &&
-        cascade.beta === 1,
+        cascade.beta === 1 &&
+        cascade.notices === adminNotices.length,
       JSON.stringify({
         rows: cascade.rows,
         refresh: cascade.refresh,
         beta: cascade.beta,
+        notices: cascade.notices,
       }),
     );
 

@@ -1,9 +1,7 @@
 import type { TransactionSql } from 'postgres';
 
-import {
-  type AgentConnectionAuditActor,
-  endAgentConnectionsInTx,
-} from '../domains/agent_connections/end.ts';
+import { endAgentConnectionsAndTellInTx } from '../domains/agent_connections/end-and-tell.ts';
+import type { AgentConnectionAuditActor } from '../domains/agent_connections/end.ts';
 
 /**
  * Taking a person's access back when their account may be in other hands: a
@@ -29,7 +27,7 @@ export async function endAgentsOf(
   userId: string,
   by?: AgentConnectionAuditActor,
 ): Promise<void> {
-  await endAgentConnectionsInTx(tx, {
+  await endAgentConnectionsAndTellInTx(tx, {
     userId,
     reason: 'account_security',
     revokedBy: by?.actorId ?? 'system',

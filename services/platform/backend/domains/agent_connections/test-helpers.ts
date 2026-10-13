@@ -51,6 +51,7 @@ export function recordingSql(
   };
   const sql = Object.assign(tag, {
     begin: (work: (transaction: unknown) => Promise<unknown>) => work(sql),
+    savepoint: (work: (transaction: unknown) => Promise<unknown>) => work(sql),
   });
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for postgres.js

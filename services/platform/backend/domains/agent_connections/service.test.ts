@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { endAgentConnectionsInTx } from './end.ts';
+import { endAgentConnectionsAndTellInTx } from './end-and-tell.ts';
 import {
   type AgentConnection,
   AgentConnectionError,
@@ -27,8 +27,8 @@ vi.mock('../audit_logs/service.ts', () => ({
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('./end.ts', () => ({
-  endAgentConnectionsInTx: vi.fn(() => Promise.resolve([])),
+vi.mock('./end-and-tell.ts', () => ({
+  endAgentConnectionsAndTellInTx: vi.fn(() => Promise.resolve([])),
 }));
 
 const stored: AgentConnection = {
@@ -296,7 +296,9 @@ describe('disconnecting an agent [AGCONN-R2]', () => {
       'WHERE id = ? AND org_id = ? AND revoked_at_ms IS NULL FOR UPDATE',
     );
     expect(statements[0]?.values).toEqual(['conn-1', 'org-1']);
-    expect(vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1]).toEqual({
+    expect(
+      vi.mocked(endAgentConnectionsAndTellInTx).mock.calls[0]?.[1],
+    ).toEqual({
       organizationId: 'org-1',
       connectionIds: ['conn-1'],
       reason: 'user',
@@ -313,11 +315,11 @@ describe('disconnecting an agent [AGCONN-R2]', () => {
 
   it('lets an owner or admin end anyone’s, as the admin’s act', async () => {
     for (const role of ['owner', 'admin']) {
-      vi.mocked(endAgentConnectionsInTx).mockClear();
+      vi.mocked(endAgentConnectionsAndTellInTx).mockClear();
       const { sql } = live('user-ada');
       await disconnect(sql, { userId: 'user-olav', role });
       expect(
-        vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1],
+        vi.mocked(endAgentConnectionsAndTellInTx).mock.calls[0]?.[1],
       ).toMatchObject({ reason: 'admin', revokedBy: 'user-olav' });
     }
   });
@@ -342,6 +344,6 @@ describe('disconnecting an agent [AGCONN-R2]', () => {
         disconnect(sql, { userId: 'user-mia', role }),
       ).rejects.toBeInstanceOf(AgentConnectionError);
     }
-    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+    expect(endAgentConnectionsAndTellInTx).not.toHaveBeenCalled();
   });
 });

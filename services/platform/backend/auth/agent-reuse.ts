@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { Sql } from 'postgres';
 
 import { isRecord } from '../../lib/utils/type-utils.ts';
-import { endAgentConnectionsInTx } from '../domains/agent_connections/end.ts';
+import { endAgentConnectionsAndTellInTx } from '../domains/agent_connections/end-and-tell.ts';
 
 /**
  * A refresh token used twice.
@@ -147,7 +147,7 @@ export async function endAgentsAfterReuse(
     `;
     if (remaining.length > 0) return 0;
     const ended = await sql.begin((tx) =>
-      endAgentConnectionsInTx(tx, {
+      endAgentConnectionsAndTellInTx(tx, {
         userId: used.userId,
         clientId: used.clientId,
         reason: 'refresh_reuse',

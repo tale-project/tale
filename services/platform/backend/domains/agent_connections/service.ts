@@ -10,10 +10,10 @@ import {
 } from '../../core/lib/helpers/pii_hash.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import {
-  type AgentConnectionAuditActor,
-  type AgentConnectionEndReason,
-  endAgentConnectionsInTx,
+import { endAgentConnectionsAndTellInTx } from './end-and-tell.ts';
+import type {
+  AgentConnectionAuditActor,
+  AgentConnectionEndReason,
 } from './end.ts';
 
 /**
@@ -341,7 +341,7 @@ export async function disconnectAgent(
         404,
       );
     }
-    await endAgentConnectionsInTx(tx, {
+    await endAgentConnectionsAndTellInTx(tx, {
       organizationId: args.organizationId,
       connectionIds: [row.id],
       reason: own ? 'user' : 'admin',

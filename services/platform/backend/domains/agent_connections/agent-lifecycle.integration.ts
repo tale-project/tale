@@ -137,6 +137,25 @@ export async function checkAgentLifecycle(
         WHERE org_id = ${orgId} AND action = 'agent_connection.revoked'
         ORDER BY ts, id
       `;
+    /** The notices an agent's ending left in a person's bell: where, with
+     * which words, whose act, and whether they name the app. */
+    const noticesOf = (userId: string) =>
+      sql<
+        {
+          org: string;
+          bodyKey: string;
+          actorType: string;
+          namesApp: boolean;
+        }[]
+      >`
+        SELECT n.org_id AS org, n.body_key AS "bodyKey",
+               n.actor_type AS "actorType",
+               n.params->>'client' = c.client_name AS "namesApp"
+        FROM app.user_notifications n
+        JOIN app.agent_connections c ON c.id = n.resource_id
+        WHERE n.user_id = ${userId} AND n.type = 'agent_connection_ended'
+        ORDER BY n.seq
+      `;
     /** A person connecting the app to an organization and the app taking
      * the code. */
     const connect = async (
@@ -168,6 +187,7 @@ export async function checkAgentLifecycle(
       ...(await endingAudit(beta)),
     ].filter((row) => row.reason === 'refresh_reuse');
     const unknown = await refresh(inAcme, 'a-token-no-one-issued');
+    const reuseNotices = await noticesOf(ada.userId);
     record(
       'agent lifecycle: a refresh token used twice ends the app’s connections of that person in every organization, as the platform’s doing, with their consent and tokens — a retry the provider still answers ends nothing, and nobody else’s sign-in is touched (AGCONN-R16)',
       rotated.status === 200 &&
@@ -190,9 +210,20 @@ export async function checkAgentLifecycle(
         miaGrant.refresh > 0 &&
         reuseAudit.length === 2 &&
         reuseAudit.every((row) => row.actor === 'system') &&
+        // Ada is told in the bell of each organization; Mia, whose sign-in
+        // was not touched, is told nothing.
+        reuseNotices.length === 2 &&
+        new Set(reuseNotices.map((row) => row.org)).size === 2 &&
+        reuseNotices.every(
+          (row) =>
+            row.bodyKey === 'agentConnectionEndedReuseBody' &&
+            row.actorType === 'system' &&
+            row.namesApp,
+        ) &&
+        (await noticesOf(mia.userId)).length === 0 &&
         unknown.status === 400 &&
         (await liveCount(mia.userId)) === 1,
-      `rotate=${rotated.status}, retry=${retried.status} live=${afterRetry}, window=${windowed.count}, reuse=${reused.status} ${JSON.stringify(reused.body)}, ada=${JSON.stringify(adaEnded)}, grant=${JSON.stringify(adaGrant)}/mia ${JSON.stringify(miaGrant)}, audit=${JSON.stringify(reuseAudit)}, unknown=${unknown.status}`,
+      `rotate=${rotated.status}, retry=${retried.status} live=${afterRetry}, window=${windowed.count}, reuse=${reused.status} ${JSON.stringify(reused.body)}, ada=${JSON.stringify(adaEnded)}, grant=${JSON.stringify(adaGrant)}/mia ${JSON.stringify(miaGrant)}, audit=${JSON.stringify(reuseAudit)}, notices=${JSON.stringify(reuseNotices)}, unknown=${unknown.status}`,
     );
 
     // A password changed — by the person or by an admin — a second factor an
@@ -208,6 +239,7 @@ export async function checkAgentLifecycle(
       }),
     });
     const miaEnded = await connectionsOf(mia.userId);
+    const miaNotices = await noticesOf(mia.userId);
     const wrongPassword = await fetch(`${base}/api/app/users/update-password`, {
       method: 'POST',
       headers: { ...headers, cookie: ada.cookie },
@@ -226,9 +258,15 @@ export async function checkAgentLifecycle(
             row.reason === 'account_security' &&
             row.by === 'system',
         ) &&
+        miaNotices.length === 1 &&
+        miaNotices[0]?.bodyKey === 'agentConnectionEndedAccountBody' &&
+        miaNotices[0].org === acme &&
+        miaNotices[0].namesApp &&
         wrongPassword.status >= 400 &&
-        (await liveCount(ada.userId)) === 2,
-      `change=${changed.status}, mia=${JSON.stringify(miaEnded)}, refused=${wrongPassword.status}, ada live=${await liveCount(ada.userId)}`,
+        (await liveCount(ada.userId)) === 2 &&
+        // A change that was refused tells nobody anything.
+        (await noticesOf(ada.userId)).length === reuseNotices.length,
+      `change=${changed.status}, mia=${JSON.stringify(miaEnded)}, notices=${JSON.stringify(miaNotices)}, refused=${wrongPassword.status}, ada live=${await liveCount(ada.userId)}`,
     );
 
     // The person signs in again with the password they chose.
@@ -263,6 +301,8 @@ export async function checkAgentLifecycle(
     const adminAudit = (await endingAudit(acme)).filter(
       (row) => row.actor === owner.userId,
     );
+    const noahNotices = await noticesOf(noah.userId);
+    const miaNoticesAfterReset = await noticesOf(mia.userId);
     record(
       'agent lifecycle: an admin taking a member’s password or resetting their second factor ends the member’s agents as the admin’s act, with the admin in the trail (AGCONN-R17)',
       seized.status === 200 &&
@@ -276,8 +316,16 @@ export async function checkAgentLifecycle(
         afterReset[1].reason === 'account_security' &&
         afterReset[1].by === owner.userId &&
         adminAudit.length === 2 &&
-        (await liveCount(ada.userId)) === 2,
-      `seize=${seized.status}, noah=${JSON.stringify(afterSeizure)}, mia=${JSON.stringify(afterReset)}, audit=${JSON.stringify(adminAudit)}`,
+        (await liveCount(ada.userId)) === 2 &&
+        // Each is told in their own bell why their agent stopped.
+        noahNotices.length === 1 &&
+        noahNotices[0]?.bodyKey === 'agentConnectionEndedAccountBody' &&
+        miaNoticesAfterReset.length === 2 &&
+        miaNoticesAfterReset.every(
+          (row) =>
+            row.bodyKey === 'agentConnectionEndedAccountBody' && row.namesApp,
+        ),
+      `seize=${seized.status}, noah=${JSON.stringify(afterSeizure)}, mia=${JSON.stringify(afterReset)}, audit=${JSON.stringify(adminAudit)}, notices=${JSON.stringify(noahNotices)}/${JSON.stringify(miaNoticesAfterReset)}`,
     );
 
     // The temporary password an admin set is replaced at the forced rotation,
@@ -299,6 +347,7 @@ export async function checkAgentLifecycle(
       body: JSON.stringify({ newPassword: noahChosen }),
     });
     const afterRotation = await connectionsOf(noah.userId);
+    const noahNoticesAfterRotation = await noticesOf(noah.userId);
     const chosenWorks = await fetch(`${base}/api/auth/sign-in/email`, {
       method: 'POST',
       headers,
@@ -312,8 +361,9 @@ export async function checkAgentLifecycle(
         afterRotation.length === 2 &&
         !afterRotation[1]?.live &&
         afterRotation[1].reason === 'account_security' &&
-        afterRotation[1].by === 'system',
-      `before=${liveBeforeRotation}, rotate=${rotation.status}, sign-in=${chosenWorks.status}, noah=${JSON.stringify(afterRotation)}`,
+        afterRotation[1].by === 'system' &&
+        noahNoticesAfterRotation.length === 2,
+      `before=${liveBeforeRotation}, rotate=${rotation.status}, sign-in=${chosenWorks.status}, noah=${JSON.stringify(afterRotation)}, notices=${noahNoticesAfterRotation.length}`,
     );
 
     // An erasure deletes the person's connections in the organization — and
@@ -365,6 +415,14 @@ export async function checkAgentLifecycle(
     const counts = await sql<{ counts: Record<string, number> | null }[]>`
       SELECT counts FROM app.gdpr_erasure_requests WHERE id = ${receipt[0]?.id ?? ''}
     `;
+    // The erasure removes the person's notifications before it ends their
+    // agents, so a notice written by that ending would outlive it.
+    const eveNotices = (
+      await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM app.user_notifications
+        WHERE user_id = ${eve.userId} AND type = 'agent_connection_ended'
+      `
+    )[0]?.n;
     record(
       'agent lifecycle: erasing a person deletes their connections in that organization — live and ended, with their consent and tokens — keeps another organization’s, and leaves the audit rows scrubbed of who they were (AGCONN-R18)',
       eveAcme.access_token !== '' &&
@@ -384,8 +442,9 @@ export async function checkAgentLifecycle(
             row.previous === null &&
             row.metadata === null,
         ) &&
-        counts[0]?.counts?.agentConnections === 2,
-      `before=${eveBefore.length}, after=${JSON.stringify(eveAfter)}, consents=${JSON.stringify(eveGrants)}, audit=${JSON.stringify(eveAudit)}, counts=${JSON.stringify(counts[0]?.counts?.agentConnections)}`,
+        counts[0]?.counts?.agentConnections === 2 &&
+        eveNotices === 0,
+      `before=${eveBefore.length}, notices=${String(eveNotices)}, after=${JSON.stringify(eveAfter)}, consents=${JSON.stringify(eveGrants)}, audit=${JSON.stringify(eveAudit)}, counts=${JSON.stringify(counts[0]?.counts?.agentConnections)}`,
     );
 
     // The daily clean-up.
