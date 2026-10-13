@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { mayConnectAgentIn } from '../../auth/api-key-create-gate.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { endAgentConnectionsAndTellInTx } from './end-and-tell.ts';
@@ -18,9 +19,13 @@ import {
   type ConnectAgentInput,
   disconnectAgent,
   listAgentConnections,
+  readAgentConnectionAccess,
 } from './service.ts';
 import { recordingSql } from './test-helpers.ts';
 
+vi.mock('../../auth/api-key-create-gate.ts', () => ({
+  mayConnectAgentIn: vi.fn(() => Promise.resolve(false)),
+}));
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(() => Promise.resolve('audit-1')),
 }));
@@ -247,7 +252,17 @@ describe('listing the connections of an organization [AGCONN-R1]', () => {
   it('says when each agent last called, from the endpoint’s own counters for that connection alone', async () => {
     const { statement } = await list({ viewerRole: 'developer' });
     expect(statement?.text).toContain(
-      '( SELECT MAX(last_at_ms)::float8 FROM app.mcp_client_activity WHERE org_id = c.org_id AND user_id = c.user_id AND credential_kind = \'oauth\' AND credential_id = c.id ) AS "lastUsedAt" FROM app.agent_connections c',
+      '( SELECT MAX(last_at_ms)::float8 FROM app.mcp_client_activity WHERE org_id = c.org_id AND user_id = c.user_id AND credential_kind = \'oauth\' AND credential_id = c.id ) AS "lastUsedAt"',
+    );
+  });
+
+  it('names who connected each agent from their account, so an admin reading everyone’s can tell whose each is', async () => {
+    const { statement } = await list({
+      viewerRole: 'owner',
+      everyone: true,
+    });
+    expect(statement?.text).toContain(
+      'person."name" AS "personName", person."email" AS "personEmail" FROM app.agent_connections c LEFT JOIN LATERAL ( SELECT "name", "email" FROM "user" WHERE "id" = c.user_id ) person ON true',
     );
   });
 
@@ -265,6 +280,43 @@ describe('listing the connections of an organization [AGCONN-R1]', () => {
       1_791_000_000_500,
       500,
     ]);
+  });
+});
+
+describe('what a person has to do with agents in an organization [AGCONN-R23]', () => {
+  const access = (role: string, held: boolean, mayConnect = false) => {
+    vi.mocked(mayConnectAgentIn).mockResolvedValue(mayConnect);
+    const { sql, statements } = recordingSql(() =>
+      held ? [{ id: 'conn-1' }] : [],
+    );
+    return readAgentConnectionAccess(sql, {
+      organizationId: 'org-1',
+      userId: 'user-ada',
+      role,
+    }).then((answer) => ({ answer, statements }));
+  };
+
+  it('says whether the person may connect an agent here, by the consent gate’s own rule for this organization and the role they hold in it', async () => {
+    const may = await access('Developer', false, true);
+    expect(may.answer).toEqual({ mayConnect: true, holdsConnection: false });
+    expect(vi.mocked(mayConnectAgentIn).mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org-1',
+      userId: 'user-ada',
+      role: 'developer',
+    });
+    const may_not = await access('member', false, false);
+    expect(may_not.answer.mayConnect).toBe(false);
+  });
+
+  it('says whether the person holds a live connection here, counting no ended one and no one else’s', async () => {
+    const holds = await access('member', true);
+    expect(holds.answer).toEqual({ mayConnect: false, holdsConnection: true });
+    expect(holds.statements[0]?.text).toContain(
+      'WHERE org_id = ? AND user_id = ? AND revoked_at_ms IS NULL LIMIT 1',
+    );
+    expect(holds.statements[0]?.values).toEqual(['org-1', 'user-ada']);
+    const none = await access('member', false);
+    expect(none.answer.holdsConnection).toBe(false);
   });
 });
 

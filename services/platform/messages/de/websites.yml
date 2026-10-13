@@ -1,6 +1,7 @@
 title: Websites
 entityLabelOne: Website
 searchPlaceholder: Websites suchen
+refreshFailed: Die neuesten Websites konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
 addButton: Website hinzufügen
 addWebsite: Website hinzufügen
 addDescription: Indexiere eine ganze Website oder eine Liste von Seiten und wähle, wie oft sie gescannt wird.

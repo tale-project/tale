@@ -1,6 +1,7 @@
 title: Contacts
 entityLabelOne: contact
 searchPlaceholder: Search contacts
+refreshFailed: "Couldn't load the latest contacts. What's listed may be incomplete or out of date."
 filter:
   source:
     manual: Manual

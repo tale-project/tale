@@ -46,6 +46,7 @@ import {
   useSaveOrgKnowledgeConnection,
   useTestOrgKnowledgeConnection,
 } from '../hooks/mutations';
+import { useConnectionTestResult } from '../hooks/use-connection-test-result';
 import { mapOrgResidencyError } from '../org-residency-errors';
 import { READ_ONLY_EMPTY, StatusBadge } from './residency-chrome';
 
@@ -198,9 +199,6 @@ export function OrgKnowledgeSection({
   // Turning a SAVED connection off routes through the remove confirm instead.
   const [enabled, setEnabled] = useState(Boolean(view?.configured));
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
-  const [testResult, setTestResult] = useState<
-    { ok: boolean; message?: string } | undefined
-  >(undefined);
 
   const configured = Boolean(view?.configured);
   useEffect(() => {
@@ -276,12 +274,10 @@ export function OrgKnowledgeSection({
   });
   useRegisterGroupedEditor(editor, { enabled: !readOnly });
 
-  // A probe result describes the values it was run against — editing any
-  // field makes it stale, so it clears on the next form change.
-  useEffect(() => {
-    const sub = editor.form.watch(() => setTestResult(undefined));
-    return () => sub.unsubscribe();
-  }, [editor.form]);
+  const { testResult, clearTestResult, beginTest } = useConnectionTestResult(
+    editor.form,
+    organizationId,
+  );
 
   const {
     register,
@@ -292,7 +288,7 @@ export function OrgKnowledgeSection({
   } = editor.form;
 
   async function onTest() {
-    setTestResult(undefined);
+    const publishResult = beginTest();
     const typed = getValues();
     // An untouched number input reads as NaN; probe the schema default.
     const values = {
@@ -325,19 +321,19 @@ export function OrgKnowledgeSection({
         // works without re-entering the password.
         password: values.password ? values.password : undefined,
       });
-      setTestResult({
+      publishResult({
         ok: res.ok,
         message: res.error || res.hint || undefined,
       });
     } catch (err) {
-      setTestResult({ ok: false, message: mapOrgResidencyError(err, t) });
+      publishResult({ ok: false, message: mapOrgResidencyError(err, t) });
     }
   }
 
   async function onClear() {
     try {
       await remove.mutateAsync({ organizationId });
-      setTestResult(undefined);
+      clearTestResult();
       toast({ description: t('dataResidency.orgKnowledge.cleared') });
     } catch (err) {
       toast({

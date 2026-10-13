@@ -1,7 +1,10 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { visibleApiNavItems } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
+import {
+  tabDeniedMessageKey,
+  visibleApiNavItems,
+} from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 
 import { useApiSettingsAccess } from './use-api-settings-access';
 
@@ -9,8 +12,10 @@ import { useApiSettingsAccess } from './use-api-settings-access';
  * Who opens which API settings tab: owners, admins and developers every tab;
  * a member who may create a personal API key (a competence that is used with
  * one) the REST tab, where the key is made; one who may call the model
- * endpoints (a `tale:models.api` grant) the Models tab as well; anyone else
- * none.
+ * endpoints (a `tale:models.api` grant) the Models tab as well; one who may
+ * connect a coding agent here, while the deployment lets agents sign in, or
+ * holds a live connection, Connected agents — which no role opens by itself;
+ * anyone else none.
  */
 
 const state = vi.hoisted(() => ({
@@ -24,11 +29,21 @@ const state = vi.hoisted(() => ({
     isLoading: false,
     data: undefined as undefined | { mayCreate: boolean; holdsKeys: boolean },
   },
+  agentAccess: {
+    isLoading: false,
+    data: undefined as
+      | undefined
+      | { mayConnect: boolean; holdsConnection: boolean; signInOn: boolean },
+  },
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => state.developer }),
   useAbilityLoading: () => state.abilityLoading,
+}));
+
+vi.mock('@/app/features/settings/agent-connections/hooks/queries', () => ({
+  useAgentConnectionAccess: () => state.agentAccess,
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
@@ -41,19 +56,43 @@ beforeEach(() => {
   state.abilityLoading = false;
   state.standing = { isLoading: false, data: undefined };
   state.keys = { isLoading: false, data: undefined };
+  state.agentAccess = { isLoading: false, data: undefined };
 });
 
+/** What the connections answer, the deployment letting agents sign in unless
+ * said otherwise. */
+function connections(
+  answer: Partial<{
+    mayConnect: boolean;
+    holdsConnection: boolean;
+    signInOn: boolean;
+  }>,
+) {
+  return {
+    isLoading: false,
+    data: {
+      mayConnect: false,
+      holdsConnection: false,
+      signInOn: true,
+      ...answer,
+    },
+  };
+}
+
 describe('useApiSettingsAccess', () => {
-  it('opens everything to a developer role, without waiting on the grants', () => {
+  it('opens every API tab to a developer role, without waiting on the grants', () => {
     state.developer = true;
     state.standing = { isLoading: true, data: undefined };
     state.keys = { isLoading: true, data: undefined };
+    state.agentAccess = connections({ mayConnect: true });
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
     expect(result.current).toEqual({
       developer: true,
       apiKeys: true,
       createApiKeys: true,
       modelApi: true,
+      agents: true,
+      connectAgents: true,
       loading: false,
     });
   });
@@ -64,12 +103,15 @@ describe('useApiSettingsAccess', () => {
       isLoading: false,
       data: { mayCreate: true, holdsKeys: false },
     };
+    state.agentAccess = connections({});
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
     expect(result.current).toEqual({
       developer: false,
       apiKeys: true,
       createApiKeys: true,
       modelApi: true,
+      agents: false,
+      connectAgents: false,
       loading: false,
     });
   });
@@ -80,12 +122,15 @@ describe('useApiSettingsAccess', () => {
       isLoading: false,
       data: { mayCreate: true, holdsKeys: false },
     };
+    state.agentAccess = connections({});
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
     expect(result.current).toEqual({
       developer: false,
       apiKeys: true,
       createApiKeys: true,
       modelApi: false,
+      agents: false,
+      connectAgents: false,
       loading: false,
     });
   });
@@ -96,26 +141,91 @@ describe('useApiSettingsAccess', () => {
       isLoading: false,
       data: { mayCreate: false, holdsKeys: true },
     };
+    state.agentAccess = connections({});
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
     expect(result.current).toEqual({
       developer: false,
       apiKeys: true,
       createApiKeys: false,
       modelApi: false,
+      agents: false,
+      connectAgents: false,
       loading: false,
     });
   });
 
+  it('opens Connected agents to a member who may connect a coding agent here [AGCONN-R23]', () => {
+    state.agentAccess = connections({ mayConnect: true });
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toEqual({
+      developer: false,
+      apiKeys: false,
+      createApiKeys: false,
+      modelApi: false,
+      agents: true,
+      connectAgents: true,
+      loading: false,
+    });
+  });
+
+  it('does not offer a way to connect an agent while the deployment does not let agents sign in [AGCONN-R23]', () => {
+    state.developer = true;
+    state.agentAccess = connections({ mayConnect: true, signInOn: false });
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    // Every other tab is a developer role's by right; this one is not.
+    expect(result.current).toMatchObject({
+      developer: true,
+      apiKeys: true,
+      modelApi: true,
+      agents: false,
+      connectAgents: false,
+    });
+  });
+
+  it('keeps Connected agents for a member who holds a connection after the right lapsed or the sign-in was switched off [AGCONN-R23]', () => {
+    state.agentAccess = connections({ holdsConnection: true });
+    const lapsed = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(lapsed.result.current.agents).toBe(true);
+    expect(lapsed.result.current.connectAgents).toBe(false);
+    expect(lapsed.result.current.apiKeys).toBe(false);
+
+    state.agentAccess = connections({
+      holdsConnection: true,
+      mayConnect: true,
+      signInOn: false,
+    });
+    const off = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(off.result.current.agents).toBe(true);
+    expect(off.result.current.connectAgents).toBe(false);
+  });
+
+  it('closes Connected agents to a member with neither [AGCONN-R23]', () => {
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current.agents).toBe(false);
+  });
+
+  it('waits for the connections, a developer role included, as the tab is not the role’s by right', () => {
+    state.developer = true;
+    state.agentAccess = { isLoading: true, data: undefined };
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current.loading).toBe(true);
+    expect(result.current.agents).toBe(false);
+  });
+
   it.each([
-    ['the model grant', { standing: true, keys: false }],
-    ['the key rule', { standing: false, keys: true }],
+    ['the model grant', { standing: true, keys: false, agents: false }],
+    ['the key rule', { standing: false, keys: true, agents: false }],
+    ['the connections', { standing: false, keys: false, agents: true }],
   ])('waits for %s before deciding for any other member', (_what, loading) => {
     state.standing = { isLoading: loading.standing, data: undefined };
     state.keys = { isLoading: loading.keys, data: undefined };
+    state.agentAccess = { isLoading: loading.agents, data: undefined };
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
     expect(result.current.loading).toBe(true);
     expect(result.current.apiKeys).toBe(false);
     expect(result.current.modelApi).toBe(false);
+    expect(result.current.agents).toBe(false);
   });
 });
 
@@ -124,33 +234,71 @@ describe('visibleApiNavItems', () => {
     developer: boolean;
     apiKeys: boolean;
     modelApi: boolean;
+    agents: boolean;
   }) => visibleApiNavItems(access).map((item) => item.slug);
 
-  it('lists every tab for a developer role, Models beside REST', () => {
-    expect(slugs({ developer: true, apiKeys: true, modelApi: true })).toEqual([
-      'rest',
-      'models',
-      'mcp',
-      'webdav',
-    ]);
+  it('lists every tab for a developer role, Models beside REST and Connected agents beside MCP', () => {
+    expect(
+      slugs({ developer: true, apiKeys: true, modelApi: true, agents: true }),
+    ).toEqual(['rest', 'models', 'mcp', 'agents', 'webdav']);
+  });
+
+  it('leaves Connected agents out for a developer role while agents may not sign in [AGCONN-R23]', () => {
+    expect(
+      slugs({ developer: true, apiKeys: true, modelApi: true, agents: false }),
+    ).toEqual(['rest', 'models', 'mcp', 'webdav']);
   });
 
   it('lists REST and Models alone for a member holding the model grant', () => {
-    expect(slugs({ developer: false, apiKeys: true, modelApi: true })).toEqual([
-      'rest',
-      'models',
-    ]);
+    expect(
+      slugs({
+        developer: false,
+        apiKeys: true,
+        modelApi: true,
+        agents: false,
+      }),
+    ).toEqual(['rest', 'models']);
   });
 
   it('lists REST alone for a member who may create a key for another door', () => {
-    expect(slugs({ developer: false, apiKeys: true, modelApi: false })).toEqual(
-      ['rest'],
-    );
+    expect(
+      slugs({
+        developer: false,
+        apiKeys: true,
+        modelApi: false,
+        agents: false,
+      }),
+    ).toEqual(['rest']);
+  });
+
+  it('lists Connected agents alone for a member who may connect a coding agent [AGCONN-R23]', () => {
+    expect(
+      slugs({
+        developer: false,
+        apiKeys: false,
+        modelApi: false,
+        agents: true,
+      }),
+    ).toEqual(['agents']);
   });
 
   it('lists nothing for any other member', () => {
     expect(
-      slugs({ developer: false, apiKeys: false, modelApi: false }),
+      slugs({
+        developer: false,
+        apiKeys: false,
+        modelApi: false,
+        agents: false,
+      }),
     ).toEqual([]);
+  });
+});
+
+describe('tabDeniedMessageKey', () => {
+  it('says what opens a tab that a member’s grant opens, and the roles for the rest [AGCONN-R23]', () => {
+    expect(tabDeniedMessageKey({ audience: 'modelApi' })).toBe('apiModels');
+    expect(tabDeniedMessageKey({ audience: 'agents' })).toBe('apiAgents');
+    expect(tabDeniedMessageKey({ audience: 'developer' })).toBe('apiTab');
+    expect(tabDeniedMessageKey({ audience: 'apiKeys' })).toBe('apiTab');
   });
 });

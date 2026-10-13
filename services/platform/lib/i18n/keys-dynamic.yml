@@ -222,7 +222,7 @@ entries:
   - 'tasks.activity'
 
   # Settings rail sub-section labels. The API sub-pages (REST / Models / MCP /
-  # WebDAV) are driven by the API_NAV_ITEMS catalog in
+  # Connected agents / WebDAV) are driven by the API_NAV_ITEMS catalog in
   # app/routes/dashboard/$id/settings/api/-nav-items.ts and rendered via
   # `tNav(item.labelKey)` in settings-rail.tsx and the section's mobile tab
   # strip. Because the catalog is a data-only module (no `useT` call), the
@@ -231,6 +231,7 @@ entries:
   - 'navigation.apiRest'
   - 'navigation.apiModels'
   - 'navigation.mcp'
+  - 'navigation.connectedAgents'
   - 'navigation.webdav'
 
   # Enterprise SSO sign-in failures: the authorize/callback Convex handlers set

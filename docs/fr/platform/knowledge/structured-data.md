@@ -76,6 +76,15 @@ Une fiche ou un document n’est utile qu’aux personnes qui y ont accès. Vér
 
 Mets à jour la fiche de référence lorsqu’une donnée change. Après la révision d’un document, attends la fin de l’indexation avant de tester une question sur le nouveau texte. Le contenu d’un site suit son intervalle d’exploration et peut donc différer de la page en ligne.
 
+## Si une liste ne se charge pas
+
+Quand la liste des contacts, des produits ou des sites web ne peut pas être chargée, Tale le signale dans la liste. L’échec n’apparaît jamais comme une liste vide. **Réessayer** relance le chargement sans que tu aies à recharger la page :
+
+- Si rien ne peut être chargé, le tableau affiche l’erreur et **Réessayer** au lieu de l’état vide. L’erreur ne signifie pas que les fiches ont disparu : réessaie avant de les importer ou de les ajouter à nouveau.
+- Si des fiches sont déjà affichées, elles restent en place, et un avis au-dessus du tableau indique que la liste est peut-être incomplète ou obsolète.
+
+Si **Réessayer** échoue à chaque fois, demande à un administrateur de vérifier que les services de Tale fonctionnent.
+
 ## Utiliser les types de fiches disponibles
 
 L’espace de connaissances propose Contacts, Produits et Sites web. **Paramètres > Gouvernance > Modèles** règle l’accès aux modèles d’IA et les choix par défaut. Cette page ne crée ni types de fiches personnalisés ni champs de base de données.

@@ -25,6 +25,8 @@ Wähle einen Namen, den andere überall wiedererkennen, wo Teams erscheinen: in 
 
 Ein Team behält mindestens ein Mitglied. Um das letzte zu entfernen, lösche stattdessen das Team.
 
+Ändert jemand anderes die Mitglieder des Teams, während du es bearbeitest, behält der Dialog deine Auswahl und weist darauf hin, dass sich die Mitgliedschaft in einer anderen Sitzung geändert hat. **Änderungen speichern** bleibt deaktiviert. Schließe den Dialog und öffne ihn erneut, um die aktuellen Mitglieder zu sehen, und wiederhole dann deine Änderung.
+
 Eine Person kann mehreren Teams angehören. Ihr Zugriff kann über weitere Teams oder eine direkte Zuweisung bestehen bleiben. Das Entfernen aus einem Team entzieht daher nicht zwangsläufig jeden Zugriff auf eine Ressource. Prüfe die übrigen Zugangswege, wenn du Rechte entziehen möchtest.
 
 Benachrichtigungen folgen derselben Regel. Wer ein Projekt nicht mehr öffnen kann, erhält zu dessen Aufgaben keine neuen Benachrichtigungen oder E-Mails mehr, auch nicht zu Aufgaben, die die Person verfolgt. Was sie bereits erfahren hat, bleibt in ihren Benachrichtigungen. Erhält sie wieder Zugriff, wird sie zu den Aufgaben, die sie verfolgt, wieder benachrichtigt.

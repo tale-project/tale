@@ -39,7 +39,8 @@ vi.mock('../../auth/org.ts', () => ({
       await next();
     },
 }));
-vi.mock('../../lib/rate-limit.ts', () => ({
+vi.mock('../../lib/rate-limit.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/rate-limit.ts')>()),
   checkOrganizationRateLimit: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('../chat/threads.ts', () => ({

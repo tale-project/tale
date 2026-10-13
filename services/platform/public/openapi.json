@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.43.0",
+    "version": "3.44.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -42839,11 +42839,14 @@
       "post": {
         "tags": ["MCP"],
         "summary": "The platform MCP endpoint",
-        "description": "JSON-RPC over HTTP, both MCP protocol eras on one endpoint (JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or 2025-03-26 when the client proposes it, the client opens with `initialize`, which answers `instructions` and reports the API contract version as `serverInfo.version`; a request carries one message, or a JSON-RPC batch answered as an array. On 2026-07-28 there is no `initialize`: every request carries its revision and the client’s capabilities in `params._meta`, mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; `server/discover` answers the revisions, capabilities and instructions; a request carries one message; and every result adds `resultType` and the server under `_meta`, with `ttlMs` and `cacheScope` where a client may cache it. Authenticate with the same Bearer org API key as the REST API — or, where the operator lets coding agents sign in, with the access token of a connection a person made from their agent (OAuth), which this endpoint alone takes: its 401 carries a `WWW-Authenticate` challenge naming the endpoint’s metadata and the scopes to ask for. A connection acts in the organization it was made for (`X-Organization-Slug` naming another answers `ORG_MISMATCH`) and holds the access its person allowed: a request that calls a tool needing access the connection lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference; `resources/list` and `prompts/list` name what a client reads by address (the references, automations, runs) and the ready-made prompts. Tool arguments are checked against the advertised input schema, and every problem comes back at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
+        "description": "JSON-RPC over HTTP, both MCP protocol eras on one endpoint (JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or 2025-03-26 when the client proposes it, the client opens with `initialize`, which answers `instructions` and reports the API contract version as `serverInfo.version`; a request carries one message, or a JSON-RPC batch answered as an array. On 2026-07-28 there is no `initialize`: every request carries its revision and the client’s capabilities in `params._meta`, mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; `server/discover` answers the revisions, capabilities and instructions; a request carries one message; and every result adds `resultType` and the server under `_meta`, with `ttlMs` and `cacheScope` where a client may cache it. Authenticate with the same Bearer org API key as the REST API — or, unless the operator turned agent sign-in off, with the access token of a connection a person made from their agent (OAuth, `agentOAuth`), which this endpoint alone takes: its 401 carries a `WWW-Authenticate` challenge naming the endpoint’s metadata and the scopes to ask for. A connection acts in the organization it was made for (`X-Organization-Slug` naming another answers `ORG_MISMATCH`) and holds the access its person allowed: a request that calls a tool needing access the connection lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference; `resources/list` and `prompts/list` name what a client reads by address (the references, automations, runs) and the ready-made prompts. Tool arguments are checked against the advertised input schema, and every problem comes back at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
         "operationId": "mcp",
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "agentOAuth": ["tale:mcp"]
           }
         ],
         "requestBody": {
@@ -44622,7 +44625,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.43.0"
+          "example": "3.44.0"
         }
       },
       "Location": {
@@ -44700,7 +44703,27 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection, where the operator lets agents sign in."
+        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection (`agentOAuth`), unless the operator turned agent sign-in off."
+      },
+      "agentOAuth": {
+        "type": "oauth2",
+        "description": "A coding agent signs in on a person’s behalf, for the MCP endpoint alone — OAuth 2.1, the authorization code grant with PKCE (S256). The agent finds the sign-in server from the endpoint’s 401, whose `WWW-Authenticate` challenge names `resource_metadata` (RFC 9728, `/.well-known/oauth-protected-resource/api/v1/mcp`), and identifies itself by a client metadata document it publishes or by registering itself. The person signs in to Tale, chooses one organization and the access to give on Tale’s consent page, and the connection then acts in that organization with that access, never above what the person’s role allows. The access token lasts five minutes; the refresh token stays valid for thirty days without use and rotates. Disconnecting the agent, leaving the organization, a new password or a refresh token used twice ends the connection. A deployment whose operator turned agent sign-in off answers none of the discovery documents.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/api/auth/oauth2/authorize",
+            "tokenUrl": "/api/auth/oauth2/token",
+            "refreshUrl": "/api/auth/oauth2/token",
+            "scopes": {
+              "tale:mcp": "Read and test: read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.",
+              "tale:automations.write": "Edit automations: save new versions. Deploying stays with the person.",
+              "tale:automations.deploy": "Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.",
+              "tale:settings.read": "Read settings: the settings the person’s role can see. Secrets stay hidden.",
+              "tale:settings.write": "Change settings: the settings the person’s role can change. Every change is recorded in the audit log.",
+              "tale:subscriptions.connect": "Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.",
+              "offline_access": "Stay connected: a refresh token, valid for thirty days without use."
+            }
+          }
+        }
       }
     },
     "schemas": {

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AGENT_CONNECTION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import { mayConnectAgentIn } from '../../auth/api-key-create-gate.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import {
   splitEmailForAudit,
@@ -55,12 +56,18 @@ export interface AgentConnection {
   revokeReason: AgentConnectionEndReason | null;
 }
 
-/** A connection as the list shows it, with when its agent last called. */
+/** A connection as the list shows it, with when its agent last called and
+ * who connected it. */
 export interface ListedAgentConnection extends AgentConnection {
   /** The last call the MCP endpoint answered with this connection, from the
    * endpoint's own counters (`app.mcp_client_activity`) and never from what
    * the agent claims; null before its first. */
   lastUsedAt: number | null;
+  /** The person's name and address, so an owner or admin reading everyone's
+   * connections can tell whose each is. Null where the account no longer
+   * holds one. */
+  personName: string | null;
+  personEmail: string | null;
 }
 
 export class AgentConnectionError extends Error {
@@ -254,8 +261,12 @@ export async function listAgentConnections(
       SELECT MAX(last_at_ms)::float8 FROM app.mcp_client_activity
       WHERE org_id = c.org_id AND user_id = c.user_id
         AND credential_kind = 'oauth' AND credential_id = c.id
-    ) AS "lastUsedAt"
+    ) AS "lastUsedAt",
+    person."name" AS "personName", person."email" AS "personEmail"
     FROM app.agent_connections c
+    LEFT JOIN LATERAL (
+      SELECT "name", "email" FROM "user" WHERE "id" = c.user_id
+    ) person ON true
     WHERE org_id = ${args.organizationId}
       ${all ? db`` : db`AND user_id = ${args.viewerId}`}
       ${ended ? db`` : db`AND revoked_at_ms IS NULL`}
@@ -268,6 +279,29 @@ export async function listAgentConnections(
     LIMIT ${LIST_LIMIT}
   `;
   return { connections, canSeeEveryone };
+}
+
+/**
+ * What a person has to do with coding agents in one organization: whether
+ * they may connect one here (the rule the consent gate holds them to), and
+ * whether they hold a live connection — which they keep seeing, and ending,
+ * after the right to connect lapsed. Settings shows the Connected agents
+ * page to a member who has either.
+ */
+export async function readAgentConnectionAccess(
+  db: Sql,
+  args: { organizationId: string; userId: string; role: string },
+): Promise<{ mayConnect: boolean; holdsConnection: boolean }> {
+  const [mayConnect, held] = await Promise.all([
+    mayConnectAgentIn(db, { ...args, role: args.role.toLowerCase() }),
+    db<{ id: string }[]>`
+      SELECT id FROM app.agent_connections
+      WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+        AND revoked_at_ms IS NULL
+      LIMIT 1
+    `,
+  ]);
+  return { mayConnect, holdsConnection: held.length > 0 };
 }
 
 /** The signed-in person acting on a connection here, as the audit rows name

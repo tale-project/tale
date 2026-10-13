@@ -1,5 +1,6 @@
 errors:
   RATE_LIMITED: Das passiert grad zu oft. Versuch es gleich nochmal.
+  PROJECT_AGENT_STALE: Dieser Agent wurde seit dem Öffnen geändert. Deine Änderungen sind noch hier. Kopiere sie vor dem Schliessen, öffne den Agenten erneut und füge sie in die aktuellen Einstellungen ein.
 settings:
   descriptionHint: Eine kurze Zusammenfassung, damit dein Team weiss, was hierher gehört.
 dangerZone:

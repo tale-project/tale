@@ -7,7 +7,10 @@ import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
 
-import { agentOAuthOptionsFromEnv } from './auth/agent-oauth-config.ts';
+import {
+  agentOAuthOptionsFromEnv,
+  agentSignInOn,
+} from './auth/agent-oauth-config.ts';
 import {
   PROTECTED_RESOURCE_METADATA_PATH,
   protectedResourceMetadataAnswer,
@@ -434,7 +437,13 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));
   app.route('/api/app/api-keys', createApiKeyRoutes(deps));
-  app.route('/api/app/agent-connections', createAgentConnectionRoutes(deps));
+  app.route(
+    '/api/app/agent-connections',
+    createAgentConnectionRoutes({
+      ...deps,
+      signInOn: agentSignInOn(agentOAuth),
+    }),
+  );
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
   app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/deployment', createDeploymentRoutes(deps));

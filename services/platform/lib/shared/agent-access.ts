@@ -88,6 +88,17 @@ export function levelOf(scopes: Iterable<string>): AccessLevel | null {
   );
 }
 
+/** The scopes that are a choice of their own beside the level: reading
+ * settings, changing them (which brings reading them along) and connecting a
+ * subscription. */
+export const EXTRA_SCOPES = [
+  'tale:settings.read',
+  'tale:settings.write',
+  'tale:subscriptions.connect',
+] as const satisfies readonly AgentScope[];
+
+export type ExtraScope = (typeof EXTRA_SCOPES)[number];
+
 /** A scope in the words the consent page uses for the access it gives —
  * what a refusal that tells an agent to ask for more names it by. */
 const SCOPE_WORDS: Readonly<Record<AgentScope, string>> = {

@@ -62,6 +62,9 @@ export interface AssignableActor {
   /** What it answered to before agents had handles (agents only), so older
    * text that named it that way still shows it. */
   legacyHandles?: readonly string[];
+  /** The organization's standard agent, set up in the project by Tale (agents
+   * only): it takes a task only while it can run for the viewer. */
+  managed?: boolean;
 }
 
 // Shared frozen instances keep hook results referentially stable across
@@ -154,6 +157,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
             ...(row.legacyHandles !== undefined
               ? { legacyHandles: row.legacyHandles }
               : {}),
+            ...(row.managed ? { managed: true } : {}),
           })),
     [projectAgents],
   );
@@ -438,10 +442,12 @@ export function useProvidedActorDirectory(
  * The assignee picker and `@`-mention autocomplete build their candidate lists
  * from this: {@link useActorDirectory} narrowed to who can actually access the
  * project. Members outside the project's team(s) are dropped and disabled
- * members are always excluded; agents need no narrowing — the directory only
- * ever lists THIS project's instances. The unfiltered `members` / `agents` /
- * `resolveActor` are still returned (spread from the directory) for *display*
- * of historical/current actors.
+ * members are always excluded; agents are narrowed only by the standard
+ * agent — the directory already lists only THIS project's instances, and the
+ * one Tale set up there stays out while the standard agent cannot run for this
+ * viewer. The unfiltered `members` / `agents` / `resolveActor` are still
+ * returned (spread from the directory) for *display* of historical/current
+ * actors.
  *
  * With no `projectId` members degrade to org-wide and agents to none — an
  * agent exists only inside its project. While the access query is in flight,
@@ -483,15 +489,23 @@ export function useAssignableActors(
     return nonDisabled.filter((m) => ids.has(m.id));
   }, [members, projectId, scope.data]);
 
-  // Instances are project-curated by construction — the directory already
-  // scoped them to this project.
-  const assignableAgents = directory.agents;
-  const scopeReady = !projectId || scope.data !== undefined;
-  const projectResolved = project.data != null;
-  const canAddAgents = project.data?.canEdit === true;
   const standardAgentAvailable =
     useStandardAgent(projectId ? organizationId : undefined)?.available ===
     true;
+  // Instances are project-curated by construction — the directory already
+  // scoped them to this project. The standard agent Tale set up in the
+  // project is one of them only while it can run for this viewer: a start
+  // would be refused, so no list offers it as an agent that works.
+  const assignableAgents = useMemo(
+    () =>
+      standardAgentAvailable
+        ? directory.agents
+        : directory.agents.filter((agent) => agent.managed !== true),
+    [directory.agents, standardAgentAvailable],
+  );
+  const scopeReady = !projectId || scope.data !== undefined;
+  const projectResolved = project.data != null;
+  const canAddAgents = project.data?.canEdit === true;
 
   return useMemo(
     () => ({

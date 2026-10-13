@@ -27,31 +27,48 @@ vi.mock('@tale/ui/use-toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/auth-client', () => ({
   authClient: { organization: { updateTeam: vi.fn() } },
 }));
-const members = vi.hoisted(() => [{ _id: 'tm-a', userId: 'user-a' }]);
+const members = vi.hoisted(() => ({
+  value: [{ _id: 'tm-a', userId: 'user-a' }],
+}));
 vi.mock('../hooks/queries', () => ({
-  useTeamMembers: () => ({ teamMembers: members }),
+  useTeamMembers: () => ({ teamMembers: members.value }),
 }));
 const addMember = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
   useAddTeamMember: () => ({ mutateAsync: addMember }),
   useRemoveTeamMember: () => ({ mutateAsync: vi.fn() }),
 }));
-// Stands in for the member list: one press adds a second member.
+// Stands in for the member list: one press adds a second member, another a
+// third.
 vi.mock('./team-member-checklist', () => ({
   TeamMemberChecklist: ({
     onToggleMember,
     disabled,
+    selectedMemberIds,
   }: {
     onToggleMember: (userId: string) => void;
     disabled?: boolean;
+    selectedMemberIds: Set<string>;
   }) => (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onToggleMember('user-b')}
-    >
-      Add user-b
-    </button>
+    <>
+      <output aria-label="Selected members">
+        {Array.from(selectedMemberIds).sort().join(',')}
+      </output>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onToggleMember('user-b')}
+      >
+        Add user-b
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onToggleMember('user-c')}
+      >
+        Add user-c
+      </button>
+    </>
   ),
 }));
 
@@ -66,9 +83,34 @@ function TeamList() {
   return <output aria-label="Team list">{data?.[0]?.name}</output>;
 }
 
+// The dialog as a parent holds it: one instance whose `open` flips.
+function editDialog(
+  client: QueryClient,
+  props: { open?: boolean; onOpenChange?: (open: boolean) => void } = {},
+) {
+  return (
+    <QueryClientProvider client={client}>
+      <TeamEditDialog
+        team={{ id: 'team-a', name: storedName, memberCount: 1, createdAt: 0 }}
+        organizationId="org-a"
+        open={props.open ?? true}
+        onOpenChange={props.onOpenChange ?? vi.fn()}
+      />
+    </QueryClientProvider>
+  );
+}
+
+function roster(...letters: string[]) {
+  return letters.map((letter) => ({
+    _id: `tm-${letter}`,
+    userId: `user-${letter}`,
+  }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   storedName = 'Original team';
+  members.value = [{ _id: 'tm-a', userId: 'user-a' }];
 });
 
 describe('TeamEditDialog', () => {
@@ -260,6 +302,201 @@ describe('TeamEditDialog', () => {
       client.clear();
     },
   );
+
+  it('preserves a roster draft and blocks saving after a remote roster refresh', async () => {
+    const client = new QueryClient();
+    const { user, rerender } = render(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    members.value = [
+      { _id: 'tm-a', userId: 'user-a' },
+      { _id: 'tm-c', userId: 'user-c' },
+    ];
+    rerender(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 2,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The team membership changed in another session',
+    );
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    expect(addMember).not.toHaveBeenCalled();
+    client.clear();
+  });
+
+  it('preserves a roster draft when a refresh keeps the same users', async () => {
+    const client = new QueryClient();
+    const { user, rerender } = render(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    members.value = [{ _id: 'tm-a-refreshed', userId: 'user-a' }];
+    rerender(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The team membership changed in another session',
+    );
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    client.clear();
+  });
+
+  it('opens again without a conflict after a saved roster change', async () => {
+    addMember.mockResolvedValue(undefined);
+    const client = new QueryClient();
+    const onOpenChange = vi.fn();
+    const { user, rerender } = render(editDialog(client, { onOpenChange }));
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    await user.click(screen.getByRole('button', { name: /Save/ }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    // The parent closes the dialog it keeps mounted, then the saved roster
+    // comes back and the dialog opens again.
+    rerender(editDialog(client, { open: false, onOpenChange }));
+    members.value = roster('a', 'b');
+    rerender(editDialog(client, { open: false, onOpenChange }));
+    rerender(editDialog(client, { open: true, onOpenChange }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    // Opened again, it takes a new edit: dropping the member is a change.
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    expect(screen.getByRole('button', { name: /Save/ })).toBeEnabled();
+    client.clear();
+  });
+
+  it('does not read the refresh its own save causes as another session', async () => {
+    const write = Promise.withResolvers<void>();
+    addMember.mockReturnValue(write.promise);
+    const client = new QueryClient();
+    const onOpenChange = vi.fn();
+    const { user, rerender } = render(editDialog(client, { onOpenChange }));
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    await user.click(screen.getByRole('button', { name: /Save/ }));
+    await waitFor(() => expect(addMember).toHaveBeenCalledTimes(1));
+    // The write has landed and refreshed the roster while the save runs on.
+    members.value = roster('a', 'b');
+    rerender(editDialog(client, { onOpenChange }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await act(async () => write.resolve());
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    client.clear();
+  });
+
+  it('shows the roster the server holds after a refused membership change', async () => {
+    addMember
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('refused'));
+    const client = new QueryClient();
+    const { user, rerender } = render(editDialog(client));
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    await user.click(screen.getByRole('button', { name: 'Add user-c' }));
+    await user.click(screen.getByRole('button', { name: /Save/ }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        title: "Couldn't update team",
+        description:
+          '1 membership change was refused. The list has been refreshed.',
+        variant: 'destructive',
+      }),
+    );
+    // The refresh the save asked for: the server took the first write only.
+    members.value = roster('a', 'b');
+    rerender(editDialog(client));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    client.clear();
+  });
+
+  it('keeps guarding a draft that is edited after a refused membership change', async () => {
+    addMember.mockRejectedValue(new Error('refused'));
+    const client = new QueryClient();
+    const { user, rerender } = render(editDialog(client));
+
+    await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+    await user.click(screen.getByRole('button', { name: /Save/ }));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: 'Add user-c' }));
+    members.value = roster('a', 'd');
+    rerender(editDialog(client));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The team membership changed in another session',
+    );
+    expect(screen.getByLabelText('Selected members')).toHaveTextContent(
+      'user-a,user-b,user-c',
+    );
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+    client.clear();
+  });
 
   it('refreshes the visible list after a name-only Better Auth update without reloading', async () => {
     vi.mocked(authClient.organization.updateTeam).mockImplementation(

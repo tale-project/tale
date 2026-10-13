@@ -1,6 +1,7 @@
 title: Sites web
 entityLabelOne: site web
 searchPlaceholder: Rechercher des sites web
+refreshFailed: Impossible de charger les derniers sites web. La liste est peut-être incomplète ou obsolète.
 addButton: Ajouter un site web
 addWebsite: Ajouter un site web
 addDescription: Indexe un site web entier ou une liste de pages, et choisis la fréquence d'analyse.

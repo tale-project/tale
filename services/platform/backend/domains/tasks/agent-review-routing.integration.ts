@@ -7,8 +7,10 @@ import path from 'node:path';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import {
+  pendingReviewIdentitySchema,
   type SetTaskReviewerInput,
   taskReviewerFromIds,
+  taskReviewerHandoffValueSchema,
 } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -262,6 +264,97 @@ export async function checkAgentTaskReviewRouting(
         (await state(human.taskId)).pendingReview?.reviewer?.kind === 'user',
       'same ordinary review mint, no execution',
     );
+    const successor = randomUUID();
+    await fx.insertAgent(successor, project, 'Successor review');
+    await sql`UPDATE app.project_agents SET tools = ARRAY['task_review']::text[] WHERE id = ${successor}`;
+    const captured = await submitted('Inherited captured reviewer history');
+    const capturedExpected = await expectation(captured.taskId);
+    await configure(successor, reviewer);
+    const capturedUnchanged = await expectation(captured.taskId);
+    record(
+      'review routing: changing project default leaves inherited captured owner untouched',
+      JSON.stringify(capturedUnchanged) === JSON.stringify(capturedExpected) &&
+        capturedUnchanged.pendingReview?.reviewer?.kind === 'agent' &&
+        capturedUnchanged.pendingReview.reviewer.agentId === reviewer,
+      'configured inheritance still captured the original agent',
+    );
+    const capturedTransfer = await json(`tasks/${captured.taskId}/reviewer`, {
+      reviewer: { kind: 'inherit' },
+      expected: capturedUnchanged,
+    });
+    const transferredExpected = await expectation(captured.taskId);
+    const readHandoffHistory = () => sql<
+      { fromValue: string; toValue: string }[]
+    >`
+      SELECT from_value AS "fromValue", to_value AS "toValue" FROM app.task_activity
+      WHERE org_id = ${ctx.orgId} AND task_id = ${captured.taskId} AND action = 'reviewer.changed'
+      ORDER BY id
+    `;
+    const capturedActivity = await readHandoffHistory();
+    const fromCaptured = taskReviewerHandoffValueSchema.safeParse(
+      JSON.parse(capturedActivity[0]?.fromValue ?? 'null'),
+    );
+    const toCaptured = taskReviewerHandoffValueSchema.safeParse(
+      JSON.parse(capturedActivity[0]?.toValue ?? 'null'),
+    );
+    const capturedAudits = await sql<
+      {
+        previousState: Record<string, unknown>;
+        newState: Record<string, unknown>;
+      }[]
+    >`
+      SELECT previous_state AS "previousState", new_state AS "newState" FROM app.audit_logs
+      WHERE org_id = ${ctx.orgId} AND resource_id = ${captured.taskId}
+        AND new_state ? 'pendingReview'
+    `;
+    record(
+      'review routing: inherited handoff activity and audit retain both captured recipients and approval identities',
+      capturedTransfer.status === 200 &&
+        capturedActivity.length === 1 &&
+        fromCaptured.success &&
+        toCaptured.success &&
+        fromCaptured.data.reviewer.kind === 'inherit' &&
+        toCaptured.data.reviewer.kind === 'inherit' &&
+        JSON.stringify(fromCaptured.data.pendingReview) ===
+          JSON.stringify(capturedUnchanged.pendingReview) &&
+        JSON.stringify(toCaptured.data.pendingReview) ===
+          JSON.stringify(transferredExpected.pendingReview) &&
+        toCaptured.data.pendingReview.reviewer?.kind === 'agent' &&
+        toCaptured.data.pendingReview.reviewer.agentId === successor &&
+        fromCaptured.data.pendingReview.approvalId !==
+          toCaptured.data.pendingReview.approvalId &&
+        capturedAudits.length === 1 &&
+        JSON.stringify(
+          pendingReviewIdentitySchema.parse(
+            capturedAudits[0]?.previousState.pendingReview,
+          ),
+        ) === JSON.stringify(capturedUnchanged.pendingReview) &&
+        JSON.stringify(
+          pendingReviewIdentitySchema.parse(
+            capturedAudits[0]?.newState.pendingReview,
+          ),
+        ) === JSON.stringify(transferredExpected.pendingReview),
+      `HTTP ${capturedTransfer.status}; captured original → successor while inheritance remains visible`,
+    );
+    const sameCapture = await json(`tasks/${captured.taskId}/reviewer`, {
+      reviewer: { kind: 'inherit' },
+      expected: transferredExpected,
+    });
+    const staleCapture = await json(`tasks/${captured.taskId}/reviewer`, {
+      reviewer: { kind: 'user', userId: ctx.userId },
+      expected: capturedUnchanged,
+    });
+    record(
+      'review routing: same captured owner and stale CAS add no handoff activity',
+      sameCapture.status === 200 &&
+        staleCapture.status === 409 &&
+        staleCapture.body.error === 'TASK_REVIEWER_STALE' &&
+        (await readHandoffHistory()).length === 1 &&
+        (await expectation(captured.taskId)).pendingReview?.approvalId ===
+          transferredExpected.pendingReview?.approvalId,
+      'one committed transfer, no activity from either rejected or no-op writes',
+    );
+    await configure(reviewer, successor);
     for (const trigger of ['human', 'automation'] as const) {
       const taskId = await fx.insertTask({
         projectId: project,

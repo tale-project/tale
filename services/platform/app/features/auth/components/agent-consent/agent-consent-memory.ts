@@ -1,10 +1,8 @@
 import { z } from 'zod';
 
-import {
-  type AccessChoice,
-  EXTRA_SCOPES,
-  type ExtraScope,
-} from './agent-consent-model';
+import { EXTRA_SCOPES, type ExtraScope } from '@/lib/shared/agent-access';
+
+import type { AccessChoice } from './agent-consent-model';
 import type { AgentConsentRequest } from './agent-consent-request';
 
 /**

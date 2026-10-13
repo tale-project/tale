@@ -416,6 +416,29 @@ describe('a coding agent at the sign-in server', () => {
     });
   });
 
+  it('sends an agent that asks for everything the sign-in server lists on to consent for the agent scopes alone [AGCONN-R25]', async () => {
+    const next = await nextStep({
+      client_id: DOCUMENT_URL,
+      redirect_uri: AGENT_REDIRECT,
+      scope:
+        'openid profile email tale:organization offline_access tale:mcp tale:automations.write',
+    });
+    expect(next.pathname).toBe('/oauth/consent');
+    expect(next.searchParams.get('scope')).toBe(
+      'offline_access tale:mcp tale:automations.write',
+    );
+  });
+
+  it('refuses an agent that asks for nothing the endpoint grants, rather than guessing what it meant [AGCONN-R25]', async () => {
+    const next = await nextStep({
+      client_id: DOCUMENT_URL,
+      redirect_uri: AGENT_REDIRECT,
+      scope: 'openid profile email',
+    });
+    expect(next.origin + next.pathname).toBe(AGENT_REDIRECT);
+    expect(next.searchParams.get('error')).toBe('invalid_scope');
+  });
+
   it('never fetches a client document from the deployment itself', async () => {
     const refused = await authorize({
       client_id: `${BASE}/agents/client.json`,

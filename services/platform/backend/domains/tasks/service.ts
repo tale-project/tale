@@ -1,8 +1,10 @@
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import {
+  pendingReviewIdentitySchema,
   projectTaskReviewerFromId,
   taskReviewerFromIds,
+  taskReviewerHandoffValueSchema,
   type SetTaskReviewerInput,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
@@ -2329,6 +2331,35 @@ export async function setTaskReviewer(
     (pendingReview?.approvalId ?? null) !==
       (args.expected.pendingReview?.approvalId ?? null);
   if (!changed) return { reviewer: args.reviewer, pendingReview };
+  const previousPendingReview =
+    args.expected.pendingReview === null
+      ? null
+      : pendingReviewIdentitySchema.parse(args.expected.pendingReview);
+  const nextPendingReview =
+    pendingReview === null
+      ? null
+      : pendingReviewIdentitySchema.parse({
+          approvalId: pendingReview.approvalId,
+          runId: pendingReview.runId,
+          reviewer: pendingReview.reviewer,
+        });
+  const previousReviewer = taskReviewerFromIds(task);
+  const handoff =
+    previousPendingReview !== null &&
+    nextPendingReview !== null &&
+    previousPendingReview.approvalId !== nextPendingReview.approvalId;
+  const fromValue = handoff
+    ? taskReviewerHandoffValueSchema.parse({
+        reviewer: previousReviewer,
+        pendingReview: previousPendingReview,
+      })
+    : previousReviewer;
+  const toValue = handoff
+    ? taskReviewerHandoffValueSchema.parse({
+        reviewer: args.reviewer,
+        pendingReview: nextPendingReview,
+      })
+    : args.reviewer;
   await tx`
     UPDATE app.tasks SET reviewer_user_id = ${reviewerUserId},
       reviewer_agent_id = ${reviewerAgentId}, updated_at_ms = ${Date.now()}
@@ -2339,19 +2370,21 @@ export async function setTaskReviewer(
     actorType: 'user',
     actorId: auth.userId,
     action: 'reviewer.changed',
-    fromValue: JSON.stringify(taskReviewerFromIds(task)),
-    toValue: JSON.stringify(args.reviewer),
+    fromValue: JSON.stringify(fromValue),
+    toValue: JSON.stringify(toValue),
   });
   await createAuditLog(
     tx,
     taskAudit(auth, task, TASK_AUDIT_ACTIONS.updated, {
       previousState: {
-        reviewer: taskReviewerFromIds(task),
-        approvalId: args.expected.pendingReview?.approvalId ?? null,
+        reviewer: previousReviewer,
+        approvalId: previousPendingReview?.approvalId ?? null,
+        pendingReview: previousPendingReview,
       },
       newState: {
         reviewer: args.reviewer,
-        approvalId: pendingReview?.approvalId ?? null,
+        approvalId: nextPendingReview?.approvalId ?? null,
+        pendingReview: nextPendingReview,
       },
     }),
   );
@@ -5267,8 +5300,8 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
 }
 
 /**
- * Every dependency edge in a project (bounded) — the board derives which
- * loaded tasks are blocked without a per-task walk.
+ * Every dependency edge in a project (bounded), with blocker resolution
+ * independent of the board's search and visibility filters.
  */
 export async function listProjectDependencies(
   sql: Sql,
@@ -5278,10 +5311,15 @@ export async function listProjectDependencies(
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
   return sql<TaskDependencyRow[]>`
-    SELECT blocker_task_id AS "blockerTaskId",
-           blocked_task_id AS "blockedTaskId"
-    FROM app.task_dependencies
-    WHERE project_id = ${projectId}
+    SELECT d.blocker_task_id AS "blockerTaskId",
+           d.blocked_task_id AS "blockedTaskId",
+           (t.id IS NULL OR t.archived_at_ms IS NOT NULL
+             OR t.status IN ('done', 'cancelled')) AS "blockerResolved"
+    FROM app.task_dependencies d
+    LEFT JOIN app.tasks t ON t.id = d.blocker_task_id
+      AND t.project_id = d.project_id
+      AND t.org_id = ${auth.organizationId}
+    WHERE d.project_id = ${projectId}
     LIMIT ${TASK_BOARD_CAP}
   `;
 }
@@ -5289,6 +5327,7 @@ export async function listProjectDependencies(
 export interface TaskDependencyRow {
   blockerTaskId: string;
   blockedTaskId: string;
+  blockerResolved: boolean;
 }
 
 /**

@@ -40,6 +40,7 @@ import { modelSelectionValue, parseModelSelection } from './model-id';
 
 const FORM_ID = 'governance-standard-agent-form';
 const AUTOMATIC = '__automatic__';
+const INVALID = '__invalid__';
 const INSTRUCTIONS_MAX = 20_000;
 
 /** The sentence for each reason the standard agent cannot run. */
@@ -131,13 +132,14 @@ export function StandardAgentEditor({
     if (policyQuery.isLoading || saved === null) return undefined;
     return {
       harness: saved.harness ?? AUTOMATIC,
-      selection:
-        saved.providerSlug !== undefined && saved.modelId !== undefined
+      selection: policyInvalid
+        ? INVALID
+        : saved.providerSlug !== undefined && saved.modelId !== undefined
           ? modelSelectionValue(saved.providerSlug, saved.modelId)
           : AUTOMATIC,
       instructions: saved.instructions ?? '',
     };
-  }, [policyQuery.isLoading, saved]);
+  }, [policyInvalid, policyQuery.isLoading, saved]);
 
   const save = useCallback(
     async ({ harness, selection, instructions }: StandardAgentForm) => {
@@ -238,7 +240,9 @@ export function StandardAgentEditor({
       const pin = parseModelSelection(selection);
       rows.push({
         value: selection,
-        label: pin ? `${pin.providerSlug} · ${pin.modelId}` : selection,
+        label: pin
+          ? `${pin.providerSlug} · ${pin.modelId}`
+          : t('standardAgent.invalidSelection'),
         description: t('standardAgent.savedUnavailable'),
         disabled: true,
       });

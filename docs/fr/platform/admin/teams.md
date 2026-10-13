@@ -25,6 +25,8 @@ Ouvre la ligne d’une équipe pour consulter ses membres. Son menu propose **Vo
 
 Une équipe conserve au moins un membre. Pour retirer le dernier, supprime plutôt l’équipe.
 
+Si quelqu’un d’autre change les membres de l’équipe pendant que tu la modifies, la boîte de dialogue garde ta sélection et signale que les membres ont changé dans une autre session. **Enregistrer les modifications** reste désactivé. Ferme la boîte de dialogue et rouvre-la pour voir les membres actuels, puis refais ta modification.
+
 Une personne peut appartenir à plusieurs équipes. Elle peut conserver un accès grâce à une autre équipe ou à une attribution directe. La retirer d’une équipe ne supprime donc pas forcément tous ses accès à une ressource. Vérifie les autres voies d’accès lorsque tu retires des droits.
 
 Les notifications suivent la même règle. Une personne qui ne peut plus ouvrir un projet ne reçoit plus de nouvelles notifications ni d’e-mails sur les tâches de ce projet, pas même sur celles qu’elle suit. Ce qu’elle a déjà reçu reste dans ses notifications. Si elle retrouve l’accès, elle est de nouveau notifiée des tâches qu’elle suit.

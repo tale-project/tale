@@ -8,6 +8,7 @@ import {
   AGENT_SCOPES,
   type AgentScope,
   describeAgentScope,
+  EXTRA_SCOPES,
   isAgentScope,
   levelOf,
   MCP_PATH,
@@ -170,5 +171,32 @@ describe('the access that needs a fresh sign-in at consent', () => {
     for (const scope of WRITE_SCOPES) {
       expect(needsFreshSession(['tale:mcp', scope])).toBe(true);
     }
+  });
+});
+
+describe('the extras beside an access level', () => {
+  it('are the settings scopes and subscriptions, in the order they are taught', () => {
+    expect(EXTRA_SCOPES).toEqual([
+      'tale:settings.read',
+      'tale:settings.write',
+      'tale:subscriptions.connect',
+    ]);
+  });
+
+  it('are scopes of their own: every one is an agent scope and no level holds one', () => {
+    for (const extra of EXTRA_SCOPES) {
+      expect(isAgentScope(extra)).toBe(true);
+      for (const scopes of Object.values(ACCESS_LEVELS)) {
+        expect(scopes as readonly string[]).not.toContain(extra);
+      }
+    }
+  });
+
+  it('with the levels cover every scope a connection can hold', () => {
+    const covered = new Set<string>([
+      ...Object.values(ACCESS_LEVELS).flat(),
+      ...EXTRA_SCOPES,
+    ]);
+    expect([...covered].sort()).toEqual([...AGENT_SCOPES].sort());
   });
 });

@@ -2,7 +2,7 @@
 title: Authentifizierung einrichten
 description: Wähle lokale Konten, Unternehmens-SSO oder einen vertrauenswürdigen Authentifizierungsproxy.
 ---
-Tale unterstützt lokale Konten mit E-Mail und Passwort, Unternehmens-SSO je Organisation und Identitäten aus einem vertrauenswürdigen Reverse Proxy. Entscheidend ist, wo dein Team Identitäten verwaltet und wer Konten bereitstellt. Anmeldung und Bereitstellung sind getrennt: SSO authentifiziert eine Person; Einladungen, Bereitstellung bei der Anmeldung oder SCIM regeln die Mitgliedschaft.
+Tale unterstützt lokale Konten mit E-Mail und Passwort, Unternehmens-SSO je Organisation und Identitäten aus einem vertrauenswürdigen Reverse Proxy. Entscheidend ist, wo dein Team Identitäten verwaltet und wer Konten bereitstellt. Anmeldung und Bereitstellung sind getrennt: SSO authentifiziert eine Person; Einladungen, Bereitstellung bei der Anmeldung oder SCIM regeln die Mitgliedschaft. Coding-Agents, die Automatisierungen bearbeiten, melden sich getrennt am MCP-Endpunkt an, wie [unten beschrieben](#coding-agent-sign-in).
 
 ## Passende Integration wählen
 
@@ -11,6 +11,7 @@ Tale unterstützt lokale Konten mit E-Mail und Passwort, Unternehmens-SSO je Org
 | Tale verwaltet lokale Konten | Lokale Anmeldung und Einladungen | Stabile Bereitstellungsgeheimnisse und eine erreichbare Instanz-URL. |
 | Ein Unternehmens-Identitätsanbieter ist vorhanden | Unternehmens-SSO mit Microsoft Entra ID, generischem OIDC, OAuth2 oder SAML 2.0 | Eine IdP-Anwendung mit exakt passenden Callback- oder Metadaten-URLs. |
 | Eine Anwendung oder ein Proxy authentifiziert die Nutzer bereits | Vertrauenswürdige Header je Organisation | Ein Schlüssel aus **Einstellungen > Enterprise-SSO** und ein Proxy, der ihn zusammen mit den Identitäts-Headern mitschickt. |
+| Personen verbinden Claude Code, Codex, Cursor oder einen anderen Coding-Agent mit dem MCP-Endpunkt | Anmeldung für Coding-Agents, standardmäßig eingeschaltet | Eine öffentliche HTTPS-Adresse und ein Proxy, der die Dokumente unter `/.well-known/` weiterreicht. |
 
 Unternehmens-SSO und vertrauenswürdige Header werden beide je Organisation eingerichtet. Plane und teste die Identitätszuordnung, bevor du bestehende Konten auf ein anderes Verfahren umstellst.
 
@@ -59,6 +60,21 @@ Der Proxy muss Identitäts-Header des Clients entfernen, eigene authentifizierte
 Wer über den Proxy kommt, wird mit der ersten eigenen Anfrage der App angemeldet: Trägt diese Anfrage den Schlüssel und den Identitäts-Header, aber kein Sitzungs-Cookie, erzeugt das Backend die Sitzung an Ort und Stelle, und die App öffnet sich angemeldet — ohne Anmeldeseite, ohne Weiterleitung. Landet die App dennoch auf ihrer Anmeldeseite (etwa mit einem veralteten Cookie), leitet die Seite den Browser selbst auf die Übergabeadresse weiter, und eine Abweisung kehrt mit ihrem Grund auf diese Seite zurück. Dass der Proxy `/log-in` direkt auf die Übergabeadresse leitet, bleibt möglich; die Adresse antwortet auf Erfolg mit einer Weiterleitung in die App und auf eine Abweisung mit einer Seite samt Statuscode. Da der Proxy die Sitzung besitzt, bietet die App einem so angemeldeten Mitglied keine Abmeldung an; nach einer Abmeldung wegen Inaktivität pausiert die automatische Anmeldung, bis das Mitglied aus dem Hinweis heraus fortfährt.
 
 Soll Tale in der Seite der Anwendung selbst statt in einem Tab erscheinen, trägt ein Admin die Herkunft dieser Seite unter **Einbettung** auf derselben Einstellungsseite ein. Die Seiten von Tale antworten dann mit einer `frame-ancestors`-Richtlinie, die `'self'` und die eingetragenen Herkünfte nennt, statt jeden Frame abzuweisen, und der Header `X-Frame-Options` entfällt. Die Liste gehört einer Organisation, die Anmelde-Shell ist aber ein einziges Dokument für die ganze Installation, sodass eine Herkunft, die irgendeine Organisation zulässt, es laden kann. Der Browser sendet das Sitzungs-Cookie nur dann in einen Frame, wenn die umgebende Seite zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter der eigenen Domain des Hosts; ein Frame von einer anderen Site zeigt stattdessen die Anmeldeseite.
+
+## Coding-Agents anmelden lassen {#coding-agent-sign-in}
+
+Eine Person verbindet einen Coding-Agent wie Claude Code, Codex oder Cursor mit dem [MCP-Endpunkt](/de/develop/mcp-endpoint), indem sie sich im Agent anmeldet. Ein API-Schlüssel muss dann nicht in dessen Konfiguration kopiert werden. Der Agent schickt den Browser der Person zum Anmeldeserver von Tale. Dort meldet sie sich an wie immer, wählt eine Organisation und legt fest, wie viel der Agent dort darf. Danach arbeitet der Agent als diese Person, nie über ihrer Rolle. Die Anmeldung ist eingeschaltet, solange du sie nicht abschaltest. API-Schlüssel funktionieren weiter, für Skripte und für Werkzeuge, die sich nicht anmelden können.
+
+Das muss deine Bereitstellung leisten:
+
+- **Eine öffentliche Adresse, die Personen öffnen können.** Der Anmeldeserver antwortet unter `SITE_URL` plus `/api/auth`, und jede Adresse in `ADDITIONAL_SITE_URLS` wird als eigener MCP-Endpunkt bekannt gegeben.
+- **Erreichbare Discovery-Dokumente.** Ein Agent findet den Anmeldeserver in Dokumenten unter `/.well-known/` auf der obersten Ebene des Hosts. Der Proxy von Tale leitet sie weiter. Ein eigener Proxy muss `/.well-known/oauth-protected-resource*` und `/.well-known/oauth-authorization-server*` an jeder Adresse an das Backend weiterreichen, auch wenn Tale unter einem Basispfad läuft, denn diese Pfade liegen immer auf der obersten Ebene des Hosts. [TLS und Domains](/de/self-hosted/configuration/tls-and-domains#agent-sign-in-domains) listet sie auf.
+- **Ausgehendes HTTPS zum Host des Agenten.** Claude Code und Codex weisen sich mit einem Client-Metadatendokument auf dem Host ihres Herstellers aus (`claude.ai`, `chatgpt.com`), das das Backend abruft, wenn sich ein Agent verbindet. Tale lehnt Adressen in privaten Netzen und Dokumente auf den eigenen Adressen ab. Mit `TALE_MCP_CLIENT_METADATA_HOSTS` schränkst du die erlaubten Hosts weiter ein.
+- **Grenzen der Selbstregistrierung.** Cursor, VS Code und Gemini CLI veröffentlichen kein solches Dokument und registrieren sich selbst. Tale nimmt zehn Registrierungen pro Stunde von einer Adresse an, 500 pro Tag und 5.000 insgesamt, erlaubt Web-Weiterleitungen nur zu den Hosts in `TALE_MCP_DCR_WEB_REDIRECT_HOSTS`, zeigt eine solche App als **Nicht bestätigt** an und entfernt täglich Registrierungen, die niemand genutzt hat.
+
+Token sind kurzlebig. Ein Zugriffstoken gilt fünf Minuten, und ein Agent, der dreißig Tage lang nicht benutzt wird, muss neu verbunden werden. Die Person selbst oder ein Inhaber oder Admin trennt einen Agent unter **Einstellungen > API > Verbundene Agenten**. Auch das Entfernen der Person aus der Organisation, ein neues Passwort und ein zweimal verwendetes Refresh-Token beenden die Verbindung; bei den beiden letzten findet die Person einen Hinweis in ihren Benachrichtigungen.
+
+Willst du Agents bei API-Schlüsseln halten, setze `TALE_MCP_CLIENT_METADATA_DOCUMENTS=false` und `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=false` und erstelle das Backend neu. Das Dokument `oauth-protected-resource` des Endpunkts antwortet dann mit `404`, und die Zugriffstoken bereits verbundener Agents funktionieren sofort nicht mehr. [Produktivbetrieb härten](/de/self-hosted/operate/security/hardening#agent-sign-in) nennt, was du prüfen solltest, bevor du die Anmeldung eingeschaltet lässt.
 
 ## Anmeldefehler eingrenzen
 
