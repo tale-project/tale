@@ -582,6 +582,19 @@ compute codes from the enrollment secret.
   organization (an organization's own single sign-on) → it says the sign-in
   belongs to one organization and cannot connect a coding agent.
 
+- [ ] `AUTH-B21` · **The consent page cannot read the application** — Start an
+  authorization from a registered test application and, before **Continue with
+  Tale** (`auth.oauth.title`) loads, block the browser's request to
+  `/api/auth/oauth2/public-client` (developer tools → network request
+  blocking) → the page says the request could not continue
+  (`auth.oauth.failed`) and offers **Try again** (`auth.oauth.retry`) and
+  **Cancel** (`auth.oauth.cancel`), both enabled, with no **Allow and
+  continue**; **Cancel** returns once to the application with an access-denied
+  answer. Repeat, lift the block and choose **Try again** → the notice goes,
+  the application's name and your email appear, and **Allow and continue**
+  works. While the request is still pending (a throttled network) **Cancel**
+  is already enabled and **Allow and continue** is not.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `AUTH-A1` · **Field labels** → The Email and Password inputs each have
