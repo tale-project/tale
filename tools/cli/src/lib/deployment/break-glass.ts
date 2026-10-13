@@ -82,9 +82,19 @@ const contextSchema = z.object({
     listSessions: callable,
   }),
 });
-// A custom native hasher could not verify the declared hash at sign-in.
+// Better Auth 1.6 left `password` absent when the built-in hasher was in use;
+// 1.7 exposes that same built-in capability as `{ hash, verify }`. Accept both
+// shapes, while refusing a missing/disabled/malformed password policy before
+// any account write. The exact declared hash is still checked by the account
+// readback below.
 const passwordOptions = z
-  .object({ enabled: z.literal(true), password: z.undefined() })
+  .object({
+    enabled: z.literal(true),
+    password: z
+      .object({ hash: callable, verify: callable })
+      .passthrough()
+      .or(z.undefined()),
+  })
   .passthrough();
 const sessionSchema = z.object({
   user: z.object({ id: identifier }),
