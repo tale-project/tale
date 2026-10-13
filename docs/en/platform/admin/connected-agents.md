@@ -14,6 +14,12 @@ A coding agent such as Claude Code, Codex or Cursor can sign itself in to Tale's
 5. Choose the **Access** and, if you want, what to **Also allow**. The list headed “What Claude Code can do”, with your agent's name, shows what the choice comes to, and your role still applies: the agent never does more than you can in that organization.
 6. Select **Connect**. Tale sends you back to the agent, which signs itself in and can start working.
 
+<Frame caption="The consent page of an app that registered itself. Where a verified app shows its domain, this one carries the Unverified app warning.">
+
+![The consent page for an app called Cursor: a warning that the app is unverified, the organization it will work in, three access levels and three extras to choose from, a summary of what it can do, and the Connect and Cancel buttons.](/images/platform/agent-consent.webp)
+
+</Frame>
+
 The request that brings you to the consent page expires after five minutes. If it has, start the connection again from the agent.
 
 ### Choose the access
@@ -44,6 +50,12 @@ Allowing anything beyond **Read and test** and **Read settings** needs a sign-in
 ## See and disconnect agents
 
 Open **Settings > API > Connected agents**. The page is there once agent sign-in is on and you may connect an agent in this organization, and it stays for anyone who still holds a live connection, so they can end it. The list shows each agent with its name, where it comes from (the domain it proved, or **Unverified**), the access you gave it, when it connected and when it last called, **Never** before the first call. Tale keeps its own record of the calls it answered with that connection, and the time of the last call comes from it, never from what the agent says.
+
+<Frame caption="Settings > API > Connected agents — each agent with its access, the day it connected, and when it last called.">
+
+![The Connected agents page lists three coding agents, each marked Unverified, with the access it was given, the day it connected, and when it last called.](/images/platform/settings-connected-agents.webp)
+
+</Frame>
 
 You see the agents you connected. Owners and Admins can switch **Mine** to **Everyone** to see who connected each one, and turn on **Show disconnected** to read when and why a connection ended.
 

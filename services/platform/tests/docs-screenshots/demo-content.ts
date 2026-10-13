@@ -405,6 +405,25 @@ export const DEMO_SSO_EXAMPLE = {
   clientId: '4a17c9e2-63b8-4f0d-9e51-2c7a5d8b1f36',
 } as const;
 
+/**
+ * Coding agents that signed in to the demo organization the way a real agent
+ * does: it registers itself, the person chooses what it may do on the consent
+ * page, and it calls the MCP endpoint. Registered apps are the ones Tale
+ * cannot vouch for by a domain of their own, so they list as unverified — the
+ * state a capture can reach without the internet. `calls` says whether the
+ * agent used its sign-in once, which is what the list's "Last used" reads.
+ */
+export const DEMO_AGENTS = [
+  { name: 'Cursor', level: 'edit', extras: [], calls: true },
+  { name: 'Gemini CLI', level: 'read', extras: ['settingsRead'], calls: false },
+  { name: 'VS Code', level: 'deploy', extras: ['settingsWrite'], calls: false },
+] as const;
+
+/** The app whose consent page the docs show: it asks for everything an agent
+ * can be given, so every choice is on the page. It is registered and never
+ * allowed, so no connection is left behind. */
+export const DEMO_CONSENT_AGENT = 'Cursor';
+
 /** Governance > Legal hold: the matter, and the hold placed under it. */
 export const DEMO_LEGAL_MATTER = {
   name: 'Northstar contract dispute',

@@ -14,6 +14,12 @@ Ein Coding-Agent wie Claude Code, Codex oder Cursor kann sich selbst am [MCP-End
 5. Wähle den **Zugriff** und, wenn du möchtest, unter **Zusätzlich erlauben**, was der Agent noch darf. Die Liste „Was Claude Code darf“ (bei dir mit dem Namen deines Agents) zeigt, worauf die Wahl hinausläuft. Deine Rolle gilt weiter: Der Agent darf nie mehr als du in dieser Organisation.
 6. Wähle **Verbinden**. Tale schickt dich zurück zum Agent, der sich selbst anmeldet und loslegen kann.
 
+<Frame caption="Die Zustimmungsseite einer App, die sich selbst registriert hat. Wo eine bestätigte App ihre Domain zeigt, steht hier die Warnung „Nicht bestätigte App“.">
+
+![Die Zustimmungsseite für eine App namens Cursor: eine Warnung, dass die App nicht bestätigt ist, die Organisation, in der sie arbeitet, drei Zugriffsstufen und drei Zusatzoptionen zur Auswahl, eine Zusammenfassung dessen, was sie darf, sowie die Schaltflächen „Verbinden“ und „Abbrechen“.](/images/platform/agent-consent.webp)
+
+</Frame>
+
 Die Anfrage, die dich zur Zustimmungsseite bringt, läuft nach fünf Minuten ab. Ist sie abgelaufen, starte die Verbindung im Agent erneut.
 
 ### Den Zugriff wählen
@@ -44,6 +50,12 @@ Alles, was über **Lesen und testen** und **Einstellungen lesen** hinausgeht, br
 ## Agents anzeigen und trennen
 
 Öffne **Einstellungen > API > Verbundene Agenten**. Die Seite gibt es, sobald die Anmeldung von Agents eingeschaltet ist und du in dieser Organisation einen Agent verbinden darfst, und sie bleibt für alle sichtbar, die noch eine aktive Verbindung haben, damit sie diese beenden können. Die Liste zeigt für jeden Agent den Namen, die Herkunft (die bestätigte Domain oder **Nicht bestätigt**), den Zugriff, den du ihm gegeben hast, den Zeitpunkt der Verbindung (**Verbunden**) und den der letzten Nutzung (**Zuletzt genutzt**); vor dem ersten Aufruf steht dort **Nie**. Der Zeitpunkt der letzten Nutzung stammt aus Tales eigener Aufzeichnung der Aufrufe, die es über diese Verbindung beantwortet hat; er beruht nie auf Angaben des Agents.
+
+<Frame caption="Einstellungen > API > Verbundene Agenten — jeder Agent mit seinem Zugriff, dem Tag der Verbindung und dem Zeitpunkt der letzten Nutzung.">
+
+![Die Seite „Verbundene Agenten“ listet drei Coding-Agents auf, alle als „Nicht bestätigt“ gekennzeichnet, mit dem jeweils gewährten Zugriff, dem Tag der Verbindung und dem Zeitpunkt der letzten Nutzung.](/images/platform/settings-connected-agents.webp)
+
+</Frame>
 
 Du siehst die Agents, die du verbunden hast. Inhaber und Admins können **Meine** auf **Alle** umstellen, um zu sehen, wer welchen verbunden hat, und **Getrennte anzeigen** einschalten, um zu lesen, wann und warum eine Verbindung endete.
 

@@ -28,9 +28,12 @@ import {
 } from '../e2e/helpers/chat';
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
+import { ensureDemoAgents, openConsentPage } from './agent-demo';
 import {
+  DEMO_AGENTS,
   DEMO_APPROVAL_ALLOWANCE,
   DEMO_CHAT_PROMPTS,
+  DEMO_CONSENT_AGENT,
   DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
@@ -2825,6 +2828,57 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(t('settings.mcpEndpoint.orgSlug.title')),
     // The endpoint URL and the example request print the rig's origin.
     sanitize: replaceRigNames,
+  },
+  {
+    // Settings > API > Connected agents — coding agents that signed in as the
+    // person, each with the access it was given and when it last called. They
+    // sign in through the real consent page (`ensureDemoAgents`), so what the
+    // list shows is what the product recorded; a rerun adds none. Gate on the
+    // last agent's row and the footer that counts them, which only paint once
+    // the read returned.
+    name: 'settings-connected-agents',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/api/agents',
+    prepare: async (page, ctx) => {
+      await ensureDemoAgents(page, ctx.orgId, DEMO_AGENTS);
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('row')
+        .filter({ hasText: DEMO_AGENTS[DEMO_AGENTS.length - 1].name })
+        .getByText(DEMO_AGENTS[DEMO_AGENTS.length - 1].name, { exact: true }),
+    localizedReadyWhen: (page) =>
+      page.getByRole('columnheader', {
+        name: t('agentConnections.list.columns.lastUsed'),
+      }),
+  },
+  {
+    // The page a coding agent sends the browser to when it signs in: who is
+    // asking, which organization, how much it may do and what that comes to.
+    // An app that registered itself is the state a capture can reach without
+    // the internet; it shows the Unverified badge and its warning. The agent
+    // is registered and never allowed, so no connection is left behind.
+    // Cropped to the page's main area, without the logo row. The docs draw an
+    // image as wide as their column, so the viewport is only as wide as that
+    // column: the form shows at the scale of the page, not blown up from its
+    // own 400px. The page scrolls inside its frame and paints only what the
+    // viewport shows, so the viewport is as tall as the whole form.
+    name: 'agent-consent',
+    section: 'platform',
+    route: '/oauth/consent',
+    viewport: { width: 720, height: 1700 },
+    prepare: async (page) => {
+      await openConsentPage(page, DEMO_CONSENT_AGENT);
+    },
+    readyWhen: (page) =>
+      page.getByText(
+        t('agentConnections.consent.summary.title').replace(
+          '{client}',
+          DEMO_CONSENT_AGENT,
+        ),
+        { exact: true },
+      ),
+    capture: (page) => page.getByRole('main'),
   },
   {
     // Settings > API > WebDAV — connection details and the app-password
