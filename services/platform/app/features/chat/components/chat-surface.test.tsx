@@ -226,12 +226,15 @@ const arenaSettle = vi.hoisted(() =>
     Promise.resolve({ refused: 'not_found' }),
   ),
 );
+// The pair's fanned turn: a test holds its answer open; reset in the shared
+// afterEach.
+const arenaStartTurn = vi.hoisted(() => vi.fn());
 vi.mock('../data/arena-actions', () => ({
   useArenaActions: () => ({
     available: true,
     createThread: vi.fn(() => Promise.resolve(null)),
     ensurePair: vi.fn(() => Promise.resolve({ refused: 'error' })),
-    startTurn: vi.fn(),
+    startTurn: arenaStartTurn,
     settle: arenaSettle,
   }),
 }));
@@ -265,6 +268,7 @@ import {
   useChatThread,
   useChatThreads,
   useComposerModels,
+  useThreadBranches,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
 import { toSettledItems } from '../lib/thread-view-core';
@@ -344,10 +348,14 @@ afterEach(() => {
   vi.mocked(useArenaPair).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
+  vi.mocked(useThreadBranches).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
   arenaSettle.mockReset();
   arenaSettle.mockImplementation(() =>
     Promise.resolve({ refused: 'not_found' }),
   );
+  arenaStartTurn.mockReset();
 });
 
 it.each([
@@ -1503,58 +1511,283 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await waitFor(() => expect(input).toHaveValue('read this file for me'));
   });
 
-  it('keeps failed-send recovery in its originating thread', async () => {
-    let failTurn!: (error: Error) => void;
-    const outcome = new Promise<never>((_resolve, reject) => {
-      failTurn = reject;
-    });
-    outcome.catch(() => undefined);
-    vi.mocked(useChatSend).mockReturnValue({
-      available: true,
-      start: vi.fn(() =>
-        Promise.resolve({
-          threadId: 'thread-a',
-          boundVideoJobIds: [],
-          outcome,
-        }),
-      ),
-      defer: vi.fn(() => Promise.resolve({ threadId: 'thread-a' })),
-      unbindVideoJobs: vi.fn(() => Promise.resolve()),
-      stop: vi.fn(() => Promise.resolve()),
-    });
-    vi.mocked(useThreadView).mockImplementation(() => ({
-      status: 'ready',
-      items: [],
-      generation: null,
-      streamingMessageId: undefined,
-      pendingConsumed: false,
-    }));
+  // The surface outlives a switch of conversation (the chat layout renders it
+  // above the child routes), so a send that fails once the reader has left —
+  // a dropped connection, a late refusal — must not write into the composer
+  // now on screen: its field, tray and saved draft belong to another
+  // conversation. The words and files wait for the one they came out of.
+  describe('a send that fails once the reader has left its conversation', () => {
+    type TurnOutcome = {
+      status: 'completed' | 'refused';
+      reason?: string;
+      persisted?: boolean;
+    };
+    const FILE = {
+      fileId: 's3:thread-a-file',
+      fileName: 'thread-a-file.txt',
+      fileType: 'text/plain',
+      fileSize: 42,
+    };
 
-    const { user, rerender } = render(
-      <ChatSurface organizationId="org-1" threadId="thread-a" />,
+    beforeEach(() => {
+      vi.mocked(useThreadView).mockImplementation(() => ({
+        status: 'ready',
+        items: [],
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      }));
+    });
+
+    /** A promise the test settles by hand; the surface owns its rejection,
+     * the extra catch only keeps the runner from seeing it unhandled. */
+    function held<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<T>((onResolve, onReject) => {
+        resolve = onResolve;
+        reject = onReject;
+      });
+      promise.catch(() => undefined);
+      return { promise, resolve, reject };
+    }
+
+    /** The send door with every call held open, but the ones a test replaces. */
+    function wireSend(replace: Partial<ReturnType<typeof useChatSend>>) {
+      vi.mocked(useChatSend).mockReturnValue({
+        available: true,
+        start: vi.fn(() => new Promise<never>(() => undefined)),
+        defer: vi.fn(() => new Promise<never>(() => undefined)),
+        unbindVideoJobs: vi.fn(() => Promise.resolve()),
+        stop: vi.fn(() => Promise.resolve()),
+        ...replace,
+      });
+    }
+
+    /** A turn that started in `threadId`, its outcome in the test's hands. */
+    function holdTurn(threadId: string) {
+      const outcome = held<TurnOutcome>();
+      wireSend({
+        start: vi.fn(() =>
+          Promise.resolve({
+            threadId,
+            boundVideoJobIds: [],
+            outcome: outcome.promise,
+          }),
+        ),
+      });
+      return outcome;
+    }
+
+    /** Let the failure through and wait until everything it set off has run:
+     * a timer fires only after every promise reaction has. */
+    async function failNow(fail: () => void) {
+      await act(async () => {
+        fail();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
+
+    const surface = (organizationId: string, threadId?: string) => (
+      <ChatSurface
+        organizationId={organizationId}
+        {...(threadId !== undefined ? { threadId } : {})}
+      />
     );
-    const input = screen.getByRole('textbox', { name: 'Message input' });
-    await user.type(input, 'private draft from A');
-    await user.click(screen.getByRole('button', { name: 'Send message' }));
+    const composer = () =>
+      screen.getByRole('textbox', { name: 'Message input' });
+    const sendButton = () =>
+      screen.getByRole('button', { name: 'Send message' });
 
-    rerender(<ChatSurface organizationId="org-1" threadId="thread-b" />);
-    const threadBInput = screen.getByRole('textbox', { name: 'Message input' });
-    expect(threadBInput).toHaveValue('');
+    const failures: {
+      name: string;
+      /** A staged file travels with the send (a duel stages none). */
+      withFile: boolean;
+      /** Holds the send door; the function it returns lets the failure in. */
+      hold: () => () => void;
+    }[] = [
+      {
+        name: 'the turn request fails',
+        withFile: true,
+        hold: () => {
+          const outcome = holdTurn('thread-a');
+          return () => outcome.reject(new TypeError('Failed to fetch'));
+        },
+      },
+      {
+        name: 'the turn of an edited version fails',
+        withFile: true,
+        hold: () => {
+          // The version on screen is an edit of `thread-a`: its turn runs in
+          // the sibling, while the composer's slot stays the conversation's.
+          vi.mocked(useThreadBranches).mockReturnValue({
+            status: 'ready',
+            data: {
+              branches: [
+                {
+                  id: 'thread-a-edit',
+                  parentId: 'thread-a',
+                  forkSequence: 0,
+                  createdAt: 1,
+                },
+              ],
+              selections: JSON.stringify({ 'thread-a:0': 'thread-a-edit' }),
+            },
+          });
+          const outcome = holdTurn('thread-a-edit');
+          return () => outcome.reject(new TypeError('Failed to fetch'));
+        },
+      },
+      {
+        name: 'the turn is refused before it writes anything',
+        withFile: true,
+        hold: () => {
+          const outcome = holdTurn('thread-a');
+          return () =>
+            outcome.resolve({
+              status: 'refused',
+              reason: 'The model did not answer.',
+              persisted: false,
+            });
+        },
+      },
+      {
+        name: 'the turn cannot start',
+        withFile: true,
+        hold: () => {
+          const started = held<never>();
+          wireSend({ start: vi.fn(() => started.promise) });
+          return () => started.reject(new TypeError('Failed to fetch'));
+        },
+      },
+      {
+        name: 'the send cannot be parked',
+        withFile: true,
+        hold: () => {
+          // A document still indexing: Send parks the message, not starts it.
+          indexingState.isIndexing = true;
+          const parked = held<never>();
+          wireSend({ defer: vi.fn(() => parked.promise) });
+          return () => parked.reject(new TypeError('Failed to fetch'));
+        },
+      },
+      {
+        name: 'a duel turn is refused before it writes anything',
+        withFile: false,
+        hold: () => {
+          vi.mocked(useArenaPair).mockImplementation(
+            (_organizationId, threadId) => ({
+              status: 'ready',
+              data:
+                threadId === 'thread-a'
+                  ? {
+                      pairId: 'pair-1',
+                      threadIdA: 'thread-a',
+                      threadIdB: 'thread-a-b',
+                      createdAt: 1,
+                    }
+                  : null,
+            }),
+          );
+          const duel = held<unknown>();
+          arenaStartTurn.mockReturnValue(duel.promise);
+          const refused = {
+            status: 'refused',
+            reason: 'The model did not answer.',
+            persisted: false,
+          };
+          return () => duel.resolve({ a: refused, b: { status: 'completed' } });
+        },
+      },
+    ];
 
-    await act(async () => {
-      failTurn(new Error('Turn request failed'));
-      await Promise.resolve();
-    });
-    await waitFor(() => expect(threadBInput).toHaveValue(''));
-    expect(localStorage.getItem('chat-draft-org-1-thread-b')).toBeNull();
+    it.each(failures)(
+      'leaves the conversation on screen alone and returns its words when $name',
+      async ({ withFile, hold }) => {
+        if (withFile) uploadRecovery.attachments = [FILE];
+        const fail = hold();
+        const { user, rerender } = render(surface('org-1', 'thread-a'));
+        await user.type(composer(), 'private draft from A');
+        if (withFile) {
+          expect(screen.getByText(FILE.fileName)).toBeInTheDocument();
+        }
+        await user.click(sendButton());
+        expect(composer()).toHaveValue('');
+        expect(screen.queryByText(FILE.fileName)).not.toBeInTheDocument();
 
-    rerender(<ChatSurface organizationId="org-1" threadId="thread-a" />);
-    await waitFor(() =>
-      expect(
-        screen.getByRole('textbox', { name: 'Message input' }),
-      ).toHaveValue('private draft from A'),
+        // The reader opens another conversation while the send is out.
+        rerender(surface('org-1', 'thread-b'));
+        expect(composer()).toHaveValue('');
+        await failNow(fail);
+
+        // Its field, its tray and its saved draft are what they were…
+        expect(composer()).toHaveValue('');
+        expect(screen.queryByText(FILE.fileName)).not.toBeInTheDocument();
+        expect(localStorage.getItem('chat-draft-org-1-thread-b')).toBeNull();
+
+        // …and the sender finds the words, and the file, back on return.
+        rerender(surface('org-1', 'thread-a'));
+        await waitFor(() =>
+          expect(composer()).toHaveValue('private draft from A'),
+        );
+        if (withFile) {
+          expect(screen.getByText(FILE.fileName)).toBeInTheDocument();
+        }
+      },
     );
+
+    // A first message creates its conversation and the surface follows it
+    // there, so a failure belongs to that chat — where the reader is, or
+    // where they come back to — not only to the empty index it left.
+    it.each([
+      { where: 'still in the chat it created', leaves: false },
+      { where: 'in another chat by then', leaves: true },
+    ])(
+      'puts a first message back in the chat it created, the reader being $where',
+      async ({ leaves }) => {
+        const outcome = holdTurn('t-new');
+        const { user, rerender } = render(surface('org-1'));
+        await user.type(composer(), 'kick off the audit');
+        await user.click(sendButton());
+        await waitFor(() =>
+          expect(navigateMock).toHaveBeenCalledWith({
+            to: '/dashboard/$id/chat/$threadId',
+            params: { id: 'org-1', threadId: 't-new' },
+          }),
+        );
+        rerender(surface('org-1', 't-new'));
+        if (leaves) rerender(surface('org-1', 'thread-b'));
+        await failNow(() => outcome.reject(new TypeError('Failed to fetch')));
+
+        if (leaves) {
+          expect(composer()).toHaveValue('');
+          expect(localStorage.getItem('chat-draft-org-1-thread-b')).toBeNull();
+          rerender(surface('org-1', 't-new'));
+        }
+        await waitFor(() =>
+          expect(composer()).toHaveValue('kick off the audit'),
+        );
+      },
+    );
+
+    // Every organization has its own new-chat composer: a first message that
+    // fails after the reader switched organization is not for that one.
+    it("keeps a first message out of another organization's new chat", async () => {
+      const outcome = holdTurn('t-new');
+      const { user, rerender } = render(surface('org-1'));
+      await user.type(composer(), 'kick off the audit');
+      await user.click(sendButton());
+      await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1));
+      rerender(surface('org-2'));
+      await failNow(() => outcome.reject(new TypeError('Failed to fetch')));
+
+      expect(composer()).toHaveValue('');
+      expect(localStorage.getItem('chat-draft-org-2-new')).toBeNull();
+      rerender(surface('org-1', 't-new'));
+      await waitFor(() => expect(composer()).toHaveValue('kick off the audit'));
+    });
   });
+
   // A request the door refused outright (no turn refusal: a body it would
   // not take, a thread it cannot find) used to toast a bare "Couldn't send
   // message" — the door's own words were dropped on the way.

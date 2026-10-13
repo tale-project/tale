@@ -945,6 +945,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`governance.policyReadRetry`) where the Chat tools switches would be.
   Delete the file → the defaults return and the same request runs code. Write a
   valid file with **Code** off → only code is gone.
+- [ ] `CHAT-B26` · **A failed send stays in its own conversation** — In a
+  chat, attach a text file, send a message and go offline while the reply
+  streams (as `CHAT-B4`); at once open another chat from the Home panel →
+  The send-failure toast (`chat.toast.sendFailed`) shows over the other
+  chat, whose message box stays empty with no file chip in its tray, and
+  whose draft is still empty after a reload; opening the first chat again
+  shows its message box holding the message and its tray the file, ready
+  to send once more.
 - [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
   newline; a blocked send announces its reason (toast) instead of silently
   no-opping.
