@@ -49,7 +49,7 @@ vi.mock(
   }),
 );
 
-import { CodingAgentButton } from './coding-agent-entry';
+import { CodingAgentButton, FixRunButton } from './coding-agent-entry';
 
 beforeEach(() => {
   h.access = { signInOn: true };
@@ -160,5 +160,78 @@ describe('CodingAgentButton', () => {
     expect(
       within(button).getByText('Edit with your coding agent'),
     ).not.toHaveClass('sr-only');
+  });
+});
+
+/**
+ * A failed run goes to the same coding agent as an edit does, with a prompt
+ * that names the run, so the agent starts from its record.
+ */
+describe('FixRunButton', () => {
+  it('opens the way to fix a failed run, with a prompt that names the run and its automation', async () => {
+    const { user } = render(
+      <FixRunButton
+        organizationId="org-1"
+        automationSlug="support/triage-inbox"
+        runId="run-9f3"
+      />,
+    );
+    const button = screen.getByRole('button', {
+      name: 'Fix with your coding agent',
+    });
+    expect(button).toHaveAttribute('aria-haspopup', 'dialog');
+    await user.click(button);
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Fix with your coding agent',
+    });
+    expect(dialog).toHaveAccessibleDescription(
+      /^A coding agent connected to Tale's MCP server can read this run step by step/,
+    );
+    // The commands that connect the agent in use.
+    expect(within(dialog).getByText('claude mcp login tale')).toBeVisible();
+    // The prompt hands the agent this run and its automation.
+    expect(
+      within(dialog).getByText(
+        /The run run-9f3 of the automation support\/triage-inbox failed\./,
+      ),
+    ).toBeVisible();
+    // It asks for nothing to be filled in, so it says nothing about brackets.
+    expect(
+      within(dialog).queryByText(/Replace the part in brackets/),
+    ).not.toBeInTheDocument();
+    await checkAccessibility(dialog);
+  });
+
+  it('offers the name and the run to copy while agents may not sign in', async () => {
+    h.access = { signInOn: false };
+    const { user } = render(
+      <FixRunButton
+        organizationId="org-1"
+        automationSlug="support/triage-inbox"
+        runId="run-9f3"
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Fix with your coding agent' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Fix with your coding agent',
+    });
+    expect(
+      within(dialog).getByRole('button', {
+        name: 'Name of this automation support/triage-inbox',
+      }),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole('button', { name: 'ID of this run run-9f3' }),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole('link', { name: 'Set up MCP' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/settings/api/mcp');
+    expect(
+      within(dialog).queryByText('claude mcp login tale'),
+    ).not.toBeInTheDocument();
+    await checkAccessibility(dialog);
   });
 });

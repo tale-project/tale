@@ -43,6 +43,7 @@ describe('buildPrompt', () => {
       for (const context of [
         { kind: 'general' },
         { kind: 'edit', name: 'weekly-report' },
+        { kind: 'run', name: 'weekly-report', runId: 'run-1' },
       ] as const) {
         const named = buildPrompt(t, context).match(TOOL_SHAPED) ?? [];
         // The prompts do name tools, and every one of them exists.
@@ -69,10 +70,40 @@ describe('buildPrompt', () => {
   );
 
   it.each(Object.entries(LOCALES))(
+    'names the run and the automation in the run prompt, in %s',
+    (_locale, messages) => {
+      const t = translator(messages);
+      const prompt = buildPrompt(t, {
+        kind: 'run',
+        name: 'weekly-report',
+        runId: 'run-1',
+      });
+      expect(prompt).toContain('weekly-report');
+      expect(prompt).toContain('run-1');
+      expect(prompt).not.toContain('{');
+    },
+  );
+
+  it.each(Object.entries(LOCALES))(
     'leaves a bracketed place for what the person wants, in %s',
     (_locale, messages) => {
       const t = translator(messages);
       expect(buildPrompt(t, { kind: 'edit', name: 'x' })).toMatch(/\[[^\]]+\]/);
+    },
+  );
+
+  // The dialog marks every bracketed part as one to replace and says so, so
+  // a prompt that asks for nothing holds none.
+  it.each(Object.entries(LOCALES))(
+    'holds no bracketed part where the person has nothing to fill in, in %s',
+    (_locale, messages) => {
+      const t = translator(messages);
+      for (const context of [
+        { kind: 'general' },
+        { kind: 'run', name: 'x', runId: 'run-1' },
+      ] as const) {
+        expect(buildPrompt(t, context)).not.toMatch(/\[[^\]]+\]/);
+      }
     },
   );
 });

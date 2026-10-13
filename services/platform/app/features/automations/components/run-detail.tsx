@@ -86,6 +86,7 @@ import {
   type RunCanvasView,
 } from './automation-canvas';
 import { RunVersionMenu } from './automation-version-pill';
+import { FixRunButton } from './coding-agent-entry';
 import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
@@ -232,6 +233,8 @@ function RunDetailBody({
   const ability = useAbility();
   // Live runs, like saving and deploying, are the author's.
   const canStartLive = ability.can('read', 'developerSettings');
+  // So is changing the automation, by hand or through a coding agent.
+  const canAuthor = canStartLive;
 
   const runQuery = useAutomationRun(organizationId, runId);
   const runRead = readStateOf(runQuery);
@@ -762,6 +765,15 @@ function RunDetailBody({
               })}
               detail={reason.detail}
               labels={failureLabels}
+              {...(canAuthor && {
+                actions: (
+                  <FixRunButton
+                    organizationId={organizationId}
+                    automationSlug={automationSlug}
+                    runId={runId}
+                  />
+                ),
+              })}
             />
           );
         }

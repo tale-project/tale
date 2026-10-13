@@ -1382,7 +1382,10 @@ source:
 codingAgent:
   button: Edit with your coding agent
   body: Coding agents such as Claude Code, Codex and Cursor change automations through Tale's MCP server. They read this automation, change and check it, and save a new version, which then appears here.
+  fixAction: Fix with your coding agent
+  fixBody: A coding agent connected to Tale's MCP server can read this run step by step, explain why it failed and propose a fix. A fix it saves arrives in the editor as a new version.
   nameLabel: Name of this automation
+  runLabel: ID of this run
   setUp: Set up MCP
   learnMore: How to connect a coding agent
 try:

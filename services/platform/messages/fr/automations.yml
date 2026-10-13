@@ -1393,7 +1393,10 @@ source:
 codingAgent:
   button: Modifier avec ton agent de code
   body: Les agents de code comme Claude Code, Codex et Cursor modifient les automatisations via le serveur MCP de Tale. Ils lisent cette automatisation, la modifient, la vérifient et enregistrent une nouvelle version, qui apparaît ensuite ici.
+  fixAction: Corriger avec ton agent de code
+  fixBody: Un agent de code connecté au serveur MCP de Tale peut lire cette exécution étape par étape, expliquer pourquoi elle a échoué et proposer une correction. Une correction qu’il enregistre apparaît dans l’éditeur comme nouvelle version.
   nameLabel: Nom de cette automatisation
+  runLabel: Identifiant de cette exécution
   setUp: Configurer MCP
   learnMore: Connecter un agent de code
 try:

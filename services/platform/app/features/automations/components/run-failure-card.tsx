@@ -7,7 +7,7 @@ import { IssueDetail } from '@tale/ui/issue-list';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { ArrowUpRight, CircleX, RotateCcw } from 'lucide-react';
-import { useId } from 'react';
+import { type ReactNode, useId } from 'react';
 
 import { fieldOf } from '@/lib/engine/core/record/failure';
 import type { StepFailure } from '@/lib/engine/core/record/types';
@@ -38,6 +38,8 @@ export interface RunFailureCardProps {
   /** Opens the retry from the failed step; left out when the reader may
    * not start runs. */
   onRetryFromStep?: () => void;
+  /** Further ways on, after the card's own: the host's buttons. */
+  actions?: ReactNode;
 }
 
 /**
@@ -55,6 +57,7 @@ export function RunFailureCard({
   editor,
   onShowStep,
   onRetryFromStep,
+  actions,
 }: RunFailureCardProps) {
   const { t } = useT('automationRuns');
   const { locale } = useLocale();
@@ -131,7 +134,9 @@ export function RunFailureCard({
               )}
             </div>
           )}
-        {(onShowStep !== undefined || onRetryFromStep !== undefined) && (
+        {(onShowStep !== undefined ||
+          onRetryFromStep !== undefined ||
+          actions !== undefined) && (
           <div className="flex flex-wrap gap-2">
             {onShowStep !== undefined && (
               <Button variant="secondary" size="sm" onClick={onShowStep}>
@@ -148,6 +153,7 @@ export function RunFailureCard({
                 {t('failure.retry')}
               </Button>
             )}
+            {actions}
           </div>
         )}
       </Card>
