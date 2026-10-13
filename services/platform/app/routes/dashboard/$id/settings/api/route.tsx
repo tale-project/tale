@@ -12,26 +12,39 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/navigation/tab-navigation';
+import { agentConnectionAccessQuery } from '@/app/features/settings/agent-connections/hooks/queries';
 import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
-import { API_NAV_ITEMS, visibleApiNavItems } from './-nav-items';
+import {
+  API_NAV_ITEMS,
+  tabDeniedMessageKey,
+  visibleApiNavItems,
+} from './-nav-items';
 
 /**
  * "API" settings section: REST (API keys), Models (the model endpoints for
- * API keys), MCP and WebDAV subpages. The unified settings rail (see
- * `SettingsRail`) owns the desktop sub-navigation — its expanded API section
- * lists these same pages — so this layout renders only a bounded content
- * pane, with a horizontal tab strip on mobile.
+ * API keys), MCP, Connected agents and WebDAV subpages. The unified settings
+ * rail (see `SettingsRail`) owns the desktop sub-navigation — its expanded API
+ * section lists these same pages — so this layout renders only a bounded
+ * content pane, with a horizontal tab strip on mobile.
  *
- * Owners, admins and developers open every page; a member who may create a
+ * Owners, admins and developers open every page. A member who may create a
  * personal API key (a competence that is used with one) opens REST, where it
- * is made, and one who may call the model endpoints (a `tale:models.api`
- * grant) Models too, where a tool is set up — and no other.
+ * is made; one who may call the model endpoints (a `tale:models.api` grant)
+ * Models too, where a tool is set up; one who may connect a coding agent, or
+ * holds a connection, Connected agents — and no other.
  */
 export const Route = createFileRoute('/dashboard/$id/settings/api')({
   head: () => ({ meta: seo('apiKeys') }),
+  // Warm what decides whether Connected agents is a tab, without gating
+  // navigation on it: the layout waits for the answer itself.
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      agentConnectionAccessQuery(params.id),
+    );
+  },
   component: ApiSettingsLayout,
 });
 
@@ -52,8 +65,9 @@ function ApiSettingsLayout() {
         developer: access.developer,
         apiKeys: access.apiKeys,
         modelApi: access.modelApi,
+        agents: access.agents,
       }),
-    [access.developer, access.apiKeys, access.modelApi],
+    [access.developer, access.apiKeys, access.modelApi, access.agents],
   );
   // The page the path names: a tab this member may not open is denied, the
   // way the whole section is for a member who may open none of it — each
@@ -94,11 +108,7 @@ function ApiSettingsLayout() {
 
   if (tabDenied) {
     return (
-      <AccessDenied
-        message={tAccessDenied(
-          openItem.audience === 'modelApi' ? 'apiModels' : 'apiTab',
-        )}
-      />
+      <AccessDenied message={tAccessDenied(tabDeniedMessageKey(openItem))} />
     );
   }
 

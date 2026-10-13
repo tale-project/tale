@@ -60,7 +60,7 @@ without a new approval. A request that has finished in the meantime is not run a
 | finished model calls Tale made for them (a chat title, Improve with AI, a transcription, the embeddings of their uploads and searches) | deleted |
 | such model calls still in progress | kept, with the person's identity replaced by a pseudonym, so their cost is booked under it |
 | a website scan a usage limit stopped while it was theirs to pay for | kept, no longer naming them: it resumes as the organization's |
-| the versions of automations they saved, and the deploys, triggers, project installs and deletions they made | kept, with the person's identity replaced by a pseudonym |
+| the versions of automations they saved or whose tests they checked, and the deploys, triggers, project installs and deletions they made | kept, with the person's identity replaced by a pseudonym; version document/package content and test reports stay unchanged |
 
 The receipt counts each of these steps. Automation runs are retired before their model
 requests lose the identity, so an admitted call that finishes later books only under the

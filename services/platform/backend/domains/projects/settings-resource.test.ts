@@ -402,14 +402,80 @@ describe('reading project settings', () => {
       kinds: ['project-instructions'],
     });
     expect(first.resources).toHaveLength(50);
-    expect(first.nextCursor).toBe('p50');
+    expect(first.nextCursor).toBe('project-instructions:p50');
     const second = await getSettings(contextOf('member'), registry, {
       kinds: ['project-instructions'],
-      cursor: 'p50',
+      cursor: 'project-instructions:p50',
     });
     expect(second.resources).toHaveLength(10);
     expect(second.nextCursor).toBe(null);
     expect(JSON.stringify([first, second])).not.toContain('p-archived');
+  });
+
+  it('cuts a page of instructions once they take the room an answer has, and walks every project once [MCP-R35]', async () => {
+    // Twenty-five projects with the longest instructions a project may hold:
+    // fifty to a page would be a megabyte, past what get_settings answers.
+    for (let index = 0; index < 25; index += 1) {
+      project(`p-${String(index).padStart(2, '0')}`, {
+        instructions: 'x'.repeat(20_000),
+      });
+    }
+    const ids: string[] = [];
+    const sizes: number[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await getSettings(contextOf('member'), registry, {
+        kinds: ['project-instructions'],
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      const resources = page.resources as Array<{ id: string }>;
+      sizes.push(JSON.stringify(page).length);
+      ids.push(...resources.map((resource) => resource.id));
+      if (page.nextCursor === null) break;
+      cursor = page.nextCursor as string;
+    }
+    expect(ids).toEqual(
+      Array.from(
+        { length: 25 },
+        (_, index) => `p-${String(index).padStart(2, '0')}`,
+      ),
+    );
+    expect(sizes.length).toBeGreaterThan(1);
+    // Under the 250,000 characters get_settings advertises.
+    expect(Math.max(...sizes)).toBeLessThan(250_000);
+  });
+
+  it('pages agents over their projects and cuts a project in two when its agents take the room [MCP-R35]', async () => {
+    project('p-1');
+    project('p-2');
+    for (let index = 0; index < 15; index += 1) {
+      agent(`p-1/a-${String(index).padStart(2, '0')}`, {
+        instructions: 'x'.repeat(20_000),
+      });
+    }
+    agent('p-2/a-00', { instructions: 'short' });
+    const keys: string[] = [];
+    const pageSizes: number[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await getSettings(contextOf('member'), registry, {
+        kinds: ['agent-instructions'],
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      const resources = page.resources as Array<{ key: string }>;
+      keys.push(...resources.map((resource) => resource.key));
+      pageSizes.push(resources.length);
+      if (page.nextCursor === null) break;
+      cursor = page.nextCursor as string;
+    }
+    // Every agent of every project, once and in order, over more than one
+    // page — the first of them cut inside p-1.
+    expect(keys).toHaveLength(16);
+    expect(new Set(keys).size).toBe(16);
+    expect(keys[0]).toBe('agent-instructions/p-1/a-00');
+    expect(keys.at(-1)).toBe('agent-instructions/p-2/a-00');
+    expect(pageSizes.length).toBeGreaterThan(1);
+    expect(pageSizes[0]).toBeLessThan(15);
   });
 
   it("lists every agent's tools by project and agent", async () => {

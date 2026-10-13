@@ -1,4 +1,9 @@
-import type { APIRequestContext, Page } from '@playwright/test';
+import type {
+  APIRequestContext,
+  Browser,
+  BrowserContext,
+  Page,
+} from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { BASE_URL, ORG_DASHBOARD_URL, TIMEOUT } from './env';
@@ -63,6 +68,22 @@ export async function signUpViaApi(
       `Sign-up failed for ${credentials.email}: ${response.status()} ${await response.text()}`,
     );
   }
+}
+
+/**
+ * A browser context for a SECOND person, signed out. `fixtures.ts` overrides
+ * `storageState` so every test authenticates as its worker's owner, and that
+ * override reaches every context made from `browser` as well, so a bare
+ * `browser.newContext()` already holds the owner's session. The sign-in endpoint
+ * refuses a request that presents another person's session (`ORG_FORBIDDEN`,
+ * since the organization-session authority), so a second person starts from an
+ * empty cookie jar.
+ */
+export function newPersonContext(browser: Browser): Promise<BrowserContext> {
+  return browser.newContext({
+    baseURL: BASE_URL,
+    storageState: { cookies: [], origins: [] },
+  });
 }
 
 /** Sign in an existing account via the email endpoint (mirrors sign-up). */

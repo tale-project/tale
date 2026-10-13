@@ -60,6 +60,7 @@ login:
     Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es
     erneut oder nutze dein Passwort.
   wrongCredentials: Falsche E-Mail oder falsches Passwort
+  temporarilyUnavailable: Die Anmeldung ist gerade nicht möglich. Versuche es gleich noch einmal.
   accountLockedGeneric: Konto vorübergehend gesperrt — zu viele Fehlversuche. Später erneut versuchen oder einen Administrator kontaktieren.
   accountLockedSeconds:
     Konto vorübergehend gesperrt. In {seconds, plural, one {#

@@ -8,6 +8,7 @@ import { act, cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { TaskCommentData } from './task-comments';
 import { TaskConversation } from './task-conversation';
+import { TaskThreadColumn } from './task-thread-column';
 
 import '@/app/globals.css';
 
@@ -109,28 +110,47 @@ vi.mock(
   }),
 );
 
-function renderHistory(reverse = true) {
+/** The history in the column a task is read in, on the page and in the dialog.
+ *  `safari`: a browser with no scroll anchoring answers the support question
+ *  no, and its scrollport anchors nothing. */
+function renderHistory({ safari = false }: { safari?: boolean } = {}) {
+  if (safari) {
+    const supports = CSS.supports.bind(CSS);
+    vi.spyOn(CSS, 'supports').mockImplementation(
+      (property: string, value?: string) => {
+        if (property.includes('overflow-anchor')) return false;
+        return value === undefined
+          ? supports(property)
+          : supports(property, value);
+      },
+    );
+  }
   const rendered = render(
-    <div
-      data-testid="task-history-scroll"
-      className={`flex h-[480px] w-[640px] overflow-y-auto ${reverse ? 'flex-col-reverse' : 'flex-col'}`}
-    >
-      <div className="flex shrink-0 flex-col gap-8 p-6">
-        <div className="h-48 shrink-0">Task brief</div>
-        <TaskConversation
-          taskId="task-1"
-          organizationId="org-1"
-          projectId="proj-1"
-          canComment
-          currentUserId="user-1"
-        />
-      </div>
+    <div className="flex h-[480px] w-[640px]">
+      <TaskThreadColumn
+        brief={<div className="h-48 shrink-0">Task brief</div>}
+        conversation={
+          <TaskConversation
+            taskId="task-1"
+            organizationId="org-1"
+            projectId="proj-1"
+            canComment
+            currentUserId="user-1"
+          />
+        }
+        {...(safari ? { scrollerClassName: '[overflow-anchor:none]' } : {})}
+      />
     </div>,
   );
   return {
     ...rendered,
-    scroller: screen.getByTestId('task-history-scroll'),
+    scroller: screen.getByTestId('task-thread-scrollport'),
   };
+}
+
+/** How far the reader is from the newest end of a scrollport. */
+function distanceToEnd(scroller: HTMLElement) {
+  return scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
 }
 
 function commentRow(index: number) {
@@ -160,39 +180,37 @@ beforeEach(async () => {
 });
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   localStorage.removeItem('user-locale');
 });
 
 describe('TaskConversation long history (Chromium)', () => {
-  it.each([false, true])(
-    'keeps the earlier-history button focused through a pending page and blocks repeat activation (reverse scrollport: %s)',
-    async (reverse) => {
-      const pending = Promise.withResolvers<void>();
-      reads.pendingPage = pending.promise;
-      renderHistory(reverse);
-      const earlier = screen.getByRole('button', {
-        name: 'Show earlier comments',
-      });
-      earlier.focus();
-      await userEvent.keyboard('{Enter}');
-      await waitFor(() => expect(earlier).toHaveAttribute('aria-busy', 'true'));
-      expect(earlier).toHaveFocus();
-      await userEvent.keyboard('{Enter}');
-      // Browser automation treats aria-disabled as inert before dispatch;
-      // the native click proves our handler also rejects activation itself.
-      earlier.click();
-      expect(reads.pageRequests).toHaveBeenCalledTimes(1);
-      await act(async () => {
-        pending.resolve();
-        await pending.promise;
-      });
-      await waitFor(() => expect(earlier).not.toHaveAttribute('aria-busy'));
-      expect(earlier).toHaveFocus();
-      await waitFor(() =>
-        expect(screen.getByText('Report 99')).toBeInTheDocument(),
-      );
-    },
-  );
+  it('keeps the earlier-history button focused through a pending page and blocks repeat activation', async () => {
+    const pending = Promise.withResolvers<void>();
+    reads.pendingPage = pending.promise;
+    renderHistory();
+    const earlier = screen.getByRole('button', {
+      name: 'Show earlier comments',
+    });
+    earlier.focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(earlier).toHaveAttribute('aria-busy', 'true'));
+    expect(earlier).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    // Browser automation treats aria-disabled as inert before dispatch;
+    // the native click proves our handler also rejects activation itself.
+    earlier.click();
+    expect(reads.pageRequests).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      pending.resolve();
+      await pending.promise;
+    });
+    await waitFor(() => expect(earlier).not.toHaveAttribute('aria-busy'));
+    expect(earlier).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByText('Report 99')).toBeInTheDocument(),
+    );
+  });
   it('skips offscreen layout while preserving newest anchoring and added-page parse bounds', async () => {
     const { container, scroller } = renderHistory();
     await settledLayout();
@@ -219,14 +237,14 @@ describe('TaskConversation long history (Chromium)', () => {
     expect(reads.directory).toHaveBeenCalledTimes(1);
     expect(reads.editMutation).not.toHaveBeenCalled();
     expect(reads.markdown).toHaveBeenCalledTimes(600);
-    expect(scroller.scrollTop).toBe(0);
+    expect(distanceToEnd(scroller)).toBeLessThan(2);
 
     act(() => reads.loadEarlier());
     await settledLayout();
     expect(reads.markdown).toHaveBeenCalledTimes(1200);
     expect(reads.directory).toHaveBeenCalledTimes(1);
     expect(newest.getBoundingClientRect().top).toBeCloseTo(before, 0);
-    expect(scroller.scrollTop).toBe(0);
+    expect(distanceToEnd(scroller)).toBeLessThan(2);
     const region = screen.getByRole('region');
     expect(region.textContent?.indexOf('Report 99')).toBeLessThan(
       region.textContent?.indexOf('Report 0') ?? 0,
@@ -249,7 +267,7 @@ describe('TaskConversation long history (Chromium)', () => {
     await userEvent.fill(field, 'Keep this unfinished review');
     expect(getComputedStyle(newest).contentVisibility).toBe('visible');
 
-    scroller.scrollTop = -scroller.scrollHeight;
+    scroller.scrollTop = 0;
     await settledLayout();
     act(() => reads.loadEarlier());
     await settledLayout();
@@ -271,12 +289,15 @@ describe('TaskConversation long history (Chromium)', () => {
     );
   });
 
-  it.each(['reverse', 'forward'])(
-    'loads earlier comments from the keyboard without moving the read comment in the %s scrollport',
-    async (direction) => {
-      const { scroller } = renderHistory(direction === 'reverse');
+  it.each([
+    { browser: 'a browser that anchors scrolling', safari: false },
+    { browser: 'Safari', safari: true },
+  ])(
+    'loads earlier comments from the keyboard without moving the read comment, in $browser',
+    async ({ safari }) => {
+      const { scroller } = renderHistory({ safari });
       await settledLayout();
-      scroller.scrollTop = direction === 'reverse' ? -scroller.scrollHeight : 0;
+      scroller.scrollTop = 0;
       await settledLayout();
       const earlier = screen.getByRole('button', {
         name: 'Show earlier comments',
@@ -309,7 +330,9 @@ describe('TaskConversation long history (Chromium)', () => {
   );
 
   it('gives scroll control back immediately when the reader steers during anchor settling', async () => {
-    const { scroller } = renderHistory(false);
+    const { scroller } = renderHistory();
+    await settledLayout();
+    scroller.scrollTop = 0;
     await settledLayout();
     const earlier = screen.getByRole('button', {
       name: 'Show earlier comments',

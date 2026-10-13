@@ -180,6 +180,13 @@ entries:
   # created an API key that acts as the member in this organization.
   - 'inbox.apiKeyCreatedForYou'
   - 'inbox.apiKeyCreatedForYouBody'
+  # A coding agent disconnected by something other than the member
+  # (domains/agent_connections/end.ts): a refresh token used twice, a changed
+  # password or sign-in method, an admin's disconnect.
+  - 'inbox.agentConnectionEnded'
+  - 'inbox.agentConnectionEndedReuseBody'
+  - 'inbox.agentConnectionEndedAccountBody'
+  - 'inbox.agentConnectionEndedAdminBody'
   # Paused schedules (domains/automations/trigger-failures.ts): a schedule
   # stopped itself after repeated permanent failures; owners and admins.
   - 'inbox.automationTriggerPaused'
@@ -196,6 +203,7 @@ entries:
   - 'inbox.agentRunFailed'
   - 'inbox.agentRunFailedBody'
   - 'inbox.agentRunFailedBudgetBody'
+  - 'inbox.agentRunFailedPolicyBody'
   - 'inbox.agentRunFailedSetupBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are
@@ -214,7 +222,7 @@ entries:
   - 'tasks.activity'
 
   # Settings rail sub-section labels. The API sub-pages (REST / Models / MCP /
-  # WebDAV) are driven by the API_NAV_ITEMS catalog in
+  # Connected agents / WebDAV) are driven by the API_NAV_ITEMS catalog in
   # app/routes/dashboard/$id/settings/api/-nav-items.ts and rendered via
   # `tNav(item.labelKey)` in settings-rail.tsx and the section's mobile tab
   # strip. Because the catalog is a data-only module (no `useT` call), the
@@ -223,6 +231,7 @@ entries:
   - 'navigation.apiRest'
   - 'navigation.apiModels'
   - 'navigation.mcp'
+  - 'navigation.connectedAgents'
   - 'navigation.webdav'
 
   # Enterprise SSO sign-in failures: the authorize/callback Convex handlers set

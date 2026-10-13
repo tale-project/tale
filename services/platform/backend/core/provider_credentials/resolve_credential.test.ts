@@ -575,6 +575,25 @@ describe('resolveProviderCredential — subscription-broker host policy', () => 
     const [, options] = mockedFetch.mock.calls[0] ?? [];
     expect(options).not.toHaveProperty('allowedHosts');
   });
+
+  it('asks the gateway to refresh after a broker-served retry', async () => {
+    mockedFetch.mockResolvedValue(poolResponse());
+    await resolveProviderCredential(
+      ctxServingBroker('https://broker.example/pool'),
+      {
+        organizationId: ORG,
+        providerSlug: 'anthropic',
+        excludeBrokerTokenHashes: ['previous-account'],
+      },
+    );
+
+    const [, options] = mockedFetch.mock.calls[0] ?? [];
+    expect(options).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-tale-force-refresh': '1' }),
+      }),
+    );
+  });
 });
 
 describe('credentialRetryAtMs', () => {
@@ -694,7 +713,7 @@ describe('isTerminalCredentialRefusal / credentialRefusalMessage', () => {
 });
 
 describe('subscription-key delivery variable', () => {
-  function ctxServingKey(providerSlug: string) {
+  function ctxServingKey(providerSlug: string, accountId?: string) {
     const row = {
       _id: 'cred-2',
       organizationId: ORG,
@@ -703,6 +722,7 @@ describe('subscription-key delivery variable', () => {
       name: 'Pasted token',
       encryptedData: encryptSecret('pasted-secret'),
       status: 'active',
+      ...(accountId !== undefined ? { accountId } : {}),
     };
     return { runQuery: vi.fn(async () => row) } as unknown as ActionCtx;
   }
@@ -729,5 +749,19 @@ describe('subscription-key delivery variable', () => {
       secret: 'pasted-secret',
     });
     expect(resolved).not.toHaveProperty('targetEnvVar');
+  });
+
+  it('delivers an OpenAI subscription token with its vendor account identity', async () => {
+    const resolved = await resolveProviderCredential(
+      ctxServingKey('openai', 'chatgpt-account-1'),
+      { organizationId: ORG, providerSlug: 'openai' },
+    );
+    expect(resolved).toMatchObject({
+      authMethod: 'subscription-key',
+      secret: 'pasted-secret',
+      targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+      accountId: 'chatgpt-account-1',
+      endpointUrl: 'https://chatgpt.com/backend-api/codex',
+    });
   });
 });

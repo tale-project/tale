@@ -99,7 +99,7 @@ function subscription(
 }
 
 describe('chooseStandardAgentServing — what runs the standard agent', () => {
-  it('runs automatically on Claude Code with the chat Auto choice for document work', () => {
+  it('runs automatically native first, with Claude Code to hand over to, on the chat Auto choice for document work', () => {
     const serving = chooseStandardAgentServing(
       [
         option('cheap-model', 'openrouter', {
@@ -118,6 +118,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
       source: 'preferred',
+      engine: 'native',
     });
   });
 
@@ -191,6 +192,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       model: 'gpt-5.5',
       modelProvider: 'openai',
       source: 'pinned',
+      engine: 'native',
     });
     expect(
       chooseStandardAgentServing(
@@ -199,7 +201,13 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         ELIGIBLE,
         RESPONSES_SPEAKERS,
       ),
-    ).toMatchObject({ ok: true, harness: 'codex', source: 'pinned' });
+    ).toMatchObject({
+      ok: true,
+      harness: 'codex',
+      source: 'pinned',
+      // A subscription's model runs only on its own runtime: no native path.
+      engine: 'harness',
+    });
   });
 
   it('runs a Responses-only model only on a runtime that speaks the Responses API', () => {
@@ -223,6 +231,8 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       model: 'gpt-6.1-sol',
       modelProvider: 'openai',
       source: 'pinned',
+      // Served directly, so the native engine runs it — on the Responses API.
+      engine: 'native',
     });
     // Pinned onto a runtime that cannot carry it: refused, never swapped.
     expect(
@@ -252,6 +262,36 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         new Set(),
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
+  });
+
+  it('never starts native on a runtime an Admin pinned, or on a model only a runtime can run [TASK-R30]', () => {
+    // A pinned runtime is the Admin's choice for every run.
+    expect(
+      chooseStandardAgentServing(
+        [option('claude-sonnet-5', 'anthropic')],
+        { harness: 'codex' },
+        ELIGIBLE,
+        RESPONSES_SPEAKERS,
+      ),
+    ).toMatchObject({ ok: true, harness: 'codex', engine: 'harness' });
+    // An organization with only a subscription has no direct path at all.
+    expect(
+      chooseStandardAgentServing(
+        [subscription('gpt-5.5', 'openai', 'codex')],
+        {},
+        ELIGIBLE,
+        RESPONSES_SPEAKERS,
+      ),
+    ).toMatchObject({ ok: true, harness: 'codex', engine: 'harness' });
+    // Direct models win the automatic pool, so a mixed organization is native.
+    expect(
+      chooseStandardAgentServing(
+        [subscription('gpt-5.5', 'openai', 'codex'), option('m', 'acme')],
+        {},
+        ELIGIBLE,
+        RESPONSES_SPEAKERS,
+      ),
+    ).toMatchObject({ ok: true, engine: 'native' });
   });
 
   it('refuses a pin it cannot run, and never swaps in another model', () => {
@@ -353,6 +393,26 @@ describe('readStandardAgentAvailability — agrees with the kick', () => {
       model: 'gpt-6.1-sol',
       modelProvider: 'openai',
       source: 'pinned',
+      // A subscription's model runs only on its runtime.
+      engine: 'harness',
+    });
+  });
+
+  it('tells a person served directly that the standard agent works without a worker first [TASK-R30]', async () => {
+    readGovernancePolicyForOrg.mockResolvedValue({ enabled: true });
+    listGovernedChatModels.mockResolvedValue([
+      option('claude-sonnet-5', 'anthropic'),
+    ]);
+
+    await expect(
+      readStandardAgentAvailability({} as never, {
+        organizationId: 'org-1',
+        userId: 'member-1',
+      }),
+    ).resolves.toMatchObject({
+      available: true,
+      harness: 'claude-code',
+      engine: 'native',
     });
   });
 });
@@ -387,6 +447,7 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
       harness: 'codex',
       model: 'stale-model',
       modelProvider: 'openai',
+      engine: 'harness',
     });
     expect(readGovernancePolicyForOrg).not.toHaveBeenCalled();
     expect(alignManagedProjectAgent).not.toHaveBeenCalled();
@@ -400,6 +461,7 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
       harness: 'claude-code',
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
+      engine: 'native',
     });
     expect(listGovernedChatModels).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',

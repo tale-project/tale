@@ -103,6 +103,7 @@ export interface ProjectsContract {
   'projects/mutations:updateProjectAgent': {
     kind: 'mutation';
     args: {
+      expectedUpdatedAt?: number;
       secrets?: string[];
       modelProvider?: string;
       tools?: string[];
@@ -165,6 +166,7 @@ export interface ProjectsContract {
       openTaskCount?: number;
       doneTaskCount?: number;
       projectAgentCount?: number;
+      managedAgentCount?: number;
       taskLabelColors?: Record<string, string>;
       sharedWithTeamIds?: string[];
       /** The audience — every team the project is scoped to; [] = org-wide. */
@@ -237,6 +239,9 @@ export interface ProjectsContract {
       modelLabel?: string;
       modelProvider?: string;
       source?: 'pinned' | 'preferred' | 'cheapest';
+      /** `native` works with the chat's own tools and hands over to the
+       * runtime when a task needs a full workspace; `harness` runs there. */
+      engine?: 'native' | 'harness';
     };
   };
   'projects/queries:listProjectDocuments': {

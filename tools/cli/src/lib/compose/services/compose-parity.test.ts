@@ -814,7 +814,7 @@ describe('service → image parity', () => {
     const workflow = parse(releaseYml) as {
       jobs: Record<string, { if?: string }>;
     };
-    for (const job of ['create-release', 'trigger-cli']) {
+    for (const job of ['create-release', 'trigger-cli', 'publish-packages']) {
       expect(workflow.jobs[job]?.if).toBe(
         "needs.prepare.outputs.sites_only != 'true'",
       );

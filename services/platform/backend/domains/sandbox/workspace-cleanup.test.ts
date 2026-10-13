@@ -1,12 +1,14 @@
 // @vitest-environment node
 
 import { DEFAULT_SANDBOX_WORKSPACES } from '@tale/shared/schemas/governance';
-import { describe, expect, it } from 'vitest';
+import type { Sql } from 'postgres';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SandboxDeviceOfflineError } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   leftoverVerdict,
   retireOrganizationSandboxes,
+  runWorkspaceCleanup,
   workspaceVerdict,
   type LeftoverOwner,
   type WorkspaceFacts,
@@ -429,5 +431,46 @@ describe('retireOrganizationSandboxes', () => {
       'disconnect device-1',
       'teardown org-gone',
     ]);
+  });
+});
+
+describe('runWorkspaceCleanup — a spawner inventory it cannot read', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** A sweep with no workspace of its own to judge, so it goes straight to
+   * the inventory. */
+  async function sweepWithInventory(inventory: () => Promise<null>) {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every query of the owned pass answers no rows
+    const sql = (async () => []) as unknown as Sql;
+    const { spawner } = scriptedSpawner({});
+    const result = await runWorkspaceCleanup(sql, {
+      spawner: { ...spawner, inventory },
+    });
+    return { result, warn };
+  }
+
+  it('logs the sentence of a plain error, not its stack, and waits for the next sweep', async () => {
+    // A deployment with no sandbox has no spawner token.
+    const { result, warn } = await sweepWithInventory(async () => {
+      throw new Error('SANDBOX_TOKEN is not set — the spawner signs requests');
+    });
+
+    expect(result.inventory).toBe('unavailable');
+    expect(warn).toHaveBeenCalledWith(
+      '[sandbox.cleanup] the spawner inventory is unavailable; owner-less workspaces wait for the next sweep:',
+      'SANDBOX_TOKEN is not set — the spawner signs requests',
+    );
+  });
+
+  it('keeps the stack of an error the runtime raised', async () => {
+    const failure = new TypeError('fetch failed');
+    const { warn } = await sweepWithInventory(async () => {
+      throw failure;
+    });
+
+    expect(warn).toHaveBeenCalledWith(expect.any(String), failure);
   });
 });

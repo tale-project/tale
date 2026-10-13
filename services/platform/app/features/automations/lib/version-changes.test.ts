@@ -10,6 +10,7 @@ import {
   nodeChangeSummary,
   referencesUpdatedBy,
   renamedGates,
+  versionBefore,
 } from './version-changes';
 
 /** Echoes a key and its values, so the words a helper picks are visible;
@@ -121,6 +122,28 @@ describe('the words of a comparison', () => {
     const use = renamed.nodes.find((node) => node.id === 'use');
     expect(use?.referencesOnly).toBe(true);
     expect(nodeChangeSummary(use!, ctx)).toBe('compare.summary.references');
+  });
+});
+
+describe('versionBefore', () => {
+  it('is the version just before, which has none for the first', () => {
+    expect(versionBefore(4, [1, 2, 3, 4])).toBe(3);
+    expect(versionBefore(1, [1, 2])).toBeUndefined();
+  });
+
+  it('is the version just before until the versions are known', () => {
+    expect(versionBefore(4, undefined)).toBe(3);
+    expect(versionBefore(1, undefined)).toBeUndefined();
+  });
+
+  it('is the nearest older version left when the retention policy removed the one before', () => {
+    expect(versionBefore(7, [2, 3, 4, 6, 7])).toBe(6);
+    expect(versionBefore(7, [2, 3, 4, 7])).toBe(4);
+    expect(versionBefore(7, [1, 7])).toBe(1);
+  });
+
+  it('keeps the version just before when nothing older is left, so it is said removed, not first', () => {
+    expect(versionBefore(7, [7, 8])).toBe(6);
   });
 });
 

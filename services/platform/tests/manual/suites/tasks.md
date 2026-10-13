@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 159 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 160 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -51,6 +51,13 @@ whose credential is a subscription broker on a local Tale AI gateway
 (TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
 **Member**, the default of **Add member** (SETUP.md extras); TASK-F50 also
 needs a project agent that can run, and TASK-B27 a team the member is not in.
+The boxes under **Runs without a workspace** (TASK-F86–TASK-F91, TASK-B53)
+need a project without agents of its own, so its tasks go to the standard
+agent, and a model the organization serves directly; TASK-F88 and TASK-F90
+also need a harness that can run, and TASK-F89 and TASK-F91 a model slow
+enough to answer after you comment. In Mode A the mock gateway drives TASK-F86–TASK-F88 from
+the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
+`e2e:use-workspace` make it call `create_file`, `run_code` and `use_workspace`.
 
 > **Agent note**: board DnD is `dnd-kit` — a single `dragTo` drops the card
 > back at its source; drag with stepped mouse moves (down → several small
@@ -828,6 +835,20 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   one shows everything from the top; a comment sent in one appears in the
   other without a reload. On a phone the dialog's drawer scrolls as one
   column: brief, conversation, comment box, then the details.
+- [ ] `TASK-F92` · **A long task scrolls under a trackpad or a wheel** — Open a
+  task with more comments than fit, twenty will do, from the board and then
+  from Home → it opens on its latest comment; a two-finger trackpad swipe, or
+  the wheel, over the thread scrolls it up to the brief and back down to the
+  latest comment, in the board's dialog and on the task's page alike, while the
+  header, the details and the comment box stay where they are; a comment sent
+  while you read near the top leaves your place alone, and one sent from the
+  latest comment stays in view, on a task with more than a page of comments
+  (fifty) too, where each new comment pushes the oldest off the top; in Safari
+  too, scrolling up through a long thread never throws the comment you are
+  reading off the screen. **Page Up**, **Page Down** and the scrollbar move the
+  same thread. On an iPhone flick the task's page up through a long thread, and
+  on an iPad flick the thread in the board's dialog: each flick carries on to
+  where it was heading and the comment you are reading never jumps.
 - [ ] `TASK-F84` · **What the agent cost** — On a task whose agent ran at
   least twice at a cost → **Details** shows **Agent cost**
   (`tasks.agentRuns.costLabel`) with the total (`tasks.agentRuns.totalCost`),
@@ -1613,3 +1634,21 @@ Use a disposable local project with two different agents: A produced a completed
 Use a disposable custom source whose worker publishes native transition forms and validates its own transitions. Keep two authorized sessions on the same `/projects/{projectId}/tasks/board?task={taskId}`. Use synthetic source records; no provider or agent turn is needed.
 
 - [ ] `TASK-F65` · **Observe a source decision in two open task views** — Submit a source-declared action under **Source workflow** (`tasks.sourceStatus.heading`) with **Send request** (`tasks.sourceStatus.submit`), once accepted and once refused by the source → both sessions show **The source is validating your request** (`tasks.sourceStatus.pending`) and prevent a second request; the accepted source status or refusal explanation then appears in both without a reload, with no new agent run or native human approval. Reload both views → the same decision, assignee and discussion remain. Include a transition whose source stages both map to **In review**, and an archived record's reopening action with its required reason.
+
+## Runs without a workspace
+
+The standard agent works a task the way a chat reply does when a person starts it:
+the same model, tools and light sandbox, and no worker of its own unless the work
+needs one (TASK-R30–TASK-R35 in
+[the domain spec](../../../backend/domains/tasks/spec.md)). Use a disposable project
+with no agents of its own and sign in as an Editor of it; the second sign-in of
+TASK-F86 is a Member of the project's team.
+
+- [ ] `TASK-F86` · **The standard agent makes a file without a worker** — Create a task whose description asks for the inner planets as a CSV (Mode A: add `e2e:make-file`), choose **Standard agent** as assignee, then **Start agent** (`tasks.agentRun.start`) → The Run row (`tasks.agentRun.label`) reads **Working…** (`tasks.agentRun.status.running`) straight away and never **Waiting for a worker**, then **Finished** (`tasks.agentRun.status.settled`). The task parks at **In review**; the agent's report is a comment, a second comment lists **Deliverables:** with the CSV, and the CSV is under **Deliverables** (`tasks.outputs.label`) and opens. **Details** (`tasks.run.details`) lists the run's tool calls, each with its result, and ends on the report. `/dashboard/{org}/settings/sandboxes` lists no worker for the agent.
+- [ ] `TASK-F87` · **A workbook is made in a light sandbox that goes back with the run** — Start the standard agent on a task asking for a spreadsheet of the inner planets (Mode A with the sandbox service: add `e2e:make-spreadsheet`) → **planets.xlsx** is under **Deliverables** and opens with the Planets sheet. Once the Run row reads **Finished**, reload `/dashboard/{org}/settings/sandboxes` → no **Light sandbox** row (`sandboxes.lightSandbox`) remains for your name: the sandbox left with the run, not after its idle minutes.
+- [ ] `TASK-F88` · **A run that needs the full workspace hands itself over** — Start the standard agent on a task that needs a repository checked out (Mode A: add `e2e:use-workspace`) → The Run row leaves **Working…** and reads **Waiting for a worker** or **Working…** again as the agent's full workspace takes over; the agent shows over **Worker 1** on Sandboxes; the task stays **In progress** and the first pass posts no report. A file the first pass made is under **Deliverables** before the workspace finishes. Without a runnable harness the second pass fails at its start (**ENVIRONMENT**); its automatic retry then starts in the full workspace again, never as a run without one.
+- [ ] `TASK-F89` · **A comment stops the run and starts the next from it** — While the run of `TASK-F86` works on a model slow enough to catch, comment `@Standard agent also add the moons column` → the first run reads **Cancelled** (`tasks.agentRun.status.cancelled`), a new run starts at once, its **Details** shows the comment among what it works from, and the task stays **In progress**. Press **Cancel run** (`tasks.agentRun.cancel`) on a working run instead → it reads **Cancelled** and nothing starts.
+- [ ] `TASK-F90` · **A start by an automation works in a worker** — Deploy an automation whose step starts the agent on a task (as in AUTO-F32) and run it on a task assigned to the standard agent → the run works in a worker of the agent (**Worker 1** on Sandboxes) and **Details** shows a live harness transcript, as before; a person pressing **Start agent** on the same agent works without one (`TASK-F86`).
+- [ ] `TASK-F91` · **An organization works four such runs at a time** — With a model slow enough to catch (Mode A: `TALE_MOCK_STREAM_PACE_MS=1500` on the mock gateway), start the standard agent on five tasks within a few seconds → four Run rows read **Working…** (`tasks.agentRun.status.running`) and the fifth reads **Queued** (`tasks.agentRun.status.queued`), never **Waiting for a worker**; when one of the four reads **Finished**, the fifth starts by itself. A start in another organization at the same time reads **Working…** at once. Press **Cancel run** on the queued one instead → it reads **Cancelled** and never starts.
+- [ ] `TASK-B53` · **A policy that blocks the task's text stops the run for good** — Under **Governance**, add a guardrail that blocks a word; put that word in a task's description and start the standard agent → The Run row reads **Failed** and the failure sentence is `tasks.agentRun.failure.policy`; no **Auto-retry** caption appears and no new run starts; the starter's notifications show a row with `inbox.agentRunFailedPolicyBody`. Remove the guardrail, press **Retry** (`tasks.agentRun.retry`) → the run works.
+- [ ] `TASK-B54` · **Native receipts stay bound to the current task run** — With a runnable native task, request the task's exact run metadata and comment row IDs, then read **workspace status** in the same session → the returned run and execution IDs match the database-backed task, organization, session and exec; a foreign, superseded, expired or ended run returns no current execution, and the ordinary grants and admission controls are unchanged. Omit the optional fields → the legacy response shape remains. A model-written identity in a comment or status body is ignored.

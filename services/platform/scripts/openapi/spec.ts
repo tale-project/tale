@@ -87,7 +87,13 @@ import { AGENT_TOOL_GRANT_NAMES } from '../../backend/domains/projects/agent-equ
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
 import { TURN_FINISH_REASONS } from '../../lib/chat/types.ts';
+import { REPORT_DETAILS } from '../../lib/engine/api/report-details.ts';
 import { STEP_FAILURE_REASONS } from '../../lib/engine/core/record/failure.ts';
+import { MAX_TESTS } from '../../lib/engine/core/test-limits.ts';
+import {
+  type AgentScope,
+  OFFLINE_ACCESS,
+} from '../../lib/shared/agent-access.ts';
 import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
 import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
@@ -98,6 +104,11 @@ import {
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
 import { EMITTED_EVENT_TYPES } from '../../lib/shared/event-types.ts';
+import {
+  testFailureSchema,
+  versionTestsReadSchema,
+  versionTestsRunSchema,
+} from '../../lib/shared/schemas/automation-tests.ts';
 import {
   CONTACT_EMAIL_LOCAL_PART_MAX,
   CONTACT_EMAIL_MAX,
@@ -117,6 +128,26 @@ export type Json = Record<string, unknown>;
 
 const sec = [{ bearerAuth: [] }];
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
+
+/** What each scope the MCP endpoint grants lets a coding agent do, in the
+ * consent page's words. Keyed by the shared scope list, so a scope the
+ * endpoint starts to grant cannot be left out of the document. */
+const AGENT_OAUTH_SCOPES: Record<AgentScope | typeof OFFLINE_ACCESS, string> = {
+  'tale:mcp':
+    'Read and test: read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.',
+  'tale:automations.write':
+    'Edit automations: save new versions. Deploying stays with the person.',
+  'tale:automations.deploy':
+    'Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.',
+  'tale:settings.read':
+    'Read settings: the settings the person’s role can see. Secrets stay hidden.',
+  'tale:settings.write':
+    'Change settings: the settings the person’s role can change. Every change is recorded in the audit log.',
+  'tale:subscriptions.connect':
+    'Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.',
+  [OFFLINE_ACCESS]:
+    'Stay connected: a refresh token, valid for thirty days without use.',
+};
 
 /** The flat error envelope every non-2xx response carries. */
 function errorResponse(description: string) {
@@ -817,6 +848,153 @@ function houseNullability(node: unknown): unknown {
   );
   return isNullable === true ? nullable(rest) : rest;
 }
+
+/** A shared wire schema as the document publishes it: rendered to OpenAPI
+ * 3.0, open at every object (a read answers what it knows today and a client
+ * accepts what it learns tomorrow), the renderer's references to its
+ * recursive "any JSON value" definitions written as the open schema they
+ * stand for, and nullability spelled the house way. */
+function wireSchemaSpec(schema: z.ZodType): Json {
+  const open = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(open);
+    if (!isJsonRecord(node)) return node;
+    const isJsonValue = (candidate: unknown): boolean =>
+      isJsonRecord(candidate) &&
+      typeof candidate.$ref === 'string' &&
+      candidate.$ref.startsWith('#/definitions/');
+    if (isJsonValue(node)) return {};
+    if (
+      Array.isArray(node.allOf) &&
+      node.allOf.length === 1 &&
+      isJsonValue(node.allOf[0])
+    ) {
+      const { allOf: _alias, ...rest } = node;
+      return open(rest);
+    }
+    return Object.fromEntries(
+      Object.entries(node)
+        .filter(
+          ([key, value]) =>
+            key !== 'definitions' &&
+            !(key === 'additionalProperties' && value === false),
+        )
+        .map(([key, value]) => [key, open(value)]),
+    );
+  };
+  const rendered = z.toJSONSchema(schema, {
+    target: 'openapi-3.0',
+    io: 'output',
+    unrepresentable: 'any',
+  });
+  const shaped = houseNullability(open(rendered));
+  return isJsonRecord(shaped) ? shaped : {};
+}
+
+/** Why a test did not pass — one branch for each `kind`. */
+const automationTestFailureSpec: Json = {
+  ...wireSchemaSpec(testFailureSchema),
+  description:
+    'Why a test did not pass, by `kind`: the run could not start (`refused`, ' +
+    'with the `issues`), it failed where the test expects success ' +
+    '(`run_failed`), succeeded where it expects failure (`run_succeeded`), ' +
+    'failed at another step (`failed_elsewhere`) or with another message ' +
+    '(`failure_message`), its output differs (`output`, the first few ' +
+    '`mismatches` and how many there are in `total`), an expected effect did ' +
+    'not happen (`effect_missing`, with the closest effect and what ' +
+    'happened) or one that must not did (`effect_present`), a step did not ' +
+    'do what the test expects (`node_state`), or the test ran past its time ' +
+    'limit (`timeout`).',
+};
+
+/** A rendered wire schema with each place that holds a test failure
+ * pointing at the one component, so the document names the type once. */
+function sharingTestFailures(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(sharingTestFailures);
+  if (!isJsonRecord(node)) return node;
+  if (
+    JSON.stringify(node) === JSON.stringify(wireSchemaSpec(testFailureSchema))
+  ) {
+    return ref('AutomationTestFailure');
+  }
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [
+      key,
+      sharingTestFailures(value),
+    ]),
+  );
+}
+
+/** The tests of a saved version run in one call: the report, the version
+ * it ran and the verdict recorded. A run's `record` is the run record's read
+ * model (`GET …/runs/{runId}/record`'s `view` and `details`), read whole. */
+const automationTestRunSpec: Json = (() => {
+  const rendered = sharingTestFailures(wireSchemaSpec(versionTestsRunSchema));
+  if (!isJsonRecord(rendered)) return {};
+  const properties = isJsonRecord(rendered.properties)
+    ? rendered.properties
+    : {};
+  const results = isJsonRecord(properties.results) ? properties.results : {};
+  const result = isJsonRecord(results.items) ? results.items : {};
+  const resultProperties = isJsonRecord(result.properties)
+    ? result.properties
+    : {};
+  const run = isJsonRecord(resultProperties.run) ? resultProperties.run : {};
+  const testRunProperties = isJsonRecord(run.properties) ? run.properties : {};
+  return {
+    ...rendered,
+    description:
+      'What running a saved version’s tests answers: how many passed and ' +
+      'failed, one result for each test run — whether it passed, how long it ' +
+      'took, and for one that did not the typed `failures` (`kind` says what ' +
+      'differed and where) with the engine’s first sentence as `message` — ' +
+      'the tests a suite’s time did not reach (`notRun`) and, when the ' +
+      'whole suite ran to its end, the verdict recorded on the version ' +
+      '(`recorded`). With `detail`, a result’s `run` holds the parts of its ' +
+      'run that were asked for; a run too large for the answer is left out ' +
+      'and marked `detailOmitted`.',
+    properties: {
+      ...properties,
+      results: {
+        ...results,
+        items: {
+          ...result,
+          properties: {
+            ...resultProperties,
+            run: {
+              ...run,
+              properties: {
+                ...testRunProperties,
+                record: {
+                  type: 'object',
+                  additionalProperties: true,
+                  description:
+                    'The run step by step, read as a stored run’s record is: ' +
+                    '`view` (every step in order, its status and decisions) ' +
+                    'and `details` (each step read whole).',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+})();
+
+/** A saved version's latest test check as `GET …/tests` reads it. */
+const automationTestCheckSpec: Json = {
+  ...(sharingTestFailures(wireSchemaSpec(versionTestsReadSchema)) as Json),
+  description:
+    'What a saved version’s tests found the last time they ran: the verdict ' +
+    '(`testsPassed`, null while none was recorded), when (`testsCheckedAt`), ' +
+    'which act made it (`via`: the save, the deploy gate, or someone running ' +
+    'the tests) and who (`by`, and `byName` while that person is a member), ' +
+    'and the `report` of that check — each test, whether it passed and how ' +
+    'long it took, and for one that failed what differed; null when the ' +
+    'verdict has no report of its own. A report past 64 KB keeps each ' +
+    'failure’s `kind` alone (`trimmed`). A check is judged by the same ' +
+    'tests `POST …/tests` runs.',
+};
 
 /** The trigger a `PUT …/triggers` binds: the shared write contract
  * (`triggerWriteSchema`) the app's editor and MCP `set_trigger` send,
@@ -5202,24 +5380,368 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List an automation’s versions',
       description:
-        'The immutable version history, complete — not paginated. ' +
-        '`deployedVersion` names the live one and each row says whether it ' +
-        'is `deployed`.',
+        'The immutable version history, newest first. Each version says who ' +
+        'saved it (`createdBy`, and `createdByName` while that person is ' +
+        'still a member of the organization — never an e-mail address), ' +
+        'through which door and client (`createdVia`, `clientName`), which ' +
+        'version it was based on (`basedOnVersion`) and restored from ' +
+        '(`restoredFromVersion`), what it changed against the version saved ' +
+        'before it (`changes`: counts and flags, never content), how its ' +
+        'tests went (`tests`), whether it is `deployed` and when it last ' +
+        'went live (`lastDeployedAt`). `deployedVersion` names the live one ' +
+        'and `latestVersion` the newest. Without `limit` the answer is the ' +
+        'whole history in one page (`isDone: true`), as it has always been; ' +
+        'with it a page, and `continueCursor` reads the next.',
       operationId: 'listAutomationVersions',
       security: sec,
-      parameters: [automationNameParam],
+      parameters: [
+        automationNameParam,
+        paginationParams(200, 50)[0],
+        {
+          ...queryParam(
+            'limit',
+            'Page size, 1..200 (out-of-range numbers are clamped, a value ' +
+              'that is not a number answers 400 `INVALID_LIMIT`). Omitted: ' +
+              'the whole history in one page',
+          ),
+          schema: { type: 'integer', minimum: 1, maximum: 200 },
+        },
+      ],
       responses: {
-        '200': jsonResponse(
-          'Immutable version history',
-          listOf('versions', ref('AutomationVersion'), {
+        '200': jsonResponse('Immutable version history', {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: [
+            'name',
+            'deployedVersion',
+            'latestVersion',
+            'versions',
+            'isDone',
+            'continueCursor',
+          ],
+          properties: {
             name: str,
             deployedVersion: nullable({
               ...int,
               description: 'null while nothing is deployed',
             }),
-          }),
-        ),
+            latestVersion: nullable({
+              ...int,
+              description: 'The newest saved version',
+            }),
+            versions: { type: 'array', items: ref('AutomationVersion') },
+            isDone: { type: 'boolean' },
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        }),
         '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/deployments'] = {
+    get: {
+      tags: ['Automations'],
+      summary: 'List when an automation’s versions went live',
+      description:
+        'The deployment history, newest first: each time a version was put ' +
+        'live, what it replaced (`previousVersion`), whether it rolled back ' +
+        '(`kind`), who did it (`deployedBy`, and `deployedByName` while that ' +
+        'person is still a member) through which door and client — and, ' +
+        'beside the page, what is `live` now with its runs still going. A ' +
+        'deploy the history did not record when it happened is rebuilt from ' +
+        'what is live (`synthesized`). Keyset-paged: pass `continueCursor` ' +
+        'back as `cursor` until `isDone`.',
+      operationId: 'listAutomationDeployments',
+      security: sec,
+      parameters: [automationNameParam, ...paginationParams(200, 50)],
+      responses: {
+        '200': jsonResponse('Deployment history', {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: ['name', 'live', 'deployments', 'isDone', 'continueCursor'],
+          properties: {
+            name: str,
+            live: nullable(ref('AutomationLiveDeployment')),
+            deployments: { type: 'array', items: ref('AutomationDeployment') },
+            isDone: { type: 'boolean' },
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        }),
+        '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
+        ...standardErrors,
+      },
+    },
+    post: {
+      tags: ['Automations'],
+      summary: 'Put a saved version live',
+      description:
+        'Promotes one saved version to be the version live runs and ' +
+        'triggers use — an older one rolls back (`kind`). The same gate as ' +
+        'the editor’s and an agent’s deploy: the version must still ' +
+        'validate and its own tests must pass. Name the version you read as ' +
+        'live in `expectedDeployedVersion` (`null` for none) and a deploy ' +
+        'that another one overtook is refused with the version that is live, ' +
+        'so a release pipeline never undoes a colleague’s. Requires the ' +
+        'developer capability; charges the execute bucket (the tests run) on ' +
+        'top of the general REST bucket. The answer carries the trigger that ' +
+        'starts the version now, so a pipeline can tell one that is off.',
+      operationId: 'deployAutomationVersion',
+      security: sec,
+      parameters: [automationNameParam],
+      requestBody: jsonBody({
+        type: 'object',
+        additionalProperties: false,
+        required: ['version'],
+        properties: {
+          version: {
+            type: 'integer',
+            minimum: 1,
+            description: 'The saved version to put live',
+          },
+          expectedDeployedVersion: nullable({
+            type: 'integer',
+            minimum: 1,
+            description:
+              'The version you read as live (`null`: none). Another one ' +
+              'live now refuses the deploy. Omitted: no check.',
+          }),
+        },
+      }),
+      responses: {
+        '200': jsonResponse(
+          'The version is live',
+          ref('AutomationDeployResult'),
+        ),
+        '403': errorResponse(
+          'The key holder lacks the developer capability (`ROLE_FORBIDDEN`)',
+        ),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        '409': errorResponse(
+          'Another version went live since `expectedDeployedVersion` was read (`AUTOMATION_DEPLOYMENT_STALE` — `data` names the version that is live); the version’s own tests fail (`AUTOMATION_TESTS_FAILING` — `data.report` lists them); the version no longer validates (`AUTOMATION_INVALID` — `data.errors` lists the problems); or the automation is managed by configuration and refuses a hand deploy (`AUTOMATION_DEPLOY_REJECTED`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/compare'] = {
+    get: {
+      tags: ['Automations'],
+      summary: 'Compare two versions of an automation',
+      description:
+        'What `to` changed against `from`: which nodes were added, removed, ' +
+        'renamed or changed and in which fields, and what changed in the run ' +
+        'input’s schema, the output, the description, the tests and what a ' +
+        'version keeps beside its document. `from` and `to` take a version ' +
+        'number, `latest` or `deployed`, and `from` also `previous` (the ' +
+        'version saved before `to`, the default); `to` defaults to the ' +
+        'latest. The first version compares with nothing (`from: null`). ' +
+        '`format` picks the answer: `changes` (the default), `unified` — a ' +
+        'patch over the two versions’ YAML, cut at 256 KB with `truncated` ' +
+        'saying so — or `both`.',
+      operationId: 'compareAutomationVersions',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        queryParam(
+          'from',
+          'The version to compare from: a number, `latest`, `deployed` or `previous` (the default)',
+        ),
+        queryParam(
+          'to',
+          'The version to compare to: a number, `latest` (the default) or `deployed`',
+        ),
+        {
+          ...queryParam(
+            'format',
+            '`changes` (the default), `unified` or `both`',
+          ),
+          schema: {
+            type: 'string',
+            enum: ['changes', 'unified', 'both'],
+            default: 'changes',
+          },
+        },
+      ],
+      responses: {
+        '200': jsonResponse('The comparison', ref('AutomationDiff')),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), a version it never saved, or `deployed` while nothing is live (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/versions/{version}/restore'] = {
+    post: {
+      tags: ['Automations'],
+      summary: 'Bring an older version back as the newest',
+      description:
+        'Saves the older version’s content — its document and what it keeps ' +
+        'beside it — as the newest version, recorded as based on and ' +
+        'restored from it, after the checks and tests of any save. Answers ' +
+        '201 with the new version; 200 with `unchanged: true` when the ' +
+        'latest version already holds that content and nothing was saved. ' +
+        'Never a deploy: the live version stays live (`POST …/deployments` ' +
+        'puts the new one live). `baseVersion` refuses the restore when a ' +
+        'version was saved since the one you read. Requires the developer ' +
+        'capability.',
+      operationId: 'restoreAutomationVersion',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        pathParam('version', 'The saved version to bring back'),
+      ],
+      requestBody: jsonBody(
+        {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            message: {
+              type: 'string',
+              maxLength: 500,
+              description:
+                'Why — shown in the version history; “Restore v3” when omitted',
+            },
+            baseVersion: {
+              type: 'integer',
+              minimum: 1,
+              description:
+                'The latest version you read. A version saved since refuses the restore.',
+            },
+          },
+        },
+        false,
+      ),
+      responses: {
+        '201': jsonResponse('Saved as the newest version', {
+          ...ref('AutomationRestoreResult'),
+        }),
+        '200': jsonResponse(
+          'Nothing saved: the latest version already holds that content',
+          ref('AutomationRestoreResult'),
+        ),
+        '403': errorResponse(
+          'The key holder lacks the developer capability (`ROLE_FORBIDDEN`)',
+        ),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        '409': errorResponse(
+          'A version was saved since `baseVersion` (`AUTOMATION_VERSION_STALE` — `data.latestVersion` names it); the version no longer validates (`AUTOMATION_INVALID` — `data.errors` lists the problems); or the automation is managed by configuration (`AUTOMATION_DEPLOY_REJECTED`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/automations/{name}/versions/{version}/tests'] = {
+    post: {
+      tags: ['Automations'],
+      summary: 'Run a saved version’s tests',
+      description:
+        'Runs the tests in the version’s document on the deterministic ' +
+        'mocks — nothing leaves Tale and nothing is stored — all of them, ' +
+        'or those named in `tests`, by the name the document gives each (a ' +
+        'name no test bears answers 400 `INVALID_BODY`, naming the tests ' +
+        'there are and the nearest). Each result says whether its test ' +
+        'passed and, for one that did not, what differed and where. ' +
+        '`detail` adds to each result what its run returned (`output`), ' +
+        'would have done (`effects`) and went through (`trace`, the run ' +
+        'step by step); a run larger than 256 KB, or runs larger than 384 ' +
+        'KB together, are left out and marked `detailOmitted`. The whole ' +
+        'suite, run to its end, is recorded on the version as its verdict, ' +
+        'as made by hand with this key (`recorded` says so, and `GET …/tests` ' +
+        'reads it back); a part of the suite records nothing, nor does a ' +
+        'suite the time ran out on (`notRun`). A test stops after 10 ' +
+        'seconds, a suite after 60. A version with no tests answers an ' +
+        'empty report. Any member’s key may run them. Charges the execute ' +
+        'bucket on top of the general REST bucket — before anything is ' +
+        'looked up — and one unit for each test from the organization’s ' +
+        'budget for runs that are never stored, the one the app’s own ' +
+        'tries and test runs draw from.',
+      operationId: 'runAutomationVersionTests',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        pathParam('version', 'The saved version whose tests to run'),
+      ],
+      requestBody: jsonBody(
+        {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            tests: {
+              type: 'array',
+              minItems: 1,
+              maxItems: MAX_TESTS,
+              items: { type: 'string', minLength: 1, maxLength: 1000 },
+              description:
+                'Run only these tests, by name; omitted, all of them. A ' +
+                'name no test bears, or several do, is refused.',
+            },
+            detail: {
+              type: 'array',
+              maxItems: REPORT_DETAILS.length,
+              items: { type: 'string', enum: [...REPORT_DETAILS] },
+              description:
+                'What of each test’s run to answer beside its verdict: ' +
+                '`output`, `effects`, `trace`. Omitted, the verdicts alone.',
+            },
+          },
+        },
+        false,
+      ),
+      responses: {
+        '200': jsonResponse('The report', ref('AutomationTestRun')),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        '409': errorResponse(
+          'The version no longer passes today’s checks (`AUTOMATION_INVALID` — `data.errors` lists the problems)',
+        ),
+        ...standardErrors,
+        '429': errorResponse(
+          'The key holder’s request or execution budget is spent, or the organization’s budget for runs that are never stored is, or the server is already running as many as it can (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds; the envelope carries a `requestId`',
+        ),
+      },
+    },
+    get: {
+      tags: ['Automations'],
+      summary: 'Read a saved version’s latest test check',
+      description:
+        'The verdict the version carries — from its save, the deploy gate or ' +
+        'someone running its tests — when it was judged, by which act and ' +
+        'whom, and the report of that check. A version never checked answers ' +
+        'nulls, not a refusal. `POST …/tests` runs the tests and records a ' +
+        'new check.',
+      operationId: 'getAutomationVersionTests',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        pathParam('version', 'The saved version to read'),
+      ],
+      responses: {
+        '200': jsonResponse(
+          'The version’s latest test check',
+          ref('AutomationTestCheck'),
+        ),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
         ...standardErrors,
       },
     },
@@ -7230,7 +7752,16 @@ export function buildSpec(): Json {
         'instructions; a request carries one message; and every result adds ' +
         '`resultType` and the server under `_meta`, with `ttlMs` and ' +
         '`cacheScope` where a client may cache it. Authenticate with ' +
-        'the same Bearer org API key as the REST API. Call `tools/list` for ' +
+        'the same Bearer org API key as the REST API — or, unless the operator ' +
+        'turned agent sign-in off, with the access token of a connection a ' +
+        'person made from their agent (OAuth, `agentOAuth`), which this ' +
+        'endpoint alone takes: its 401 carries a `WWW-Authenticate` challenge naming the ' +
+        'endpoint’s metadata and the scopes to ask for. A connection acts in ' +
+        'the organization it was made for (`X-Organization-Slug` naming ' +
+        'another answers `ORG_MISMATCH`) and holds the access its person ' +
+        'allowed: a request that calls a tool needing access the connection ' +
+        'lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. ' +
+        'Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
         'and the organization’s capability surface — and the `get_docs` tool ' +
         'for the in-band authoring reference; `resources/list` and ' +
@@ -7240,7 +7771,7 @@ export function buildSpec(): Json {
         'at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP ' +
         'endpoint page in the developer docs for the full tour.',
       operationId: 'mcp',
-      security: sec,
+      security: [{ bearerAuth: [] }, { agentOAuth: ['tale:mcp'] }],
       requestBody: jsonBody({
         oneOf: [
           jsonRpcMessage,
@@ -7278,7 +7809,7 @@ export function buildSpec(): Json {
         ),
         '401': standardErrors['401'],
         '403': errorResponse(
-          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none',
+          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; for a coding agent that signed in, the request names another organization than its connection’s (`ORG_MISMATCH`, `data.organization` the one it is for), or calls tools that need access its connection lacks and its person could allow (`INSUFFICIENT_SCOPE`: `data.tools`, `data.requiredScopes` and `data.grantedScopes`, and a `WWW-Authenticate` challenge whose `scope` is everything to ask for) — nothing in the request runs. A call that its person’s role could never give the access for answers the same code as a tool result instead',
         ),
         '429': standardErrors['429'],
       },
@@ -8029,8 +8560,9 @@ loop from the document rather than from this prose:
   (contacts, products, documents, knowledge entries, threads, messages,
   websites) and under the resource's own key elsewhere: \`{runs, …}\`,
   \`{deliveries, …}\`, \`{conversations, …}\`, \`{comments, …}\`,
-  \`{projects, …}\`, \`{files, …}\`, and a run step's items and passes
-  under \`{units, …}\`.
+  \`{projects, …}\`, \`{files, …}\`, an automation's \`{versions, …}\` and
+  \`{deployments, …}\`, and a run step's items and passes under
+  \`{units, …}\`.
   The last two also answer \`cursor\` — the same token under its pre-1.5.0
   name, present only while more pages remain, deprecated and served for at
   least two more minor versions; a project lookup by \`externalItemId\` is
@@ -8042,8 +8574,8 @@ loop from the document rather than from this prose:
 - **none** — a named array alone is the complete set (or the bounded roster
   the operation names), never a cursor walk — no \`isDone\`, no cursor, no
   \`cursor\` or \`limit\` parameter: \`{automations}\`, \`{agents}\`,
-  \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\`,
-  \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`; the
+  \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\` (a
+  knowledge entry's), \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`; the
   OpenAI-compatible model list answers \`{data, object}\` in OpenAI's shape.
 
 Every cursor is an opaque signed token: one this list never answered is
@@ -8238,7 +8770,20 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'http',
           scheme: 'bearer',
           description:
-            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored.',
+            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection (`agentOAuth`), unless the operator turned agent sign-in off.',
+        },
+        agentOAuth: {
+          type: 'oauth2',
+          description:
+            'A coding agent signs in on a person’s behalf, for the MCP endpoint alone — OAuth 2.1, the authorization code grant with PKCE (S256). The agent finds the sign-in server from the endpoint’s 401, whose `WWW-Authenticate` challenge names `resource_metadata` (RFC 9728, `/.well-known/oauth-protected-resource/api/v1/mcp`), and identifies itself by a client metadata document it publishes or by registering itself. The person signs in to Tale, chooses one organization and the access to give on Tale’s consent page, and the connection then acts in that organization with that access, never above what the person’s role allows. The access token lasts five minutes; the refresh token stays valid for thirty days without use and rotates. Disconnecting the agent, leaving the organization, a new password or a refresh token used twice ends the connection. A deployment whose operator turned agent sign-in off answers none of the discovery documents.',
+          flows: {
+            authorizationCode: {
+              authorizationUrl: '/api/auth/oauth2/authorize',
+              tokenUrl: '/api/auth/oauth2/token',
+              refreshUrl: '/api/auth/oauth2/token',
+              scopes: AGENT_OAUTH_SCOPES,
+            },
+          },
         },
       },
       schemas: {
@@ -10224,6 +10769,15 @@ curl -H "Authorization: Bearer <api-key>" \\
             'createdBy',
             'createdAt',
             'deployed',
+            'createdVia',
+            'viaInferred',
+            'clientName',
+            'createdByName',
+            'basedOnVersion',
+            'restoredFromVersion',
+            'changes',
+            'tests',
+            'lastDeployedAt',
           ],
           properties: {
             version: int,
@@ -10255,13 +10809,451 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'organization (the built-in connector automations). Split on ' +
                 'the first `:`; a value without one is a user id.',
             },
+            createdByName: nullable({
+              ...str,
+              description:
+                'The saving person’s name while they are a member of the ' +
+                'organization; null for a former member, a system writer or a ' +
+                'person with no name. Never an e-mail address.',
+            }),
             createdAt: epochMs,
+            createdVia: nullable({
+              type: 'string',
+              enum: ['app', 'upload', 'mcp', 'rest', 'managed', 'system'],
+              description:
+                'The door the version was saved through: the editor (`app`), ' +
+                'a package upload, a coding agent over MCP, the REST API, ' +
+                'managed configuration, or the platform itself. Null when ' +
+                'the door is not one this contract names.',
+            }),
+            viaInferred: {
+              ...bool,
+              description:
+                '`createdVia` was read from `createdBy`: the version is older ' +
+                'than the record of doors',
+            },
+            clientName: nullable({
+              ...str,
+              description: 'The name the saving agent’s client gave itself',
+            }),
+            basedOnVersion: nullable({
+              ...int,
+              description: 'The version the edit started from, when recorded',
+            }),
+            restoredFromVersion: nullable({
+              ...int,
+              description: 'The older version this one brings back, if any',
+            }),
+            changes: nullable(ref('AutomationChangeSummary')),
+            tests: nullable({
+              type: 'object',
+              required: ['passed', 'failed', 'total'],
+              properties: {
+                passed: int,
+                failed: int,
+                total: int,
+                via: {
+                  type: 'string',
+                  enum: ['save', 'deploy', 'manual'],
+                  description:
+                    'Which act ran them: the save, the deploy gate, or someone running the tests',
+                },
+                by: {
+                  ...str,
+                  description: 'Who ran them, as `createdBy` names a person',
+                },
+              },
+              description:
+                'The latest check of the version’s tests, in counts — null ' +
+                'while none was recorded with a report',
+            }),
             deployed: {
               ...bool,
               description: 'Whether this is the version live runs execute',
             },
+            lastDeployedAt: nullable({
+              ...epochMs,
+              description: 'When the version last went live; null if never',
+            }),
           },
         },
+        AutomationChangeSummary: {
+          type: 'object',
+          required: ['nodes'],
+          description:
+            'What a version changed against the one saved before it — counts ' +
+            'and flags, never content. A flag is present only when set.',
+          properties: {
+            first: {
+              type: 'boolean',
+              enum: [true],
+              description: 'The automation’s first version: nothing to change',
+            },
+            identical: {
+              type: 'boolean',
+              enum: [true],
+              description: 'The document is the one before it',
+            },
+            nodes: {
+              type: 'object',
+              required: ['added', 'removed', 'changed'],
+              properties: {
+                added: int,
+                removed: int,
+                changed: int,
+                renamed: int,
+              },
+            },
+            inputs: { type: 'boolean', enum: [true] },
+            output: { type: 'boolean', enum: [true] },
+            description: { type: 'boolean', enum: [true] },
+            tests: { type: 'boolean', enum: [true] },
+            other: { type: 'boolean', enum: [true] },
+            package: {
+              type: 'boolean',
+              enum: [true],
+              description:
+                'The version’s settings, task contract or presentation changed',
+            },
+          },
+        },
+        AutomationDiffChange: {
+          type: 'object',
+          required: ['pointer', 'path', 'kind'],
+          description: 'One difference between two values, where and what',
+          properties: {
+            pointer: { ...str, description: 'A JSON Pointer to the place' },
+            path: {
+              type: 'array',
+              items: { oneOf: [str, int] },
+            },
+            kind: {
+              type: 'string',
+              enum: [
+                'added',
+                'removed',
+                'changed',
+                'type-changed',
+                'reordered',
+                'unknown',
+              ],
+            },
+            before: {},
+            after: {},
+            beforeKind: { type: 'string' },
+            afterKind: { type: 'string' },
+          },
+        },
+        AutomationFieldChange: {
+          type: 'object',
+          required: ['field', 'kind', 'display'],
+          description:
+            'One field that differs: its name (a node’s field, a document key ' +
+            'or a package field), how its two values are best shown, and — ' +
+            'for data — the differences inside it',
+          properties: {
+            field: str,
+            kind: { type: 'string', enum: ['added', 'removed', 'changed'] },
+            display: {
+              type: 'string',
+              enum: [
+                'code',
+                'template',
+                'condition',
+                'json',
+                'text',
+                'scalar',
+                'list',
+              ],
+            },
+            before: {},
+            after: {},
+            values: { type: 'array', items: ref('AutomationDiffChange') },
+            truncated: { type: 'boolean', enum: [true] },
+            referencesOnly: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['from', 'to'],
+                properties: { from: str, to: str },
+              },
+              description:
+                'The field differs only because it reads a renamed node by its new id',
+            },
+          },
+        },
+        AutomationDiff: {
+          type: 'object',
+          required: ['name', 'from', 'to', 'first', 'identical'],
+          description:
+            'What version `to` changed against version `from` (`from` is ' +
+            'null when `to` is the first version, compared with nothing). ' +
+            'The first five fields are always answered; with `format=unified` ' +
+            'only `unified` (and `truncated`, when the patch was cut) ' +
+            'follows them, otherwise the changes below do — and `unified` ' +
+            'with them for `both`.',
+          properties: {
+            name: str,
+            from: nullable(int),
+            to: int,
+            first: bool,
+            identical: bool,
+            counts: {
+              type: 'object',
+              required: ['added', 'removed', 'changed', 'renamed'],
+              properties: {
+                added: int,
+                removed: int,
+                changed: int,
+                renamed: int,
+              },
+            },
+            nodes: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id', 'kind', 'type', 'fields'],
+                properties: {
+                  id: str,
+                  kind: {
+                    type: 'string',
+                    enum: ['added', 'removed', 'changed', 'renamed'],
+                  },
+                  type: str,
+                  typeBefore: str,
+                  renamedFrom: str,
+                  fields: {
+                    type: 'array',
+                    items: ref('AutomationFieldChange'),
+                  },
+                  referencesOnly: { type: 'boolean', enum: [true] },
+                  beforeIndex: int,
+                  afterIndex: int,
+                },
+              },
+            },
+            inputs: {
+              type: 'array',
+              description: 'Changes to the run input’s schema, by property',
+              items: {
+                type: 'object',
+                required: ['property', 'kind', 'values'],
+                properties: {
+                  property: nullable(str),
+                  kind: {
+                    type: 'string',
+                    enum: ['added', 'removed', 'changed'],
+                  },
+                  required: {
+                    type: 'object',
+                    properties: { before: bool, after: bool },
+                  },
+                  typeBefore: str,
+                  typeAfter: str,
+                  before: {},
+                  after: {},
+                  values: { type: 'array', items: ref('AutomationDiffChange') },
+                  truncated: { type: 'boolean', enum: [true] },
+                },
+              },
+            },
+            output: nullable(ref('AutomationFieldChange')),
+            description: nullable(ref('AutomationFieldChange')),
+            tests: {
+              type: 'array',
+              description: 'Changes to the tests, by name',
+              items: {
+                type: 'object',
+                required: ['name', 'kind', 'fields'],
+                properties: {
+                  name: str,
+                  kind: {
+                    type: 'string',
+                    enum: ['added', 'removed', 'changed'],
+                  },
+                  fields: {
+                    type: 'array',
+                    items: ref('AutomationFieldChange'),
+                  },
+                  beforeIndex: int,
+                  afterIndex: int,
+                },
+              },
+            },
+            other: {
+              type: 'array',
+              items: ref('AutomationFieldChange'),
+              description: 'Other top-level keys of the document',
+            },
+            package: {
+              type: 'array',
+              items: ref('AutomationFieldChange'),
+              description:
+                'What a version keeps beside its document: settings, task contract, presentation',
+            },
+            ignored: {
+              type: 'array',
+              items: { type: 'string', enum: ['ui'] },
+              description:
+                'What differs but is not compared: the canvas layout',
+            },
+            unified: {
+              ...str,
+              description:
+                'With `format` `unified` or `both`: the patch between the two ' +
+                'versions’ YAML, as `git diff` writes it',
+            },
+            truncated: {
+              ...bool,
+              description: 'The patch was cut at 256 KB: it no longer applies',
+            },
+          },
+        },
+        AutomationLiveDeployment: {
+          type: 'object',
+          required: [
+            'version',
+            'deployedAt',
+            'deployedBy',
+            'deployedByName',
+            'via',
+            'clientName',
+            'activeRuns',
+          ],
+          properties: {
+            version: int,
+            deployedAt: epochMs,
+            deployedBy: str,
+            deployedByName: nullable(str),
+            via: nullable({
+              type: 'string',
+              enum: ['app', 'upload', 'mcp', 'rest', 'managed', 'system'],
+            }),
+            clientName: nullable(str),
+            activeRuns: {
+              ...int,
+              description: 'Runs of the live version still going',
+            },
+          },
+        },
+        AutomationDeployment: {
+          type: 'object',
+          required: [
+            'id',
+            'version',
+            'previousVersion',
+            'kind',
+            'synthesized',
+            'deployedAt',
+            'deployedBy',
+            'deployedByName',
+            'via',
+            'clientName',
+          ],
+          description: 'One time a version was put live',
+          properties: {
+            id: str,
+            version: int,
+            previousVersion: nullable({
+              ...int,
+              description: 'What was live before it; null for the first deploy',
+            }),
+            kind: {
+              type: 'string',
+              enum: ['deploy', 'rollback', 'recorded'],
+              description:
+                '`rollback` put an older version live; `recorded` is a deploy recorded from what was live',
+            },
+            synthesized: {
+              ...bool,
+              description:
+                'Rebuilt from what is live rather than recorded when it happened',
+            },
+            deployedAt: epochMs,
+            deployedBy: str,
+            deployedByName: nullable(str),
+            via: nullable({
+              type: 'string',
+              enum: ['app', 'upload', 'mcp', 'rest', 'managed', 'system'],
+            }),
+            clientName: nullable(str),
+          },
+        },
+        AutomationWarning: {
+          type: 'object',
+          required: ['code', 'message'],
+          properties: { code: str, message: str },
+        },
+        AutomationDeployResult: {
+          type: 'object',
+          required: [
+            'name',
+            'version',
+            'previousVersion',
+            'kind',
+            'deploymentId',
+            'trigger',
+          ],
+          properties: {
+            name: str,
+            version: int,
+            previousVersion: nullable({
+              ...int,
+              description:
+                'The version that was live before; deploy it again to undo this one. Null when none was.',
+            }),
+            kind: {
+              type: 'string',
+              enum: ['deploy', 'rollback', 'unchanged'],
+              description:
+                '`deploy` put a newer version (or the first) live, `rollback` an older one, `unchanged` found it live already',
+            },
+            deploymentId: nullable({
+              ...str,
+              description:
+                'The deployment history’s new event; null when nothing changed',
+            }),
+            trigger: nullable({
+              type: 'object',
+              required: ['kind', 'enabled', 'nextRunAt', 'warnings'],
+              description:
+                'The automation’s trigger as the version now live meets it — ' +
+                'a trigger that is off does not start the new version',
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['schedule', 'webhook', 'event'],
+                },
+                enabled: bool,
+                nextRunAt: nullable(epochMs),
+                warnings: { type: 'array', items: ref('AutomationWarning') },
+              },
+            }),
+          },
+        },
+        AutomationRestoreResult: {
+          type: 'object',
+          required: ['name', 'version', 'restoredFrom', 'warnings'],
+          properties: {
+            name: str,
+            version: {
+              ...int,
+              description:
+                'The new version — or, with `unchanged`, the latest, which already holds that content',
+            },
+            restoredFrom: int,
+            unchanged: { type: 'boolean', enum: [true] },
+            testsPassed: {
+              ...bool,
+              description:
+                'How the restored version’s own tests went; absent when it has none',
+            },
+            warnings: { type: 'array', items: ref('AutomationWarning') },
+          },
+        },
+        AutomationTestRun: automationTestRunSpec,
+        AutomationTestCheck: automationTestCheckSpec,
+        AutomationTestFailure: automationTestFailureSpec,
         Trigger: triggerViewSpec,
         TriggerWarning: triggerWarningSpec,
         TriggerSkipDetail: triggerSkipDetailSpec,
@@ -12017,6 +13009,26 @@ curl -H "Authorization: Bearer <api-key>" \\
             text: { ...str, description: 'Extracted text, when any' },
           },
         },
+        ArtifactPart: {
+          type: 'object',
+          required: ['type', 'fileId', 'name', 'mediaType', 'sizeBytes'],
+          description:
+            'A file the assistant produced during the reply — a document, a spreadsheet, a chart, an image — stored in the organization and bound to the chat, so it reads for exactly the people who can read the chat. It follows the tool result that produced it.',
+          properties: {
+            type: { type: 'string', enum: ['artifact'] },
+            fileId: {
+              ...str,
+              description: 'The stored file’s reference',
+            },
+            name: str,
+            mediaType: str,
+            sizeBytes: int,
+            callId: {
+              ...str,
+              description: 'The tool call that produced the file',
+            },
+          },
+        },
         ToolCallPart: {
           type: 'object',
           required: ['type', 'callId', 'capabilityId', 'input'],
@@ -12061,6 +13073,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               text: '#/components/schemas/TextPart',
               reasoning: '#/components/schemas/ReasoningPart',
               attachment: '#/components/schemas/AttachmentPart',
+              artifact: '#/components/schemas/ArtifactPart',
               'tool-call': '#/components/schemas/ToolCallPart',
               'tool-result': '#/components/schemas/ToolResultPart',
               approval: '#/components/schemas/ApprovalPart',
@@ -12070,6 +13083,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             ref('TextPart'),
             ref('ReasoningPart'),
             ref('AttachmentPart'),
+            ref('ArtifactPart'),
             ref('ToolCallPart'),
             ref('ToolResultPart'),
             ref('ApprovalPart'),

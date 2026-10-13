@@ -76,6 +76,15 @@ A record or document is useful only to people who can access it. Check its team 
 
 Update the authoritative record when a detail changes. For a revised document, wait until indexing finishes before testing a question against its new text. Website content follows its configured scan interval, so it may lag behind the live page.
 
+## If a list doesn't load
+
+When the Contacts, Products, or Websites list cannot be read, Tale says so in the list. It never shows the failure as an empty list. **Try again** repeats the read without reloading the page:
+
+- If nothing can be loaded, the table shows the error and **Try again** instead of the empty state. The error does not mean the records are gone: retry before you import or add them again.
+- If records are already on screen, they stay, and a notice above the table says the list may be incomplete or out of date.
+
+If **Try again** keeps failing, ask an administrator to check that Tale's services are running.
+
 ## Work with the available record types
 
 The Knowledge area provides Contacts, Products, and Websites. **Settings > Governance > Models** controls AI model access and defaults; it does not create custom record types or database fields.

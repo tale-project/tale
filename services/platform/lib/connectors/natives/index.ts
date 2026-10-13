@@ -77,6 +77,7 @@ export {
   type WorkflowTaskCreateAnswer,
   type WorkflowTaskCreated,
   type WorkflowTaskStore,
+  type WorkflowTaskAgentRun,
   type WorkflowTaskView,
 } from './platform-tasks';
 export {

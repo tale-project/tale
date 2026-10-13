@@ -20,6 +20,7 @@ function app() {
   const sql = (() => Promise.resolve([])) as unknown as Sql;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   const auth = {
+    resolveSessionAuthority: async (bundle: unknown) => bundle,
     api: {
       getSession: () =>
         Promise.resolve({

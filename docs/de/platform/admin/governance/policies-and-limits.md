@@ -71,6 +71,8 @@ Wähle im Bereich der Aufbewahrungsrichtlinie **Bearbeiten** und richte die ben�
 
 Prüfe vor einer Änderung die Mindest- und Höchstgrenzen des Deployments. Änderungen mit Prüfung oder Wartezeit erscheinen als Vorschläge oder vorgemerkte Änderungen. Lies ihren Wirksamkeitszeitpunkt, statt von einer sofortigen Anwendung auszugehen.
 
+**Automatisierungsversionen** ist ausgeschaltet, bis du die Kategorie aktivierst. Ist sie an, werden gespeicherte Versionen gelöscht, die älter als der Zeitraum sind. Ausgenommen sind die Live-Version, die Versionen der letzten zehn Live-Schaltungen, jede Version, die ein Lauf verwendet hat, die neuesten zwanzig Versionen, die Versionen, aus denen diese wiederhergestellt wurden oder auf denen sie basieren, und Versionen, die eine Person unter Aufbewahrungssperre gespeichert hat. Eine Versionsnummer wird nie erneut vergeben, und ein Link auf eine entfernte Version sagt, dass es sie nicht mehr gibt.
+
 Die Schonfrist für Löschungen ist das Wiederherstellungsfenster unterstützter vorläufig gelöschter Datensätze. Ein positiver Wert lässt Zeit für die Wiederherstellung im [Papierkorb](/de/platform/admin/governance/trash); null erlaubt die sofortige endgültige Bereinigung. Nicht jede Kategorie lässt sich wiederherstellen. Ein [Legal Hold](/de/platform/admin/governance/legal-hold) schützt betroffene Daten vor Bereinigung.
 
 Für selbst gehostete Deployments beschreibt die [Aufbewahrungskonfiguration](/de/self-hosted/configuration/retention) Betreiberkontrollen und Unterschiede zwischen Kategorien. Leite aus einer deaktivierten Richtlinie oder einem angezeigten Zeitraum allein keine Archivgarantie ab.
@@ -80,6 +82,22 @@ Für selbst gehostete Deployments beschreibt die [Aufbewahrungskonfiguration](/d
 Funktionskontrollen umfassen bereichsspezifische Kontextlimits und den organisationsweiten Schalter für Sprachausgabe. Ein Kontextlimit bestimmt, wie viel Kontext eine KI-Antwort erreicht. Es ist etwas anderes als ein Ausgabenbudget. Ein Limit unter 200.000 Token gilt auch für Agentenläufe mit Claude Code, und zwar das Limit der Person, die den Lauf gestartet hat: Der Agent fasst seine Konversation zusammen, bevor sie über das Limit hinauswächst. Ein Limit unter 100.000 Token behandelt Claude Code wie 100.000. Ist die Sprachausgabe ausgeschaltet, können Mitglieder sie weder über eigene Standardwerte noch einzelne Konversationen aktivieren.
 
 Der Standardschalter für benutzerdefinierte Anweisungen legt die Organisationsvorgabe für die persönlichen Anweisungen der Mitglieder fest: Solange er aktiv ist, gelten die benutzerdefinierten Anweisungen jedes Mitglieds für seine Chatantworten, es sei denn, das Mitglied hat die Funktion unter **Einstellungen > Personalisierung** selbst ausgeschaltet. Verbindliche Organisationsanweisungen stehen separat unter [Guardrails](/de/platform/admin/governance/guardrails).
+
+## Festlegen, was der Chat erstellen darf {#chat-tools}
+
+**Chat-Tools** legt fest, was der Chat-Assistent neben seinen Antworten erstellen darf. Jeder Schalter entfernt sein Tool aus allen Chats deiner Organisation; der Assistent bekommt also nie etwas angeboten, das er nicht nutzen darf:
+
+- **Dateien** — Textdateien, die der Assistent selbst schreibt, etwa Markdown, CSV, HTML oder Kalendereinträge. Dafür startet nichts.
+- **Skills** — Anleitungen aus der [Skill-Bibliothek](/de/platform/workspace/skills) der jeweiligen Person, die der Assistent liest, wenn eine zur Anfrage passt.
+- **Code** — Code in einer leichten Sandbox, für Word-, Excel-, PowerPoint- und PDF-Dateien, Diagramme und Berechnungen. Jedes Gespräch nutzt jeweils eine leichte Sandbox, und das [Limit für leichte Sandboxes](/de/platform/admin/sandboxes#light-sandboxes) deiner Organisation begrenzt, wie viele gleichzeitig laufen.
+
+<Frame caption="Richtlinien > Richtlinien & Limits — die Chat-Tools, wie eine neue Organisation sie hat: Dateien, Skills und Code eingeschaltet.">
+
+![Der Abschnitt Chat-Tools mit drei eingeschalteten Zeilen: Dateien für Textdateien, die der Assistent selbst schreibt; Skills für Anleitungen aus der Skill-Bibliothek der jeweiligen Person; und Code für Code in einer leichten Sandbox.](/images/platform/governance-chat-tools.webp)
+
+</Frame>
+
+Alle drei sind eingeschaltet, bis du einen ausschaltest, und eine fehlende Richtliniendatei lässt sie eingeschaltet. Eine Richtliniendatei, die existiert, aber nicht gelesen werden kann, schaltet alle drei aus, bis sie repariert ist; so schaltet eine defekte Datei nichts wieder ein, was du ausgeschaltet hast, und diese Seite zeigt dann, dass die Richtlinie nicht gelesen werden konnte. Ändere die Schalter und speichere dann die offenen Änderungen der Seite in der Kopfzeile; die nächste Antwort in jedem Chat folgt ihnen. Bilder gehören nicht zu diesem Abschnitt: Der Chat erstellt sie nur, solange die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet ist. Was Mitglieder sehen, zeigt [Im Chat Dateien erstellen und Skills nutzen](/de/platform/chat/files-and-skills).
 
 ## Einen Vertraulichkeitshinweis im Chat anzeigen
 

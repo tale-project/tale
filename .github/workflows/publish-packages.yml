@@ -4,14 +4,23 @@
 # Bun cannot install a package from a subdirectory of a git repository, so
 # every push to main republishes `packages/ui` and `packages/marketing-ui` as
 # orphan snapshots on the `dist/ui` / `dist/marketing-ui` branches, and every
-# release pins the same snapshot with a `ui-v<version>` / `marketing-ui-v<version>`
-# tag, once the version's authored release notes validate. A consumer then
-# depends on
+# release pins the snapshot of its own commit with a `ui-v<version>` /
+# `marketing-ui-v<version>` tag, once the version's authored release notes
+# validate at that commit. A consumer then depends on
 #
 #   "@tale/ui": "github:tale-project/tale#dist/ui"          (moving)
 #   "@tale/ui": "github:tale-project/tale#ui-v0.5.25"       (pinned)
 #
-# See scripts/publish-package.ts and packages/ui/README.md.
+# Release dispatches the tag run after it creates the GitHub release: the tag
+# it writes with GITHUB_TOKEN starts no push workflow, while a dispatch does
+# (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
+# A retry or backfill is the same dispatch, on main:
+#
+#   gh workflow run publish-packages.yml --ref main \
+#     -f release_tag=v0.5.25 -f source_sha=<the commit v0.5.25 names>
+#
+# A tag run never moves the dist branches, and a published tag never moves.
+# See scripts/publish-package.ts, packages/ui/README.md and .github/RELEASING.md.
 # =============================================================================
 
 name: Publish packages
@@ -26,18 +35,23 @@ on:
       - 'packages/marketing-ui/**'
       - 'scripts/publish-package.ts'
       - '.github/workflows/publish-packages.yml'
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      tag_version:
-        description: 'Also tag the snapshots with a version whose authored notes exist at this ref (e.g. 1.0.0); empty = branches only'
+      release_tag:
+        description: 'Pin the release tag (e.g. v1.0.0) with <package>-v<version>, built from source_sha; empty = move the dist branches to main'
+        required: false
+        default: ''
+        type: string
+      source_sha:
+        description: 'The full commit SHA release_tag names; required with release_tag'
         required: false
         default: ''
         type: string
 
+# Each version has its own group, so a later push to main never replaces a
+# release publication still waiting behind a running one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.release_tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -53,78 +67,109 @@ jobs:
         package: [ui, marketing-ui]
 
     steps:
+      # Main owns the executable tooling. The selected release checkout is
+      # read as data, without persisted credentials or executing its scripts.
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.4.2'
 
-      # A release tag (`v0.5.25`) or an explicit dispatch input pins the
-      # snapshot with `<package>-v<version>`; a plain push to main only moves
-      # the `dist/<package>` branch.
+      # A plain push to main only moves the `dist/<package>` branch. A release
+      # tag and the commit it names pin the snapshot with `<package>-v<version>`
+      # instead. Only main's publisher runs: the copy on an older ref, a tag's
+      # included, can move the dist branches back.
       - name: Resolve snapshot tag
         id: tag
         env:
-          REF_TYPE: ${{ github.ref_type }}
-          REF_NAME: ${{ github.ref_name }}
-          INPUT_VERSION: ${{ inputs.tag_version }}
+          REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
           PACKAGE: ${{ matrix.package }}
         run: |
           set -euo pipefail
-          VERSION=""
-          if [ "$REF_TYPE" = "tag" ]; then
-            VERSION="${REF_NAME#v}"
-          elif [ -n "$INPUT_VERSION" ]; then
-            VERSION="${INPUT_VERSION#v}"
+          if [ "$REF" != refs/heads/main ]; then
+            echo "::error::Publish packages runs on main only"; exit 1
           fi
-          if [ -n "$VERSION" ]; then
-            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
-              echo "::error::Version must be semver, got '$VERSION'"; exit 1
-            fi
-            echo "value=${PACKAGE}-v${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=" >> "$GITHUB_OUTPUT"
-            echo "version=" >> "$GITHUB_OUTPUT"
+          if [ -z "${RELEASE_TAG}${SOURCE_SHA}" ]; then
+            {
+              echo "value="
+              echo "version="
+              echo "source="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo "::error::release_tag must be a release tag such as v1.2.3"; exit 1
+          fi
+          if [[ ! "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::source_sha must be the full commit SHA ${RELEASE_TAG} names"; exit 1
+          fi
+          {
+            echo "value=${PACKAGE}-${RELEASE_TAG}"
+            echo "version=${RELEASE_TAG}"
+            echo "source=${SOURCE_SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+      # The snapshot, its license and the notes all come from the released
+      # commit; the tooling that checks and publishes them stays main's.
+      - name: Checkout release source
+        if: steps.tag.outputs.version != ''
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ steps.tag.outputs.source }}
+          path: release-source
+          persist-credentials: false
 
       # Release's Prepare refuses a version without valid authored notes, and
       # that version is never released (.github/RELEASING.md). Refuse it here
-      # as well, before anything is pushed, so no package tag names it.
+      # as well, at the released commit and before anything is pushed, so no
+      # package tag names it and notes added later cannot stand in for it.
       - name: Validate authored release notes before pinning
         if: steps.tag.outputs.version != ''
         shell: bash
         working-directory: .
         env:
           TAG: ${{ steps.tag.outputs.version }}
-        run: bun tools/cli/scripts/release-notes.ts --version "$TAG"
+          SOURCE_ROOT: ${{ github.workspace }}/release-source
+        run: bun tools/cli/scripts/release-notes.ts --version "$TAG" --source-root "$SOURCE_ROOT"
 
       - name: Publish snapshot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGE: ${{ matrix.package }}
-          TAG: ${{ steps.tag.outputs.value }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          SOURCE_SHA: ${{ steps.tag.outputs.source }}
         run: |
           set -euo pipefail
           REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if [ -n "$TAG" ]; then
-            bun scripts/publish-package.ts "packages/${PACKAGE}" --remote "$REMOTE" --tag "$TAG"
+          PUBLISHER="${GITHUB_WORKSPACE}/scripts/publish-package.ts"
+          if [ -n "$VERSION" ]; then
+            # The publisher refuses unless the remote's release tag names
+            # SOURCE_SHA, pushes only the package tag and keeps an existing one.
+            # Keep Bun in main's checkout: a historical bunfig.toml can
+            # preload code before an absolute publisher script starts.
+            bun "$PUBLISHER" "packages/${PACKAGE}" --remote "$REMOTE" --release "$VERSION" --source "$SOURCE_SHA" --checkout "${GITHUB_WORKSPACE}/release-source"
           else
-            bun scripts/publish-package.ts "packages/${PACKAGE}" --remote "$REMOTE"
+            bun "$PUBLISHER" "packages/${PACKAGE}" --remote "$REMOTE"
           fi
 
       - name: Summary
         env:
           PACKAGE: ${{ matrix.package }}
           TAG: ${{ steps.tag.outputs.value }}
+          SOURCE_SHA: ${{ steps.tag.outputs.source }}
         run: |
           {
             echo "## Published @tale/${PACKAGE}"
             echo ""
-            echo "- branch: \`dist/${PACKAGE}\` → \`\"@tale/${PACKAGE}\": \"github:${GITHUB_REPOSITORY}#dist/${PACKAGE}\"\`"
             if [ -n "$TAG" ]; then
-              echo "- tag: \`${TAG}\` → \`\"@tale/${PACKAGE}\": \"github:${GITHUB_REPOSITORY}#${TAG}\"\`"
+              echo "- tag: \`${TAG}\` from \`${SOURCE_SHA}\` → \`\"@tale/${PACKAGE}\": \"github:${GITHUB_REPOSITORY}#${TAG}\"\`"
+            else
+              echo "- branch: \`dist/${PACKAGE}\` → \`\"@tale/${PACKAGE}\": \"github:${GITHUB_REPOSITORY}#dist/${PACKAGE}\"\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

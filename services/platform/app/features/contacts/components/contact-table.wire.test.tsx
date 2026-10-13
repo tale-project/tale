@@ -14,7 +14,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { searchResultTarget } from '@/app/components/layout/app-sidebar/sidebar-search-command';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
+import { Route } from '@/app/routes/dashboard/$id/_knowledge/contacts';
 import { i18n } from '@/lib/i18n/i18n';
 import { CONTACT_SOURCES } from '@/lib/shared/contact-sources';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
@@ -26,18 +28,8 @@ import {
 import { getContactSourceLabel } from '../lib/contact-data';
 import { ContactsTable } from './contact-table';
 
-const { navigate } = vi.hoisted(() => ({
-  navigate:
-    vi.fn<
-      (args: {
-        to: string;
-        params: { id: string };
-        search: (
-          prev: Record<string, string>,
-        ) => Record<string, string | undefined>;
-      }) => void
-    >(),
-}));
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+const mockNavigate = navigate;
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   useNavigate: () => navigate,
@@ -171,6 +163,109 @@ function listedNames(): string[] {
 
 const listReads = () =>
   backend.calls.filter((call) => call.startsWith('GET /api/app/contacts?'));
+
+describe('the contact palette destination', () => {
+  it('preserves a palette query and finds its contact outside the unfiltered first page', async () => {
+    const target = searchResultTarget(
+      { id: 'contact-audit-fr', title: 'Audit fr', data: { kind: 'contact' } },
+      ORG,
+      { taskView: 'board', allProjects: false },
+    );
+    expect(target.to).toBe('/dashboard/$id/contacts');
+    if (!target.search || !('query' in target.search)) {
+      throw new Error('Contact palette target must carry a query');
+    }
+    const routeSearch = vi
+      .spyOn(Route, 'useSearch')
+      .mockReturnValue(target.search);
+    vi.spyOn(Route, 'useParams').mockReturnValue({ id: ORG });
+    backend.on(/^GET \/api\/app\/contacts\?/, (url) => {
+      const search = url.searchParams.get('search')?.toLowerCase();
+      if (search) {
+        const items = [directory[0], directory[1], directory[3]].filter((row) =>
+          row.name.toLowerCase().includes(search),
+        );
+        return Response.json({ items, nextCursor: null });
+      }
+      return Response.json(
+        url.searchParams.has('cursorId')
+          ? { items: [directory[1]], nextCursor: null }
+          : {
+              items: [directory[0], directory[3]],
+              nextCursor: { updatedAt: 1770000000000, id: 'contact-upload-en' },
+            },
+      );
+    });
+    const ContactsPage = Route.options.component!;
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const page = () => (
+      <QueryClientProvider client={client}>
+        <ContactsPage />
+      </QueryClientProvider>
+    );
+    const { user, rerender } = render(page());
+
+    await waitFor(() => expect(listedNames()).toEqual(['Audit fr']), {
+      timeout: 10_000,
+    });
+    expect(screen.getByPlaceholderText('Search contacts')).toHaveValue(
+      'Audit fr',
+    );
+    expect(listReads()).toEqual([
+      `GET /api/app/contacts?limit=20&search=Audit%20fr&orgId=${ORG}`,
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Search contacts')).toBeEnabled(),
+    );
+    await user.click(screen.getByPlaceholderText('Search contacts'));
+    await user.clear(screen.getByPlaceholderText('Search contacts'));
+    await waitFor(() =>
+      expect(listedNames()).toEqual(['Audit en', 'Upload en']),
+    );
+    const clearedNavigation = mockNavigate.mock.calls.at(-1)?.[0];
+    if (typeof clearedNavigation?.search !== 'function') {
+      throw new Error('Clearing search must update its URL query');
+    }
+    expect(
+      clearedNavigation.search({ query: 'Audit fr', locale: 'fr' }),
+    ).toEqual({
+      query: undefined,
+      locale: 'fr',
+    });
+    expect(mockNavigate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ replace: true }),
+    );
+    routeSearch.mockReturnValue({});
+    rerender(page());
+    routeSearch.mockReturnValue(target.search);
+    rerender(page());
+    await waitFor(() => expect(listedNames()).toEqual(['Audit fr']));
+    expect(screen.getByPlaceholderText('Search contacts')).toHaveValue(
+      'Audit fr',
+    );
+    await user.click(screen.getByPlaceholderText('Search contacts'));
+    await user.clear(screen.getByPlaceholderText('Search contacts'));
+    await user.type(screen.getByPlaceholderText('Search contacts'), 'upload');
+    await waitFor(() => expect(listedNames()).toEqual(['Upload en']));
+
+    routeSearch.mockReturnValue({ query: 'Audit en' });
+    rerender(page());
+    await waitFor(() => expect(listedNames()).toEqual(['Audit en']));
+    expect(screen.getByPlaceholderText('Search contacts')).toHaveValue(
+      'Audit en',
+    );
+
+    routeSearch.mockReturnValue({});
+    rerender(page());
+    await waitFor(() =>
+      expect(listedNames()).toEqual(['Audit en', 'Upload en']),
+    );
+    expect(screen.getByPlaceholderText('Search contacts')).toHaveValue('');
+  }, 30_000);
+});
 
 describe('the Contacts facets over the real list read', () => {
   it('offers the complete supported Source catalog with the existing labels', async () => {

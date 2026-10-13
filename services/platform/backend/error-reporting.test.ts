@@ -662,6 +662,64 @@ describe('error reporting with a DSN', () => {
     expect(event?.level).toBe('warning');
   });
 
+  it('answers a write that kept losing to concurrent writers with a retryable 503, naming the write, and still reports it as a warning', async () => {
+    // Eight reruns of a serializable transaction (`transactSerializable`)
+    // all lost: the caller is not at fault and nothing was applied. It used
+    // to be a plain 500 with the error's whole stack on the console.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.use(requestId());
+      app.post('/api/app/tasks', () => {
+        throw Object.assign(
+          new Error('boom-write-conflict: could not serialize access'),
+          {
+            code: '40001',
+            stack: [
+              'PostgresError: boom-write-conflict: could not serialize access',
+              '    at new Query (/repo/node_modules/postgres/src/query.js:36:24)',
+              '    at <anonymous> (/repo/services/platform/backend/domains/tasks/service.ts:412:17)',
+            ].join('\n'),
+          },
+        );
+      });
+
+      const res = await app.request('http://localhost/api/app/tasks', {
+        method: 'POST',
+        headers: { 'x-request-id': 'req-conflict' },
+      });
+
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('1');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(await res.json()).toEqual({
+        error:
+          'Other changes were being written at the same moment and this one could not be applied; retry',
+        code: 'HTTP_ERROR',
+        requestId: 'req-conflict',
+      });
+      // One line naming the write, not a stack.
+      expect(warn).toHaveBeenCalledWith(
+        '[backend] write conflict — 503 for POST /api/app/tasks (domains/tasks/service.ts:412): 40001 boom-write-conflict: could not serialize access',
+      );
+      expect(error).not.toHaveBeenCalled();
+
+      await flushErrorReporting();
+      const event = capturedEvents().find((e) =>
+        JSON.stringify(e).includes('boom-write-conflict'),
+      );
+      expect(event?.level).toBe('warning');
+      expect(event?.tags).toMatchObject({ 'tale.reason': 'write_conflict' });
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
   it('sends no credential of a real HTTP request: no cookie, no key, no body', async () => {
     // Through a real Node server, as main.ts serves the app: that is where
     // the SDK's server integration attaches the incoming request to the

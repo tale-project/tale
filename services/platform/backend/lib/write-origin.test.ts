@@ -61,6 +61,21 @@ describe('the doors a definition write comes through', () => {
     });
   });
 
+  it('name a write made through a coding agent’s connection as the person through the MCP door, with the connection and no key [MCP-R42]', () => {
+    expect(
+      mcpOrigin({
+        userId: 'user_ada',
+        agentConnectionId: 'conn_1',
+        clientName: 'Cursor',
+      }),
+    ).toEqual({
+      actor: 'api-key:user_ada',
+      via: 'mcp',
+      agentConnectionId: 'conn_1',
+      clientName: 'Cursor',
+    });
+  });
+
   it('name the default packs as the platform', () => {
     expect(PROVISIONING_ORIGIN).toEqual({
       actor: 'system:provisioning',
@@ -106,6 +121,31 @@ describe('the request channel a keyed door opens', () => {
       tool: 'save_automation',
       apiKeyId: origin.apiKeyId,
       clientName: origin.clientName,
+    });
+  });
+
+  it('names the connection of a coding agent that signed in, where a key would be named [MCP-R42]', () => {
+    const origin = mcpOrigin({
+      userId: 'user_ada',
+      agentConnectionId: 'conn_1',
+      clientName: 'Cursor',
+    });
+    const channel = requestChannelOf(origin, {
+      requestId: 'req_1',
+      tool: 'save_automation',
+    });
+    expect(channel).toEqual({
+      via: 'mcp',
+      requestId: 'req_1',
+      tool: 'save_automation',
+      agentConnectionId: 'conn_1',
+      clientName: 'Cursor',
+    });
+    expect(channel && channelAuditMetadata(channel)).toEqual({
+      via: 'mcp',
+      tool: 'save_automation',
+      agentConnectionId: 'conn_1',
+      clientName: 'Cursor',
     });
   });
 

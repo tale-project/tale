@@ -110,8 +110,45 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
     }
     return t('thinking.readingDocument', { name });
   }
+  if (step.tool === 'create_file') {
+    return t('thinking.writingFile', {
+      name: step.detail ?? step.resultName ?? step.tool,
+    });
+  }
+  if (step.tool === 'generate_image') {
+    const count =
+      isRecord(step.input) && typeof step.input.count === 'number'
+        ? step.input.count
+        : 1;
+    return t('thinking.generatingImages', { count });
+  }
+  if (step.tool === 'load_skill' && step.detail !== undefined) {
+    return t('thinking.loadingSkill', { name: step.detail });
+  }
+  if (step.tool === 'read_skill_file' && isRecord(step.input)) {
+    const name = typeof step.input.name === 'string' ? step.input.name : '';
+    const path = typeof step.input.path === 'string' ? step.input.path : '';
+    if (name !== '' && path !== '') {
+      return t('thinking.readingSkillFile', { name, path });
+    }
+  }
+  if (step.tool === 'run_code') {
+    const language =
+      isRecord(step.input) && typeof step.input.language === 'string'
+        ? (CODE_LANGUAGE_NAMES[step.input.language] ?? step.input.language)
+        : CODE_LANGUAGE_NAMES.python;
+    return t('thinking.runningCode', { language });
+  }
   return t('parts.toolCall', { tool: step.tool });
 }
+
+/** How a run_code language is named on the timeline — product names, the
+ * same in every language. */
+const CODE_LANGUAGE_NAMES: Record<string, string> = {
+  python: 'Python',
+  node: 'Node.js',
+  bash: 'Bash',
+};
 
 /** A stored-blob reference (`s3:<key>`) or an email ref (`msg:<id>`) — an
  * address, never a title. */

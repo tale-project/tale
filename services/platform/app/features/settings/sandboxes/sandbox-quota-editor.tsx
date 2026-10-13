@@ -46,13 +46,14 @@ const QUOTA_FIELDS = [
   { field: 'maxSessionsPerOrg', budget: 'project' },
   { field: 'maxWorkflowSessionsPerOrg', budget: 'workflow' },
   { field: 'maxRenderSessionsPerOrg', budget: 'render' },
+  { field: 'maxLightSessionsPerOrg', budget: 'light' },
 ] as const;
 
 const FORM_ID = 'sandbox-quota-form';
 const TOTAL_ID = `${FORM_ID}-total`;
 const TOTAL_ERROR_ID = `${FORM_ID}-total-error`;
 
-/** The three organization admission budgets share one settings editor. */
+/** The organization's admission budgets share one settings editor. */
 export function SandboxQuotaEditor({
   organizationId,
   deploymentLimits,
@@ -93,11 +94,13 @@ export function SandboxQuotaEditor({
     const project = usage.data?.find((row) => row.budget === 'project');
     const workflow = usage.data?.find((row) => row.budget === 'workflow');
     const render = usage.data?.find((row) => row.budget === 'render');
-    if (!project || !workflow || !render) return undefined;
+    const light = usage.data?.find((row) => row.budget === 'light');
+    if (!project || !workflow || !render || !light) return undefined;
     return {
       maxSessionsPerOrg: project.cap,
       maxWorkflowSessionsPerOrg: workflow.cap,
       maxRenderSessionsPerOrg: render.cap,
+      maxLightSessionsPerOrg: light.cap,
     };
   }, [usage.data, readFailed]);
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -140,6 +143,7 @@ export function SandboxQuotaEditor({
       maxSessionsPerOrg: limit,
       maxWorkflowSessionsPerOrg: limit,
       maxRenderSessionsPerOrg: limit,
+      maxLightSessionsPerOrg: limit,
     });
   }, [t]);
 

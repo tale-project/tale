@@ -68,6 +68,7 @@ describe('assembleContext', () => {
       input({
         project: { name: 'Growth', instructions: 'Ship weekly.' },
         taskHandover: HANDOVER,
+        skillCatalog: [{ slug: 'docx', description: 'Word documents' }],
         customInstructions: 'Reply tersely.',
       }),
     );
@@ -575,5 +576,38 @@ describe('assembleContext — project context', () => {
     expect(result.blocks.map((block) => block.id)).not.toContain(
       'project-context',
     );
+  });
+});
+
+describe('assembleContext — the skill catalog', () => {
+  const CATALOG = [
+    { slug: 'docx', description: 'Word documents' },
+    { slug: 'house-style', description: 'How we write' },
+  ];
+
+  it("lists the person's skills after the breakpoint, never in the cached prefix", () => {
+    const result = assembleContext(input({ skillCatalog: CATALOG }));
+    const ids = result.blocks.map((block) => block.id);
+    expect(ids.indexOf('available-skills')).toBeGreaterThan(
+      ids.indexOf('cache-breakpoint'),
+    );
+    expect(result.stablePrefix).not.toContain('house-style');
+    expect(result.volatileSuffix).toContain(
+      '- docx: <skill-description>Word documents</skill-description>',
+    );
+    expect(result.system).toContain('load_skill');
+  });
+
+  it('renders nothing for an empty catalog or a sub-agent turn', () => {
+    expect(
+      assembleContext(input({ skillCatalog: [] })).blocks.map(
+        (block) => block.id,
+      ),
+    ).not.toContain('available-skills');
+    expect(
+      assembleContext(
+        input({ skillCatalog: CATALOG, isSubAgentTurn: true }),
+      ).blocks.map((block) => block.id),
+    ).not.toContain('available-skills');
   });
 });

@@ -391,8 +391,8 @@ describe('startBoss, while the database restarts', () => {
     expect(failure).toMatchObject({ code: '28P01' });
     expect(sleep.mock.calls).toEqual([[1000], [2000]]);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'retrying in 1000ms: terminating connection due to administrator command',
+      expect.stringMatching(
+        /retrying in 1000ms \(jobs\/boss\.ts:\d+\): terminating connection due to administrator command$/,
       ),
     );
     expect(error).not.toHaveBeenCalled();

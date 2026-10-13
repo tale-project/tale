@@ -8,7 +8,7 @@
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
 
-FROM caddy:2.11-alpine
+FROM caddy:2.11-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
 
 # Set environment variables with sensible defaults
 ENV HOST=localhost \
@@ -32,6 +32,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-proxy" \
       org.opencontainers.image.description="Tale Proxy — Caddy reverse proxy with auto-TLS" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 ENV TALE_VERSION=${VERSION}

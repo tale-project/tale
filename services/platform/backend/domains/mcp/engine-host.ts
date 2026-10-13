@@ -16,7 +16,7 @@ import {
   type PgStoreScope,
 } from '../automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../chat/capabilities.ts';
-import { callerOrigin, type McpCaller } from './caller.ts';
+import { callerApiKeyId, callerOrigin, type McpCaller } from './caller.ts';
 import { mcpDocs } from './docs.ts';
 import { dispatchPlatformTool } from './platform-tools.ts';
 import type { McpHost } from './tools.ts';
@@ -30,8 +30,9 @@ function assembleEngineHost(): void {
 /**
  * Whom the engine attributes the caller's saves and starts to: the door
  * `api-key:<userId>` (`lib/shared/run-starter.ts`), plus the key itself, so
- * the runs it starts book their spend to the key as well. A version it saves
- * records the door, the key and the client (0181). Its reads answer only
+ * the runs it starts book their spend to the key as well (a coding agent's
+ * connection is attributed the same way, with no key to book to). A version
+ * it saves records the door, the key and the client (0181). Its reads answer only
  * the automations the app would show the person: one installed only in
  * projects they cannot read is "not found".
  */
@@ -65,16 +66,18 @@ export function mcpHost(sql: Sql): McpHost {
     platform: (caller, method, params) =>
       dispatchPlatformTool(sql, caller, method, params),
     // What a capability spends (a search's embedding, a run it starts) is
-    // booked to the key the call came with, as well as to its holder.
-    capability: (caller, method, params) =>
-      dispatchCapabilityAs(sql, {
+    // booked to the key the call came with, as well as to its holder; a
+    // coding agent's connection is not a key, so only its person's budgets
+    // see it.
+    capability: (caller, method, params) => {
+      const apiKeyId = callerApiKeyId(caller);
+      return dispatchCapabilityAs(sql, {
         organizationId: caller.organizationId,
         userId: caller.userId,
-        ...(caller.credential.apiKeyId !== undefined
-          ? { apiKeyId: caller.credential.apiKeyId }
-          : {}),
+        ...(apiKeyId !== undefined ? { apiKeyId } : {}),
         method,
         params,
-      }),
+      });
+    },
   };
 }

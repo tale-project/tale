@@ -12,6 +12,7 @@ import {
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_MIN_SIMILARITY,
   RAG_SEARCH_STATUS_VALUES,
+  toolOutputArtifacts,
 } from './tools';
 
 /**
@@ -282,5 +283,42 @@ describe('rag_search constants', () => {
       RAG_SEARCH_DEFAULT_LIMIT,
     );
     expect(RAG_SEARCH_DEFAULT_LIMIT).toBeLessThanOrEqual(RAG_SEARCH_MAX_LIMIT);
+  });
+});
+
+describe('toolOutputArtifacts — the files a tool result names', () => {
+  const FILE = {
+    ref: 's3:org/a',
+    name: 'a.pdf',
+    mediaType: 'application/pdf',
+    sizeBytes: 10,
+  };
+
+  it("reads the well-formed entries of a result's artifacts list", () => {
+    expect(toolOutputArtifacts({ status: 'ok', artifacts: [FILE] })).toEqual([
+      FILE,
+    ]);
+  });
+
+  it('names none for any other output', () => {
+    expect(toolOutputArtifacts(undefined)).toEqual([]);
+    expect(toolOutputArtifacts('text')).toEqual([]);
+    expect(toolOutputArtifacts({ status: 'ok' })).toEqual([]);
+    expect(toolOutputArtifacts({ artifacts: 'nope' })).toEqual([]);
+  });
+
+  it('drops malformed entries and keeps the rest', () => {
+    expect(
+      toolOutputArtifacts({
+        artifacts: [
+          FILE,
+          { ...FILE, ref: '' },
+          { ...FILE, sizeBytes: -1 },
+          { ...FILE, sizeBytes: Number.NaN },
+          { ...FILE, name: undefined },
+          null,
+        ],
+      }),
+    ).toEqual([FILE]);
   });
 });

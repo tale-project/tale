@@ -11,6 +11,7 @@ docs:
 common:
   aria:
     close: Schliessen
+    resizePanel: Panelgrösse ändern
   flow:
     zoomIn: Vergrössern
 envEditor:

@@ -48,6 +48,7 @@
 import postgres, { type Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
+import { reconnectBackoffSeconds } from '../../db/sql';
 import { resolvePostgresConnection } from '../../db/ssl';
 import { buildConnectionUrl, readOrgConnection } from './connection';
 import { applyCorpusSchema } from './ddl';
@@ -89,6 +90,9 @@ let openPool: PoolFactory = (rawUrl, options) => {
     ssl,
     idle_timeout: options?.session ? 30 : 120,
     connect_timeout: 30,
+    // The corpus lives in the same container as the application database in
+    // a default deployment, and meets the same restarts (`db/sql.ts`).
+    backoff: reconnectBackoffSeconds,
     ...(options?.session ? { onnotice: () => undefined } : {}),
     connection: {
       // Both corpora on the search path so unqualified references resolve; the

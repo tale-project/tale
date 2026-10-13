@@ -15,6 +15,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Sql } from 'postgres';
 
 import { getConfigRoot } from '../../core/lib/file_io.ts';
+import { AUDIT_WRITE_ORDER } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { BOUNDS_FILE } from './audit-trail.integration.ts';
 import { applyRetentionBounds, runRetentionCleanup } from './service.ts';
@@ -182,7 +183,7 @@ async function destructionCounts(sql: Sql, orgId: string): Promise<number[]> {
     FROM app.audit_logs
     WHERE org_id = ${orgId}
       AND action = 'chat_filter_event.retention_deleted'
-    ORDER BY ts ASC, id ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   return rows.map((row) => row.deleted);
 }

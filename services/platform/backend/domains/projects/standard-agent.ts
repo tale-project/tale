@@ -78,14 +78,26 @@ export type StandardAgentRefusal =
    * cannot run it. */
   | 'pin-unavailable';
 
+/**
+ * How a run of the standard agent executes. `native` starts on the engine a
+ * chat reply runs on and hands over to the runtime named in `harness` only
+ * when the work needs a full workspace; `harness` runs that runtime from the
+ * start. An Admin who pins a runtime chose it for every run, so it is never
+ * native; a model only a runtime can run (a subscription's) has no direct
+ * path, so it is never native either.
+ */
+export type StandardAgentEngine = 'native' | 'harness';
+
 export type StandardAgentServing =
   | {
       ok: true;
+      /** The runtime a hand-over starts, or that runs the agent outright. */
       harness: string;
       model: string;
       modelProvider: string;
       /** Where the model came from — the pin, or the automatic choice. */
       source: 'pinned' | 'preferred' | 'cheapest';
+      engine: StandardAgentEngine;
     }
   | {
       ok: false;
@@ -194,6 +206,10 @@ export function chooseStandardAgentServing(
       model: config.modelId,
       modelProvider: config.providerSlug,
       source: 'pinned',
+      engine:
+        config.harness === undefined && direct.length > 0
+          ? 'native'
+          : 'harness',
     };
   }
 
@@ -254,6 +270,11 @@ export function chooseStandardAgentServing(
     model: choice.entry.id,
     modelProvider: choice.entry.provider,
     source: choice.source,
+    engine:
+      config.harness === undefined &&
+      boundHarness(choice.entry.option) === undefined
+        ? 'native'
+        : 'harness',
   };
 }
 
@@ -311,6 +332,10 @@ export interface StandardAgentAvailability {
   modelLabel?: string;
   modelProvider?: string;
   source?: 'pinned' | 'preferred' | 'cheapest';
+  /** How a run for this person executes: `native` works with the chat's own
+   * tools and hands over to `harness` when a task needs a full workspace;
+   * `harness` runs there from the start. */
+  engine?: StandardAgentEngine;
 }
 
 export async function readStandardAgentAvailability(
@@ -355,6 +380,7 @@ export async function readStandardAgentAvailability(
     ...(modelLabel !== undefined ? { modelLabel } : {}),
     modelProvider: serving.modelProvider,
     source: serving.source,
+    engine: serving.engine,
   };
 }
 
@@ -486,7 +512,14 @@ export async function standardAgentServingForKick(
     model: string;
     modelProvider?: string;
   },
-): Promise<{ harness: string; model: string; modelProvider?: string }> {
+): Promise<{
+  harness: string;
+  model: string;
+  modelProvider?: string;
+  /** How the run executes: only the standard agent on an automatic runtime
+   * starts native. */
+  engine: StandardAgentEngine;
+}> {
   const rows = await tx<
     { managed: boolean; projectId: string; createdBy: string }[]
   >`
@@ -502,6 +535,7 @@ export async function standardAgentServingForKick(
     ...(args.modelProvider !== undefined
       ? { modelProvider: args.modelProvider }
       : {}),
+    engine: 'harness' as const,
   };
   if (agent === undefined || !agent.managed) return passthrough;
 
@@ -538,6 +572,7 @@ export async function standardAgentServingForKick(
     harness: serving.harness,
     model: serving.model,
     modelProvider: serving.modelProvider,
+    engine: serving.engine,
   };
 }
 

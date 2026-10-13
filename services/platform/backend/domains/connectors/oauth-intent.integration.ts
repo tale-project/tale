@@ -226,6 +226,7 @@ export async function checkConnectorOauthIntent(
           code: vendorError === null ? `code-${randomUUID()}` : null,
           vendorError,
           requesterUserId: userId,
+          requesterOrganizationId: null,
         },
         { fetchImpl },
       );

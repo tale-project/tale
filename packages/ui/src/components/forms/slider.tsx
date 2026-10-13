@@ -199,13 +199,15 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
           <SkeletonBox asChild>
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-border-base)]"
+              // A contrast theme repaints the tints: the track is an outline
+              // and what is filled is solid, in the system's text colour.
+              className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-border-base)] forced-colors:border-2 forced-colors:[border-color:CanvasText] forced-colors:[background-color:Canvas]"
             />
           </SkeletonBox>
           <div
             aria-hidden
             className={cn(
-              'pointer-events-none absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent-base)]',
+              'pointer-events-none absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent-base)] forced-colors:[background-color:CanvasText]',
               loading && 'invisible',
             )}
             style={{ width: fillWidth }}

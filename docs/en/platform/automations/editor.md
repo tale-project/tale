@@ -275,6 +275,8 @@ A trigger also runs the deployed version. Set it up only when you are ready for 
 
 **Versions** shows what runs live and how the automation got there. Its top card names the live version, when it went live, who deployed it and how, such as **in the app** or **with Claude Code through MCP**, and how many of its runs are still in progress. Those runs finish on the version they started with, whatever goes live next. **Compare v1 with v2** shows what the live version changed against the one it replaced. When no version is live yet, the card offers to deploy the latest one.
 
+Versions stay until you delete the automation, unless an admin sets a [retention period](/platform/admin/governance/policies-and-limits) for automation versions. That removes old versions nothing uses; the live version, the recent deployments' versions, any version a run used and the newest twenty always stay.
+
 <Frame caption="The Versions tab: the live version on top, then every saved version with its message, author, changes and tests.">
 
 ![The Versions tab of Weekly digest: a card says v3 is live, since when and by whom, with Compare v2 with v3 and Roll back to v2; below it the Versions table lists v4 to v1 with their messages, You in the app, the date, changes such as 1 changed and 1 renamed, and No result under Tests.](/images/platform/automation-versions.webp)

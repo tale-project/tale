@@ -230,6 +230,32 @@ beforeEach(() => {
 });
 
 describe('POST /policies/:policyType — write order', () => {
+  it.each(['user', 'team', 'role'])(
+    'refuses untargeted %s model access rules before any write',
+    async (scope) => {
+      for (const scopeId of [undefined, '', '   ']) {
+        const response = await post('/policies/model_access?orgId=o1', {
+          config: {
+            enabled: true,
+            mode: 'blocklist',
+            rules: [
+              {
+                scope,
+                scopeId,
+                allowedModels: [],
+                blockedModels: ['fixture/model'],
+              },
+            ],
+          },
+        });
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({ error: 'validation' });
+      }
+      expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+      expect(createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     'model_access',
     'vision_model',
@@ -350,8 +376,9 @@ describe('POST /policies/sandbox_workspaces — the rule takes effect with the s
 describe('POST /policies/sandbox_quota — deployment capacity', () => {
   const atCapacity = {
     maxSessionsPerOrg: 2,
-    maxWorkflowSessionsPerOrg: 8,
+    maxWorkflowSessionsPerOrg: 6,
     maxRenderSessionsPerOrg: 6,
+    maxLightSessionsPerOrg: 2,
   };
 
   function expectNoWrite() {
@@ -983,6 +1010,30 @@ describe('GET /policies/:policyType — who may read [GOV-R10]', () => {
     caller.role = 'admin';
 
     expect((await read(policyType)).status).toBe(200);
+  });
+
+  it('reads chat_tools the way the chat does: a file that cannot be read is reported to the page, never shown as every switch on [CHAT-R26]', async () => {
+    caller.role = 'admin';
+    readGovernancePolicyForOrg.mockRejectedValue(
+      new ConfigurationError(
+        'GOVERNANCE_POLICY_INVALID',
+        'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+        400,
+      ),
+    );
+
+    const response = await read('chat_tools');
+
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'chat_tools',
+      { strict: true },
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: 'GOVERNANCE_POLICY_INVALID',
+    });
   });
 });
 

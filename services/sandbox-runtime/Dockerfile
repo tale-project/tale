@@ -527,8 +527,9 @@ RUN python3 -m venv /opt/tale-vision \
 # --- runtime assembly -------------------------------------------------------
 # Each immutable tool export has its own layer. --link keeps unchanged exports
 # reusable even when an earlier CLI changes, avoiding multi-GB duplicate layers
-# for ordinary harness upgrades. Version ARGs never enter this stage or the
-# common apt/document-toolchain RUN cache keys.
+# for ordinary harness upgrades. Harness version ARGs never enter this stage or
+# the common apt/document-toolchain RUN cache keys, and the release's own
+# VERSION is declared after this stage's last RUN, with its labels.
 FROM tooling-base AS runtime
 
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
@@ -722,6 +723,19 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
       /usr/local/bin/tale-vision \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate
+
+# Version metadata comes after every RUN and COPY, so a VERSION-only build
+# reuses all of the layers above: an ARG enters the cache key of each RUN that
+# follows its declaration, and these exports are several GB.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-sandbox-runtime" \
+      org.opencontainers.image.description="Tale sandbox runtime — session image for coding agents and sandboxed code" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 
 # Default user is nobody; spawner pins --user per profile at the call site
 # (65534 default profile, 10001 agent profile).

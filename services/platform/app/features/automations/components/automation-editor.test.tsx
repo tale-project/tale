@@ -958,6 +958,20 @@ describe('AutomationEditor missing version', () => {
     await user.click(screen.getByRole('button', { name: 'Open latest' }));
     expect(onSelectVersion).toHaveBeenCalledWith(undefined);
   });
+
+  it('says a version below the latest that is gone was removed by the retention policy', () => {
+    // The latest is v3 (the read's own answer names it): v2 was saved and is
+    // gone, and numbers are never reused.
+    state.missingVersion = 2;
+    renderPage({ version: 2 });
+    expect(
+      screen.getByRole('heading', { name: 'Version 2 was removed' }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/retention policy removes old versions/),
+    ).toBeVisible();
+    expect(screen.queryByText(/mistyped/)).toBeNull();
+  });
 });
 
 /** The node inspector — on the page only while a node is picked. */
@@ -1895,7 +1909,9 @@ describe('AutomationEditor', () => {
     });
     expect(whenField()).toHaveValue('');
     expect(toastSpy).not.toHaveBeenCalled();
-  });
+    // Typing a message and a save through the dialog takes a few seconds on
+    // a machine running other suites beside this one.
+  }, 20_000);
 
   it('saves and checks the document as stored, with only the edit changed', async () => {
     // What this build has no control for — a connector's credential, a key
@@ -2961,6 +2977,62 @@ describe('Start, End and the Source view', () => {
     ).toBeVisible();
     await user.click(screen.getByRole('radio', { name: 'Canvas' }));
     expect(screen.getByTestId('canvas')).toBeInTheDocument();
+  });
+});
+
+describe('AutomationEditor outline', () => {
+  const withTests = {
+    name: 'billing/dunning',
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
+    tests: [{ name: 'smoke', input: {}, expect: { output: 'ok' } }],
+  };
+
+  /** The headings under `root`, level and name, in reading order. */
+  const outline = (root: HTMLElement) =>
+    within(root)
+      .getAllByRole('heading')
+      .map((heading) => ({
+        level: Number(heading.tagName.slice(1)),
+        name: heading.textContent ?? '',
+      }));
+
+  /** The headings that sit more than one level below the one before them. The
+   * breadcrumb above the editor holds the page's own title, level 1, so the
+   * first heading here may be level 2 and no deeper. */
+  const skipped = (headings: ReturnType<typeof outline>) =>
+    headings.filter(
+      ({ level }, index) => level > (headings[index - 1]?.level ?? 1) + 1,
+    );
+
+  it('names the editor by a level-two heading, as Runs and Versions name their tabs', () => {
+    renderPage();
+    const region = screen.getByRole('region', { name: 'Editor' });
+    expect(outline(region)[0]).toEqual({ level: 2, name: 'Editor' });
+  });
+
+  it.each([
+    ['a node', { node: 'summary' }, 'Summary'],
+    ['Start', { node: '__start' }, 'Start'],
+    ['End', { node: '__end' }, 'End'],
+    ['a test', { panel: 'tests', test: 0 }, 'smoke'],
+  ] as const)(
+    "puts %s's inspector under that heading, without skipping a level",
+    (_what, props, title) => {
+      state.document = withTests;
+      renderPage({ ...props });
+      const headings = outline(screen.getByRole('region', { name: 'Editor' }));
+      expect(headings.map(({ name }) => name)).toContain(title);
+      expect(skipped(headings)).toEqual([]);
+    },
+  );
+
+  it("keeps the phone's sheet in order too: its own title, then the inspector", () => {
+    state.document = withTests;
+    state.compact = true;
+    renderPage({ node: 'summary' });
+    // The sheet opens over the page, outside the editor region: what a screen
+    // reader lists is the whole screen's headings.
+    expect(skipped(outline(document.body))).toEqual([]);
   });
 });
 

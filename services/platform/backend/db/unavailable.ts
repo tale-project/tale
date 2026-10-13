@@ -138,6 +138,27 @@ export function describeDatabaseError(error: unknown): string {
 }
 
 /**
+ * What to hand `console` for a failure that may be the database going away:
+ * the one line {@link describeDatabaseError} writes when it is, the error
+ * itself, stack and all, when it is not. A restart fails every query in
+ * flight, and a log that printed each one's stack buried the lines around it;
+ * a defect still prints the evidence it needs.
+ *
+ * Every statement postgres.js rejects is stamped as its own, so a refused
+ * socket on the app's pool counts without help. Say `fromDatabase` only for a
+ * catch that holds database calls alone: the same socket error from a model
+ * provider's `fetch` is the provider's, and keeps its cause and stack.
+ */
+export function logDetail(
+  error: unknown,
+  origin: DatabaseErrorOrigin = {},
+): unknown {
+  return isDatabaseUnavailable(error, origin)
+    ? describeDatabaseError(error)
+    : error;
+}
+
+/**
  * A database error a library logged and replaced — Better Auth's session
  * read catches its adapter's error, logs it, and throws a bare
  * `INTERNAL_SERVER_ERROR` with no cause in its place. The error handlers only
@@ -161,6 +182,16 @@ export function noteSwallowedDatabaseError(error: unknown): void {
   const slot = swallowed.getStore();
   if (slot === undefined || slot.error !== undefined) return;
   if (isDatabaseUnavailable(error, { fromDatabase: true })) slot.error = error;
+}
+
+/**
+ * The database error a library swallowed while this request ran, if any —
+ * what {@link noteSwallowedDatabaseError} kept. For an answer the library
+ * built itself from a failed read, such as Better Auth's 401 for a session it
+ * could not look up, which no error handler ever sees.
+ */
+export function swallowedDatabaseError(): unknown {
+  return swallowed.getStore()?.error;
 }
 
 /**

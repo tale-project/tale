@@ -11,7 +11,9 @@ import {
 import { encodeChatError } from '../../../lib/shared/chat-errors.ts';
 import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
+import { waitOutDatabaseOutage } from '../../db/boot-wait.ts';
 import { toJson } from '../../db/sql.ts';
+import { isDatabaseUnavailable } from '../../db/unavailable.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
@@ -22,6 +24,7 @@ import {
   admitChatTurnSpend,
   type ChatTurnAdmissionExclude,
 } from './budget-admission.ts';
+import { trackLiveTurn, untrackLiveTurn } from './live-turns.ts';
 import { ChatThreadError, projectChatAccess } from './threads.ts';
 
 /**
@@ -485,24 +488,30 @@ function pgTurnStore(
       `;
     },
 
+    // The settle must land: a restart that catches a reply as it ends is
+    // waited out (`waitOutDatabaseOutage`), not turned into a placeholder
+    // that stays `pending` until the generation sweep. Both forms rerun
+    // safely — each sets the row to the same terminal state.
     async finalizeAssistantMessage(message) {
-      if (message.text === undefined) {
-        await finalizeWithStreamedTail(sql, message);
-        return;
-      }
-      await sql`
-        UPDATE app.messages SET
-          text = coalesce(${message.text}, text),
-          reasoning = ${message.reasoning ?? null},
-          parts = coalesce(${message.parts === undefined ? null : sql.json(toJson([...message.parts]))}, parts),
-          model = coalesce(${message.model ?? null}, model),
-          provider_slug = coalesce(${message.providerSlug ?? null}, provider_slug),
-          usage = coalesce(${message.usage === undefined ? null : sql.json(toJson(message.usage))}, usage),
-          blocked_reason = ${message.blockedReason ?? null},
-          error = ${message.error ?? null},
-          status = ${settledStatus(message)}
-        WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
-      `;
+      await waitOutDatabaseOutage(async () => {
+        if (message.text === undefined) {
+          await finalizeWithStreamedTail(sql, message);
+          return;
+        }
+        await sql`
+          UPDATE app.messages SET
+            text = coalesce(${message.text}, text),
+            reasoning = ${message.reasoning ?? null},
+            parts = coalesce(${message.parts === undefined ? null : sql.json(toJson([...message.parts]))}, parts),
+            model = coalesce(${message.model ?? null}, model),
+            provider_slug = coalesce(${message.providerSlug ?? null}, provider_slug),
+            usage = coalesce(${message.usage === undefined ? null : sql.json(toJson(message.usage))}, usage),
+            blocked_reason = ${message.blockedReason ?? null},
+            error = ${message.error ?? null},
+            status = ${settledStatus(message)}
+          WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
+        `;
+      });
     },
 
     async beginTurn(setup) {
@@ -611,9 +620,17 @@ function pgTurnStore(
           assistantMessage,
         };
       };
-      return scope === undefined
+      const opened = await (scope === undefined
         ? sql.begin(open)
-        : transactSerializable(sql, open);
+        : transactSerializable(sql, open));
+      // From here the generation row exists and this process owns the turn:
+      // a stopping process settles it (`live-turns.ts`).
+      trackLiveTurn({
+        organizationId: setup.organizationId,
+        threadId: setup.threadId,
+        messageId: opened.assistantMessage.id,
+      });
+      return opened;
     },
 
     async holdNextRound(round) {
@@ -634,32 +651,40 @@ function pgTurnStore(
     },
 
     async endGeneration(generation) {
-      await sql.begin(async (tx) => {
-        await tx`
-          DELETE FROM app.generations
-          WHERE thread_id = ${generation.threadId}
-            AND org_id = ${generation.organizationId}
-        `;
-        await tx`
-          UPDATE app.thread_metadata SET
-            generation_status = 'idle', stream_id = NULL,
-            generation_heartbeat_at_ms = NULL
-          WHERE thread_id = ${generation.threadId}
-        `;
-        // A settled turn leaves no 'pending' placeholder: the finalize write
-        // precedes this on every path (completed, refused, cancelled, paused,
-        // failed), so a row still pending here is one whose finalize itself
-        // failed — and with the generation row gone, nothing else would ever
-        // mark it. The claim above makes this turn's placeholder the only
-        // pending row the thread can hold.
-        await tx`
-          UPDATE app.messages SET status = 'failed',
-            error = coalesce(error, ${UNSETTLED_TURN_ERROR})
-          WHERE thread_id = ${generation.threadId}
-            AND org_id = ${generation.organizationId}
-            AND status = 'pending'
-        `;
-      });
+      try {
+        await waitOutDatabaseOutage(() =>
+          sql.begin(async (tx) => {
+            await tx`
+              DELETE FROM app.generations
+              WHERE thread_id = ${generation.threadId}
+                AND org_id = ${generation.organizationId}
+            `;
+            await tx`
+              UPDATE app.thread_metadata SET
+                generation_status = 'idle', stream_id = NULL,
+                generation_heartbeat_at_ms = NULL
+              WHERE thread_id = ${generation.threadId}
+            `;
+            // A settled turn leaves no 'pending' placeholder: the finalize
+            // write precedes this on every path (completed, refused,
+            // cancelled, paused, failed), so a row still pending here is one
+            // whose finalize itself failed — and with the generation row
+            // gone, nothing else would ever mark it. The claim above makes
+            // this turn's placeholder the only pending row the thread can
+            // hold.
+            await tx`
+              UPDATE app.messages SET status = 'failed',
+                error = coalesce(error, ${UNSETTLED_TURN_ERROR})
+              WHERE thread_id = ${generation.threadId}
+                AND org_id = ${generation.organizationId}
+                AND status = 'pending'
+            `;
+          }),
+        );
+      } finally {
+        // Over, however it ended: a turn the outage outlasted is the sweep's.
+        untrackLiveTurn(generation.threadId);
+      }
     },
   };
 }
@@ -708,6 +733,12 @@ export async function estimateTurnCostCents(
       entry.cachedInputTokens,
     );
   } catch (error) {
+    // A database that is away is not a price that is unknown. The organization
+    // read above can meet a restart; booking the turn at 0 cents then would
+    // under-count its spend for good, so the error goes to the caller, whose
+    // wait for the database (`waitOutDatabaseOutage`) prices the turn again
+    // once it answers.
+    if (isDatabaseUnavailable(error)) throw error;
     console.warn(
       `[usage-ledger] could not price ${entry.provider}/${entry.model} (booking 0):`,
       error instanceof Error ? error.message : error,
@@ -723,28 +754,41 @@ export async function estimateTurnCostCents(
  * retired here and dropped in a later release. */
 export function createPgUsageLedger(sql: Sql): UsageLedger {
   return {
+    // Booked before the reply settles, so it is held to the same wait: a
+    // restart here would otherwise fail a reply that had already streamed.
     async record(entry) {
-      const now = Date.now();
-      // Priced at booking: the read side (the usage dashboard, the cost
-      // budgets, the budget-status gate) sums THIS column — nothing joins a
-      // price in later, so a 0 here is model spend that never existed.
-      const costEstimateCents = await estimateTurnCostCents(sql, entry);
-      await incrementUsageLedger(sql, {
-        organizationId: entry.organizationId,
-        userId: entry.userId,
-        ...(entry.apiKeyId !== undefined ? { apiKeyId: entry.apiKeyId } : {}),
-        inputTokens: entry.inputTokens,
-        outputTokens: entry.outputTokens,
-        costEstimateCents,
-        timestamp: now,
-        ...(entry.agentSlug !== undefined
-          ? { agentSlug: entry.agentSlug }
-          : {}),
-        model: entry.model,
-        provider: entry.provider,
-        ...(entry.projectIds !== undefined
-          ? { projectIds: entry.projectIds }
-          : {}),
+      // The moment the reply ended, whenever the database lets the booking in:
+      // a rerun after a restart books the same period buckets.
+      const timestamp = Date.now();
+      await waitOutDatabaseOutage(async () => {
+        // Priced at booking: the read side (the usage dashboard, the cost
+        // budgets, the budget-status gate) sums THIS column — nothing joins a
+        // price in later, so a 0 here is model spend that never existed.
+        const costEstimateCents = await estimateTurnCostCents(sql, entry);
+        // One transaction: each bucket is an upsert that adds to a running
+        // sum, so a database that failed after the first would have the turn
+        // counted twice there by the rerun.
+        await sql.begin((tx) =>
+          incrementUsageLedger(tx, {
+            organizationId: entry.organizationId,
+            userId: entry.userId,
+            ...(entry.apiKeyId !== undefined
+              ? { apiKeyId: entry.apiKeyId }
+              : {}),
+            inputTokens: entry.inputTokens,
+            outputTokens: entry.outputTokens,
+            costEstimateCents,
+            timestamp,
+            ...(entry.agentSlug !== undefined
+              ? { agentSlug: entry.agentSlug }
+              : {}),
+            model: entry.model,
+            provider: entry.provider,
+            ...(entry.projectIds !== undefined
+              ? { projectIds: entry.projectIds }
+              : {}),
+          }),
+        );
       });
     },
   };

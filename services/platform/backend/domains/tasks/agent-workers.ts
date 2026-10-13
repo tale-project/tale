@@ -391,7 +391,7 @@ async function readWorkerFacts(
   const others = await tx<{ sessionId: string }[]>`
     SELECT session_id AS "sessionId" FROM app.project_agent_runs
     WHERE org_id = ${organizationId} AND agent_id = ${run.agentId}
-      AND id <> ${runId}
+      AND id <> ${runId} AND engine = 'harness'
       AND (status = 'running'
         OR (status = 'queued' AND waiting_for_capacity_at_ms IS NULL
           AND session_claimed_at_ms IS NOT NULL))
@@ -419,7 +419,7 @@ async function readWorkerFacts(
     SELECT session_id AS "sessionId" FROM app.project_agent_runs
     WHERE org_id = ${organizationId} AND task_id = ${run.taskId}
       AND agent_id = ${run.agentId} AND id <> ${runId}
-      AND launched_at_ms IS NOT NULL
+      AND engine = 'harness' AND launched_at_ms IS NOT NULL
     ORDER BY seq DESC
     LIMIT 1
   `;
@@ -430,6 +430,7 @@ async function readWorkerFacts(
     SELECT r.session_id AS "sessionId", r.task_id AS "taskId"
     FROM app.project_agent_runs r
     WHERE r.org_id = ${organizationId} AND r.agent_id = ${run.agentId}
+      AND r.engine = 'harness'
       AND r.started_at_ms > ${now - AGENT_RUN_MAX_LIFETIME_MS - WORKER_TASK_HOLD_MS}
       AND r.status IN ('failed', 'cancelled')
       AND r.launched_at_ms IS NOT NULL
@@ -437,6 +438,7 @@ async function readWorkerFacts(
       AND NOT EXISTS (
         SELECT 1 FROM app.project_agent_runs later
         WHERE later.org_id = r.org_id AND later.session_id = r.session_id
+          AND later.engine = 'harness'
           AND later.seq > r.seq AND later.launched_at_ms IS NOT NULL
       )
       AND NOT EXISTS (

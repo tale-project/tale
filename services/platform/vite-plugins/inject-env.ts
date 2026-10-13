@@ -100,7 +100,8 @@ export function injectEnv(): Plugin {
         '/ws_api',
         '/http_api',
         '/api',
-        '/.well-known/oauth-authorization-server/api/auth',
+        '/.well-known/oauth-authorization-server',
+        '/.well-known/oauth-protected-resource',
       ];
 
       server.middlewares.use((req, res, next) => {

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 94 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 98 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -332,12 +332,12 @@ agent.
   (`governance.trash.empty` describes this)
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
   **Organization limits** (`sandboxes.limits.title`) → change **Agent
-  workers**, **Workflow sessions**, and **Render sessions**
-  (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
-  displayed deployment capacity → Save →
+  workers**, **Workflow sessions**, **Render sessions**, and **Light
+  sandboxes** (`sandboxes.quota.budgets.project` / `…workflow` / `…render` /
+  `…light`) within the displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
   (`common.actions.saved`) and Save goes disabled again; after reload the
-  three fields and allocated/limit summaries hold the saved limits;
+  four fields and allocated/limit summaries hold the saved limits;
   **Total organization sessions** (`sandboxes.limits.total`) shows their sum
   against the deployment capacity — **restore afterwards**. Other organizations
   share the deployment capacity. Bounds: see GOV-B7.
@@ -350,7 +350,12 @@ agent.
   changes** (`governance.retentionPolicy.diff.title`) → confirm via **Save
   changes** (`governance.retentionPolicy.diff.confirmLabel`) → reload → Toast
   (`governance.retentionPolicy.saved`); after reload the summary reflects the
-  new value. Verified live on a fresh org: the editor renders with defaults
+  new value. In German and French the values read with their unit in that
+  language (`…retentionPolicy.valueDays`, `…valueHours`: **90 Tage**, **24
+  heures**, singular for one), a field's range says **Erlaubt: 1–3650 Tage.**
+  (`…allowedRange`), and a switch in the diff dialog reads **deaktiviert →
+  aktiviert** (`…stateOff`, `…stateOn`) — no English `days`, `hours`,
+  `enabled` or `disabled`. Verified live on a fresh org: the editor renders with defaults
   and saves fine (the `RETENTION_CONFIG_MISSING` seam did not bite), but a
   **reduction applies immediately** — the pending banner **A retention
   reduction is pending.** (`governance.retentionPolicy.pendingChange.title`,
@@ -367,7 +372,13 @@ agent.
   (`…boundsProposal.applyLabel`) / **Reject** (`…boundsProposal.rejectLabel`)
   / **View details** (`…boundsProposal.detailsLabel`) → open the details
   drawer **Proposed bound changes** (`…boundsProposal.detailsTitle`) → The
-  details drawer lists the proposed bounds; **Apply** shows the toast
+  details drawer lists the proposed bounds, each category by the title the
+  retention editor gives it (for example **Automation versions**), which side
+  changes (minimum or maximum), the values with their unit (days, or hours)
+  or **no limit** (`…boundsProposal.unbounded`), and what the change does to
+  retention — all in the language of the UI, never an id such as
+  `automationVersions` or `min`/`tighten` (`…boundsProposal.diffRow`);
+  **Apply** shows the toast
   (`…boundsProposal.appliedToast`) and the banner clears; **Reject** shows the
   toast (`…boundsProposal.rejectedToast`) and the banner clears — cleared
   state survives reload.
@@ -588,6 +599,22 @@ agent.
   (`settings.logs.integrity.awaitingSealNote`) appears at most right after
   the burst and is gone on a second click a few seconds later; no **Chain
   integrity broken** at any point.
+- [ ] `GOV-F67` · **Old automation versions leave when the period says so,
+  and never one still read** — On an automation with more than twenty saved
+  versions (save it twenty-five times), `policies-limits` → **Retention
+  policy** → **Edit retention policy** → **Automation versions**
+  (`governance.retentionPolicy.automationVersions.title`) is off and allows
+  90 to 3650 days; on an organization created by an earlier release it is
+  listed all the same, with the bundled bounds. Enable it at 90 days, save and
+  apply. With the first versions back-dated past the period (a database edit
+  on a test organization), the next cleanup removes them except the live one,
+  the last ten deployments', any a run used and the newest twenty; **Audit
+  logs** shows one **Automation version retention deleted**
+  (`settings.logs.audit.actionLabels.automation_version.retention_deleted`)
+  naming the automation and the versions. A link to a removed version opens
+  **Version N was removed** (`automations.editor.versionNotFound.removedTitle`)
+  and **Open latest** works; the next save is still one more than the latest.
+  **Restore the policy afterwards.**
 - [ ] `GOV-F33` · **A blocked erasure receipt tells the truth about the
   hold** — Place a custodian hold on a member (GOV-F7), then file an erasure
   request for them (GOV-F8) → the receipt is **Blocked** and its panel reads
@@ -730,6 +757,18 @@ agent.
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F65` · **Chat tools** — `policies-limits` → **Chat tools**
+  (`governance.chatTools.title`) lists **Files**, **Skills** and **Code**
+  (`governance.chatTools.files` / `…skills` / `…code`), each with its hint, all
+  on in a fresh organization. Turn **Code** off → the header shows Save and
+  Discard; **Save** and reload → **Code** is still off, the others on; a
+  Member sees the section read-only, without Save. Restore **Code**.
+- [ ] `GOV-F66` · **Image generation reaches chat** — Turn **Image
+  generation** on (GOV-F38) with a model available; mode B: in a new chat ask
+  "Generate an image of a lighthouse at sunset" → the timeline shows
+  **Generating an image** (`chat.thinking.generatingImages`), the picture
+  appears under the reply, and within a minute it counts against you in
+  `usage` (GOV-F45). Restore: switch image generation off.
 - [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
   Member whose own run of a project agent is listed on Sandboxes
   (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
@@ -752,8 +791,13 @@ agent.
   (`governance.standardAgent.automaticLabel`); **Instructions**
   (`governance.standardAgent.instructionsLabel`) is empty, showing
   `governance.standardAgent.instructionsPlaceholder`; and the section's last
-  line (`governance.standardAgent.current`) names the agent type and model it
-  runs on for you. **Model** lists only models the chosen agent type can run.
+  line names the model and agent type it uses for you: with **Agent type**
+  on **Automatic** and a model served directly it is
+  `governance.standardAgent.currentNative` (works with the model, hands over
+  to the agent type when a task needs a full workspace); with an agent type
+  chosen, or a model only an agent type can run, it is
+  `governance.standardAgent.current` (runs on the agent type with the model).
+  **Model** lists only models the chosen agent type can run.
   With no credential serving a model you may use, the alert
   `governance.standardAgent.refusal.noModel` shows instead of that line, with
   a link to **AI providers** (`governance.standardAgent.providersLink`).
@@ -773,7 +817,9 @@ agent.
   `governance.standardAgent.offNote` shows, and **Agent type**, **Model** and
   **Instructions** are hidden. In a project without agents, **Assignee**
   (`tasks.fields.assignee`) offers no **Standard agent**
-  (`tasks.assignee.standardAgent`), and **Start agent**
+  (`tasks.assignee.standardAgent`) — and in a project the standard agent was
+  set up in earlier it offers no agent at all, the footer reading
+  `tasks.assignee.noAgentsReader` for a Member — and **Start agent**
   (`tasks.agentRun.start`) on a task already given to a standard agent
   answers the toast `tasks.agentRun.standardAgent.switchedOff` and queues
   nothing. A comment there that @mentions the standard agent shows
@@ -810,7 +856,7 @@ agent.
   **Agent workers** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
-  workflow and render limits.
+  workflow, render and light sandbox limits.
 - [ ] `GOV-B8` · **A second live grant is refused in the form** — Grant
   GOV-F22's member **Act for another member** again → the dialog stays open
   with **"This member already holds this competence. Revoke the current grant
@@ -911,11 +957,17 @@ agent.
   Write `enabled: perhaps` into the organization's
   `governance/standard-agent.yml` under `TALE_CONFIG_DIR` and reload
   `content-models` → **Standard agent** shows the alert
-  `governance.standardAgent.invalidPolicy` with its controls enabled, and
-  **Start agent** (`tasks.agentRun.start`) on a task given to a standard
-  agent answers the toast `tasks.agentRun.standardAgent.unreadable` and
-  queues nothing. Turn the switch off and on again (each saves at once) →
-  the file parses again, the alert is gone, and the task starts.
+  `governance.standardAgent.invalidPolicy` with its controls enabled,
+  **Model** reading `governance.standardAgent.invalidSelection` and the
+  header **Save** disabled, and **Start agent** (`tasks.agentRun.start`) on a
+  task given to a standard agent answers the toast
+  `tasks.agentRun.standardAgent.unreadable` and queues nothing. Type in
+  **Instructions** → **Save** stays disabled; choose **Automatic** under
+  **Model** → **Save** enables, and saving writes `enabled: true` (a chosen
+  model is written with it), the alert gives way to what the standard agent
+  runs on, and the task starts. Write the malformed file again and turn the
+  switch off and on again (each saves at once) → the file parses again and
+  the alert is gone.
 - [ ] `GOV-B19` · **A pinned model follows the person who starts the run** —
   Pin a model (`GOV-F51`), then add a **Model access** rule that blocks it for
   the Member role. As a Member, open a task given to a standard agent and

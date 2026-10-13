@@ -253,6 +253,18 @@ pack sources or other deployment inputs requires a full deployment. An older rec
 without this capability proof must first complete one normal deployment with the
 updated CLI. A refusal never falls back to a full deployment automatically.
 
+After a successful bundle takeover, remove `supersedesPendingBundle` and prepare
+again before using this mode. Removing that transient recovery declaration does
+not change the stable runtime and identity basis. A legacy Ready receipt whose
+basis included the declaration is accepted only when its recorded final
+`supersededBundles` entry reconstructs that exact hash with all other protected
+inputs unchanged. Missing or mismatched history still refuses the apply. Keep
+the historical Ready receipt and recovery snapshot intact; no receipt editing or
+extra rollout is needed solely to remove the declaration when a legacy receipt
+retains that history. A legacy receipt without it needs one normal deployment.
+A pending rollout or any remaining `supersedesPendingBundle` declaration
+remains ineligible.
+
 The CLI reuses its existing deployment lock, private native provisioning session,
 configuration plan, journal and readback. It changes only managed instruction and
 automation resources; every declared branding, governance, provider, embedding or
@@ -410,6 +422,10 @@ Managed deployments use `supersedesPendingConfigurationPlan` for that same hash.
 native configuration intent. Remove recovery selectors after the operation reaches
 `ready`. The [recovery procedure](../../docs/en/self-hosted/install/cli-install.md#replace-a-pending-configuration-plan)
 includes the hash command, review steps and readback checks.
+
+A pending rollout permits at most 64 bundle takeovers. At that limit, recover
+the exact pending bundle before selecting another rollout. Older CLI journals
+with 65 retained entries remain recoverable; the CLI preserves their history.
 
 Secret values come from environment references. The CLI does not install model
 servers or migrate existing embedding vectors. Read the
@@ -621,6 +637,13 @@ expecting both binaries at that path. Linux x64 CPUs without AVX2 need
 `build:linux-baseline`. Other target scripts are listed in `package.json`. The
 complete `build` script regenerates inputs, builds the backend-local bundle and
 release targets, then checks the compiled bundle.
+
+`TALE_BINARY` selects the compiled executable for `tests/smoke.test.ts`; CI sets
+it on each native target. The parent-directory `dev` case uses a valid child
+project descriptor so only its guidance guard consumes that case's deadline.
+The separate `init` cases still exercise full embedded scaffolding. The source
+fixture regression runs that actual smoke case with owned subprocesses; it does
+not establish native Windows performance or compiled-binary acceptance.
 
 Generated embedded files are build inputs, not hand-authored configuration. Change
 the source catalog or template and regenerate them. Run the repository gate before

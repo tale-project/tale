@@ -218,6 +218,7 @@ beforeEach(() => {
               { budget: 'project', used: 1, cap: 2 },
               { budget: 'workflow', used: 0, cap: 2 },
               { budget: 'render', used: 0, cap: 2 },
+              { budget: 'light', used: 0, cap: 2 },
             ]
           : name.endsWith(':getSandboxDeploymentLimits')
             ? { status: 'available', maxSessions: 16 }
@@ -466,7 +467,7 @@ describe('SandboxesSettings access', () => {
     );
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('6 / 16');
+    ).toHaveTextContent('8 / 16');
     expect(
       screen.getByRole('heading', { name: 'Organization limits' }),
     ).toBeInTheDocument();
@@ -758,6 +759,34 @@ describe('SandboxesSettings Destroy', () => {
     ).not.toHaveAttribute('aria-disabled');
     const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
     expect(within(bob).queryByText('Destroying')).not.toBeInTheDocument();
+  });
+
+  it('names a light sandbox by its person and offers Destroy, not Pin', async () => {
+    listing([
+      {
+        ...hibernatedRow,
+        sessionId: 'lt-chat',
+        ownerType: 'light',
+        ownerId: 'thread-1',
+        ownerLabel: null,
+        ownerName: 'Carla',
+        ownerEmail: 'carla@example.com',
+        createdBy: 'user-carla',
+        worker: undefined,
+        agentKind: null,
+        status: 'active',
+        deletesAt: null,
+      },
+    ]);
+    const { user } = renderSettings();
+    const row = await openRowMenu(user, 'Carla');
+    expect(within(row).getByText('Light sandbox')).toBeVisible();
+    expect(
+      await screen.findByRole('menuitem', { name: 'Destroy' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Pin' }),
+    ).not.toBeInTheDocument();
   });
 
   it('says a Destroy failed and lets it be asked for again', async () => {

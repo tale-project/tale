@@ -128,10 +128,46 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
       },
     },
   ),
-  // Current CLI adds the request-channel push path; the entire job graph is unchanged.
+  // CLI adds the request-channel push path; the entire job graph is unchanged.
   profile(
     'CLI',
     '198109738040873a9e17e658897962c82de63cdff45546f35115db8484ae3a64',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+  ),
+  // Current CLI adds the org-adapter type dependency; jobs and verdict closure are identical.
+  profile(
+    'CLI',
+    '1b38b1fa42147c5dad232fe0f12b6ed5d981913b23030511590b752837958989',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+  ),
+  // Current CLI expands the native backend path scope; its job and verdict graph remain unchanged.
+  profile(
+    'CLI',
+    '9db601cac2b6fb1f588f1b86d7060ed53d36236572acf32a001380e01d941298',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+  ),
+  // Current CLI names the collaboration service in its native backend path scope; its job and verdict graph remain unchanged.
+  profile(
+    'CLI',
+    '9b9b32c6c5336a29372723408e4e7eea215bf5145cee23956340d138f6af9084',
     {
       build: {
         variable: 'platform',
@@ -155,6 +191,13 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
   profile(
     'Build',
     'b8dfca3f6d6b6d9b4047fa9d2bc9dcdd44102ac728e6cfd342830be2c7b3447d',
+    buildMatrices,
+  ),
+  // Current Build repeats each pushed image's OCI labels as manifest annotations and
+  // reads them back by digest; two steps join the build job, no job, condition or matrix changes.
+  profile(
+    'Build',
+    '8709a1f2e111711e9fdde69744e631934776c4cfb7a31de56919e7fb8e6c8d4d',
     buildMatrices,
   ),
   profile(

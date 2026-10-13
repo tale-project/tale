@@ -83,6 +83,12 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     i18nKey: 'workflowLogs',
   },
   {
+    id: 'automationVersions',
+    configKey: 'automationVersionsRetentionDays',
+    enabledKey: 'automationVersionsEnabled',
+    i18nKey: 'automationVersions',
+  },
+  {
     id: 'usageLedger',
     configKey: 'usageLedgerRetentionDays',
     enabledKey: 'usageLedgerEnabled',

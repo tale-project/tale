@@ -36,7 +36,10 @@ function app(
     fetchImage,
     routes: createImageProxyRoutes({
       sql: {} as never,
-      auth: { api: { getSession: async () => session } } as unknown as Auth,
+      auth: {
+        api: { getSession: async () => session },
+        resolveSessionAuthority: async () => session,
+      } as unknown as Auth,
       fetchImage,
     }),
   };

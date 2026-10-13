@@ -82,6 +82,7 @@ import {
   requestExternalTaskStatus,
 } from './external-status.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
+import { readNativeRunOp } from './native-runs.ts';
 import { stopTaskRepeat, type TaskRepeatCopy } from './repeat.ts';
 import {
   readTaskReviewContextConfiguration,
@@ -956,7 +957,17 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         console.warn('[tasks] agent-run op access refused', error);
         return c.json({ op: null });
       }
-      return c.json({ op: loaded.op });
+      // A run the native engine works has no sandbox op: its transcript is
+      // its thread, shown in the same wire.
+      return c.json({
+        op:
+          loaded.op ??
+          (await readNativeRunOp(
+            deps.sql,
+            auth.organizationId,
+            c.req.param('runId'),
+          )),
+      });
     } catch (error) {
       return handleError(c, error);
     }

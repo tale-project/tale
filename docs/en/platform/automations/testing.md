@@ -23,6 +23,8 @@ Each row is one test, in the order the document lists them: its status, its name
 2. In **Setup**, fill in the test: its **Name**, the **Input** the run receives as JSON, the **Simulated outputs** and **Simulated failures** that stand in for steps, and under **Expectations** what the run must do. Your changes go into the draft as you type.
 3. Save the draft to keep the test. Saving runs every test and records the result with the version.
 
+Adding a simulated output starts it empty: `{}` for a node, or `[]` when it runs once per item. **Use the last run's output** copies the output from the run on the canvas when you choose it. Review that value before saving.
+
 <Frame caption="A test's Setup: the run's input as JSON, the steps it simulates, and what it expects of the run.">
 
 ![The Setup tab of the test Big order gets 10% off beside the canvas of Order discounts: Name, an empty Description, an Input with quantity 120 and unitPrice 20, Simulated outputs and Simulated failures with a picker each, and Expectations, where the output is checked with Includes.](/images/platform/automation-test-setup.webp)
@@ -56,13 +58,15 @@ When the automation has more to start from, **Add test** opens a menu. **Blank t
 
 ### Save a run as a test {#save-a-run}
 
-A run that did what it should, or one that went wrong, makes a test of its own. **From a run** in the **Add test** menu lists the five newest runs, a run's page offers **Save as test…** in its menu, and a [try of the draft](/platform/automations/editor#try-the-draft) offers **Save as test** in its strip. The dialog makes the test from the run, with its input:
+A run that did what it should, or one that went wrong, makes a test of its own. **From a run** in the **Add test** menu lists the five newest runs, a run's page and its row in the **Runs** tab offer **Save as test…** in their menus, and a [try of the draft](/platform/automations/editor#try-the-draft) offers **Save as test** in its strip. The dialog makes the test from the run, with its input:
 
 - **The test expects** follows how the run ended: **It returns this output**, or **Its output includes this**, for a run that succeeded; **It succeeds** for one that failed, so the test fails until the failure is fixed, or **It fails at Score** when it failed at Score. **Nothing yet** only checks that the run succeeds.
 - **Simulate with this run's data** lists the steps that called a model, an agent, a connector or another automation, each on by default: in the test it answers as it did in the run. A code step stays off, because your code is what the test checks.
 - **Also expect the same actions** expects each action the run took, without its input.
 
 **Add test** puts the test in your draft and opens it on **Setup**; saving the draft keeps it. Values that look like secrets are left out, and the dialog says how many. The run's input and the outputs you keep become part of the automation, so anyone who can open it can read them.
+
+Copied inputs, outputs and failure messages are authored content in the saved version. They can remain in retained versions after the source run is deleted or removed through retention or erasure. Removing a test in a later version does not edit earlier versions. Before saving, review **Input**, **Simulated outputs**, **Simulated failures** and **Expectations**, and replace personal data with synthetic examples.
 
 <Frame caption="A live run of Answer launch questions saved as a test: it expects what the run returned, and the search answers as it did in the run.">
 

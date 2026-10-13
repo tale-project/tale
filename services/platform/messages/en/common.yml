@@ -103,6 +103,8 @@ errors:
   errorLoadingDocumentPreview: The document preview could not be loaded. Try again.
   failedToCopy: Couldn't copy to clipboard
   sessionEnded: Your session has ended. Sign in again.
+  organizationSessionRestricted: This session is limited to the organization that signed you in.
+  accountIdentityRequired: Confirm your password or an account passkey before changing your account.
   connectionLost: Couldn't reach Tale. Check your connection and try again.
 notFound:
   title: Page not found

@@ -109,6 +109,7 @@ function useSettingsSections(
   const apiDeveloper = apiAccess.developer;
   const apiKeys = apiAccess.apiKeys;
   const apiModelApi = apiAccess.modelApi;
+  const apiAgents = apiAccess.agents;
 
   const sections = useMemo<RailSection[]>(() => {
     const personal: RailItem[] = [
@@ -221,13 +222,14 @@ function useSettingsSections(
         icon: Braces,
         path: 'api',
         // Owners, admins and developers; and a member who may create a
-        // personal API key or call the model endpoints, for the REST and
-        // Models tabs alone.
-        visible: apiDeveloper || apiKeys || apiModelApi,
+        // personal API key, call the model endpoints or connect a coding
+        // agent, for the tabs that are theirs alone.
+        visible: apiDeveloper || apiKeys || apiModelApi || apiAgents,
         children: visibleApiNavItems({
           developer: apiDeveloper,
           apiKeys,
           modelApi: apiModelApi,
+          agents: apiAgents,
         }).map((item) => ({
           slug: item.slug,
           label: tNav(item.labelKey),
@@ -263,6 +265,7 @@ function useSettingsSections(
     apiDeveloper,
     apiKeys,
     apiModelApi,
+    apiAgents,
   ]);
 
   return useMemo(

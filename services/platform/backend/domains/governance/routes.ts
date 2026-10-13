@@ -79,6 +79,20 @@ import { getOrgUsageMetricsPg } from './usage-metrics.ts';
  * model-access filter, and the admin Trash listing/restore.
  */
 
+/**
+ * The policies whose consumers read them strictly: a file that exists and
+ * cannot be read stops the capability instead of falling back to the
+ * defaults. The page that shows one reads it the same way, so a broken file
+ * is reported there — with Retry — and never shown as the defaults the
+ * consumer is not using.
+ */
+const STRICT_READ_POLICIES: ReadonlySet<string> = new Set([
+  'transcription_model',
+  'image_generation',
+  'standard_agent',
+  'chat_tools',
+]);
+
 export function createGovernanceRoutes(deps: {
   sql: Sql;
   auth: Auth;
@@ -133,11 +147,7 @@ export function createGovernanceRoutes(deps: {
         deps.sql,
         member.organizationId,
         policyType,
-        policyType === 'transcription_model' ||
-          policyType === 'image_generation' ||
-          policyType === 'standard_agent'
-          ? { strict: true }
-          : {},
+        STRICT_READ_POLICIES.has(policyType) ? { strict: true } : {},
       );
       return c.json({
         policy: config === null ? null : { key: policyType, config },

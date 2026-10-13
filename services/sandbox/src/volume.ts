@@ -175,15 +175,15 @@ function forgetCacheVolume(name: string): void {
 }
 
 /**
- * Lazy idempotent create. New volumes are root-owned by default, but the
- * per-org cache is shared by BOTH session profiles — the one-shot default
- * profile (uid 65534) and the agent session profile (uid 10001) — so no single
- * owner works. On first creation a transient container of the runtime image
- * (`image`, already on the host for the sessions) sets the volume root to
- * 1777 (sticky, world-writable, like /tmp): every same-org
- * sandbox uid can write its own cache entries, and the sticky bit stops one uid
- * from deleting another's. The per-org volume is the isolation boundary (R2.3),
- * so intra-org world-write is acceptable. Subsequent calls find the cache
+ * Lazy idempotent create. New volumes are root-owned by default, and the agent
+ * profile's uid is the operator's to configure, so on first creation a
+ * transient container of the runtime image (`image`, already on the host for
+ * the sessions) sets the volume root to 1777 (sticky, world-writable, like
+ * /tmp): every same-org agent session can write its own cache entries, and the
+ * sticky bit stops one uid from deleting another's. Only agent sessions mount
+ * these volumes — the untrusted `default` profile never does
+ * (`sessionSharesPackageCaches`). The per-org volume is the isolation
+ * boundary (R2.3), so intra-org world-write is acceptable. Subsequent calls find the cache
  * label (`docker volume inspect`) and do nothing more. A volume under the name
  * without the label is one Docker made for a session's `--mount`: it is
  * replaced, or made writable while a session still holds it. A fresh volume

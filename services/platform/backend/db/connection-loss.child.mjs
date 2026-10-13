@@ -35,7 +35,7 @@ const settle = (promise) =>
     }),
   );
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const connect = (max) =>
+const connect = (max, options = {}) =>
   postgres({
     host: '127.0.0.1',
     port: Number(process.env.FAKE_PG_PORT),
@@ -45,6 +45,7 @@ const connect = (max) =>
     // fetch_types stays on, as in the platform: the fake server answers the
     // array-type catalog query with no rows.
     connect_timeout: 5,
+    ...options,
   });
 // The pool must still serve a statement after the loss: it reconnects.
 const after = (sql) => settle(sql`select 'after'`);
@@ -198,6 +199,40 @@ const scenarios = {
       ),
     );
     await sleep(100);
+    emit('after', await after(sql));
+    emit('end', await end(sql));
+  },
+  // A burst of plain statements pipelines onto busy connections, up to
+  // `max_pipeline` each. With two connections and a pipeline of three, the seventh
+  // statement is the one that fills a pipeline: here it is a begin(). postgres.js
+  // only tells begin() which connection it got once the connection can take more
+  // statements, so that statement, written all the same, ran as a BEGIN nobody
+  // owned: UNSAFE_TRANSACTION, and the connection back in the pool inside it.
+  async 'begin-fills-the-pipeline'() {
+    const sql = connect(2, { max_pipeline: 3 });
+    // Both connections open and idle, so the burst below pipelines instead of connecting.
+    await Promise.all([
+      settle(sql`select 'warm-1'`),
+      settle(sql`select 'warm-2'`),
+    ]);
+    const plain = [
+      settle(sql`select 'plain-1'`),
+      settle(sql`select 'plain-2'`),
+      settle(sql`select 'plain-3'`),
+      settle(sql`select 'plain-4'`),
+      settle(sql`select 'plain-5'`),
+      settle(sql`select 'plain-6'`),
+    ];
+    const transaction = settle(
+      sql.begin(async (tx) => {
+        await tx`select 'in-transaction'`;
+        return 'committed';
+      }),
+    );
+    emit('transaction', await transaction);
+    emit('plain', {
+      ok: (await Promise.all(plain)).every((outcome) => outcome.ok),
+    });
     emit('after', await after(sql));
     emit('end', await end(sql));
   },

@@ -1,6 +1,7 @@
 import type { SSEStreamingApi } from 'hono/streaming';
 import type { Sql } from 'postgres';
 
+import { logDetail } from '../../db/unavailable.ts';
 import {
   createHeartbeat,
   createStreamWriter,
@@ -368,7 +369,10 @@ export function createGenerationWatch(
     try {
       await poll();
     } catch (error) {
-      console.error('[chat] stream poll failed, backing off:', error);
+      console.error(
+        '[chat] stream poll failed, backing off:',
+        logDetail(error),
+      );
       schedule(errorBackoffMs);
       return;
     }

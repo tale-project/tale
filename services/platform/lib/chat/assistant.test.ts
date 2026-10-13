@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHAT_ASSISTANT,
   CHAT_ASSISTANT_SLUG,
+  chatAssistantFor,
   TALE_DOCS_INDEX_URL,
 } from './assistant';
 
@@ -67,5 +68,49 @@ describe('CHAT_ASSISTANT', () => {
     expect(TALE_DOCS_INDEX_URL).toBe('https://docs.tale.dev/llms.txt');
     expect(instructions).toMatch(/never guess a docs URL/i);
     expect(instructions).toMatch(/latest release/i);
+  });
+});
+
+describe('chatAssistantFor — the persona a work loadout runs as', () => {
+  const NONE = {
+    createFile: false,
+    generateImage: false,
+    skills: false,
+    runCode: false,
+  };
+  const ALL = {
+    createFile: true,
+    generateImage: true,
+    skills: true,
+    runCode: true,
+  };
+
+  it('is the tool-less persona byte for byte when no work tool is offered', () => {
+    expect(chatAssistantFor(NONE)).toBe(CHAT_ASSISTANT);
+  });
+
+  it('makes files in the chat instead of sending them to a task', () => {
+    const text = chatAssistantFor(ALL).instructions ?? '';
+    expect(text).not.toMatch(/DELIVERABLES GO TO TASKS/);
+    expect(text).toMatch(/MAKING THINGS/);
+    expect(text).toMatch(/TASK WORK/);
+    expect(text).toMatch(/make the files the person asks for/);
+  });
+
+  it('keeps the persona, the safety rules and the docs pointer', () => {
+    const text = chatAssistantFor(ALL).instructions ?? '';
+    expect(chatAssistantFor(ALL).slug).toBe(CHAT_ASSISTANT_SLUG);
+    expect(text).toMatch(/NO FABRICATION/);
+    expect(text).toMatch(/NO RAW CONTEXT OUTPUT/);
+    expect(text).toContain(TALE_DOCS_INDEX_URL);
+  });
+
+  it('is one text per loadout, so the cached prefix moves only with policy', () => {
+    expect(chatAssistantFor(ALL).instructions).toBe(
+      chatAssistantFor({ ...ALL }).instructions,
+    );
+    expect(chatAssistantFor(ALL).instructions).not.toBe(
+      chatAssistantFor({ ...ALL, runCode: false }).instructions,
+    );
   });
 });

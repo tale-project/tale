@@ -125,14 +125,36 @@ function fileAccessProbes(
       // The owner reads their own attachments whatever the thread's status
       // (an archived or trashed thread is still theirs); everyone else only
       // through the one read grant beside share links — a project share.
-      const rows = await sql<{ userId: string }[]>`
-        SELECT user_id AS "userId" FROM app.threads
+      const rows = await sql<{ userId: string | null; kind: string | null }[]>`
+        SELECT user_id AS "userId", kind FROM app.threads
         WHERE id = ${threadId} AND org_id = ${viewer.organizationId}
         LIMIT 1
       `;
       const thread = rows[0];
       if (!thread) return false;
       if (thread.userId === viewer.userId) return true;
+      // A task run's transcript belongs to its task, not to a conversation
+      // anyone shares: everyone who can read the task's project reads the
+      // files the run made, as they read the transcript that shows them.
+      if (thread.kind === 'task_run') {
+        const projects = await sql<{ teamIds: string[] | null }[]>`
+          SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+          FROM app.project_agent_runs r
+          JOIN app.projects p ON p.id = r.project_id
+          WHERE r.thread_id = ${threadId}
+            AND r.org_id = ${viewer.organizationId}
+          LIMIT 1
+        `;
+        const project = projects[0];
+        return (
+          project !== undefined &&
+          checkProjectAccess(
+            { teamIds: project.teamIds ?? [] },
+            viewer.teamIds,
+            viewer.role,
+          ).canRead
+        );
+      }
       return (
         (await loadProjectSharedThread(
           sql,

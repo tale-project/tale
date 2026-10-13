@@ -3,7 +3,7 @@ title: Chat
 description: Pose une question, examine la réponse et ses sources, puis retrouve facilement les conversations utiles.
 ---
 
-Chat permet de poser rapidement une question sur un document, de comprendre un sujet ou de préciser une réponse par des questions complémentaires. L’assistant peut rechercher dans les connaissances accessibles et consulter des pages publiques si la question le nécessite. Vérifie les sources avant de t’appuyer sur une réponse factuelle, surtout lorsque l’information peut avoir changé.
+Chat permet de poser rapidement une question sur un document, de comprendre un sujet ou de préciser une réponse par des questions complémentaires. L’assistant peut rechercher dans les connaissances accessibles, consulter des pages publiques si la question le nécessite et créer un tableur, un document, un graphique ou une image quand tu le lui demandes. Vérifie les sources avant de t’appuyer sur une réponse factuelle, surtout lorsque l’information peut avoir changé.
 
 <Frame caption="La question reste à côté de sa réponse pour préciser la demande sans recommencer.">
 
@@ -28,11 +28,12 @@ Lorsque plusieurs modèles utilisables sont disponibles, le sélecteur peut dém
 | Tu souhaites | Commence dans |
 | --- | --- |
 | Poser une question, comparer des informations ou clarifier une réponse | Un **chat** |
+| Obtenir un document, un tableur, un graphique ou une image | Un **chat** |
 | Réutiliser les mêmes fichiers et instructions dans plusieurs conversations | Un **chat de projet** |
 | Produire un livrable avec un responsable et une relecture | Une **tâche** de projet |
 | Exécuter un processus répétable selon un horaire ou un événement | Une **automatisation** |
 
-Chat se concentre sur la conversation et la recherche d’informations. Pour un livrable conséquent, l’assistant peut t’orienter vers une tâche : un agent travaille alors dans une sandbox et une personne relit le résultat. Consulte [Tâches](/fr/platform/projects/tasks) et [Automatisations](/fr/platform/automations/concepts).
+Chat crée des fichiers directement dans la conversation. Pour un livrable qui demande un responsable et une relecture, ou pour un travail sur un dépôt, dans une session de navigateur ou qui dure des heures, l’assistant peut t’orienter vers une tâche : un agent travaille alors dans sa propre sandbox et une personne relit le résultat. Consulte [Tâches](/fr/platform/projects/tasks) et [Automatisations](/fr/platform/automations/concepts).
 
 ## Bien utiliser la conversation
 
@@ -44,6 +45,10 @@ Envoie un message, choisis un modèle, lis les sources et reprends une conversat
 
 <Card title="Joindre des fichiers" icon="paperclip" href="/fr/platform/chat/attachments">
 Ajoute un document ou une image et comprends les états d’import et d’indexation.
+</Card>
+
+<Card title="Créer des fichiers et utiliser des skills" icon="file-plus" href="/fr/platform/chat/files-and-skills">
+Obtiens un document, un tableur, un graphique ou une image, et laisse un skill guider le travail.
 </Card>
 
 <Card title="Comparer les modèles dans Arena" icon="swords" href="/fr/platform/chat/arena-mode">

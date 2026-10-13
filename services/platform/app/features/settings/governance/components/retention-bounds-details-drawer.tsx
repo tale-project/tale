@@ -5,6 +5,10 @@ import { Sheet } from '@tale/ui/sheet';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
+import { unitForCategory } from '@/lib/shared/schemas/retention';
+
+import { useRetentionText } from '../hooks/use-retention-text';
+import { WIRE_MAPPING } from './retention-categories';
 
 export interface DiffEntry {
   category: string;
@@ -44,6 +48,29 @@ export function RetentionBoundsDetailsDrawer({
   impactPreview,
 }: Props) {
   const { t } = useT('governance');
+  const text = useRetentionText();
+  // A category the operator's config carries and this build does not know
+  // keeps its id and counts in days.
+  const categoryTitle = (category: string): string => {
+    const wire = WIRE_MAPPING.find((mapping) => mapping.id === category);
+    return wire === undefined
+      ? category
+      : t(`retentionPolicy.${wire.i18nKey}.title`, category);
+  };
+  // A bound or a stored value with its unit, in the unit the category keeps
+  // its retention in; `null` is a side the proposal does not bound.
+  const boundText = (category: string, value: number | null): string => {
+    if (value === null) {
+      return t('retentionPolicy.boundsProposal.unbounded', 'no limit');
+    }
+    const wire = WIRE_MAPPING.find((mapping) => mapping.id === category);
+    return text.value(
+      value,
+      wire !== undefined && unitForCategory(wire.id) === 'hours'
+        ? 'hours'
+        : 'days',
+    );
+  };
   return (
     <Sheet
       open={open}
@@ -85,14 +112,14 @@ export function RetentionBoundsDetailsDrawer({
                 <li key={`${d.category}.${d.field}`}>
                   {t(
                     'retentionPolicy.boundsProposal.diffRow',
-                    '{category}: {field} {from} → {to} ({direction})',
+                    '{category}, {field}: {from} → {to} ({direction})',
                     {
-                      category: d.category,
+                      category: categoryTitle(d.category),
                       field: d.field,
                       // `null` marks an unbounded side (category added to /
-                      // removed from the enforced set) — show it as "—".
-                      from: d.from ?? '—',
-                      to: d.to ?? '—',
+                      // removed from the enforced set).
+                      from: boundText(d.category, d.from),
+                      to: boundText(d.category, d.to),
                       direction: d.direction,
                     },
                   )}
@@ -122,9 +149,9 @@ export function RetentionBoundsDetailsDrawer({
                     'retentionPolicy.boundsProposal.impactRow',
                     '{category}: {current} will clamp to {clamped}',
                     {
-                      category: i.category,
-                      current: i.current,
-                      clamped: i.willClampTo,
+                      category: categoryTitle(i.category),
+                      current: boundText(i.category, i.current),
+                      clamped: boundText(i.category, i.willClampTo),
                     },
                   )}
                 </li>

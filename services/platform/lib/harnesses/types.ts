@@ -165,7 +165,11 @@ export interface HarnessRunSpec {
   /**
    * System-prompt addendum composed by the platform (org instructions, trust
    * rules, skills guidance). Every harness delivers it through its own
-   * append-not-replace channel; never dropped.
+   * append-not-replace channel; never dropped. A resumed conversation may
+   * keep the addendum of the turn that started it (Codex records it into the
+   * thread once), so the task host opens a resumed turn's `prompt` with what
+   * that turn must see: on Codex the whole current addendum, elsewhere the
+   * turn's execution identity.
    */
   readonly instructions?: string;
   /** MCP servers to mount (see {@link HarnessMcpConfig}). */

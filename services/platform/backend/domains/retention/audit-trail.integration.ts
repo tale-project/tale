@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Sql } from 'postgres';
 
 import { getConfigRoot } from '../../core/lib/file_io.ts';
+import { AUDIT_WRITE_ORDER } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { createAuditLog, sealAuditChainNow } from '../audit_logs/service.ts';
 import { verifyAuditChain } from '../audit_logs/verify.ts';
@@ -51,6 +52,7 @@ export const BOUNDS_FILE = [
   ['externalConversations', 1, 'days'],
   ['notifications', 1, 'days'],
   ['agentRuns', 1, 'days'],
+  ['automationVersions', 1, 'days'],
 ]
   .map(([category, min, unit]) =>
     [
@@ -112,7 +114,7 @@ const EXPECTED_ROWS: [string, number, Record<string, number> | null][] = [
     1,
     { conversations: 1, attachments: 0 },
   ],
-  ['agent_run.retention_deleted', 1, null],
+  ['agent_run.retention_deleted', 2, null],
   ['automation_run.retention_deleted', 2, null],
   ['audit_log.retention_deleted', 2, null],
   [
@@ -269,6 +271,8 @@ export async function checkRetentionAuditTrail(
         freshContacts: 1,
         freshChatFilterEvents: 1,
         runningAutomation: 1,
+        liveTranscriptFiles: 0,
+        keptDeliverables: 1,
       }),
     `actions=${sweep.map((row) => row.action).join(',')}, mismatches=${mismatches.join('; ') || 'none'}, framed=${framed}, total=${String(closing?.metadata?.deleted)} (want ${totalDeleted}), survivors=${JSON.stringify(survivors)}`,
   );
@@ -351,6 +355,145 @@ export async function checkRetentionAuditTrail(
       anchor[0]?.previousHash === cut,
     `actions=${retry.map((row) => row.action).join(',')}, deleted=${String(retry[1]?.metadata?.deleted)} (want 2), agedFeedbackLeft=${feedbackAfterRetry}, chainValid=${verified.valid} (${verified.verifiedCount} rows), cut=${String(cut)} prefixHead=${prefixHead[0]?.hash} anchor=${anchor[0]?.previousHash}`,
   );
+
+  // Inherited ledger tables have independent physical tuple addresses. A
+  // ctid-only outer DELETE can therefore remove a fresh, held, or unrelated
+  // tenant row whose ctid happens to match a stale candidate in another
+  // inherited table. Exercise both parent and child rows in one bounded run.
+  const collisionOrg = orgId;
+  const collisionUser = `collision-${tag}`;
+  const heldCollisionUser = `held-collision-${tag}`;
+  const otherOrg = randomUUID();
+  const collisionAncient = now - 100 * DAY_MS;
+  const collisionFresh = now;
+  await sql`
+    INSERT INTO app.legal_holds (
+      org_id, target_type, target_id, target_label, reason, placed_by,
+      placed_at_ms
+    ) VALUES (
+      ${collisionOrg}, 'userMembership', ${heldCollisionUser},
+      'retention tuple collision', 'itest', ${userId}, ${now}
+    )
+  `;
+  const ledgerSeed = [
+    [collisionOrg, collisionUser, 'collision-parent-stale', collisionAncient],
+    [collisionOrg, collisionUser, 'collision-parent-fresh', collisionFresh],
+    [
+      collisionOrg,
+      heldCollisionUser,
+      'collision-parent-held',
+      collisionAncient,
+    ],
+    [otherOrg, collisionUser, 'collision-other-tenant', collisionAncient],
+  ] as const;
+  for (const [seedOrg, seedUser, model, updatedAt] of ledgerSeed) {
+    await sql`
+      INSERT INTO app.usage_ledger (
+        org_id, user_id, period_key, granularity, model, provider,
+        input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+        request_count, connector_call_count, updated_at_ms
+      ) VALUES (
+        ${seedOrg}, ${seedUser}, ${model}, 'daily', ${model}, 'itest',
+        1, 1, 2, 1, 1, 0, ${updatedAt}
+      )
+    `;
+    await sql`
+      INSERT INTO app.usage_ledger_provider (
+        org_id, user_id, period_key, granularity, model, provider,
+        input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+        request_count, connector_call_count, updated_at_ms
+      ) VALUES (
+        ${seedOrg}, ${seedUser}, ${`${model}-child`}, 'daily',
+        ${`${model}-child`}, 'itest', 1, 1, 2, 1, 1, 0, ${updatedAt}
+      )
+    `;
+  }
+  const batchLedgerRows = Array.from({ length: 1001 }, (_, index) => ({
+    org_id: collisionOrg,
+    user_id: collisionUser,
+    period_key: `collision-batch-${index}`,
+    granularity: 'daily',
+    model: `collision-batch-${index}`,
+    provider: 'itest',
+    input_tokens: 1,
+    output_tokens: 1,
+    total_tokens: 2,
+    cost_estimate_cents: 1,
+    request_count: 1,
+    connector_call_count: 0,
+    updated_at_ms: collisionAncient,
+  }));
+  await sql`INSERT INTO app.usage_ledger ${sql(batchLedgerRows)}`;
+  await sql`
+    INSERT INTO app.usage_ledger_provider (
+      org_id, user_id, period_key, granularity, model, provider,
+      input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+      request_count, connector_call_count, updated_at_ms
+    ) VALUES (
+      ${collisionOrg}, ${collisionUser}, 'collision-child-fresh', 'daily',
+      'collision-child-fresh', 'itest', 1, 1, 2, 1, 1, 0, ${collisionFresh}
+    )
+  `;
+  await runRetentionCleanup(sql);
+  const collisionRows = await sql<
+    {
+      model: string;
+      tableName: string;
+      userId: string;
+    }[]
+  >`
+    SELECT model, tableoid::regclass::text AS "tableName", user_id AS "userId"
+    FROM app.usage_ledger
+    WHERE org_id IN (${collisionOrg}, ${otherOrg})
+    ORDER BY model
+  `;
+  const collisionAudit = await sql<{ metadata: Record<string, unknown> }[]>`
+    SELECT metadata FROM app.audit_logs
+    WHERE org_id = ${collisionOrg}
+      AND action = 'usage_ledger.retention_deleted'
+    ORDER BY ts DESC, id DESC LIMIT 1
+  `;
+  const collisionMetadata = collisionAudit[0]?.metadata;
+  const collisionModels = new Set(collisionRows.map((row) => row.model));
+  // The sweep deletes 1000 of the 1003 stale rows — the 1001 batch rows and
+  // the stale row of each table — in the order the planner scans them, so
+  // which three stay is not the point; that exactly three do, beside the
+  // seven rows no sweep may touch, is.
+  const staleLeft = collisionRows.filter(
+    (row) =>
+      row.userId === collisionUser &&
+      (row.model.startsWith('collision-batch-') ||
+        row.model.startsWith('collision-parent-stale')),
+  ).length;
+  const collisionAuditCounts = collisionMetadata?.counts;
+  const collisionAuditExact =
+    collisionMetadata?.deleted === 1000 &&
+    isDeepStrictEqual(collisionAuditCounts, {
+      usageLedger: 1000,
+      usageEvents: 0,
+      projectUsage: 0,
+    });
+  record(
+    'retention ledger: inherited tuple identity preserves tenant, fresh and held rows with exact bounded audit counts',
+    collisionRows.length === 10 &&
+      collisionModels.has('collision-parent-fresh') &&
+      collisionModels.has('collision-parent-held') &&
+      collisionModels.has('collision-child-fresh') &&
+      collisionModels.has('collision-parent-fresh-child') &&
+      collisionModels.has('collision-parent-held-child') &&
+      collisionModels.has('collision-other-tenant') &&
+      collisionModels.has('collision-other-tenant-child') &&
+      staleLeft === 3 &&
+      collisionAuditExact,
+    `rows=${collisionRows.map((row) => `${row.tableName}:${row.model}:${row.userId}`).join(',')}, staleLeft=${staleLeft} (want 3), audit=${JSON.stringify(collisionMetadata)} (want deleted=1000, usageLedger=1000, usageEvents=0, projectUsage=0)`,
+  );
+  await sql`
+    DELETE FROM app.legal_holds
+    WHERE org_id = ${collisionOrg} AND target_id = ${heldCollisionUser}
+  `;
+  await sql`
+    DELETE FROM app.usage_ledger WHERE org_id IN (${collisionOrg}, ${otherOrg})
+  `;
 
   // Later lanes sweep the fleet; this organization leaves it.
   await sql`DELETE FROM app.retention_applied_bounds WHERE org_id = ${orgId}`;
@@ -519,6 +662,39 @@ async function seedSweep(
       ${ancient}, ${ancient}, ${ancient}
     )
   `;
+  // A run on the native engine: its transcript is a bare thread of its own
+  // kind (no chat-history rule lists it), with one file only the transcript
+  // held, and a deliverable its task keeps. The sweep of agent runs takes
+  // the first two with the run's row, and leaves the third.
+  const transcript = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${userId}, 'rta transcript', 'task_run', ${ancient},
+            ${ancient})
+    RETURNING id
+  `;
+  const transcriptId = transcript[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, engine, thread_id, model, started_by, started_at_ms,
+      settled_at_ms, deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, 'rta-agent', ${`rta-native-${tag}`},
+      'rta-sess', 'settled', 'claude-code', 'native', ${transcriptId}, 'm',
+      ${userId}, ${ancient}, ${ancient}, ${ancient}, ${ancient}
+    )
+  `;
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source, uploaded_by,
+      thread_id, created_at_ms
+    ) VALUES
+      (${orgId}, ${`s3:rta-scratch-${tag}`}, 'scratch.txt', 'text/plain', 1,
+       'agent', ${userId}, ${transcriptId}, ${ancient}),
+      (${orgId}, ${`s3:rta-deliverable-${tag}`}, 'report.csv', 'text/csv', 1,
+       'task-output', NULL, NULL, ${ancient})
+  `;
   await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx`
@@ -558,7 +734,7 @@ async function retentionRuns(sql: Sql, orgId: string): Promise<TrailRow[][]> {
            error_message AS "errorMessage", metadata
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'retention_run'
-    ORDER BY ts ASC, id ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   const runs = new Map<string, TrailRow[]>();
   for (const row of rows) {
@@ -594,6 +770,8 @@ async function sweepSurvivors(
       freshContacts: number;
       freshChatFilterEvents: number;
       runningAutomation: number;
+      liveTranscriptFiles: number;
+      keptDeliverables: number;
     }[]
   >`
     SELECT
@@ -634,7 +812,17 @@ async function sweepSurvivors(
         AS "freshChatFilterEvents",
       (SELECT count(*) FROM app.automation_runs
        WHERE org_id = ${orgId} AND status = 'running')::int
-        AS "runningAutomation"
+        AS "runningAutomation",
+      -- What only a native run's transcript held ends with it; what its task
+      -- keeps does not.
+      (SELECT count(*) FROM app.file_metadata
+       WHERE org_id = ${orgId} AND storage_ref = ${`s3:rta-scratch-${tag}`}
+         AND (lifecycle_status IS NULL OR lifecycle_status = 'active'))::int
+        AS "liveTranscriptFiles",
+      (SELECT count(*) FROM app.file_metadata
+       WHERE org_id = ${orgId} AND storage_ref = ${`s3:rta-deliverable-${tag}`}
+         AND (lifecycle_status IS NULL OR lifecycle_status = 'active'))::int
+        AS "keptDeliverables"
   `;
   return (
     rows[0] ?? {
@@ -643,6 +831,8 @@ async function sweepSurvivors(
       freshContacts: -1,
       freshChatFilterEvents: -1,
       runningAutomation: -1,
+      liveTranscriptFiles: -1,
+      keptDeliverables: -1,
     }
   );
 }

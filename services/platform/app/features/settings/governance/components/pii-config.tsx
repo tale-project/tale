@@ -1,5 +1,6 @@
 'use client';
 
+import { piiConfigSchema } from '@tale/shared/schemas/pii';
 import { SuspenseBoundary } from '@tale/ui/error-boundaries/suspense-boundary';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -13,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { policyEnabled } from '../lib/policy-enabled';
 import type { PiiConfigPanelValue } from './pii/pii-config-panel';
@@ -72,12 +74,13 @@ type PiiPolicy = ReturnType<typeof useGovernancePolicy>['data'];
  * render what it does have; whole-object validation would discard an
  * operator's configured mode and patterns as if nothing were set. The on/off
  * flag is `config.enabled` too — see `policyEnabled`.
+ * Custom patterns are the exception: the read boundary validates the whole
+ * optional field before the editor can seed values from it.
  */
 function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
   const config = readRecord(policy?.config);
   const mode = config.mode;
   const enabledPatterns = config.enabledPatterns;
-  const customPatterns = config.customPatterns;
   return {
     mode: isPiiMode(mode) ? mode : DEFAULT_VALUE.mode,
     enabledPatterns: Array.isArray(enabledPatterns)
@@ -85,9 +88,8 @@ function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
           (entry): entry is string => typeof entry === 'string',
         )
       : [],
-    customPatterns: Array.isArray(customPatterns)
-      ? customPatterns.filter(isCustomPattern)
-      : [],
+    customPatterns:
+      piiConfigSchema.shape.customPatterns.parse(config.customPatterns) ?? [],
   };
 }
 
@@ -95,18 +97,12 @@ function isPiiMode(value: unknown): value is PiiConfigPanelValue['mode'] {
   return value === 'mask' || value === 'block' || value === 'tokenize';
 }
 
-/** A custom pattern the panel can render: a named regex. */
-function isCustomPattern(
-  value: unknown,
-): value is PiiConfigPanelValue['customPatterns'][number] {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    'name' in value &&
-    typeof value.name === 'string' &&
-    'pattern' in value &&
-    typeof value.pattern === 'string'
-  );
+/** A saved custom-pattern field is atomic: an unrelated setting must never
+ * replace the server's array with a shorter, filtered one. */
+function isPiiPolicyReadable(policy: PiiPolicy): boolean {
+  const config = readRecord(policy?.config);
+  return piiConfigSchema.shape.customPatterns.safeParse(config.customPatterns)
+    .success;
 }
 
 /** A record-shaped value's own entries, or an empty record. */
@@ -141,6 +137,7 @@ function PiiConfigContent({ organizationId }: PiiConfigProps) {
     'pii_config',
   );
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
+  const readAvailable = usePolicyReadAvailable();
 
   const [enabled, setEnabled] = useState(() => policyEnabled(policy));
   const [value, setValue] = useState<PiiConfigPanelValue>(() =>
@@ -154,7 +151,9 @@ function PiiConfigContent({ organizationId }: PiiConfigProps) {
   // state during the render the data arrives — pre-commit — so it never
   // produces a visible default→real flash. After this, edits are client-owned.
   const syncedRef = useRef(policy != null);
-  if (!syncedRef.current && policy != null) {
+  // A malformed cold read must not latch empty values while the boundary
+  // hides the editor: a successful Retry still needs to seed the saved rules.
+  if (!syncedRef.current && policy != null && readAvailable) {
     syncedRef.current = true;
     setEnabled(policyEnabled(policy));
     setValue(deriveValue(policy));
@@ -172,10 +171,7 @@ function PiiConfigContent({ organizationId }: PiiConfigProps) {
             enabled: nextEnabled,
             mode: nextValue.mode,
             enabledPatterns: nextValue.enabledPatterns,
-            customPatterns: nextValue.customPatterns.filter(
-              (p: { name: string; regex: string; replacement: string }) =>
-                p.name && p.regex && p.replacement,
-            ),
+            customPatterns: nextValue.customPatterns,
           },
         });
         toast({
@@ -202,7 +198,11 @@ function PiiConfigContent({ organizationId }: PiiConfigProps) {
       // documented mode so the toggle protects something immediately,
       // instead of persisting an empty, inert `enabledPatterns: []`. Any
       // org that already picked patterns keeps them untouched.
-      if (checked && value.enabledPatterns.length === 0) {
+      if (
+        checked &&
+        value.enabledPatterns.length === 0 &&
+        value.customPatterns.length === 0
+      ) {
         const seeded: PiiConfigPanelValue = {
           ...value,
           mode: FIRST_ENABLE_MODE,
@@ -267,4 +267,5 @@ function PiiConfigContent({ organizationId }: PiiConfigProps) {
 export const PiiConfig = withGovernancePolicyReadBoundary(
   PiiConfigContent,
   'pii_config',
+  isPiiPolicyReadable,
 );

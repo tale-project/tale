@@ -158,6 +158,19 @@ of replacing it.
 - **Example**: The stored connection is damaged. Ada saves a change → refused, and the stored
   connection is left for an operator to repair.
 
+## Discovering connections
+
+### SSO-R18 · One organization's unreadable connection does not hide healthy connections
+
+The sign-in page and another organization's settings discover only readable enabled
+connections. An unreadable connection is skipped; deployment and database failures still
+fail the request. Selecting an organization explicitly still refuses its own unreadable
+connection instead of using another organization's provider.
+
+- **Example**: Ada's connection is healthy and Zoe's stored connection is damaged → the
+  sign-in page still offers Ada's provider and her settings still load. A sign-in explicitly
+  naming Zoe's organization is refused until its connection is repaired.
+
 ## Not yet
 
 - **Who can set up a connection**, and testing it before it is saved (`admin-routes.ts`,

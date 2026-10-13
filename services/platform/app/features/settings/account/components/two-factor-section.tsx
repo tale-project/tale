@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 
 import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
 import { readPasswordRefusal } from '@/app/lib/auth/password-refusal';
 import { holdSessionLapseRedirects } from '@/app/lib/auth/session-lapse';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
@@ -81,7 +82,9 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
         setError(
           refusal
             ? refusalMessage(refusal)
-            : (result.error?.message ?? t('errors.enableFailed')),
+            : (authSessionRefusalMessage(result.error) ??
+                result.error?.message ??
+                t('errors.enableFailed')),
         );
         return;
       }
@@ -206,7 +209,9 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
         setError(
           refusal
             ? refusalMessage(refusal)
-            : (result.error.message ?? t('errors.disableFailed')),
+            : (authSessionRefusalMessage(result.error) ??
+                result.error.message ??
+                t('errors.disableFailed')),
         );
         return;
       }
@@ -235,7 +240,9 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
         setError(
           refusal
             ? refusalMessage(refusal)
-            : (result.error?.message ?? t('errors.regenerateFailed')),
+            : (authSessionRefusalMessage(result.error) ??
+                result.error?.message ??
+                t('errors.regenerateFailed')),
         );
         return;
       }

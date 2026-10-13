@@ -28,6 +28,7 @@
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
+import type { SkillCatalogEntry } from '../agent/skills-block';
 import {
   classifyChatErrorCode,
   describeChatError,
@@ -63,7 +64,9 @@ import {
 } from './guardrails';
 import type { TaskHandover } from './handover';
 import { createServingTally, mergeServedBy } from './serving';
+import { runToolBatch } from './tool-batch';
 import {
+  toolOutputArtifacts,
   type ChatToolExecutor,
   type ToolCallRequest,
   type WireTool,
@@ -109,6 +112,15 @@ const NO_HARNESSES: HarnessTable = new Map();
 export const MAX_TOOL_ROUNDS = 4;
 
 /**
+ * The round budget of a turn that also offers WORK tools — writing a file,
+ * running code in a sandbox, loading a skill. Making a document takes more
+ * steps than looking something up: load the skill, run the program, read
+ * the error, run it again, answer. Twelve rounds is room for that loop and
+ * one correction, still a ceiling the host sets, not the model.
+ */
+export const MAX_WORK_TOOL_ROUNDS = 12;
+
+/**
  * Wire-only budget notices, appended as a trailing user turn on the round
  * they describe (user role for the same reason as the context truncation
  * notice: the Anthropic wire hoists system-role messages out of position).
@@ -122,15 +134,15 @@ export const MAX_TOOL_ROUNDS = 4;
  * say what was actually read, offer to continue.
  */
 export const LAST_TOOL_ROUND_NOTICE =
-  '[Last lookup round for this reply: issue every remaining search or ' +
-  'fetch now, as parallel tool calls in this one response — after their ' +
-  'results you must answer.]';
+  '[Last tool round for this reply: issue every remaining call now, as ' +
+  'parallel tool calls in this one response — after their results you ' +
+  'must answer.]';
 
 export const TOOL_BUDGET_SPENT_NOTICE =
-  '[The lookup budget for this reply is spent; no further tool calls will ' +
-  'run. Answer now from what you have gathered. If you could not read ' +
-  'everything, say exactly which parts you did read and offer to continue ' +
-  'in a follow-up reply — do not announce further lookups.]';
+  '[The tool budget for this reply is spent; no further tool calls will ' +
+  'run. Answer now from what you have gathered. If you could not finish, ' +
+  'say exactly what you did and what is left, and offer to continue in a ' +
+  'follow-up reply — do not announce further tool calls.]';
 
 /**
  * The fixed-reply-language notice, appended to the newest user message on
@@ -458,6 +470,9 @@ export interface TurnRequest {
    * the app's chat only. */
   readonly taskHandover?: TaskHandover;
   readonly toolDocs?: readonly ToolDoc[];
+  /** The skills the turn may load (`ContextInput.skillCatalog`); only a
+   * turn that offers the skill tools passes any. */
+  readonly skillCatalog?: readonly SkillCatalogEntry[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary
    * server-side). Absent for an unbound thread. */
@@ -517,6 +532,10 @@ export interface TurnDeps {
   /** The tool executor, when this lane equips tools. Absent runs the turn
    * as a plain single-shot answer. */
   readonly tools?: ChatToolExecutor;
+  /** How many rounds may end in tool calls before the tools are withheld —
+   * {@link MAX_TOOL_ROUNDS} unless the host's loadout needs more (a lane
+   * with work tools passes {@link MAX_WORK_TOOL_ROUNDS}). */
+  readonly maxToolRounds?: number;
   readonly now?: () => Date;
   /** Called with every cleared chunk — how a host forwards the stream. */
   readonly onChunk?: (text: string) => void;
@@ -649,6 +668,9 @@ function assembleTurnContext(
       : {}),
     ...(request.taskHandover !== undefined
       ? { taskHandover: request.taskHandover }
+      : {}),
+    ...(request.skillCatalog !== undefined
+      ? { skillCatalog: request.skillCatalog }
       : {}),
     now,
     history,
@@ -1248,24 +1270,29 @@ async function recordUsage(
 
 // ----------------------------------------------------------------- the turn
 
-/** Order-insensitive spelling of one call's arguments, for the same-round
- * dedup key: object keys sorted at every depth, so two spellings of the same
- * arguments compare equal. An undefined input keys like null — both read as
- * "no arguments". */
-function canonicalArgs(value: unknown): string {
-  return JSON.stringify(sortKeysDeep(value) ?? null);
-}
-
-function sortKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeysDeep);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, entry]) => [key, sortKeysDeep(entry)]),
+/**
+ * Put a produced file on the reply. A document the reply already carries
+ * under the same name was revised by a later call: the new version takes
+ * the earlier one's place, so the person gets the file once, as it ended
+ * up. Images are each a result of their own and always add.
+ */
+export function attachArtifact(
+  parts: MessagePart[],
+  artifact: Extract<MessagePart, { type: 'artifact' }>,
+): void {
+  if (!artifact.mediaType.startsWith('image/')) {
+    const earlier = parts.findIndex(
+      (part) =>
+        part.type === 'artifact' &&
+        part.name === artifact.name &&
+        !part.mediaType.startsWith('image/'),
     );
+    if (earlier !== -1) {
+      parts[earlier] = artifact;
+      return;
+    }
   }
-  return value;
+  parts.push(artifact);
 }
 
 /** The sentence a guardrail refusal is reported with — the chat turn's and
@@ -1474,6 +1501,7 @@ export async function runTurn(
       : cancel.signal;
 
     const executor = deps.tools;
+    const maxToolRounds = deps.maxToolRounds ?? MAX_TOOL_ROUNDS;
     /** Parts settled by finished tool rounds, in authored order. */
     const settledParts: MessagePart[] = [];
     /** The TTFT anchor is the FIRST round's first provider text SSE;
@@ -1524,7 +1552,7 @@ export async function runTurn(
       // and only for the round that is about to run its tools.
       roundSettled = false;
       const offeredTools =
-        executor !== undefined && toolRounds < MAX_TOOL_ROUNDS
+        executor !== undefined && toolRounds < maxToolRounds
           ? executor.wireTools
           : undefined;
       // The notice rides the wire only, never the store: the transcript
@@ -1532,9 +1560,9 @@ export async function runTurn(
       const budgetNotice =
         executor === undefined
           ? undefined
-          : toolRounds >= MAX_TOOL_ROUNDS
+          : toolRounds >= maxToolRounds
             ? TOOL_BUDGET_SPENT_NOTICE
-            : toolRounds === MAX_TOOL_ROUNDS - 1
+            : toolRounds === maxToolRounds - 1
               ? LAST_TOOL_ROUND_NOTICE
               : undefined;
       const roundMessages: ChatMessage[] = [...context.messages];
@@ -1643,35 +1671,45 @@ export async function runTurn(
         break;
       }
 
-      // Execute the round's calls CONCURRENTLY, deduplicated: the model
-      // sometimes asks the same question twice in one round, and an
-      // identical (name, arguments) pair cannot answer differently — one
-      // execution serves every duplicate. Every callId still settles its
-      // own tool-result (both wire dialects pair each call with a result;
-      // a missing one fails the next round), duplicates sharing the one
-      // output. The executor's contract is to never throw — a failed call
+      // Execute the round's calls CONCURRENTLY, deduplicated and
+      // supervised (`runToolBatch`): at most a round's worth of calls run,
+      // the turn's heartbeat is written and its Stop read while they do, and
+      // a Stop, the round's time or the turn's own end tells every call to
+      // stop. Every callId still settles its own tool-result (both wire
+      // dialects pair each call with a result; a missing one fails the next
+      // round). The executor's contract is to never throw — a failed call
       // comes back as a structured result the model reads and can recover
-      // from — and the pipeline enforces it once more here, so no executor
-      // bug (or test fake) can end the whole turn over one call.
-      const runCall = async (call: ToolCallRequest): Promise<unknown> => {
-        try {
-          return await executor.execute(call);
-        } catch (error) {
-          console.warn(
-            `[chat] tool executor broke its never-throws contract on ${call.name}: ${error instanceof Error ? error.message : 'unknown'}`,
-          );
-          return {
-            status: 'error',
-            message: 'The tool failed unexpectedly. Tell the user.',
-          };
-        }
-      };
-      const outputByKey = new Map<string, Promise<unknown>>();
+      // from — and the batch enforces it once more, so no executor bug (or
+      // test fake) can end the whole turn over one call.
       // A round the output cap cut does not run its calls: the cap fell in
       // the middle of what the model was asking, so every call of the round
       // settles `CAP_CUT_CALL_OUTPUT` instead — the record still pairs each
       // call with a result, and the loop's budget decides whether another
       // round follows.
+      let stoppedByBatch = false;
+      const runBatch = async (): Promise<readonly unknown[]> => {
+        const batch = await runToolBatch({
+          calls,
+          execute: (call, options) => executor.execute(call, options),
+          signal: request.signal,
+          poll: async () => {
+            // The same write that keeps a streaming reply alive and reads
+            // its Stop, with nothing new to store: between the tools' start
+            // and their end it is the turn's only sign of life.
+            const verdict = await deps.store.streamProgress({
+              organizationId: request.organizationId,
+              threadId: request.threadId,
+              messageId: placeholder.id,
+              text: '',
+              reasoning: '',
+              poll: true,
+            });
+            return verdict?.cancelRequested === true;
+          },
+        });
+        stoppedByBatch = batch.stopped;
+        return batch.outputs;
+      };
       const outputs: readonly unknown[] =
         streamed.finishReason === 'length'
           ? // `rawInput` is kept only when the arguments failed to parse —
@@ -1682,16 +1720,7 @@ export async function runTurn(
                 ? CAP_WITHHELD_CALL_OUTPUT
                 : CAP_CUT_CALL_OUTPUT,
             )
-          : await Promise.all(
-              calls.map((call) => {
-                // A call that failed to parse keys on its raw text — two broken
-                // calls are only "the same" when they broke identically.
-                const key = `${call.name} ${call.rawInput ?? canonicalArgs(call.input)}`;
-                const pending = outputByKey.get(key) ?? runCall(call);
-                outputByKey.set(key, pending);
-                return pending;
-              }),
-            );
+          : await runBatch();
       for (const [index, call] of calls.entries()) {
         const output = outputs[index];
         settledParts.push({
@@ -1701,6 +1730,25 @@ export async function runTurn(
           output,
           structured: true,
         });
+      }
+      // The files the round's calls produced ride the reply itself, after
+      // the results that name them: they are what the person downloads, and
+      // the record keeps them whether or not the model mentions them. A
+      // duplicate call shares its twin's output — its files are one set.
+      const attached = new Set<string>();
+      for (const [index, call] of calls.entries()) {
+        for (const artifact of toolOutputArtifacts(outputs[index])) {
+          if (attached.has(artifact.ref)) continue;
+          attached.add(artifact.ref);
+          attachArtifact(settledParts, {
+            type: 'artifact',
+            fileId: artifact.ref,
+            name: artifact.name,
+            mediaType: artifact.mediaType,
+            sizeBytes: artifact.sizeBytes,
+            callId: call.id,
+          });
+        }
       }
       await persistSettledParts();
       // One cancel read for the whole batch: a Stop that landed while the
@@ -1713,7 +1761,9 @@ export async function runTurn(
         text: '',
         reasoning: '',
       });
-      if (verdict?.cancelRequested === true) {
+      // A Stop the batch itself heard ended its tools already; it stands
+      // whether or not the row's flag reads true again here.
+      if (verdict?.cancelRequested === true || stoppedByBatch) {
         streamed = { ...streamed, cancelled: true };
       }
       if (streamed.cancelled === true) break;
@@ -1793,7 +1843,7 @@ export async function runTurn(
             : streamed.finishReason;
     const usage: TurnUsage = {
       ...summedUsage(summed, request.model.pricing),
-      ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
+      ...(toolRounds >= maxToolRounds ? { stepLimitHit: true } : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
       ...servingStamp(),

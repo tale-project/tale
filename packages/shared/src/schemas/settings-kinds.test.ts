@@ -112,7 +112,11 @@ describe('the settings kinds', () => {
       for (const area of descriptor.areas) {
         expect(areas.has(area), `${descriptor.kind}: ${area}`).toBe(true);
       }
-      expect(descriptor.ops.length, descriptor.kind).toBeGreaterThan(0);
+      // A kind changes by an operation, by an act, or by both.
+      expect(
+        descriptor.ops.length + descriptor.acts.length,
+        descriptor.kind,
+      ).toBeGreaterThan(0);
       for (const act of descriptor.acts) {
         expect(act, descriptor.kind).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
       }

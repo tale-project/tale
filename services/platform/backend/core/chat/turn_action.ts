@@ -6,12 +6,16 @@ import type {
   WireDialect,
 } from '@tale/shared/schemas/providers';
 
-import { CHAT_ASSISTANT } from '../../../lib/chat/assistant';
+import { composeToolExecutors } from '../../../lib/agent/compose';
+import type { WorkLoadout } from '../../../lib/agent/ladder';
+import type { SkillCatalogEntry } from '../../../lib/agent/skills-block';
+import { CHAT_ASSISTANT, chatAssistantFor } from '../../../lib/chat/assistant';
 import {
   buildAudioTranscriptAppendix,
   stripAudioTranscriptAppendix,
 } from '../../../lib/chat/audio-transcript';
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import type { ToolDoc } from '../../../lib/chat/context';
 import { buildDocumentAppendix } from '../../../lib/chat/document-appendix';
 import {
   fitSamplingToWindow,
@@ -23,10 +27,19 @@ import {
   regionalEndpoint,
   sameServedBy,
 } from '../../../lib/chat/serving';
-import { CHAT_TOOL_DOCS, type ToolCallRequest } from '../../../lib/chat/tools';
-import { runTurn, userTurnParts } from '../../../lib/chat/turn';
+import {
+  CHAT_TOOL_DOCS,
+  type ChatToolExecutor,
+  type ToolCallRequest,
+} from '../../../lib/chat/tools';
+import {
+  MAX_WORK_TOOL_ROUNDS,
+  runTurn,
+  userTurnParts,
+} from '../../../lib/chat/turn';
 import type {
   ModelCall,
+  ResolvedAgent,
   ModelStreamChunk,
   TurnAttachment,
   TurnDeps,
@@ -719,6 +732,36 @@ export interface ExecuteTurnOverrides {
     apiKeyId?: string;
     projectIds?: readonly string[];
   }) => EmbeddingMeter;
+  /** The host's work tools for this turn (`domains/agent_tools`), built once
+   * the conversation is known: the lineage the files bind to and the project
+   * the thread is filed in. Absent, or answering `undefined`, the turn
+   * offers the retrieval tools alone, exactly as before work tools existed. */
+  readonly workTools?: (turn: {
+    rootThreadId: string;
+    threadIds: readonly string[];
+    projectId: string | null;
+  }) => Promise<TurnWorkTools | undefined>;
+  /** Who the turn speaks as, given the loadout its work tools gave it. A
+   * task run speaks as its project agent; absent, the chat assistant. */
+  readonly persona?: (loadout: WorkLoadout | undefined) => ResolvedAgent;
+  /** Aborts the turn from outside: a task run whose task was stopped,
+   * moved or retired while it works, or a worker shutting down. The turn
+   * ends at its next boundary, settling what it has. */
+  readonly signal?: AbortSignal;
+  /** Whether the person's own standing instructions and the note on how they
+   * hand work to an agent ride the turn. They belong to a chat with that
+   * person; an agent working a task for its project does not carry them.
+   * Absent, they ride. */
+  readonly personalContext?: boolean;
+}
+
+/** What a turn's work tools add to it: the executor, its tool docs, the
+ * loadout the persona's ladder is written for, and the skill catalog. */
+export interface TurnWorkTools {
+  readonly executor: ChatToolExecutor;
+  readonly toolDocs: readonly ToolDoc[];
+  readonly loadout: WorkLoadout;
+  readonly skillCatalog: readonly SkillCatalogEntry[];
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -1052,6 +1095,16 @@ function unwrap<T>(result: PromiseSettledResult<T>): T {
   return result.value;
 }
 
+/**
+ * One turn of an agent, end to end — the engine both lanes run on. A chat
+ * reply runs it as the chat assistant over the person's conversation; a
+ * task run runs it as the project agent over the run's own transcript
+ * thread, with the task's brief as the message (`domains/tasks/native-turn.ts`).
+ * What differs between the lanes is injected through `overrides`: the write
+ * ports, the work tools, the persona, and whether the person's own context
+ * rides. Everything else — model resolution, access policy, the window, the
+ * guardrails, the retrieval tools, the loop — is this one function.
+ */
 export async function executeTurn(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
@@ -1159,20 +1212,25 @@ export async function executeTurn(
   const pendingPolicies = settled(readTurnPolicies(ctx, args.organizationId));
   // The person's own standing instructions, already gated by their toggle
   // over the org default (a failed read degrades to none inside the helper).
+  const personalContext = overrides.personalContext !== false;
   const pendingCustomInstructions = settled(
-    readCustomInstructions(ctx, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-    }),
+    personalContext
+      ? readCustomInstructions(ctx, {
+          organizationId: args.organizationId,
+          userId: args.userId,
+        })
+      : Promise.resolve(undefined),
   );
   // How this person hands work to an agent (the app's chat only).
   const pendingTaskHandover = settled(
-    readTaskHandover(ctx, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      locale: args.locale,
-      ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-    }),
+    personalContext
+      ? readTaskHandover(ctx, {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          locale: args.locale,
+          ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+        })
+      : Promise.resolve(undefined),
   );
 
   // Verdicts in the serial order the reads used to run, so refusal
@@ -1196,6 +1254,27 @@ export async function executeTurn(
   // project) — the scope boundary of the turn's tools whether or not the
   // user may still read it; the prompt block below is the part access gates.
   const threadProjectId = unwrap(await pendingProjectId);
+  // The work tools — files, images, skills, the light sandbox — when the
+  // host offers them, set up beside the reads below: built against the
+  // conversation's lineage, the root every produced file binds to. A failure
+  // to build them never fails the turn: it runs with the retrieval tools
+  // alone.
+  const pendingWorkTools: Promise<TurnWorkTools | undefined> =
+    overrides.workTools === undefined
+      ? Promise.resolve(undefined)
+      : overrides
+          .workTools({
+            rootThreadId: lineage.rootId,
+            threadIds: lineage.threadIds,
+            projectId: threadProjectId,
+          })
+          .catch((error: unknown) => {
+            console.error(
+              `[chat] work tools for thread ${args.threadId} could not be set up; the turn runs without them:`,
+              error,
+            );
+            return undefined;
+          });
   const projectContext = await resolveProjectContext(ctx, {
     organizationId: args.organizationId,
     userId: args.userId,
@@ -1366,43 +1445,54 @@ export async function executeTurn(
     }),
   );
 
+  const workTools = await pendingWorkTools;
+  const agent =
+    overrides.persona !== undefined
+      ? overrides.persona(workTools?.loadout)
+      : workTools !== undefined
+        ? chatAssistantFor(workTools.loadout)
+        : CHAT_ASSISTANT;
+
+  const retrievalTools = createChatToolExecutor(
+    ctx,
+    chatToolContextForTurn({
+      organizationId: args.organizationId,
+      userId: args.userId,
+      threadIds: lineage.threadIds,
+      projectId: threadProjectId,
+      // A tool call is the turn's: its member, the key that sent the
+      // message, the thread's project — its search's embedding too.
+      ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+      ...(overrides.meterEmbeddings !== undefined
+        ? {
+            embeddingMeter: overrides.meterEmbeddings({
+              userId: args.userId,
+              agentSlug: EMBEDDING_SLUG,
+              ...(args.apiKeyId !== undefined
+                ? { apiKeyId: args.apiKeyId }
+                : {}),
+              ...(threadProjectId !== null
+                ? { projectIds: [threadProjectId] }
+                : {}),
+            }),
+          }
+        : {}),
+    }),
+  );
   const deps: TurnDeps = {
     model,
     // The org's guardrail chain, both directions, with its event log.
     ...buildTurnGuardrails(ctx, {
       organizationId: args.organizationId,
       threadId: args.threadId,
-      agentSlug: CHAT_ASSISTANT.slug,
+      agentSlug: agent.slug,
       policies,
     }),
-    // The chat assistant's fixed three-tool loadout. A test that wants a
-    // tool-free turn overrides `tools` with undefined.
-    tools: createChatToolExecutor(
-      ctx,
-      chatToolContextForTurn({
-        organizationId: args.organizationId,
-        userId: args.userId,
-        threadIds: lineage.threadIds,
-        projectId: threadProjectId,
-        // A tool call is the turn's: its member, the key that sent the
-        // message, the thread's project — its search's embedding too.
-        ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-        ...(overrides.meterEmbeddings !== undefined
-          ? {
-              embeddingMeter: overrides.meterEmbeddings({
-                userId: args.userId,
-                agentSlug: EMBEDDING_SLUG,
-                ...(args.apiKeyId !== undefined
-                  ? { apiKeyId: args.apiKeyId }
-                  : {}),
-                ...(threadProjectId !== null
-                  ? { projectIds: [threadProjectId] }
-                  : {}),
-              }),
-            }
-          : {}),
-      }),
-    ),
+    // The retrieval tools, joined by the work tools when the host offers
+    // them. A test that wants a tool-free turn overrides `tools` with
+    // undefined.
+    tools: composeToolExecutors([retrievalTools, workTools?.executor]),
+    ...(workTools !== undefined ? { maxToolRounds: MAX_WORK_TOOL_ROUNDS } : {}),
     ...overrides.deps,
   };
 
@@ -1421,11 +1511,17 @@ export async function executeTurn(
     // file — and the docs block for its fixed tool loadout. The org's
     // mandatory instructions, when the policy carries any, come first; the
     // person's own custom instructions ride behind the cache breakpoint.
-    agent: CHAT_ASSISTANT,
+    agent,
     ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
     ...(customInstructions !== undefined ? { customInstructions } : {}),
     ...(taskHandover !== undefined ? { taskHandover } : {}),
-    toolDocs: CHAT_TOOL_DOCS,
+    toolDocs:
+      workTools !== undefined
+        ? [...CHAT_TOOL_DOCS, ...workTools.toolDocs]
+        : CHAT_TOOL_DOCS,
+    ...(workTools !== undefined && workTools.skillCatalog.length > 0
+      ? { skillCatalog: workTools.skillCatalog }
+      : {}),
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
     ...(args.localeFixed === true ? { localeFixed: true } : {}),
@@ -1448,6 +1544,7 @@ export async function executeTurn(
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
     executionMode: 'direct',
     ...(args.resend === true ? { appendUserMessage: false } : {}),
+    ...(overrides.signal !== undefined ? { signal: overrides.signal } : {}),
   };
 
   return runTurn(request, deps);

@@ -1,5 +1,6 @@
 import {
   markRetryQueueKey,
+  registerRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
 } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
@@ -122,6 +123,7 @@ export async function lockTaskCommentQueue(
   tx: TransactionSql,
   taskId: string,
 ): Promise<void> {
+  registerRetryQueueKey(taskCommentQueueKey(taskId));
   await tx`
     SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${taskCommentQueueKey(taskId)}))
   `;
@@ -132,13 +134,15 @@ export async function lockTaskCommentQueue(
  * the same rows — the task's `comment_count` and the discussion thread's
  * next message slot — so serializable writers that overlap all lose but the
  * first, and a plain retry loses again whenever another commits first: the
- * storm `withRetry`'s five attempts cannot outlast. Two pieces make a retry
+ * storm `withRetry`'s eight attempts cannot outlast. Two pieces make a retry
  * deterministic instead: the transaction-level advisory lock on the task's
  * queue key, taken before the write's first read, queues this transaction
  * behind a retry that holds the same key as a session lock from before its
  * BEGIN (see `transactSerializable`); and a 40001/40P01 raised anywhere in
  * `work` is marked with the key, which is what makes the caller's next
- * attempt take that session lock first. Under contention on this task's rows
+ * attempt take that session lock first. The key is also retained through
+ * COMMIT, where serializable isolation can reject a completed callback.
+ * Under contention on this task's rows
  * a writer wastes at most one attempt. Plain READ COMMITTED callers pay only
  * the lock, which orders the task's comments and marks nothing. The audit
  * row a comment writes takes no lock and meets no other writer: the chain is
@@ -193,6 +197,7 @@ function queuedCommentWrite<T>(
   const orgKey = orgCommentQueueKey(organizationId);
   return queuedOnTask(tx, taskId, async () => {
     try {
+      registerRetryQueueKey(orgKey);
       await tx`
         SELECT pg_advisory_xact_lock_shared(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${orgKey}))
       `;

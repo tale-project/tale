@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
@@ -21,7 +22,7 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { AlertTriangle } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, type ReactNode } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
@@ -326,6 +327,7 @@ interface ChatHealthMetricsPageViewProps {
   period: ChatHealthPeriod;
   isPeriodEmpty: boolean;
   onChangePeriod: (value: string) => void;
+  readFailure?: ReactNode;
 }
 
 // Presentational view — no data hooks. Rendered live and, while stats load,
@@ -337,6 +339,7 @@ function ChatHealthMetricsPageView({
   period,
   isPeriodEmpty,
   onChangePeriod,
+  readFailure,
 }: ChatHealthMetricsPageViewProps) {
   const { t } = useT('analytics');
   const { t: tGov } = useT('governance');
@@ -413,6 +416,7 @@ function ChatHealthMetricsPageView({
   );
   const guardrailBlocked =
     guardrails?.byKind.find((entry) => entry.key === 'blocked')?.count ?? 0;
+  const guardrailsUnavailable = readFailure !== undefined;
 
   const turnsTooltip = (count: number): string =>
     t('chatHealth.routing.turnsTooltip', { count: formatNumber(count) });
@@ -436,6 +440,7 @@ function ChatHealthMetricsPageView({
       }
       notice={
         <>
+          {readFailure}
           {summary?.capped || guardrails?.capped ? (
             <Alert
               variant="warning"
@@ -482,13 +487,15 @@ function ChatHealthMetricsPageView({
         </StatCard>
         <StatCard
           label={t('chatHealth.cards.guardrailEvents')}
-          value={formatNumber(guardrailTotal)}
+          value={guardrailsUnavailable ? '—' : formatNumber(guardrailTotal)}
         >
-          <Text variant="caption">
-            {t('chatHealth.cards.guardrailEventsDetail', {
-              blocked: formatNumber(guardrailBlocked),
-            })}
-          </Text>
+          {!guardrailsUnavailable ? (
+            <Text variant="caption">
+              {t('chatHealth.cards.guardrailEventsDetail', {
+                blocked: formatNumber(guardrailBlocked),
+              })}
+            </Text>
+          ) : null}
         </StatCard>
       </StatCardGrid>
 
@@ -537,27 +544,29 @@ function ChatHealthMetricsPageView({
         </div>
       </MetricsSection>
 
-      <MetricsSection title={t('chatHealth.guardrails.title')}>
-        <div className="@container">
-          <Grid gap={6} className="@2xl:grid-cols-2">
-            <BreakdownList
-              title={t('chatHealth.guardrails.byKind')}
-              items={kindItems}
-              total={guardrailTotal}
-              countTooltip={eventsTooltip}
-            />
-            <BreakdownList
-              title={t('chatHealth.guardrails.byFilter')}
-              items={filterItems}
-              total={guardrailTotal}
-              countTooltip={eventsTooltip}
-            />
-            <div className="@2xl:col-span-2">
-              <GuardrailTrendChart series={guardrails?.series ?? []} />
-            </div>
-          </Grid>
-        </div>
-      </MetricsSection>
+      {!guardrailsUnavailable ? (
+        <MetricsSection title={t('chatHealth.guardrails.title')}>
+          <div className="@container">
+            <Grid gap={6} className="@2xl:grid-cols-2">
+              <BreakdownList
+                title={t('chatHealth.guardrails.byKind')}
+                items={kindItems}
+                total={guardrailTotal}
+                countTooltip={eventsTooltip}
+              />
+              <BreakdownList
+                title={t('chatHealth.guardrails.byFilter')}
+                items={filterItems}
+                total={guardrailTotal}
+                countTooltip={eventsTooltip}
+              />
+              <div className="@2xl:col-span-2">
+                <GuardrailTrendChart series={guardrails?.series ?? []} />
+              </div>
+            </Grid>
+          </div>
+        </MetricsSection>
+      ) : null}
     </MetricsLayout>
   );
 }
@@ -583,10 +592,14 @@ export function ChatHealthMetricsPage({
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );
-  // Both queries sit behind the same admin gate, so a denial fails them
-  // together; a lone guardrails hiccup degrades to an empty section instead of
-  // failing the page.
-  const { data: guardrails, isLoading: guardrailsLoading } = useBackendQuery(
+  // Both queries sit behind the same admin gate, but guardrail failures are
+  // partial: keep chat health visible and name the failed section.
+  const {
+    data: guardrails,
+    isLoading: guardrailsLoading,
+    error: guardrailsError,
+    refetch: refetchGuardrails,
+  } = useBackendQuery(
     'chat_filter_events/queries:getGuardrailStats',
     { organizationId, periodDays },
     { enabled: !!organizationId },
@@ -613,6 +626,18 @@ export function ChatHealthMetricsPage({
     );
   }
 
+  const readFailure = guardrailsError ? (
+    <CatalogLoadError
+      message={[
+        t('chatHealth.errors.guardrailsLoadFailed'),
+        failureDetail(guardrailsError),
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onRetry={() => void refetchGuardrails()}
+    />
+  ) : undefined;
+
   // Org has never produced chat traffic — a teaching panel, not empty KPIs.
   if (!isLoading && health && !health.summary.hasAnyData) {
     return (
@@ -620,6 +645,7 @@ export function ChatHealthMetricsPage({
         as="h3"
         title={t('chatHealth.title')}
         description={t('chatHealth.description')}
+        notice={readFailure}
       >
         <Alert
           title={t('chatHealth.empty.title')}
@@ -649,6 +675,7 @@ export function ChatHealthMetricsPage({
       <ChatHealthMetricsPageView
         health={health ?? null}
         guardrails={guardrails ?? null}
+        readFailure={readFailure}
         period={period}
         isPeriodEmpty={isPeriodEmpty}
         onChangePeriod={handleChangePeriod}

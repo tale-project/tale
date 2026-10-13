@@ -321,6 +321,7 @@ teams:
   teamNameTooLong: Team name can be at most 80 characters
   teamNameTaken: A team with this name already exists
   membershipChangesFailed: '{count, plural, one {# membership change was} other {# membership changes were}} refused. The list has been refreshed.'
+  membershipRefreshConflict: The team membership changed in another session. Close and reopen this dialog to review the latest roster.
   syncedBadge: Synced
   syncedNotice: This team is provisioned by your identity provider, which owns
     its name and members. Change them there; a local edit would be undone by
@@ -928,6 +929,7 @@ providers:
   dialog:
     secret: API key
     subscriptionSecret: Subscription key
+    subscriptionAccountId: ChatGPT account ID
     envName: Environment variable
     envNameHelp:
       Name of the deployment variable that holds the key — the prefix is
@@ -1148,6 +1150,8 @@ logs:
     topActors:
       title: Most active users
     empty: No activity in this period.
+    readFailed: Couldn’t load activity summary. Try again.
+    retry: Retry
   errors:
     entityLabel: error logs
     entityLabelOne: error log
@@ -1263,6 +1267,9 @@ logs:
       api_key.created: API key created
       api_key.updated: API key updated
       api_key.revoked: API key revoked
+      agent_connection.created: Coding agent connected
+      agent_connection.updated: Coding agent's access changed
+      agent_connection.revoked: Coding agent disconnected
       webdav_app_password.created: WebDAV app password created
       webdav_app_password.revoked: WebDAV app password revoked
       connector_credential.created: Connector credential created
@@ -1356,6 +1363,7 @@ logs:
       workflow_trigger_log.retention_deleted: Automation trigger log retention deleted
       audit_log.retention_deleted: Audit log retention deleted
       automation_run.retention_deleted: Automation run retention deleted
+      automation_version.retention_deleted: Automation version retention deleted
       agent_run.retention_deleted: Agent run retention deleted
       message_feedback.retention_deleted: Message feedback retention deleted
       notification.retention_deleted: Notification retention deleted
@@ -1522,6 +1530,7 @@ logs:
       connector_operation: Connector operation
       connector_credential: Connector credential
       api_key: API key
+      agent_connection: Coding agent connection
       webdav_app_password: WebDAV app password
       sso_provider: SSO provider
       video_link: Video link

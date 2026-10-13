@@ -1,0 +1,3 @@
+pagesDialog:
+  errorKind:
+    responseTooLarge: Die Seite ist zu gross zum Abrufen.

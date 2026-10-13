@@ -179,7 +179,17 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // a client branches on.
   'BAD_REQUEST',
   'CONFLICT',
+  'SERVICE_UNAVAILABLE',
   'TOO_MANY_REQUESTS',
+  // Better Auth's fresh-session refusal is emitted by the app-only
+  // passkey/reauthentication doors; REST has no session-freshness route.
+  'SESSION_NOT_FRESH',
+  // Every password hash and check goes through the process's bounded hasher
+  // (`auth/password-hasher.ts`), which refuses a check with a retryable 503
+  // when its slots and queue are full. Only Better Auth's sign-in, sign-up
+  // and password confirmations hash a password: the REST door authenticates
+  // an API key and never reaches it.
+  'PASSWORD_CHECK_BUSY',
   // Interactive confirmations the REST door supplies itself, or that
   // only the app asks for.
   'DEFAULT_ORG_PROTECTED',
@@ -343,6 +353,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Provider and connector credentials — Settings surfaces only.
   'AUTH_METHOD_NOT_SUPPORTED',
   'CONNECTOR_UNKNOWN',
+  'CREDENTIAL_ACCOUNT_ID_INVALID',
   'CREDENTIAL_BROKER_CONFIG_INVALID',
   'CREDENTIAL_CONFIG_INVALID',
   'CREDENTIAL_CONFIG_REQUIRED',

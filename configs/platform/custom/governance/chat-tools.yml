@@ -1,0 +1,9 @@
+# What the chat assistant may make beyond answering. Every switch is on by
+# default; turning one off removes that tool from every chat of the
+# organization. Images follow image-generation.yml.
+#   files  - Markdown, CSV, HTML and other text files the assistant writes out
+#   skills - instructions from the person's skill library
+#   code   - code in a light sandbox, for Word, Excel, PowerPoint, PDF and charts
+files: true
+skills: true
+code: true

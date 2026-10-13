@@ -223,30 +223,66 @@ git tag vX.Y.Z <sha>
 git push origin refs/tags/vX.Y.Z
 ```
 
-The tag starts `release.yml` and `publish-packages.yml`. `release.yml` builds both
-architectures from the tag, runs its container test gate, then publishes the manifests, the
-GitHub release and the CLI binaries. Both validate the version's authored notes before they
-publish anything: Release in Prepare, and Publish packages before it pins `ui-vX.Y.Z` and
-`marketing-ui-vX.Y.Z`, so a version whose notes Release refuses at that tag gets no package
-tags from that tag push. The two workflows run independently: package tags can already exist
-when Release fails after Prepare.
+The tag starts `release.yml`. It builds both architectures from the tag, runs its container
+test gate, then publishes the manifests, the GitHub release, the CLI binaries and the package
+tags. Prepare validates the version's authored notes before anything is built, so a version
+whose notes it refuses publishes nothing.
+
+The package tags `ui-vX.Y.Z` and `marketing-ui-vX.Y.Z` follow the release. Once
+`Create release` has checked that the tag names the release commit, `Publish package tags`
+dispatches `publish-packages.yml` on `main` with `release_tag=vX.Y.Z` and `source_sha=<sha>`.
+A tag that a workflow writes with `GITHUB_TOKEN`, as `Create release` does for a dispatched
+Release, starts no push workflow, while a `workflow_dispatch` always starts one
+([Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)).
+Publish packages checks out `<sha>`, validates the version's notes in that checkout, and
+pushes only the two tags, once its publisher has confirmed that the remote's `vX.Y.Z` names
+`<sha>`. A version snapshot uses tracked package files from that clean source; local ignored
+files are excluded. It leaves `dist/ui` and `dist/marketing-ui` at their current commits.
+Pushes to `main` and manual runs without version inputs update those rolling snapshots.
+A version whose Release stops before `Create release` gets no package tags.
+
+The validator and publisher run from `main`'s tooling checkout and read the selected source
+as data. The validator's `--source-root <directory>` selects the release's notes; the
+publisher's release-only `--checkout <directory>` selects its Git identity and package files.
+Neither executes historical scripts or loads the historical checkout's Bun configuration.
+
+`Manifest <service>` publishes one OCI image index per service with
+`docker buildx imagetools create`. `:X.Y.Z` and, unless the release is sites-only, `:latest`
+are written by one call, so they name the same index digest. The index carries the image's
+`org.opencontainers.image.*` labels as annotations (GitHub takes a multi-arch package's
+description from the index's annotations) and indexes exactly this run's
+`X.Y.Z-amd64` and `X.Y.Z-arm64` images, each of which carries the same metadata on its own
+manifest: `Build <service> (<arch>)` reads it back by digest and fails unless it equals the
+image's labels. The Manifest job reads the index back and fails unless it is that annotated
+OCI index. `docker manifest inspect` lists the index but hides its annotations;
+`docker buildx imagetools inspect --raw` shows both.
 
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 
-Release admits at most one new full cohort per UTC calendar day. Every tag shares one
-workflow concurrency group, so admission waits for an earlier run to finish publishing.
-Running cohorts are never cancelled by a newer tag. GitHub keeps only one pending run;
-if a pending tag is superseded, dispatch its immutable tag again when it is eligible.
-Recovery of the latest published tag remains allowed, and unreadable release history
-refuses a full release. A `sites_only` dispatch keeps its existing publication scope.
+Release has no per-day limit: a version goes out whenever it is needed, a second one on
+the same UTC day included. How often to release is the release lane's decision, never the
+workflow's, and Prepare reads no release history. Every tag shares one workflow
+concurrency group, so admission waits for an earlier run to finish publishing. Running
+cohorts are never cancelled by a newer tag. GitHub keeps only one pending run; if a
+pending tag is superseded, dispatch its immutable tag again when it is eligible. Recovery
+of a published tag remains allowed. A `sites_only` dispatch keeps its existing
+publication scope.
 
-`publish-packages.yml` also validates notes at the ref its dispatch runs on, not by looking up
-`tag_version`'s tag. Dispatch it on the matching immutable tag when retrying that version's
-snapshot. A dispatch from a newer branch could validate notes added after a refused tag and
-publish that branch's snapshot under the requested package version; it is not evidence for the
-original tag. A ref predating the notes gate does not gain it retroactively. Keep existing
-package tags immutable and choose a new version for corrected source.
+To retry or backfill a version's package tags, dispatch Publish packages the same way, on
+`main`, with the tag and the full commit SHA it names:
+
+```bash
+gh workflow run publish-packages.yml --ref main -f release_tag=vX.Y.Z -f source_sha=<sha>
+```
+
+The run refuses a tag that names another commit and a commit without valid authored notes for
+that version. A package tag
+that already exists never moves: if its contents are identical, the run pushes nothing and
+succeeds; if they differ, it fails. Reconcile that conflict using the recorded source and
+publication evidence, preserving the existing tags. Never dispatch Publish packages on a tag or any ref other than
+`main`: the run would use that ref's copy of the workflow and publisher, and the copy in an
+older tag also force-moves `dist/ui` and `dist/marketing-ui` back to the tagged commit.
 
 ## 5. Verify the release
 
@@ -259,6 +295,11 @@ package tags immutable and choose a new version for corrected source.
   docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
     ghcr.io/tale-project/tale/tale-platform:X.Y.Z
   ```
+- The Publish packages run for `vX.Y.Z` concluded `success`, and `ui-vX.Y.Z` and
+  `marketing-ui-vX.Y.Z` exist. A newly created snapshot records `from <sha>` at the end
+  of its commit message. A preserved existing tag may have an older message: the publisher
+  accepts it only when its snapshot tree exactly matches the selected release's package.
+  Use that run's source binding and tree comparison to verify a no-op publication.
 
 CLI publication dispatched on a tag requires the exact `release_tag` input to match that ref,
 and its resolved commit (including annotated tags) to match the dispatch commit before building.
@@ -269,6 +310,65 @@ The existing Release workflow supplies both together. Manual CLI publication fro
 matching tag ref when recovering a publication for Ops verification.
 
 A published version is not a deployment. Deployments follow their own procedure.
+
+## A release that has to go out
+
+No rule limits how often a version goes out, so a release that cannot wait does not
+wait for a day to pass. What can stop it is `main`: a candidate validates the whole
+graph, and every job that already fails on `main` fails the candidate. Work in this
+order.
+
+1. **Read `main`'s red before choosing the candidate.** Open the newest completed run
+   of each workflow on `main`, push and scheduled, and read its failed jobs:
+
+   ```bash
+   gh run list --repo tale-project/tale --workflow checks.yml --branch main --event push --limit 8
+   gh run view <run id> --repo tale-project/tale --json jobs \
+     --jq '.jobs[] | select(.conclusion == "failure") | .name'
+   gh run list --repo tale-project/tale --workflow e2e.yml --branch main --event schedule --limit 3
+   ```
+
+   The scheduled E2E run is where a browser regression shows first: pull request
+   checks skip the browser E2E and the suites that run only in the queue, and a direct
+   merge skips the queue, so a defect can sit on `main` for hours.
+2. **A failure every run of the same source shows is a defect of `main`.** Never
+   re-dispatch a candidate hoping it clears and never waive a job: repair it through
+   the queue, then choose a candidate that contains the repair. A failure that the
+   same source also passes (a `Backend integration` check that failed on one run and
+   passed on the next, tracked in #4921) is a flake: re-run all jobs of that single
+   run, put the check's name on the issue that tracks it, and let a green attempt be
+   the evidence. What cost a release attempt on 2026-10-13:
+   - `Unit (workspaces)` refusing "native CLI scopes cover every imported platform
+     backend module": a backend file the CLI now imports must be named in
+     `.github/ci-scope.yml`, `.github/workflows/cli.yml` and `tools/cli/turbo.json`.
+     Refresh the descriptor with `bun tools/cli/scripts/release-candidate-contract.ts --write`
+     and format it with the repository's `oxfmt`.
+   - `Unit (workspaces)` refusing "an explicit reviewed profile on every source
+     change": a source workflow's bytes changed, so add its SHA-256
+     (`shasum -a 256 .github/workflows/<file>`) to
+     `tools/cli/scripts/ci-merge-group-profiles.ts`. A change to `cli.yml` needs both
+     this and the descriptor.
+   - `UI (platform N/4)` failing one test: run that file alone from `services/platform`
+     (`bunx vitest --run --config vitest.ui.config.ts <file>` takes seconds) and bisect
+     it across the recent commits.
+   - `Playwright (platform 4/4)` failing at a second person's sign-in: `fixtures.ts`
+     overrides `storageState`, and that reaches every `browser.newContext()`. A second
+     person needs `newPersonContext(browser)`.
+3. **Holds are read again right before the tag.** Findings another lane recorded
+   against the candidate (the platform's release task lists them) bind a manual
+   operator too, and green checks do not clear them. Re-read them just before tagging
+   and say how each stands: fixed in the candidate, not applicable and why, or an
+   explicit decision by the owner. Waiting clears nothing.
+4. **Write the receipt.** After the release is verified, record in one comment where
+   the release lane coordinates, and on the pull request that carried the candidate:
+   candidate SHA and version, the seven candidate run ids, the gate report's state,
+   the tag's time, the Release, CLI and Publish packages run ids, the image revision
+   check, and how each hold stood. An agent that reconciles the release later needs
+   exactly those identities and has no other way to find them.
+5. **Hand it to Ops.** A published version is not a deployment. Ops adopts it with its
+   release adopter, or by hand when the adopter is blocked or the owner asks:
+   `tools/release-adoption/README.md` in `tale-project/ops`, section "Adopting a
+   release by hand".
 
 ## Failure, resume and idempotency
 
@@ -291,8 +391,8 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
   the corrected candidate under the next version; never repair its source by moving the tag.
-  Publish packages also refuses notes from that same tag on its tag-push run. A branch dispatch
-  with later notes is a different source; do not use it to repair the refused version.
+  Publish packages validates the notes at the commit the tag names, so notes merged later
+  cannot repair the refused version either.
 - **A release publication retry.** A published release is preserved, including its edited notes
   and attached assets. A draft with the same tag stops publication for the release lane to
   reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
@@ -325,11 +425,12 @@ A published version is not a deployment. Deployments follow their own procedure.
     run (its concurrency never cancels a release). The re-run replaces only the `X.Y.Z-amd64`
     and `X.Y.Z-arm64` tags, which only the run's own jobs read.
   - **Any service has `:X.Y.Z`** (typically a failure in `Manifest <service>`,
-    `Create release`, `Trigger CLI build` or `Summary`): re-run no job of that run. A full
-    re-run re-points the published tags, re-running a failed `Manifest` job pushes them again,
-    and the adopter refuses a failed-job-only attempt anyway. Leave the tag, the images and
-    the run as they are; until the next version publishes, `:latest` can name different
-    versions per service.
+    `Create release`, `Trigger CLI build`, `Publish package tags` or `Summary`): re-run no
+    job of that run. A full re-run re-points the published tags, re-running a failed
+    `Manifest` job pushes them again, and the adopter refuses a failed-job-only attempt
+    anyway. Leave the tag, the images and the run as they are; until the next version
+    publishes, `:latest` can name different versions per service. Missing package tags are
+    recovered by dispatching Publish packages for the tag, as step 4 shows.
 
   For a published version, or a failure that needs a source change, recover forward: fix
   `main` where needed, then validate a new candidate and release it as the next version

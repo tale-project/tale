@@ -118,6 +118,7 @@ describe('reserveSessionSlot — each workload against its own limit [SBX-R8]', 
       maxSessionsPerOrg: 2,
       maxWorkflowSessionsPerOrg: 2,
       maxRenderSessionsPerOrg: 2,
+      maxLightSessionsPerOrg: 2,
     });
   });
 

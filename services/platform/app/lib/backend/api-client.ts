@@ -11,6 +11,7 @@
  * (`app/hooks/use-session-lapse-redirect.ts`).
  */
 
+import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
 import {
   isLapsedSessionAnswer,
   reportSessionLapsed,
@@ -52,7 +53,7 @@ export class BackendApiError extends Error {
     code?: string,
     data?: Record<string, unknown>,
   ) {
-    super(message);
+    super(authSessionRefusalMessage({ status, code, message }) ?? message);
     this.name = 'BackendApiError';
     this.status = status;
     if (code !== undefined) {

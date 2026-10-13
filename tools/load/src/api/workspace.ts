@@ -77,7 +77,10 @@ export function searchProjects(
 
 /**
  * `POST /api/app/projects` → the new project's id. Editors and up only
- * (`RBAC_FORBIDDEN` 403), and rate limited to 30 a minute per user.
+ * (`RBAC_FORBIDDEN` 403), and rate limited to 30 a minute per user. A key a
+ * project of the organization already holds (`PROJECT_KEY_TAKEN` 409) is
+ * what two virtual users naming a project alike meet: a person picks another
+ * name, so it is an outcome, not an error of the platform.
  */
 export async function createProject(
   api: ApiClient,
@@ -90,7 +93,7 @@ export async function createProject(
     query: orgQuery(orgId),
     json: args,
     name: 'POST /api/app/projects',
-    refusals: [403],
+    refusals: [403, 409],
   });
   return mapResult(result, (body) => asString(asRecord(body)?.projectId));
 }

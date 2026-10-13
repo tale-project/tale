@@ -14,7 +14,9 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { mintCursorFor } from '../../core/lib/signed_cursor.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { mcpOrigin } from '../../lib/write-origin.ts';
 import {
   assertWritable,
@@ -24,6 +26,8 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
+import { memberNamesOf } from './author-names.ts';
+import { admitBenchRuns } from './bench.ts';
 import { recentDeployments } from './deployments.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
@@ -41,6 +45,7 @@ import {
   unbindProjectInTx,
   versionRow,
 } from './store.ts';
+import { listVersionHistory } from './versions.ts';
 
 vi.mock('./store.ts', async (original) => ({
   ...(await original<typeof import('./store.ts')>()),
@@ -59,6 +64,12 @@ vi.mock('./store.ts', async (original) => ({
   versionRow: vi.fn(),
 }));
 vi.mock('./ask-answer.ts', () => ({ answerRunAskAs: vi.fn() }));
+vi.mock('./author-names.ts', () => ({ memberNamesOf: vi.fn() }));
+vi.mock('./bench.ts', () => ({ admitBenchRuns: vi.fn() }));
+vi.mock('./versions.ts', async (original) => ({
+  ...(await original<typeof import('./versions.ts')>()),
+  listVersionHistory: vi.fn(),
+}));
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(),
 }));
@@ -176,6 +187,13 @@ describe('reads follow what the app would show the person [MCP-R9]', () => {
     expect(await s.deployedVersion(NAME)).toBeNull();
     expect(await s.getVersionView?.(NAME)).toBeNull();
     expect(await s.listVersions?.(NAME)).toEqual([]);
+    expect(await s.listVersionHistory?.(NAME)).toEqual({
+      versions: [],
+      nextBefore: null,
+      latestVersion: null,
+      deployedVersion: null,
+    });
+    expect(listVersionHistory).not.toHaveBeenCalled();
     expect(await s.listTriggers?.(NAME)).toEqual([]);
     expect(await s.listTriggers?.()).toEqual([]);
     expect(await s.listDeployments?.(NAME)).toEqual([]);
@@ -259,6 +277,310 @@ describe('getVersionView', () => {
   });
 });
 
+describe('listVersionHistory', () => {
+  const record = (version: number, createdBy: string) => ({
+    version,
+    message: `cut ${String(version)}`,
+    createdBy,
+    createdAt: 1_000 + version,
+    via: 'mcp' as const,
+    viaInferred: false,
+    apiKeyId: 'key-1',
+    clientName: 'Claude Code',
+    basedOnVersion: version > 1 ? version - 1 : null,
+    restoredFromVersion: null,
+    changes: { nodes: { added: 0, removed: 0, changed: 1 } },
+    testsPassed: true,
+    testsCheckedAt: 5,
+    tests: { passed: 2, failed: 0, total: 2, via: 'save' as const },
+    live: version === 6,
+    lastDeployedAt: version === 6 ? 6_000 : null,
+  });
+
+  it('answers a page as the app reads it, each row with the name of the member who saved it [MCP-R30]', async () => {
+    vi.mocked(listVersionHistory).mockResolvedValue({
+      versions: [record(7, 'api-key:user-1'), record(6, 'system:pack')],
+      nextBefore: 6,
+      latestVersion: 7,
+      deployedVersion: 6,
+    });
+    vi.mocked(memberNamesOf).mockResolvedValue(
+      new Map([
+        ['api-key:user-1', 'Ada Lovelace'],
+        ['system:pack', null],
+      ]),
+    );
+    const page = await store().listVersionHistory?.(NAME, {
+      limit: 2,
+      before: 8,
+    });
+    expect(listVersionHistory).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG,
+      NAME,
+      {
+        limit: 2,
+        before: 8,
+      },
+    );
+    expect(memberNamesOf).toHaveBeenCalledWith(expect.anything(), ORG, [
+      'api-key:user-1',
+      'system:pack',
+    ]);
+    expect(page).toMatchObject({
+      nextBefore: 6,
+      latestVersion: 7,
+      deployedVersion: 6,
+    });
+    expect(page?.versions[0]).toMatchObject({
+      version: 7,
+      createdBy: 'api-key:user-1',
+      createdByName: 'Ada Lovelace',
+      createdVia: 'mcp',
+      clientName: 'Claude Code',
+      basedOnVersion: 6,
+      restoredFromVersion: null,
+      tests: { passed: 2, failed: 0, total: 2 },
+      deployed: false,
+    });
+    expect(page?.versions[1]).toMatchObject({
+      version: 6,
+      createdByName: null,
+      deployed: true,
+      lastDeployedAt: 6_000,
+    });
+  });
+
+  it('reads a bounded batch even when the complete history is empty', async () => {
+    vi.mocked(listVersionHistory).mockResolvedValue({
+      versions: [],
+      nextBefore: null,
+      latestVersion: null,
+      deployedVersion: null,
+    });
+    vi.mocked(memberNamesOf).mockResolvedValue(new Map());
+    await store().listVersionHistory?.(NAME);
+    expect(listVersionHistory).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG,
+      NAME,
+      { limit: 200 },
+    );
+  });
+
+  /** The maintained database reader's defaults: 50 rows unless a bounded
+   * page is named, and the last row as the cursor while older rows remain.
+   * The production adapter and actual dispatch run over this reader double. */
+  function historyOf(count: number) {
+    const all = Array.from({ length: count }, (_, index) =>
+      record(count - index, index % 2 === 0 ? 'api-key:user-1' : 'system:pack'),
+    );
+    vi.mocked(listVersionHistory).mockImplementation(
+      async (_sql, _organization, _name, page = {}) => {
+        const older = all.filter(
+          (row) => page.before === undefined || row.version < page.before,
+        );
+        const versions = older.slice(0, page.limit ?? 50);
+        return {
+          versions,
+          nextBefore:
+            versions.length < older.length ? versions.at(-1)!.version : null,
+          latestVersion: count,
+          deployedVersion: 6,
+        };
+      },
+    );
+    vi.mocked(memberNamesOf).mockResolvedValue(
+      new Map([
+        ['api-key:user-1', 'Ada Lovelace'],
+        ['system:pack', null],
+      ]),
+    );
+    return all;
+  }
+
+  it.each([51, 205])(
+    'actual dispatch over the PG adapter returns all %i retained versions when limit is omitted [MCP-R30]',
+    async (count) => {
+      const all = historyOf(count);
+      const result = await dispatch(
+        'list_versions',
+        { name: NAME },
+        {
+          store: store(),
+        },
+      );
+      expect(result).toMatchObject({
+        latestVersion: count,
+        deployedVersion: 6,
+        nextBefore: null,
+        versions: all.map((row) => ({
+          version: row.version,
+          createdByName:
+            row.createdBy === 'system:pack' ? null : 'Ada Lovelace',
+          basedOnVersion: row.basedOnVersion,
+          changes: row.changes,
+          tests: row.tests,
+          deployed: row.live,
+          lastDeployedAt: row.lastDeployedAt,
+        })),
+      });
+      expect(listVersionHistory).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        ORG,
+        NAME,
+        { limit: 200 },
+      );
+      expect(listVersionHistory).toHaveBeenCalledTimes(Math.ceil(count / 200));
+      if (count > 200) {
+        expect(listVersionHistory).toHaveBeenNthCalledWith(
+          2,
+          expect.anything(),
+          ORG,
+          NAME,
+          { limit: 200, before: 6 },
+        );
+      }
+    },
+  );
+
+  it('returns every older retained version when before is given without a limit', async () => {
+    const all = historyOf(240);
+    const result = await dispatch(
+      'list_versions',
+      { name: NAME, before: 211 },
+      {
+        store: store(),
+      },
+    );
+    expect(result).toMatchObject({
+      latestVersion: 240,
+      deployedVersion: 6,
+      nextBefore: null,
+      versions: all
+        .filter((row) => row.version < 211)
+        .map((row) => ({ version: row.version })),
+    });
+    expect(listVersionHistory).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      ORG,
+      NAME,
+      { limit: 200, before: 211 },
+    );
+    expect(listVersionHistory).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      ORG,
+      NAME,
+      { limit: 200, before: 11 },
+    );
+    expect(listVersionHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([1, 200])(
+    'an explicit limit of %i remains one page with its next cursor',
+    async (limit) => {
+      const all = historyOf(205);
+      const result = await dispatch(
+        'list_versions',
+        { name: NAME, limit },
+        {
+          store: store(),
+        },
+      );
+      expect(result).toMatchObject({
+        latestVersion: 205,
+        nextBefore: 206 - limit,
+        versions: all.slice(0, limit).map((row) => ({ version: row.version })),
+      });
+      expect(listVersionHistory).toHaveBeenCalledTimes(1);
+      expect(listVersionHistory).toHaveBeenCalledWith(
+        expect.anything(),
+        ORG,
+        NAME,
+        { limit },
+      );
+    },
+  );
+
+  it('keeps the latest and live pointers of the first page while exhausting the history', async () => {
+    historyOf(205);
+    const reader = vi.mocked(listVersionHistory).getMockImplementation()!;
+    vi.mocked(listVersionHistory).mockImplementation(async (...args) => {
+      const page = await reader(...args);
+      return args[3]?.before === undefined
+        ? page
+        : {
+            ...page,
+            latestVersion: 206,
+            deployedVersion: 3,
+            versions: page.versions.map((row) =>
+              Object.assign(row, {
+                live: row.version === 3,
+              }),
+            ),
+          };
+    });
+    const result = await store().listVersionHistory?.(NAME);
+    expect(result).toMatchObject({
+      latestVersion: 205,
+      deployedVersion: 6,
+      nextBefore: null,
+    });
+    expect(result?.versions.find((row) => row.version === 6)?.deployed).toBe(
+      true,
+    );
+    expect(result?.versions.find((row) => row.version === 3)?.deployed).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    ['an empty page with a cursor', [], 6],
+    ['a cursor outside the page', [record(7, 'system:pack')], 6],
+    ['a cursor that repeats the boundary', [record(7, 'system:pack')], 7],
+  ] as const)(
+    'refuses %s instead of claiming a complete history',
+    async (_what, versions, nextBefore) => {
+      vi.mocked(listVersionHistory).mockResolvedValue({
+        versions: [...versions],
+        nextBefore,
+        latestVersion: 7,
+        deployedVersion: null,
+      });
+      vi.mocked(memberNamesOf).mockResolvedValue(new Map());
+      await expect(
+        store().listVersionHistory?.(NAME, { before: 7 }),
+      ).rejects.toThrow('version history did not advance');
+      expect(listVersionHistory).toHaveBeenCalledTimes(1);
+      expect(memberNamesOf).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a repeated cursor on a later page', async () => {
+    vi.mocked(listVersionHistory)
+      .mockResolvedValueOnce({
+        versions: [record(6, 'system:pack')],
+        nextBefore: 6,
+        latestVersion: 7,
+        deployedVersion: null,
+      })
+      .mockResolvedValueOnce({
+        versions: [record(5, 'system:pack')],
+        nextBefore: 6,
+        latestVersion: 7,
+        deployedVersion: null,
+      });
+    vi.mocked(memberNamesOf).mockResolvedValue(new Map());
+    await expect(store().listVersionHistory?.(NAME)).rejects.toThrow(
+      'version history did not advance',
+    );
+    expect(listVersionHistory).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('save', () => {
   const doc = { version: 1 as const, name: NAME, nodes: [] };
 
@@ -285,6 +607,66 @@ describe('save', () => {
       origin: ORIGIN,
       authorize: expect.any(Function),
     });
+  });
+
+  it('records a restore as based on and restored from the older version, and saves nothing when the latest already is that content', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({
+      name: NAME,
+      version: 7,
+      unchanged: true,
+    });
+    const saved = await store().save(doc as never, 'Restore v3', {
+      testsPassed: true,
+      restoredFrom: 3,
+      metadata: {
+        settings: { forms: [] },
+        taskContract: null,
+        presentation: null,
+      },
+    });
+    expect(saved).toMatchObject({ version: 7, unchanged: true });
+    expect(saveVersion).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        basedOnVersion: 3,
+        restoredFromVersion: 3,
+        unlessIdentical: true,
+        testsPassed: true,
+        metadataMode: 'carry',
+        settings: { forms: [] },
+        taskContract: null,
+        presentation: null,
+      }),
+    );
+  });
+
+  it('saves a restore under the automation it restores, never on the one an old document names', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 8 });
+    await store().save(
+      { version: 1 as const, name: 'someone/else', nodes: [] } as never,
+      'Restore v3',
+      { restoredFrom: 3, name: NAME },
+    );
+    const args = vi.mocked(saveVersion).mock.calls.at(-1)?.[1];
+    expect(args).toMatchObject({
+      organizationId: ORG,
+      name: NAME,
+      restoredFromVersion: 3,
+    });
+    // An ordinary save still names the automation by its document.
+    await store().save(doc as never, 'why');
+    expect(vi.mocked(saveVersion).mock.calls.at(-1)?.[1]).toMatchObject({
+      name: NAME,
+    });
+  });
+
+  it('saves an ordinary version without a restore’s marks', async () => {
+    vi.mocked(saveVersion).mockResolvedValue({ name: NAME, version: 8 });
+    await store().save(doc as never, 'why');
+    const args = vi.mocked(saveVersion).mock.calls.at(-1)?.[1];
+    expect(args).not.toHaveProperty('restoredFromVersion');
+    expect(args).not.toHaveProperty('basedOnVersion');
+    expect(args).not.toHaveProperty('unlessIdentical');
   });
 
   /** The check the store hands the save to run under the name lock, as the
@@ -673,5 +1055,29 @@ describe("another organization's automations, projects and runs stay out of reac
     ).rejects.toMatchObject({ code: 'RUN_NOT_FOUND' });
     expect(getRun).toHaveBeenCalledWith(expect.anything(), 'org-2', 'run-1');
     expect(answerRunAskAs).not.toHaveBeenCalled();
+  });
+});
+
+describe('admitBench', () => {
+  it("asks for room for the runs in the store's own organization, and hands back the release", async () => {
+    const release = vi.fn();
+    vi.mocked(admitBenchRuns).mockResolvedValue(release);
+    const room = await store({ organizationId: 'org-2' }).admitBench?.(3);
+    expect(admitBenchRuns).toHaveBeenCalledWith(expect.anything(), 'org-2', 3);
+    expect(room).toBe(release);
+  });
+
+  it('answers how long to wait when the budget is spent or every place is taken', async () => {
+    vi.mocked(admitBenchRuns).mockRejectedValue(
+      new RateLimitExceededError('spent', 1_500),
+    );
+    expect(await store().admitBench?.(1)).toEqual({ retryAfterMs: 1_500 });
+  });
+
+  it('lets a fault through as the fault it is', async () => {
+    vi.mocked(admitBenchRuns).mockRejectedValue(
+      new Error('connection refused'),
+    );
+    await expect(store().admitBench?.(1)).rejects.toThrow('connection refused');
   });
 });

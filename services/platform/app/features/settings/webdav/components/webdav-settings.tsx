@@ -91,6 +91,11 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       <SettingsSection
         title={t('list.title')}
         description={t('create.description')}
+        // A revoked row stays, without its Revoke button: when no other row
+        // has one, the focus that button held lands on this named section
+        // (`DataTable`'s last resort), not on the page.
+        tabIndex={-1}
+        className="outline-none"
         action={
           <Button icon={KeyRound} onClick={() => setCreateOpen(true)}>
             {t('create.submit')}

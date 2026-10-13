@@ -13,7 +13,7 @@ ARG VERSION=dev
 # =============================================================================
 # Stage 1: CLEANUP — strip bloat from ParadeDB base
 # =============================================================================
-FROM paradedb/paradedb:0.22.6-pg16 AS cleanup
+FROM paradedb/paradedb:0.22.6-pg16@sha256:01853b8a310fa5d283c15643aeb7b2507341b5c5884c9fbb54cb4db7c6052e6a AS cleanup
 
 USER root
 
@@ -70,7 +70,7 @@ COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
 # dbmate: applies the knowledge-corpus schema migrations on startup (see
 # docker-entrypoint.sh). Pinned to the v2 line — the same binary the now-removed
 # rag/crawler services used to apply these same baselines.
-COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
+COPY --from=ghcr.io/amacneil/dbmate:2@sha256:520c740c6e0ad73fde2cd1ea7e2b779aaf789d22aca8858f87a478e7094535fb /usr/local/bin/dbmate /usr/local/bin/dbmate
 
 # Migration sets, grouped by container role (TALE_DB_ROLE), each schema in its
 # own subdirectory so it gets a schema-scoped dbmate tracking table:
@@ -101,6 +101,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-db" \
       org.opencontainers.image.description="Tale DB — ParadeDB (pg_search BM25 + pgvector) on PostgreSQL 16" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 

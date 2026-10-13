@@ -1,9 +1,20 @@
-import { oauthProvider } from '@better-auth/oauth-provider';
+import {
+  type ClientDiscovery,
+  oauthProvider,
+} from '@better-auth/oauth-provider';
 import { APIError } from 'better-auth/api';
 import type { Sql } from 'postgres';
 
+import {
+  AGENT_SCOPES,
+  MCP_RESOURCE_SCOPES,
+  OFFLINE_ACCESS,
+  requestsAgentAccess,
+} from '../../lib/shared/agent-access.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
+import { agentConsentReferenceId } from './agent-consent.ts';
+import { AGENT_REFRESH_TOKEN_SECONDS } from './agent-oauth.ts';
 import { findOrganizationMember, isAdminRole } from './membership.ts';
 
 /** One organization, selected by the registered client, never all memberships. */
@@ -202,7 +213,7 @@ export function oauthRefusalFor(input: {
         body: {
           error: 'unsupported_grant_type',
           error_description:
-            'this server supports the authorization_code grant only',
+            'this server supports the authorization_code and refresh_token grants',
         },
         headers: {},
       };
@@ -385,7 +396,10 @@ function readGrantType(
   return typeof value === 'string' && value.trim() !== '' ? 'named' : 'absent';
 }
 
-/** Client management is exposed through the organization-aware app routes. */
+/** Client management is exposed through the organization-aware app routes,
+ * and a person's grants through Tale's own (a coding agent's connection is
+ * read and ended under Settings, where every change is audited) — the
+ * provider's consent endpoints would read and rewrite them unaudited. */
 export const OIDC_DISABLED_PATHS = [
   '/token',
   '/oauth2/create-client',
@@ -396,6 +410,10 @@ export const OIDC_DISABLED_PATHS = [
   '/admin/oauth2/update-client',
   '/oauth2/get-client',
   '/oauth2/get-clients',
+  '/oauth2/get-consent',
+  '/oauth2/get-consents',
+  '/oauth2/update-consent',
+  '/oauth2/delete-consent',
 ];
 
 /** The standard claims (OIDC Core §5.1) a granted scope puts in the ID token. */
@@ -476,7 +494,21 @@ export async function oidcOrganizationClaims(
   return { [OIDC_ORGANIZATION_CLAIM]: organization };
 }
 
-export function createOidcProvider(sql: Sql, baseUrl: string) {
+/** What the provider needs to know about coding agents signing in to the
+ * MCP endpoint (`agent-oauth.ts`). */
+export interface AgentSignInOptions {
+  /** Whether an agent may register itself. */
+  readonly dynamicRegistration: boolean;
+  /** How an agent identifies itself by a client metadata document, or null
+   * where the operator turned it off. */
+  readonly clientDiscovery: ClientDiscovery | null;
+}
+
+export function createOidcProvider(
+  sql: Sql,
+  baseUrl: string,
+  agents: AgentSignInOptions,
+) {
   const basePath = (process.env.BASE_PATH ?? new URL(baseUrl).pathname).replace(
     /\/$/,
     '',
@@ -484,13 +516,30 @@ export function createOidcProvider(sql: Sql, baseUrl: string) {
   return oauthProvider({
     loginPage: `${basePath}/oauth/continue`,
     consentPage: `${basePath}/oauth/consent`,
-    scopes: OIDC_SCOPES,
+    // The organization's applications ask for the OIDC scopes; a coding
+    // agent for the agent scopes, and `offline_access` to stay signed in.
+    // A client is held to its own: an application's are the OIDC ones, a
+    // self-registered or metadata-document agent's the agent ones.
+    scopes: [...OIDC_SCOPES, OFFLINE_ACCESS, ...AGENT_SCOPES],
     advertisedMetadata: { claims_supported: OIDC_CLAIMS_SUPPORTED },
-    // Identity clients use only native userinfo (allowed by the provider for
-    // openid). No external resource audience is accepted: stable 1.6.x does
-    // not bind resource indicators to grants (GHSA-p2fr-6hmx-4528).
-    validAudiences: [],
-    grantTypes: ['authorization_code'],
+    // The MCP endpoint is the one resource a token may name beside the
+    // implicit userinfo audience, on every address the deployment answers
+    // on — its rows are written after the boot migrations
+    // (`seedMcpResources`), never by the provider's start-up, which would
+    // read the database before the boot waits out an unavailable one and
+    // leave sign-in down if that read failed. Its scope allowlist is what
+    // keeps every application client off it: an application holds no agent
+    // scope, so its request intersects to nothing (`invalid_scope`).
+    // Clients are not linked to resources one by one — the provider would
+    // also link the default resources to every application an organization
+    // registers.
+    enforcePerClientResources: false,
+    resourcePrivileges: () => false,
+    // What a self-registered or metadata-document agent may ask for.
+    clientRegistrationDefaultScopes: [...MCP_RESOURCE_SCOPES],
+    // An application's registration keeps `authorization_code` alone, so it
+    // never receives a refresh token; an agent's carries both.
+    grantTypes: ['authorization_code', 'refresh_token'],
     // Also how long the signed continuation of the login and consent pages
     // stays good (the provider signs it with this lifetime and refuses an
     // expired one), so it is the time a person has to find a password,
@@ -500,9 +549,26 @@ export function createOidcProvider(sql: Sql, baseUrl: string) {
     codeExpiresIn: 300,
     accessTokenExpiresIn: 300,
     idTokenExpiresIn: 300,
-    allowDynamicClientRegistration: false,
+    refreshTokenExpiresIn: AGENT_REFRESH_TOKEN_SECONDS,
+    // An agent that sends one refresh twice (a retry, two of its processes
+    // at once) within ten seconds is answered the same response again,
+    // rather than having its whole sign-in ended as a replayed token.
+    refreshTokenReuseInterval: 10,
+    allowDynamicClientRegistration: agents.dynamicRegistration,
     silenceWarnings: { oauthAuthServerConfig: true },
-    allowUnauthenticatedClientRegistration: false,
+    allowUnauthenticatedClientRegistration: agents.dynamicRegistration,
+    extensions:
+      agents.clientDiscovery === null
+        ? []
+        : [{ clientDiscovery: agents.clientDiscovery }],
+    // A coding agent's consent is tied to the organization the person chose
+    // for it (`agent-consent.ts`); every other request, single sign-on above
+    // all, has no reference and is never sent to a page of its own.
+    postLogin: {
+      page: `${basePath}/oauth/consent`,
+      shouldRedirect: () => false,
+      consentReferenceId: agentConsentReferenceId,
+    },
     clientReference: ({ session }) => {
       const organizationId = session?.activeOrganizationId;
       return typeof organizationId === 'string' ? organizationId : undefined;
@@ -524,11 +590,21 @@ export function createOidcProvider(sql: Sql, baseUrl: string) {
       );
       return { ...oidcScopeClaims(user, scopes), ...organization };
     },
-    customAccessTokenClaims: ({ user, metadata }) => {
+    // The organization a token names: the one an application is bound to, or
+    // — for a coding agent — the one the person chose when they connected it.
+    // Asked again at every refresh, so a person who left, or whom the
+    // organization has since blocked, cannot refresh.
+    customAccessTokenClaims: ({ user, scopes, referenceId, metadata }) => {
       if (!user) {
         throw new APIError('FORBIDDEN', { message: 'IDENTITY_NOT_ELIGIBLE' });
       }
-      return oidcOrganizationClaims(sql, user, metadata?.taleOrganizationId);
+      return oidcOrganizationClaims(
+        sql,
+        user,
+        requestsAgentAccess(scopes)
+          ? referenceId
+          : metadata?.taleOrganizationId,
+      );
     },
     customUserInfoClaims: ({ user, jwt }) => {
       const organization = jwt[OIDC_ORGANIZATION_CLAIM];

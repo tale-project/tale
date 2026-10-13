@@ -3,7 +3,14 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { SESSION_ORGANIZATION_MESSAGE } from '../../../lib/shared/constants/session-authority.ts';
 import type { Auth } from '../../auth/auth.ts';
+import {
+  requireAccountIdentity,
+  requireGlobalSession,
+  sessionAllowsOrganization,
+  sessionOrganizationId,
+} from '../../auth/session-authority.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { MemberServiceError } from '../members/service.ts';
@@ -84,6 +91,11 @@ export function createUserRoutes(deps: {
   });
 
   app.use(requireSession(deps.auth));
+  app.use('/update-name', requireAccountIdentity());
+  app.use('/update-password', requireAccountIdentity());
+  app.use('/members', requireAccountIdentity());
+  // A colleague's password is account-wide across all their memberships.
+  app.use('/members/:memberId/password', requireGlobalSession());
 
   app.get('/me', async (c) => {
     const userId = c.get('sessionBundle').user.id;
@@ -125,7 +137,9 @@ export function createUserRoutes(deps: {
   app.get('/last-active-org', async (c) => {
     const userId = c.get('sessionBundle').user.id;
     return c.json({
-      organizationId: await getLastActiveOrganizationId(deps.sql, userId),
+      organizationId:
+        sessionOrganizationId(c.get('sessionBundle').session) ??
+        (await getLastActiveOrganizationId(deps.sql, userId)),
     });
   });
 
@@ -221,6 +235,12 @@ export function createUserRoutes(deps: {
       return invalidBodyResponse(c, body.error);
     }
     const session = c.get('sessionBundle');
+    if (!sessionAllowsOrganization(session.session, body.data.organizationId)) {
+      return c.json(
+        { code: 'ORG_FORBIDDEN', error: SESSION_ORGANIZATION_MESSAGE },
+        403,
+      );
+    }
     try {
       const result = await createMember(
         deps,

@@ -54,7 +54,7 @@ can fail before the application starts.
 | `BETTER_AUTH_SECRET` | Required when the process serves APIs (`api` or `all`) |
 | `SITE_URL` | Public origin used by authentication; non-loopback origins require HTTPS |
 | `TALE_CONFIG_DIR` / `TALE_CONFIG_BUILTIN_DIR` | Writable deployment configuration and shipped catalog |
-| `WORKER_CONCURRENCY` | Jobs one worker process runs at once per queue, default `5` (1–64); agent turn starts get at least 8 and drive windows at least 16 per queue (`slotQueueSlots`); raise `KNOWLEDGE_DB_POOL_MAX` with it |
+| `WORKER_CONCURRENCY` | Jobs one worker process runs at once per queue, default `5` (1–64); agent turn starts get at least 8, drive windows and REST chat turns at least 16 per queue (`slotQueueSlots`); raise `KNOWLEDGE_DB_POOL_MAX` with it |
 | `AGENT_START_SLOTS` | Agent turn starts one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 8 (1–256) |
 | `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
 | `AUTOMATION_ORG_CONCURRENCY` | Automation steps one organization runs at once across every worker, default `8` (0–256, `0` = no limit); counted by pg-boss per job group (`queueGroupConcurrency`), so workers fetching at the same instant can briefly pass it by one or two |
@@ -84,6 +84,12 @@ Use `transactSerializable` from `@tale/shared/db/serializable` for retryable
 mutation transactions. Serialization conflicts and deadlocks can rerun the
 entire callback. Keep network calls, timers and other non-transactional effects
 outside that callback.
+
+Comment queue locks register their keys with the transaction wrapper before
+the write. PostgreSQL can reject COMMIT after a successful callback, including
+a comment written inside a savepoint; that retry takes the same task and
+organization keys before opening its next snapshot. Callback failures keep
+their existing queue marks and every retry keeps the normal attempt budget.
 
 Enqueue durable work with `addJobInTx` in the transaction that records the state
 change. A rollback must not leave a queued effect. Job delivery can repeat, so

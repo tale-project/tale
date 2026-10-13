@@ -72,6 +72,10 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
+  # The org.opencontainers.image.* metadata every pushed image carries, without
+  # the prefix, as labels and as manifest annotations. release.yml names the
+  # same keys (tools/cli/scripts/oci-image-metadata.test.ts holds both to it).
+  OCI_METADATA_KEYS: created revision source version title description url documentation vendor licenses
 
 jobs:
   pr-scope:
@@ -379,6 +383,36 @@ jobs:
           case "$AUTOMATION_PROTOCOL" in 1|2) ;; *) echo '::error::Unsupported automation writer protocol'; exit 1;; esac
           echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"
 
+      # A service's title, description and links are written once, by the final
+      # stage of its Dockerfile. The annotations repeat them so the manifest
+      # says what the image config says; this step reads them from there, and
+      # the job fails when the Dockerfile does not declare all of them.
+      - name: Resolve image annotations
+        id: annotations
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          DOCKERFILE="services/${SERVICE}/Dockerfile"
+          KEYS="title description url documentation vendor licenses"
+          read -ra WANTED <<< "$KEYS"
+          STATIC=$(
+            awk 'toupper($1) == "FROM" { stage = "" } { stage = stage $0 "\n" } END { printf "%s", stage }' "$DOCKERFILE" \
+              | grep -v '^[[:space:]]*#' \
+              | grep -oE "org\.opencontainers\.image\.(${KEYS// /|})=\"[^\"]*\"" \
+              | sed -E 's/="(.*)"$/=\1/' || true
+          )
+          FOUND=$(printf '%s\n' "$STATIC" | grep -c . || true)
+          if [ "$FOUND" -ne "${#WANTED[@]}" ]; then
+            echo "::error::The final stage of ${DOCKERFILE} declares ${FOUND} of its OCI labels ${KEYS}"
+            exit 1
+          fi
+          {
+            echo 'static<<OCI_ANNOTATIONS_EOF'
+            printf '%s\n' "$STATIC"
+            echo 'OCI_ANNOTATIONS_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       # Fail the build (not just the separate test job) on a broken builtin
       # config catalog — build.yml and test.yml otherwise run independently,
       # so a bad builtin JSON could still ship in the image. Platform-only:
@@ -428,8 +462,10 @@ jobs:
           # exports took 148s and cannot seed other PRs; old candidates must
           # not overwrite the current main cache.
           cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max,ghtoken={1},repository={2}', matrix.service, secrets.GITHUB_TOKEN, github.repository) || '' }}
-          # `labels:` replaces Dockerfile LABEL (not merges). Include version
-          # so `tale` can read the running image the same way it does on
+          # `labels:` merge into the Dockerfile's LABELs, and a key named in both
+          # takes the value given here. These are the labels only a build knows;
+          # the Dockerfile's final stage declares the rest. Version is among
+          # them so `tale` can read the running image the same way it does on
           # release tags — see get-container-version.ts.
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
@@ -437,7 +473,52 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.changes.outputs.image_tag }}
             ${{ matrix.service == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
+          # The same metadata on the image manifest, which a client reads
+          # without fetching the config (`crane manifest` shows it): the build's
+          # own values as above, then the Dockerfile's from the step before. An
+          # annotation adds no manifest, so each tag stays the one manifest the
+          # cleanup workflow assumes. Manifest level only: BuildKit refuses an
+          # `index:` annotation on a single-platform export.
+          annotations: |
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.changes.outputs.image_tag }}
+            ${{ steps.annotations.outputs.static }}
+            ${{ matrix.service == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
           provenance: false
+
+      # Read the pushed manifest back by digest. buildx older than 0.12 drops
+      # `annotations` with a warning and a green build, and only a manifest that
+      # repeats the image config's metadata is worth publishing.
+      - name: Verify image annotations
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          VERSION: ${{ needs.changes.outputs.image_tag }}
+          REVISION: ${{ steps.meta.outputs.revision }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "::error::The build of ${IMAGE} reported no image digest"; exit 1
+          fi
+          REF="${IMAGE}@${DIGEST}"
+          MANIFEST=$(docker buildx imagetools inspect "$REF" --raw)
+          CONFIG=$(docker buildx imagetools inspect "$REF" --format '{{json .Image}}')
+          jq -e -n --argjson manifest "$MANIFEST" --argjson config "$CONFIG" \
+            --arg keys "$OCI_METADATA_KEYS" --arg version "$VERSION" --arg revision "$REVISION" '
+            ($config.config.Labels // {}) as $labels
+            | ($manifest.annotations // {}) as $annotations
+            | ($keys | split(" ") | map("org.opencontainers.image." + .)) as $declared
+            | $manifest.mediaType == "application/vnd.oci.image.manifest.v1+json"
+              and $annotations["org.opencontainers.image.version"] == $version
+              and $annotations["org.opencontainers.image.revision"] == $revision
+              and all($declared[]; ($annotations[.] // "") != "" and $annotations[.] == $labels[.])
+              and all(($labels | keys[] | select(startswith("io.tale."))); $annotations[.] == $labels[.])
+          ' > /dev/null || {
+            echo "::error::${REF} does not repeat its OCI metadata labels as manifest annotations"
+            exit 1
+          }
 
       # One receipt per pushed image: the digest this run pushed and the
       # commit it was built from. The smoke test, the image validation and the

@@ -12,6 +12,7 @@ page:
     title: Benutzerdefinierte Anweisungen
     placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
 errors:
+  toggleFailed: "Deine Einstellung wurde nicht geändert. Versuch es nochmal."
   saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
   loadFailed: Deine Einstellungen konnten nicht geladen werden. Benutzerdefinierte Anweisungen sind erst verfügbar, wenn die Einstellungen geladen sind.
   tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.

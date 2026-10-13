@@ -23,8 +23,8 @@ limits:
   invalidSessions: Must be a whole number between 1 and 500.
   total: Total organization sessions
   totalValue: '{total} / {maxSessions}'
-  totalHint: Sum of the three limits / deployment capacity. Other organizations share this capacity.
-  totalHintWithDevices: Sum of the three limits / deployment capacity plus the {deviceSessions} sandboxes your devices run. Other organizations share the deployment capacity.
+  totalHint: Sum of the limits above / deployment capacity. Other organizations share this capacity.
+  totalHintWithDevices: Sum of the limits above / deployment capacity plus the {deviceSessions} sandboxes your devices run. Other organizations share the deployment capacity.
   totalExceedsDeployment: The total of {total} sessions exceeds the deployment capacity of {maxSessions}. Reduce one or more limits to save.
   totalExceedsCapacity: 'The total of {total} sessions exceeds the capacity of {maxSessions}: {deploymentSessions} on the deployment and {deviceSessions} on your devices. Reduce one or more limits to save.'
   capacityUnavailable: Deployment capacity is unavailable. Lowering limits still saves; refresh the infrastructure data before raising one.
@@ -35,10 +35,12 @@ quota:
     project: Agent workers
     workflow: Workflow sessions
     render: Render sessions
+    light: Light sandboxes
   budgetHints:
     project: Each task an agent works on at the same time runs in a sandbox of its own.
     workflow: Agent and script steps share one sandbox per workflow run.
     render: Temporary sandboxes render web pages during website crawling.
+    light: Chats and task runs run code in a small throwaway sandbox to make documents and charts; an idle one gives way to the next one.
 cleanup:
   title: Workspace cleanup
   description:
@@ -139,6 +141,7 @@ worker:
   agent: Worker {number}
   member: Member worker {number}
 deletedAgent: Deleted agent
+lightSandbox: Light sandbox
 devices:
   title: Devices
   description:

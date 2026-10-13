@@ -4,6 +4,10 @@ import type { Sql } from 'postgres';
 import { RECONNECT_CREDENTIAL_PARAM } from '../../../lib/shared/connector-consent.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
+  sessionAllowsOrganization,
+  sessionOrganizationId,
+} from '../../auth/session-authority.ts';
+import {
   requireSession,
   type AuthEnv,
   type SessionBundle,
@@ -87,6 +91,11 @@ export function createConnectorOauthRoutes(deps: {
       return errorPage('unsupported_connector');
     }
     const userId = c.get('sessionBundle').user.id;
+    if (
+      !sessionAllowsOrganization(c.get('sessionBundle').session, organizationId)
+    ) {
+      return plainText('You do not have access to this organization.', 403);
+    }
     const access = await connectorWriteAccess(deps.sql, organizationId, userId);
     if (access === 'not_member') {
       // Same answer for "no such organization" and "not your organization":
@@ -146,14 +155,20 @@ export function createConnectorOauthRoutes(deps: {
   });
 
   app.get('/callback', async (c) => {
-    const session: SessionBundle | null = await deps.auth.api.getSession({
+    const cached = await deps.auth.api.getSession({
       headers: c.req.raw.headers,
     });
+    const session: SessionBundle | null =
+      cached === null ? null : await deps.auth.resolveSessionAuthority(cached);
     const outcome = await completeOauth2(deps.sql, {
       state: c.req.query('state') ?? null,
       code: c.req.query('code') ?? null,
       vendorError: c.req.query('error') ?? null,
       requesterUserId: session?.user.id ?? null,
+      requesterOrganizationId:
+        session === null
+          ? null
+          : (sessionOrganizationId(session.session) ?? null),
     });
     if (outcome.kind === 'error') {
       return errorPage(

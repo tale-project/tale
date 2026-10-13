@@ -40,6 +40,53 @@ export const MOCK_TRIGGERS = {
   streamError: 'e2e:stream-error',
   gatewayRoute: 'e2e:gateway-route',
   cloudRegion: 'e2e:cloud-region',
+  makeFile: 'e2e:make-file',
+  makeSpreadsheet: 'e2e:make-spreadsheet',
+  runLongCode: 'e2e:run-long-code',
+  useWorkspace: 'e2e:use-workspace',
+} as const;
+
+/**
+ * The work-tool scenarios (`MOCK_TRIGGERS.makeFile` / `makeSpreadsheet` /
+ * `runLongCode` / `useWorkspace`): a first turn that calls the tool —
+ * `create_file` with a small CSV, `run_code` with a Python program that
+ * writes a spreadsheet to the light sandbox's output box, `run_code` with a
+ * program that waits almost three minutes before it writes anything (what a
+ * Stop must be able to cut off), or `use_workspace` handing a task to the
+ * full workspace — and, once the tool result is in, a closing reply.
+ * They prove the plumbing (the call, the sandbox, the attached file), never
+ * a model's judgment of which tool to use.
+ */
+export const MOCK_WORK_TOOLS = {
+  fileIntro: 'Here is the table as a CSV file.',
+  fileName: 'planets.csv',
+  fileContent:
+    'planet,diameter_km\nMercury,4879\nVenus,12104\nEarth,12756\nMars,6792\n',
+  spreadsheetIntro: "I'll build the spreadsheet in the light sandbox.",
+  spreadsheetCode: [
+    'import openpyxl',
+    'wb = openpyxl.Workbook()',
+    'ws = wb.active',
+    'ws.title = "Planets"',
+    'ws.append(["Planet", "Diameter (km)"])',
+    'for row in [("Mercury", 4879), ("Venus", 12104), ("Earth", 12756), ("Mars", 6792)]:',
+    '    ws.append(row)',
+    'wb.save("/agent/output/planets.xlsx")',
+    'print("wrote planets.xlsx")',
+  ].join('\n'),
+  longCodeIntro: "I'll run the long program in the light sandbox.",
+  longCode: [
+    'import time',
+    'time.sleep(170)',
+    'open("/agent/output/done.txt", "w").write("done")',
+    'print("finished")',
+  ].join('\n'),
+  workspaceIntro: 'This needs the full workspace.',
+  workspaceReason:
+    'The work needs a repository checked out and its tests run, which the light sandbox cannot do.',
+  workspaceBrief:
+    'Clone the repository, run its test suite and report which tests fail.',
+  done: 'Done — the file is attached to this reply.',
 } as const;
 
 /**

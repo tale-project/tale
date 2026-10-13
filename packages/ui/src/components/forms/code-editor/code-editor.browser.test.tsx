@@ -302,14 +302,16 @@ describe('CodeEditor keyboard', () => {
     );
     const box = await content('Code');
     await userEvent.click(box);
-    expect(
-      document.querySelector('[data-code-editor-legend]'),
-    ).not.toBeInTheDocument();
+    // The legend stays in the document (a node removed while a field blurs
+    // breaks Tab out of it in a modal) and is only shown to keyboard users.
+    const legend = document.querySelector('[data-code-editor-legend]');
+    expect(legend).toHaveAttribute('data-shown', 'false');
+    expect(legend).not.toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Before' }));
     await userEvent.keyboard('{Tab}');
     expect(box).toHaveFocus();
-    const legend = document.querySelector('[data-code-editor-legend]');
-    expect(legend).toBeInTheDocument();
+    expect(legend).toHaveAttribute('data-shown', 'true');
+    await waitFor(() => expect(legend).toBeVisible());
     expect(legend).toHaveAttribute('aria-hidden', 'true');
     expect(legend?.textContent).toContain('Esc, then Tab to leave');
     expect(legend?.textContent).toContain('Run');
@@ -357,6 +359,85 @@ describe('CodeEditor in a sheet', () => {
     } finally {
       await page.viewport(1280, 800);
     }
+  });
+
+  // A modal keeps focus inside itself and, when focus is lost for a moment
+  // (the old element blurred, the new one not yet focused), puts it on the
+  // dialog's own container as soon as a node inside is removed. Leaving a
+  // field must not remove one while it blurs: Esc then Tab has to land on the
+  // next field, and then on the button after it, not on the dialog.
+  function FormHost() {
+    const [first, setFirst] = useState('{ "a": 1 }');
+    const [second, setSecond] = useState('{ "b": 2 }');
+    return (
+      <ResponsiveDialog open onOpenChange={() => {}}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogTitle>Test node</ResponsiveDialogTitle>
+          <CodeEditor
+            aria-label="First"
+            language="json"
+            value={first}
+            onChange={setFirst}
+          />
+          <CodeEditor
+            aria-label="Second"
+            language="json"
+            value={second}
+            onChange={setSecond}
+          />
+          <button type="button">Run</button>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    );
+  }
+
+  it('leaves a field for the next control with Esc and Tab, in a modal', async () => {
+    render(<FormHost />);
+    const first = await content('First');
+    const second = await content('Second');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await userEvent.click(first);
+    await userEvent.keyboard('{Escape}{Tab}');
+    expect(second).toHaveFocus();
+    await userEvent.keyboard('{Escape}{Tab}');
+    expect(screen.getByRole('button', { name: 'Run' })).toHaveFocus();
+  });
+
+  it('is a tab stop a modal and a checker can see, whether editable or not', async () => {
+    render(
+      <>
+        <Controlled initial="a" />
+        <CodeEditor
+          aria-label="Read only"
+          language="json"
+          value="b"
+          onChange={() => {}}
+          readOnly
+        />
+        <CodeEditor
+          aria-label="Off"
+          language="json"
+          value="c"
+          onChange={() => {}}
+          disabled
+        />
+      </>,
+    );
+    const editable = await content('Code');
+    const readOnly = await content('Read only');
+    expect(editable).toHaveAttribute('tabindex', '0');
+    expect(readOnly).toHaveAttribute('tabindex', '0');
+    expect((await content('Off')).hasAttribute('tabindex')).toBe(false);
+  });
+
+  it('leaves a field backwards with Esc and Shift+Tab, in a modal', async () => {
+    render(<FormHost />);
+    const first = await content('First');
+    const second = await content('Second');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await userEvent.click(second);
+    await userEvent.keyboard('{Escape}{Shift>}{Tab}{/Shift}');
+    expect(first).toHaveFocus();
   });
 
   it('never lets a text selection drag the sheet', async () => {
@@ -1012,12 +1093,15 @@ describe('CodeEditor completion', () => {
       await userEvent.click(box);
       await userEvent.keyboard('nodes.');
       const list = await listbox();
-      // The list sits inside the sheet.
+      // The list sits inside the sheet. CodeMirror places it a frame after it
+      // appears, so a busy machine can read it still unplaced.
       const sheet = box.closest('[role="dialog"]') as HTMLElement;
-      const listBox = list.getBoundingClientRect();
-      const sheetBox = sheet.getBoundingClientRect();
-      expect(listBox.top).toBeGreaterThanOrEqual(sheetBox.top);
-      expect(listBox.bottom).toBeLessThanOrEqual(sheetBox.bottom + 1);
+      await waitFor(() => {
+        const listBox = list.getBoundingClientRect();
+        const sheetBox = sheet.getBoundingClientRect();
+        expect(listBox.top).toBeGreaterThanOrEqual(sheetBox.top);
+        expect(listBox.bottom).toBeLessThanOrEqual(sheetBox.bottom + 1);
+      });
       await userEvent.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
       expect(screen.getByText('sheet open')).toBeInTheDocument();

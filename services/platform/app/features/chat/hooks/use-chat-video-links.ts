@@ -90,6 +90,27 @@ function videoLinkFailureDetail(
   t: TFunction,
 ): string | undefined {
   const code = backendErrorCode(err);
+  if (code === 'RATE_LIMITED') {
+    const data =
+      err instanceof BackendApiError || err instanceof AppError
+        ? err.data
+        : undefined;
+    const retryAfterMs =
+      data !== null && typeof data === 'object' && 'retryAfterMs' in data
+        ? data.retryAfterMs
+        : undefined;
+    if (
+      typeof retryAfterMs === 'number' &&
+      Number.isFinite(retryAfterMs) &&
+      retryAfterMs > 0 &&
+      retryAfterMs <= Number.MAX_SAFE_INTEGER
+    ) {
+      return t('videoLink.errors.RATE_LIMITED_RETRY', {
+        seconds: Math.ceil(retryAfterMs / 1000),
+      });
+    }
+    return t('videoLink.errors.RATE_LIMITED');
+  }
   const known =
     code === undefined
       ? ''
@@ -291,6 +312,9 @@ export function useChatVideoLinks(args: {
             '[useChatVideoLinks] ingest failed:',
             err instanceof Error ? err.message : err,
           );
+          // The shared allowance also refuses the remaining links; say so
+          // once and leave those links for a later paste.
+          if (backendErrorCode(err) === 'RATE_LIMITED') break;
         }
       }
       if (ingested > 0) nudgeChips();

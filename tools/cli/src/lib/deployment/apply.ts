@@ -71,16 +71,47 @@ type Dependencies = {
   observeRuntime?: typeof observeReadyRuntime;
 };
 
-/** Native configuration is the only field a hot apply may change. The source
- * commit is carried separately by the immutable bundle, never folded into
- * this comparison of destination, identity, runtime and config-pack inputs. */
-function configurationBasis(bundle: DeploymentBundle): string {
+/** Recovery declarations are transient intent, not runtime or identity inputs.
+ * The optional bundle is used only to reconstruct a legacy Ready basis from
+ * its recorded final takeover; new receipts always use the normalized basis.
+ * Source commits remain bound separately by the immutable bundle. */
+function configurationBasis(
+  bundle: DeploymentBundle,
+  legacySupersededBundle?: string,
+): string {
   const {
     configuration: _configuration,
-    supersedesPendingConfigurationPlan: _recovery,
+    supersedesPendingConfigurationPlan: _configurationRecovery,
+    supersedesPendingBundle: _bundleRecovery,
     ...basis
   } = bundle.spec;
-  return valueHash(basis);
+  return valueHash({
+    ...basis,
+    ...(legacySupersededBundle
+      ? { supersedesPendingBundle: legacySupersededBundle }
+      : {}),
+  });
+}
+
+function matchesConfigurationBasis(
+  bundle: DeploymentBundle,
+  ready: {
+    bundleSha256: string;
+    configurationBasisSha256?: string;
+    supersededBundles?: string[];
+  },
+): boolean {
+  if (ready.configurationBasisSha256 === configurationBasis(bundle))
+    return true;
+  // Released CLIs included the outer takeover declaration in this hash.
+  // Only this Ready's final takeover can reconstruct it: a generic mismatch,
+  // absent history or a changed protected input must never admit a hot apply.
+  const superseded = ready.supersededBundles?.at(-1);
+  return (
+    superseded !== undefined &&
+    superseded !== ready.bundleSha256 &&
+    ready.configurationBasisSha256 === configurationBasis(bundle, superseded)
+  );
 }
 
 const recoverySnapshotSchema = z.object({
@@ -99,13 +130,17 @@ const recoverySnapshotSchema = z.object({
     )
     .refine((volumes) => Object.keys(volumes).length > 0),
 });
+const MAX_SUPERSEDED_BUNDLES = 64;
+// Released writers accepted 64 entries, then appended one without checking.
+// Read their retained Pending and Ready journals without pruning that history.
+const supersededBundlesSchema = z.array(sha).max(MAX_SUPERSEDED_BUNDLES + 1);
 const deploymentIntentSchema = z.strictObject({
   schemaVersion: z.literal(1),
   phase: z.literal('pending'),
   name: slug,
   bundleSha256: sha,
   snapshot: recoverySnapshotSchema.optional(),
-  supersededBundles: z.array(sha).max(64).optional(),
+  supersededBundles: supersededBundlesSchema.optional(),
 });
 
 /**
@@ -627,6 +662,10 @@ async function applyVerifiedDeployment(
         intent.name === bundle.spec.name &&
         bundle.spec.supersedesPendingBundle === intent.bundleSha256
       ) {
+        if ((intent.supersededBundles?.length ?? 0) >= MAX_SUPERSEDED_BUNDLES)
+          throw preconditionError(
+            'The pending deployment has reached its takeover history limit. Recover that exact reviewed bundle first.',
+          );
         // The reviewed bundle takes over the pending one's recovery point: the
         // snapshot taken before anything changed stays the recovery point, and
         // the superseded bundle is named in the ready receipt. The takeover is
@@ -660,6 +699,7 @@ async function applyVerifiedDeployment(
             bundleSha256: sha,
             snapshotId: z.string().refine(isValidSnapshotId).optional(),
             configurationBasisSha256: sha.optional(),
+            supersededBundles: supersededBundlesSchema.optional(),
             native: nativeProvisionProofSchema.optional(),
           })
           .parse(JSON.parse(readRegular(receiptPath).toString('utf8')))
@@ -669,7 +709,7 @@ async function applyVerifiedDeployment(
         intent ||
         bundle.spec.supersedesPendingBundle ||
         !previous?.native ||
-        previous.configurationBasisSha256 !== configurationBasis(bundle) ||
+        !matchesConfigurationBasis(bundle, previous) ||
         !bundle.spec.configuration ||
         !preview.existing ||
         preview.changed ||

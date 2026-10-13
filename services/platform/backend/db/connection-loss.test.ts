@@ -12,6 +12,11 @@
  * through each build the platform resolves (ESM `import`, CommonJS `require`),
  * against a fake server here that closes the socket with no message, the way the
  * kernel does when a server process is killed. Only the patch makes them pass.
+ *
+ * The same patch fixes a second defect, pinned by `begin-fills-the-pipeline`: a
+ * `begin()` that fills a connection's pipeline (`max_pipeline`) was written
+ * without ever learning its connection, so the pool took the connection back
+ * inside the transaction. A burst of 4,000 users made that happen in production.
  */
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -48,8 +53,12 @@ const message = (type: string, ...body: Buffer[]) => {
  */
 class FakePostgres {
   readonly statements: string[] = [];
+  /** Every statement with the connection it arrived on and that connection's transaction status then. */
+  readonly arrivals: { connection: number; status: string; text: string }[] =
+    [];
   private readonly server = createServer((socket) => this.serve(socket));
   private readonly sockets = new Set<Socket>();
+  private connections = 0;
 
   async listen(): Promise<number> {
     this.server.listen(0, '127.0.0.1');
@@ -64,6 +73,7 @@ class FakePostgres {
   }
 
   private serve(socket: Socket) {
+    const connection = (this.connections += 1);
     this.sockets.add(socket);
     socket.on('close', () => this.sockets.delete(socket));
     socket.on('error', () => socket.destroy());
@@ -85,6 +95,7 @@ class FakePostgres {
     // True when the statement ends the connection instead of being answered.
     const cut = (text: string) => {
       this.statements.push(text);
+      this.arrivals.push({ connection, status, text });
       if (text.includes('cut_now')) {
         socket.destroy();
         return true;
@@ -345,6 +356,32 @@ describe.each(['esm', 'cjs'] as const)(
       expect(events.get('after')).toMatchObject({ ok: true });
       expect(events.get('end')).toMatchObject({ ok: true });
       expect(server.statements).not.toContain('commit');
+    });
+
+    it('runs a begin() that fills a connection’s pipeline as a transaction of its own', async () => {
+      const events = await run('begin-fills-the-pipeline');
+      expect(events.get('transaction')).toEqual({
+        event: 'transaction',
+        ok: true,
+        value: 'committed',
+      });
+      expect(events.get('plain')).toMatchObject({ ok: true });
+      // The BEGIN was written either way. Unpatched, begin() never learned its
+      // connection (UNSAFE_TRANSACTION), the connection went back to the pool
+      // inside the transaction, and the next caller's statement ran in it.
+      const inside = server.arrivals.filter(
+        (arrival) => arrival.text === "select 'in-transaction'",
+      );
+      expect(inside).toHaveLength(1);
+      expect(inside[0]).toMatchObject({ status: 'T' });
+      const outside = server.arrivals.filter((arrival) =>
+        /^select '(plain|after)/.test(arrival.text),
+      );
+      expect(outside.length).toBeGreaterThan(0);
+      expect(outside.filter((arrival) => arrival.status !== 'I')).toEqual([]);
+      expect(server.statements.filter((s) => s === 'commit')).toHaveLength(1);
+      expect(events.get('after')).toMatchObject({ ok: true });
+      expect(events.get('end')).toMatchObject({ ok: true });
     });
 
     it('still commits a healthy transaction and rolls back a failing one', async () => {

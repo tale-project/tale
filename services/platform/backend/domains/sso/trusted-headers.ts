@@ -187,7 +187,7 @@ export async function trustedHeadersAuthenticate(
     // Org 2FA enforcement anchors on this door too — it mints sessions
     // outside the Better Auth sign-in hook, so without this an enforced
     // policy's grace clock never started for proxy-authenticated users.
-    await anchorTwoFactorGraceOnSignIn(tx, userId);
+    await anchorTwoFactorGraceOnSignIn(tx, userId, args.organizationId);
 
     // ---- create or reuse the session ------------------------------------
     const nowMs = now.getTime();
@@ -196,9 +196,15 @@ export async function trustedHeadersAuthenticate(
 
     if (args.existingSessionToken !== undefined) {
       const existing = await tx<
-        { id: string; userId: string; token: string; expiresAt: Date }[]
+        {
+          id: string;
+          userId: string;
+          token: string;
+          expiresAt: Date;
+          trustedOrganizationId: string | null;
+        }[]
       >`
-        SELECT "id", "userId", "token", "expiresAt"
+        SELECT "id", "userId", "token", "expiresAt", "trustedOrganizationId"
         FROM "session" WHERE "token" = ${args.existingSessionToken} LIMIT 1
       `;
       const row = existing[0];
@@ -207,7 +213,13 @@ export async function trustedHeadersAuthenticate(
           // Account switch behind the proxy: the other user's session dies
           // (the fresh cookie below replaces it in the browser).
           await tx`DELETE FROM "session" WHERE "id" = ${row.id}`;
-        } else if (row.expiresAt.getTime() > nowMs) {
+        } else if (
+          row.expiresAt.getTime() > nowMs &&
+          row.trustedOrganizationId === args.organizationId
+        ) {
+          // Re-authentication can refresh this realm; another realm or a
+          // global cookie gets a separate row below, never a rebinding of
+          // the old cookie's authority. Stored memberships stay intact.
           await tx`
             UPDATE "session" SET
               "expiresAt" = ${expiresAt}, "updatedAt" = ${now},

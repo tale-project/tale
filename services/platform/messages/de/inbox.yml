@@ -70,6 +70,10 @@ usageCreditsRequested: Nutzungskontingent angefragt
 usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
 apiKeyCreatedForYou: API-Schlüssel für dich erstellt
 apiKeyCreatedForYouBody: '{name} hat den API-Schlüssel "{keyName}" für dich erstellt. Er handelt in dieser Organisation in deinem Namen; brauchst du ihn nicht, widerrufe ihn unter Einstellungen > API > REST.'
+agentConnectionEnded: Coding-Agent getrennt
+agentConnectionEndedReuseBody: '{client} wurde getrennt, weil eine alte Anmeldung erneut verwendet wurde. Verbinde den Agenten erneut, wenn du das warst.'
+agentConnectionEndedAccountBody: '{client} wurde getrennt, weil sich dein Passwort oder eine andere Anmeldemethode geändert hat. Verbinde den Agenten erneut, wenn er wieder arbeiten soll.'
+agentConnectionEndedAdminBody: '{name} hat {client} von dieser Organisation getrennt. Verbinde den Agenten erneut, falls du ihn weiter brauchst.'
 automationTriggerPaused: Zeitplan pausiert
 automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
 automationMessage: '{title}'
@@ -78,6 +82,7 @@ automationMessageBodyNoText: 'Gesendet von der Automatisierung "{automation}".'
 agentRunFailed: Agenten-Lauf fehlgeschlagen
 agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
 agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
+agentRunFailedPolicyBody: 'Die Inhaltsrichtlinie deiner Organisation hat den Agenten bei "{title}" gestoppt. Passe die Aufgabe an oder frag einen Admin nach der Richtlinie, und starte den Agenten dann erneut.'
 agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
 agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
 email:

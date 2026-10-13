@@ -56,6 +56,9 @@ const CHECKED_CI_FILES = [
   '.github/actions/setup-cli/action.yml',
   '.github/workflows/scorecard.yml',
   '.github/scripts/pull-ci-images.sh',
+  '.github/renovate.json',
+  'tools/plop/templates/service/docker/Dockerfile.hbs',
+  'tools/plop/templates/service/react/Dockerfile.hbs',
   '.dockerignore',
   'services/platform/tests/integration/container-web-test.ts',
   'services/platform/tests/integration/container-docs-test.ts',
@@ -92,7 +95,7 @@ const PARITY_FILES = [
   'services/sandbox-egress/Dockerfile',
 ];
 
-/** Inputs to the real local package publication in publish-package.test.ts. */
+/** Read by publish-package.test.ts: publication inputs and both workflows. */
 const PACKAGE_PUBLICATION_FILES = [
   'scripts/publish-package.ts',
   'LICENSE',
@@ -101,6 +104,7 @@ const PACKAGE_PUBLICATION_FILES = [
   'packages/marketing-ui/package.json',
   'packages/marketing-ui/README.md',
   '.github/workflows/publish-packages.yml',
+  '.github/workflows/release.yml',
 ];
 
 /** The slice of `turbo run --dry=json` this suite reads. */

@@ -88,7 +88,8 @@ describe('GET /events re-proves the reader while the stream is open', () => {
     const app = appWith((text) => {
       if (text.includes('FROM "member"')) return [{ ...MEMBER, role }];
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
-      if (text.includes('FROM "session"')) return [{ id: 's1' }];
+      if (text.includes('FROM "session"'))
+        return [{ id: 's1', trustedOrganizationId: null }];
       return [];
     });
     const response = await app.request('/events?orgId=o1');
@@ -105,7 +106,8 @@ describe('GET /events re-proves the reader while the stream is open', () => {
     const app = appWith((text) => {
       if (text.includes('FROM "member"')) return memberRows;
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
-      if (text.includes('FROM "session"')) return [{ id: 's1' }];
+      if (text.includes('FROM "session"'))
+        return [{ id: 's1', trustedOrganizationId: null }];
       return [];
     });
     const response = await app.request('/events?orgId=o1');
@@ -116,7 +118,7 @@ describe('GET /events re-proves the reader while the stream is open', () => {
   });
 
   test('a session revoked mid-stream ends the stream too', async () => {
-    let sessionRows: unknown[] = [{ id: 's1' }];
+    let sessionRows: unknown[] = [{ id: 's1', trustedOrganizationId: null }];
     const app = appWith((text) => {
       if (text.includes('FROM "member"')) return [MEMBER];
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
@@ -139,7 +141,8 @@ describe('GET /events re-proves the reader while the stream is open', () => {
         return [MEMBER];
       }
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
-      if (text.includes('FROM "session"')) return [{ id: 's1' }];
+      if (text.includes('FROM "session"'))
+        return [{ id: 's1', trustedOrganizationId: null }];
       return [];
     });
     const response = await app.request('/events?orgId=o1');
@@ -159,7 +162,8 @@ describe('GET /events re-proves the reader while the stream is open', () => {
         return mode === 'gone' ? [] : [MEMBER];
       }
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
-      if (text.includes('FROM "session"')) return [{ id: 's1' }];
+      if (text.includes('FROM "session"'))
+        return [{ id: 's1', trustedOrganizationId: null }];
       return [];
     });
     const response = await app.request('/events?orgId=o1');
@@ -281,7 +285,8 @@ describe('GET /events through a database restart', () => {
       if (world.down) throw unavailable();
       if (text.includes('FROM "member"')) return [MEMBER];
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
-      if (text.includes('FROM "session"')) return [{ id: 's1' }];
+      if (text.includes('FROM "session"'))
+        return [{ id: 's1', trustedOrganizationId: null }];
       if (text.includes('max(id)')) return [{ max: '0' }];
       // The shared tail: its ring preload at start, then its forward reads.
       if (text.includes('ORDER BY id DESC')) return [];

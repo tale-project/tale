@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { useDebounce } from '@tale/ui/use-debounce';
@@ -7,9 +8,10 @@ import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
@@ -31,12 +33,14 @@ type Contact = ContactDoc;
 
 export interface ContactsTableProps {
   organizationId: string;
+  query?: string;
   source?: string;
   locale?: string;
 }
 
 export function ContactsTable({
   organizationId,
+  query,
   source,
   locale,
 }: ContactsTableProps) {
@@ -50,7 +54,10 @@ export function ContactsTable({
 
   const { data: count } = useApproxContactCount(organizationId);
   const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState(query ?? '');
+  useEffect(() => {
+    setSearchValue(query ?? '');
+  }, [query, organizationId]);
   const debouncedSearch = useDebounce(searchValue.trim(), 250);
   const paginatedResult = useListContactsPaginated({
     organizationId,
@@ -59,6 +66,24 @@ export function ContactsTable({
     locale,
     initialNumItems: pageSize,
   });
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchValue(value);
+      void navigate({
+        to: '/dashboard/$id/contacts',
+        params: { id: organizationId },
+        replace: true,
+        search: (
+          prev: Pick<ContactsTableProps, 'query' | 'source' | 'locale'>,
+        ) => ({
+          ...prev,
+          query: value || undefined,
+        }),
+      });
+    },
+    [navigate, organizationId],
+  );
 
   const handleSourceChange = useCallback(
     (values: string[]) => {
@@ -89,6 +114,7 @@ export function ContactsTable({
   );
 
   const handleClearFilters = useCallback(() => {
+    setSearchValue('');
     void navigate({
       to: '/dashboard/$id/contacts',
       params: { id: organizationId },
@@ -198,6 +224,9 @@ export function ContactsTable({
     [deleteContact],
   );
 
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery(paginatedResult);
+
   const list = useListPage<Contact>({
     dataSource: {
       type: 'paginated',
@@ -205,6 +234,10 @@ export function ContactsTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
+      // A failed first page is the table's error state with its retry,
+      // never "No contacts yet" (#3843).
+      error: paginatedResult.error,
+      retry: retryRead,
     },
     pageSize,
     sorting,
@@ -212,7 +245,7 @@ export function ContactsTable({
     search: {
       serverSide: true,
       value: searchValue,
-      onChange: setSearchValue,
+      onChange: handleSearchChange,
       placeholder: searchPlaceholder,
     },
     filters: {
@@ -228,49 +261,74 @@ export function ContactsTable({
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        stickyLayout
-        onRowClick={handleRowClick}
-        enableRowSelection={canSelectRow}
-        rowSelection={deletableSelection}
-        onRowSelectionChange={setRowSelection}
-        sorting={{
-          manual: true,
-          initialSorting: sorting,
-          onSortingChange: setSorting,
-        }}
-        actionMenu={
-          <ContactsActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
+      {/* Rows already on screen outlive a failed read — a refresh, or a page
+          a search, a sort or a scroll asked for — and the failure is named
+          above them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={tContacts('title')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
+            message={tContacts('refreshFailed')}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
           />
-        }
-        emptyState={{
-          icon: Users,
-          title: tEmpty('contacts.title'),
-          description: tEmpty('contacts.description'),
-          headingLevel: 2,
-        }}
-        footer={
-          canWrite && (
-            <BulkDeleteBar
-              rowSelection={deletableSelection}
-              onRowSelectionChange={setRowSelection}
-              getItemLabel={(id) =>
-                paginatedResult.results.find((item) => item._id === id)?.name ??
-                id
-              }
-              onClearSelection={handleClearSelection}
-              onDeleteItem={handleDeleteItem}
-              onDeleteComplete={handleClearSelection}
-              describeFailure={firstFailureDetail}
+        )}
+        <DataTable
+          columns={columns}
+          stickyLayout
+          onRowClick={handleRowClick}
+          enableRowSelection={canSelectRow}
+          rowSelection={deletableSelection}
+          onRowSelectionChange={setRowSelection}
+          sorting={{
+            manual: true,
+            initialSorting: sorting,
+            onSortingChange: setSorting,
+          }}
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
+          actionMenu={
+            <ContactsActionMenu
+              organizationId={organizationId}
+              createOpen={createOpen}
+              onCreateOpenChange={setCreateOpen}
             />
-          )
-        }
-        {...list.tableProps}
-      />
+          }
+          emptyState={{
+            icon: Users,
+            title: tEmpty('contacts.title'),
+            description: tEmpty('contacts.description'),
+            headingLevel: 2,
+          }}
+          footer={
+            canWrite && (
+              <BulkDeleteBar
+                rowSelection={deletableSelection}
+                onRowSelectionChange={setRowSelection}
+                getItemLabel={(id) =>
+                  paginatedResult.results.find((item) => item._id === id)
+                    ?.name ?? id
+                }
+                onClearSelection={handleClearSelection}
+                onDeleteItem={handleDeleteItem}
+                onDeleteComplete={handleClearSelection}
+                describeFailure={firstFailureDetail}
+              />
+            )
+          }
+          {...list.tableProps}
+        />
+      </div>
 
       {viewedRecord && (
         <ContactViewDialog

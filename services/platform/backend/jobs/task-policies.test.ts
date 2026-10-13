@@ -15,6 +15,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  NATIVE_RUNS_PER_ORG,
   queueGroupConcurrency,
   TASK_JOB_GROUP,
   TASK_QUEUE_OPTIONS,
@@ -76,7 +77,7 @@ describe('automation steps', () => {
     ).toBe('org-1');
   });
 
-  it('is the only queue limited per organization, and only while the limit is on', () => {
+  it('is limited per organization with the operator’s limit, only while the limit is on', () => {
     expect(
       queueGroupConcurrency('automation.step', { automationOrgConcurrency: 8 }),
     ).toBe(8);
@@ -85,7 +86,7 @@ describe('automation steps', () => {
     ).toBeUndefined();
     expect(queueGroupConcurrency('automation.step', {})).toBeUndefined();
     for (const name of Object.keys(TASK_QUEUE_OPTIONS)) {
-      if (name === 'automation.step') continue;
+      if (name === 'automation.step' || name === 'task.agent_native') continue;
       expect(
         queueGroupConcurrency(name, { automationOrgConcurrency: 8 }),
       ).toBeUndefined();
@@ -105,5 +106,39 @@ describe('automation steps', () => {
       )
       .sort();
     expect(grouped).toEqual(limited);
+  });
+});
+
+describe('native task runs [TASK-R38]', () => {
+  // A native run's turn waits on the model for up to fifty minutes in one of
+  // the worker's slots, which every organization shares: its share is counted
+  // from the organization's active jobs, so a killed worker's run must stop
+  // counting within a minute or two, not hold its share until the expiry.
+  it('carry a heartbeat well inside their expiry', () => {
+    const { heartbeatSeconds, expireInSeconds } =
+      TASK_QUEUE_OPTIONS['task.agent_native'];
+    expect(heartbeatSeconds).toBe(60);
+    expect(expireInSeconds).toBeGreaterThan(heartbeatSeconds ?? 0);
+  });
+
+  it('count each run against the organization that owns it', () => {
+    expect(
+      TASK_JOB_GROUP['task.agent_native']?.({
+        organizationId: 'org-1',
+        runId: 'run-1',
+        execId: 'exec-1',
+      }),
+    ).toBe('org-1');
+  });
+
+  it('hold an organization to its share of runs at once, whatever the operator set for automation steps', () => {
+    expect(NATIVE_RUNS_PER_ORG).toBe(4);
+    for (const automationOrgConcurrency of [undefined, 0, 8]) {
+      expect(
+        queueGroupConcurrency('task.agent_native', {
+          automationOrgConcurrency,
+        }),
+      ).toBe(NATIVE_RUNS_PER_ORG);
+    }
   });
 });

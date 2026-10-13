@@ -23,6 +23,7 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { endAgentConnectionsInTx } from '../agent_connections/end.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
@@ -54,6 +55,9 @@ vi.mock('../../lib/object-store.ts', () => ({
   s3DeleteObject: vi.fn(),
 }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+vi.mock('../agent_connections/end.ts', () => ({
+  endAgentConnectionsInTx: vi.fn(() => Promise.resolve([])),
+}));
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(() => Promise.resolve('audit-1')),
 }));
@@ -369,10 +373,11 @@ describe('processErasure', () => {
     );
   });
 
-  it('pseudonymises who changed an automation’s definition, in every actor form, and counts the pass [ERASE-R5]', async () => {
+  it('pseudonymises who changed an automation’s definition or checked its tests, in every actor form, and counts the pass [ERASE-R5]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const tables = [
       ['app.automations', 'created_by'],
+      ['app.automations', 'tests_checked_by'],
       ['app.automation_deployments', 'deployed_by'],
       ['app.automation_deployment_events', 'actor'],
       ['app.automation_triggers', 'created_by'],
@@ -394,6 +399,8 @@ describe('processErasure', () => {
         ];
       if (text.startsWith('UPDATE app.automations SET created_by'))
         return [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }];
+      if (text.startsWith('UPDATE app.automations SET tests_checked_by'))
+        return [{ id: 'v1' }, { id: 'v4' }, { id: 'v5' }];
       if (text.startsWith('UPDATE app.automation_deployment_events'))
         return [{ id: 'e1' }];
       if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
@@ -421,7 +428,7 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[0]).toBe('done');
-    expect(settle?.values[2]).toMatchObject({ automationAuthorship: 4 });
+    expect(settle?.values[2]).toMatchObject({ automationAuthorship: 7 });
   });
 
   it('pseudonymises the project-agent runs the subject started and counts the pass on the receipt [ERASE-R5]', async () => {
@@ -551,6 +558,52 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[2]).toMatchObject({ mcpActivity: 2 });
+  });
+
+  it("deletes the subject's coding agent connections in the organization, ending the live ones first [AGCONN-R18]", async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.agent_connections'))
+        return [{ id: 'conn-1' }, { id: 'conn-2' }, { id: 'conn-3' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    // Ended first — consent and tokens go — only in this organization.
+    expect(endAgentConnectionsInTx).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org_1',
+      userId: 'subject',
+      reason: 'account_security',
+      revokedBy: 'system',
+    });
+    const removed = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.agent_connections'),
+    );
+    expect(removed?.text).toBe(
+      'DELETE FROM app.agent_connections WHERE org_id = ? AND user_id = ? RETURNING id',
+    );
+    expect(removed?.values).toEqual(['org_1', 'subject']);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ agentConnections: 3 });
   });
 
   it('takes every run that replays one of the person’s runs with them [ERASE-R10]', async () => {
@@ -1586,8 +1639,14 @@ describe('processErasure — key-made audit subjects', () => {
       expect(scrub?.text).toContain(
         "OR (resource_type = 'user' AND resource_id = ?)",
       );
+      // What the audit log says of the connections that ended — they name
+      // their person in the state they leave.
+      expect(scrub?.text).toContain(
+        "OR (resource_type = 'agent_connection' AND previous_state->>'userId' = ?)",
+      );
       expect(scrub?.values).toEqual([
         'org_1',
+        targetUserId,
         targetUserId,
         targetUserId,
         targetUserId,

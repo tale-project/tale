@@ -11,7 +11,13 @@ import { authRequestCache, soleCookieValue } from './request-cache.ts';
  */
 export interface SessionBundle {
   user: { id: string; email: string; name: string };
-  session: { id: string; activeOrganizationId?: string | null };
+  session: {
+    id: string;
+    activeOrganizationId?: string | null;
+    activeTeamId?: string | null;
+    trustedOrganizationId?: string | null;
+    independentIdentityVerifiedAt?: Date | string | null;
+  };
 }
 
 export interface AuthEnv {
@@ -49,7 +55,7 @@ export function requireSession<E extends AuthEnv>(
     // The process's cache answers a session it resolved a moment ago,
     // keyed by the very cookie Better Auth reads (`request-cache.ts`).
     const cache = authRequestCache();
-    const bundle =
+    const cached =
       cache === null
         ? await resolve()
         : await cache.session(
@@ -59,6 +65,8 @@ export function requireSession<E extends AuthEnv>(
             ),
             resolve,
           );
+    const bundle =
+      cached === null ? null : await auth.resolveSessionAuthority(cached);
     if (!bundle) {
       // The one flat envelope every door speaks — `code` beside the
       // sentence — where the session doors used to answer a bare

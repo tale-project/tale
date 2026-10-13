@@ -123,6 +123,8 @@ describe('the ID token the token endpoint mints', () => {
     oauthAccessToken: [],
     oauthRefreshToken: [],
     oauthConsent: [],
+    oauthResource: [],
+    oauthClientResource: [],
   };
   // The JWT plugin as `createAuth` configures it, beside the provider under
   // test — the pair that signs what a relying party verifies.
@@ -140,7 +142,10 @@ describe('the ID token the token endpoint mints', () => {
         jwks: { keyPairConfig: { alg: 'RS256' } },
         jwt: { issuer: ISSUER },
       }),
-      createOidcProvider(memorySql(db), BASE),
+      createOidcProvider(memorySql(db), BASE, {
+        dynamicRegistration: true,
+        clientDiscovery: null,
+      }),
       organization(),
     ],
   });

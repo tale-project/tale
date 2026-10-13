@@ -10,6 +10,7 @@ import {
   passwordPolicyViolations,
 } from '../../../lib/shared/schemas/password.ts';
 import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
+import { endAgentsOf, endAllAccessOf } from '../../auth/account-security.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
   evaluateCredentialResetAuthority,
@@ -435,7 +436,14 @@ export async function updateUserPassword(
     : false;
 
   if (forcedReset) {
-    await forcedResetCredentialPassword(sql, actor.userId, args.newPassword);
+    // The new credential and the end of the coding agents the old one signed
+    // in are one step: this rotation writes the credential itself, so the
+    // hook that ends agents after Better Auth's own change never sees it
+    // (`account-security.ts`).
+    await transactSerializable(sql, async (tx) => {
+      await forcedResetCredentialPassword(tx, actor.userId, args.newPassword);
+      await endAgentsOf(tx, actor.userId);
+    });
     await auth.api.revokeOtherSessions({ headers });
   } else if (hasPassword) {
     if (!args.currentPassword) {
@@ -585,12 +593,16 @@ export async function setMemberPassword(
   }
 
   const passwordHash = await hashPassword(args.newPassword);
-  // Credential write, session sweep, rotation anchor and audit row: one
-  // transaction — a seizure either fully lands (and is on the ledger) or
-  // leaves the member exactly as they were.
+  // Credential write, session and agent sweep, rotation anchor and audit
+  // row: one transaction — a seizure either fully lands (and is on the
+  // ledger) or leaves the member exactly as they were.
   await transactSerializable(sql, async (tx) => {
     await setCredentialPassword(tx, member.userId, passwordHash);
-    await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+    await endAllAccessOf(tx, member.userId, {
+      actorId: actor.userId,
+      actorType: 'user',
+      ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+    });
     await recordPasswordChange(tx, member.userId, {
       forceChangeOnNextLogin: true,
     });

@@ -827,6 +827,54 @@ describe('createAccountService', () => {
     ).toBe('access-2');
   });
 
+  it('force-refreshes a provider handout after a broker-served inference rejection', async () => {
+    await connect();
+    // The access token is still well inside its planned lifetime, so the
+    // ordinary handout would keep it. A platform retry carries the force
+    // signal after the vendor rejected that exact generation.
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const [row] = await service.handOutTokens('anthropic', {
+      forceRefresh: true,
+    });
+
+    expect(anthropic.refreshCount).toBe(1);
+    expect(row?.accessToken).toBe('access-2');
+  });
+
+  it('keeps a terminal grant refusal final during forced handouts', async () => {
+    await connect();
+    anthropic.refusals.refresh = 'rejected';
+    now = new Date('2026-09-21T10:56:00.000Z');
+    await service.handOutTokens('anthropic');
+    expect(anthropic.refreshCount).toBe(1);
+
+    const [row] = await service.handOutTokens('anthropic', {
+      forceRefresh: true,
+    });
+
+    expect(anthropic.refreshCount).toBe(1);
+    expect(row?.status).toBe('expired');
+  });
+
+  it('keeps the transient-failure pause during forced handouts', async () => {
+    await connect();
+    anthropic.refusals.refresh = 'failed';
+    now = new Date('2026-09-21T10:56:00.000Z');
+    await service.handOutTokens('anthropic');
+    expect(anthropic.refreshCount).toBe(1);
+    anthropic.refusals.refresh = undefined;
+
+    await service.handOutTokens('anthropic', { forceRefresh: true });
+    expect(anthropic.refreshCount).toBe(1);
+
+    now = new Date('2026-09-21T10:57:30.000Z');
+    const [row] = await service.handOutTokens('anthropic', {
+      forceRefresh: true,
+    });
+    expect(anthropic.refreshCount).toBe(2);
+    expect(row?.status).toBe('active');
+  });
+
   it('keeps a rejected generation unavailable when its recovery is rate limited', async () => {
     const account = await connect();
     anthropic.refusals.usage = 'rejected';

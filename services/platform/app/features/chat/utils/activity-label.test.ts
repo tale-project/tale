@@ -157,3 +157,52 @@ describe('a mail-attachment list has its own label', () => {
     ).toBe('mail-attachment');
   });
 });
+
+describe('stepActivityLabel — the work tools', () => {
+  const t = fakeT();
+
+  it('names the file a create_file call writes', () => {
+    expect(
+      stepActivityLabel(t, { tool: 'create_file', detail: 'planets.csv' }),
+    ).toBe('thinking.writingFile {"name":"planets.csv"}');
+  });
+
+  it('counts the images a generate_image call asks for, one by default', () => {
+    expect(
+      stepActivityLabel(t, {
+        tool: 'generate_image',
+        input: { prompt: 'a lighthouse', count: 3 },
+      }),
+    ).toBe('thinking.generatingImages {"count":3}');
+    expect(
+      stepActivityLabel(t, {
+        tool: 'generate_image',
+        input: { prompt: 'a lighthouse' },
+      }),
+    ).toBe('thinking.generatingImages {"count":1}');
+  });
+
+  it('names the skill a load_skill call reads, and the file read_skill_file reads', () => {
+    expect(stepActivityLabel(t, { tool: 'load_skill', detail: 'docx' })).toBe(
+      'thinking.loadingSkill {"name":"docx"}',
+    );
+    expect(
+      stepActivityLabel(t, {
+        tool: 'read_skill_file',
+        input: { name: 'pptx', path: 'pptxgenjs.md' },
+      }),
+    ).toBe('thinking.readingSkillFile {"name":"pptx","path":"pptxgenjs.md"}');
+  });
+
+  it('names the language run_code runs by its product name', () => {
+    expect(
+      stepActivityLabel(t, {
+        tool: 'run_code',
+        input: { language: 'node', code: 'console.log(1)' },
+      }),
+    ).toBe('thinking.runningCode {"language":"Node.js"}');
+    expect(stepActivityLabel(t, { tool: 'run_code' })).toBe(
+      'thinking.runningCode {"language":"Python"}',
+    );
+  });
+});

@@ -18,14 +18,20 @@ on:
         type: boolean
         default: false
 
-# Share admission across tags: a later run must see the previous publication.
-# Releases must not cancel mid-flight (partial manifests would break deploys).
+# One group for every tag, so two releases never publish at once and a later one
+# repoints `latest` only after the earlier one has published. Releases must not
+# cancel mid-flight (partial manifests would break deploys). How many releases a
+# day admits is not limited here: a release goes out whenever one is needed.
 concurrency:
   group: tale-release
   cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
+  # The org.opencontainers.image.* metadata every published image carries,
+  # without the prefix: the Dockerfiles declare the static keys, the build
+  # steps below the dynamic ones (tools/cli/scripts/oci-image-metadata.test.ts).
+  OCI_METADATA_KEYS: created revision source version title description url documentation vendor licenses
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -53,8 +59,6 @@ jobs:
           INPUT_VERSION: ${{ github.event.inputs.version }}
           SITES_ONLY: ${{ inputs.sites_only || false }}
           SOURCE_SHA: ${{ github.sha }}
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
@@ -68,23 +72,6 @@ jobs:
           VERSION_NUMBER="${VERSION#v}"
           if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo '::error::Version must be an exact semantic version'; exit 1
-          fi
-          # Keep the public release train to one full cohort per UTC day. A
-          # rerun of the same tag remains available for recovery; a different
-          # tag must wait for the next day so services and CLI assets cannot
-          # churn through several partially adopted cohorts.
-          if [ "$SITES_ONLY" != true ]; then
-            TODAY="$(date -u +%F)"
-            LATEST_RELEASE="$({
-              gh api "repos/${REPOSITORY}/releases" --paginate --jq '.[] | select(.draft == false and .prerelease == false and .published_at != null) | [.published_at, .tag_name] | @tsv'
-            } | sort | tail -n 1)"
-            if [ -n "$LATEST_RELEASE" ]; then
-              LATEST_PUBLISHED="${LATEST_RELEASE%%$'\t'*}"
-              LATEST_TAG="${LATEST_RELEASE#*$'\t'}"
-              if [ "${LATEST_PUBLISHED%%T*}" = "$TODAY" ] && [ "$LATEST_TAG" != "v${VERSION_NUMBER}" ]; then
-                echo "::error::A release was already published today (${LATEST_TAG}); release at most one full cohort per UTC day"; exit 1
-              fi
-            fi
           fi
           # Start the longest native builds first within the bounded matrix.
           SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","ai-gateway","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
@@ -226,6 +213,36 @@ jobs:
           case "$AUTOMATION_PROTOCOL" in 1|2) ;; *) echo '::error::Unsupported automation writer protocol'; exit 1;; esac
           echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"
 
+      # A service's title, description and links are written once, by the final
+      # stage of its Dockerfile. The annotations repeat them so the manifest
+      # says what the image config says; this step reads them from there, and
+      # the job fails when the Dockerfile does not declare all of them.
+      - name: Resolve image annotations
+        id: annotations
+        env:
+          SERVICE: ${{ matrix.service.name }}
+        run: |
+          set -euo pipefail
+          DOCKERFILE="services/${SERVICE}/Dockerfile"
+          KEYS="title description url documentation vendor licenses"
+          read -ra WANTED <<< "$KEYS"
+          STATIC=$(
+            awk 'toupper($1) == "FROM" { stage = "" } { stage = stage $0 "\n" } END { printf "%s", stage }' "$DOCKERFILE" \
+              | grep -v '^[[:space:]]*#' \
+              | grep -oE "org\.opencontainers\.image\.(${KEYS// /|})=\"[^\"]*\"" \
+              | sed -E 's/="(.*)"$/=\1/' || true
+          )
+          FOUND=$(printf '%s\n' "$STATIC" | grep -c . || true)
+          if [ "$FOUND" -ne "${#WANTED[@]}" ]; then
+            echo "::error::The final stage of ${DOCKERFILE} declares ${FOUND} of its OCI labels ${KEYS}"
+            exit 1
+          fi
+          {
+            echo 'static<<OCI_ANNOTATIONS_EOF'
+            printf '%s\n' "$STATIC"
+            echo 'OCI_ANNOTATIONS_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         id: image
         # A Docker Hub 429/5xx while resolving a public base can fail an
@@ -270,7 +287,9 @@ jobs:
           # the same output from the same code version: a BuildKit update could
           # change every layer's digest and re-ship each image in full.
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true,compression=zstd,compression-level=3,force-compression=true
-          # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads
+          # `labels:` merge into the Dockerfile's LABELs, and a key named in both
+          # takes the value given here. These are the labels only a build knows;
+          # the Dockerfile's final stage declares the rest. The CLI reads
           # org.opencontainers.image.version to detect the running instance;
           # omitting it made every in-place 0.4.x deploy look like an unknown
           # (hence pre-0.4) instance and trip the breaking-cutover guard.
@@ -279,6 +298,18 @@ jobs:
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
+            ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
+          # The same metadata on this architecture's image manifest: the build's
+          # own values as above, then the Dockerfile's from the step before.
+          # Manifest level only: BuildKit refuses an `index:` annotation on a
+          # single-platform export. The Manifest job writes the index over both
+          # architectures and annotates it from the pushed config.
+          annotations: |
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
+            ${{ steps.annotations.outputs.static }}
             ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
           provenance: false
 
@@ -309,7 +340,46 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
             ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
+          annotations: |
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
+            ${{ steps.annotations.outputs.static }}
+            ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
           provenance: false
+
+      # Read the pushed manifest back by digest, from whichever attempt pushed
+      # it. buildx older than 0.12 drops `annotations` with a warning and a
+      # green build, and the Manifest job indexes only what this step passed.
+      - name: Verify image annotations
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}
+          DIGEST: ${{ steps.image_retry.outputs.digest || steps.image.outputs.digest }}
+          VERSION: ${{ needs.prepare.outputs.version_number }}
+          REVISION: ${{ steps.meta.outputs.revision }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "::error::The build of ${IMAGE} reported no image digest"; exit 1
+          fi
+          REF="${IMAGE}@${DIGEST}"
+          MANIFEST=$(docker buildx imagetools inspect "$REF" --raw)
+          CONFIG=$(docker buildx imagetools inspect "$REF" --format '{{json .Image}}')
+          jq -e -n --argjson manifest "$MANIFEST" --argjson config "$CONFIG" \
+            --arg keys "$OCI_METADATA_KEYS" --arg version "$VERSION" --arg revision "$REVISION" '
+            ($config.config.Labels // {}) as $labels
+            | ($manifest.annotations // {}) as $annotations
+            | ($keys | split(" ") | map("org.opencontainers.image." + .)) as $declared
+            | $manifest.mediaType == "application/vnd.oci.image.manifest.v1+json"
+              and $annotations["org.opencontainers.image.version"] == $version
+              and $annotations["org.opencontainers.image.revision"] == $revision
+              and all($declared[]; ($annotations[.] // "") != "" and $annotations[.] == $labels[.])
+              and all(($labels | keys[] | select(startswith("io.tale."))); $annotations[.] == $labels[.])
+          ' > /dev/null || {
+            echo "::error::${REF} does not repeat its OCI metadata labels as manifest annotations"
+            exit 1
+          }
 
       - name: Setup Bun for document checks
         if: matrix.service.name == 'sandbox-runtime'
@@ -492,7 +562,7 @@ jobs:
           echo "Release image validation status: ${{ job.status }} (${{ needs.prepare.outputs.version }})" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Create multi-arch manifests (:version and :latest) per service.
+  # Publish one OCI image index (:version and :latest) per service.
   # ---------------------------------------------------------------------------
   manifest:
     name: Manifest ${{ matrix.service }}
@@ -514,30 +584,87 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push manifest
+      # One call writes the index and every tag, so :version and :latest name
+      # the same index digest, and a re-run of this job over the same images
+      # writes the same bytes. `docker manifest` has no way to put annotations
+      # on an index; imagetools does, and GitHub documents that a multi-arch
+      # package takes its description from the index's annotations. They repeat
+      # the OCI labels of the pushed amd64 image config, so the index cannot
+      # drift from the image it describes.
+      - name: Create and push the OCI image index
         env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}
+          VERSION: ${{ needs.prepare.outputs.version_number }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}"
-          VERSION="${{ needs.prepare.outputs.version_number }}"
+          set -euo pipefail
+          docker buildx version
+          AMD64="${IMAGE}:${VERSION}-amd64"
+          ARM64="${IMAGE}:${VERSION}-arm64"
 
-          docker manifest create ${IMAGE}:${VERSION} \
-            ${IMAGE}:${VERSION}-amd64 \
-            ${IMAGE}:${VERSION}-arm64
+          # An image missing part of the metadata set stops here, before a tag moves.
+          CONFIG=$(docker buildx imagetools inspect "$AMD64" --format '{{json .Image}}')
+          jq -e --arg keys "$OCI_METADATA_KEYS" '
+            (.config.Labels // {}) as $labels
+            | all(($keys | split(" "))[]; ($labels["org.opencontainers.image." + .] // "") != "")
+          ' <<< "$CONFIG" > /dev/null || {
+            echo "::error::${AMD64} lacks an org.opencontainers.image label of: ${OCI_METADATA_KEYS}"
+            exit 1
+          }
+          # Only what Tale declares: a base image's own labels (base.digest,
+          # for one) describe one architecture's build, not the index.
+          LABELS=$(jq -r --arg keys "$OCI_METADATA_KEYS" '
+            ($keys | split(" ") | map("org.opencontainers.image." + .)) as $declared
+            | (.config.Labels // {}) | to_entries | sort_by(.key)[]
+            | select(.key as $key | ($declared | index($key)) != null or ($key | startswith("io.tale.")))
+            | "\(.key)=\(.value)"
+          ' <<< "$CONFIG")
+          ANNOTATIONS=()
+          while IFS= read -r LABEL; do
+            ANNOTATIONS+=(--annotation "index:${LABEL}")
+          done <<< "$LABELS"
 
-          docker manifest push ${IMAGE}:${VERSION}
-          docker manifest inspect ${IMAGE}:${VERSION} >/dev/null
+          TAGS=(--tag "${IMAGE}:${VERSION}")
+          if [ "$SITES_ONLY" != true ]; then TAGS+=(--tag "${IMAGE}:latest"); fi
+          docker buildx imagetools create "${TAGS[@]}" "${ANNOTATIONS[@]}" "$AMD64" "$ARM64"
+
+          # The proof: the tag is an OCI image index of exactly the two native
+          # images this run pushed, annotated with this release, and every tag
+          # written names that one index.
+          INDEX=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --raw)
+          jq -e --arg version "$VERSION" --arg revision "$SOURCE_SHA" '
+            .mediaType == "application/vnd.oci.image.index.v1+json"
+            and ([.manifests[] | "\(.platform.os)/\(.platform.architecture)"] | sort) == ["linux/amd64", "linux/arm64"]
+            and .annotations["org.opencontainers.image.version"] == $version
+            and .annotations["org.opencontainers.image.revision"] == $revision
+          ' <<< "$INDEX" > /dev/null || {
+            echo "::error::${IMAGE}:${VERSION} is not the expected annotated OCI image index"
+            exit 1
+          }
+          for ARCH in amd64 arm64; do
+            CHILD=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}-${ARCH}" --format '{{.Manifest.Digest}}')
+            jq -e --arg digest "$CHILD" --arg arch "$ARCH" \
+              'any(.manifests[]; .digest == $digest and .platform.architecture == $arch)' <<< "$INDEX" > /dev/null || {
+              echo "::error::${IMAGE}:${VERSION} does not index the ${ARCH} image this run pushed"
+              exit 1
+            }
+          done
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{.Manifest.Digest}}')
           if [ "$SITES_ONLY" != true ]; then
-            docker manifest create ${IMAGE}:latest \
-              ${IMAGE}:${VERSION}-amd64 \
-              ${IMAGE}:${VERSION}-arm64
-            docker manifest push ${IMAGE}:latest
+            LATEST=$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}')
+            [ "$LATEST" = "$DIGEST" ] || {
+              echo "::error::${IMAGE}:latest does not name the ${VERSION} index"
+              exit 1
+            }
           fi
 
           {
-            echo "### ${{ matrix.service }}"
+            echo "### ${SERVICE}"
             echo "- **Version**: ${VERSION}"
-            echo "- **Revision**: ${{ needs.prepare.outputs.source_sha }}"
+            echo "- **Revision**: ${SOURCE_SHA}"
+            echo "- **Index**: \`${IMAGE}@${DIGEST}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
@@ -703,15 +830,46 @@ jobs:
             --field "release_tag=$RELEASE_TAG"
 
   # ---------------------------------------------------------------------------
+  # Pin the design-system packages at the release commit. A tag that
+  # create-release writes with GITHUB_TOKEN starts no push workflow, so
+  # dispatch Publish packages on main with this tag and the commit it names;
+  # it adds only the version tags and never moves the dist branches.
+  # ---------------------------------------------------------------------------
+  publish-packages:
+    if: needs.prepare.outputs.sites_only != 'true'
+    name: Publish package tags
+    needs: [prepare, create-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Dispatch package publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: |
+          gh workflow run publish-packages.yml \
+            --repo "$REPO" \
+            --ref main \
+            --field "release_tag=$RELEASE_TAG" \
+            --field "source_sha=$SOURCE_SHA"
+
+  # ---------------------------------------------------------------------------
   # Final summary for the release.
   # ---------------------------------------------------------------------------
   summary:
     if: >-
       always() && needs.manifest.result == 'success' &&
       (needs.prepare.outputs.sites_only == 'true' ||
-       (needs.create-release.result == 'success' && needs.trigger-cli.result == 'success'))
+       (needs.create-release.result == 'success' && needs.trigger-cli.result == 'success' &&
+        needs.publish-packages.result == 'success'))
     name: Summary
-    needs: [prepare, create-release, manifest, trigger-cli]
+    needs: [prepare, create-release, manifest, trigger-cli, publish-packages]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -740,6 +898,7 @@ jobs:
               echo 'Content-site release: platform, CLI, GitHub releases and latest tags were preserved.'
             else
               echo "CLI build triggered for \`v${VERSION}\`."
+              echo "Package tags \`ui-v${VERSION}\` and \`marketing-ui-v${VERSION}\` dispatched to Publish packages."
               echo
               echo '```bash'
               echo "./scripts/deploy.sh deploy v${VERSION}"

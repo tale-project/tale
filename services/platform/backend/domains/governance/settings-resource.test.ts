@@ -293,8 +293,9 @@ describe('planning a policy change', () => {
   it('weighs sandbox budgets against the deployment, as the save does', async () => {
     const quota = {
       maxSessionsPerOrg: 9,
-      maxWorkflowSessionsPerOrg: 8,
+      maxWorkflowSessionsPerOrg: 6,
       maxRenderSessionsPerOrg: 6,
+      maxLightSessionsPerOrg: 2,
     };
     const over = await planSettings(contextOf('admin'), registry, [
       { kind: 'governance', id: 'sandbox_quota', op: 'set', config: quota },

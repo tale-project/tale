@@ -45,6 +45,7 @@ import {
   jsonFieldText,
   type JsonExpect,
 } from '../json-code-field';
+import { TestDataNotice } from './test-data-notice';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -238,6 +239,7 @@ export function TestSetupForm({
 
   return (
     <div className="flex flex-col gap-4">
+      <TestDataNotice />
       <TestTextField
         label={t('tests.fields.name')}
         required
@@ -336,13 +338,7 @@ export function TestSetupForm({
             label={t('tests.fields.mocksAdd')}
             options={nodeOptions(new Set([...mocked, ...failing]))}
             onPick={(node) =>
-              onChange(
-                withMock(
-                  raw,
-                  node,
-                  lastRunOutputOf?.(node) ?? (forEachNodes.has(node) ? [] : {}),
-                ),
-              )
+              onChange(withMock(raw, node, forEachNodes.has(node) ? [] : {}))
             }
           />
         )}

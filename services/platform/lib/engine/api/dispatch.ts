@@ -35,24 +35,40 @@
  * deployment.
  */
 
+import { isRecord } from '../../utils/type-utils';
+import { diffAutomationDocuments } from '../core/diff/automation';
+import type { ChangeSummary } from '../core/diff/changes';
 import { execute, type ExecuteOptions } from '../core/execute';
 import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
 import { recordBudget, redactTrace } from '../core/record/value';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
-import type { Automation, Issue, RunResult } from '../core/types';
+import { BENCH_RUN_DEADLINE_MS } from '../core/test-limits';
+import {
+  type Automation,
+  isJson,
+  type Issue,
+  type Json,
+  type RunBench,
+  type RunResult,
+} from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
+import { closestName } from '../core/validate/similar';
 import { searchCatalog } from './catalog-search';
 import {
   authoringReference,
   CORE_NODE_KIND_REFERENCE,
   type CoreNodeKind,
 } from './docs';
+import { documentYaml } from './document-yaml';
 import { METHODS } from './methods';
 import { isCodedRefusal, structuredRefusal } from './refusal';
+import { REPORT_DETAILS, type ReportDetail } from './report-details';
+import { boundedReport, reportWithDetail } from './report-shape';
 import { ACTIVE_RUN_STATUSES } from './run-statuses';
 import { runAutomationTests, type TestReport } from './tests';
+import { unifiedPatch } from './version-patch';
 
 export { METHODS, type Method } from './methods';
 
@@ -172,6 +188,43 @@ export interface VersionSummary {
   createdVia?: string | null;
   /** The name the saving agent's client gave itself; null when none. */
   clientName?: string | null;
+  /** `createdVia` was read from `createdBy`: the version is older than the
+   * record of doors. */
+  viaInferred?: boolean;
+  /** The saving person's name when they are still a member, null when they
+   * are not (or `createdBy` names the system). Never an e-mail address. */
+  createdByName?: string | null;
+  /** The version the edit started from; null when none was recorded. */
+  basedOnVersion?: number | null;
+  /** The version this one brings back; null for a version that restores
+   * none. */
+  restoredFromVersion?: number | null;
+  /** What it changed against the version saved before it — counts and
+   * flags, never content; null when the host kept none. */
+  changes?: ChangeSummary | null;
+  /** Its latest test check summed up; null while none was recorded. */
+  tests?: VersionTests | null;
+  /** When it last went live, epoch ms; null when it never did. */
+  lastDeployedAt?: number | null;
+}
+
+/** A version's latest test check in counts: how many passed and failed out
+ * of how many, which act ran them and who. */
+export interface VersionTests {
+  passed: number;
+  failed: number;
+  total: number;
+  via?: 'save' | 'deploy' | 'manual';
+  by?: string;
+}
+
+/** One page of an automation's version history, newest first. */
+export interface VersionPage {
+  versions: VersionSummary[];
+  /** Pass it back as `before` for the next page; null on the last one. */
+  nextBefore: number | null;
+  latestVersion: number | null;
+  deployedVersion: number | null;
 }
 
 /** One version in full — what `get_automation` answers on a host that keeps
@@ -235,6 +288,16 @@ export interface SaveOptions {
   /** The project a NEW automation is installed in (its first version). */
   projectId?: string;
   metadata?: VersionMetadata;
+  /** The saved version this save brings back as the newest: the host
+   * records the version as based on and restored from it, and saves
+   * nothing — answering `unchanged` — when the latest version already is
+   * that content. */
+  restoredFrom?: number;
+  /** The automation the version is saved under, where that is not the
+   * document's own `name`: a restore saves under the automation it was
+   * asked to restore, whatever name an old version's document carries —
+   * it never lands a version on another automation. */
+  name?: string;
 }
 
 /** One page of a run listing, newest first, and where the next one starts. */
@@ -327,6 +390,9 @@ export interface DispatchStore extends StoreAdapter {
     /** Which of `metadata`'s fields the host kept from the latest version
      * because the caller left them out. */
     carried?: string[];
+    /** A save with `restoredFrom` that found the latest version already
+     * holding that content: nothing was saved, `version` is the latest. */
+    unchanged?: true;
   }>;
   /** Promote a saved version. `options.testsPassed` is set when the deploy
    * gate just ran the version's tests and they passed — a host that keeps a
@@ -348,6 +414,11 @@ export interface DispatchStore extends StoreAdapter {
     version: number;
     /** What was live before; null when nothing was. */
     previousVersion?: number | null;
+    /** What the deploy did, when the host records it: `deploy` put a newer
+     * version (or the first) live, `rollback` an older one, `unchanged`
+     * found it live already. A host that leaves it out has it read from
+     * `previousVersion`. */
+    kind?: 'deploy' | 'rollback' | 'unchanged';
   }>;
   /** Record the deploy gate's verdict on a saved version WITHOUT deploying
    * it — the refusal's `false`, so the version reads as failing rather than
@@ -361,6 +432,16 @@ export interface DispatchStore extends StoreAdapter {
      * someone running the tests made it. */
     check?: { report?: TestReport; via: 'deploy' | 'manual' },
   ): Promise<void>;
+  /** A place for runs this process executes and never stores — a run in one
+   * call, the tests of an automation — asked for before they start: the
+   * host charges `executions` of them to the organization's budget and holds
+   * the process to a few at once. The answer is the release to call when the
+   * runs are over, or how long to wait (`retryAfterMs`) when the budget is
+   * spent or every place is taken. A host that leaves it out runs them
+   * unmetered. */
+  admitBench?(
+    executions: number,
+  ): Promise<(() => void) | { retryAfterMs: number }>;
   /** Record a trigger binding. A host that revokes something by doing so (a
    * live webhook URL replaced by another kind) says so in the outcome; a
    * host with nothing to add answers nothing. */
@@ -457,6 +538,14 @@ export interface DispatchStore extends StoreAdapter {
    * does not exist (answered RUN_NOT_FOUND, like `get_run` and REST). */
   cancelRun?(runId: string): Promise<{ cancelled: boolean; status?: string }>;
   listVersions?(name: string): Promise<VersionSummary[]>;
+  /** A page of the version history, newest first, each row with its door,
+   * what it was based on and changed, and its tests. `before` is the oldest
+   * version the last page answered; `limit` is at most 200. A host that
+   * keeps only whole histories leaves it out and `listVersions` serves. */
+  listVersionHistory?(
+    name: string,
+    page?: { limit?: number; before?: number },
+  ): Promise<VersionPage>;
   /** The times a version of the automation was put live, newest first. */
   listDeployments?(name: string): Promise<DeploymentEntry[]>;
   listTriggers?(name?: string): Promise<TriggerView[]>;
@@ -558,6 +647,14 @@ export const DISPATCH_REFUSAL_CODES = [
   'INVALID_CURSOR',
   /** An answer to a run's question with nothing in it. */
   'EMPTY_ANSWER',
+  /** A run in one call or a suite of tests found no place: the
+   * organization's budget for runs that are never stored is spent, or the
+   * server runs as many as it takes at once. `data.retryAfterMs` is the
+   * wait. */
+  'RATE_LIMITED',
+  /** The stand-ins or scope a run was given cannot be taken: `data.issue`
+   * is the engine's own refusal, with its code, its place and its fix. */
+  'BENCH_INVALID',
 ] as const;
 
 const LIST_AUTOMATIONS_HINT = 'list_automations shows the saved ones';
@@ -822,6 +919,109 @@ function versionParam(
   return { value: n };
 }
 
+/** The largest version number a text is read as: the largest the store can hold. */
+const MAX_VERSION = 2_147_483_647;
+
+/** The most versions or deployments one page of a history holds. */
+const HISTORY_PAGE_MAX = 200;
+
+type ParamRefusal = { error: string; code: 'INVALID_PARAMS'; hint: string };
+
+/** `params.limit` of a history page: a whole number from 1 to the most a
+ * page holds, or left out for the whole history. */
+function historyLimitParam(
+  v: unknown,
+): { value: number | undefined } | ParamRefusal {
+  if (v === undefined) return { value: undefined };
+  if (
+    typeof v === 'number' &&
+    Number.isInteger(v) &&
+    v >= 1 &&
+    v <= HISTORY_PAGE_MAX
+  ) {
+    return { value: v };
+  }
+  return {
+    error: `params.limit must be a whole number from 1 to ${HISTORY_PAGE_MAX} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: `leave limit out for the whole history, or ask for a page of 1 to ${HISTORY_PAGE_MAX} and pass nextBefore back as before`,
+  };
+}
+
+/** `params.before` of a version page: the version a page ended at. */
+function versionPageStartParam(
+  v: unknown,
+): { value: number | undefined } | ParamRefusal {
+  if (v === undefined) return { value: undefined };
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 1)
+    return { value: v };
+  return {
+    error: `params.before must be a version number — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'pass nextBefore from the previous page as before, with the same limit; leave both out for the whole history',
+  };
+}
+
+/** Which version a comparison names: a number, the newest, or the live
+ * one — and, for `from`, the one saved before `to`. */
+type VersionRef = number | 'latest' | 'deployed';
+
+function versionRefParam<Fallback extends VersionRef | 'previous'>(
+  v: unknown,
+  field: 'from' | 'to',
+  fallback: Fallback,
+): { value: VersionRef | Fallback } | ParamRefusal {
+  if (v === undefined) return { value: fallback };
+  if (v === 'latest' || v === 'deployed') return { value: v };
+  if (v === 'previous' && fallback === 'previous') {
+    return { value: fallback };
+  }
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 1) {
+    return { value: v };
+  }
+  // A REST query string hands a number over as text.
+  if (
+    typeof v === 'string' &&
+    /^[1-9]\d*$/.test(v) &&
+    Number(v) <= MAX_VERSION
+  ) {
+    return { value: Number(v) };
+  }
+  return {
+    error: `params.${field} must be a version number, "latest", "deployed"${field === 'from' ? ' or "previous"' : ''} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint:
+      field === 'from'
+        ? 'leave from out to compare with the version saved before to'
+        : 'leave to out to compare the latest version; list_versions shows the numbers',
+  };
+}
+
+const DIFF_FORMATS = ['changes', 'unified', 'both'] as const;
+
+/** A saved version as a comparison or a restore reads it: its document,
+ * and — on a host that keeps them — what it keeps beside it. */
+async function readSavedVersion(
+  store: DispatchStore,
+  name: string,
+  version: number,
+): Promise<{ document: unknown; kept?: Record<string, unknown> } | null> {
+  if (store.getVersionView) {
+    const view = await store.getVersionView(name, version);
+    if (view === null) return null;
+    return {
+      document: view.document,
+      kept: {
+        settings: view.settings,
+        taskContract: view.taskContract,
+        presentation: view.presentation,
+      },
+    };
+  }
+  const found = await store.get(name, version);
+  return found === null ? null : { document: found.automation };
+}
+
 const VALIDATION_DETAIL = ['analysis', 'types'] as const;
 
 /**
@@ -845,6 +1045,186 @@ function detailParam(
     error: `params.detail must list "analysis" and/or "types" — got ${JSON.stringify(v)}`,
     code: 'INVALID_PARAMS',
     hint: 'omit detail to get both, or pass detail: ["analysis"]',
+  };
+}
+
+/** What an answer holds of the runs of one suite: each run, and all of them
+ * together, as UTF-8 JSON. A run with its record is read by a model, so it
+ * is kept as far as a client holds an answer inline; past it, a run is left
+ * out and its test is run alone. */
+const TEST_ANSWER_LIMITS = { runBytes: 262_144, totalBytes: 393_216 } as const;
+
+/** The most test names a refusal lists. */
+const TEST_NAMES_LISTED = 10;
+
+/** `0`, `0 and 2`, `0, 2 and 5`. */
+function listed(items: readonly (string | number)[]): string {
+  if (items.length < 2) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${String(items.at(-1))}`;
+}
+
+/**
+ * The tests a `test_automation` call names — by name, as the document's
+ * `tests:` block gives them — as their places in it. A name no test bears is
+ * refused with the names there are, and so is one several tests bear: with
+ * where they stand, since a place is all the runner takes.
+ */
+function testSelection(
+  names: unknown,
+  tests: readonly { name: string }[],
+): { select: number[] } | ParamRefusal {
+  if (
+    !Array.isArray(names) ||
+    names.length === 0 ||
+    !names.every((n) => typeof n === 'string' && n !== '')
+  ) {
+    return {
+      error: `params.tests must list the names of tests — got ${JSON.stringify(names)}`,
+      code: 'INVALID_PARAMS',
+      hint: 'name tests as the document’s tests: block does, or leave tests out to run them all',
+    };
+  }
+  if (tests.length === 0) {
+    return {
+      error: 'the automation has no tests',
+      code: 'INVALID_PARAMS',
+      hint: 'add a top-level tests: [{name, input, mocks?, failures?, expect?}] block, or run_automation to try it on one input',
+    };
+  }
+  const select = new Set<number>();
+  for (const name of names) {
+    const at = tests.flatMap((test, i) => (test.name === name ? [i] : []));
+    const first = at[0];
+    if (first === undefined) {
+      const shown = tests.slice(0, TEST_NAMES_LISTED).map((t) => t.name);
+      const more = tests.length - shown.length;
+      const near = closestName(
+        name,
+        tests.map((t) => t.name),
+      );
+      return {
+        error: `the automation has no test named ${JSON.stringify(name)}`,
+        code: 'INVALID_PARAMS',
+        hint: `${near === undefined ? '' : `did you mean ${JSON.stringify(near)}? `}its tests are ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}; test names are matched exactly`,
+      };
+    }
+    if (at.length > 1) {
+      return {
+        error: `${at.length} tests are named ${JSON.stringify(name)}`,
+        code: 'INVALID_PARAMS',
+        hint: `they stand at ${listed(at)} in tests (from 0) — give every test its own name, then name it`,
+      };
+    }
+    select.add(first);
+  }
+  return { select: [...select].toSorted((a, b) => a - b) };
+}
+
+/** What of each test's run a call asks to keep: some of output, effects and
+ * trace, or nothing. */
+function testDetailParam(
+  v: unknown,
+): { value: ReadonlySet<ReportDetail> } | ParamRefusal {
+  if (v === undefined) return { value: new Set() };
+  const known = new Set<unknown>(REPORT_DETAILS);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: new Set(REPORT_DETAILS.filter((d) => v.includes(d))) };
+  }
+  return {
+    error: `params.detail must list some of ${REPORT_DETAILS.map((d) => `"${d}"`).join(', ')} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'omit detail for the verdicts alone, or pass detail: ["output"] to read what each test’s run returned',
+  };
+}
+
+/** The params of a run on stand-ins. */
+const BENCH_PARAMS = ['mocks', 'failures', 'upTo', 'only', 'item'] as const;
+
+/**
+ * The stand-ins and scope a `run_automation` call carries, as the executor
+ * takes them — none when it names none. A param of the wrong type is
+ * refused; which nodes it may name, and how its scopes combine, the
+ * executor decides, with a refusal of its own for each.
+ */
+function benchParams(
+  p: Record<string, unknown>,
+): { value: RunBench | undefined } | ParamRefusal {
+  if (BENCH_PARAMS.every((field) => p[field] === undefined)) {
+    return { value: undefined };
+  }
+  const refuse = (field: string, wants: string): ParamRefusal => ({
+    error: `params.${field} must be ${wants} — got ${JSON.stringify(p[field])}`,
+    code: 'INVALID_PARAMS',
+    hint: 'a run on stand-ins takes mocks {node: its simulated output}, failures {node: a message}, upTo or only (a node id) and item (with only)',
+  });
+  const { mocks, failures, upTo, only, item } = p;
+  if (mocks !== undefined && !isJsonRecord(mocks)) {
+    return refuse(
+      'mocks',
+      'an object of node ids and their simulated outputs, as JSON',
+    );
+  }
+  if (failures !== undefined && !isMessageRecord(failures)) {
+    return refuse('failures', 'an object of node ids and a message each');
+  }
+  if (upTo !== undefined && typeof upTo !== 'string') {
+    return refuse('upTo', 'a node id');
+  }
+  if (only !== undefined && typeof only !== 'string') {
+    return refuse('only', 'a node id');
+  }
+  if (item !== undefined && !(Number.isInteger(item) && Number(item) >= 0)) {
+    return refuse('item', 'a whole number from 0');
+  }
+  return {
+    value: {
+      ...(mocks !== undefined && { mocks }),
+      ...(failures !== undefined && { failures }),
+      ...(typeof upTo === 'string' && { upTo }),
+      ...(typeof only === 'string' && { only }),
+      ...(typeof item === 'number' && { item }),
+    },
+  };
+}
+
+/** An object of JSON values. */
+function isJsonRecord(v: unknown): v is Record<string, Json> {
+  return isRecord(v) && Object.values(v).every((value) => isJson(value));
+}
+
+/** An object of strings. */
+function isMessageRecord(v: unknown): v is Record<string, string> {
+  return (
+    isRecord(v) && Object.values(v).every((value) => typeof value === 'string')
+  );
+}
+
+/**
+ * A place for `executions` runs this process executes and never stores, to be
+ * released when they are done — or the refusal that says how long to wait.
+ * A store with no meter admits every run.
+ */
+async function admitBench(
+  store: DispatchStore,
+  executions: number,
+): Promise<
+  | (() => void)
+  | {
+      error: string;
+      code: 'RATE_LIMITED';
+      hint: string;
+      data: { retryAfterMs: number };
+    }
+> {
+  if (store.admitBench === undefined || executions < 1) return () => {};
+  const admitted = await store.admitBench(executions);
+  if (typeof admitted === 'function') return admitted;
+  const seconds = Math.ceil(admitted.retryAfterMs / 100) / 10;
+  return {
+    error: `no room for ${executions === 1 ? 'this run' : 'these runs'} right now: the organization’s budget for runs that are never stored is spent, or this server is running as many of them as it can at once`,
+    code: 'RATE_LIMITED',
+    hint: `wait data.retryAfterMs (${seconds} s), then call again`,
+    data: { retryAfterMs: admitted.retryAfterMs },
   };
 }
 
@@ -1086,6 +1466,28 @@ function staleDelete(
   };
 }
 
+/** A restore refused because a version was saved after the one the agent
+ * read, in the words an agent acts on: it reads the latest, and — if the
+ * person still wants the older content back — restores again over it. */
+function staleRestore(
+  name: string,
+  refusal: ReturnType<typeof refusalFrom>,
+): Record<string, unknown> {
+  const latest: unknown = refusal.data?.latestVersion;
+  if (typeof latest !== 'number') return refusal;
+  return {
+    ...refusal,
+    error: `v${latest} of "${name}" was saved after the version you read`,
+    hint: `get_automation {name: "${name}", version: ${latest}, against: "previous"} shows what v${latest} changed; restore again with baseVersion: ${latest} if the person still wants the older content back`,
+  };
+}
+
+/** A stored document as the diff and the YAML read it: an object, or
+ * nothing. */
+function asDocument(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
 /** `get_automation` on a host that keeps a version's metadata: the
  * document under the keys every client already reads (`meta`,
  * `automation`), and beside them what the editor saves with it, who saved
@@ -1133,6 +1535,272 @@ async function versionView(
     ...rest,
     deployed: view.deployedVersion === view.version,
   };
+}
+
+/** `get_automation`: one saved version as the host answers it — the
+ * document, and on a host that keeps them the version's metadata. */
+async function getAutomationCall(
+  store: DispatchStore,
+  p: Record<string, unknown>,
+): Promise<unknown> {
+  const name = asString(p.name);
+  if (store.getVersionView) return await versionView(store, name, p);
+  // "deployed" reads the version that actually runs — the REST door's
+  // `?version=deployed`, which MCP lacked (2026-09-14 evaluation, h9).
+  if (p.version === 'deployed') {
+    const live = await store.deployedVersion(name);
+    if (live === null) {
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
+      return {
+        error: `"${name}" has no deployed version`,
+        code: 'AUTOMATION_VERSION_UNKNOWN',
+        hint: 'deploy_automation a saved version first — list_versions shows them',
+      };
+    }
+    return (
+      (await store.get(name, live)) ?? {
+        error: `deployed version ${name}@${live} is missing`,
+        code: 'AUTOMATION_VERSION_UNKNOWN',
+        hint: `the deployed version is gone — deploy_automation a saved one (${LIST_VERSIONS_HINT})`,
+      }
+    );
+  }
+  const version =
+    p.version === undefined
+      ? { value: undefined }
+      : versionParam(p.version, 'omit it to read the latest saved version');
+  if ('error' in version) return version;
+  const found = await store.get(name, version.value);
+  return (
+    found ?? {
+      error: `no saved automation named "${name}"`,
+      code: 'AUTOMATION_NOT_FOUND',
+      hint: LIST_AUTOMATIONS_HINT,
+    }
+  );
+}
+
+/** What `compareVersions` is asked: which two versions of an automation to
+ * compare, and in which format. The versions are read as `get_automation`
+ * reads them — a number, "latest", "deployed", and for `from` "previous". */
+export interface CompareVersionsRequest {
+  name: string;
+  from?: unknown;
+  to?: unknown;
+  format?: unknown;
+}
+
+/**
+ * Two saved versions of an automation compared: what the second changed
+ * against the first — node by node, in the input schema, the output, the
+ * description and the tests, and in what a version keeps beside its
+ * document where the host has it — or a unified patch over their YAML.
+ * `from` defaults to the version saved before `to` (null for the first
+ * version, which compares with nothing) and `to` to the latest. The REST
+ * compare endpoint and `get_automation {against}` both answer through it,
+ * so the two doors read alike.
+ */
+export async function compareVersions(
+  store: DispatchStore,
+  request: CompareVersionsRequest,
+): Promise<Record<string, unknown>> {
+  const { name } = request;
+  const fromRef = versionRefParam(request.from, 'from', 'previous');
+  if ('error' in fromRef) return fromRef;
+  const toRef = versionRefParam(request.to, 'to', 'latest');
+  if ('error' in toRef) return toRef;
+  const format = request.format ?? 'changes';
+  const knownFormat = DIFF_FORMATS.find((candidate) => candidate === format);
+  if (knownFormat === undefined) {
+    return {
+      error: `the format must be "changes", "unified" or "both" — got ${JSON.stringify(format)}`,
+      code: 'INVALID_PARAMS',
+      hint: '"changes" lists what changed node by node (the default), "unified" is a patch over the two versions’ YAML',
+    };
+  }
+  const latest = await store.get(name);
+  if (latest === null) {
+    return {
+      error: `no saved automation named "${name}"`,
+      code: 'AUTOMATION_NOT_FOUND',
+      hint: LIST_AUTOMATIONS_HINT,
+    };
+  }
+  const notDeployed = {
+    error: `"${name}" has no deployed version`,
+    code: 'AUTOMATION_NOT_DEPLOYED',
+    hint: 'deploy_automation a saved version first, or name the versions to compare — list_versions shows them',
+  };
+  const live = await store.deployedVersion(name);
+  let to: number;
+  if (toRef.value === 'latest') to = latest.meta.version;
+  else if (toRef.value === 'deployed') {
+    if (live === null) return notDeployed;
+    to = live;
+  } else to = toRef.value;
+  let from: number | null;
+  if (fromRef.value === 'previous') from = to > 1 ? to - 1 : null;
+  else if (fromRef.value === 'latest') from = latest.meta.version;
+  else if (fromRef.value === 'deployed') {
+    if (live === null) return notDeployed;
+    from = live;
+  } else from = fromRef.value;
+  const unknown = (version: number) => ({
+    error: `"${name}" has no saved version ${String(version)}`,
+    code: 'AUTOMATION_VERSION_UNKNOWN',
+    hint: LIST_VERSIONS_HINT,
+  });
+  const after = await readSavedVersion(store, name, to);
+  if (after === null) return unknown(to);
+  const before =
+    from === null ? null : await readSavedVersion(store, name, from);
+  if (from !== null && before === null) return unknown(from);
+  const diff = diffAutomationDocuments(
+    asDocument(before?.document ?? null),
+    asDocument(after.document) ?? {},
+    {
+      ...(before?.kept !== undefined && { beforePackage: before.kept }),
+      ...(after.kept !== undefined && { afterPackage: after.kept }),
+    },
+  );
+  const head = { name, from, to };
+  if (knownFormat === 'changes') return { ...head, ...diff };
+  const patch = unifiedPatch(
+    before === null ? '' : documentYaml(asDocument(before.document) ?? {}),
+    documentYaml(asDocument(after.document) ?? {}),
+    {
+      fromLabel: from === null ? 'nothing' : `v${String(from)}`,
+      toLabel: `v${String(to)}`,
+    },
+  );
+  const unified = {
+    unified: patch.patch,
+    ...(patch.truncated && { truncated: true }),
+  };
+  return knownFormat === 'both'
+    ? { ...head, ...diff, ...unified }
+    : { ...head, first: diff.first, identical: diff.identical, ...unified };
+}
+
+/** The save arguments a restore does not take: it brings back what the
+ * version was, so a document, new package data or a creation are refused. */
+const RESTORE_REFUSES = [
+  'automation',
+  'settings',
+  'taskContract',
+  'presentation',
+  'create',
+  'projectId',
+] as const;
+
+/**
+ * `save_automation {name, restoreVersion}`: an older version brought back as
+ * the newest. Its document passes the save's own checks and runs its own
+ * tests as any save does, and is saved restored from that version with
+ * what the version kept beside it; nothing is saved — `unchanged` — when the
+ * latest version already holds that content. Never a deploy: the live
+ * version stays live.
+ */
+async function restoreVersionCall(
+  ctx: DispatchContext,
+  p: Record<string, unknown>,
+): Promise<unknown> {
+  const { store } = ctx;
+  const name = asString(p.name);
+  if (!name) {
+    return {
+      error: 'missing params.name',
+      code: 'INVALID_PARAMS',
+      hint: 'restoring takes {name: "billing/dunning", restoreVersion: 3} — list_versions shows the saved versions',
+    };
+  }
+  const given = RESTORE_REFUSES.filter((key) => p[key] !== undefined);
+  if (given.length > 0) {
+    return {
+      error: `a restore brings back a saved version as it was — ${given.join(', ')} cannot be sent with restoreVersion`,
+      code: 'INVALID_PARAMS',
+      hint: 'to change the document, get_automation it, edit it and save_automation the result; restoreVersion takes name, message and baseVersion only',
+    };
+  }
+  const wanted = versionParam(
+    p.restoreVersion,
+    'name the saved version to bring back — list_versions shows them',
+  );
+  if ('error' in wanted) return wanted;
+  const baseVersion =
+    p.baseVersion === undefined
+      ? { value: undefined }
+      : versionParam(
+          p.baseVersion,
+          'name the latest version you read — list_versions answers it as latestVersion',
+        );
+  if ('error' in baseVersion) return baseVersion;
+  const missing = await missingAutomation(store, name);
+  if (missing) return missing;
+  const source = await readSavedVersion(store, name, wanted.value);
+  if (source === null) {
+    return {
+      error: `"${name}" has no saved version ${String(wanted.value)} to restore`,
+      code: 'AUTOMATION_VERSION_UNKNOWN',
+      hint: LIST_VERSIONS_HINT,
+    };
+  }
+  // The save's own checks: a version a newer engine no longer accepts is
+  // refused, as saving its document would be.
+  const { errors, warnings } = await validate(source.document, { store });
+  if (errors.length > 0) {
+    return {
+      error: 'this version no longer validates; it cannot be restored',
+      code: 'AUTOMATION_INVALID',
+      hint: 'fix what errors lists, then save_automation the corrected document as a new version',
+      errors,
+      warnings,
+    };
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+  const automation = source.document as Automation;
+  let testsPassed: boolean | undefined;
+  let testReport: TestReport | undefined;
+  if (automation.tests && automation.tests.length > 0) {
+    const report = await runAutomationTests(automation, { store });
+    testsPassed = 'failed' in report && report.failed === 0;
+    if ('failed' in report) testReport = report;
+  }
+  try {
+    const saved = await store.save(
+      automation,
+      asString(p.message) || `Restore v${String(wanted.value)}`,
+      {
+        ...(testsPassed !== undefined && { testsPassed }),
+        ...(testReport !== undefined && { testReport }),
+        ...(baseVersion.value !== undefined && {
+          baseVersion: baseVersion.value,
+        }),
+        restoredFrom: wanted.value,
+        name,
+        ...(source.kept !== undefined && { metadata: source.kept }),
+      },
+    );
+    return {
+      name: saved.name,
+      version: saved.version,
+      restoredFrom: wanted.value,
+      ...(saved.unchanged === true && { unchanged: true }),
+      ...(testsPassed !== undefined && { testsPassed }),
+      warnings,
+      note:
+        saved.unchanged === true
+          ? `nothing was saved: the latest version, v${String(saved.version)}, already holds that content`
+          : `saved as the newest version; it is not live — deploy_automation {name, version: ${String(saved.version)}} puts it live`,
+    };
+  } catch (e) {
+    const refusal = refusalFrom(e);
+    if (refusal.code === 'AUTOMATION_VERSION_STALE') {
+      return staleRestore(name, refusal);
+    }
+    return refusal;
+  }
 }
 
 export async function dispatch(
@@ -1290,6 +1958,8 @@ export async function dispatch(
           hint: 'run it in mock mode, or save_automation + deploy_automation and run it live with run_deployed or start_run',
         };
       }
+      const bench = benchParams(p);
+      if ('error' in bench) return bench;
       const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
@@ -1299,15 +1969,46 @@ export async function dispatch(
           validation: { errors, warnings },
         } satisfies RunResult;
       }
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      const result = await execute(p.automation as Automation, {
-        input: p.input ?? {},
-        mode,
-        store,
-        ...(ctx.connectorHost !== undefined && {
-          connectorHost: ctx.connectorHost,
-        }),
-      });
+      // A run on the mocks executes in this process: it takes a place among
+      // the runs that are never stored, and stops at its next step once it
+      // has run past its time limit.
+      const metered = mode === 'mock';
+      const admitted = metered ? await admitBench(store, 1) : () => {};
+      if (typeof admitted !== 'function') return admitted;
+      let result: RunResult;
+      try {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+        result = await execute(p.automation as Automation, {
+          input: p.input ?? {},
+          mode,
+          store,
+          ...(ctx.connectorHost !== undefined && {
+            connectorHost: ctx.connectorHost,
+          }),
+          ...(bench.value !== undefined && { bench: bench.value }),
+          ...(metered && { deadline: Date.now() + BENCH_RUN_DEADLINE_MS }),
+        });
+      } finally {
+        admitted();
+      }
+      // A bench the document cannot take is the request's fault, not the
+      // run's: the refusal names the issue.
+      const refused =
+        result.status === 'invalid'
+          ? result.validation?.errors.find((issue) =>
+              issue.code.startsWith('BENCH_'),
+            )
+          : undefined;
+      if (refused !== undefined) {
+        return {
+          error: refused.message,
+          code: 'BENCH_INVALID',
+          hint:
+            refused.hint ??
+            'fix the stand-ins or the scope data.issue names, then run again',
+          data: { issue: refused },
+        };
+      }
       if (warnings.length > 0) result.validation = { errors: [], warnings };
       return { ...result, trace: redactTrace(result.trace) };
     }
@@ -1328,9 +2029,14 @@ export async function dispatch(
           hint: 'send the document to test a draft, or name a saved version — not both',
         };
       }
+      const detail = testDetailParam(p.detail);
+      if ('error' in detail) return detail;
+      // A saved version is tested as saved, and its verdict is recorded on
+      // it, so the version history reads as tested — the deploy gate's own
+      // write; a draft has no version to hold one.
+      let automation: Automation;
+      let saved: { name: string; version: number } | undefined;
       if (p.automation === undefined) {
-        // A saved version: its verdict is recorded on it, so the version
-        // history reads as tested — the deploy gate's own write.
         const stored = await storedVersion(store, name, p.version);
         if ('error' in stored) return stored;
         const { errors, warnings } = await validate(stored.automation, {
@@ -1345,25 +2051,68 @@ export async function dispatch(
             warnings,
           };
         }
-        const report = await runAutomationTests(stored.automation, { store });
-        const tested = (stored.automation.tests?.length ?? 0) > 0;
-        if (tested && 'failed' in report) {
-          await store.recordTestVerdict?.(
-            name,
-            stored.version,
-            report.failed === 0,
-            { report, via: 'manual' },
-          );
-        }
-        return { name, version: stored.version, ...report };
+        automation = stored.automation;
+        saved = { name, version: stored.version };
+      } else {
+        const { errors, warnings } = await validate(p.automation, { store });
+        if (errors.length > 0) return { status: 'invalid', errors, warnings };
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+        automation = p.automation as Automation;
       }
-      const { errors, warnings } = await validate(p.automation, { store });
-      if (errors.length > 0) return { status: 'invalid', errors, warnings };
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      return await runAutomationTests(p.automation as Automation, { store });
+      const tests = automation.tests ?? [];
+      let select: number[] | undefined;
+      if (p.tests !== undefined) {
+        const picked = testSelection(p.tests, tests);
+        if ('error' in picked) return picked;
+        select = picked.select;
+      }
+      const admitted = await admitBench(store, select?.length ?? tests.length);
+      if (typeof admitted !== 'function') return admitted;
+      let report: Awaited<ReturnType<typeof runAutomationTests>>;
+      try {
+        report = await runAutomationTests(automation, {
+          store,
+          ...(select !== undefined && { select }),
+          ...(detail.value.size > 0 && { detail: true }),
+          ...(saved !== undefined && { version: saved.version }),
+        });
+      } finally {
+        admitted();
+      }
+      // Only the whole suite of a saved version, run to its end, is a
+      // verdict on it: a part of the suite says nothing of the rest, and
+      // tests the suite's time never reached are not tests that failed.
+      let recorded: { version: number; testsPassed: boolean } | undefined;
+      if (
+        saved !== undefined &&
+        select === undefined &&
+        tests.length > 0 &&
+        'failed' in report &&
+        report.notRun === undefined &&
+        store.recordTestVerdict !== undefined
+      ) {
+        const testsPassed = report.failed === 0;
+        await store.recordTestVerdict(saved.name, saved.version, testsPassed, {
+          report,
+          via: 'manual',
+        });
+        recorded = { version: saved.version, testsPassed };
+      }
+      return {
+        ...saved,
+        ...('failed' in report
+          ? boundedReport(
+              reportWithDetail(report, detail.value),
+              TEST_ANSWER_LIMITS,
+            )
+          : report),
+        ...(recorded !== undefined && { recorded }),
+      };
     }
 
     case 'save_automation': {
+      if (p.restoreVersion !== undefined)
+        return await restoreVersionCall(ctx, p);
       if (!p.automation) {
         return {
           error: 'missing params.automation',
@@ -1441,42 +2190,19 @@ export async function dispatch(
     }
 
     case 'get_automation': {
-      const name = asString(p.name);
-      if (store.getVersionView) return await versionView(store, name, p);
-      // "deployed" reads the version that actually runs — the REST door's
-      // `?version=deployed`, which MCP lacked (2026-09-14 evaluation, h9).
-      if (p.version === 'deployed') {
-        const live = await store.deployedVersion(name);
-        if (live === null) {
-          const missing = await missingAutomation(store, name);
-          if (missing) return missing;
-          return {
-            error: `"${name}" has no deployed version`,
-            code: 'AUTOMATION_VERSION_UNKNOWN',
-            hint: 'deploy_automation a saved version first — list_versions shows them',
-          };
-        }
-        return (
-          (await store.get(name, live)) ?? {
-            error: `deployed version ${name}@${live} is missing`,
-            code: 'AUTOMATION_VERSION_UNKNOWN',
-            hint: `the deployed version is gone — deploy_automation a saved one (${LIST_VERSIONS_HINT})`,
-          }
-        );
-      }
-      const version =
-        p.version === undefined
-          ? { value: undefined }
-          : versionParam(p.version, 'omit it to read the latest saved version');
-      if ('error' in version) return version;
-      const found = await store.get(name, version.value);
-      return (
-        found ?? {
-          error: `no saved automation named "${name}"`,
-          code: 'AUTOMATION_NOT_FOUND',
-          hint: LIST_AUTOMATIONS_HINT,
-        }
-      );
+      const read = await getAutomationCall(store, p);
+      if (p.against === undefined || !isRecord(read)) return read;
+      const readVersion = isRecord(read.meta) ? read.meta.version : undefined;
+      if (typeof readVersion !== 'number') return read;
+      // What the version read changed against another: the answer keeps the
+      // version and adds the comparison beside it.
+      const diff = await compareVersions(store, {
+        name: asString(p.name),
+        from: p.against,
+        to: readVersion,
+        format: p.diffFormat,
+      });
+      return typeof diff.error === 'string' ? diff : { ...read, diff };
     }
 
     case 'list_automations':
@@ -1567,6 +2293,15 @@ export async function dispatch(
           deployed: { name: deployed.name, version: deployed.version },
           // What was live before: deploy it again to undo this one.
           previousVersion,
+          // What it did: put a newer version live, an older one (a
+          // rollback), or found it live already.
+          kind:
+            deployed.kind ??
+            (previousVersion === deployed.version
+              ? 'unchanged'
+              : previousVersion !== null && deployed.version < previousVersion
+                ? 'rollback'
+                : 'deploy'),
           note:
             previousVersion === null || previousVersion === deployed.version
               ? 'this version is now live-eligible via run_deployed and triggers'
@@ -2073,7 +2808,9 @@ export async function dispatch(
     }
 
     case 'list_versions': {
-      if (!store.listVersions) return notSupported('version history is');
+      if (!store.listVersionHistory && !store.listVersions) {
+        return notSupported('version history is');
+      }
       const name = asString(p.name);
       if (!name) {
         return {
@@ -2082,28 +2819,64 @@ export async function dispatch(
           hint: LIST_AUTOMATIONS_HINT,
         };
       }
+      const limit = historyLimitParam(p.limit);
+      if ('error' in limit) return limit;
+      const before = versionPageStartParam(p.before);
+      if ('error' in before) return before;
       // An unknown name is a refusal, as it is for get_automation — never
       // an empty history a caller reads as "exists, nothing saved yet".
       const missing = await missingAutomation(store, name);
       if (missing) return missing;
+      // When each version went live, and what was live before it — the
+      // history a rollback (deploy_automation of an older version) reads;
+      // `list_deployments` pages through all of it.
+      const deployments = store.listDeployments
+        ? { deployments: await store.listDeployments(name) }
+        : {};
+      if (store.listVersionHistory) {
+        const page = await store.listVersionHistory(name, {
+          ...(limit.value !== undefined && { limit: limit.value }),
+          ...(before.value !== undefined && { before: before.value }),
+        });
+        return {
+          deployedVersion: page.deployedVersion,
+          latestVersion: page.latestVersion,
+          versions: page.versions,
+          nextBefore: page.nextBefore,
+          ...deployments,
+        };
+      }
+      // A host that lists whole histories only: the page is cut here.
       // Which of them runs: the REST listing marks it, and a model reading
       // the history had to join two calls to learn it (2026-09-14
       // evaluation, h9).
       const deployedVersion = await store.deployedVersion(name);
-      const versions = (await store.listVersions(name)).map((version) =>
+      const everything = (await store.listVersions?.(name)) ?? [];
+      const older = everything.filter(
+        (version) =>
+          before.value === undefined || version.version < before.value,
+      );
+      const shown =
+        limit.value === undefined ? older : older.slice(0, limit.value);
+      const versions = shown.map((version) =>
         Object.assign(version, {
           deployed: version.version === deployedVersion,
         }),
       );
-      // When each version went live, and what was live before it — the
-      // history a rollback (deploy_automation of an older version) reads.
-      return store.listDeployments
-        ? {
-            deployedVersion,
-            versions,
-            deployments: await store.listDeployments(name),
-          }
-        : { deployedVersion, versions };
+      const last = versions.at(-1);
+      return {
+        deployedVersion,
+        latestVersion:
+          everything.length === 0
+            ? null
+            : Math.max(...everything.map((version) => version.version)),
+        versions,
+        nextBefore:
+          last !== undefined && shown.length < older.length
+            ? last.version
+            : null,
+        ...deployments,
+      };
     }
 
     case 'set_automation_projects': {

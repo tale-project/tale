@@ -59,7 +59,9 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
-test.each([
+// These runtimes read their release from TALE_VERSION. The rest of the sandbox
+// family ships it as the OCI version label alone.
+const versionInEnvironment = [
   'db',
   'proxy',
   'platform',
@@ -68,6 +70,13 @@ test.each([
   'docs',
   'ui-docs',
   'ai-gateway',
+];
+test.each([
+  ...versionInEnvironment,
+  'sandbox-llm-gateway',
+  'sandbox-egress',
+  'sandbox-buildkitd',
+  'sandbox-runtime',
 ])(
   '%s version metadata does not invalidate runtime filesystem work',
   async (service) => {
@@ -102,9 +111,10 @@ test.each([
         .filter((line) => !/^\s*#/.test(line))
         .join('\n')
         .replace(/\\\r?\n\s*/g, ' ');
-      expect(metadata).toMatch(
-        /^ENV\s+[^\n]*\bTALE_VERSION=\$\{VERSION\}(?:\s|$)/m,
-      );
+      if (versionInEnvironment.includes(service))
+        expect(metadata).toMatch(
+          /^ENV\s+[^\n]*\bTALE_VERSION=\$\{VERSION\}(?:\s|$)/m,
+        );
       if (/^LABEL\s/m.test(metadata)) {
         expect(metadata).toContain(
           'org.opencontainers.image.version="${VERSION}"',
@@ -486,27 +496,12 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const file = await workflow('release');
     const prepare = step(file, 'prepare', 'Resolve version').run!;
-    const cadenceBin = await mkdtemp(join(tmpdir(), 'tale-release-cadence-'));
-    directories.push(cadenceBin);
-    await writeFile(
-      join(cadenceBin, 'gh'),
-      "#!/usr/bin/env bash\nprintf '\\n'\n",
-      { mode: 0o755 },
-    );
-    await writeFile(
-      join(cadenceBin, 'date'),
-      "#!/usr/bin/env bash\nprintf '2026-10-11\\n'\n",
-      { mode: 0o755 },
-    );
     for (const sites of ['false', 'true']) {
       const result = await execute(prepare, {
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v1.2.3',
         SITES_ONLY: sites,
         SOURCE_SHA: source,
-        GH_TOKEN: 'fixture-token',
-        REPOSITORY: 'synthetic/tale',
-        PATH: `${cadenceBin}:${process.env.PATH}`,
       });
       expect(result.code, result.stderr).toBe(0);
       const services = JSON.parse(result.outputs.service_names!) as string[];
@@ -536,63 +531,61 @@ test.skipIf(process.platform === 'win32')(
 test('release admission shares one non-cancelling mutex across all version refs', async () => {
   const { concurrency } = await workflow('release');
   // A literal group is independent of the triggering ref, version and run.
-  // Otherwise concurrent tags can both read the last published cohort before
-  // either publishes, defeating the daily admission check.
+  // Otherwise two tags can publish at once and race to repoint `latest`.
   expect(concurrency?.group).toMatch(/^[a-z0-9][a-z0-9-]*$/);
   expect(concurrency?.['cancel-in-progress']).toBe(false);
 });
 
 test.skipIf(process.platform === 'win32')(
-  'release limits full cohorts per UTC day and fails closed on unreadable history',
+  'release admits a full cohort on any day, whatever was published before it',
   async () => {
     const file = await workflow('release');
-    const prepare = step(file, 'prepare', 'Resolve version').run!;
-    const directory = await mkdtemp(join(tmpdir(), 'tale-release-cadence-'));
+    const prepare = step(file, 'prepare', 'Resolve version');
+    // Prepare reads no release history: it holds no token and never asks GitHub
+    // or the clock, so a release goes out whenever one is needed, however many
+    // went out that UTC day. A `gh` or `date` on the PATH that is ever called
+    // records itself.
+    expect(prepare.env).not.toHaveProperty('GH_TOKEN');
+    const directory = await mkdtemp(join(tmpdir(), 'tale-release-any-day-'));
     directories.push(directory);
-    await writeFile(
-      join(directory, 'gh'),
-      "#!/usr/bin/env bash\nprintf '2026-10-11T12:00:00Z\\tv0.5.85\\n'\n",
-      { mode: 0o755 },
-    );
-    await writeFile(
-      join(directory, 'date'),
-      "#!/usr/bin/env bash\nprintf '2026-10-11\\n'\n",
-      { mode: 0o755 },
-    );
+    const calls = join(directory, 'calls');
+    for (const tool of ['gh', 'date'])
+      await writeFile(
+        join(directory, tool),
+        `#!/usr/bin/env bash\nprintf '${tool}\\n' >> '${calls}'\nexit 1\n`,
+        { mode: 0o755 },
+      );
     const baseEnv = {
-      EVENT_NAME: 'workflow_dispatch',
-      INPUT_VERSION: 'v0.5.86',
+      EVENT_NAME: 'push',
+      GITHUB_REF: 'refs/tags/v0.5.88',
       SITES_ONLY: 'false',
       SOURCE_SHA: source,
-      GH_TOKEN: 'fixture-token',
-      REPOSITORY: 'synthetic/tale',
       PATH: `${directory}:${process.env.PATH}`,
     };
-    const blocked = await execute(prepare, baseEnv);
-    expect(blocked.code).toBe(1);
-    expect(blocked.stdout).toContain(
-      'A release was already published today (v0.5.85)',
-    );
-    const recovery = await execute(prepare, {
-      ...baseEnv,
-      INPUT_VERSION: 'v0.5.85',
+    const admitted = await execute(prepare.run!, baseEnv);
+    expect(admitted.code, admitted.stderr).toBe(0);
+    expect(admitted.outputs).toMatchObject({
+      version: 'v0.5.88',
+      version_number: '0.5.88',
+      source_sha: source,
+      sites_only: 'false',
     });
-    expect(recovery.code, recovery.stderr).toBe(0);
-    await writeFile(
-      join(directory, 'date'),
-      "#!/usr/bin/env bash\nprintf '2026-10-12\\n'\n",
-      { mode: 0o755 },
-    );
-    const nextDay = await execute(prepare, baseEnv);
-    expect(nextDay.code, nextDay.stderr).toBe(0);
-    await writeFile(join(directory, 'gh'), '#!/usr/bin/env bash\nexit 1\n', {
-      mode: 0o755,
-    });
-    const unreadable = await execute(prepare, baseEnv);
-    expect(unreadable.code).toBe(1);
-    expect(unreadable.outputs.version).toBeUndefined();
-    const sites = await execute(prepare, { ...baseEnv, SITES_ONLY: 'true' });
-    expect(sites.code, sites.stderr).toBe(0);
+    // A later version, a rerun of one that already went out, a dispatch and
+    // the sites-only scope are admitted alike.
+    for (const env of [
+      { ...baseEnv, GITHUB_REF: 'refs/tags/v0.5.89' },
+      baseEnv,
+      {
+        ...baseEnv,
+        EVENT_NAME: 'workflow_dispatch',
+        INPUT_VERSION: 'v0.5.90',
+      },
+      { ...baseEnv, SITES_ONLY: 'true' },
+    ]) {
+      const result = await execute(prepare.run!, env);
+      expect(result.code, result.stderr).toBe(0);
+    }
+    expect(await Bun.file(calls).exists()).toBe(false);
   },
 );
 

@@ -28,6 +28,58 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe('organization-minted session authority', () => {
+  async function requestOrganization(
+    orgId: string,
+    session: Record<string, unknown>,
+  ): Promise<Response> {
+    vi.mocked(requireOrganizationMembership).mockResolvedValue({
+      member: {
+        id: 'member-a',
+        organizationId: orgId,
+        userId: 'user-a',
+        role: 'owner',
+      },
+      organizationIds: ['org-a', 'org-b'],
+    });
+    vi.mocked(evaluateTwoFactorEnforcement).mockResolvedValue({
+      decision: 'allowed',
+    } as never);
+    const app = new Hono<OrgEnv>();
+    app.use(async (c, next) => {
+      c.set('sessionBundle', {
+        user: { id: 'user-a', email: 'a@example.invalid', name: 'A' },
+        session: { id: 'session-a', ...session },
+      });
+      await next();
+    });
+    app.use(requireOrgMember({} as never));
+    app.get('/me', (c) => c.json({ role: c.get('orgMember').role }));
+    return app.request(`/me?orgId=${orgId}`);
+  }
+
+  it('refuses another real membership even when it is an Owner seat', async () => {
+    const response = await requestOrganization('org-b', {
+      trustedOrganizationId: 'org-a',
+      independentIdentityVerifiedAt: new Date().toISOString(),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+    expect(requireOrganizationMembership).not.toHaveBeenCalled();
+  });
+
+  it('keeps the owning seat in the session realm and global multi-org access', async () => {
+    const bound = await requestOrganization('org-a', {
+      trustedOrganizationId: 'org-a',
+    });
+    expect(bound.status).toBe(200);
+    expect(await bound.json()).toEqual({ role: 'owner' });
+    const global = await requestOrganization('org-b', {});
+    expect(global.status).toBe(200);
+    expect(await global.json()).toEqual({ role: 'owner' });
+  });
+});
+
 describe('organization membership error envelope', () => {
   it.each([
     ['ORG_NOT_FOUND', 404],
@@ -117,12 +169,11 @@ describe('a trusted-headers role on the session [THDR-R10]', () => {
     ).resolves.toBe('member');
   });
 
-  it('asks nothing for a session without a trusted role, or one bound to another organization', async () => {
+  it('asks nothing for a session without a trusted role', async () => {
     await expect(roleFor('member', {})).resolves.toBe('member');
     await expect(
       roleFor('member', {
-        trustedRole: 'admin',
-        trustedOrganizationId: 'org-b',
+        trustedOrganizationId: 'org-a',
       }),
     ).resolves.toBe('member');
     expect(trustedRoleHolds).not.toHaveBeenCalled();

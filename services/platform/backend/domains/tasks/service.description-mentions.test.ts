@@ -7,7 +7,7 @@ import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { notifyTaskMentions } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
-import { kickAgentRun } from './agent-runs.ts';
+import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
 import { TaskError } from './errors.ts';
 import { requestTaskReview } from './reviews.ts';
 import {
@@ -181,6 +181,9 @@ interface LiveRun {
   execId: string;
   sessionId: string;
   harness: string;
+  /** Which engine drives the run; a run written before the engine column
+   * reads as the harness. */
+  engine?: 'native' | 'harness';
   model: string;
   modelProvider: string | null;
   deadlineAt: number;
@@ -191,6 +194,9 @@ interface LiveRun {
  * the dispatcher's probe sees. */
 function fakeTx(task: TaskRow, state: { liveRun?: LiveRun } = {}) {
   const statements: { text: string; values: unknown[] }[] = [];
+  /** How many savepoints are open right now — what a write made inside one
+   * is taken back with. */
+  const savepoints = { open: 0 };
   const tag = (
     strings: TemplateStringsArray,
     ...values: unknown[]
@@ -250,11 +256,14 @@ function fakeTx(task: TaskRow, state: { liveRun?: LiveRun } = {}) {
     // A savepoint that throws takes back what it wrote, as Postgres does.
     savepoint: async (body: (sp: typeof tag) => Promise<unknown>) => {
       const mark = statements.length;
+      savepoints.open += 1;
       try {
         return await body(tag);
       } catch (error) {
         statements.length = mark;
         throw error;
+      } finally {
+        savepoints.open -= 1;
       }
     },
   });
@@ -264,6 +273,7 @@ function fakeTx(task: TaskRow, state: { liveRun?: LiveRun } = {}) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the same stand-in for a read outside a transaction
     sql: tx as unknown as Sql,
     statements,
+    savepoints,
   };
 }
 
@@ -717,5 +727,121 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
     );
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(assigned(statements)).toEqual([]);
+  });
+
+  describe('a native run takes no word mid-way [TASK-R33]', () => {
+    const NATIVE_RUN: LiveRun = {
+      id: 'run-9',
+      agentId: WRITER.id,
+      status: 'running',
+      execId: 'exec-9',
+      sessionId: `pa-${WRITER.id}`,
+      harness: WRITER.harness,
+      engine: 'native',
+      model: WRITER.model,
+      modelProvider: null,
+      deadlineAt: Date.now() + 60_000,
+    };
+    const runningCard = () =>
+      taskRow({
+        description: 'Draft it.',
+        status: 'in_progress',
+        assigneeType: 'agent',
+        assigneeId: WRITER.id,
+      });
+
+    it('stops the run and starts the next with the comment that named its agent', async () => {
+      resolvesTo([WRITER_MENTION]);
+      const { tx } = fakeTx(runningCard(), { liveRun: NATIVE_RUN });
+
+      await updateTask(tx, auth, {
+        taskId: 't-1',
+        description: 'Draft it. @writer: also add a summary table',
+      });
+
+      // No stdin to push the comment down: the run is stopped, and the next
+      // one reads the task as it now stands.
+      expect(addJobInTx).not.toHaveBeenCalledWith(
+        tx,
+        'task.agent_steer',
+        expect.anything(),
+      );
+      expect(cancelAgentRunInTx).toHaveBeenCalledWith(expect.anything(), {
+        organizationId: 'org-1',
+        runId: 'run-9',
+        taskId: 't-1',
+      });
+      expect(kickAgentRun).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          agentId: WRITER.id,
+          trigger: 'mention',
+          mentionSource: 'description',
+          startedBy: 'u-owner',
+        }),
+      );
+    });
+
+    it('restarts the agent whose run it stopped, whichever agent the text names first', async () => {
+      resolvesTo([{ type: 'agent', id: 'agent-other' }, WRITER_MENTION]);
+      const { tx, statements } = fakeTx(runningCard(), { liveRun: NATIVE_RUN });
+
+      await updateTask(tx, auth, {
+        taskId: 't-1',
+        description: 'Draft it. @other @writer: also add a summary table',
+      });
+
+      const firstLookup = statements.find((statement) =>
+        statement.text.startsWith(
+          'SELECT id, harness, model, model_provider AS "modelProvider" FROM app.project_agents',
+        ),
+      );
+      expect(firstLookup?.values[0]).toBe(WRITER.id);
+      expect(kickAgentRun).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ agentId: WRITER.id }),
+      );
+    });
+
+    it('takes the stop back with the refused restart: the run goes on', async () => {
+      resolvesTo([WRITER_MENTION]);
+      vi.mocked(kickAgentRun).mockRejectedValueOnce(
+        new TaskError('STANDARD_AGENT_OFF', 'The standard agent is off', 403),
+      );
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { tx, savepoints } = fakeTx(runningCard(), { liveRun: NATIVE_RUN });
+      const openWhenWritten: number[] = [];
+      vi.mocked(cancelAgentRunInTx).mockImplementation(async () => {
+        openWhenWritten.push(savepoints.open);
+        return true;
+      });
+
+      await updateTask(tx, auth, {
+        taskId: 't-1',
+        description: 'Draft it. @writer: also add a summary table',
+      });
+
+      // The stop and the restart ride one savepoint, so a restart the
+      // organization refuses takes the stop back with it: a comment nobody
+      // may act on never stops a run for nothing.
+      expect(openWhenWritten).toEqual([1]);
+      expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays a plain mention for someone who may not work the task', async () => {
+      resolvesTo([WRITER_MENTION]);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { tx } = fakeTx(runningCard(), { liveRun: NATIVE_RUN });
+
+      await updateTask(
+        tx,
+        { ...auth, userId: 'u-stranger', role: 'member' },
+        { taskId: 't-1', description: 'Draft it. @writer: more' },
+      ).catch(() => undefined);
+
+      expect(cancelAgentRunInTx).not.toHaveBeenCalled();
+      expect(kickAgentRun).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
   });
 });

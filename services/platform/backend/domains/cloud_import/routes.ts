@@ -7,6 +7,7 @@ import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { findOrganizationMember } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import { sessionAllowsOrganization } from '../../auth/session-authority.ts';
 import { requireSession, type SessionBundle } from '../../auth/session.ts';
 import {
   cloudImportMicrosoftTenantMissingEnvNames,
@@ -228,11 +229,16 @@ export function createCloudImportOauthRoutes(deps: {
       return errorPage('not_configured');
     }
 
-    const session: SessionBundle | null = await deps.auth.api.getSession({
+    const cached = await deps.auth.api.getSession({
       headers: c.req.raw.headers,
     });
+    const session: SessionBundle | null =
+      cached === null ? null : await deps.auth.resolveSessionAuthority(cached);
     if (!session) {
       return plainText('Sign in to authorize cloud import.', 401);
+    }
+    if (!sessionAllowsOrganization(session.session, organizationId)) {
+      return plainText('You do not have access to this organization.', 403);
     }
     const member = await findOrganizationMember(
       deps.sql,
@@ -335,10 +341,16 @@ export function createCloudImportOauthRoutes(deps: {
     // browser is who is completing it. They must match, or a forwarded
     // consent link would store a stranger's grant under the initiator. The
     // state is already consumed, so a mismatch burns it like a forgery.
-    const completer: SessionBundle | null = await deps.auth.api.getSession({
+    const cached = await deps.auth.api.getSession({
       headers: c.req.raw.headers,
     });
-    if (!completer || completer.user.id !== userId) {
+    const completer: SessionBundle | null =
+      cached === null ? null : await deps.auth.resolveSessionAuthority(cached);
+    if (
+      !completer ||
+      completer.user.id !== userId ||
+      !sessionAllowsOrganization(completer.session, organizationId)
+    ) {
       console.warn(
         `[cloud-import:oauth2] refused a "${provider}" callback completed by ${
           completer ? 'a different user' : 'no session'

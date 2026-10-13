@@ -584,7 +584,7 @@ async function readWorkspaceFacts(
       EXISTS (
         SELECT 1 FROM app.project_agent_runs r
         WHERE r.org_id = ${organizationId} AND r.session_id = ${sessionId}
-          AND r.status IN ('queued', 'running')
+          AND r.engine = 'harness' AND r.status IN ('queued', 'running')
       ) AS "runQueued",
       EXISTS (
         SELECT 1 FROM app.project_agents a
@@ -602,7 +602,8 @@ async function readWorkspaceFacts(
          WHERE op.org_id = ${organizationId} AND op.session_id = ${sessionId}),
         (SELECT max(greatest(pr.started_at_ms, coalesce(pr.launched_at_ms, 0)))
          FROM app.project_agent_runs pr
-         WHERE pr.org_id = ${organizationId} AND pr.session_id = ${sessionId})
+         WHERE pr.org_id = ${organizationId} AND pr.session_id = ${sessionId}
+           AND pr.engine = 'harness')
       )::float8 AS "lastUsedAt"
     FROM latest l
     LEFT JOIN app.automation_runs r
@@ -634,6 +635,7 @@ async function runsStarterLeft(
   const starters = await sql<{ startedBy: string }[]>`
     SELECT DISTINCT started_by AS "startedBy" FROM app.project_agent_runs
     WHERE org_id = ${organizationId} AND session_id = ${sessionId}
+      AND engine = 'harness'
   `;
   const people = new Set(
     starters.map((starter) => runStarterUserId(starter.startedBy)),
@@ -1094,9 +1096,14 @@ export async function runWorkspaceCleanup(
   try {
     inventory = await spawner.inventory();
   } catch (error) {
+    // A plain error is a sentence an operator can act on — a deployment with
+    // no sandbox has no spawner token, and said so with a stack on every
+    // sweep. Anything the runtime raised keeps its stack.
     console.warn(
       '[sandbox.cleanup] the spawner inventory is unavailable; owner-less workspaces wait for the next sweep:',
-      error,
+      error instanceof Error && error.constructor === Error
+        ? error.message
+        : error,
     );
     return result;
   }

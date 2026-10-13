@@ -708,6 +708,10 @@ changeList:
   after: Nachher
   empty: Keine Änderungen
 
+permissionSummary:
+  allowed: 'Erlaubt:'
+  notAllowed: 'Nicht erlaubt:'
+
 flow:
   canvas:
     roleDescription: Ablaufdiagramm

@@ -219,6 +219,8 @@ const QUEUE_MAX_HINT_MS = 60_000;
  * this much more; one that stopped asking (its run was cancelled, its
  * worker died) gives its place up after that. */
 const QUEUE_LIVE_SLACK_MS = 15_000;
+/** A waiter that stops renewing cannot hold the line forever. */
+const QUEUE_LEASE_MS = 10 * 60_000;
 /** The most waiters the line keeps; past it the one that asked longest ago
  * goes. */
 const QUEUE_CAP = 10_000;
@@ -237,6 +239,17 @@ interface RoomWaiter {
    * under CPU pressure back. One waiting for a slot or memory that will not
    * free must not stop a start it would never take anyway. */
   waitsForCpu: boolean;
+  /** The bounded lease, renewed by a re-ask or liveness ping. */
+  leaseUntilMs: number;
+}
+
+/** An ask for host room that is running its slow probes (a reclaim, a fresh
+ * memory reading). Its waiter's place does not expire meanwhile, and an
+ * explicit destroy, an admission or a queue-cap eviction that comes first
+ * marks it stale, so its late completion cannot put the waiter back. It
+ * exists only while the ask runs. */
+interface RoomAsk {
+  stale: boolean;
 }
 
 /** How many of `ahead` wait for the host's CPU (RoomWaiter.waitsForCpu). */
@@ -365,6 +378,9 @@ export class SessionRoutes {
   // refusal — the map's own order (QUEUE_FRONT_HINT_MS). Memory only: a
   // restart starts it afresh.
   private readonly waiters = new Map<string, RoomWaiter>();
+  // The asks for host room that are running their slow probes, by session
+  // id; nothing here outlives its ask.
+  private readonly roomAsks = new Map<string, Set<RoomAsk>>();
   // When the last session was let in while the host's CPU was under
   // pressure (CPU_PRESSURED_START_SPACING_MS).
   private pressuredStartAtMs = Number.NEGATIVE_INFINITY;
@@ -814,7 +830,7 @@ export class SessionRoutes {
     if (this.memoryShort(workingSetBytes)) return 'short';
     if (this.cpuPressured() && !this.takePressuredStart(cpuWaiters(ahead)))
       return 'cpu';
-    this.waiters.delete(sessionId);
+    this.invalidateWaiter(sessionId);
     this.creating.set(sessionId, organizationId);
     this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
@@ -1013,11 +1029,14 @@ export class SessionRoutes {
   /** Would starting a session of this working set, beside every create in
    * flight at theirs and what the sessions that just started are still
    * growing into, leave the host less than its reserve? Unknown memory never
-   * refuses. */
+   * refuses, and neither does an explicit SANDBOX_MAX_SESSIONS: the operator
+   * sized the host, so the count, disk and CPU guards still apply but memory
+   * admission does not. */
   private memoryShort(
     workingSetBytes: number,
     reacquiringSessionId?: string,
   ): boolean {
+    if (this.cfg.session.autoMaxSessions === false) return false;
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -1042,11 +1061,41 @@ export class SessionRoutes {
     return memory.availableBytes - starting < reserve;
   }
 
+  /** Run the admission of one create as an ask that its waiter's place
+   * survives, however it ends: the registered ask is dropped in `finally`, so
+   * a refusal that needs no place, a failed occupancy read or an error leaves
+   * no waiter that expiry would never prune. */
   private async reserveCreate(
     sessionId: string,
     organizationId: string,
     profile: SandboxSessionProfile,
     docker?: boolean,
+  ): Promise<Response | null> {
+    const ask: RoomAsk = { stale: false };
+    const asks = this.roomAsks.get(sessionId) ?? new Set<RoomAsk>();
+    asks.add(ask);
+    this.roomAsks.set(sessionId, asks);
+    try {
+      return await this.admitCreate(
+        sessionId,
+        organizationId,
+        profile,
+        docker,
+        ask,
+      );
+    } finally {
+      asks.delete(ask);
+      if (asks.size === 0 && this.roomAsks.get(sessionId) === asks)
+        this.roomAsks.delete(sessionId);
+    }
+  }
+
+  private async admitCreate(
+    sessionId: string,
+    organizationId: string,
+    profile: SandboxSessionProfile,
+    docker: boolean | undefined,
+    ask: RoomAsk,
   ): Promise<Response | null> {
     const workingSet = sessionWorkingSetBytes(
       profile,
@@ -1078,9 +1127,15 @@ export class SessionRoutes {
           : null;
       if (refreshed instanceof Response) return refreshed;
       occupancy = refreshed;
-      decision = await this.withAdmission(() =>
-        this.admit(sessionId, organizationId, workingSet, occupancy),
-      );
+      // An explicit destroy may have invalidated this ask while the probes
+      // were running. Never let that stale completion claim a new slot.
+      if (ask.stale) {
+        decision = 'full';
+      } else {
+        decision = await this.withAdmission(() =>
+          this.admit(sessionId, organizationId, workingSet, occupancy),
+        );
+      }
     }
     if (
       decision === 'full' ||
@@ -1094,6 +1149,7 @@ export class SessionRoutes {
         Date.now(),
         true,
         decision === 'cpu',
+        ask,
       );
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
@@ -1135,6 +1191,9 @@ export class SessionRoutes {
           { 'retry-after': retryAfter },
         );
       }
+      console.warn(
+        `[sandbox.session] refusing ${sessionId}: host_memory (queue position ${place.position})`,
+      );
       return jsonResponse(
         {
           error: 'host_memory',
@@ -1147,19 +1206,23 @@ export class SessionRoutes {
       );
     }
     // Any other answer (admitted, a duplicate) ends the wait.
-    this.waiters.delete(sessionId);
+    this.invalidateWaiter(sessionId);
     return decision;
   }
 
   /** The live waiters refused before `sessionId` (all of them, for a create
    * not yet in line), oldest first: the line keeps the order of first
    * refusal, which a repeat never changes. Waiters that stopped asking
-   * leave. */
+   * leave, unless an ask of theirs is running its probes. */
   private waitersAhead(sessionId: string, now: number): RoomWaiter[] {
     const ahead: RoomWaiter[] = [];
     let reachedOwn = false;
     for (const [id, waiter] of this.waiters) {
-      if (now - waiter.lastAtMs > 2 * waiter.hintMs + QUEUE_LIVE_SLACK_MS) {
+      if (
+        !this.roomAsks.has(id) &&
+        (now > waiter.leaseUntilMs ||
+          now - waiter.lastAtMs > 2 * waiter.hintMs + QUEUE_LIVE_SLACK_MS)
+      ) {
         this.waiters.delete(id);
         continue;
       }
@@ -1170,19 +1233,24 @@ export class SessionRoutes {
   }
 
   /** Put a refused create or activation in line (keeping its place when it was in line
-   * already) and say where it stands and when to ask again. */
+   * already) and say where it stands and when to ask again. A stale `ask`
+   * (its id was destroyed, admitted or evicted while it ran) keeps nobody in
+   * line: it only learns the place it would have had. */
   private waitInLine(
     sessionId: string,
     workingSetBytes: number,
     now: number,
     needsSlot = true,
     waitsForCpu = false,
+    ask?: RoomAsk,
   ): { position: number; waiting: number; hintMs: number } {
     const position = this.waitersAhead(sessionId, now).length;
     const hintMs = Math.min(
       QUEUE_FRONT_HINT_MS + position * QUEUE_STEP_HINT_MS,
       QUEUE_MAX_HINT_MS,
     );
+    if (ask?.stale === true)
+      return { position, waiting: this.waiters.size, hintMs };
     const known = this.waiters.get(sessionId);
     if (known !== undefined) {
       known.lastAtMs = now;
@@ -1190,6 +1258,7 @@ export class SessionRoutes {
       known.workingSetBytes = workingSetBytes;
       known.needsSlot = needsSlot;
       known.waitsForCpu = waitsForCpu;
+      known.leaseUntilMs = now + QUEUE_LEASE_MS;
     } else {
       if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
       this.waiters.set(sessionId, {
@@ -1198,6 +1267,7 @@ export class SessionRoutes {
         workingSetBytes,
         needsSlot,
         waitsForCpu,
+        leaseUntilMs: now + QUEUE_LEASE_MS,
       });
     }
     return { position, waiting: this.waiters.size, hintMs };
@@ -1212,7 +1282,25 @@ export class SessionRoutes {
         stalestAtMs = waiter.lastAtMs;
       }
     }
-    if (stalest !== undefined) this.waiters.delete(stalest);
+    if (stalest !== undefined) this.invalidateWaiter(stalest);
+  }
+
+  /** End a session's place in the line, and with it every ask of the id that
+   * is still running its probes: none may put the waiter back. */
+  private invalidateWaiter(sessionId: string): void {
+    this.waiters.delete(sessionId);
+    for (const ask of this.roomAsks.get(sessionId) ?? []) ask.stale = true;
+  }
+
+  /** Renew a held queue lease without repeating the expensive admission probes. */
+  private renewWaiter(sessionId: string): Response {
+    const waiter = this.waiters.get(sessionId);
+    if (waiter === undefined)
+      return jsonResponse({ error: 'not_waiting' }, 404);
+    const now = Date.now();
+    waiter.lastAtMs = now;
+    waiter.leaseUntilMs = now + QUEUE_LEASE_MS;
+    return jsonResponse({ ok: true }, 200);
   }
 
   /** How many creates or activations wait in the line for host room. */
@@ -2685,10 +2773,14 @@ export class SessionRoutes {
    * never make the next workload eligible for pressure reclamation. */
   async handleActivity(
     sessionId: string,
-    action: 'ticket' | 'acquire' | 'release',
+    action: 'ticket' | 'acquire' | 'release' | 'wait',
     body = '',
     knownHealth?: { session: RegistrySession; health?: RunnerdHealth },
   ): Promise<Response> {
+    // Renewing a place in the room line only touches the line: no session
+    // state, no I/O, so it takes no turn in the session's activity queue and
+    // breaks no run of adjacent acquires.
+    if (action === 'wait') return this.renewWaiter(sessionId);
     if (action !== 'acquire') {
       // A release/ticket separates turns; only adjacent acquires coalesce.
       this.acquiring.delete(sessionId);
@@ -2969,7 +3061,7 @@ export class SessionRoutes {
           ) <
           YOUNG_SESSION_RESERVE_MS)
     ) {
-      this.waiters.delete(sessionId);
+      this.invalidateWaiter(sessionId);
       return null;
     }
     const workingSet = sessionWorkingSetBytes(
@@ -2995,7 +3087,7 @@ export class SessionRoutes {
       )
         return 'cpu';
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
-      this.waiters.delete(sessionId);
+      this.invalidateWaiter(sessionId);
       return true;
     };
     let admitted = await this.withAdmission(admit);
@@ -3067,7 +3159,7 @@ export class SessionRoutes {
     } = {},
   ): Promise<Response> {
     // A destroyed session asks for no room any more.
-    this.waiters.delete(sessionId);
+    this.invalidateWaiter(sessionId);
     // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
     // thread-session teardown) must never destroy a session another turn is
     // actively executing in — two turns can share one thread session (e.g.

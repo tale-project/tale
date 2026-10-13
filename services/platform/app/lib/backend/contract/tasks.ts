@@ -393,6 +393,8 @@ export interface TasksContract {
       /** A failed run the platform is about to retry by itself. */
       retryPending?: boolean;
       harness: string;
+      /** Which engine drives the run: a native run has no harness working. */
+      engine: 'native' | 'harness';
       model: string;
       agentName?: string;
       _id: string;
@@ -585,7 +587,11 @@ export interface TasksContract {
   'tasks/queries:listProjectDependencies': {
     kind: 'query';
     args: { organizationId: string; projectId: string };
-    returns: Array<{ blockerTaskId: string; blockedTaskId: string }>;
+    returns: Array<{
+      blockerTaskId: string;
+      blockedTaskId: string;
+      blockerResolved?: boolean;
+    }>;
   };
   'tasks/queries:listSubtasks': {
     kind: 'query';

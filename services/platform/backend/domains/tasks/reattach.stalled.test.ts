@@ -55,6 +55,20 @@ describe('recoverStalledTaskAgentTurns — the op-less arm ages on the run row',
     );
     expect(listing).not.toMatch(/OR greatest\(/);
   });
+
+  it('leaves a native run to its own watchdog: it has no exec and no op row to ask about [TASK-R34]', async () => {
+    const { sql, statements } = recordingSql();
+    await recoverStalledTaskAgentTurns(sql, {
+      probe: () => Promise.resolve({ state: 'running' as const }),
+    });
+    const listing = statements.find((text) =>
+      text.includes('FROM app.project_agent_runs r'),
+    );
+    // Without it the op-less arm would read every running native run as a
+    // start that died before writing its op, and try to resume an exec that
+    // never existed.
+    expect(listing).toContain("r.engine = 'harness'");
+  });
 });
 
 /**

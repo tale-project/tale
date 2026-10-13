@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 
 import { sessionExecStatus } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import {
   claimRecoveryResume,
   driveJobPending,
@@ -13,7 +14,11 @@ import {
   recoveryProbeSignal,
   visitRecoveryCandidates,
 } from '../sandbox/recovery.ts';
-import { failAgentRun } from './agent-runs.ts';
+import {
+  agentRunJobName,
+  type AgentRunEngine,
+  failAgentRun,
+} from './agent-runs.ts';
 
 /**
  * Re-attach abandoned task-agent turns — the 0.5 twin of 0.4's
@@ -75,6 +80,9 @@ async function listStalledTurns(
     LEFT JOIN app.sandbox_session_ops op
       ON op.session_id = r.session_id AND op.exec_id = r.exec_id
     WHERE r.status = 'running'
+      -- A native run has no exec, and no op row by design: its own watchdog
+      -- (in watchdogs.ts) reads its generation instead.
+      AND r.engine = 'harness'
       AND r.deadline_at_ms > ${now}
       AND (
         -- No op row: a start that died before writing one — but only once
@@ -220,6 +228,24 @@ export async function recoverStalledTaskAgentTurns(
  * (a healthy start flips to `running` within seconds), and the claim bumps
  * `updated_at_ms`, so a re-kicked run is not swept again on the next tick.
  */
+/**
+ * A native run's start job still waits its turn in the queue (the
+ * organization's share of working runs is full), or has just been taken: the
+ * run is not stranded, only queued, and a second job for it would only be
+ * orphaned by the first one's launch.
+ */
+async function nativeStartPending(sql: Sql, execId: string): Promise<boolean> {
+  const rows = await sql<{ pending: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM pgboss.job
+      WHERE name = ${physicalTaskQueue('task.agent_native')}
+        AND data ->> 'execId' = ${execId}
+        AND state IN ('created', 'retry', 'active')
+    ) AS pending
+  `;
+  return rows[0]?.pending ?? false;
+}
+
 export async function recoverStuckQueuedTaskAgentRuns(
   sql: Sql,
   options: { staleMs?: number } = {},
@@ -231,11 +257,13 @@ export async function recoverStuckQueuedTaskAgentRuns(
       runId: string;
       organizationId: string;
       execId: string;
+      engine: AgentRunEngine;
       agentPresent: boolean;
     }[]
   >`
     SELECT r.id AS "runId", r.org_id AS "organizationId",
-           r.exec_id AS "execId", (a.id IS NOT NULL) AS "agentPresent"
+           r.exec_id AS "execId", r.engine,
+           (a.id IS NOT NULL) AS "agentPresent"
     FROM app.project_agent_runs r
     LEFT JOIN app.project_agents a
       ON a.id = r.agent_id AND a.org_id = r.org_id
@@ -265,6 +293,12 @@ export async function recoverStuckQueuedTaskAgentRuns(
       }
       continue;
     }
+    if (
+      run.engine === 'native' &&
+      (await nativeStartPending(sql, run.execId))
+    ) {
+      continue;
+    }
     // Single-winner claim: rotate the exec id so a lost-but-slow original
     // start orphans itself (both its idempotency gate and its running flip
     // — `launchAgentRun` — are exec-id fenced, so it cannot spawn).
@@ -277,7 +311,7 @@ export async function recoverStuckQueuedTaskAgentRuns(
       RETURNING id
     `;
     if (claimed.length === 0) continue;
-    await addJobInTx(sql, 'task.agent_turn', {
+    await addJobInTx(sql, agentRunJobName(run.engine), {
       organizationId: run.organizationId,
       runId: run.runId,
       execId: newExecId,

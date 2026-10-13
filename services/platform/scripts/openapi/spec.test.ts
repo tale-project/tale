@@ -8,7 +8,15 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import {
+  AGENT_REFRESH_TOKEN_SECONDS,
+  PROTECTED_RESOURCE_METADATA_PATH,
+} from '../../backend/auth/agent-oauth.ts';
 import type { Auth } from '../../backend/auth/auth.ts';
+import {
+  OIDC_AUTHORIZE_PATH,
+  OIDC_TOKEN_PATH,
+} from '../../backend/auth/oidc.ts';
 import type {
   SkillDocumentView,
   SkillSummaryView,
@@ -38,6 +46,10 @@ import { setCodeRunner } from '../../lib/engine/core/runner.ts';
 import type { Automation } from '../../lib/engine/core/types.ts';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
 import { memoryStore } from '../../lib/engine/selftest/memory-store.ts';
+import {
+  MCP_PATH,
+  MCP_RESOURCE_SCOPES,
+} from '../../lib/shared/agent-access.ts';
 import { contractFingerprint } from './fingerprint.ts';
 import { buildSpec, type Json } from './spec.ts';
 
@@ -1273,6 +1285,59 @@ describe('project scope in OpenAPI inputs', () => {
   });
 });
 
+/**
+ * A coding agent signs in to the MCP endpoint alone, on a person's behalf.
+ * The document names that way in on that operation and nowhere else, lists
+ * the scopes the endpoint grants (the list the sign-in server, the consent
+ * page and the door share), and points at the sign-in server's own
+ * endpoints and its refresh lifetime — so a generated client or the `/docs`
+ * explorer never offers a scope the server would drop or a path it does not
+ * serve.
+ */
+describe('the agent sign-in scheme', () => {
+  const scheme =
+    (spec.components as { securitySchemes: Record<string, Json> })
+      .securitySchemes.agentOAuth ?? {};
+  const flow = (scheme.flows as { authorizationCode: Json }).authorizationCode;
+
+  it('lists the scopes the endpoint grants, and no other', () => {
+    expect(Object.keys(flow.scopes as Json).sort()).toEqual(
+      [...MCP_RESOURCE_SCOPES].sort(),
+    );
+  });
+
+  it('points at the sign-in server’s authorize and token endpoints', () => {
+    expect(flow.authorizationUrl).toBe(`/api/auth${OIDC_AUTHORIZE_PATH}`);
+    expect(flow.tokenUrl).toBe(`/api/auth${OIDC_TOKEN_PATH}`);
+    expect(flow.refreshUrl).toBe(flow.tokenUrl);
+  });
+
+  it('names the endpoint’s resource document and the refresh lifetime the server issues', () => {
+    expect(scheme.description).toContain(
+      `${PROTECTED_RESOURCE_METADATA_PATH}${MCP_PATH}`,
+    );
+    expect(AGENT_REFRESH_TOKEN_SECONDS).toBe(30 * 24 * 60 * 60);
+    expect(scheme.description).toContain('thirty days');
+  });
+
+  it('is taken by the MCP operation alone, beside the API key', () => {
+    const takers = Object.entries(paths).flatMap(([path, operations]) =>
+      Object.entries(operations)
+        .filter(
+          ([method, operation]) =>
+            HTTP_METHODS.has(method) &&
+            JSON.stringify(operation.security ?? []).includes('agentOAuth'),
+        )
+        .map(([method]) => `${method.toUpperCase()} ${path}`),
+    );
+    expect(takers).toEqual([`POST ${MCP_PATH}`]);
+    expect(paths[MCP_PATH]?.post?.security).toEqual([
+      { bearerAuth: [] },
+      { agentOAuth: ['tale:mcp'] },
+    ]);
+  });
+});
+
 describe('token-authenticated webhook contracts', () => {
   it.each([
     '/api/automations/webhook/{token}',
@@ -2230,20 +2295,38 @@ describe('every limit and offset query parameter is bounded', () => {
     ).toBeGreaterThanOrEqual(16);
   });
 
+  // A list that answered its complete set before it took a `limit` keeps
+  // answering it when none is named: its page size has no default, and its
+  // description says so. The one such list is an automation's version
+  // history.
+  const WHOLE_WHEN_OMITTED: ReadonlySet<string> = new Set([
+    'GET /api/v1/automations/{name}/versions',
+  ]);
+
   it('declares minimum, maximum and default on every limit', () => {
     const bare = windows
       .filter(
-        ({ parameter, schema }) =>
+        ({ name, parameter, schema }) =>
           parameter === 'limit' &&
           !(
             schema.type === 'integer' &&
             whole(schema.minimum) &&
             whole(schema.maximum) &&
-            whole(schema.default)
+            (whole(schema.default) || WHOLE_WHEN_OMITTED.has(name))
           ),
       )
       .map(({ name }) => name);
     expect(bare).toEqual([]);
+  });
+
+  it('lets a limit go without a default only where the whole set is the answer', () => {
+    const undefaulted = windows
+      .filter(
+        ({ parameter, schema }) =>
+          parameter === 'limit' && !whole(schema.default),
+      )
+      .map(({ name }) => name);
+    expect(undefaulted).toEqual([...WHOLE_WHEN_OMITTED]);
   });
 
   it('declares minimum and default on every offset', () => {
@@ -2789,8 +2872,11 @@ describe('the shapes the 2026-09-14 round-h evaluation found generated clients t
       'PUT /api/v1/skills/{slug}',
     ]);
     // The creates with nothing to point at: many rows, a row with no read
-    // of its own, or an install answering the project's automation view.
+    // of its own, a restored version (answered by its number, and read with
+    // the version query of the automation), or an install answering the
+    // project's automation view.
     expect(unlocated.sort()).toEqual([
+      'POST /api/v1/automations/{name}/versions/{version}/restore',
       'POST /api/v1/browser-sessions/import',
       'POST /api/v1/contacts/bulk',
       'POST /api/v1/projects/{id}/automations/{name}',
@@ -2844,7 +2930,7 @@ describe('MessagePart is a discriminator a strict client can resolve', () => {
     const mapped = Object.values(part.discriminator.mapping).sort();
     const listed = part.oneOf.map((branch) => branch.$ref).sort();
     expect(listed).toEqual(mapped);
-    expect(mapped).toHaveLength(6);
+    expect(mapped).toHaveLength(7);
   });
 
   it('maps each kind to a schema whose required `type` is that kind alone', () => {

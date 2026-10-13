@@ -21,6 +21,12 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   Outlet: () => null,
 }));
+// Keys, not English: an accessible name must not depend on whether some module
+// in the graph has initialised the i18n singleton (`api-client` imports it since
+// #4903, which turned every key into its sentence and this suite red).
+vi.mock('@tale/ui/i18n/client', () => ({
+  useT: (ns: string) => ({ t: (key: string) => `${ns}.${key}` }),
+}));
 vi.mock('@/lib/auth-client', () => ({
   authClient: { getSession: h.getSession, $store: { notify: vi.fn() } },
 }));
@@ -108,7 +114,7 @@ describe('the dashboard after a session ends', () => {
 
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'sessionLapse.signIn',
+        name: 'auth.sessionLapse.signIn',
       }),
     );
     await waitFor(() =>

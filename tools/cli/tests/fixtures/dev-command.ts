@@ -14,10 +14,11 @@ const result = (success = true, stdout = '', stderr = '') => ({
   exitCode: success ? 0 : 1,
 });
 
-mock.module('../../src/lib/project/find-project', () => ({
-  findProject: () => (scenario === 'stop-missing' ? null : process.cwd()),
-  findChildProject: () => null,
-}));
+if (scenario !== 'parent')
+  mock.module('../../src/lib/project/find-project', () => ({
+    findProject: () => (scenario === 'stop-missing' ? null : process.cwd()),
+    findChildProject: () => null,
+  }));
 mock.module('../../src/lib/project/project-context', () => ({
   getProjectId: () => 'onboarding-test',
   resolveOrAssignProjectContext: async () => call('context'),
@@ -32,7 +33,11 @@ mock.module('../../src/lib/config/ensure-env', () => ({
 }));
 mock.module('../../src/lib/actions/init', () => ({
   init: async () => {
-    throw new Error('Stop must not initialize a project');
+    throw new Error(
+      scenario === 'parent'
+        ? 'Parent guidance must not initialize a project'
+        : 'Stop must not initialize a project',
+    );
   },
 }));
 mock.module('../../src/lib/docker/ensure-docker', () => ({

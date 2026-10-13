@@ -239,7 +239,8 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   volume/containerd stores. See [session admission](sessions.md).
 - **Caches.** The shared per-org pip/npm/bun caches are **disabled** under DinD
   (per-container userns shifting makes a shared cross-session volume unsafe).
-  Installs still work, just uncached across sessions.
+  Installs still work, just uncached across sessions. The `default` profile,
+  which runs untrusted code, never mounts them, with or without DinD.
 
 ## Reuse builds within an organization
 

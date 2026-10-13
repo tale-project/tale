@@ -49,6 +49,48 @@ export interface ToolCallRequest {
   readonly rawInput?: string;
 }
 
+/**
+ * A file a tool produced, as its result names it. Every tool that makes a
+ * file — the work tools of `lib/agent` — answers with an `artifacts` list of
+ * these at the top level of its result: the model reads the refs there (and
+ * hands them back to a later call), and the turn pipeline lifts each one
+ * onto the reply as an `artifact` part, so the person gets the file whether
+ * or not the model mentions it.
+ */
+export interface ToolArtifact {
+  /** The blob reference the bytes live under. */
+  readonly ref: string;
+  readonly name: string;
+  readonly mediaType: string;
+  readonly sizeBytes: number;
+}
+
+function isToolArtifact(value: unknown): value is ToolArtifact {
+  if (value === null || typeof value !== 'object') return false;
+  const record: Record<string, unknown> = { ...value };
+  return (
+    typeof record.ref === 'string' &&
+    record.ref.length > 0 &&
+    typeof record.name === 'string' &&
+    record.name.length > 0 &&
+    typeof record.mediaType === 'string' &&
+    typeof record.sizeBytes === 'number' &&
+    Number.isFinite(record.sizeBytes) &&
+    record.sizeBytes >= 0
+  );
+}
+
+/** The files a tool output names under `artifacts` — none for any output
+ * that is not an object carrying such a list, and only the well-formed
+ * entries of one that is. */
+export function toolOutputArtifacts(output: unknown): ToolArtifact[] {
+  if (output === null || typeof output !== 'object') return [];
+  const artifacts: unknown =
+    'artifacts' in output ? output.artifacts : undefined;
+  if (!Array.isArray(artifacts)) return [];
+  return artifacts.filter(isToolArtifact);
+}
+
 /** A tool definition as the provider wire wants it. Both dialects consume
  * this one shape; the wire builder spells it per dialect. */
 export interface WireTool {
@@ -56,6 +98,15 @@ export interface WireTool {
   readonly description: string;
   /** JSON Schema for the arguments object. */
   readonly parameters: Record<string, unknown>;
+}
+
+/** What the turn tells a tool about the call it runs. */
+export interface ToolCallOptions {
+  /** Aborted when the call must stop: the reply was stopped, the round's tools
+   * ran out of time, or the turn itself ended (a worker stopping, a run's time
+   * limit). A tool that waits or works for long honours it and answers a
+   * structured result; one that finishes in moments may ignore it. */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -67,7 +118,7 @@ export interface WireTool {
  */
 export interface ChatToolExecutor {
   readonly wireTools: readonly WireTool[];
-  execute(call: ToolCallRequest): Promise<unknown>;
+  execute(call: ToolCallRequest, options?: ToolCallOptions): Promise<unknown>;
 }
 
 // ------------------------------------------------------------------ schemas

@@ -123,6 +123,16 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
+- **An image is an OCI artifact that says what it is** — the final stage of every
+  `services/*/Dockerfile` declares the whole `org.opencontainers.image.*` set (title, description,
+  `source` exactly `https://github.com/tale-project/tale` because the CLI refuses a deployment
+  whose image says otherwise, url, documentation, vendor, licenses, and `version` from
+  `ARG VERSION` declared after the stage's last `RUN`/`COPY`), and every image a Dockerfile pulls
+  (`FROM`, `COPY --from`, the `# syntax=` frontend) is pinned `image:tag@sha256:…`; Renovate keeps
+  the digests current. Build and Release repeat the labels as manifest annotations and read them
+  back by digest, and a release publishes one OCI image index per service with
+  `docker buildx imagetools create`, never `docker manifest`. The plop service templates scaffold
+  the same, and `tools/cli/scripts/oci-image-metadata.test.ts` holds every part of it.
 - **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
   standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
@@ -169,7 +179,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
-  [`.github/RELEASING.md`](../.github/RELEASING.md).
+  [`.github/RELEASING.md`](../.github/RELEASING.md). No per-day limit holds a release back;
+  a red `main` does, so read and repair it first
+  ([a release that has to go out](../.github/RELEASING.md#a-release-that-has-to-go-out)).
 - **No conflict markers** — `bun run lint:conflicts` (`scripts/check-conflict-markers.ts`)
   refuses a `<<<<<<<`, `|||||||` or `>>>>>>>` line in any tracked text file: the pre-commit hook
   runs it on the staged files, CI's Format job and `bun run check` on the whole tree. Markdown and
@@ -189,7 +201,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   before the 404 page: a 359-of-932 loss of published URLs and agents guessing translated slugs
   showed why (2026-09).
 - **A patched dependency stays pinned, proven and dated** — `patches/` holds the Bun
-  `patchedDependencies` patches (today postgres.js 3.4.7, #4041), and
+  `patchedDependencies` patches (today postgres.js 3.4.7: a killed server process, #4041, and a
+  `begin()` that fills a connection's pipeline, porsager/postgres#1189), and
   [`patches/README.md`](../patches/README.md) says for each why it exists, which test proves it and
   when to remove it. Every Dockerfile that installs from the root manifests copies `patches/`
   (`bun install` fails without a listed patch), and bumping a patched package regenerates or
@@ -341,7 +354,10 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
   `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
-  `LICENSE`, both published packages’ manifests and READMEs, and `publish-packages.yml`.
+  `LICENSE`, both published packages’ manifests and READMEs, `publish-packages.yml` and
+  `release.yml`.
+  The image metadata suite reads every service `Dockerfile`, both plop service Dockerfile
+  templates and `.github/renovate.json`.
   Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
@@ -479,10 +495,19 @@ default means deleting the override and fixing what surfaces:
   **v4 was live** row. A version saved over MCP names the client by the name it gave itself in
   `initialize` — self-reported until OAuth clients identify it (P6). Triggers and project bindings
   belong to the automation, not a version: their history is the audit log, which only admins read.
-  Versions are kept until the automation is deleted; there is no retention category for them.
-  Paying it down means a backfill writing `change_summary` from consecutive stored documents (the
-  engine's diff is pure), client identity from OAuth, and a governance category
-  (`automationVersions`) with its sweep that never prunes a live or protected version.
+  Versions are kept until the automation is deleted, unless governance bounds them: the retention
+  category `automationVersions` (off by default, 90–3650 days) removes versions older than its
+  period except the live one, the last ten deployments', every version a run used, the newest
+  twenty, what those were restored from or based on, and a held custodian's (2026-10-12). Paying it
+  down means a backfill writing `change_summary` from consecutive stored documents (the engine's
+  diff is pure) and client identity from OAuth.
+- **Forced colours are proven on the testing and versioning surfaces only** — `@tale/ui` keeps the
+  current choice (an underlined or pill tab, a segmented option, a pressed chip, the page strip's
+  line, the slider's track and fill) and keyboard focus visible in a contrast theme, held by
+  `forced-colors.browser.test.tsx` (2026-10-12); the other primitives were not audited. Known
+  candidates: the docs site's theme switcher (its checked option is a tint), `Switch` and the
+  `DataTable` selected row (each also says its state another way). Paying it down means one case
+  per primitive in that test, red first.
 - **An identical zip upload rewrites the bundle** — `POST /api/app/skills/upload` (the app's
   bundle upload) stages and swaps every file and snapshots the superseded `SKILL.md` into the
   history trail even when the zip is byte-identical to the stored bundle, so `updatedAt` moves and
@@ -585,6 +610,29 @@ default means deleting the override and fixing what surfaces:
   `readIdempotencyKey(c)` with a door-specific request hash over `{taskId, workflowSlug}` —
   the default hash covers the task's `title` and `status`, which the workflow itself moves, so
   an honest retry would otherwise answer 409 `IDEMPOTENCY_KEY_REUSED`.
+- **A hard-killed chat turn is recovered after ten minutes** — a reply cut by a graceful stop
+  or a database restart now settles at once (`domains/chat/live-turns.ts`, the shutdown sequence,
+  `waitOutDatabaseOutage` around the settle writes, 2026-10), but a process that is killed
+  (SIGKILL, the out-of-memory killer, a lost host) can run nothing, and the generation sweep
+  (`domains/chat/watchdogs.ts`, every 2 minutes) takes its turn for dead only once the
+  generation's heartbeat has stood still for `CHAT_GENERATION_STALE_MS` (10 minutes): the
+  placeholder stays `pending` and the thread refuses a new send meanwhile (409
+  `CHAT_TURN_IN_PROGRESS` on the REST door). The horizon is that long because the heartbeat
+  moves with streamed text and stored parts, not while a tool runs: the deploy drain
+  (`GENERATION_FRESH_MS` in `domains/control/service.ts`), the tool deadlines (the knowledge
+  search's embedding ceiling is held to half of it, `watchdogs.test.ts`) and the in-flight gauge
+  are measured against it. Paying it down means a beat that moves while a tool runs (a timer
+  around the turn engine's tool phase in `lib/chat/turn.ts`) so the horizon can drop to a couple
+  of minutes, with those four consumers moved together, or an owner stamp on the generation row
+  with a process lease the sweep reads (a migration).
+- **A missing sandbox token is logged with a stack per session** — in a deployment with no
+  spawner (the `tools/load` stack, a hand-rolled compose without `SANDBOX_TOKEN`) every sandbox
+  watchdog pass prints `Error: SANDBOX_TOKEN is not set` with its stack once per leftover session
+  (`collectFailedSessions` in `domains/sandbox/watchdogs.ts`, five sites in
+  `domains/sandbox/light-sessions.ts`, the `run_code` tool); only the workspace cleanup sweep
+  prints the sentence alone (2026-10). Paying it down means a typed error from
+  `requireSpawnerToken` (`core/node_only/sandbox/helpers/session_client.ts`) that those sites
+  print as one line, or no spawner passes at all while no token is configured.
 - **No queue position on a queued send** — the generation poll answers `queued` with no
   count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked through
   independent slots at `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from

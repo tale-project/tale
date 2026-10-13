@@ -90,6 +90,12 @@ export type NotificationTarget =
       to: '/dashboard/$id/settings/api/rest';
       params: { id: string };
     }
+  // The connected coding agents — where a person sees which of theirs was
+  // disconnected and which still work.
+  | {
+      to: '/dashboard/$id/settings/api/agents';
+      params: { id: string };
+    }
   // The websites list, filtered to the status the alert is about.
   | {
       to: '/dashboard/$id/websites';
@@ -258,6 +264,14 @@ export function personalNotificationTarget(args: {
   // `buildPersonalNotificationUrl`.
   if (params?.apiKeys === true) {
     return { to: '/dashboard/$id/settings/api/rest', params: { id } };
+  }
+
+  // A coding agent disconnected by something other than the member
+  // (`agent_connection_ended`) opens the connected agents, where they see
+  // which of theirs was disconnected and which still work. Mirrors
+  // `buildPersonalNotificationUrl`.
+  if (params?.agentConnections === true) {
+    return { to: '/dashboard/$id/settings/api/agents', params: { id } };
   }
 
   // A paused schedule (`automation_failed`) opens its automation's General

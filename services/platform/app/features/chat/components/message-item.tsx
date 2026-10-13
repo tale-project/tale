@@ -58,6 +58,7 @@ import {
   GenerationIncompleteNotice,
   isGenerationIncomplete,
 } from './generation-incomplete-notice';
+import { MessageArtifacts } from './message-artifacts';
 import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
@@ -658,6 +659,10 @@ function AssistantBody({
           )
         )}
       </div>
+      {/* What the reply made — documents, files, images — as soon as each
+          exists: the deliverable sits right under the answer, never behind
+          the tool steps. */}
+      <MessageArtifacts parts={message.parts} organizationId={organizationId} />
       {/* What this answer actually read — pages fetched, documents loaded —
           derived from the tool results, never from the prose. Settle-gated:
           the strip appears once (with its fade), never card-by-card while

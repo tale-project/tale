@@ -99,6 +99,17 @@ describe('releaseProjectAgentSessionSlot', () => {
     expect(update?.text).not.toContain('r.agent_id = s.owner_id');
   });
 
+  it('lets no run without a workspace keep a worker from stopping: it works in none [TASK-R37]', async () => {
+    const { sql, statements } = fakeSql([{ id: 'row-1' }]);
+
+    await releaseProjectAgentSessionSlot(sql, ARGS);
+
+    const update = statements.find((statement) =>
+      statement.text.startsWith('UPDATE'),
+    );
+    expect(update?.text).toContain("r.engine = 'harness'");
+  });
+
   it('wakes the org on the release edge when a slot was freed', async () => {
     const { sql } = fakeSql([{ id: 'row-1' }]);
 

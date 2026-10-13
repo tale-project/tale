@@ -35,6 +35,7 @@ import {
   isAgentSessionProfile,
   sessionAgentProfile,
   sessionDindEnabled,
+  sessionSharesPackageCaches,
 } from './session-profile.ts';
 
 interface DockerSessionRunInput {
@@ -401,11 +402,12 @@ export function buildDockerSessionRunArgs(
       ]
     : [];
 
-  // Per-org shared dep caches are DISABLED under DinD (sysbox userns shifting
-  // makes a cross-session shared volume's ownership/integrity unsafe — a
-  // same-org cache-poisoning vector). Cold caches are the safe default; installs
-  // still work, just uncached across sessions. See plan D2.
-  const cacheEnv = dind
+  // Per-org shared dep caches are for the AGENT profiles only, and not under
+  // Whether the shared per-org dependency caches are mounted at all is one
+  // question for the whole spawner (`sessionSharesPackageCaches`): not under
+  // DinD, and not for the untrusted `default` profile. See plan D2.
+  const sharedCaches = sessionSharesPackageCaches(inp.profile, dind);
+  const cacheEnv = !sharedCaches
     ? []
     : [
         '--env',
@@ -420,7 +422,7 @@ export function buildDockerSessionRunArgs(
         '--env',
         `BUN_INSTALL_CACHE_DIR=/cache/bun`,
       ];
-  const cacheMounts = dind
+  const cacheMounts = !sharedCaches
     ? []
     : [
         '--mount',
@@ -503,7 +505,8 @@ export function buildDockerSessionRunArgs(
     // match.
     '--env',
     `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay`,
-    // Per-org shared dep caches (empty under DinD — see cacheEnv above).
+    // Per-org shared dep caches (empty under DinD and for the untrusted
+    // `default` profile — see cacheEnv above).
     ...cacheEnv,
     // HOME on the persistent workspace volume so agent state (~/.claude,
     // ~/.config/opencode, ~/.gitconfig) survives every exec + restart.

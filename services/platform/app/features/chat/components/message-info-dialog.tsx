@@ -287,6 +287,7 @@ const PHASE_COLOR: Record<ReplyPhaseKind, string> = {
   preparing: 'bg-chart-neutral/40',
   waiting: 'bg-chart-neutral/75',
   thinking: 'bg-chart-primary/45',
+  tools: 'bg-chart-2',
   writing: 'bg-chart-primary',
 };
 
@@ -294,14 +295,16 @@ const PHASE_COLOR: Record<ReplyPhaseKind, string> = {
  * legend. The bar is decoration — the legend carries every number. */
 function PhaseTimeline({
   usage,
+  parts,
   locale,
   t,
 }: {
   usage: ChatMessageUsage;
+  parts: readonly MessagePart[];
   locale: string;
   t: Translate;
 }) {
-  const phases = replyPhases(usage);
+  const phases = replyPhases(usage, parts);
   const total = phases.reduce((sum, phase) => sum + phase.durationMs, 0);
   if (phases.length < 2 || total <= 0) return null;
   return (
@@ -447,7 +450,7 @@ export function MessageInfoDialog({
   }
 
   // ── Speed ──
-  const tokensPerSecond = outputTokensPerSecond(usage);
+  const tokensPerSecond = outputTokensPerSecond(usage, message.parts);
   const metrics: { label: string; value: string }[] = [];
   if (usage.timeToFirstTokenMs !== undefined) {
     metrics.push({
@@ -570,7 +573,12 @@ export function MessageInfoDialog({
         {hasPerf && (
           <InfoSection title={t('messageInfo.performance')}>
             {metrics.length > 0 && <MetricStrip items={metrics} />}
-            <PhaseTimeline usage={usage} locale={locale} t={t} />
+            <PhaseTimeline
+              usage={usage}
+              parts={message.parts}
+              locale={locale}
+              t={t}
+            />
             {usage.perceivedWaitMs !== undefined && (
               <Text as="div" variant="caption">
                 {t('messageInfo.perceivedWait', {

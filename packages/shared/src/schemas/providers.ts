@@ -228,6 +228,8 @@ const providerAuthMethodSchema = z.discriminatedUnion('method', [
        * `CLAUDE_CODE_OAUTH_TOKEN`, not the bearer channel). The harness must
        * list it in its `subscription.tokenVarOverrides`. */
       targetEnvVar: envKeyNameSchema.optional(),
+      /** Vendor account identity required by subscription runtimes such as Codex. */
+      accountIdVar: envKeyNameSchema.optional(),
       imageInputs: subscriptionImageInputsSchema.optional(),
       constraints: executionConstraintsSchema,
     })
@@ -379,6 +381,7 @@ export const providerCredentialCreateSchema = z.object({
   ]),
   name: z.string().min(1).max(120),
   secret: z.string().max(100_000).optional(),
+  accountId: z.string().trim().min(1).max(200).optional(),
   envName: z.string().max(80).optional(),
   endpointUrl: z.string().max(2048).optional(),
   modelAllowlist: z.array(z.string().max(200)).max(200).optional(),
@@ -393,6 +396,7 @@ export const providerCredentialUpdateSchema = z.object({
   endpointUrl: z.string().max(2048).nullable().optional(),
   envName: z.string().max(80).optional(),
   secret: z.string().max(100_000).optional(),
+  accountId: z.string().trim().min(1).max(200).optional(),
 });
 
 /** Hash projection excludes masked previews, ciphertext and secret values. */
@@ -403,6 +407,7 @@ export const providerCredentialMetadataSchema = z.object({
   name: z.string(),
   envName: z.string().nullable(),
   endpointUrl: z.string().nullable(),
+  accountId: z.string().nullable().default(null),
   modelAllowlist: z.array(z.string()).nullable(),
   isDefault: z.boolean(),
   status: z.string(),

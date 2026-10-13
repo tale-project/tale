@@ -22,6 +22,9 @@ import type { TaskRunFailureCode } from '../../backend/core/tasks/task_auto_retr
 export const TASK_RUN_FAILURE_CLASSES = [
   /** The organization's spending limit refused the run: an admin raises it. */
   'budget',
+  /** The organization's content policy refused the task or the agent's
+   * reply: the task changes, or an admin changes the policy. */
+  'policy',
   /** The agent's own configuration cannot run: a project editor fixes it. */
   'setup',
   /** An attachment's bytes left the object store: whoever can change the
@@ -51,6 +54,7 @@ export type TaskRunFailureClass = (typeof TASK_RUN_FAILURE_CLASSES)[number];
 
 const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   budget_exceeded: 'budget',
+  policy_refused: 'policy',
   agent_deleted: 'setup',
   agent_model_missing: 'setup',
   equipment_missing: 'setup',

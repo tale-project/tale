@@ -6,6 +6,7 @@ import {
   isPasswordValid,
   passwordPolicyViolations,
 } from '../../../lib/shared/schemas/password.ts';
+import { endAllAccessOf } from '../../auth/account-security.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { physicalTaskQueue } from '../../jobs/tasks.ts';
@@ -119,9 +120,11 @@ export interface AutomationWork {
    * drain names none). */
   automationRuns: number;
   /** Agent-turn drive windows that were already running when the drain
-   * began. The job queue knows no colour, so they are counted on every
-   * colour; each lasts at most 90 s, and a drained worker hands the turn's
-   * next window to the live colour. */
+   * began, and native task turns, which run to their end inside one job.
+   * The job queue knows no colour, so they are counted on every colour; a
+   * window lasts at most 90 s and a drained worker hands the turn's next
+   * window to the live colour, while a native turn is waited for — it keeps
+   * no state a successor could pick up. */
   agentDrives: number;
 }
 
@@ -160,7 +163,9 @@ export async function countAutomationWork(sql: Sql): Promise<AutomationWork> {
   const drives = await sql<{ count: number }[]>`
     SELECT count(*)::int AS count FROM pgboss.job
     WHERE name IN (${physicalTaskQueue('automation.agent_drive')},
-                   'automation.agent_drive', 'task.agent_drive')
+                   ${physicalTaskQueue('task.agent_native')},
+                   'automation.agent_drive', 'task.agent_drive',
+                   'task.agent_native')
       AND state = 'active'
       AND started_on <= to_timestamp(${drain.startedAt ?? now} / 1000.0)
   `;
@@ -349,8 +354,9 @@ export async function reseedAllOrganizations(sql: Sql): Promise<ReseedResult> {
  * It deliberately validates against the BUILT-IN policy, not the org's: this
  * is the way back in when an admin has locked themselves out with an
  * unreachably strict one, so honoring that policy here would make recovery
- * impossible. Every live session of that account is dropped, so a stolen
- * cookie cannot outlive the reset.
+ * impossible. Every live session of that account is dropped, and so is every
+ * coding agent they connected, so a stolen cookie or token cannot outlive
+ * the reset.
  */
 export async function resetOwnerCredentials(
   sql: Sql,
@@ -409,11 +415,12 @@ export async function resetOwnerCredentials(
       );
     }
     const passwordHash = await hashPassword(args.newPassword);
-    // The credential write, the session sweep and the rotation anchor are
-    // one transaction (the same shape as the admin door's setMemberPassword).
+    // The credential write, the session and agent sweep and the rotation
+    // anchor are one transaction (the same shape as the admin door's
+    // setMemberPassword).
     await transactSerializable(sql, async (tx) => {
       await setCredentialPassword(tx, owner.userId, passwordHash);
-      await tx`DELETE FROM "session" WHERE "userId" = ${owner.userId}`;
+      await endAllAccessOf(tx, owner.userId);
       await recordPasswordChange(tx, owner.userId);
     });
     updatedPassword = true;

@@ -74,6 +74,8 @@ A run started by someone who can't edit the project, such as a Member, keeps to 
 - The run gets neither the agent's **Secrets** nor the token of an equipped GitHub connection. The agent learns which credentials were held back and is asked to say so in its report when the work needs them; an Editor or higher then has to start it. Connectors equipped on the agent keep working and act for the person who started the run.
 - It works in a worker kept for that person's runs with this agent, with a workspace of its own: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The person gets one such worker for each of their runs with the agent that work at the same time. Their later runs with the agent find the workspace again, until Tale deletes it: when the person leaves the organization or the agent is deleted, or once no run has used it for the number of days the organization sets under [**Days without use**](/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 
+A [standard agent run without a worker](/platform/projects/project-agents#standard-agent-runs) has no platform tools to change tasks at all: it reads what the person who started it can read, makes files, and reports to its task.
+
 The run can still read the project's tasks and knowledge, and it keeps these limits when an Editor guides it later. A run that an Editor or higher starts has the agent's full equipment, on any task. A Member's comment can change that: when the agent's runtime restarts to take in the comment, as [every runtime except Claude Code](/platform/agents/harnesses) does, the rest of the run counts as the Member's, with the same limits on its tools and credentials.
 
 ## Choose an owner and a reviewer

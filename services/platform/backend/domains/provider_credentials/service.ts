@@ -32,7 +32,10 @@ import {
 } from '../../core/provider_credentials/resolve_credential.ts';
 import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
-import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  orgAdapterShimHandlers,
+  resolveOrgSlug,
+} from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -161,6 +164,7 @@ interface ResolverRow {
   encryptedData?: EncryptedSecret;
   envName?: string;
   endpointUrl?: string;
+  accountId?: string;
   modelAllowlist?: string[];
   status: 'active' | 'disabled';
 }
@@ -169,6 +173,7 @@ const RESOLVER_COLUMNS = `
   id AS "_id", org_id AS "organizationId", provider_slug AS "providerSlug",
   auth_method AS "authMethod", name, encrypted_data AS "encryptedData",
   env_name AS "envName", endpoint_url AS "endpointUrl",
+  account_id AS "accountId",
   model_allowlist AS "modelAllowlist", status
 `;
 
@@ -183,6 +188,7 @@ function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
     encryptedData: row.encryptedData ?? undefined,
     envName: row.envName ?? undefined,
     endpointUrl: row.endpointUrl ?? undefined,
+    accountId: row.accountId ?? undefined,
     modelAllowlist: row.modelAllowlist ?? undefined,
   };
 }
@@ -275,7 +281,10 @@ export async function resolveProviderCredential(
     requireBrokerAccountId?: boolean;
   },
 ): Promise<ResolvedProviderCredential> {
-  const shim = createCtxShim(credentialShimHandlers(sql));
+  const shim = createCtxShim({
+    ...orgAdapterShimHandlers(sql),
+    ...credentialShimHandlers(sql),
+  });
   return resolveProviderCredential04(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused resolver uses the shim's query and mutation handlers (see ctx-shim contract)
     shim as unknown as Parameters<typeof resolveProviderCredential04>[0],
@@ -355,6 +364,8 @@ export interface CredentialListItem {
   name: string;
   envName: string | null;
   endpointUrl: string | null;
+  /** Only subscription credentials carry a vendor account identifier. */
+  accountId?: string | null;
   maskedPreview: string | null;
   modelAllowlist: string[] | null;
   isDefault: boolean;
@@ -381,6 +392,7 @@ export async function listCredentials(
   const rows = await sql<Omit<CredentialListItem, 'hash'>[]>`
     SELECT id, provider_slug AS "providerSlug", auth_method AS "authMethod",
            name, env_name AS "envName", endpoint_url AS "endpointUrl",
+           account_id AS "accountId",
            masked_preview AS "maskedPreview",
            model_allowlist AS "modelAllowlist", is_default AS "isDefault",
            status, created_at_ms::float8 AS "createdAt",
@@ -570,6 +582,12 @@ export async function createCredential(
   let encryptedData: EncryptedSecret | undefined;
   let maskedPreview: string | undefined;
   let envName: string | undefined;
+  if (args.accountId !== undefined && args.authMethod !== 'subscription-key') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ACCOUNT_ID_INVALID',
+      'An account ID is only valid for a subscription-key credential',
+    );
+  }
   if (args.authMethod === 'env') {
     envName = assertProviderKeyEnvName(args.envName);
   } else {
@@ -613,13 +631,13 @@ export async function createCredential(
     rows = await tx<{ id: string }[]>`
       INSERT INTO app.provider_credentials (
         org_id, provider_slug, auth_method, name, encrypted_data, env_name,
-        endpoint_url, masked_preview, model_allowlist, is_default, status,
+        endpoint_url, account_id, masked_preview, model_allowlist, is_default, status,
         created_by, created_at_ms, updated_at_ms
       ) VALUES (
         ${scope.organizationId}, ${args.providerSlug}, ${args.authMethod},
         ${name},
         ${encryptedData === undefined ? null : tx.json(toJson(encryptedData))},
-        ${envName ?? null}, ${args.endpointUrl ?? null},
+        ${envName ?? null}, ${args.endpointUrl ?? null}, ${args.accountId ?? null},
         ${maskedPreview ?? null}, ${args.modelAllowlist ?? null},
         ${isDefault}, ${status}, ${scope.userId}, ${now}, ${now}
       )
@@ -691,6 +709,7 @@ export async function updateCredential(
       id: string;
       envName: string | null;
       endpointUrl: string | null;
+      accountId: string | null;
       maskedPreview: string | null;
       modelAllowlist: string[] | null;
       createdAt: number;
@@ -700,7 +719,7 @@ export async function updateCredential(
   >`
     SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name,
            auth_method AS "authMethod", status, id, env_name AS "envName",
-           endpoint_url AS "endpointUrl", masked_preview AS "maskedPreview",
+           endpoint_url AS "endpointUrl", account_id AS "accountId", masked_preview AS "maskedPreview",
            model_allowlist AS "modelAllowlist", created_at_ms::float8 AS "createdAt",
            updated_at_ms::float8 AS "updatedAt", encrypted_data AS "encryptedData"
     FROM app.provider_credentials
@@ -777,6 +796,12 @@ export async function updateCredential(
         : patch.secret,
     );
   }
+  if (patch.accountId !== undefined && row.authMethod !== 'subscription-key') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ACCOUNT_ID_INVALID',
+      'An account ID is only valid for a subscription-key credential',
+    );
+  }
   if (patch.endpointUrl !== undefined && patch.endpointUrl !== null) {
     assertCredentialEndpointUrl(patch.endpointUrl);
   }
@@ -788,6 +813,7 @@ export async function updateCredential(
         is_default = coalesce(${patch.isDefault ?? null}, is_default),
         model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
         endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
+        account_id = ${patch.accountId === undefined ? tx`account_id` : (patch.accountId ?? null)},
         env_name = coalesce(${patch.envName ?? null}, env_name),
         encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
         masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),

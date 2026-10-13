@@ -518,7 +518,12 @@ describe('platform production dependency branch', () => {
     expect(
       all
         .filter((instruction) => instruction.stage === 'bun-base')
-        .map((instruction) => `${instruction.keyword} ${instruction.args}`),
+        .map(
+          // The base image's digest is Renovate's to move; the stage's shape is
+          // this guard's.
+          (instruction) =>
+            `${instruction.keyword} ${instruction.args.replace(/@sha256:[a-f0-9]{64}/, '')}`,
+        ),
     ).toEqual([
       'FROM debian:bookworm-slim AS bun-base',
       'COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun',
@@ -616,8 +621,8 @@ describe('platform production dependency branch', () => {
 
   it.each([
     source.replace(
-      'FROM debian:bookworm-slim AS runner',
-      'FROM debian:bookworm-slim AS runner\nWORKDIR /tmp/runtime',
+      /^(FROM debian:bookworm-slim\S* AS runner)$/m,
+      '$1\nWORKDIR /tmp/runtime',
     ),
     source.replace(
       '--from=builder --chown=app:app /app/packages',
@@ -640,6 +645,9 @@ describe('platform production dependency branch', () => {
       'COPY services/platform/lib ./lib\nRUN chmod +x ./docker-entrypoint.sh',
     ),
   ])('rejects incomplete or unowned runtime copies (%#)', (mutated) => {
+    // A replacement that matched nothing leaves the source whole, and the case
+    // would then fail (or pass) for the wrong reason.
+    expect(mutated).not.toBe(source);
     expect(() => assertRunnerClosure(mutated)).toThrow();
   });
 });

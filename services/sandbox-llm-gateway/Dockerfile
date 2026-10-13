@@ -25,16 +25,7 @@ ARG VERSION=dev
 # served, and billed, an abandoned whole answer to its end, and a prefill a
 # stream was waiting on). Its datasheet-backed request reshaping leaves the
 # per-(org, model) custom records alone; it applies to standard providers.
-FROM maximhq/bifrost:v2.2.4
-
-# Re-declare VERSION arg (ARGs don't persist after FROM)
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-sandbox-llm-gateway" \
-      org.opencontainers.image.description="Tale sandbox LLM gateway — managed provider auth + per-session virtual keys" \
-      org.opencontainers.image.source="https://github.com/tale-project/tale" \
-      org.opencontainers.image.vendor="Tale" \
-      org.opencontainers.image.licenses="MIT"
+FROM maximhq/bifrost:v2.2.4@sha256:5f8215163cea192451f4b2ee5e0b583874ffe9435a5ab733e08c07aaf38ace57
 
 # The base image ships busybox wget but no curl.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
@@ -45,6 +36,19 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
 # with the upstream command.
 # Redeclaring ENTRYPOINT resets the inherited CMD, so it is restated.
 COPY --chmod=0555 services/sandbox-llm-gateway/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-sandbox-llm-gateway" \
+      org.opencontainers.image.description="Tale sandbox LLM gateway — managed provider auth + per-session virtual keys" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
+
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["/app/main"]
 

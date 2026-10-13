@@ -183,10 +183,10 @@ visionModel:
 imageGeneration:
   title: Image generation
   description:
-    Lets project agents working on tasks and agent nodes in automations
-    create images, billed to your organization. Off until you turn it on.
-    Chat never creates images.
-  enabledLabel: Let agents generate images
+    Lets the chat assistant, project agents working on tasks and agent
+    nodes in automations create images, billed to your organization. Off
+    until you turn it on.
+  enabledLabel: Allow image generation
   label: Image model
   labelHint:
     Automatic uses the first recommended image model your provider
@@ -195,25 +195,27 @@ imageGeneration:
   automaticLabel: Automatic
   automaticHint: Let Tale choose from the recommended image models your credentials reach.
   currentModel:
-    pinned: 'Agents currently generate images with {model}.'
-    preferred: 'Agents currently generate images with {model}, the recommended choice.'
+    pinned: 'Images are currently created with {model}.'
+    preferred: 'Images are currently created with {model}, the recommended choice.'
   draftHint: Save to apply this selection.
   noAvailable:
-    None of the recommended image models is available, so agents get no
-    image tool. Add an OpenRouter or OpenAI credential in AI providers, or
+    None of the recommended image models is available, so neither the chat
+    nor agents can create images. Add an OpenRouter or OpenAI credential in AI providers, or
     choose one of the listed models.
   unavailable:
-    The saved image model is unavailable, so agents get no image tool.
+    The saved image model is unavailable, so neither the chat nor agents
+    can create images.
     Choose another model or Automatic, or check its provider credential and
     the models it allows. Tale will not switch to another model while this
     selection is saved.
   invalidPolicy:
-    The saved image generation configuration is invalid, so agents get no
-    image tool. Switch image generation off and on, or choose a model and
+    The saved image generation configuration is invalid, so neither the
+    chat nor agents can create images. Switch image generation off and on, or choose a model and
     save, to repair it.
   policyUnavailable:
     The saved image generation configuration could not be read. Retry
-    before changing it. Agents get no image tool until it can be read.
+    before changing it. Until it can be read, neither the chat nor agents
+    can create images.
   resolutionFailed:
     Tale could not check the image model. Check the provider connection and
     retry.
@@ -306,6 +308,12 @@ retentionPolicy:
   enabled: Enabled
   retentionDays: Retention days
   retentionHours: Retention hours
+  valueDays: '{count, plural, one {# day} other {# days}}'
+  valueHours: '{count, plural, one {# hour} other {# hours}}'
+  unitDays: days
+  unitHours: hours
+  stateOn: enabled
+  stateOff: disabled
   envDisabled: Retention is currently disabled by the operator
     (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is
     removed.
@@ -369,8 +377,9 @@ retentionPolicy:
     detailsEmpty: No detailed changes recorded.
     diffHeading: Bound changes
     impactHeading: Impact on your stored values
-    diffRow: '{category}: {field} {from} → {to} ({direction})'
+    diffRow: '{category}, {field, select, min {minimum} max {maximum} other {{field}}}: {from} → {to} ({direction, select, tighten {tightens retention} loosen {loosens retention} other {{direction}}})'
     impactRow: '{category}: {current} will clamp to {clamped}'
+    unbounded: no limit
     appliedToast: Bounds proposal applied. Cleanup will use new bounds on next run.
     rejectedToast: Bounds proposal rejected. Cleanup continues with previous bounds.
     applyFailedToast: Couldn't apply the bounds proposal.
@@ -443,6 +452,11 @@ retentionPolicy:
       blobs.
     placeholder: e.g. 30
     helper: Automation runs older than this will be deleted.
+  automationVersions:
+    title: Automation versions
+    description: 'Delete saved versions of automations that are older than the retention period, except versions still in use: the live and recently deployed ones, ones a run used, and the newest twenty.'
+    placeholder: e.g. 365
+    helper: Older versions that nothing uses any more will be deleted.
   auditLogs:
     title: Audit logs
     description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.
@@ -588,6 +602,26 @@ voiceOutput:
   enabledLabel: Voice output enabled for this organization
   saved: Voice-output policy updated
   saveFailed: Couldn't save the voice-output policy
+chatTools:
+  title: Chat tools
+  description:
+    What the chat assistant may make besides its answers. A tool you switch
+    off is gone from every chat in the organization. Images follow the Image
+    generation setting.
+  files: Files
+  filesHint:
+    Text files the assistant writes out itself, such as Markdown, CSV, HTML
+    or calendar entries. No sandbox starts.
+  skills: Skills
+  skillsHint:
+    Instructions from each person's skill library, which the assistant
+    loads when one fits the work.
+  code: Code
+  codeHint:
+    Code in a light sandbox that starts in about a second, for Word, Excel,
+    PowerPoint and PDF files, charts and calculations. Counts toward the
+    light sandbox limit under Sandboxes.
+  saveFailed: Couldn't save the chat tools
 skillSharing:
   title: Skill sharing
   description: Choose who may share a skill with the whole organization.
@@ -1333,6 +1367,9 @@ modelAccess:
   noTeamsFound: No teams found
   confirm: Confirm
   saved: Model access policy updated
+  targetRequired: Select a target for this rule.
+  missingTarget: Missing target
+  targetsNeedRepair: Some rules have no target and do not apply to anyone. Select a target for each rule or delete it. Changes are not saved until all rules have targets.
   saveFailed: Couldn't save model access policy
   removeDefaultConfirmTitle: Remove permission for active default model?
   removeDefaultConfirmBody:
@@ -1480,6 +1517,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejected
     gdpr_erasure_cancelled: Cancelled
   categories:
+    runTranscripts: Agent run transcripts
     modelApiRequests: Model requests
     userMemories: Personal memories
     userPreferences: User preferences
@@ -1504,6 +1542,7 @@ dataSubjectRequests:
     feedback: Message feedback
     memories: Personal memories
     mcpActivity: Coding agent activity
+    agentConnections: Coding agent connections
     directCalls: Direct model calls
     videoLinks: Video links
     cloudGrants: Cloud import authorizations
@@ -1708,7 +1747,7 @@ standardAgent:
   description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
   enabledLabel: Provide a standard agent
   harnessLabel: Agent runtime
-  harnessHint: Automatic runs Claude Code, or the agent runtime a subscription model is bound to.
+  harnessHint: Automatic works with the same tools as the chat and hands over to Claude Code, or to the agent runtime a subscription model is bound to, when a task needs a full workspace. Choose an agent runtime to run every task on it.
   modelLabel: Model
   modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
   automaticLabel: Automatic
@@ -1718,13 +1757,15 @@ standardAgent:
   instructionsHint: What the standard agent always keeps in mind. Leave this empty to use the built-in instructions.
   instructionsPlaceholder: Built-in instructions
   current: For you, it runs on {harness} with {model}.
+  currentNative: For you, it works with {model} and hands over to {harness} when a task needs a full workspace.
   refusal:
     switchedOff: The standard agent is switched off.
     unreadable: The saved settings can't be read. Retry, or save them again to repair them.
     harnessInvalid: The chosen agent runtime isn't available, so the standard agent can't start. Choose another agent runtime or Automatic.
     noModel: No model you can use can run the standard agent. Add a credential under AI providers, or check model access.
     pinUnavailable: The chosen model isn't available to you, so the standard agent can't start for you. Choose another model or Automatic. Tale won't switch to another model while this choice is saved.
-  invalidPolicy: The saved standard agent settings are invalid. Save them again to repair them.
+  invalidPolicy: The saved standard agent settings are invalid. Under Model, choose a model or Automatic and save to repair them.
+  invalidSelection: Invalid saved configuration
   savedUnavailable: Saved selection is not currently available
   searchHarnesses: Search agent runtimes
   noHarnessesFound: No matching agent runtime

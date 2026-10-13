@@ -279,3 +279,47 @@ describe('refreshing a provider’s catalog', () => {
     warn.mockRestore();
   });
 });
+
+describe('a provider Tale ships is not a setting', () => {
+  const expected = {
+    code: 'SETTINGS_NOT_FOUND',
+    error: expect.stringContaining('openai'),
+    hint: expect.stringContaining('provider-credential'),
+  };
+
+  it('is refused as not a setting when it is read, with where its keys are kept [MCP-R37]', async () => {
+    const answer = await getSettings(contextOf('admin'), registry, {
+      kinds: ['provider'],
+      ids: ['openai'],
+    });
+    expect(answer.resources).toEqual([]);
+    expect(answer.refused).toEqual([{ kind: 'provider', ...expected }]);
+    // Not the sentence about replacing a provider, which says nothing of a read.
+    expect(JSON.stringify(answer)).not.toContain('PROVIDER_NAME_RESERVED');
+    expect(JSON.stringify(answer)).not.toContain('cannot replace');
+  });
+
+  it.each([
+    ['refreshing its catalog', { op: 'act' as const, act: 'refresh-catalogs' }],
+    ['removing it', { op: 'delete' as const }],
+  ])('is refused the same way when %s [MCP-R37]', async (_what, change) => {
+    const plan = await planSettings(contextOf('admin'), registry, [
+      { kind: 'provider', id: 'openai', ...change },
+    ]);
+    expect(plan.changes[0]?.refusal).toMatchObject(expected);
+    expect(catalog).not.toHaveBeenCalled();
+  });
+
+  it('is still refused as a name to define when a change would replace it [MCP-R37]', async () => {
+    const plan = await planSettings(contextOf('admin'), registry, [
+      set({ ...definition, name: 'openai' }),
+    ]);
+    expect(plan.changes[0]?.refusal?.code).toBe('PROVIDER_NAME_RESERVED');
+  });
+
+  it('reads as nothing to a read of one resource, as every name no one defined does', async () => {
+    expect(await providerSettings.read(contextOf('admin'), 'openai')).toBe(
+      null,
+    );
+  });
+});

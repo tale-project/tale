@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 60 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 64 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -305,6 +305,35 @@ compute codes from the enrollment secret.
   sessions it ends are signed out on their next request, B's first browser
   included.
 
+- [ ] `AUTH-F34` · **A coding agent's consent page** — With agent sign-in on
+  (the default) register an app
+  (`POST /api/auth/oauth2/register`: a redirect to
+  `http://127.0.0.1:54545/callback`, the six `tale:` scopes and
+  `offline_access`), sign in as the owner of Acme who is a plain member of Beta
+  and has a switched-off seat in Zed, and open the app's authorize URL (PKCE
+  S256, `resource` the MCP endpoint) → `/oauth/consent` shows, top to bottom: a
+  bot mark joined to Tale's by a dashed line, **Connect {app} to Tale**, who you
+  are signed in as, the **Unverified app** badge with its note, where you go
+  back to (**this computer (127.0.0.1)**), **Organization** with Acme chosen and
+  Beta and Zed unavailable, each saying why, **Access** with **Edit
+  automations** chosen, **Also allow** unchecked, **What {app} can do** (two
+  lines with a check, four with a dash), the duration line, and **Connect** over
+  **Cancel**.
+- [ ] `AUTH-F35` · **More access asks for the password, and what was chosen
+  stays** — With the session set back 25 hours (`UPDATE "session" SET
+  "createdAt" = now() - interval '25 hours'`) and a fresh authorize URL (the
+  signed request lives five minutes): the **Confirm it’s you** block shows and
+  **Connect** is unavailable; choose **Read and test** → the block goes and
+  **Connect** is available; choose **Edit and deploy** and **Change settings**
+  (**Read settings** checks itself and cannot be unchecked) → five lines have a
+  check; type the password and **Confirm** → the page loads again with **Edit
+  and deploy**, **Read settings** and **Change settings** still chosen, no
+  block, and **Connect** available.
+- [ ] `AUTH-F36` · **Connecting and declining** — **Connect** → **Connecting…**
+  shows, then the browser goes to the app's address with a `code` and the
+  `state` the app sent; from a fresh request **Cancel** → it goes there with
+  `error=access_denied` and no `code`.
+
 ## Boundary & error tests
 
 - [ ] `AUTH-B1` · **Empty login** — `/log-in` with both fields empty → **Log
@@ -544,6 +573,15 @@ compute codes from the enrollment secret.
   and for how long (`auth.login.accountLockedSeconds`), no toast appears, and
   you stay signed in; after the wait the right current password changes it.
 
+- [ ] `AUTH-B20` · **Requests the consent page refuses** — Open the page ten
+  minutes after authorizing → it says the request has expired and offers
+  neither **Connect** nor **Cancel**; as a person who belongs to no
+  organization, or only to ones where they are a plain member → it says none of
+  your organizations lets you connect a coding agent, **Connect** is
+  unavailable and **Cancel** works; with a session that belongs to one
+  organization (an organization's own single sign-on) → it says the sign-in
+  belongs to one organization and cannot connect a coding agent.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `AUTH-A1` · **Field labels** → The Email and Password inputs each have
@@ -557,6 +595,14 @@ compute codes from the enrollment secret.
   `select-all` and copyable by keyboard.
 - [ ] `AUTH-A5` · **Dialog focus** → The logout / add-member / change-password
   dialog traps focus and returns it to the trigger on close.
+- [ ] `AUTH-A6` · **A coding agent's consent page by keyboard and screen
+  reader** → Tab goes organization → access level → extras → **Connect** →
+  **Cancel**, each with a visible focus; the radio groups move with the arrow
+  keys; choosing a level is announced politely with the new list; the
+  unverified warning is read as a note; with the password block showing,
+  **Connect** is described by **Confirm it’s you**; at 320 px and 200 % zoom
+  nothing scrolls sideways, in German and French nothing is clipped, and in
+  dark mode every word is readable.
 
 ## Performance
 

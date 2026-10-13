@@ -334,6 +334,7 @@ teams:
   teamNameTooLong: Der Teamname darf höchstens 80 Zeichen lang sein
   teamNameTaken: Ein Team mit diesem Namen existiert bereits
   membershipChangesFailed: '{count, plural, one {# Mitgliedschaftsänderung wurde} other {# Mitgliedschaftsänderungen wurden}} abgelehnt. Die Liste wurde aktualisiert.'
+  membershipRefreshConflict: Die Teammitglieder wurden in einer anderen Sitzung geändert. Schließe diesen Dialog und öffne ihn erneut, um die aktuelle Liste zu prüfen.
   syncedBadge: Synchronisiert
   syncedNotice: Dieses Team wird von deinem Identity Provider bereitgestellt,
     der Name und Mitglieder verwaltet. Ändere sie dort – eine lokale Änderung
@@ -978,6 +979,7 @@ providers:
   dialog:
     secret: API-Schlüssel
     subscriptionSecret: Abo-Schlüssel
+    subscriptionAccountId: ChatGPT-Konto-ID
     envName: Umgebungsvariable
     envNameHelp:
       Name der Deployment-Variable mit dem Schlüssel — das Präfix ist
@@ -1205,6 +1207,8 @@ logs:
     topActors:
       title: Aktivste Benutzer
     empty: Keine Aktivität in diesem Zeitraum.
+    readFailed: Die Aktivitätsübersicht konnte nicht geladen werden. Erneut versuchen.
+    retry: Erneut versuchen
   errors:
     entityLabel: Fehlerprotokolle
     entityLabelOne: Fehlerprotokoll
@@ -1320,6 +1324,9 @@ logs:
       api_key.created: API-Schlüssel erstellt
       api_key.updated: API-Schlüssel aktualisiert
       api_key.revoked: API-Schlüssel widerrufen
+      agent_connection.created: Coding-Agent verbunden
+      agent_connection.updated: Zugriff eines Coding-Agents geändert
+      agent_connection.revoked: Coding-Agent getrennt
       webdav_app_password.created: WebDAV-App-Passwort erstellt
       webdav_app_password.revoked: WebDAV-App-Passwort widerrufen
       connector_credential.created: Connector-Zugangsdaten erstellt
@@ -1413,6 +1420,7 @@ logs:
       workflow_trigger_log.retention_deleted: Automatisierungs-Trigger-Log per Aufbewahrung gelöscht
       audit_log.retention_deleted: Audit-Log per Aufbewahrung gelöscht
       automation_run.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
+      automation_version.retention_deleted: Automatisierungsversion per Aufbewahrung gelöscht
       agent_run.retention_deleted: Agentenlauf per Aufbewahrung gelöscht
       message_feedback.retention_deleted: Nachrichten-Feedback per Aufbewahrung gelöscht
       notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
@@ -1579,6 +1587,7 @@ logs:
       connector_operation: Connector-Vorgang
       connector_credential: Connector-Zugangsdaten
       api_key: API-Schlüssel
+      agent_connection: Verbindung eines Coding-Agents
       webdav_app_password: WebDAV-App-Passwort
       sso_provider: SSO-Anbieter
       video_link: Video-Link

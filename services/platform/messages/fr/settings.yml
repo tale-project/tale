@@ -347,6 +347,7 @@ teams:
   teamNameTooLong: Le nom de l'équipe ne peut pas dépasser 80 caractères
   teamNameTaken: Une équipe portant ce nom existe déjà
   membershipChangesFailed: '{count, plural, one {# modification de membre a été refusée} other {# modifications de membres ont été refusées}}. La liste a été actualisée.'
+  membershipRefreshConflict: Les membres de l’équipe ont changé dans une autre session. Ferme cette boîte de dialogue et rouvre-la pour vérifier la liste actuelle.
   syncedBadge: Synchronisée
   syncedNotice: "Cette équipe est provisionnée par ton fournisseur d'identité, qui gère son nom et ses membres. Modifie-les là-bas : une modification locale serait annulée à la prochaine synchronisation."
   deleteImpact:
@@ -1006,6 +1007,7 @@ providers:
   dialog:
     secret: Clé API
     subscriptionSecret: Clé d'abonnement
+    subscriptionAccountId: ID du compte ChatGPT
     envName: Variable d'environnement
     envNameHelp:
       Nom de la variable du déploiement qui contient la clé — le préfixe
@@ -1235,6 +1237,8 @@ logs:
     topActors:
       title: Utilisateurs les plus actifs
     empty: Aucune activité sur cette période.
+    readFailed: Impossible de charger le résumé de l’activité. Réessayer.
+    retry: Réessayer
   errors:
     entityLabel: journaux d'erreurs
     entityLabelOne: journal d'erreur
@@ -1350,6 +1354,9 @@ logs:
       api_key.created: Clé API créée
       api_key.updated: Clé API mise à jour
       api_key.revoked: Clé API révoquée
+      agent_connection.created: Agent de code connecté
+      agent_connection.updated: Accès d’un agent de code modifié
+      agent_connection.revoked: Agent de code déconnecté
       webdav_app_password.created: Mot de passe d'application WebDAV créé
       webdav_app_password.revoked: Mot de passe d'application WebDAV révoqué
       connector_credential.created: Identifiants de connector créés
@@ -1443,6 +1450,7 @@ logs:
       workflow_trigger_log.retention_deleted: Journal de trigger d'automatisation supprimé (rétention)
       audit_log.retention_deleted: Journal d'audit supprimé (rétention)
       automation_run.retention_deleted: Exécution d'automatisation supprimée (rétention)
+      automation_version.retention_deleted: Version d'automatisation supprimée (rétention)
       agent_run.retention_deleted: Exécution d'agent supprimée (rétention)
       message_feedback.retention_deleted: Retour sur message supprimé (rétention)
       notification.retention_deleted: Notification supprimée (rétention)
@@ -1609,6 +1617,7 @@ logs:
       connector_operation: Opération de connector
       connector_credential: Identifiants de connector
       api_key: Clé API
+      agent_connection: Connexion d’un agent de code
       webdav_app_password: Mot de passe d'application WebDAV
       sso_provider: Fournisseur SSO
       video_link: Lien vidéo

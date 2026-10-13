@@ -49,6 +49,7 @@ login:
   continueWithPasskey: Sign in with a passkey
   passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use your password.
   wrongCredentials: Wrong email or password
+  temporarilyUnavailable: Signing in isn't possible right now. Try again in a moment.
   accountLockedGeneric: Account temporarily locked — too many failed attempts. Try again later or contact an administrator.
   accountLockedSeconds:
     Account temporarily locked. Try again in {seconds, plural,

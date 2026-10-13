@@ -2,12 +2,12 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.35.0",
+    "version": "3.44.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
     },
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). Each of the three refusals lists the slugs you may\nsend under `data.organizations`; `GET /api/v1/me` lists them too, as its\ntop-level `organizations`. The slug is matched without regard to case; a\nblank or whitespace-only header reads as absent.\n\nA key an Owner or Admin made for a member, a team, a project or the\norganization itself works in that one organization only, so it needs no\n`X-Organization-Slug` (one naming another organization answers 403\n`ORG_FORBIDDEN`). A team's, a project's or the organization's key is not a\nperson: it acts with the role it was made with, a team's key sees what that\nteam sees, and a project's key reaches its own project alone — the model\nendpoints, `GET /me`, `GET /projects` and the routes under\n`/projects/{projectId}` — while any other route answers 403\n`API_KEY_SCOPE_FORBIDDEN`. `GET /api/v1/me` names whose key it is, as\n`key.owner`.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. The\ncompatible model endpoints are the exception — see below: they relay the\nvendors' own bodies (a NUL included) and ignore query parameters. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation (a compatible model endpoint asked for `stream: true`\nanswers `text/event-stream`). Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}` — except on the compatible model endpoints, which answer every\nrefusal, the door's own included, in their vendor wire's shape with the same\n`code` (see below). Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a 503\n`DATABASE_UNAVAILABLE`, a body-size 413 and a URL-size 414 add\n`requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\nUTF-16 code units`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `API_KEY_SCOPE_FORBIDDEN` (a project's key outside its\nproject), `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON), `DATABASE_UNAVAILABLE` (503 with `Retry-After`, answered\nby the platform while its database restarts or cannot be reached — retry\nwith backoff) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`, and a run step's items and passes\n  under `{units, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`, `{teams}`; search answers `{hits, diagnostics}`; the\n  OpenAI-compatible model list answers `{data, object}` in OpenAI's shape.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA call to a compatible model endpoint draws from the reads bucket like any\nother request. A 429 carries `Retry-After` in whole seconds.\n\n## Compatible model endpoints\n\nThe organization's approved models, callable from a key holder's own tools\nover the two wires those tools already speak — so an OpenAI SDK, opencode,\nan Anthropic SDK or Claude Code uses Tale as its model provider:\n\n- **OpenAI** — base URL `https://<host>/api/v1/openai`:\n  `POST /chat/completions` (streamed or not, with tools and images) and\n  `GET /models`.\n- **Anthropic** — base URL `https://<host>/api/v1/anthropic`:\n  `POST /v1/messages` (streamed or not, with tools and images). Claude Code\n  takes it as `ANTHROPIC_BASE_URL`, the key as `ANTHROPIC_AUTH_TOKEN`\n  (an SDK: `authToken`), and the organization header, when the key needs\n  one, in `ANTHROPIC_CUSTOM_HEADERS`; leave `ANTHROPIC_API_KEY` unset, since\n  the `x-api-key` it sends is refused.\n\nBoth sit inside this door — the same Bearer key, `X-Organization-Slug`,\nrequest budget and `X-Request-Id` — and both are governed: an organization\nturns them on in its model access policy (off until then: 403\n`MODEL_API_DISABLED`); owners, administrators and developers may call them,\nany other member only with a live `tale:models.api` grant (403\n`MODEL_API_FORBIDDEN`; `capabilities.modelApi` on `GET /api/v1/me`\nanswers both gates). A model id is `<provider>/<model>` — the connector's\nslug and the model's id in its catalog — on both wires, and only a model the\nkey holder's model access and the provider credential's allowlist admit\nanswers (403 `MODEL_API_MODEL_FORBIDDEN`, 404 `MODEL_API_MODEL_UNKNOWN`).\nThe organization's input guardrails judge every text the caller wrote into\nthe request — every role, tool calls and results, tool definitions — before a\ncall (400 `MODEL_API_GUARDRAIL_BLOCKED`; a mask rewrites what the model\nreceives; 403 `MODEL_API_GUARDRAIL_UNSUPPORTED` for a PII policy that\ntokenizes; 503 `MODEL_API_GUARDRAIL_UNAVAILABLE` when a fail-closed step\ncannot judge or a policy cannot be read; 413 `MODEL_API_TEXT_TOO_LARGE`\npast 2 MB of text) — the answer is relayed unfiltered. A call's worst case\nis held whole against every budget that binds the key holder, their teams,\nthe organization and the key (429 `BUDGET_EXCEEDED` with `Retry-After`,\nnaming the output cap that would fit when the worst case does not), at most\n8 calls of a key holder or a key run at once (429\n`MODEL_API_CONCURRENCY_EXCEEDED`), and its spend is booked under the person\nand the key. A tool the vendor would\nrun (400 `MODEL_API_VENDOR_TOOL_UNSUPPORTED`), images for a model without\nvision (400 `MODEL_API_VISION_UNSUPPORTED`) and tools for a model without\nthem (400 `MODEL_API_TOOLS_UNSUPPORTED`) are refused before the call; a\ngateway that cannot serve the model answers 503 `MODEL_API_UNAVAILABLE`,\nand a vendor's own refusal is relayed as `MODEL_API_UPSTREAM_ERROR`.\nBodies and answers are the vendors' own shapes, and so is every refusal:\nOpenAI `{\"error\": {\"message\", \"type\", \"param\", \"code\"}}`, Anthropic\n`{\"type\": \"error\", \"error\": {\"type\", \"message\", \"code\"}, \"request_id\"}`.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). Each of the three refusals lists the slugs you may\nsend under `data.organizations`; `GET /api/v1/me` lists them too, as its\ntop-level `organizations`. The slug is matched without regard to case; a\nblank or whitespace-only header reads as absent.\n\nA key an Owner or Admin made for a member, a team, a project or the\norganization itself works in that one organization only, so it needs no\n`X-Organization-Slug` (one naming another organization answers 403\n`ORG_FORBIDDEN`). A team's, a project's or the organization's key is not a\nperson: it acts with the role it was made with, a team's key sees what that\nteam sees, and a project's key reaches its own project alone — the model\nendpoints, `GET /me`, `GET /projects` and the routes under\n`/projects/{projectId}` — while any other route answers 403\n`API_KEY_SCOPE_FORBIDDEN`. `GET /api/v1/me` names whose key it is, as\n`key.owner`.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. The\ncompatible model endpoints are the exception — see below: they relay the\nvendors' own bodies (a NUL included) and ignore query parameters. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation (a compatible model endpoint asked for `stream: true`\nanswers `text/event-stream`). Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}` — except on the compatible model endpoints, which answer every\nrefusal, the door's own included, in their vendor wire's shape with the same\n`code` (see below). Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a 503\n`DATABASE_UNAVAILABLE`, a body-size 413 and a URL-size 414 add\n`requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\nUTF-16 code units`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `API_KEY_SCOPE_FORBIDDEN` (a project's key outside its\nproject), `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON), `DATABASE_UNAVAILABLE` (503 with `Retry-After`, answered\nby the platform while its database restarts or cannot be reached — retry\nwith backoff) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`, an automation's `{versions, …}` and\n  `{deployments, …}`, and a run step's items and passes under\n  `{units, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}` (a\n  knowledge entry's), `{triggers}`, `{teams}`; search answers `{hits, diagnostics}`; the\n  OpenAI-compatible model list answers `{data, object}` in OpenAI's shape.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA call to a compatible model endpoint draws from the reads bucket like any\nother request. A 429 carries `Retry-After` in whole seconds.\n\n## Compatible model endpoints\n\nThe organization's approved models, callable from a key holder's own tools\nover the two wires those tools already speak — so an OpenAI SDK, opencode,\nan Anthropic SDK or Claude Code uses Tale as its model provider:\n\n- **OpenAI** — base URL `https://<host>/api/v1/openai`:\n  `POST /chat/completions` (streamed or not, with tools and images) and\n  `GET /models`.\n- **Anthropic** — base URL `https://<host>/api/v1/anthropic`:\n  `POST /v1/messages` (streamed or not, with tools and images). Claude Code\n  takes it as `ANTHROPIC_BASE_URL`, the key as `ANTHROPIC_AUTH_TOKEN`\n  (an SDK: `authToken`), and the organization header, when the key needs\n  one, in `ANTHROPIC_CUSTOM_HEADERS`; leave `ANTHROPIC_API_KEY` unset, since\n  the `x-api-key` it sends is refused.\n\nBoth sit inside this door — the same Bearer key, `X-Organization-Slug`,\nrequest budget and `X-Request-Id` — and both are governed: an organization\nturns them on in its model access policy (off until then: 403\n`MODEL_API_DISABLED`); owners, administrators and developers may call them,\nany other member only with a live `tale:models.api` grant (403\n`MODEL_API_FORBIDDEN`; `capabilities.modelApi` on `GET /api/v1/me`\nanswers both gates). A model id is `<provider>/<model>` — the connector's\nslug and the model's id in its catalog — on both wires, and only a model the\nkey holder's model access and the provider credential's allowlist admit\nanswers (403 `MODEL_API_MODEL_FORBIDDEN`, 404 `MODEL_API_MODEL_UNKNOWN`).\nThe organization's input guardrails judge every text the caller wrote into\nthe request — every role, tool calls and results, tool definitions — before a\ncall (400 `MODEL_API_GUARDRAIL_BLOCKED`; a mask rewrites what the model\nreceives; 403 `MODEL_API_GUARDRAIL_UNSUPPORTED` for a PII policy that\ntokenizes; 503 `MODEL_API_GUARDRAIL_UNAVAILABLE` when a fail-closed step\ncannot judge or a policy cannot be read; 413 `MODEL_API_TEXT_TOO_LARGE`\npast 2 MB of text) — the answer is relayed unfiltered. A call's worst case\nis held whole against every budget that binds the key holder, their teams,\nthe organization and the key (429 `BUDGET_EXCEEDED` with `Retry-After`,\nnaming the output cap that would fit when the worst case does not), at most\n8 calls of a key holder or a key run at once (429\n`MODEL_API_CONCURRENCY_EXCEEDED`), and its spend is booked under the person\nand the key. A tool the vendor would\nrun (400 `MODEL_API_VENDOR_TOOL_UNSUPPORTED`), images for a model without\nvision (400 `MODEL_API_VISION_UNSUPPORTED`) and tools for a model without\nthem (400 `MODEL_API_TOOLS_UNSUPPORTED`) are refused before the call; a\ngateway that cannot serve the model answers 503 `MODEL_API_UNAVAILABLE`,\nand a vendor's own refusal is relayed as `MODEL_API_UPSTREAM_ERROR`.\nBodies and answers are the vendors' own shapes, and so is every refusal:\nOpenAI `{\"error\": {\"message\", \"type\", \"param\", \"code\"}}`, Anthropic\n`{\"type\": \"error\", \"error\": {\"type\", \"message\", \"code\"}, \"request_id\"}`.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
@@ -21466,7 +21466,7 @@
       "get": {
         "tags": ["Automations"],
         "summary": "List an automation’s versions",
-        "description": "The immutable version history, complete — not paginated. `deployedVersion` names the live one and each row says whether it is `deployed`.",
+        "description": "The immutable version history, newest first. Each version says who saved it (`createdBy`, and `createdByName` while that person is still a member of the organization — never an e-mail address), through which door and client (`createdVia`, `clientName`), which version it was based on (`basedOnVersion`) and restored from (`restoredFromVersion`), what it changed against the version saved before it (`changes`: counts and flags, never content), how its tests went (`tests`), whether it is `deployed` and when it last went live (`lastDeployedAt`). `deployedVersion` names the live one and `latestVersion` the newest. Without `limit` the answer is the whole history in one page (`isDone: true`), as it has always been; with it a page, and `continueCursor` reads the next.",
         "operationId": "listAutomationVersions",
         "security": [
           {
@@ -21493,6 +21493,26 @@
             "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "description": "Page size, 1..200 (out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`). Omitted: the whole history in one page"
+          },
+          {
             "name": "X-Request-Id",
             "in": "header",
             "required": false,
@@ -21510,16 +21530,16 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "description": "The complete set under `versions` — never paginated: no `isDone`, no cursor to follow",
-                  "x-tale-pagination": "none",
-                  "required": ["versions", "name", "deployedVersion"],
+                  "x-tale-pagination": "keyset",
+                  "required": [
+                    "name",
+                    "deployedVersion",
+                    "latestVersion",
+                    "versions",
+                    "isDone",
+                    "continueCursor"
+                  ],
                   "properties": {
-                    "versions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/AutomationVersion"
-                      }
-                    },
                     "name": {
                       "type": "string"
                     },
@@ -21527,6 +21547,24 @@
                       "type": "integer",
                       "description": "null while nothing is deployed",
                       "nullable": true
+                    },
+                    "latestVersion": {
+                      "type": "integer",
+                      "description": "The newest saved version",
+                      "nullable": true
+                    },
+                    "versions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AutomationVersion"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
                 }
@@ -21623,6 +21661,1703 @@
           },
           "404": {
             "description": "Automation not found (`AUTOMATION_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automations/{name}/deployments": {
+      "get": {
+        "tags": ["Automations"],
+        "summary": "List when an automation’s versions went live",
+        "description": "The deployment history, newest first: each time a version was put live, what it replaced (`previousVersion`), whether it rolled back (`kind`), who did it (`deployedBy`, and `deployedByName` while that person is still a member) through which door and client — and, beside the page, what is `live` now with its runs still going. A deploy the history did not record when it happened is rebuilt from what is live (`synthesized`). Keyset-paged: pass `continueCursor` back as `cursor` until `isDone`.",
+        "operationId": "listAutomationDeployments",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "description": "Page size, 1..200 (default 50; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deployment history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "x-tale-pagination": "keyset",
+                  "required": [
+                    "name",
+                    "live",
+                    "deployments",
+                    "isDone",
+                    "continueCursor"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "live": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/AutomationLiveDeployment"
+                        }
+                      ],
+                      "nullable": true
+                    },
+                    "deployments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AutomationDeployment"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Put a saved version live",
+        "description": "Promotes one saved version to be the version live runs and triggers use — an older one rolls back (`kind`). The same gate as the editor’s and an agent’s deploy: the version must still validate and its own tests must pass. Name the version you read as live in `expectedDeployedVersion` (`null` for none) and a deploy that another one overtook is refused with the version that is live, so a release pipeline never undoes a colleague’s. Requires the developer capability; charges the execute bucket (the tests run) on top of the general REST bucket. The answer carries the trigger that starts the version now, so a pipeline can tell one that is off.",
+        "operationId": "deployAutomationVersion",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["version"],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The saved version to put live"
+                  },
+                  "expectedDeployedVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The version you read as live (`null`: none). Another one live now refuses the deploy. Omitted: no check.",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The version is live",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationDeployResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder lacks the developer capability (`ROLE_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "Another version went live since `expectedDeployedVersion` was read (`AUTOMATION_DEPLOYMENT_STALE` — `data` names the version that is live); the version’s own tests fail (`AUTOMATION_TESTS_FAILING` — `data.report` lists them); the version no longer validates (`AUTOMATION_INVALID` — `data.errors` lists the problems); or the automation is managed by configuration and refuses a hand deploy (`AUTOMATION_DEPLOY_REJECTED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automations/{name}/compare": {
+      "get": {
+        "tags": ["Automations"],
+        "summary": "Compare two versions of an automation",
+        "description": "What `to` changed against `from`: which nodes were added, removed, renamed or changed and in which fields, and what changed in the run input’s schema, the output, the description, the tests and what a version keeps beside its document. `from` and `to` take a version number, `latest` or `deployed`, and `from` also `previous` (the version saved before `to`, the default); `to` defaults to the latest. The first version compares with nothing (`from: null`). `format` picks the answer: `changes` (the default), `unified` — a patch over the two versions’ YAML, cut at 256 KB with `truncated` saying so — or `both`.",
+        "operationId": "compareAutomationVersions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The version to compare from: a number, `latest`, `deployed` or `previous` (the default)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The version to compare to: a number, `latest` (the default) or `deployed`"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["changes", "unified", "both"],
+              "default": "changes"
+            },
+            "description": "`changes` (the default), `unified` or `both`"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The comparison",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationDiff"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), a version it never saved, or `deployed` while nothing is live (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automations/{name}/versions/{version}/restore": {
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Bring an older version back as the newest",
+        "description": "Saves the older version’s content — its document and what it keeps beside it — as the newest version, recorded as based on and restored from it, after the checks and tests of any save. Answers 201 with the new version; 200 with `unchanged: true` when the latest version already holds that content and nothing was saved. Never a deploy: the live version stays live (`POST …/deployments` puts the new one live). `baseVersion` refuses the restore when a version was saved since the one you read. Requires the developer capability.",
+        "operationId": "restoreAutomationVersion",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The saved version to bring back"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Why — shown in the version history; “Restore v3” when omitted"
+                  },
+                  "baseVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The latest version you read. A version saved since refuses the restore."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nothing saved: the latest version already holds that content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationRestoreResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "201": {
+            "description": "Saved as the newest version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationRestoreResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder lacks the developer capability (`ROLE_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "A version was saved since `baseVersion` (`AUTOMATION_VERSION_STALE` — `data.latestVersion` names it); the version no longer validates (`AUTOMATION_INVALID` — `data.errors` lists the problems); or the automation is managed by configuration (`AUTOMATION_DEPLOY_REJECTED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automations/{name}/versions/{version}/tests": {
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Run a saved version’s tests",
+        "description": "Runs the tests in the version’s document on the deterministic mocks — nothing leaves Tale and nothing is stored — all of them, or those named in `tests`, by the name the document gives each (a name no test bears answers 400 `INVALID_BODY`, naming the tests there are and the nearest). Each result says whether its test passed and, for one that did not, what differed and where. `detail` adds to each result what its run returned (`output`), would have done (`effects`) and went through (`trace`, the run step by step); a run larger than 256 KB, or runs larger than 384 KB together, are left out and marked `detailOmitted`. The whole suite, run to its end, is recorded on the version as its verdict, as made by hand with this key (`recorded` says so, and `GET …/tests` reads it back); a part of the suite records nothing, nor does a suite the time ran out on (`notRun`). A test stops after 10 seconds, a suite after 60. A version with no tests answers an empty report. Any member’s key may run them. Charges the execute bucket on top of the general REST bucket — before anything is looked up — and one unit for each test from the organization’s budget for runs that are never stored, the one the app’s own tries and test runs draw from.",
+        "operationId": "runAutomationVersionTests",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The saved version whose tests to run"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "tests": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "description": "Run only these tests, by name; omitted, all of them. A name no test bears, or several do, is refused."
+                  },
+                  "detail": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                      "type": "string",
+                      "enum": ["output", "effects", "trace"]
+                    },
+                    "description": "What of each test’s run to answer beside its verdict: `output`, `effects`, `trace`. Omitted, the verdicts alone."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationTestRun"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "The version no longer passes today’s checks (`AUTOMATION_INVALID` — `data.errors` lists the problems)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request or execution budget is spent, or the organization’s budget for runs that are never stored is, or the server is already running as many as it can (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Automations"],
+        "summary": "Read a saved version’s latest test check",
+        "description": "The verdict the version carries — from its save, the deploy gate or someone running its tests — when it was judged, by which act and whom, and the report of that check. A version never checked answers nulls, not a refusal. `POST …/tests` runs the tests and records a new check.",
+        "operationId": "getAutomationVersionTests",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The saved version to read"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The version’s latest test check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationTestCheck"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -41104,11 +42839,14 @@
       "post": {
         "tags": ["MCP"],
         "summary": "The platform MCP endpoint",
-        "description": "JSON-RPC over HTTP, both MCP protocol eras on one endpoint (JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or 2025-03-26 when the client proposes it, the client opens with `initialize`, which answers `instructions` and reports the API contract version as `serverInfo.version`; a request carries one message, or a JSON-RPC batch answered as an array. On 2026-07-28 there is no `initialize`: every request carries its revision and the client’s capabilities in `params._meta`, mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; `server/discover` answers the revisions, capabilities and instructions; a request carries one message; and every result adds `resultType` and the server under `_meta`, with `ttlMs` and `cacheScope` where a client may cache it. Authenticate with the same Bearer org API key as the REST API. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference; `resources/list` and `prompts/list` name what a client reads by address (the references, automations, runs) and the ready-made prompts. Tool arguments are checked against the advertised input schema, and every problem comes back at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
+        "description": "JSON-RPC over HTTP, both MCP protocol eras on one endpoint (JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or 2025-03-26 when the client proposes it, the client opens with `initialize`, which answers `instructions` and reports the API contract version as `serverInfo.version`; a request carries one message, or a JSON-RPC batch answered as an array. On 2026-07-28 there is no `initialize`: every request carries its revision and the client’s capabilities in `params._meta`, mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; `server/discover` answers the revisions, capabilities and instructions; a request carries one message; and every result adds `resultType` and the server under `_meta`, with `ttlMs` and `cacheScope` where a client may cache it. Authenticate with the same Bearer org API key as the REST API — or, unless the operator turned agent sign-in off, with the access token of a connection a person made from their agent (OAuth, `agentOAuth`), which this endpoint alone takes: its 401 carries a `WWW-Authenticate` challenge naming the endpoint’s metadata and the scopes to ask for. A connection acts in the organization it was made for (`X-Organization-Slug` naming another answers `ORG_MISMATCH`) and holds the access its person allowed: a request that calls a tool needing access the connection lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference; `resources/list` and `prompts/list` name what a client reads by address (the references, automations, runs) and the ready-made prompts. Tool arguments are checked against the advertised input schema, and every problem comes back at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
         "operationId": "mcp",
         "security": [
           {
             "bearerAuth": []
+          },
+          {
+            "agentOAuth": ["tale:mcp"]
           }
         ],
         "requestBody": {
@@ -41421,7 +43159,7 @@
             }
           },
           "403": {
-            "description": "Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; for a coding agent that signed in, the request names another organization than its connection’s (`ORG_MISMATCH`, `data.organization` the one it is for), or calls tools that need access its connection lacks and its person could allow (`INSUFFICIENT_SCOPE`: `data.tools`, `data.requiredScopes` and `data.grantedScopes`, and a `WWW-Authenticate` challenge whose `scope` is everything to ask for) — nothing in the request runs. A call that its person’s role could never give the access for answers the same code as a tool result instead; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -42887,7 +44625,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.35.0"
+          "example": "3.44.0"
         }
       },
       "Location": {
@@ -42965,7 +44703,27 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored."
+        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection (`agentOAuth`), unless the operator turned agent sign-in off."
+      },
+      "agentOAuth": {
+        "type": "oauth2",
+        "description": "A coding agent signs in on a person’s behalf, for the MCP endpoint alone — OAuth 2.1, the authorization code grant with PKCE (S256). The agent finds the sign-in server from the endpoint’s 401, whose `WWW-Authenticate` challenge names `resource_metadata` (RFC 9728, `/.well-known/oauth-protected-resource/api/v1/mcp`), and identifies itself by a client metadata document it publishes or by registering itself. The person signs in to Tale, chooses one organization and the access to give on Tale’s consent page, and the connection then acts in that organization with that access, never above what the person’s role allows. The access token lasts five minutes; the refresh token stays valid for thirty days without use and rotates. Disconnecting the agent, leaving the organization, a new password or a refresh token used twice ends the connection. A deployment whose operator turned agent sign-in off answers none of the discovery documents.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/api/auth/oauth2/authorize",
+            "tokenUrl": "/api/auth/oauth2/token",
+            "refreshUrl": "/api/auth/oauth2/token",
+            "scopes": {
+              "tale:mcp": "Read and test: read automations, runs and knowledge, check drafts and try them with test data. Changes nothing.",
+              "tale:automations.write": "Edit automations: save new versions. Deploying stays with the person.",
+              "tale:automations.deploy": "Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.",
+              "tale:settings.read": "Read settings: the settings the person’s role can see. Secrets stay hidden.",
+              "tale:settings.write": "Change settings: the settings the person’s role can change. Every change is recorded in the audit log.",
+              "tale:subscriptions.connect": "Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.",
+              "offline_access": "Stay connected: a refresh token, valid for thirty days without use."
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -43007,15 +44765,20 @@
                   "ATTACHMENT_SIZE_MISMATCH",
                   "AUTHOR_UNVERIFIED",
                   "AUTOMATION_DELIVERY_SCOPE_MISMATCH",
+                  "AUTOMATION_DEPLOYMENT_STALE",
+                  "AUTOMATION_DEPLOY_REJECTED",
                   "AUTOMATION_HAS_ACTIVE_RUNS",
                   "AUTOMATION_INPUT_INVALID",
+                  "AUTOMATION_INVALID",
                   "AUTOMATION_NOT_DEPLOYED",
                   "AUTOMATION_NOT_FOUND",
                   "AUTOMATION_NOT_INSTALLED",
                   "AUTOMATION_PROJECT_FORBIDDEN",
                   "AUTOMATION_PROJECT_SCOPE_REQUIRED",
+                  "AUTOMATION_TESTS_FAILING",
                   "AUTOMATION_TRIGGER_INVALID",
                   "AUTOMATION_VERSION_NOT_DEPLOYED",
+                  "AUTOMATION_VERSION_STALE",
                   "AUTOMATION_VERSION_UNKNOWN",
                   "BLOB_NOT_FOUND",
                   "BODY_CHUNK_MALFORMED",
@@ -43076,6 +44839,7 @@
                   "HUMAN_ASK_NOT_FOUND",
                   "HUMAN_ASK_NOT_PENDING",
                   "IDEMPOTENCY_KEY_REUSED",
+                  "INSUFFICIENT_SCOPE",
                   "INTEGRATION_NOT_OWNED",
                   "INTERNAL_ERROR",
                   "INVALID_BODY",
@@ -43115,6 +44879,7 @@
                   "OBJECT_STORE_UNAVAILABLE",
                   "OBJECT_STORE_UNCONFIGURED",
                   "ORG_FORBIDDEN",
+                  "ORG_MISMATCH",
                   "ORG_SLUG_INVALID",
                   "ORG_SLUG_REQUIRED",
                   "ORIGIN_FORBIDDEN",
@@ -43247,15 +45012,20 @@
                   "ATTACHMENT_SIZE_MISMATCH",
                   "AUTHOR_UNVERIFIED",
                   "AUTOMATION_DELIVERY_SCOPE_MISMATCH",
+                  "AUTOMATION_DEPLOYMENT_STALE",
+                  "AUTOMATION_DEPLOY_REJECTED",
                   "AUTOMATION_HAS_ACTIVE_RUNS",
                   "AUTOMATION_INPUT_INVALID",
+                  "AUTOMATION_INVALID",
                   "AUTOMATION_NOT_DEPLOYED",
                   "AUTOMATION_NOT_FOUND",
                   "AUTOMATION_NOT_INSTALLED",
                   "AUTOMATION_PROJECT_FORBIDDEN",
                   "AUTOMATION_PROJECT_SCOPE_REQUIRED",
+                  "AUTOMATION_TESTS_FAILING",
                   "AUTOMATION_TRIGGER_INVALID",
                   "AUTOMATION_VERSION_NOT_DEPLOYED",
+                  "AUTOMATION_VERSION_STALE",
                   "AUTOMATION_VERSION_UNKNOWN",
                   "BLOB_NOT_FOUND",
                   "BODY_CHUNK_MALFORMED",
@@ -43316,6 +45086,7 @@
                   "HUMAN_ASK_NOT_FOUND",
                   "HUMAN_ASK_NOT_PENDING",
                   "IDEMPOTENCY_KEY_REUSED",
+                  "INSUFFICIENT_SCOPE",
                   "INTEGRATION_NOT_OWNED",
                   "INTERNAL_ERROR",
                   "INVALID_BODY",
@@ -43355,6 +45126,7 @@
                   "OBJECT_STORE_UNAVAILABLE",
                   "OBJECT_STORE_UNCONFIGURED",
                   "ORG_FORBIDDEN",
+                  "ORG_MISMATCH",
                   "ORG_SLUG_INVALID",
                   "ORG_SLUG_REQUIRED",
                   "ORIGIN_FORBIDDEN",
@@ -43478,15 +45250,20 @@
               "ATTACHMENT_SIZE_MISMATCH",
               "AUTHOR_UNVERIFIED",
               "AUTOMATION_DELIVERY_SCOPE_MISMATCH",
+              "AUTOMATION_DEPLOYMENT_STALE",
+              "AUTOMATION_DEPLOY_REJECTED",
               "AUTOMATION_HAS_ACTIVE_RUNS",
               "AUTOMATION_INPUT_INVALID",
+              "AUTOMATION_INVALID",
               "AUTOMATION_NOT_DEPLOYED",
               "AUTOMATION_NOT_FOUND",
               "AUTOMATION_NOT_INSTALLED",
               "AUTOMATION_PROJECT_FORBIDDEN",
               "AUTOMATION_PROJECT_SCOPE_REQUIRED",
+              "AUTOMATION_TESTS_FAILING",
               "AUTOMATION_TRIGGER_INVALID",
               "AUTOMATION_VERSION_NOT_DEPLOYED",
+              "AUTOMATION_VERSION_STALE",
               "AUTOMATION_VERSION_UNKNOWN",
               "BLOB_NOT_FOUND",
               "BODY_CHUNK_MALFORMED",
@@ -43547,6 +45324,7 @@
               "HUMAN_ASK_NOT_FOUND",
               "HUMAN_ASK_NOT_PENDING",
               "IDEMPOTENCY_KEY_REUSED",
+              "INSUFFICIENT_SCOPE",
               "INTEGRATION_NOT_OWNED",
               "INTERNAL_ERROR",
               "INVALID_BODY",
@@ -43586,6 +45364,7 @@
               "OBJECT_STORE_UNAVAILABLE",
               "OBJECT_STORE_UNCONFIGURED",
               "ORG_FORBIDDEN",
+              "ORG_MISMATCH",
               "ORG_SLUG_INVALID",
               "ORG_SLUG_REQUIRED",
               "ORIGIN_FORBIDDEN",
@@ -46777,7 +48556,16 @@
           "testsCheckedAt",
           "createdBy",
           "createdAt",
-          "deployed"
+          "deployed",
+          "createdVia",
+          "viaInferred",
+          "clientName",
+          "createdByName",
+          "basedOnVersion",
+          "restoredFromVersion",
+          "changes",
+          "tests",
+          "lastDeployedAt"
         ],
         "properties": {
           "version": {
@@ -46802,16 +48590,1548 @@
             "type": "string",
             "description": "Who saved the version: `api-key:<userId>` for a save through the MCP endpoint, the bare user id for a save from the product or its builder, or `system:provisioning` for a version the platform seeded when it provisioned the organization (the built-in connector automations). Split on the first `:`; a value without one is a user id."
           },
+          "createdByName": {
+            "type": "string",
+            "description": "The saving person’s name while they are a member of the organization; null for a former member, a system writer or a person with no name. Never an e-mail address.",
+            "nullable": true
+          },
           "createdAt": {
             "type": "integer",
             "minimum": 0,
             "description": "Epoch milliseconds"
           },
+          "createdVia": {
+            "type": "string",
+            "enum": ["app", "upload", "mcp", "rest", "managed", "system", null],
+            "description": "The door the version was saved through: the editor (`app`), a package upload, a coding agent over MCP, the REST API, managed configuration, or the platform itself. Null when the door is not one this contract names.",
+            "nullable": true
+          },
+          "viaInferred": {
+            "type": "boolean",
+            "description": "`createdVia` was read from `createdBy`: the version is older than the record of doors"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "The name the saving agent’s client gave itself",
+            "nullable": true
+          },
+          "basedOnVersion": {
+            "type": "integer",
+            "description": "The version the edit started from, when recorded",
+            "nullable": true
+          },
+          "restoredFromVersion": {
+            "type": "integer",
+            "description": "The older version this one brings back, if any",
+            "nullable": true
+          },
+          "changes": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AutomationChangeSummary"
+              }
+            ],
+            "nullable": true
+          },
+          "tests": {
+            "type": "object",
+            "required": ["passed", "failed", "total"],
+            "properties": {
+              "passed": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "via": {
+                "type": "string",
+                "enum": ["save", "deploy", "manual"],
+                "description": "Which act ran them: the save, the deploy gate, or someone running the tests"
+              },
+              "by": {
+                "type": "string",
+                "description": "Who ran them, as `createdBy` names a person"
+              }
+            },
+            "description": "The latest check of the version’s tests, in counts — null while none was recorded with a report",
+            "nullable": true
+          },
           "deployed": {
             "type": "boolean",
             "description": "Whether this is the version live runs execute"
+          },
+          "lastDeployedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "When the version last went live; null if never",
+            "nullable": true
           }
         }
+      },
+      "AutomationChangeSummary": {
+        "type": "object",
+        "required": ["nodes"],
+        "description": "What a version changed against the one saved before it — counts and flags, never content. A flag is present only when set.",
+        "properties": {
+          "first": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The automation’s first version: nothing to change"
+          },
+          "identical": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The document is the one before it"
+          },
+          "nodes": {
+            "type": "object",
+            "required": ["added", "removed", "changed"],
+            "properties": {
+              "added": {
+                "type": "integer"
+              },
+              "removed": {
+                "type": "integer"
+              },
+              "changed": {
+                "type": "integer"
+              },
+              "renamed": {
+                "type": "integer"
+              }
+            }
+          },
+          "inputs": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "output": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "description": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "tests": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "other": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "package": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The version’s settings, task contract or presentation changed"
+          }
+        }
+      },
+      "AutomationDiffChange": {
+        "type": "object",
+        "required": ["pointer", "path", "kind"],
+        "description": "One difference between two values, where and what",
+        "properties": {
+          "pointer": {
+            "type": "string",
+            "description": "A JSON Pointer to the place"
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed",
+              "type-changed",
+              "reordered",
+              "unknown"
+            ]
+          },
+          "before": {},
+          "after": {},
+          "beforeKind": {
+            "type": "string"
+          },
+          "afterKind": {
+            "type": "string"
+          }
+        }
+      },
+      "AutomationFieldChange": {
+        "type": "object",
+        "required": ["field", "kind", "display"],
+        "description": "One field that differs: its name (a node’s field, a document key or a package field), how its two values are best shown, and — for data — the differences inside it",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["added", "removed", "changed"]
+          },
+          "display": {
+            "type": "string",
+            "enum": [
+              "code",
+              "template",
+              "condition",
+              "json",
+              "text",
+              "scalar",
+              "list"
+            ]
+          },
+          "before": {},
+          "after": {},
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationDiffChange"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "referencesOnly": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["from", "to"],
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The field differs only because it reads a renamed node by its new id"
+          }
+        }
+      },
+      "AutomationDiff": {
+        "type": "object",
+        "required": ["name", "from", "to", "first", "identical"],
+        "description": "What version `to` changed against version `from` (`from` is null when `to` is the first version, compared with nothing). The first five fields are always answered; with `format=unified` only `unified` (and `truncated`, when the patch was cut) follows them, otherwise the changes below do — and `unified` with them for `both`.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "from": {
+            "type": "integer",
+            "nullable": true
+          },
+          "to": {
+            "type": "integer"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "identical": {
+            "type": "boolean"
+          },
+          "counts": {
+            "type": "object",
+            "required": ["added", "removed", "changed", "renamed"],
+            "properties": {
+              "added": {
+                "type": "integer"
+              },
+              "removed": {
+                "type": "integer"
+              },
+              "changed": {
+                "type": "integer"
+              },
+              "renamed": {
+                "type": "integer"
+              }
+            }
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "kind", "type", "fields"],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["added", "removed", "changed", "renamed"]
+                },
+                "type": {
+                  "type": "string"
+                },
+                "typeBefore": {
+                  "type": "string"
+                },
+                "renamedFrom": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AutomationFieldChange"
+                  }
+                },
+                "referencesOnly": {
+                  "type": "boolean",
+                  "enum": [true]
+                },
+                "beforeIndex": {
+                  "type": "integer"
+                },
+                "afterIndex": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "description": "Changes to the run input’s schema, by property",
+            "items": {
+              "type": "object",
+              "required": ["property", "kind", "values"],
+              "properties": {
+                "property": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["added", "removed", "changed"]
+                },
+                "required": {
+                  "type": "object",
+                  "properties": {
+                    "before": {
+                      "type": "boolean"
+                    },
+                    "after": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "typeBefore": {
+                  "type": "string"
+                },
+                "typeAfter": {
+                  "type": "string"
+                },
+                "before": {},
+                "after": {},
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AutomationDiffChange"
+                  }
+                },
+                "truncated": {
+                  "type": "boolean",
+                  "enum": [true]
+                }
+              }
+            }
+          },
+          "output": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AutomationFieldChange"
+              }
+            ],
+            "nullable": true
+          },
+          "description": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AutomationFieldChange"
+              }
+            ],
+            "nullable": true
+          },
+          "tests": {
+            "type": "array",
+            "description": "Changes to the tests, by name",
+            "items": {
+              "type": "object",
+              "required": ["name", "kind", "fields"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["added", "removed", "changed"]
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AutomationFieldChange"
+                  }
+                },
+                "beforeIndex": {
+                  "type": "integer"
+                },
+                "afterIndex": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "other": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationFieldChange"
+            },
+            "description": "Other top-level keys of the document"
+          },
+          "package": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationFieldChange"
+            },
+            "description": "What a version keeps beside its document: settings, task contract, presentation"
+          },
+          "ignored": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["ui"]
+            },
+            "description": "What differs but is not compared: the canvas layout"
+          },
+          "unified": {
+            "type": "string",
+            "description": "With `format` `unified` or `both`: the patch between the two versions’ YAML, as `git diff` writes it"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The patch was cut at 256 KB: it no longer applies"
+          }
+        }
+      },
+      "AutomationLiveDeployment": {
+        "type": "object",
+        "required": [
+          "version",
+          "deployedAt",
+          "deployedBy",
+          "deployedByName",
+          "via",
+          "clientName",
+          "activeRuns"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "deployedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "deployedBy": {
+            "type": "string"
+          },
+          "deployedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "via": {
+            "type": "string",
+            "enum": ["app", "upload", "mcp", "rest", "managed", "system", null],
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "activeRuns": {
+            "type": "integer",
+            "description": "Runs of the live version still going"
+          }
+        }
+      },
+      "AutomationDeployment": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "previousVersion",
+          "kind",
+          "synthesized",
+          "deployedAt",
+          "deployedBy",
+          "deployedByName",
+          "via",
+          "clientName"
+        ],
+        "description": "One time a version was put live",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "previousVersion": {
+            "type": "integer",
+            "description": "What was live before it; null for the first deploy",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["deploy", "rollback", "recorded"],
+            "description": "`rollback` put an older version live; `recorded` is a deploy recorded from what was live"
+          },
+          "synthesized": {
+            "type": "boolean",
+            "description": "Rebuilt from what is live rather than recorded when it happened"
+          },
+          "deployedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "deployedBy": {
+            "type": "string"
+          },
+          "deployedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "via": {
+            "type": "string",
+            "enum": ["app", "upload", "mcp", "rest", "managed", "system", null],
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AutomationWarning": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AutomationDeployResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "previousVersion",
+          "kind",
+          "deploymentId",
+          "trigger"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "previousVersion": {
+            "type": "integer",
+            "description": "The version that was live before; deploy it again to undo this one. Null when none was.",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["deploy", "rollback", "unchanged"],
+            "description": "`deploy` put a newer version (or the first) live, `rollback` an older one, `unchanged` found it live already"
+          },
+          "deploymentId": {
+            "type": "string",
+            "description": "The deployment history’s new event; null when nothing changed",
+            "nullable": true
+          },
+          "trigger": {
+            "type": "object",
+            "required": ["kind", "enabled", "nextRunAt", "warnings"],
+            "description": "The automation’s trigger as the version now live meets it — a trigger that is off does not start the new version",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["schedule", "webhook", "event"]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "nextRunAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds",
+                "nullable": true
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AutomationWarning"
+                }
+              }
+            },
+            "nullable": true
+          }
+        }
+      },
+      "AutomationRestoreResult": {
+        "type": "object",
+        "required": ["name", "version", "restoredFrom", "warnings"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The new version — or, with `unchanged`, the latest, which already holds that content"
+          },
+          "restoredFrom": {
+            "type": "integer"
+          },
+          "unchanged": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "testsPassed": {
+            "type": "boolean",
+            "description": "How the restored version’s own tests went; absent when it has none"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationWarning"
+            }
+          }
+        }
+      },
+      "AutomationTestRun": {
+        "type": "object",
+        "properties": {
+          "passed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "pass": {
+                  "type": "boolean"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "failures": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AutomationTestFailure"
+                  }
+                },
+                "ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "path": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "assignment": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "required": ["id", "assignment"]
+                },
+                "unusedMocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "run": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["success", "error", "invalid"]
+                    },
+                    "output": {},
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "nodeId": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "hint": {
+                          "type": "string"
+                        },
+                        "failure": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "params": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [null],
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "hint": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "object",
+                              "properties": {
+                                "pointer": {
+                                  "type": "string"
+                                },
+                                "range": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ]
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                }
+                              },
+                              "required": ["pointer"]
+                            },
+                            "trace": {}
+                          },
+                          "required": ["code", "reason", "params", "message"]
+                        }
+                      },
+                      "required": ["message"]
+                    },
+                    "effects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node": {
+                            "type": "string"
+                          },
+                          "connector": {
+                            "type": "string"
+                          },
+                          "input": {},
+                          "item": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "pass": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["node", "connector", "input"]
+                      }
+                    },
+                    "stoppedBy": {
+                      "type": "string",
+                      "enum": ["time_limit", "cancelled"]
+                    },
+                    "record": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "The run step by step, read as a stored run’s record is: `view` (every step in order, its status and decisions) and `details` (each step read whole)."
+                    }
+                  },
+                  "required": ["status"]
+                },
+                "detailOmitted": {
+                  "type": "boolean",
+                  "enum": [true]
+                }
+              },
+              "required": ["name", "index", "pass", "ms"]
+            }
+          },
+          "notRun": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "recorded": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "testsPassed": {
+                "type": "boolean"
+              }
+            },
+            "required": ["version", "testsPassed"]
+          }
+        },
+        "required": ["passed", "failed", "results", "name", "version"],
+        "description": "What running a saved version’s tests answers: how many passed and failed, one result for each test run — whether it passed, how long it took, and for one that did not the typed `failures` (`kind` says what differed and where) with the engine’s first sentence as `message` — the tests a suite’s time did not reach (`notRun`) and, when the whole suite ran to its end, the verdict recorded on the version (`recorded`). With `detail`, a result’s `run` holds the parts of its run that were asked for; a run too large for the answer is left out and marked `detailOmitted`."
+      },
+      "AutomationTestCheck": {
+        "type": "object",
+        "properties": {
+          "report": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "checkedAt": {
+                    "type": "number"
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "notRun": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "pass": {
+                          "type": "boolean"
+                        },
+                        "ms": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "failures": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AutomationTestFailure"
+                          }
+                        }
+                      },
+                      "required": ["name", "index", "pass", "ms"]
+                    }
+                  }
+                },
+                "required": ["checkedAt", "passed", "failed", "results"],
+                "nullable": true
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "checkedAt": {
+                    "type": "number"
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "notRun": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "trimmed": {
+                    "type": "boolean",
+                    "enum": [true]
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "pass": {
+                          "type": "boolean"
+                        },
+                        "ms": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "failures": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "refused",
+                                  "run_failed",
+                                  "run_succeeded",
+                                  "failed_elsewhere",
+                                  "failure_message",
+                                  "output",
+                                  "effect_missing",
+                                  "effect_present",
+                                  "node_state",
+                                  "timeout"
+                                ]
+                              }
+                            },
+                            "required": ["kind"]
+                          }
+                        }
+                      },
+                      "required": ["name", "index", "pass", "ms"]
+                    }
+                  }
+                },
+                "required": [
+                  "checkedAt",
+                  "passed",
+                  "failed",
+                  "trimmed",
+                  "results"
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "testsPassed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "testsCheckedAt": {
+            "type": "number",
+            "nullable": true
+          },
+          "via": {
+            "type": "string",
+            "enum": ["save", "deploy", "manual", null],
+            "nullable": true
+          },
+          "by": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "byName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "report",
+          "testsPassed",
+          "testsCheckedAt",
+          "via",
+          "by",
+          "name",
+          "version",
+          "byName"
+        ],
+        "description": "What a saved version’s tests found the last time they ran: the verdict (`testsPassed`, null while none was recorded), when (`testsCheckedAt`), which act made it (`via`: the save, the deploy gate, or someone running the tests) and who (`by`, and `byName` while that person is a member), and the `report` of that check — each test, whether it passed and how long it took, and for one that failed what differed; null when the verdict has no report of its own. A report past 64 KB keeps each failure’s `kind` alone (`trimmed`). A check is judged by the same tests `POST …/tests` runs."
+      },
+      "AutomationTestFailure": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["refused"]
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "type": "string",
+                      "enum": ["error", "warning"]
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "object",
+                      "properties": {
+                        "pointer": {
+                          "type": "string"
+                        },
+                        "range": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            ]
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "subject": {
+                          "type": "string",
+                          "enum": ["value", "key", "missing"]
+                        }
+                      },
+                      "required": ["pointer"]
+                    },
+                    "params": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "string",
+                            "enum": [null],
+                            "nullable": true
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["level", "code", "message"]
+                }
+              }
+            },
+            "required": ["kind", "issues"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["run_failed"]
+              },
+              "node": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "failure": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string",
+                          "enum": [null],
+                          "nullable": true
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["code", "reason", "params"]
+              }
+            },
+            "required": ["kind", "message"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["run_succeeded"]
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": ["kind", "expected"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["failed_elsewhere"]
+              },
+              "expectedNode": {
+                "type": "string"
+              },
+              "actualNode": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "expectedNode", "message"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["failure_message"]
+              },
+              "expected": {
+                "type": "string"
+              },
+              "actual": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "expected", "actual"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["output"]
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["exact", "includes"]
+              },
+              "mismatches": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pointer": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "added",
+                        "removed",
+                        "changed",
+                        "type-changed",
+                        "reordered",
+                        "unknown"
+                      ]
+                    },
+                    "before": {},
+                    "after": {},
+                    "beforeKind": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null",
+                        "undefined",
+                        "array",
+                        "object"
+                      ]
+                    },
+                    "afterKind": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null",
+                        "undefined",
+                        "array",
+                        "object"
+                      ]
+                    }
+                  },
+                  "required": ["pointer", "path", "kind"]
+                }
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["kind", "mode", "mismatches", "total"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["effect_missing"]
+              },
+              "entry": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "connector": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              },
+              "closest": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "mismatches": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "pointer": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          }
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "added",
+                            "removed",
+                            "changed",
+                            "type-changed",
+                            "reordered",
+                            "unknown"
+                          ]
+                        },
+                        "before": {},
+                        "after": {},
+                        "beforeKind": {
+                          "type": "string",
+                          "enum": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null",
+                            "undefined",
+                            "array",
+                            "object"
+                          ]
+                        },
+                        "afterKind": {
+                          "type": "string",
+                          "enum": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null",
+                            "undefined",
+                            "array",
+                            "object"
+                          ]
+                        }
+                      },
+                      "required": ["pointer", "path", "kind"]
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["node", "mismatches", "total"]
+              },
+              "actual": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "node": {
+                      "type": "string"
+                    },
+                    "connector": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["node", "connector"]
+                }
+              }
+            },
+            "required": ["kind", "entry", "connector", "actual"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["effect_present"]
+              },
+              "entry": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "connector": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "entry", "connector", "node"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["node_state"]
+              },
+              "node": {
+                "type": "string"
+              },
+              "expected": {
+                "type": "string",
+                "enum": ["ran", "skipped", "failed"]
+              },
+              "actual": {
+                "type": "string",
+                "enum": ["ran", "skipped", "failed", "not_run"]
+              }
+            },
+            "required": ["kind", "node", "expected", "actual"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["timeout"]
+              },
+              "limitMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["kind", "limitMs"]
+          }
+        ],
+        "description": "Why a test did not pass, by `kind`: the run could not start (`refused`, with the `issues`), it failed where the test expects success (`run_failed`), succeeded where it expects failure (`run_succeeded`), failed at another step (`failed_elsewhere`) or with another message (`failure_message`), its output differs (`output`, the first few `mismatches` and how many there are in `total`), an expected effect did not happen (`effect_missing`, with the closest effect and what happened) or one that must not did (`effect_present`), a step did not do what the test expects (`node_state`), or the test ran past its time limit (`timeout`)."
       },
       "Trigger": {
         "type": "object",
@@ -50899,6 +54219,34 @@
           }
         }
       },
+      "ArtifactPart": {
+        "type": "object",
+        "required": ["type", "fileId", "name", "mediaType", "sizeBytes"],
+        "description": "A file the assistant produced during the reply — a document, a spreadsheet, a chart, an image — stored in the organization and bound to the chat, so it reads for exactly the people who can read the chat. It follows the tool result that produced it.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["artifact"]
+          },
+          "fileId": {
+            "type": "string",
+            "description": "The stored file’s reference"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "callId": {
+            "type": "string",
+            "description": "The tool call that produced the file"
+          }
+        }
+      },
       "ToolCallPart": {
         "type": "object",
         "required": ["type", "callId", "capabilityId", "input"],
@@ -50965,6 +54313,7 @@
             "text": "#/components/schemas/TextPart",
             "reasoning": "#/components/schemas/ReasoningPart",
             "attachment": "#/components/schemas/AttachmentPart",
+            "artifact": "#/components/schemas/ArtifactPart",
             "tool-call": "#/components/schemas/ToolCallPart",
             "tool-result": "#/components/schemas/ToolResultPart",
             "approval": "#/components/schemas/ApprovalPart"
@@ -50979,6 +54328,9 @@
           },
           {
             "$ref": "#/components/schemas/AttachmentPart"
+          },
+          {
+            "$ref": "#/components/schemas/ArtifactPart"
           },
           {
             "$ref": "#/components/schemas/ToolCallPart"

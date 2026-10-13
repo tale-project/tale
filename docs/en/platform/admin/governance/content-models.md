@@ -18,6 +18,10 @@ The default is used when there is no explicit model choice. A team rule takes pr
 
 Under **Model access**, choose the mode and add rules for the users, teams, roles, or default scope you want to cover.
 
+User, team and role rules require a target before you can confirm them, in either mode. The default scope applies to everyone and needs no target. Changing scope clears the previous target; select a target in the new scope.
+
+Older rules saved without a target remain visible as **Missing target**, with a warning: they do not apply to anyone. Edit each affected rule to select its intended target, or delete it. Changes are not saved until every targeted rule has a target; completing the last repair saves the corrected policy. Tale does not guess targets or discard existing rules automatically.
+
 | Mode | Effect for a matching rule |
 | --- | --- |
 | **Allowlist** | Only listed allowed models may be used; a blocked model remains denied. |
@@ -56,27 +60,27 @@ Leave **Model that reads images** on **Automatic** to follow the available provi
 
 Pin a model if you need a stable choice. The picker offers models that can read images. If a pin later becomes unavailable, restore its provider access or explicitly choose **Automatic** and save. Tale does not silently switch a pinned model. Review the current choice after rotating credentials or changing model availability.
 
-## Let agents generate images
+## Allow image generation {#let-agents-generate-images}
 
-**Image generation** lets [project agents](/platform/projects/project-agents) working on tasks and agent nodes in [automations](/platform/automations/concepts) create images, such as a cover for a report or a visual for a campaign. It is off until you turn it on. Chat never creates images: a member who needs one assigns a task to a project agent.
+**Image generation** lets the chat assistant, [project agents](/platform/projects/project-agents) working on tasks, and agent nodes in [automations](/platform/automations/concepts) create images, such as a cover for a report or a visual for a campaign. It is off until you turn it on.
 
-1. Turn on **Let agents generate images**. The switch saves at once.
+1. Turn on **Allow image generation**. The switch saves at once.
 2. Leave **Image model** on **Automatic**, or select a model and save the page's pending changes in the header.
-3. Check the line below the picker. It names the model agents use.
+3. Check the line below the picker. It names the model that creates the images.
 
 <Frame caption="Governance > Models — image generation on, with a pinned image model.">
 
-![The Image generation section with its switch on, the Image model picker set to OpenRouter · google/gemini-2.5-flash-image, and the line below it naming the model agents currently use.](/images/platform/governance-image-generation.webp)
+![The Image generation section with its switch on, the Image model picker set to OpenRouter · google/gemini-2.5-flash-image, and the line below it naming the model that currently creates images.](/images/platform/governance-image-generation.webp)
 
 </Frame>
 
 **Automatic** uses the first model of a short recommended list that your provider credentials reach: Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1, then FLUX.2 Pro. It considers OpenRouter and OpenAI credentials. The picker lists every image model your credentials can serve, including those of other compatible providers. A selected model stays fixed until you change it; if it becomes unavailable, Tale reports it and does not switch to another model. Turning image generation off keeps the selected model for the next time you turn it on.
 
-While image generation is on and a model is available, every agent turn that starts on a runtime with Tale's MCP channel gets an image tool. Agents on other runtimes, and every agent while image generation is off, do not see the tool at all; [Choose an agent runtime](/platform/agents/harnesses) shows which runtimes have the channel. Turning image generation off also stops a running agent's next image request. An agent saves its images among its files, so a task's images appear with its deliverables and an automation step's images with the step's output.
+While image generation is on and a model is available, every agent turn that starts on a runtime with Tale's MCP channel gets an image tool. Agents on other runtimes, and every agent while image generation is off, do not see the tool at all; [Choose an agent runtime](/platform/agents/harnesses) shows which runtimes have the channel. Turning image generation off also stops a running agent's next image request. An agent saves its images among its files, so a task's images appear with its deliverables and an automation step's images with the step's output. In chat, the assistant gets the same image tool, and its images appear below the reply; see [Make files and use skills in chat](/platform/chat/files-and-skills).
 
 Images come in three shapes: square, landscape at 3:2, and portrait at 2:3. An agent that asks for another shape, such as a 16:9 banner, gets the one with the same orientation. The image model decides the exact size in pixels, and the image tool tells the agent the size of each image it saved.
 
-Each image is billed to your organization and counts against the person who started the run, like the rest of the run. One agent turn creates at most 16 images, one request at a time, and its images draw on the same allowance as the turn's model use: each image's cost comes out of what the model may still spend, and once the turn has used the allowance up, Tale refuses the next image. A budget limit that applies to that person refuses the image before the image model is called. Set cost or request limits for images under [Policies and limits](/platform/admin/governance/policies-and-limits); [How usage is counted](/platform/admin/governance/usage-attribution) explains who each image counts against. For the policy file and custom image endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-image-generation).
+Each image is billed to your organization and counts against the person who started the run, like the rest of the run; in chat, against the person chatting, and one reply creates at most 16 images. One agent turn creates at most 16 images, one request at a time, and its images draw on the same allowance as the turn's model use: each image's cost comes out of what the model may still spend, and once the turn has used the allowance up, Tale refuses the next image. A budget limit that applies to that person refuses the image before the image model is called. Set cost or request limits for images under [Policies and limits](/platform/admin/governance/policies-and-limits); [How usage is counted](/platform/admin/governance/usage-attribution) explains who each image counts against. For the policy file and custom image endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-image-generation).
 
 ## Provide a standard agent {#standard-agent}
 
@@ -84,14 +88,14 @@ Only Editors and higher roles can add agents to a project. So that a project wit
 
 <Frame caption="Governance > Models — the standard agent, on, with its agent runtime and model chosen automatically.">
 
-![The Standard agent section with its switch on, Agent runtime and Model both set to Automatic, an empty Instructions field showing Built-in instructions, and the line For you, it runs on Claude Code with Claude Haiku 4.5.](/images/platform/governance-standard-agent.webp)
+![The Standard agent section with its switch on, Agent runtime and Model both set to Automatic, an empty Instructions field showing Built-in instructions, and the line For you, it works with Claude Haiku 4.5 and hands over to Claude Code when a task needs a full workspace.](/images/platform/governance-standard-agent.webp)
 
 </Frame>
 
 - **Where it appears.** In a project without agents, **Assignee** offers **Standard agent**, and [Create task from chat](/platform/chat/basics#create-task-from-chat) assigns it for you. Tale sets it up in a project the first time someone chooses it there or hands a chat's task to that project; the project's **Agents** tab then lists it with the **Standard** badge, and [The standard agent](/platform/projects/project-agents#standard-agent) explains how it behaves there.
-- **What it runs on.** With **Agent runtime** and **Model** on **Automatic**, Tale picks a recommended model the person starting the task may use under your [model access](#restrict-model-access) rules, and runs it on Claude Code, or on the agent runtime a subscription model is bound to. The line at the end of the section names what it runs on for you. Choose an agent runtime or a model to use it for everyone, then save the page's pending changes in the header.
+- **What it runs on.** With **Agent runtime** and **Model** on **Automatic**, Tale picks a recommended model the person starting the task may use under your [model access](#restrict-model-access) rules. When that person starts the task, the agent works with the model and the same tools as the chat, makes files in a light sandbox, and hands over to Claude Code, or to the agent runtime a subscription model is bound to, only when a task needs a full workspace; [How a standard agent run works](/platform/projects/project-agents#standard-agent-runs) describes it. Runs that an automation, a schedule or another agent starts, and runs on a model only a runtime can serve, work in that runtime from the start. The line at the end of the section names which of the two applies for you. Choose an agent runtime to run every task in it, or a model to use it for everyone, then save the page's pending changes in the header.
 - **What it knows.** Its built-in instructions tell it to do what the task asks with the task's files and comments, deliver a requested document, presentation, spreadsheet or PDF as a task output, write in the task's language, and ask in a comment when the task is unclear. Text under **Instructions** replaces them.
-- **What it may use.** The document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project, and none of the connectors, platform tools or secrets an Editor can grant to other agents.
+- **What it may use.** The document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project, and none of the connectors, platform tools or secrets an Editor can grant to other agents. When a person starts it, it also has what a chat has: knowledge search, page fetching, files, and images when [image generation](#let-agents-generate-images) is on.
 
 Every run starts with the settings in force at that moment; a running agent keeps the ones it started with. A chosen model stays in effect even when it becomes unavailable, and so does one that a person's model access denies: the standard agent then doesn't start for them and says why, and Tale doesn't switch to another model. Choose another model or **Automatic** and save. When no model a person may use can run it, it doesn't start for them either: add a credential under [AI providers](/platform/admin/providers), or check their model access.
 

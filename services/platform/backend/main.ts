@@ -4,6 +4,10 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
+import {
+  configuredMcpResources,
+  seedMcpResources,
+} from './auth/agent-oauth.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import {
   startAuthRequestCache,
@@ -22,6 +26,7 @@ import {
   type AuditSealer,
 } from './domains/audit_logs/sealer.ts';
 import { releaseOwnedRunLeases } from './domains/automations/store.ts';
+import { settleLiveChatTurns } from './domains/chat/live-turns.ts';
 import { isBackendDraining } from './domains/control/service.ts';
 import {
   installCorpusHealthHook,
@@ -90,9 +95,14 @@ async function main(): Promise<void> {
   }
 
   // A database that is restarting as this process boots is waited out for
-  // up to a minute from its first refusal, not reported: by the migrations,
-  // pg-boss's start and the schedules alike, on one clock for the whole boot
-  // (db/boot-wait.ts). Only an outage past that fails the boot below.
+  // up to a minute from its first refusal, not reported, by the steps the
+  // boot cannot do without: the migrations, the MCP resources, pg-boss's
+  // start and the schedules, on one clock for the whole boot
+  // (db/boot-wait.ts). Only an outage past that fails the boot below. The
+  // other steps that touch the database do not wait: the best-effort ones
+  // (aligning the queue policies, the boot's liveness sweep, the dev seed)
+  // log a warning and carry on, and the knowledge and object-store
+  // bootstraps report what they meet.
   const databaseWait = createBootDatabaseWait();
 
   // App migrations (numbered .sql files and .ts data migrations) run in every
@@ -104,6 +114,16 @@ async function main(): Promise<void> {
     ...(auth ? { authOptions: auth.options } : {}),
     wait: databaseWait,
   });
+  if (auth !== null) {
+    // The MCP endpoint as the sign-in server's resource, on every address
+    // the deployment answers on — once the provider's tables exist, and
+    // through the boot's wait, like the migrations before it.
+    await databaseWait(() => seedMcpResources(sql, configuredMcpResources()));
+  }
+  // The additive custody schema exists before this can inventory legacy
+  // factors. Refuse an altered/removed active fence before serving requests.
+  if (auth !== null)
+    await databaseWait(() => auth.initializeSessionAuthority());
 
   // Metrics collectors need the pool and read app tables, so they register
   // once per process AFTER the schema is known to exist.
@@ -283,6 +303,10 @@ async function main(): Promise<void> {
       stopBoss: (options) => boss.stop(options),
       settleLiveTurns,
       releaseOwnedRunLeases: () => releaseOwnedRunLeases(sql),
+      // A chat reply streams inside the process that took it; one still
+      // going when the drain budget ends is settled as interrupted now,
+      // not by the sweep ten minutes on (`domains/chat/live-turns.ts`).
+      settleChatTurns: (timeoutMs) => settleLiveChatTurns(sql, timeoutMs),
       // The knowledge pools outlive the jobs and requests that used them —
       // drain them here rather than leaving their sockets to process.exit.
       closeStores: async () => {

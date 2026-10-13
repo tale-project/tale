@@ -46,12 +46,20 @@ import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
+import { checkAuditEventOrder } from './audit-order.integration.ts';
+import { checkAgentConsent } from './auth/agent-consent-integration.ts';
+import { checkAgentDoor } from './auth/agent-door-integration.ts';
+import {
+  agentLaneMetadataFetch,
+  checkAgentOAuth,
+} from './auth/agent-oauth-integration.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { checkPasswordConfirmationThrottle } from './auth/password-confirmations.integration.ts';
 import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
 import { checkAuthRequestCache } from './auth/request-cache.integration.ts';
+import { checkOrganizationSessionAuthority } from './auth/session-authority.integration.ts';
 import { checkSessionTrustFieldsAreServerOnly } from './auth/session-trust-fields.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
@@ -69,6 +77,9 @@ import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
+import { checkAgentLifecycle } from './domains/agent_connections/agent-lifecycle.integration.ts';
+import { checkImageHoldIdentity } from './domains/agent_tools/image-billing.integration.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -88,7 +99,9 @@ import { checkAutomationTemplates } from './domains/automations/templates.integr
 import { checkTestReports } from './domains/automations/test-reports.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
+import { checkVersionDoors } from './domains/automations/version-doors.integration.ts';
 import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
+import { checkVersionRetention } from './domains/automations/version-retention.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
@@ -128,6 +141,7 @@ import {
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
 } from './domains/knowledge_entries/write-races.integration.ts';
+import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
@@ -142,6 +156,7 @@ import { checkChatFilterEventRetention } from './domains/retention/chat-filter-e
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
+import { checkLightSessionSweep } from './domains/sandbox/light-sessions.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
@@ -156,6 +171,7 @@ import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts'
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
+import { checkTaskCommentCommitRetry } from './domains/tasks/comments-commit.integration.ts';
 import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
@@ -166,6 +182,7 @@ import {
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
+import { checkTaskDependencyResolution } from './domains/tasks/dependencies.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
@@ -173,6 +190,7 @@ import { checkTaskExternalStatusProjection } from './domains/tasks/external-stat
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
+import { checkNativeAgentRuns } from './domains/tasks/native-runs.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
@@ -189,6 +207,7 @@ import { checkVideoLinkComposerChips } from './domains/video_links/composer-chip
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
 import {
+  AUDIT_WRITE_ORDER,
   connectSse,
   cookieHeaderFrom,
   errorText,
@@ -1341,12 +1360,12 @@ async function checkIdentityDomains(
       visionPick.success &&
       connectorCatalog.success &&
       quotaUsage.success &&
-      quotaUsage.data.usage.length === 3 &&
+      quotaUsage.data.usage.length === 4 &&
       harnessHealth.success &&
       sessionsView.success &&
       reconcile.success &&
       stopMissing.status === 404,
-    `catalogs=${provCatalogs.success ? provCatalogs.data.catalogs.length : 'ERR'}, harness=${harnessStatus.success ? harnessStatus.data.statuses.length : 'ERR'}, vision=${visionPick.success ? 'ok' : 'ERR'}, connectors=${connectorCatalog.success ? connectorCatalog.data.connectors.length : 'ERR'}, quota=${quotaUsage.success ? quotaUsage.data.usage.length : 'ERR'} (want 3), health=${harnessHealth.success ? 'ok' : 'ERR'}, view=${sessionsView.success ? sessionsView.data.sessions.length : 'ERR'}, reconcile=${reconcile.success ? reconcile.data.healed : 'ERR'}, stop404=${stopMissing.status}`,
+    `catalogs=${provCatalogs.success ? provCatalogs.data.catalogs.length : 'ERR'}, harness=${harnessStatus.success ? harnessStatus.data.statuses.length : 'ERR'}, vision=${visionPick.success ? 'ok' : 'ERR'}, connectors=${connectorCatalog.success ? connectorCatalog.data.connectors.length : 'ERR'}, quota=${quotaUsage.success ? quotaUsage.data.usage.length : 'ERR'} (want 4), health=${harnessHealth.success ? 'ok' : 'ERR'}, view=${sessionsView.success ? sessionsView.data.sessions.length : 'ERR'}, reconcile=${reconcile.success ? reconcile.data.healed : 'ERR'}, stop404=${stopMissing.status}`,
   );
 
   // Governance core (inc 90): policy save/read round trip + guards, the
@@ -6693,7 +6712,7 @@ async function checkDocumentWriteGuards(
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'api_key'
       AND resource_id = ${auditKeyId}
-    ORDER BY ts ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   record(
     'api keys: create and revoke leave audit rows naming the key, never its plaintext',
@@ -8727,6 +8746,7 @@ async function checkProviderCredentials(
               endpointUrl: z.string().nullable(),
               maskedPreview: z.string().nullable(),
               envName: z.string().nullable(),
+              accountId: z.string().nullable(),
               isDefault: z.boolean(),
               status: z.string(),
             })
@@ -8821,6 +8841,100 @@ async function checkProviderCredentials(
       brokerReplaced.ok &&
       rowsById.get(brokerId)?.maskedPreview === null,
     `endpoint=${rowsById.get(credentialId)?.endpointUrl}, envName=${rowsById.get(envCredentialId)?.envName} (resolves ${resolvedRepointed.authMethod === 'env' ? resolvedRepointed.envName : resolvedRepointed.authMethod}), emptyPatch → ${emptyPatch.status} (want 400), disabledDefault → ${disabledDefault.status} (want 400), brokerPreview=${String(rowsById.get(brokerId)?.maskedPreview)} (want null)`,
+  );
+
+  // Exercise the subscription account column through the HTTP writes, list
+  // and reused resolver over real PG, without changing the default fixture.
+  const subscription = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'openai',
+        authMethod: 'subscription-key',
+        name: 'Subscription account',
+        secret: 'itest-subscription-secret',
+        accountId: 'account-initial',
+        isDefault: false,
+      })
+    ).json(),
+  );
+  const subscriptionId = subscription.success
+    ? subscription.data.credentialId
+    : '';
+  const subscriptionListed = await listCredentials();
+  const subscriptionResolved = subscription.success
+    ? await resolveProviderCredential(sql, {
+        organizationId: orgId,
+        providerSlug: 'openai',
+        credentialId: subscriptionId,
+      })
+    : undefined;
+  const accountEdited = await send(
+    'POST',
+    `/api/app/provider-credentials/${subscriptionId}?orgId=${orgId}`,
+    { accountId: 'account-updated' },
+  );
+  const subscriptionEdited = await listCredentials();
+  const subscriptionResolvedAfterEdit = subscription.success
+    ? await resolveProviderCredential(sql, {
+        organizationId: orgId,
+        providerSlug: 'openai',
+        credentialId: subscriptionId,
+      })
+    : undefined;
+  const accountOnEnv = await send(
+    'POST',
+    `/api/app/provider-credentials?orgId=${orgId}`,
+    {
+      providerSlug: 'openai',
+      authMethod: 'env',
+      name: 'Invalid env account',
+      envName: 'TALE_PROVIDER_KEY_ITEST',
+      accountId: 'account-refused',
+      isDefault: false,
+    },
+  );
+  const envAccountError = z
+    .object({ error: z.string() })
+    .safeParse(await accountOnEnv.json().catch(() => null));
+  const accountOnApiKey = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { accountId: 'account-refused' },
+  );
+  const apiKeyAccountError = z
+    .object({ error: z.string() })
+    .safeParse(await accountOnApiKey.json().catch(() => null));
+  const subscriptionDeleted = await send(
+    'DELETE',
+    `/api/app/provider-credentials/${subscriptionId}?orgId=${orgId}`,
+  );
+  record(
+    'provider subscription account IDs round-trip through PG',
+    subscription.success &&
+      subscriptionListed.success &&
+      subscriptionListed.data.credentials.find(
+        (row) => row.id === subscriptionId,
+      )?.accountId === 'account-initial' &&
+      !JSON.stringify(subscriptionListed.data).includes(
+        'itest-subscription-secret',
+      ) &&
+      subscriptionResolved?.authMethod === 'subscription-key' &&
+      subscriptionResolved.accountId === 'account-initial' &&
+      accountEdited.ok &&
+      subscriptionEdited.success &&
+      subscriptionEdited.data.credentials.find(
+        (row) => row.id === subscriptionId,
+      )?.accountId === 'account-updated' &&
+      subscriptionResolvedAfterEdit?.authMethod === 'subscription-key' &&
+      subscriptionResolvedAfterEdit.accountId === 'account-updated' &&
+      accountOnEnv.status === 400 &&
+      envAccountError.success &&
+      envAccountError.data.error === 'CREDENTIAL_ACCOUNT_ID_INVALID' &&
+      accountOnApiKey.status === 400 &&
+      apiKeyAccountError.success &&
+      apiKeyAccountError.data.error === 'CREDENTIAL_ACCOUNT_ID_INVALID' &&
+      subscriptionDeleted.ok,
+    `create=${subscription.success}, edit=${accountEdited.status}, env account → ${accountOnEnv.status} (want 400), API-key account → ${accountOnApiKey.status} (want 400), cleanup=${subscriptionDeleted.status}`,
   );
 }
 
@@ -17998,6 +18112,15 @@ async function checkGovernance(
   const { cookie, orgId, userId } = ctx;
   const governance = await import('./domains/governance/service.ts');
   const orgConfig = await import('./lib/org-config.ts');
+
+  const { verifyProviderUsageLedger } =
+    await import('./domains/governance/usage-ledger.integration.ts');
+  await verifyProviderUsageLedger(sql);
+  record(
+    'usage ledger: provider-local models, filters and totals',
+    true,
+    'all granularities, repeated provider, distinct IDs, null provider and deletion',
+  );
 
   const restoreViaTrash = (body: unknown): Promise<Response> =>
     fetch(`${base}/api/app/governance/trash/restore?orgId=${orgId}`, {
@@ -28152,6 +28275,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28248,6 +28372,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-r',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28296,6 +28421,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-s',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28385,6 +28511,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-race',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28574,6 +28701,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-2',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -34462,7 +34590,7 @@ async function checkWebdav(
           SELECT document_id FROM app.knowledge_entries WHERE id = ${davEntryId}
         ))
       )
-    ORDER BY ts ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   const davActions = davAudit.map((row) => row.action);
   const cascadeRow = davAudit.find((row) => row.action === 'folder.deleted');
@@ -34679,7 +34807,7 @@ async function checkWebdav(
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'webdav_app_password'
       AND resource_id = ${passwordId}
-    ORDER BY ts ASC
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   record(
     'webdav: app-password mint and revoke leave audit rows naming the label and the prefix only',
@@ -44501,7 +44629,7 @@ async function checkAutomationRunToolLane(
     SELECT action, actor_id AS "actorId" FROM app.audit_logs
     WHERE org_id = ${orgId} AND resource_type = 'knowledge_entry'
       AND resource_name = ${entryTopic}
-    ORDER BY ts
+    ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
   `;
   const runActor = 'automation:itest-run-tools-pinned';
   record(
@@ -51547,6 +51675,8 @@ async function checkRetention(
       bound(1),
       'agentRuns:',
       bound(1),
+      'automationVersions:',
+      bound(1),
     ].join('\n'),
   );
   await writeFile(
@@ -52217,6 +52347,61 @@ async function checkErasure(
     ) VALUES (${orgId}, ${encodeUploadRef(uploadKey)}, 'subject-upload.txt',
               'text/plain', 20, ${subject}, ${now})
   `;
+  // A task run the subject started on the native engine: its transcript is a
+  // bare thread of their own, a scratch file only the transcript held carries
+  // their name, and the deliverable its task keeps carries none. Their
+  // erasure takes the transcript and the scratch file, leaves the
+  // deliverable, and keeps the run's record without them.
+  const runProject = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Erasure native run', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const runTaskId = randomUUID();
+  await sql`
+    INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
+      created_by, created_by_type, created_at_ms, updated_at_ms)
+    VALUES (${runTaskId}, ${orgId}, ${runProject[0]?.id ?? ''},
+            'Native run of the subject', 'in_review', ${runTaskId}, ${userId},
+            'user', ${now}, ${now})
+  `;
+  const runThreadRows = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${subject}, 'Native run transcript', 'task_run', ${now},
+            ${now})
+    RETURNING id
+  `;
+  const runThread = runThreadRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES (${runThread}, ${orgId}, 0, 0, 'user', 'the subject’s brief',
+              'complete', ${now})
+  `;
+  const runRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, engine, thread_id, model, started_by, started_at_ms,
+      settled_at_ms, deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${runProject[0]?.id ?? ''}, ${runTaskId}, 'erasure-agent',
+      ${`erasure-native-${subject}`}, 'erasure-sess', 'settled', 'claude-code',
+      'native', ${runThread}, 'm', ${subject}, ${now}, ${now}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source, uploaded_by,
+      thread_id, created_at_ms
+    ) VALUES
+      (${orgId}, ${`s3:erasure-scratch-${subject}`}, 'scratch.txt',
+       'text/plain', 1, 'agent', ${subject}, ${runThread}, ${now}),
+      (${orgId}, ${`s3:erasure-deliverable-${subject}`}, 'report.csv',
+       'text/csv', 1, 'task-output', NULL, NULL, ${now})
+  `;
 
   const selfRefused = await post(`/api/app/erasure?orgId=${orgId}`, {
     targetUserId: userId,
@@ -52438,8 +52623,48 @@ async function checkErasure(
     receiptStatus === 'done' &&
       uploadRowsLeft[0]?.count === '0' &&
       uploadBlobAfter === null &&
-      receiptCounts[0]?.counts?.uploads === 1,
-    `receipt=${receiptStatus} (want done), rowsLeft=${uploadRowsLeft[0]?.count} (want 0), blobHead=${uploadBlobAfter === null ? '404' : 'present'} (want 404), counts.uploads=${receiptCounts[0]?.counts?.uploads} (want 1)`,
+      // The upload, and the scratch file of the subject's native run.
+      receiptCounts[0]?.counts?.uploads === 2,
+    `receipt=${receiptStatus} (want done), rowsLeft=${uploadRowsLeft[0]?.count} (want 0), blobHead=${uploadBlobAfter === null ? '404' : 'present'} (want 404), counts.uploads=${receiptCounts[0]?.counts?.uploads} (want 2)`,
+  );
+  const runAfter = await sql<
+    {
+      threads: number;
+      messages: number;
+      scratch: number;
+      deliverable: number;
+      startedBy: string;
+      threadId: string | null;
+    }[]
+  >`
+    SELECT
+      (SELECT count(*)::int FROM app.threads WHERE id = ${runThread})
+        AS threads,
+      (SELECT count(*)::int FROM app.messages WHERE thread_id = ${runThread})
+        AS messages,
+      (SELECT count(*)::int FROM app.file_metadata
+       WHERE org_id = ${orgId}
+         AND storage_ref = ${`s3:erasure-scratch-${subject}`}) AS scratch,
+      (SELECT count(*)::int FROM app.file_metadata
+       WHERE org_id = ${orgId}
+         AND storage_ref = ${`s3:erasure-deliverable-${subject}`}
+         AND (lifecycle_status IS NULL OR lifecycle_status = 'active'))
+        AS deliverable,
+      r.started_by AS "startedBy", r.thread_id AS "threadId"
+    FROM app.project_agent_runs r WHERE r.id = ${runRows[0]?.id ?? ''}
+  `;
+  record(
+    'erasure: the transcript of a native run the subject started goes with them — its thread, its messages and the file only it held — while the run’s record stays without them and the task keeps its deliverable [TASK-R36]',
+    receiptStatus === 'done' &&
+      runAfter[0]?.threads === 0 &&
+      runAfter[0].messages === 0 &&
+      runAfter[0].scratch === 0 &&
+      runAfter[0].deliverable === 1 &&
+      runAfter[0].startedBy !== subject &&
+      runAfter[0].threadId === null &&
+      // Counted apart from the chats the request targeted.
+      receiptCounts[0]?.counts?.runTranscripts === 1,
+    `receipt=${receiptStatus}; ${JSON.stringify(runAfter[0])} counts.runTranscripts=${receiptCounts[0]?.counts?.runTranscripts} (want 0 threads/messages/scratch, 1 deliverable, started_by not the subject, no thread, 1 transcript counted)`,
   );
 
   // Cancel lane: a fresh subject inside a real cooling window.
@@ -58661,7 +58886,7 @@ async function checkTwoFactor(
       SELECT action FROM app.audit_logs
       WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
         AND resource_id = ${userId}
-      ORDER BY ts ASC
+      ORDER BY ${sql.unsafe(AUDIT_WRITE_ORDER)}
     `;
     return rows.map((row) => row.action);
   };
@@ -61687,6 +61912,109 @@ async function checkWatchdogs(
       (msgAfter[0].error ?? '') !== '',
     `gen=${genGone[0]?.count} meta=${metaAfter[0]?.generationStatus} msg=${msgAfter[0]?.status}`,
   );
+
+  // Lane 4b: a process that is stopping settles ITS OWN live turns at once —
+  // their heartbeats are fresh, so the sweep above would leave each for ten
+  // minutes — and touches no turn it did not run.
+  const openTurn = async (
+    stream: string,
+  ): Promise<{ threadId: string; messageId: string }> => {
+    const created = await sql<{ id: string }[]>`
+      INSERT INTO app.threads (org_id, kind, created_at_ms, updated_at_ms)
+      VALUES (${orgId}, 'chat', ${now}, ${now}) RETURNING id
+    `;
+    const id = created[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.thread_metadata (
+        thread_id, org_id, user_id, chat_type, status, generation_status,
+        stream_id, generation_heartbeat_at_ms, created_at_ms
+      ) VALUES (
+        ${id}, ${orgId}, 'itest:wd', 'assistant', 'active', 'generating',
+        ${stream}, ${now}, ${now}
+      )
+    `;
+    const placeholder = await sql<{ id: string }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, text, status,
+        created_at_ms
+      ) VALUES (${id}, ${orgId}, 1, 0, 'assistant', '', 'pending', ${now})
+      RETURNING id
+    `;
+    const messageId = placeholder[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.generations (
+        thread_id, org_id, message_id, text, started_at_ms, heartbeat_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${id}, ${orgId}, ${messageId}, 'streaming…', ${now}, ${now}, ${now}
+      )
+    `;
+    return { threadId: id, messageId };
+  };
+  const own = await openTurn('stream-own');
+  const foreign = await openTurn('stream-foreign');
+  // A turn this process still tracks whose row another turn has taken over.
+  const successor = await openTurn('stream-successor');
+  const ownTurnId = own.threadId;
+  const foreignTurnId = foreign.threadId;
+  const successorTurnId = successor.threadId;
+  const liveTurns = await import('./domains/chat/live-turns.ts');
+  liveTurns.trackLiveTurn({
+    organizationId: orgId,
+    threadId: ownTurnId,
+    messageId: own.messageId,
+  });
+  liveTurns.trackLiveTurn({
+    organizationId: orgId,
+    threadId: successorTurnId,
+    messageId: 'a-turn-this-process-ran-before',
+  });
+  const interrupted = await liveTurns.settleLiveChatTurns(sql, 0);
+  const turnState = async (id: string) => {
+    const generation = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.generations WHERE thread_id = ${id}
+    `;
+    const meta = await sql<{ generationStatus: string | null }[]>`
+      SELECT generation_status AS "generationStatus"
+      FROM app.thread_metadata WHERE thread_id = ${id}
+    `;
+    const message = await sql<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM app.messages WHERE thread_id = ${id}
+    `;
+    return {
+      generations: generation[0]?.count,
+      meta: meta[0]?.generationStatus,
+      message: message[0]?.status,
+      error: message[0]?.error ?? '',
+    };
+  };
+  const ownState = await turnState(ownTurnId);
+  const foreignState = await turnState(foreignTurnId);
+  const successorState = await turnState(successorTurnId);
+  record(
+    'a stopping process settles its own live turns as interrupted, and no other',
+    interrupted === 1 &&
+      ownState.generations === '0' &&
+      ownState.meta === 'idle' &&
+      ownState.message === 'failed' &&
+      ownState.error !== '' &&
+      foreignState.generations === '1' &&
+      foreignState.meta === 'generating' &&
+      foreignState.message === 'pending' &&
+      successorState.generations === '1' &&
+      successorState.meta === 'generating' &&
+      successorState.message === 'pending',
+    `interrupted=${interrupted} own=${JSON.stringify({ ...ownState, error: ownState.error !== '' })} foreign=${JSON.stringify({ ...foreignState, error: foreignState.error !== '' })} successor=${JSON.stringify({ ...successorState, error: successorState.error !== '' })}`,
+  );
+  // The foreign and successor turns were never this process's: leave no live
+  // row behind for the lanes after this one (budget holds count live
+  // generations).
+  liveTurns.untrackLiveTurn(ownTurnId);
+  liveTurns.untrackLiveTurn(successorTurnId);
+  await sql`
+    DELETE FROM app.generations
+    WHERE thread_id IN (${foreignTurnId}, ${successorTurnId})
+  `;
 }
 
 /**
@@ -64127,11 +64455,17 @@ async function main(): Promise<void> {
   process.env.TALE_PROVISIONING_DISABLED ??= '1';
   // WebDAV app-password HMAC (64 hex chars, the boot rule).
   process.env.WEBDAV_APP_PASSWORD_HMAC_KEY ??= 'ab'.repeat(32);
+  // Coding agents' ways in to the MCP endpoint are off unless the operator
+  // opens them; the agent sign-in lane exercises both, with its own client
+  // metadata document served by a stub instead of a host that does not exist.
+  process.env.TALE_MCP_CLIENT_METADATA_DOCUMENTS ??= 'true';
+  process.env.TALE_MCP_DYNAMIC_CLIENT_REGISTRATION ??= 'true';
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
     baseUrl,
     sql,
+    cimdFetch: agentLaneMetadataFetch,
   });
 
   console.log('[itest] starting pg-boss (installs its own schema)…');
@@ -64450,6 +64784,10 @@ async function main(): Promise<void> {
         () => checkTaskCommentCrossTaskBurst(sql, authCtx),
       ],
       [
+        'checkTaskCommentCommitRetry',
+        () => checkTaskCommentCommitRetry(sql, authCtx, record),
+      ],
+      [
         'checkRateLimitShapes',
         () => checkRateLimitShapes(sql, baseUrl, authCtx),
       ],
@@ -64726,6 +65064,11 @@ async function main(): Promise<void> {
           ),
       ],
       [
+        'checkOrganizationSessionAuthority',
+        async () =>
+          checkOrganizationSessionAuthority(sql, baseUrl, auth, record),
+      ],
+      [
         'checkSessionTrustFieldsAreServerOnly',
         async () =>
           checkSessionTrustFieldsAreServerOnly(
@@ -64834,6 +65177,24 @@ async function main(): Promise<void> {
         'checkMcpAuthoringParity',
         () =>
           checkMcpAuthoringParity(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkVersionDoors',
+        async () =>
+          checkVersionDoors(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'version-doors-reader',
+              'member',
+            ),
+            `itest-${orgSuffix}`,
+            record,
+          ),
       ],
       [
         'checkMcpDiscovery',
@@ -65078,6 +65439,10 @@ async function main(): Promise<void> {
         () => checkAgentRunFailureNotice(sql, authCtx, record),
       ],
       [
+        'checkNativeAgentRuns',
+        () => checkNativeAgentRuns(sql, authCtx, record),
+      ],
+      [
         'checkTaskNotificationAccess',
         () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
       ],
@@ -65095,6 +65460,10 @@ async function main(): Promise<void> {
         () => checkDeploymentHistory(sql, authCtx, record),
       ],
       ['checkVersionHistory', () => checkVersionHistory(sql, authCtx, record)],
+      [
+        'checkVersionRetention',
+        () => checkVersionRetention(sql, authCtx, record),
+      ],
       ['checkTestReports', () => checkTestReports(sql, authCtx, record)],
       [
         'checkAutomationTemplates',
@@ -65224,6 +65593,10 @@ async function main(): Promise<void> {
         () => checkTaskSearchPriority(sql, authCtx, record),
       ],
       [
+        'checkTaskDependencyResolution',
+        () => checkTaskDependencyResolution(sql, authCtx, record),
+      ],
+      [
         'checkAgentTaskReadTools',
         () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
       ],
@@ -65274,6 +65647,14 @@ async function main(): Promise<void> {
       [
         'checkNativeIdentity',
         () => checkNativeIdentity(sql, baseUrl, auth, record),
+      ],
+      ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
+      ['checkAgentConsent', () => checkAgentConsent(sql, baseUrl, record)],
+      ['checkAgentDoor', () => checkAgentDoor(sql, baseUrl, record)],
+      ['checkAgentLifecycle', () => checkAgentLifecycle(sql, baseUrl, record)],
+      [
+        'checkAgentConnections',
+        () => checkAgentConnections(sql, baseUrl, record),
       ],
       [
         'checkConversationApi',
@@ -65375,6 +65756,7 @@ async function main(): Promise<void> {
             `itest-${orgSuffix}`,
           ),
       ],
+      ['checkAuditEventOrder', () => checkAuditEventOrder(sql, record)],
       ['checkAuditSurface', () => checkAuditSurface(sql, baseUrl, authCtx)],
       [
         'checkDataResidency',
@@ -65485,12 +65867,20 @@ async function main(): Promise<void> {
         () => checkSandboxIdleRelease(sql, authCtx, record),
       ],
       [
+        'checkLightSessionSweep',
+        () => checkLightSessionSweep(sql, authCtx, record),
+      ],
+      [
         'checkWorkspaceCleanup',
         () => checkWorkspaceCleanup(sql, authCtx, record),
       ],
       [
         'checkImageGenerationAdmission',
         () => checkImageGenerationAdmission(sql, authCtx, record),
+      ],
+      [
+        'checkImageHoldIdentity',
+        () => checkImageHoldIdentity(sql, authCtx, record),
       ],
       [
         'checkSandboxDevices',
@@ -65571,6 +65961,10 @@ async function main(): Promise<void> {
       [
         'checkOrganizationLifecycle',
         () => checkOrganizationLifecycle(sql, baseUrl, orgSuffix),
+      ],
+      [
+        'checkMemberAccountAuthority',
+        () => checkMemberAccountAuthority(sql, auth, baseUrl, record),
       ],
     ]);
   } catch (error) {

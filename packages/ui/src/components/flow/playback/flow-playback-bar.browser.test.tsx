@@ -23,10 +23,16 @@ afterEach(async () => {
   await cdp().send('Emulation.setEmulatedMedia', { features: [] });
 });
 
-function Harness({ timeline }: { timeline: FlowPlaybackTimeline }) {
+function Harness({
+  timeline,
+  width = 720,
+}: {
+  timeline: FlowPlaybackTimeline;
+  width?: number;
+}) {
   const clock = usePlaybackClock({ timeline });
   return (
-    <div style={{ width: 720 }}>
+    <div style={{ width }}>
       <button type="button">Before the bar</button>
       <FlowPlaybackBar
         timeline={timeline}
@@ -159,6 +165,35 @@ describe('FlowPlaybackBar', () => {
       screen.getByRole('combobox', { name: 'Playback speed' }),
     ).toBeVisible();
     expect(screen.queryByRole('radio', { name: '2×' })).toBeNull();
+  });
+
+  it('keeps every control inside the bar on a phone, the scrubber on a row of its own', async () => {
+    // A phone's card is about 360 px wide: the buttons, the time and the speed
+    // fill the first row, so the scrubber takes the second.
+    await page.viewport(390, 844);
+    const timeline = buildPlaybackTimeline(branchRun());
+    render(<Harness timeline={timeline} width={360} />);
+    const bar = screen.getByRole('group', { name: 'Run timeline' });
+    const frame = bar.getBoundingClientRect();
+    const inside = (element: HTMLElement) => {
+      const box = element.getBoundingClientRect();
+      return box.left >= frame.left - 0.5 && box.right <= frame.right + 0.5;
+    };
+    expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth + 1);
+    const speed = screen.getByRole('combobox', { name: 'Playback speed' });
+    expect(inside(speed)).toBe(true);
+    const slider = screen.getByRole('slider', { name: 'Run timeline' });
+    expect(inside(slider)).toBe(true);
+    for (const name of ['Pause', 'Play', 'Previous event', 'Next event']) {
+      const button = screen.queryByRole('button', { name });
+      if (button !== null) expect(inside(button)).toBe(true);
+    }
+    // The scrubber sits under the buttons, as wide as the bar allows.
+    const play = screen.getByRole('button', { name: /Play|Pause/ });
+    expect(slider.getBoundingClientRect().top).toBeGreaterThan(
+      play.getBoundingClientRect().bottom - 1,
+    );
+    expect(slider.getBoundingClientRect().width).toBeGreaterThan(300);
   });
 
   it.each(['light', 'dark'])('passes axe (%s)', async (theme) => {

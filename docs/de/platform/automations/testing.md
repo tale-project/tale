@@ -23,6 +23,8 @@ Jede Zeile ist ein Test, in der Reihenfolge des Dokuments: sein Status, sein Nam
 2. Füll den Test unter **Einrichtung** aus: **Name**, die **Eingabe**, die der Lauf als JSON erhält, unter **Simulierte Ausgaben** und **Simulierte Fehler** die Schritte, für die der Test einspringt, und unter **Erwartungen**, was der Lauf tun muss. Deine Änderungen gehen beim Tippen in den Entwurf ein.
 3. Speichere den Entwurf, um den Test zu behalten. Beim Speichern laufen alle Tests, und die Version behält das Ergebnis.
 
+Eine neue simulierte Ausgabe beginnt leer: `{}` für eine Node oder `[]`, wenn sie einmal pro Element läuft. **Ausgabe des letzten Laufs verwenden** übernimmt die Ausgabe aus dem Lauf auf dem Canvas, wenn du das wählst. Prüfe diesen Wert vor dem Speichern.
+
 <Frame caption="Die Einrichtung eines Tests: die Eingabe des Laufs als JSON, die simulierten Schritte und was der Test vom Lauf erwartet.">
 
 ![Der Tab Setup des Tests Big order gets 10% off neben dem Canvas von Order discounts: Name, eine leere Description, ein Input mit quantity 120 und unitPrice 20, Simulated outputs und Simulated failures mit je einer Auswahl und Expectations, wo die Ausgabe mit Includes geprüft wird.](/images/platform/automation-test-setup.webp)
@@ -56,13 +58,15 @@ Gibt es mehr, wovon ein Test ausgehen kann, öffnet **Test hinzufügen** ein Men
 
 ### Einen Lauf als Test speichern {#save-a-run}
 
-Ein Lauf, der getan hat, was er sollte, oder einer, der schiefging, wird zu einem eigenen Test. **Aus einem Lauf** im Menü **Test hinzufügen** listet die fünf neuesten Läufe, die Seite eines Laufs bietet **Als Test speichern…** in ihrem Menü, und ein [Versuch mit dem Entwurf](/de/platform/automations/editor#try-the-draft) bietet **Als Test speichern** in seinem Streifen. Der Dialog macht aus dem Lauf einen Test, mit seiner Eingabe:
+Ein Lauf, der getan hat, was er sollte, oder einer, der schiefging, wird zu einem eigenen Test. **Aus einem Lauf** im Menü **Test hinzufügen** listet die fünf neuesten Läufe, die Seite eines Laufs und seine Zeile im Tab **Läufe** bieten **Als Test speichern…** in ihren Menüs, und ein [Versuch mit dem Entwurf](/de/platform/automations/editor#try-the-draft) bietet **Als Test speichern** in seinem Streifen. Der Dialog macht aus dem Lauf einen Test, mit seiner Eingabe:
 
 - **Der Test erwartet** folgt dem Ende des Laufs: **Er gibt diese Ausgabe zurück** oder **Seine Ausgabe enthält das** bei einem erfolgreichen Lauf; **Er ist erfolgreich** bei einem fehlgeschlagenen, sodass der Test fehlschlägt, bis der Fehler behoben ist, oder **Er schlägt bei Score fehl**, wenn er bei Score fehlschlug. **Noch nichts** prüft nur, dass der Lauf erfolgreich ist.
 - **Mit den Daten dieses Laufs simulieren** listet die Schritte, die ein Modell, einen Agenten, einen Connector oder eine andere Automatisierung aufgerufen haben, jeweils standardmäßig eingeschaltet: Im Test antworten sie so wie im Lauf. Ein Code-Schritt bleibt aus, denn dein Code ist das, was der Test prüft.
 - **Auch dieselben Aktionen erwarten** erwartet jede Aktion des Laufs, ohne ihre Eingabe.
 
 **Test hinzufügen** legt den Test in deinen Entwurf und öffnet ihn unter **Einrichtung**; mit dem Speichern des Entwurfs bleibt er erhalten. Werte, die wie Zugangsdaten aussehen, werden weggelassen, und der Dialog sagt, wie viele. Die Eingabe des Laufs und die Ausgaben, die du behältst, werden Teil der Automatisierung, also können alle, die sie öffnen können, sie lesen.
+
+Übernommene Eingaben, Ausgaben und Fehlermeldungen gehören zum verfassten Inhalt der gespeicherten Version. Sie können in aufbewahrten Versionen bleiben, nachdem der ursprüngliche Lauf gelöscht oder durch Aufbewahrungsregeln beziehungsweise eine Löschanfrage entfernt wurde. Einen Test in einer späteren Version zu entfernen, ändert frühere Versionen nicht. Prüfe vor dem Speichern **Eingabe**, **Simulierte Ausgaben**, **Simulierte Fehler** und **Erwartungen** und ersetze personenbezogene Daten durch synthetische Beispiele.
 
 <Frame caption="Ein Live-Lauf von Answer launch questions als Test gespeichert: Er erwartet, was der Lauf zurückgab, und die Suche antwortet wie im Lauf.">
 

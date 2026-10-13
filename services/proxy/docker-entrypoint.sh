@@ -280,7 +280,14 @@ BACKEND_BLOCK=$(cat <<EOF
 		import edge_json_refusal
 		respond \`{"error":"Not found","code":"NOT_FOUND"}\` 404
 	}
-	handle /.well-known/oauth-authorization-server/api/auth {
+	# The sign-in server's metadata (RFC 8414) and the MCP endpoint's
+	# (RFC 9728) live at the HOST root, the issuer's or the endpoint's own
+	# path inserted after the prefix — under a subpath deployment that path
+	# carries the base path, so neither may sit behind it.
+	handle /.well-known/oauth-authorization-server/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /.well-known/oauth-protected-resource* {
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
 	handle /api/auth/* {

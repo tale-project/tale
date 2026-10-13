@@ -875,6 +875,8 @@ export async function checkAgentTaskReviews(
     });
     await checkAgentReviewFiles({
       sql,
+      auth,
+      foreignOrgId: foreignOrg,
       base,
       orgId,
       orgSlug,

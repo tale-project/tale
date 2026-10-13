@@ -25,8 +25,8 @@ limits:
   invalidSessions: Saisis un nombre entier entre 1 et 500.
   total: Total des sessions de ton organisation
   totalValue: '{total} / {maxSessions}'
-  totalHint: Somme des trois limites / capacité du déploiement. Les autres organisations partagent cette capacité.
-  totalHintWithDevices: Somme des trois limites / capacité du déploiement plus les {deviceSessions} sandboxes de tes appareils. Les autres organisations partagent la capacité du déploiement.
+  totalHint: Somme des limites ci-dessus / capacité du déploiement. Les autres organisations partagent cette capacité.
+  totalHintWithDevices: Somme des limites ci-dessus / capacité du déploiement plus les {deviceSessions} sandboxes de tes appareils. Les autres organisations partagent la capacité du déploiement.
   totalExceedsDeployment: Le total de {total} sessions dépasse la capacité du déploiement de {maxSessions}. Réduis au moins une limite pour enregistrer.
   totalExceedsCapacity: 'Le total de {total} sessions dépasse la capacité de {maxSessions} : {deploymentSessions} dans le déploiement et {deviceSessions} sur tes appareils. Réduis au moins une limite pour enregistrer.'
   capacityUnavailable: La capacité du déploiement est indisponible. Tu peux abaisser les limites ; actualise les données de l'infrastructure avant d'en augmenter une.
@@ -37,10 +37,12 @@ quota:
     project: Workers d’agent
     workflow: Sessions de workflow
     render: Sessions de rendu
+    light: Sandboxes légères
   budgetHints:
     project: Chaque tâche sur laquelle un agent travaille en même temps s’exécute dans sa propre sandbox.
     workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
     render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
+    light: "Les chats et les exécutions de tâches exécutent du code dans une petite sandbox jetable pour créer des documents et des graphiques ; une sandbox inutilisée cède sa place à la suivante."
 cleanup:
   title: Nettoyage des espaces de travail
   description:
@@ -144,6 +146,7 @@ worker:
   agent: Worker {number}
   member: Worker de membre {number}
 deletedAgent: Agent supprimé
+lightSandbox: Sandbox légère
 devices:
   title: Appareils
   description:

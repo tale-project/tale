@@ -71,6 +71,8 @@ Dans la règle de rétention, choisis **Modifier** et configure les catégories 
 
 Vérifie les bornes minimales et maximales du déploiement avant de modifier une durée. Les changements qui demandent une revue ou un délai apparaissent comme propositions ou changements en attente. Lis leur date d’effet sans supposer une application immédiate.
 
+**Versions d'automatisation** est désactivée tant que tu ne l’actives pas. Lorsqu’elle est active, les versions enregistrées plus anciennes que la période sont supprimées, sauf la version en service, les versions des dix dernières mises en service, toute version utilisée par une exécution, les vingt versions les plus récentes, les versions à partir desquelles celles-ci ont été restaurées ou sur lesquelles elles sont basées, et les versions enregistrées par une personne sous conservation légale. Un numéro de version n’est jamais réutilisé, et un lien vers une version supprimée indique qu’elle n’existe plus.
+
 Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation légale](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
 
 Pour les déploiements autohébergés, la [configuration de rétention](/fr/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.
@@ -80,6 +82,22 @@ Pour les déploiements autohébergés, la [configuration de rétention](/fr/self
 Les contrôles comprennent les limites de fenêtre de contexte par portée et le commutateur de sortie vocale pour l’organisation. Une limite de contexte détermine la quantité de contexte transmise à une réponse d’IA ; elle diffère d’un budget. Une limite inférieure à 200 000 tokens s’applique aussi aux exécutions d’agents Claude Code, selon la limite de la personne qui a lancé l’exécution : l’agent condense sa conversation en un résumé avant qu’elle ne dépasse la limite, et Claude Code traite toute limite inférieure à 100 000 tokens comme 100 000. Désactiver la sortie vocale empêche les membres de l’activer par leurs réglages personnels ou leurs conversations.
 
 Le commutateur par défaut des instructions personnalisées enregistre la valeur d’organisation pour les instructions personnelles des membres : tant qu’il est activé, les instructions personnalisées de chaque membre s’appliquent à ses réponses de chat, sauf si le membre a désactivé la fonction lui-même sous **Paramètres > Personnalisation**. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/fr/platform/admin/governance/guardrails).
+
+## Choisir ce que le chat peut créer {#chat-tools}
+
+**Outils du chat** détermine ce que l’assistant du chat peut créer en plus de ses réponses. Chaque interrupteur retire son outil de tous les chats de ton organisation, si bien que l’assistant ne se voit jamais proposer un outil qu’il n’a pas le droit d’utiliser :
+
+- **Fichiers** — des fichiers texte que l’assistant rédige lui-même, comme du Markdown, du CSV, du HTML ou des entrées d’agenda. Rien ne démarre pour eux.
+- **Skills** — les instructions de la [bibliothèque de skills](/fr/platform/workspace/skills) de chaque personne, que l’assistant lit quand l’une d’elles correspond à la demande.
+- **Code** — du code dans une sandbox légère, pour des fichiers Word, Excel, PowerPoint et PDF, des graphiques et des calculs. Chaque conversation utilise une sandbox légère à la fois, et la [limite des sandboxes légères](/fr/platform/admin/sandboxes#light-sandboxes) de ton organisation plafonne le nombre de sandboxes qui tournent en même temps.
+
+<Frame caption="Gouvernance > Politiques et limites — les outils du chat tels qu’une nouvelle organisation les a : fichiers, skills et code activés.">
+
+![La section Outils du chat avec trois lignes activées : Fichiers, pour les fichiers texte que l’assistant rédige lui-même ; Skills, pour les instructions de la bibliothèque de skills de chaque personne ; et Code, pour le code dans une sandbox légère.](/images/platform/governance-chat-tools.webp)
+
+</Frame>
+
+Les trois sont activés tant que tu n’en désactives pas un, et un fichier de politique absent les laisse activés. Un fichier de politique qui existe mais ne peut pas être lu désactive les trois jusqu’à sa réparation : un fichier défectueux ne réactive donc jamais ce que tu as désactivé, et cette page indique alors que la politique n’a pas pu être lue. Modifie les interrupteurs, puis enregistre les modifications en attente dans l’en-tête de la page ; la prochaine réponse de chaque chat les applique. Les images ne relèvent pas de cette section : le chat n’en crée que lorsque la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) est activée. [Créer des fichiers et utiliser des skills dans le chat](/fr/platform/chat/files-and-skills) montre ce que voient les membres.
 
 ## Afficher un avis de confidentialité dans le chat
 

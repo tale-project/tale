@@ -24,6 +24,19 @@ import { StandardAgentEditor } from './standard-agent-editor';
 
 type Availability = ReturnsOf<'projects/queries:getStandardAgent'>;
 
+/** What the settings page reads when the standard agent is on and served by a runtime. */
+const AVAILABLE = {
+  enabled: true,
+  available: true,
+  harness: 'claude-code',
+  harnessLabel: 'Claude Code',
+  model: 'claude-sonnet-5',
+  modelLabel: 'Claude Sonnet 5',
+  modelProvider: 'anthropic',
+  source: 'preferred',
+  engine: 'harness',
+} satisfies Availability;
+
 const { state, saved, refetch, refetchAvailability } = vi.hoisted(() => ({
   saved: vi.fn(),
   refetch: vi.fn(),
@@ -136,16 +149,7 @@ beforeEach(() => {
   state.hasPolicy = true;
   state.policyError = undefined;
   state.canEdit = true;
-  state.availability = {
-    enabled: true,
-    available: true,
-    harness: 'claude-code',
-    harnessLabel: 'Claude Code',
-    model: 'claude-sonnet-5',
-    modelLabel: 'Claude Sonnet 5',
-    modelProvider: 'anthropic',
-    source: 'preferred',
-  };
+  state.availability = AVAILABLE;
 });
 
 describe('standard agent settings', () => {
@@ -164,6 +168,18 @@ describe('standard agent settings', () => {
       screen.getByText('For you, it runs on Claude Code with Claude Sonnet 5.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says a start by a person works with the chat’s tools and hands over to the runtime only when a task needs a full workspace', async () => {
+    state.availability = { ...AVAILABLE, engine: 'native' };
+    await renderEditor();
+
+    expect(
+      screen.getByText(
+        'For you, it works with Claude Sonnet 5 and hands over to Claude Code when a task needs a full workspace.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/For you, it runs on/)).not.toBeInTheDocument();
   });
 
   it('switches off at once, keeping its saved choices', async () => {
@@ -270,6 +286,101 @@ describe('standard agent settings', () => {
       'The saved standard agent settings are invalid.',
     );
     expect(screen.getByRole('switch', { name: TOGGLE })).toBeEnabled();
+  });
+
+  it('repairs a malformed policy by choosing Automatic and saving, then shows real availability', async () => {
+    state.policyError = toBackendError(
+      new BackendApiError(400, 'invalid', 'GOVERNANCE_POLICY_INVALID'),
+    );
+    state.availability = {
+      enabled: true,
+      available: false,
+      refusal: 'unreadable',
+    };
+    saved.mockImplementation(async ({ config }) => {
+      state.config = config;
+      state.policyError = undefined;
+      state.availability = {
+        enabled: true,
+        available: false,
+        refusal: 'no-model',
+      };
+      return null;
+    });
+    const { user } = await renderEditor();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Under Model, choose a model or Automatic and save to repair them.',
+    );
+    expect(screen.getByRole('button', { name: MODEL })).toHaveTextContent(
+      'Invalid saved configuration',
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Instructions' }),
+      'Draft',
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.clear(screen.getByRole('textbox', { name: 'Instructions' }));
+    await user.click(screen.getByRole('button', { name: MODEL }));
+    expect(screen.getByRole('button', { name: MODEL })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await user.click(await screen.findByRole('option', { name: /^Automatic/ }));
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(saved).toHaveBeenCalledWith({
+        organizationId: 'org-standard',
+        policyType: 'standard_agent',
+        config: { enabled: true },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'No model you can use can run the standard agent.',
+      ),
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      'The saved standard agent settings are invalid.',
+    );
+  });
+
+  it('repairs a malformed policy with a chosen model without saving the invalid sentinel', async () => {
+    state.policyError = toBackendError(
+      new BackendApiError(400, 'invalid', 'GOVERNANCE_POLICY_INVALID'),
+    );
+    const { user } = await renderEditor();
+
+    await user.click(screen.getByRole('button', { name: MODEL }));
+    expect(
+      screen.getByRole('option', { name: /^Invalid saved configuration/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('option', { name: 'OpenAI · GPT-5.5' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(saved).toHaveBeenCalledWith({
+        organizationId: 'org-standard',
+        policyType: 'standard_agent',
+        config: { enabled: true, providerSlug: 'openai', modelId: 'gpt-5.5' },
+      }),
+    );
+  });
+
+  it('does not offer replacement settings when the policy read fails for another reason', async () => {
+    state.policyError = toBackendError(
+      new BackendApiError(500, 'unreadable', 'INTERNAL_ERROR'),
+    );
+    await renderEditor();
+
+    expect(screen.getByRole('switch', { name: TOGGLE })).toBeDisabled();
+    expect(screen.getByRole('button', { name: MODEL })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(saved).not.toHaveBeenCalled();
   });
 
   it('explains what switching it off means while it is off', async () => {

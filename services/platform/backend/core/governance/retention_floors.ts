@@ -254,6 +254,52 @@ export function buildBoundsByCategory(
 }
 
 /**
+ * The org's bounds, plus the categories a release added after the org's file
+ * was seeded. An org's file is written once, at its creation, from the
+ * built-in catalog; a category the catalog gained later is missing from it,
+ * and `applyEnvTightening` refuses a missing category — which would leave the
+ * retention editor of every existing organization without its bounds after
+ * an upgrade. Each such category takes the catalog's entry, and its env
+ * bindings when both files name the same `envPrefix`. What the org's file
+ * says always wins; with no catalog there is nothing to add.
+ *
+ * Pure: the caller reads both files.
+ */
+export function withCatalogCategories(
+  own: RetentionDefaultsConfig,
+  catalog: RetentionDefaultsConfig | null,
+): RetentionDefaultsConfig {
+  if (catalog === null) return own;
+  const added = RETENTION_CATEGORIES.filter(
+    (category) =>
+      own[category] === undefined && catalog[category] !== undefined,
+  );
+  if (added.length === 0) return own;
+  const merged: RetentionDefaultsConfig = { ...own };
+  for (const category of added) merged[category] = catalog[category];
+  const ownMeta = own._metadata;
+  const catalogNames = catalog._metadata?.envNames;
+  if (
+    ownMeta?.envNames !== undefined &&
+    catalogNames !== undefined &&
+    (ownMeta.envPrefix ?? '') === (catalog._metadata?.envPrefix ?? '')
+  ) {
+    const envNames = { ...ownMeta.envNames };
+    for (const [suffix, path] of Object.entries(catalogNames)) {
+      const [category] = path.split('.');
+      if (
+        envNames[suffix] === undefined &&
+        added.some((candidate) => candidate === category)
+      ) {
+        envNames[suffix] = path;
+      }
+    }
+    merged._metadata = { ...ownMeta, envNames };
+  }
+  return merged;
+}
+
+/**
  * `TALE_RETENTION_DISABLED=true` short-circuits the cleanup action with
  * a single warn-log. Used during migration windows or for emergency
  * "freeze all auto-deletion this week" scenarios. Sync (env-only).
@@ -369,6 +415,7 @@ export const RETENTION_POLICY_FIELD_BY_CATEGORY: Record<
   externalConversations: 'externalConversationsRetentionDays',
   notifications: 'notificationsRetentionDays',
   agentRuns: 'agentRunsRetentionDays',
+  automationVersions: 'automationVersionsRetentionDays',
 };
 
 /**

@@ -2,6 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import type { Sql } from 'postgres';
 
+import { logDetail } from '../../db/unavailable.ts';
 import { listUnsealedOrgIds, sealAuditChain } from './service.ts';
 
 /**
@@ -62,7 +63,10 @@ export function startAuditSealer(
       try {
         await sealPendingAuditChains(sql);
       } catch (error) {
-        console.error('[audit-sealer] round failed; retrying:', error);
+        console.error(
+          '[audit-sealer] round failed; retrying:',
+          logDetail(error),
+        );
       }
       if (signal.aborted) break;
       await sleep(intervalMs, undefined, { signal }).catch((error: unknown) => {

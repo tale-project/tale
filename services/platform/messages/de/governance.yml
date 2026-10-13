@@ -185,11 +185,10 @@ visionModel:
 imageGeneration:
   title: Bildgenerierung
   description:
-    Projekt-Agenten können bei ihren Aufgaben Bilder erstellen, ebenso
-    Agent-Knoten in Automatisierungen. Die Kosten trägt deine Organisation.
-    Die Funktion bleibt aus, bis du sie einschaltest. Im Chat entstehen nie
-    Bilder.
-  enabledLabel: Agenten Bilder erstellen lassen
+    Der Chat-Assistent, Projekt-Agenten bei ihren Aufgaben und Agent-Knoten
+    in Automatisierungen können Bilder erstellen. Die Kosten trägt deine
+    Organisation. Die Funktion bleibt aus, bis du sie einschaltest.
+  enabledLabel: Bildgenerierung erlauben
   label: Bildmodell
   labelHint:
     Automatisch nimmt das erste empfohlene Bildmodell, das deine
@@ -198,27 +197,27 @@ imageGeneration:
   automaticLabel: Automatisch
   automaticHint: Tale wählt aus den empfohlenen Bildmodellen, die deine Zugänge erreichen.
   currentModel:
-    pinned: 'Agenten erstellen Bilder derzeit mit {model}.'
-    preferred: 'Agenten erstellen Bilder derzeit mit {model} — die empfohlene Wahl.'
+    pinned: 'Bilder entstehen derzeit mit {model}.'
+    preferred: 'Bilder entstehen derzeit mit {model} — die empfohlene Wahl.'
   draftHint: Speichere, um diese Auswahl anzuwenden.
   noAvailable:
-    Keines der empfohlenen Bildmodelle ist verfügbar, daher erhalten
-    Agenten kein Tool für Bilder. Füge unter KI-Anbieter einen Zugang zu
+    Keines der empfohlenen Bildmodelle ist verfügbar, daher können weder der
+    Chat noch Agenten Bilder erstellen. Füge unter KI-Anbieter einen Zugang zu
     OpenRouter oder OpenAI hinzu oder wähle eines der aufgeführten Modelle.
   unavailable:
-    Das gespeicherte Bildmodell ist nicht verfügbar, daher erhalten Agenten
-    kein Tool für Bilder. Wähle ein anderes Modell oder Automatisch oder
+    Das gespeicherte Bildmodell ist nicht verfügbar, daher können weder der
+    Chat noch Agenten Bilder erstellen. Wähle ein anderes Modell oder Automatisch oder
     prüfe den Anbieterzugang und die dafür erlaubten Modelle. Solange diese
     Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
   invalidPolicy:
     Die gespeicherte Konfiguration der Bildgenerierung ist ungültig, daher
-    erhalten Agenten kein Tool für Bilder. Schalte die Bildgenerierung
+    können weder der Chat noch Agenten Bilder erstellen. Schalte die Bildgenerierung
     aus und wieder ein oder wähle ein Modell und speichere, um sie zu
     korrigieren.
   policyUnavailable:
     Die gespeicherte Konfiguration der Bildgenerierung konnte nicht gelesen
     werden. Versuche es erneut, bevor du sie änderst. Bis sie lesbar ist,
-    erhalten Agenten kein Tool für Bilder.
+    können weder der Chat noch Agenten Bilder erstellen.
   resolutionFailed:
     Tale konnte das Bildmodell nicht prüfen. Prüfe die Verbindung zum
     Anbieter und versuche es erneut.
@@ -315,6 +314,12 @@ retentionPolicy:
   enabled: Aktiviert
   retentionDays: Aufbewahrungstage
   retentionHours: Aufbewahrungsstunden
+  valueDays: '{count, plural, one {# Tag} other {# Tage}}'
+  valueHours: '{count, plural, one {# Stunde} other {# Stunden}}'
+  unitDays: Tage
+  unitHours: Stunden
+  stateOn: aktiviert
+  stateOff: deaktiviert
   envDisabled: Aufbewahrung ist derzeit vom Operator deaktiviert
     (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag
     entfernt wurde.
@@ -377,8 +382,9 @@ retentionPolicy:
     detailsEmpty: Keine detaillierten Änderungen erfasst.
     diffHeading: Grenzwertänderungen
     impactHeading: Auswirkung auf deine gespeicherten Werte
-    diffRow: '{category}: {field} {from} → {to} ({direction})'
+    diffRow: '{category}, {field, select, min {Minimum} max {Maximum} other {{field}}}: {from} → {to} ({direction, select, tighten {verschärft die Aufbewahrung} loosen {lockert die Aufbewahrung} other {{direction}}})'
     impactRow: '{category}: {current} wird auf {clamped} begrenzt'
+    unbounded: keine Grenze
     appliedToast:
       Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim
       nächsten Lauf die neuen Grenzen.
@@ -458,6 +464,11 @@ retentionPolicy:
       Variablen-/Output-Blobs ein.
     placeholder: z. B. 30
     helper: Automatisierungsläufe, die älter sind, werden gelöscht.
+  automationVersions:
+    title: Automatisierungsversionen
+    description: 'Gespeicherte Versionen von Automatisierungen löschen, die älter als die Aufbewahrungsfrist sind – ausgenommen Versionen, die noch gebraucht werden: die Live-Version und die zuletzt live geschalteten, solche, die ein Lauf verwendet hat, und die neuesten zwanzig.'
+    placeholder: z. B. 365
+    helper: Ältere Versionen, die nichts mehr verwendet, werden gelöscht.
   auditLogs:
     title: Audit-Logs
     description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.
@@ -606,6 +617,26 @@ voiceOutput:
   enabledLabel: Sprachausgabe für diese Organisation aktiviert
   saved: Sprachausgabe-Richtlinie aktualisiert
   saveFailed: Sprachausgabe-Richtlinie konnte nicht gespeichert werden
+chatTools:
+  title: Chat-Tools
+  description:
+    Was der Chat-Assistent neben seinen Antworten erstellen darf. Ein Tool,
+    das du ausschaltest, fehlt in jedem Chat der Organisation. Bilder
+    richten sich nach der Einstellung Bildgenerierung.
+  files: Dateien
+  filesHint:
+    Textdateien, die der Assistent selbst schreibt, etwa Markdown, CSV,
+    HTML oder Kalendereinträge. Dafür startet keine Sandbox.
+  skills: Skills
+  skillsHint:
+    Anleitungen aus der Skill-Bibliothek der jeweiligen Person, die der
+    Assistent lädt, wenn eine zur Arbeit passt.
+  code: Code
+  codeHint:
+    Code in einer leichten Sandbox, die in etwa einer Sekunde startet, für
+    Word-, Excel-, PowerPoint- und PDF-Dateien, Diagramme und Berechnungen.
+    Zählt zum Limit für leichte Sandboxes unter Sandboxes.
+  saveFailed: Die Chat-Tools konnten nicht gespeichert werden
 skillSharing:
   title: Skill-Freigabe
   description: Lege fest, wer einen Skill mit der ganzen Organisation teilen
@@ -1348,6 +1379,9 @@ legalHold:
       einreichen.
     bulkTooLarge: Maximal 200 Einträge pro Batch.
 modelAccess:
+  targetRequired: Wähle ein Ziel für diese Regel.
+  missingTarget: Ziel fehlt
+  targetsNeedRepair: Einige Regeln haben kein Ziel und gelten für niemanden. Wähle für jede Regel ein Ziel oder lösche sie. Änderungen werden erst gespeichert, wenn alle Regeln ein Ziel haben.
   title: Modellzugriff
   description: Steuere, welche KI-Modelle für Benutzer, Teams und Rollen verfügbar sind.
   enabled: Modellzugriffsrichtlinie aktivieren
@@ -1534,6 +1568,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Zurückgewiesen
     gdpr_erasure_cancelled: Abgebrochen
   categories:
+    runTranscripts: Verläufe von Agentenläufen
     modelApiRequests: Modellanfragen
     userMemories: Persönliche Memos
     userPreferences: Nutzereinstellungen
@@ -1558,6 +1593,7 @@ dataSubjectRequests:
     feedback: Nachrichten-Feedback
     memories: Persönliche Memos
     mcpActivity: Aktivität der Coding-Agents
+    agentConnections: Verbindungen der Coding-Agents
     directCalls: Direkte Modellaufrufe
     videoLinks: Videolinks
     cloudGrants: Cloud-Import-Autorisierungen
@@ -1772,7 +1808,7 @@ standardAgent:
   description: Der Agent, den Tale in jedem Projekt ohne eigene Agenten bereitstellt. So kann jeder, der das Projekt öffnen kann, ihm eine Aufgabe übergeben, auch Mitglieder.
   enabledLabel: Standard-Agenten bereitstellen
   harnessLabel: Agent-Laufzeit
-  harnessHint: Automatisch nutzt Claude Code oder die Agent-Laufzeit, an die ein Abo-Modell gebunden ist.
+  harnessHint: Automatisch arbeitet mit denselben Tools wie der Chat und übergibt an Claude Code oder an die Agent-Laufzeit, an die ein Abo-Modell gebunden ist, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht. Wähle eine Agent-Laufzeit, damit jede Aufgabe darauf läuft.
   modelLabel: Modell
   modelHint: Automatisch wählt ein empfohlenes Modell, das die Person nutzen darf, die die Aufgabe startet. Ein gewähltes Modell bleibt in Kraft, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
   automaticLabel: Automatisch
@@ -1782,13 +1818,15 @@ standardAgent:
   instructionsHint: Was der Standard-Agent immer beachten soll. Lass das Feld leer, um die eingebauten Anweisungen zu nutzen.
   instructionsPlaceholder: Eingebaute Anweisungen
   current: Für dich läuft er mit {harness} und {model}.
+  currentNative: Für dich arbeitet er mit {model} und übergibt an {harness}, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht.
   refusal:
     switchedOff: Der Standard-Agent ist ausgeschaltet.
     unreadable: Die gespeicherten Einstellungen können nicht gelesen werden. Versuche es erneut oder speichere sie noch einmal, um sie zu reparieren.
     harnessInvalid: Die gewählte Agent-Laufzeit ist nicht verfügbar, deshalb kann der Standard-Agent nicht starten. Wähle eine andere Agent-Laufzeit oder Automatisch.
     noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Füge unter KI-Anbieter einen Zugang hinzu oder prüfe den Modellzugriff.
     pinUnavailable: Das gewählte Modell steht dir nicht zur Verfügung, deshalb kann der Standard-Agent für dich nicht starten. Wähle ein anderes Modell oder Automatisch. Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
-  invalidPolicy: Die gespeicherten Einstellungen des Standard-Agenten sind ungültig. Speichere sie noch einmal, um sie zu reparieren.
+  invalidPolicy: Die gespeicherten Einstellungen des Standard-Agenten sind ungültig. Wähle unter Modell ein Modell oder Automatisch und speichere, um sie zu reparieren.
+  invalidSelection: Ungültige gespeicherte Konfiguration
   savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
   searchHarnesses: Agent-Laufzeiten durchsuchen
   noHarnessesFound: Keine passende Agent-Laufzeit

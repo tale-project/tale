@@ -608,8 +608,9 @@
  * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The kinds served are the
  * organization's own providers and their environment credentials, its
  * policies, embedding model and branding, the deployment's settings, and a
- * project's instructions and its agents' instructions and tools and a
- * task's description, each through the writer its Settings page uses.
+ * project's instructions, its agents' instructions, tools and model, and a
+ * task's description and review context, each through the writer its
+ * Settings page uses.
  * `get_docs` takes the topic `settings` (also `tale://docs/settings`): every
  * kind with its config's fields, the effects of a plan and every refusal.
  * The server instructions and the Tale skill name the settings loop. No
@@ -664,5 +665,123 @@
  * (a page of the organization or an https address), in their notifications
  * and by email — and answers who got it and who was skipped.
  * `StepFailure.reason` gains `NOTIFY_NOT_A_MEMBER` and `NOTIFY_RUN_LIMIT`.
+ *
+ * 3.36.0 — 2026-10-11: a chat reply can carry the files its assistant made —
+ * a document, a spreadsheet, a chart, an image: `MessagePart` gains
+ * `ArtifactPart` (`fileId`, `name`, `mediaType`, `sizeBytes`, `callId`),
+ * after the tool result that produced the file.
+ *
+ * 3.37.0 — 2026-10-12: over MCP, `list_versions` answers a page of an
+ * automation's version history (`limit`, `before`, `nextBefore`,
+ * `latestVersion`) and, for each version, the door and client it came
+ * through, what it was based on and restored from, what it changed, how its
+ * tests went and when it last went live; `get_automation` takes `against`
+ * (and `diffFormat`) and answers what the version it reads changed against
+ * another as `diff`; `save_automation` takes `name` and `restoreVersion`
+ * instead of a document to bring an older version back as the newest; and
+ * `deploy_automation` answers `kind`: `rollback` for a deploy of an older
+ * version, `deploy` for any other.
+ *
+ * 3.38.0 — 2026-10-12: versions on the REST API, as the app and MCP read
+ * them. `GET /automations/{name}/versions` answers each version's `createdVia`,
+ * `viaInferred`, `clientName`, `createdByName` (a member's name, never an
+ * e-mail address), `basedOnVersion`, `restoredFromVersion`, `changes`, `tests`
+ * and `lastDeployedAt`, `latestVersion` beside the list, and pages with `limit`
+ * and a signed `cursor` (`isDone`, `continueCursor`; without `limit`, the whole
+ * history in one page as before). New: `GET /automations/{name}/deployments`
+ * (when each version went live, and what is live now),
+ * `GET /automations/{name}/compare` (what a version changed against another,
+ * node by node or as a unified patch over the YAML),
+ * `POST /automations/{name}/deployments` (put a saved version live behind the
+ * deploy gate, `expectedDeployedVersion` refusing a deploy another one
+ * overtook; an older version rolls back; the developer capability) and
+ * `POST /automations/{name}/versions/{version}/restore` (bring an older
+ * version back as the newest; never a deploy; the developer capability). The
+ * error codes `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_DEPLOY_REJECTED`,
+ * `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING` and
+ * `AUTOMATION_VERSION_STALE` join the registry. A deploy answered over MCP
+ * now says `kind: "unchanged"` for a version that was live already.
+ *
+ * 3.39.0 — 2026-10-12: over MCP, `test_automation` takes `tests` (run only
+ * the tests named, by the name the document gives each) and `detail`
+ * (`output`, `effects`, `trace`: what each test's run returned, did and went
+ * through), answers `recorded` when the whole suite of a saved version left
+ * its verdict on it, and leaves out a run too large for the answer
+ * (`detailOmitted`); `run_automation` takes `mocks`, `failures`, `upTo`,
+ * `only` and `item` — stand-ins for nodes and a narrower scope, as a test
+ * and the app's step test give them — and answers `focus` and `unusedMocks`.
+ * Both run in the API process, so they draw from the organization's budget
+ * for runs that are never stored, one execution per run or per test: a spent
+ * budget, or a server with every place taken, answers `RATE_LIMITED` with
+ * `data.retryAfterMs`. The refusal code `BENCH_INVALID` (`data.issue` is the
+ * engine's own) joins the MCP vocabulary.
+ *
+ * 3.40.0 — 2026-10-12: a saved version's tests on the REST API, as the app
+ * and MCP run them. `POST /automations/{name}/versions/{version}/tests` runs
+ * the tests in the version's document on the mocks — all of them, or those
+ * named in `tests` — and answers the report (`passed`, `failed`, one result
+ * for each test with its typed `failures`, `notRun`); `detail` (`output`,
+ * `effects`, `trace`) adds what each run returned, did and went through. The
+ * whole suite, run to its end, is recorded on the version as its verdict, made
+ * by hand with the key (`recorded`). It draws one execution from the key
+ * holder and one unit for each test from the organization's budget for runs
+ * that are never stored (`RATE_LIMITED`, `Retry-After`); any member's key may
+ * run them. `GET /automations/{name}/versions/{version}/tests` reads the
+ * version's latest check: the verdict, when, which act made it and who, and
+ * the report. No error code joins the registry.
+ *
+ * 3.41.0 — 2026-10-12: over MCP, `get_settings` answers the cursor of each
+ * kind that has another page under `cursors`, by kind; `nextCursor` stays
+ * for a read of one kind and is null for several, where it named only the
+ * last kind's page. A cursor names the kind that issued it and reads only
+ * that kind (`INVALID_CURSOR` otherwise). The project and agent listings end
+ * a page once the configurations it read would crowd the answer (about
+ * 200,000 characters), the agents paged over their (project, agent) pairs.
+ * A change to a subscription credential answers `USE_SUBSCRIPTION_FLOW`,
+ * where it answered `SETTINGS_TALE_ONLY`; a provider Tale ships answers as
+ * no setting (`SETTINGS_NOT_FOUND`), where it read as a refused name; and an
+ * `expected` that names resources no change names lists at most fifty of
+ * them. No REST operation changes.
+ *
+ * 3.42.0 — 2026-10-12: over MCP, the settings kind `automation-approval`
+ * reads and changes the writes an automation may make without a person
+ * approving each run, as its General tab does. `get_settings` answers, for
+ * each automation, the writes `allowed`, the ones its latest version `used`,
+ * those a rule of the approval policy still requires a person for
+ * (`requiredByPolicy`) and who allowed each (`grants`, by name, never by
+ * address); the acts `grant` and `revoke` with `args.types` change it for an
+ * owner's or admin's key, and a developer's key reads it. A plan of a `grant`
+ * names the effect `removes-human-approval`; the hash covers the automation
+ * and the writes allowed alone. An act that would change nothing plans and
+ * applies as `unchanged`. The refusal code `APPROVAL_ALLOWANCE_INVALID` joins
+ * the settings vocabulary. No REST operation changes.
+ *
+ * 3.43.0 — 2026-10-13: the MCP endpoint takes a coding agent's access token
+ * in place of an API key where the operator lets agents sign in (off unless
+ * set). Its 401 then carries the challenge RFC 9728 describes —
+ * `resource_metadata` and `scope` — and a credential that was presented and
+ * refused adds `error="invalid_token"`. A token opens the MCP endpoint
+ * alone; on every other route it is read as an API key. A call made through a
+ * connection acts in the organization the connection was made for (naming
+ * another in `X-Organization-Slug` answers 403 `ORG_MISMATCH`) and holds the
+ * access its person allowed: a request that calls a tool needing access the
+ * connection lacks is refused whole with 403 `INSUFFICIENT_SCOPE` and the
+ * challenge `error="insufficient_scope"`, which names what to ask for, and
+ * a call that the person's role could never be given the access for answers
+ * the same code as a tool error. `tools/list` is unchanged. The codes
+ * `INSUFFICIENT_SCOPE` and `ORG_MISMATCH` join the registry. No REST
+ * operation changes.
+ *
+ * 3.44.0 — 2026-10-13: coding agents may sign in to the MCP endpoint
+ * unless the operator turns it off (`TALE_MCP_CLIENT_METADATA_DOCUMENTS` and
+ * `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` now default to on): the discovery
+ * documents answer on a default deployment — the endpoint's protected-resource
+ * metadata at `/.well-known/oauth-protected-resource`, and the sign-in
+ * server's own with the agent scopes, `refresh_token`, the metadata-document
+ * flag and, for a client that registers itself, a `registration_endpoint` —
+ * and the 401 of `/api/v1/mcp` carries the challenge 3.43.0 describes.
+ * `agentOAuth` joins the security schemes (OAuth 2.1 authorization code with
+ * PKCE, the seven scopes) and the endpoint's security lists it beside the API
+ * key. No operation, schema or API key behaviour changes.
  */
-export const API_CONTRACT_VERSION = '3.35.0';
+export const API_CONTRACT_VERSION = '3.44.0';

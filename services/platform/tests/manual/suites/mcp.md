@@ -1,6 +1,6 @@
 # MCP
 
-> **Prefix** `MCP-` · **Reset** none · **Cost** 15 boxes
+> **Prefix** `MCP-` · **Reset** none · **Cost** 16 boxes
 
 Exercise Tale's MCP endpoint, `/api/v1/mcp`, from a real coding agent: connecting a client with an
 API key and working in the organization through it. A person drives the agent in a terminal beside
@@ -132,6 +132,30 @@ earlier boxes left.
   question the run asked, word for word, without guessing an id; Claude Code asks you before it
   calls `answer_run_ask`; after you accept, the run in
   `/dashboard/{org}/automations/{slug}/runs` leaves **Waiting** and goes on with your answer.
+
+- [ ] `MCP-F15` · **Compare and bring back a version through the agent** — With `billing/dunning`
+  at three or more versions and one of them deployed, ask the agent for its version history three
+  versions at a time, then for what its newest version changed against the deployed one, then to
+  restore its oldest version, naming the newest as the version it read; decline if Claude Code asks
+  before it calls `deploy_automation` → the agent reads the history in pages and names, for each
+  version, who saved it and through which door; its account of the changes matches what the
+  editor's **Version** history and the comparison page show for the same two versions; after a
+  reload the newest version under the **Version** history is the restore (its message reads
+  **Restore v1** when the oldest version is v1), and the deployed version is the one it was
+  before; asked to restore the same version again, the agent reports that nothing was saved
+  because the newest version already holds that content.
+
+- [ ] `MCP-F16` · **Try a draft and run chosen tests through the agent** — With `billing/dunning`
+  at a version that has three or more tests, none of them run by hand yet, ask the agent to run
+  only the second test by name and show you the steps of that run, then to run all of its tests,
+  then to run the document with the mail step made to fail with "the mail server is down" → the
+  agent names the one test it ran and quotes the steps it went through; after the first run, the
+  version's **Tests** tab still reads **Checked when version {version} was saved**
+  (`automations.tests.source.checked`); after the second it reads **Checked by hand** with the
+  time, and the **Versions** tab's row for that version says **checked by hand**
+  (`automations.versions.testsChecked`); the third run ends in error at the mail step with your
+  message, and the automation's **Runs** list gains no run; asked to run a test the document does
+  not have, the agent reports that none has that name and lists the ones that do.
 
 ## Settings through the agent
 

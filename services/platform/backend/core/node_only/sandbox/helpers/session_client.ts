@@ -814,6 +814,21 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
   });
 }
 
+/** Renew the place a refused create holds in the spawner's first-come line
+ * while a platform start is still live. A 404 means nothing waits under the
+ * id (its place was given up, or it was admitted), so there is nothing to
+ * renew. */
+async function sessionWaiterLiveness(sessionId: string): Promise<void> {
+  const response = await spawnerFetch(
+    'POST',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/wait`,
+    { signal: AbortSignal.timeout(2_000) },
+  );
+  if (response.status === 404) return;
+  if (!response.ok)
+    throw new Error(`Sandbox waiter liveness failed (${response.status})`);
+}
+
 /** Capture BEFORE releasing the database allocation. The generation binds a
  * later release to this use, so a delayed job cannot release a newer turn. */
 export async function sessionReleaseTicket(
@@ -913,7 +928,19 @@ async function createSession(
       }),
     );
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-    if (res.status === 429) throw await spawnerBusyErrorOf(res);
+    if (res.status === 429) {
+      const busy = await spawnerBusyErrorOf(res);
+      // A refusal that names a place keeps that place alive; the renewal is
+      // best effort, so its failure never hides the busy answer.
+      if (busy.queue !== undefined)
+        await sessionWaiterLiveness(body.sessionId).catch((error: unknown) => {
+          console.warn(
+            '[session_client] renewing a place in the sandbox room line failed:',
+            error,
+          );
+        });
+      throw busy;
+    }
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives

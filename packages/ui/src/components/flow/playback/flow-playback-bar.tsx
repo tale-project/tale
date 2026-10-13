@@ -162,7 +162,12 @@ export function FlowPlaybackBar({
       role="group"
       aria-label={tr('playback.label')}
       onKeyDown={onBarKeyDown}
-      className={cn('flex min-h-11 items-center gap-1 px-1', className)}
+      // Below `sm` the scrubber takes a row of its own under the buttons,
+      // the time and the speed: on a phone they would not all fit one row.
+      className={cn(
+        'flex min-h-11 flex-wrap items-center gap-1 px-1 py-1 sm:flex-nowrap sm:py-0',
+        className,
+      )}
     >
       <Button
         size="icon"
@@ -188,7 +193,7 @@ export function FlowPlaybackBar({
       >
         <SkipForward className="size-4" />
       </Button>
-      <div className="relative mx-1 flex min-w-24 flex-1 flex-col justify-center gap-1">
+      <div className="relative order-last mx-1 flex min-w-24 basis-full flex-col justify-center gap-1 sm:order-none sm:flex-1 sm:basis-auto">
         <Slider
           value={t}
           min={0}
@@ -238,7 +243,7 @@ export function FlowPlaybackBar({
       </div>
       <span
         aria-hidden="true"
-        className="text-muted-foreground shrink-0 px-1 text-xs tabular-nums"
+        className="text-muted-foreground shrink-0 px-1 text-xs tabular-nums max-sm:ml-auto"
       >
         {position}
       </span>

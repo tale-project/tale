@@ -29,6 +29,7 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { endAgentConnectionsInTx } from '../agent_connections/end.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
@@ -37,6 +38,10 @@ import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import { TaskError } from '../tasks/errors.ts';
 import { retargetPendingTaskReview } from '../tasks/reviews.ts';
+import {
+  endRunTranscriptsAndRelease,
+  TASK_RUN_THREAD_KIND,
+} from '../tasks/run-transcripts.ts';
 import { loadTaskOrThrow, type TaskRow } from '../tasks/service.ts';
 import { hintVideoJobs } from '../video_links/hints.ts';
 
@@ -698,7 +703,9 @@ async function scrubSubjectAuditLogs(
            OR metadata->'keyAttribution'->>'makerUserId' = ${userId}
            OR metadata->'keyAttribution'->>'subjectUserId' = ${userId}
            OR metadata->'keyAttribution'->>'eventActorId' = ${userId}
-           OR (resource_type = 'user' AND resource_id = ${userId}))
+           OR (resource_type = 'user' AND resource_id = ${userId})
+           OR (resource_type = 'agent_connection'
+               AND previous_state->>'userId' = ${userId}))
     RETURNING id
   `;
   return scrubbed.length;
@@ -974,6 +981,27 @@ export async function processErasure(
     return erased;
   });
 
+  // The transcripts of the task runs the subject started: threads like their
+  // chats, but bare — no metadata row, so the pass above never meets them, and
+  // no lineage the request targeted, so they are counted apart. The run
+  // record stays (its starter is pseudonymised below) and loses only what the
+  // run said and did on the subject's behalf; a deliverable already belongs
+  // to its task.
+  await pass('runTranscripts', async () => {
+    const transcripts = await sql<{ threadId: string }[]>`
+      SELECT id AS "threadId" FROM app.threads
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+        AND kind = ${TASK_RUN_THREAD_KIND}
+    `;
+    if (transcripts.length === 0) return 0;
+    return sql.begin((tx) =>
+      endRunTranscriptsAndRelease(tx, {
+        organizationId,
+        threadIds: transcripts.map((row) => row.threadId),
+      }),
+    );
+  });
+
   await pass('documents', async () => {
     const docs = await sql<
       { id: string; fileRef: string | null; historyFiles: string[] }[]
@@ -1086,6 +1114,28 @@ export async function processErasure(
       RETURNING day
     `;
     return removed.length;
+  });
+
+  // The coding agents the subject connected here: the live ones end first,
+  // with their consent and tokens, and every record of them goes — a
+  // client's name and where it sends a person back are the subject's too.
+  // What the audit log says of them is scrubbed with the rest of the
+  // subject's rows below.
+  await pass('agentConnections', async () => {
+    return sql.begin(async (tx) => {
+      await endAgentConnectionsInTx(tx, {
+        organizationId,
+        userId: targetUserId,
+        reason: 'account_security',
+        revokedBy: 'system',
+      });
+      const removed = await tx<{ id: string }[]>`
+        DELETE FROM app.agent_connections
+        WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+        RETURNING id
+      `;
+      return removed.length;
+    });
   });
 
   await pass('memories', async () => {
@@ -1385,8 +1435,8 @@ export async function processErasure(
     return changed.length;
   });
 
-  // Who changed an automation's definition: who saved each version, who
-  // put one live (the live pointer and the deployment history), who set its
+  // Who changed an automation's definition: who saved each version, checked
+  // its tests, put one live (the live pointer and deployment history), set its
   // trigger, installed it in a project or deleted it. The versions and their
   // history are the organization's work and stay; the person gives way to
   // the pseudonym in each form an actor takes — a bare id, `user:<id>` and
@@ -1403,6 +1453,13 @@ export async function processErasure(
       await sql<{ id: string }[]>`
         UPDATE app.automations SET created_by = ${ERASED_SUBJECT}
         WHERE org_id = ${organizationId} AND created_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automations SET tests_checked_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND tests_checked_by = ANY(${forms})
         RETURNING id
       `
     ).length;

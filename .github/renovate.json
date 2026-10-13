@@ -50,6 +50,11 @@
       "groupName": "minor updates"
     },
     {
+      "description": "Dockerfile images (FROM, COPY --from and the # syntax= frontend) are pinned by digest, image:tag@sha256:…: a tag can be rebuilt under the same name, a digest cannot. Renovate keeps each digest current and opens a pin update for any such reference added without one (tools/cli/scripts/oci-image-metadata.test.ts refuses them too). Scoped to the dockerfile manager so Compose images are not re-pinned.",
+      "matchManagers": ["dockerfile"],
+      "pinDigests": true
+    },
+    {
       "description": "GitHub Actions: keep SHA-digest pins current (grouped, short stabilization) so the supply-chain pins don't silently age",
       "matchManagers": ["github-actions"],
       "groupName": "github actions",

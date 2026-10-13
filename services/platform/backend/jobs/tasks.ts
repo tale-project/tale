@@ -112,6 +112,7 @@ export interface TaskPayloads {
   'maintenance.login_attempts_ttl': Record<string, never>;
   /** Daily delete of MCP call counters past their 90 days (cron). */
   'maintenance.mcp_activity_ttl': Record<string, never>;
+  'maintenance.agent_connections_gc': Record<string, never>;
   /** Daily delete of auth sessions a day past their expiry (cron). */
   'maintenance.expired_sessions': Record<string, never>;
   /** Sweep delivered realtime hints past the retention horizon (cron) — the
@@ -150,6 +151,15 @@ export interface TaskPayloads {
   'automation.liveness': Record<string, never>;
   /** One project-agent turn against a task (driver lands with 25b). */
   'task.agent_turn': { organizationId: string; runId: string; execId: string };
+  /** One project-agent run on the native engine: the whole turn, the model's
+   * tool rounds included, runs inside this job — the same loop a chat reply
+   * runs on, against a task. Its own queue, so a turn that lasts minutes
+   * never holds one of the harness starts' slots. */
+  'task.agent_native': {
+    organizationId: string;
+    runId: string;
+    execId: string;
+  };
   /** Wake ONE run parked because the sandbox host refused its start, when
    * the spawner said its place in line comes up: a no-op unless that run,
    * under that exec, is still parked. */
@@ -523,6 +533,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.mcp_activity_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  'maintenance.agent_connections_gc': { retryLimit: 2, expireInSeconds: 300 },
   // Bounded batches that stop on the job's signal; a backlog past the batch
   // budget waits for the next night rather than for a retry.
   'maintenance.expired_sessions': { retryLimit: 2, expireInSeconds: 600 },
@@ -589,6 +600,20 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once LLM spend: the run ledger owns retries (auto-retry kicks a
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  // At-most-once model spend, like `chat.api_turn`: a turn lost with its
+  // worker settles through the native-run watchdog (a retryable failure the
+  // auto-retry takes up), never through a silent second run of the same
+  // exec. The hour covers the longest native turn — twelve tool rounds, each
+  // with a light sandbox call of up to three minutes. The heartbeat tells a
+  // killed worker's turn apart within about two minutes: an organization's
+  // working turns are counted from the active jobs of its group
+  // (`TASK_JOB_GROUP`), and a dead worker's would otherwise hold its share
+  // until the expiry.
+  'task.agent_native': {
+    retryLimit: 0,
+    expireInSeconds: 3_600,
+    heartbeatSeconds: 60,
+  },
   // A wake claims its run or finds it gone: delivered twice, the second
   // finds nothing parked. A lost one leaves the watchdog's wake.
   'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
@@ -781,6 +806,9 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
     // behind it, and live turns past a batch were drained only in turns.
     'task.agent_turn',
     'task.agent_drive',
+    // A native run's whole turn: minutes of waiting on a model and a
+    // sandbox, one slot each.
+    'task.agent_native',
     'automation.agent_turn',
     'automation.agent_drive',
     // A step walks for up to its minute-long budget, or longer inside one
@@ -802,19 +830,32 @@ export const TASK_JOB_GROUP: {
   ) => string | undefined;
 } = {
   'automation.step': (payload) => payload.organizationId,
+  'task.agent_native': (payload) => payload.organizationId,
 };
+
+/**
+ * How many native task runs one organization works at once across every
+ * worker. A turn holds a slot for as long as it waits on the model — up to
+ * fifty minutes — and the slots are shared by every organization, so without
+ * a share per organization one person's burst of starts would hold every
+ * other organization's runs back. The run past the limit waits its turn in
+ * the queue, queued, and starts when one of the organization's runs ends.
+ */
+export const NATIVE_RUNS_PER_ORG = 4;
 
 /**
  * How many jobs of one group a queue runs at once across all workers, or
  * `undefined` for no limit. Automation steps take the operator's
  * AUTOMATION_ORG_CONCURRENCY, so one organization's burst of runs cannot
  * take every worker's step slots while another organization's runs wait
- * behind it; 0 turns the limit off.
+ * behind it; 0 turns the limit off. Native task runs take the fixed
+ * {@link NATIVE_RUNS_PER_ORG}.
  */
 export function queueGroupConcurrency(
   name: string,
   options: { automationOrgConcurrency?: number | undefined },
 ): number | undefined {
+  if (name === 'task.agent_native') return NATIVE_RUNS_PER_ORG;
   if (name !== 'automation.step') return undefined;
   const limit = options.automationOrgConcurrency;
   return limit !== undefined && limit > 0 ? limit : undefined;
@@ -827,6 +868,13 @@ export function queueGroupConcurrency(
  * output waits in the daemon's bounded replay journal and its heartbeat
  * goes stale, so the default of five slots throttled a worker to five live
  * agent turns at once.
+ *
+ * A REST chat turn (`chat.api_turn`) holds its slot for the whole reply and
+ * spends nearly all of it waiting on the model's stream, so five slots capped
+ * a worker at about one turn a second however idle it was. Under a load run
+ * the first token of an API client's reply took 1.3 s with 14 users, 6.2 s
+ * with 1,000 and 49 s with 4,000, while the same chat in the app (which runs
+ * in the API process, unbounded) stayed under a second.
  */
 const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   TaskIdentifier,
@@ -836,6 +884,10 @@ const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   ['automation.agent_turn', 8],
   ['task.agent_drive', 16],
   ['automation.agent_drive', 16],
+  // A native run waits on the model for nearly all of its minutes: many can
+  // share a worker.
+  ['task.agent_native', 16],
+  ['chat.api_turn', 16],
 ]);
 
 /** The agent queues whose slots the operator sets: a turn's start (a
@@ -883,4 +935,10 @@ export const TASK_WORKER_IDLE_POLL_SECONDS: ReadonlyMap<string, number> =
   new Map<TaskIdentifier, number>([
     ['task.agent_drive', 10],
     ['automation.agent_drive', 10],
+    // Enqueued with no delay, like a drive window: the insert wakes a slot.
+    ['task.agent_native', 10],
+    // A REST turn is enqueued with no delay, so its insert wakes the slots at
+    // once; the poll surfaces only the one the deploy drain hands on five
+    // seconds later.
+    ['chat.api_turn', 5],
   ]);

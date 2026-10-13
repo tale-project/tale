@@ -5,7 +5,7 @@ description: Create reusable instructions, import a skill bundle, and choose whi
 
 A skill packages a repeatable way of working: writing release notes, checking a brief, or preparing a document in your house style. It contains a `SKILL.md` instruction file and, optionally, supporting files. Use **Settings > Skills** to maintain it once, then [equip the agents](/platform/agents/skills) that need it.
 
-Skills take effect where an agent does the work: a [project agent](/platform/projects/project-agents) working a [task](/platform/projects/tasks), or an agent node in an [automation](/platform/automations/concepts). Chat answers questions and searches your knowledge; it does not use skills, run code, or produce files. To get a document made with a skill, assign a task to an agent equipped with it. Any member can create that task in a project they can open; equipping an agent with the skill needs the Editor role or higher.
+Skills take effect wherever the work is done. In [chat](/platform/chat/files-and-skills), the assistant can use every skill in your library: it reads one when it fits your request, or when you name it. A [project agent](/platform/projects/project-agents) working a [task](/platform/projects/tasks), or an agent node in an [automation](/platform/automations/concepts), uses the skills it is equipped with. Any member can create a task in a project they can open; equipping an agent with a skill needs the Editor role or higher.
 
 Every member can create a skill. You can edit your own; editing or deleting another person's shared skill requires an organization administrator. Your organization can reserve sharing with everyone for some roles; see [Who can share with everyone](#who-can-share-with-everyone).
 
@@ -146,6 +146,8 @@ Open a row to edit its description, instructions, labels, and visibility. The **
 **Labels** takes up to eight comma-separated labels of up to 40 characters each. When the list is longer, or a label is too long, the field says what to remove or shorten and **Save** stays unavailable; nothing you typed is dropped. The **Bundle** tree remembers the folders you collapse, per skill, in your browser.
 
 If Tale cannot load a skill or one of its files, the dialog says so and offers **Try again**. When a refresh fails, the version already on screen stays, unsaved changes included. A removed file is reported as no longer in the bundle, and an empty file as empty.
+
+If someone else saves the skill after you open it, Tale refuses your save and says so. Nothing is overwritten and your edits stay in the editor: copy what you need, then close the skill and open it again to see the latest version. An editor you have not changed follows the newer version by itself.
 
 If an agent cannot find the skill, check that it is equipped and visible to the project. Tale shows the agent a description excerpt of up to 300 characters to help it choose a relevant skill, so start the description with when the skill applies. If it ignores an equipped skill, name the skill in the task and check the result against its instructions. Read [Skills on agents](/platform/agents/skills) for how the equipped bundle is staged and presented to the agent.
 

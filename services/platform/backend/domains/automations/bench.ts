@@ -10,7 +10,9 @@
 import { randomUUID } from 'node:crypto';
 
 import { valueHash } from '@tale/ui/data/hash';
+import type { Sql } from 'postgres';
 
+import { boundedReport } from '../../../lib/engine/api/report-shape.ts';
 import {
   runAutomationTests,
   type TestReport,
@@ -20,23 +22,23 @@ import { createRecorder } from '../../../lib/engine/core/record/recorder.ts';
 import { transientRecord } from '../../../lib/engine/core/record/transient.ts';
 import { recordBudget } from '../../../lib/engine/core/record/value.ts';
 import type { StoreAdapter } from '../../../lib/engine/core/slots.ts';
+import { BENCH_RUN_DEADLINE_MS } from '../../../lib/engine/core/test-limits.ts';
 import type {
   Automation,
   RunBench,
   RunResult,
 } from '../../../lib/engine/core/types.ts';
 import { boundJson } from '../../../lib/shared/utils/bound-json.ts';
+import { jsonBytes } from '../../../lib/shared/utils/json-bytes.ts';
+import {
+  checkOrganizationRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
 
 /** Bench runs one process executes at once; past it a caller is asked to
  * come back in a moment. Each holds a request and up to its deadline of
  * CPU, so a handful keeps the API answering everything else. */
 export const BENCH_CONCURRENCY = 4;
-
-/** A try's time limit. */
-const TRY_DEADLINE_MS = 20_000;
-/** Each test's time limit, and the suite's, when tests run by hand. */
-const TEST_DEADLINE_MS = 10_000;
-const SUITE_DEADLINE_MS = 60_000;
 
 /** The most one value of an answer keeps whole, as UTF-8 JSON. */
 export const VALUE_BYTES_MAX = 262_144;
@@ -61,8 +63,36 @@ export function admitBenchRun(): (() => void) | null {
   };
 }
 
-function jsonBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value) ?? '').length;
+/** How long a caller is asked to wait when every place of this process is
+ * taken. */
+const BUSY_RETRY_MS = 2_000;
+
+/**
+ * Room for `executions` bench runs: charged to the organization's bench
+ * budget (`automation:bench`, per execution — a suite pays for its tests),
+ * then one place among this process's. The release to call when the runs
+ * are over; a spent budget or a process with every place taken throws the
+ * {@link RateLimitExceededError} that says how long to wait.
+ */
+export async function admitBenchRuns(
+  sql: Sql,
+  organizationId: string,
+  executions: number,
+): Promise<() => void> {
+  await checkOrganizationRateLimit(
+    sql,
+    'automation:bench',
+    organizationId,
+    Math.max(1, executions),
+  );
+  const release = admitBenchRun();
+  if (release === null) {
+    throw new RateLimitExceededError(
+      'Every bench run of this server is busy.',
+      BUSY_RETRY_MS,
+    );
+  }
+  return release;
 }
 
 /** What a display keeps of a value too large to answer whole: long text and
@@ -114,8 +144,8 @@ function boundedRun(run: TransientRunAnswer): TransientRunAnswer {
 /**
  * One run of `document`, never stored: its input and stand-ins given, in
  * mock mode, recorded the way a stored run is, within {@link
- * TRY_DEADLINE_MS}. `version` names the saved version it is, absent for a
- * draft.
+ * BENCH_RUN_DEADLINE_MS}. `version` names the saved version it is, absent
+ * for a draft.
  */
 export async function tryRun(args: {
   document: Automation;
@@ -134,7 +164,7 @@ export async function tryRun(args: {
   const result = await execute(args.document, {
     mode: 'mock',
     store: args.store,
-    deadline: startedAt + TRY_DEADLINE_MS,
+    deadline: startedAt + BENCH_RUN_DEADLINE_MS,
     recorder,
     ...(args.input !== undefined && { input: args.input }),
     ...(args.bench !== undefined && { bench: args.bench }),
@@ -160,31 +190,12 @@ export async function tryRun(args: {
   });
 }
 
-/** A suite's report as answered: each test's run kept when it fits {@link
- * TEST_RUN_BYTES_MAX} and the whole stays within {@link
- * SUITE_ANSWER_BYTES_MAX}; a run left out is said so (`detailOmitted`). */
-function boundedReport(report: TestReport): TestReport {
-  let total = 0;
-  return {
-    ...report,
-    results: report.results.map((result) => {
-      if (result.run === undefined) return result;
-      const bytes = jsonBytes(result.run);
-      total += bytes;
-      if (bytes <= TEST_RUN_BYTES_MAX && total <= SUITE_ANSWER_BYTES_MAX) {
-        return result;
-      }
-      const { run: _run, ...rest } = result;
-      return { ...rest, detailOmitted: true };
-    }),
-  };
-}
-
 /**
  * The tests of `document` run here — all of them, or those `select` names
- * by their place — each in mock mode within {@link TEST_DEADLINE_MS}, the
- * suite within {@link SUITE_DEADLINE_MS}; with `detail`, each test's run
- * and record. A document without tests answers an empty report.
+ * by their place — each in mock mode within the engine's time limit for a
+ * test and for a suite (`core/test-limits`); with `detail`, each test's run
+ * and record, as many as an answer holds. A document without tests answers
+ * an empty report.
  */
 export async function runTestsByHand(args: {
   document: Automation;
@@ -197,12 +208,13 @@ export async function runTestsByHand(args: {
   const report = await runAutomationTests(args.document, {
     store: args.store,
     detail: args.detail,
-    testDeadlineMs: TEST_DEADLINE_MS,
-    suiteDeadlineMs: SUITE_DEADLINE_MS,
     ...(args.select !== undefined && { select: args.select }),
     ...(args.version !== undefined && { version: args.version }),
     ...(args.signal !== undefined && { signal: args.signal }),
   });
   if (!('failed' in report)) return { passed: 0, failed: 0, results: [] };
-  return boundedReport(report);
+  return boundedReport(report, {
+    runBytes: TEST_RUN_BYTES_MAX,
+    totalBytes: SUITE_ANSWER_BYTES_MAX,
+  });
 }

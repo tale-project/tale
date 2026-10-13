@@ -34,6 +34,7 @@ import {
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
 import { taskCommentDraftKey } from '../lib/draft-key';
+import { LAZY_COMMENT_LAYOUT } from '../lib/lazy-layout';
 import {
   pickCommentBody,
   type CommentBodyByLocale,
@@ -177,13 +178,10 @@ function TaskCommentViewContent({
         variant={own && !editing ? 'own' : 'other'}
         continuation={continuation}
         // Keep offscreen history in the DOM for browser find, keyboard access
-        // and draft state, while letting the browser skip its layout/paint.
-        // Editing needs normal layout so its mention menu may overflow the row.
-        className={cn(
-          'group/comment',
-          !editing &&
-            '[contain-intrinsic-block-size:auto_8rem] [content-visibility:auto]',
-        )}
+        // and draft state, while letting the browser skip its layout/paint
+        // where it anchors scrolling. Editing needs normal layout so its
+        // mention menu may overflow the row.
+        className={cn('group/comment', !editing && LAZY_COMMENT_LAYOUT)}
         avatar={
           <AssigneeAvatar
             assigneeType={c.authorType}

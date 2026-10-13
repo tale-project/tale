@@ -24,7 +24,7 @@
 
 import type { ValidateFunction } from 'ajv';
 
-import { storableText } from '../../shared/utils/storable-text';
+import { reportText, storableText } from '../../shared/utils/storable-text';
 import {
   assignmentFromRun,
   flowModel,
@@ -63,12 +63,7 @@ import type {
   TestExpectation,
 } from '../core/types';
 import { inputCheck, testInputRefusal } from '../core/validate/document';
-import {
-  type Mismatch,
-  mismatchesOf,
-  reportChange,
-  reportText,
-} from './expect';
+import { type Mismatch, mismatchesOf, reportChange } from './expect';
 export { stableStringify } from '../../shared/utils/stable-stringify';
 
 /** Why a test did not pass. A `Mismatch` (`./expect`) is one difference,

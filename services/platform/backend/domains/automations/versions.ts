@@ -14,6 +14,8 @@ import {
 import { readDeploymentPointer } from './deployments.ts';
 import {
   AutomationError,
+  emitDefinitionHint,
+  lockAutomationName,
   saveVersion,
   versionRow,
   type SaveVersionArgs,
@@ -27,9 +29,10 @@ import {
  * went live — and the two writes and reads built on them: restoring an
  * older version, and the versions a retention sweep must keep.
  *
- * Versions are kept until the automation is deleted; a history is read a
- * page at a time, so a long history written by agents never weighs on one
- * answer.
+ * Versions are kept until the automation is deleted — or until governance
+ * bounds how long saved versions are kept, which removes only the ones
+ * nothing reads any more (`pruneVersions`); a history is read a page at a
+ * time, so a long history written by agents never weighs on one answer.
  */
 
 /** One version, as a history lists it. */
@@ -310,7 +313,7 @@ export async function readTestReport(
 
 /** The version a restore brings back, read before the save: a saved version
  * never changes, so it needs no lock. */
-export async function readRestoreSource(
+async function readRestoreSource(
   sql: Sql,
   organizationId: string,
   name: string,
@@ -336,7 +339,7 @@ export async function readRestoreSource(
  * the history. The app's door hands it to the shared save path, which adds
  * the version's own tests verdict.
  */
-export function restoreSaveArgs(
+function restoreSaveArgs(
   source: VersionRow,
   request: {
     organizationId: string;
@@ -456,4 +459,88 @@ export async function protectedVersions(
       AND a.restored_from_version IS NOT NULL
   `;
   return new Set(rows.map((row) => row.version));
+}
+
+/**
+ * The automations of `organizationId` that have versions a retention sweep
+ * could remove: more of them than the newest twenty it always keeps, the
+ * oldest created before `cutoffMs`. At most `limit` names, in an order that
+ * changes with `rotation` (the day), so the names a run does not reach are
+ * reached on another — a name whose old versions are all kept for other
+ * reasons would otherwise fill the list every night.
+ */
+export async function namesWithAgedVersions(
+  sql: Sql,
+  organizationId: string,
+  cutoffMs: number,
+  limit: number,
+  rotation: number,
+): Promise<string[]> {
+  const rows = await sql<{ name: string }[]>`
+    SELECT name FROM app.automations
+    WHERE org_id = ${organizationId}
+    GROUP BY name
+    HAVING count(*) > ${KEEP_NEWEST} AND min(created_at_ms) < ${cutoffMs}
+    ORDER BY hashtextextended(name || ${String(rotation)}, 0)
+    LIMIT ${limit}
+  `;
+  return rows.map((row) => row.name);
+}
+
+/**
+ * Removes up to `limit` versions of `name` created before `cutoffMs` that
+ * nothing keeps (`protectedVersions`), inside the caller's transaction, and
+ * answers their numbers (oldest first). The name's lock comes first, as for
+ * every writer of an automation, so a deploy, a restore or a save cannot
+ * make a version matter between the check and the delete. The candidates
+ * are locked before the kept set is read the second time: a run starting on
+ * a version holds a key-share lock on its row until it has written itself,
+ * so waiting for the lock means that run is seen as one that used it.
+ * Versions an author under a legal hold saved (`heldAuthors`, user ids —
+ * their API keys' versions too) are never candidates. Numbers are never
+ * reused: the newest twenty stay.
+ */
+export async function pruneVersions(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    name: string;
+    cutoffMs: number;
+    limit: number;
+    heldAuthors?: readonly string[];
+  },
+): Promise<number[]> {
+  await lockAutomationName(tx, args.organizationId, args.name);
+  const held = args.heldAuthors ?? [];
+  const heldKeys = held.map((userId) => `api-key:${userId}`);
+  const keptFirst = [
+    ...(await protectedVersions(tx, args.organizationId, args.name)),
+  ];
+  const candidates = await tx<{ version: number }[]>`
+    SELECT version FROM app.automations
+    WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      AND created_at_ms < ${args.cutoffMs}
+      AND (${keptFirst.length === 0} OR version <> ALL(${keptFirst}::int[]))
+      AND (${held.length === 0}
+           OR (created_by <> ALL(${held}::text[])
+               AND created_by <> ALL(${heldKeys}::text[])))
+    ORDER BY version
+    LIMIT ${args.limit}
+    FOR UPDATE
+  `;
+  if (candidates.length === 0) return [];
+  const kept = await protectedVersions(tx, args.organizationId, args.name);
+  const doomed = candidates
+    .map((row) => row.version)
+    .filter((version) => !kept.has(version));
+  if (doomed.length === 0) return [];
+  const removed = await tx<{ version: number }[]>`
+    DELETE FROM app.automations
+    WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      AND version = ANY(${doomed}::int[])
+    RETURNING version
+  `;
+  // The versions list of the builders that have this automation open.
+  await emitDefinitionHint(tx, args.organizationId, args.name);
+  return removed.map((row) => row.version).sort((a, b) => a - b);
 }

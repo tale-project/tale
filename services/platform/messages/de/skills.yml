@@ -200,6 +200,10 @@ iconPicker:
 editor:
   saved: Skill gespeichert
   saveFailed: Skill konnte nicht gespeichert werden
+  stale: Dieser Skill hat sich geändert, nachdem du ihn geöffnet hast, deshalb
+    wurde nichts gespeichert. Deine Änderungen sind noch da. Kopiere, was du
+    brauchst, schließe den Skill und öffne ihn erneut, um die neueste Version
+    zu sehen.
   descriptionHelp:
     Ein bis zwei Sätze dazu, was der Skill abdeckt — daran erkennt das
     Modell, wann es ihn lesen sollte.

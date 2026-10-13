@@ -6,6 +6,7 @@ import { cancelAgentRunInTx } from './agent-runs.ts';
 import { taskHoldsBlobRef } from './blob-holders.ts';
 import { TaskError } from './errors.ts';
 import { assertReviewContextsRetirable } from './review-context-retention.ts';
+import { endRunTranscripts } from './run-transcripts.ts';
 
 /**
  * The ONE retirement walk for a set of tasks that are about to be hard
@@ -18,6 +19,7 @@ import { assertReviewContextsRetirable } from './review-context-retention.ts';
  * provenance entry lands before the row goes and the turn host reaps the
  * exec as an orphan; a bound automation run through its own terminal door),
  * their discussion threads are deleted (messages + meta cascade by FK), the
+ * transcripts of their native runs with them and the files those runs made, the
  * pending approvals that named them are REJECTED with a `closedReason` (a
  * reviewer must never be left an inbox row for work that no longer exists —
  * undecidable, because every decision path resolves the task first; rejected
@@ -119,6 +121,21 @@ export async function retireTasksInTx(
   if (threadIds.length > 0) {
     await tx`DELETE FROM app.threads WHERE id = ANY(${threadIds})`;
   }
+  // So do the transcripts of their native runs, and the files those runs
+  // made: a file a thread binds is held by the thread, so the rows are ended
+  // here, before the release below asks whether anything still holds the
+  // bytes. (A deliverable the task lists is released with the task's own.)
+  const runThreadIds = (
+    await tx<{ threadId: string }[]>`
+      SELECT thread_id AS "threadId" FROM app.project_agent_runs
+      WHERE org_id = ${args.organizationId} AND task_id = ANY(${ids})
+        AND thread_id IS NOT NULL
+    `
+  ).map((row) => row.threadId);
+  const runFileRefs = await endRunTranscripts(tx, {
+    organizationId: args.organizationId,
+    threadIds: runThreadIds,
+  });
   await tx`
     UPDATE app.approvals SET
       status = 'rejected', reviewed_at_ms = ${Date.now()},
@@ -149,7 +166,7 @@ export async function retireTasksInTx(
   const releasedRefs = await releaseUnlistedTaskBlobRefs(
     tx,
     args.organizationId,
-    collectTaskBlobRefs(rows),
+    [...new Set([...collectTaskBlobRefs(rows), ...runFileRefs])],
   );
   return { cancelledRunCount, releasedRefs };
 }

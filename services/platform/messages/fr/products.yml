@@ -1,6 +1,7 @@
 title: Produits
 entityLabelOne: produit
 searchPlaceholder: Rechercher des produits
+refreshFailed: Impossible de charger les derniers produits. La liste est peut-être incomplète ou obsolète.
 addButton: Ajouter un produit
 importMenu:
   fromDevice: Depuis ton appareil

@@ -6,6 +6,12 @@ import {
   isValidOrgSlug,
   MAX_ORG_SLUG_LENGTH,
 } from '../../lib/shared/constants/org-slug.ts';
+import { mcpChallenge } from '../auth/agent-challenge.ts';
+import {
+  type AgentOAuthOptions,
+  agentSignInOn,
+} from '../auth/agent-oauth-config.ts';
+import { agentIssuer, looksLikeJwt } from '../auth/agent-token.ts';
 import {
   API_KEY_RATE_LIMIT,
   loadTrustedProxies,
@@ -25,6 +31,7 @@ import {
   databaseUnavailableResponse,
   reportRequestError,
   requestIdOf,
+  writeConflictResponse,
 } from '../error-reporting.ts';
 import { noStoreByDefault } from '../lib/http-hygiene.ts';
 import {
@@ -32,6 +39,7 @@ import {
   checkIpRateLimit,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
+import { admitAgentBearer, isMcpRoute } from './agent-door.ts';
 import { projectKeyReaches } from './api-key-scope.ts';
 import { resolveBoundKeyCaller } from './bound-key.ts';
 import {
@@ -112,16 +120,28 @@ function headerAsUtf8(value: string): string {
  * The door's 401: the flat envelope plus the `WWW-Authenticate` challenge
  * RFC 9110 §11.6.1 requires of every 401 — naming the Bearer scheme, with
  * RFC 6750 §3's `error="invalid_token"` when a key was presented and
- * refused (a request that presented nothing gets the bare challenge).
+ * refused (a request that presented nothing gets the bare challenge). On
+ * the MCP endpoint, where coding agents may sign in, the challenge also
+ * says where the endpoint's metadata is and which scopes to ask for
+ * (`agentSignIn`), so an agent that arrives with nothing learns how to get
+ * in.
  */
 function unauthorized(
   c: Context<RestEnv>,
   message: string,
   challenge: 'bearer' | 'invalid_token' = 'bearer',
+  agentSignIn = false,
 ): Response {
+  const refused = challenge === 'invalid_token';
   return c.json({ error: message, code: 'UNAUTHORIZED' }, 401, {
-    'www-authenticate':
-      challenge === 'invalid_token' ? 'Bearer error="invalid_token"' : 'Bearer',
+    'www-authenticate': agentSignIn
+      ? mcpChallenge(
+          c.req.raw,
+          refused ? { error: 'invalid_token', description: message } : {},
+        )
+      : refused
+        ? 'Bearer error="invalid_token"'
+        : 'Bearer',
   });
 }
 
@@ -150,8 +170,15 @@ function isKeyWindowExceeded(error: unknown): boolean {
 export function createRestV1Routes(deps: {
   sql: Sql;
   auth: Auth;
+  /** Whether coding agents may sign in to the MCP endpoint; the door takes
+   * an agent's access token there only when they may. Absent: they may
+   * not. */
+  agentOAuth?: AgentOAuthOptions;
 }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
+  // The sign-in server's signing keys, kept for the few minutes the verifier
+  // trusts them (`auth/agent-token.ts`).
+  const agentKeyCache = {};
 
   // Every non-2xx on this door is the one flat JSON envelope — including
   // the 500 an escaped error answers. The app-level handler's text/plain
@@ -188,6 +215,8 @@ export function createRestV1Routes(deps: {
     }
     const unavailable = databaseUnavailableResponse(err, c);
     if (unavailable !== undefined) return unavailable;
+    const conflict = writeConflictResponse(err, c);
+    if (conflict !== undefined) return conflict;
     const abandoned = clientAbortResponse(err, c);
     if (abandoned !== undefined) return abandoned;
     reportRequestError(err, c);
@@ -217,15 +246,26 @@ export function createRestV1Routes(deps: {
     // `/openapi.json` publishes to anyone. (No CORS headers are issued:
     // the surface is server-to-server, and a browser page cannot call it.)
     if (c.req.method === 'OPTIONS') return next();
+    // The MCP endpoint is where a coding agent may sign in instead of using
+    // a key, when the operator lets agents in: its 401 says how.
+    const agentSignIn =
+      deps.agentOAuth !== undefined &&
+      agentSignInOn(deps.agentOAuth) &&
+      isMcpRoute(c.req.path);
     // RFC 9110 §11.1: the authentication scheme is case-insensitive —
     // `bearer` and `BEARER` name the same scheme as `Bearer`.
     const scheme = /^bearer\s+(.*)$/i.exec(c.req.header('authorization') ?? '');
     if (scheme === null) {
-      return unauthorized(c, 'Missing or invalid Authorization header');
+      return unauthorized(
+        c,
+        'Missing or invalid Authorization header',
+        'bearer',
+        agentSignIn,
+      );
     }
     const apiKey = (scheme[1] ?? '').trim();
     if (apiKey === '') {
-      return unauthorized(c, 'Empty API key');
+      return unauthorized(c, 'Empty API key', 'bearer', agentSignIn);
     }
 
     // The client IP the trusted-proxy walk vouches for — from the TCP peer
@@ -233,6 +273,19 @@ export function createRestV1Routes(deps: {
     const ip = getClientIp(c.req.raw.headers, await loadTrustedProxies(), {
       peer: nodePeerAddress(c.env),
     });
+
+    // A signed token on the MCP endpoint is a coding agent's: its own
+    // proof, its own checks, and the request goes on as that agent's person
+    // in the organization it was connected to (`agent-door.ts`).
+    if (agentSignIn && looksLikeJwt(apiKey)) {
+      const refused = await admitAgentBearer(c, apiKey, ip, {
+        sql: deps.sql,
+        issuer: agentIssuer(deps.auth),
+        jwks: () => deps.auth.api.getJwks(),
+        keyCache: agentKeyCache,
+      });
+      return refused ?? next();
+    }
 
     const syntheticHeaders = new Headers();
     syntheticHeaders.set('x-api-key', apiKey);
@@ -267,7 +320,7 @@ export function createRestV1Routes(deps: {
         }
         throw error;
       }
-      return unauthorized(c, 'Invalid API key', 'invalid_token');
+      return unauthorized(c, 'Invalid API key', 'invalid_token', agentSignIn);
     }
 
     // Authenticated: the shared `rest:api` budget belongs to the key holder,
@@ -306,7 +359,7 @@ export function createRestV1Routes(deps: {
       });
       if (!bound.ok) {
         if (bound.status === 401) {
-          return unauthorized(c, bound.message, 'invalid_token');
+          return unauthorized(c, bound.message, 'invalid_token', agentSignIn);
         }
         return c.json(
           {
@@ -545,7 +598,7 @@ function methodsServedOn(door: Hono<RestEnv>): (path: string) => string[] {
  */
 export function mountRestV1Routes<E extends Env>(
   app: Hono<E>,
-  deps: { sql: Sql; auth: Auth },
+  deps: { sql: Sql; auth: Auth; agentOAuth?: AgentOAuthOptions },
 ): void {
   const door = createRestV1Routes(deps);
   const servedOn = methodsServedOn(door);

@@ -281,11 +281,7 @@ describe('tools/list', () => {
    * envelope — the document itself stays an open object inside it, since
    * the engine teaches and validates its grammar in band. (`test_automation`
    * takes a document OR a saved version's name, so neither is required.) */
-  const DOCUMENT_TOOLS = new Set([
-    'validate_automation',
-    'run_automation',
-    'save_automation',
-  ]);
+  const DOCUMENT_TOOLS = new Set(['validate_automation', 'run_automation']);
 
   it('advertises exactly the documented tools, in order', async () => {
     const { payload } = await call({
@@ -340,6 +336,18 @@ describe('tools/list', () => {
         >;
         expect(properties.automation?.type).toBe('object');
         expect(properties.automation?.properties).toBeUndefined();
+      }
+      if (tool.name === 'save_automation') {
+        // A document, or an older version to bring back: the schema root
+        // cannot say "one of", so the pair is checked when the call is.
+        expect(tool.inputSchema.required, tool.name).toBeUndefined();
+        const properties = tool.inputSchema.properties as Record<
+          string,
+          Record<string, unknown>
+        >;
+        expect(properties.automation?.type).toBe('object');
+        expect(properties.restoreVersion?.type).toBe('integer');
+        expect(properties.name?.type).toBe('string');
       }
     }
   });
@@ -1112,6 +1120,82 @@ describe('tools/call — arguments are held to the advertised schema [MCP-R7]', 
         code: 'unrecognized_key',
         message: 'is not an argument this tool takes',
       },
+    ]);
+  });
+
+  it('says a save needs a document or a version to bring back, and what a restore does not take [MCP-R32]', async () => {
+    const none = await invalid('save_automation', {});
+    expect(none.issues).toEqual([
+      {
+        path: 'automation',
+        code: 'exactly_one_of',
+        message: 'is required unless restoreVersion is given',
+      },
+    ]);
+    const mixed = await invalid('save_automation', {
+      automation: { name: 'billing/dunning', nodes: [] },
+      restoreVersion: 2,
+    });
+    expect(mixed.issues).toEqual([
+      {
+        path: 'name',
+        code: 'requires',
+        message: 'is required with restoreVersion',
+      },
+      {
+        path: 'restoreVersion',
+        code: 'exactly_one_of',
+        message: 'cannot be given together with automation',
+      },
+    ]);
+    const restore = await invalid('save_automation', {
+      name: 'billing/dunning',
+      restoreVersion: 2,
+      create: true,
+      settings: null,
+    });
+    expect(restore.issues).toEqual([
+      {
+        path: 'create',
+        code: 'forbidden_with',
+        message:
+          'cannot be given with restoreVersion — a restore brings the version back as it was',
+      },
+      {
+        path: 'settings',
+        code: 'forbidden_with',
+        message:
+          'cannot be given with restoreVersion — a restore brings the version back as it was',
+      },
+    ]);
+    const named = await invalid('save_automation', {
+      automation: { name: 'billing/dunning', nodes: [] },
+      name: 'billing/dunning',
+    });
+    expect(named.issues).toEqual([
+      {
+        path: 'name',
+        code: 'requires',
+        message:
+          'is only used with restoreVersion — the document carries its own name',
+      },
+    ]);
+  });
+
+  it('says a diff format needs the version to compare against [MCP-R31]', async () => {
+    const { issues } = await invalid('get_automation', {
+      name: 'billing/dunning',
+      diffFormat: 'unified',
+    });
+    expect(issues).toEqual([
+      { path: 'diffFormat', code: 'requires', message: 'needs against' },
+    ]);
+    const unknownVersion = await invalid('get_automation', {
+      name: 'billing/dunning',
+      against: 'newest',
+    });
+    expect(unknownVersion.issues).toEqual([
+      expect.objectContaining({ path: 'against' }),
     ]);
   });
 

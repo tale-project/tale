@@ -7,18 +7,20 @@ import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
  *
  * A process that boots while the database restarts — a container restarted
  * while `db` restarts, a host boot racing it, a managed upgrade recreating
- * `db` — meets the restart wherever its boot happens to be: the migrator's
- * first query (`db/migrate.ts`), or pg-boss starting and creating its queues
- * right after (`jobs/boss.ts`). Each such step runs again with backoff while
- * it fails because the database is unavailable (`db/unavailable.ts`), until
- * `waitMs` has passed since the first refusal. Any other failure, and an
- * outage that outlasts the wait, rejects at once, and the boot reports the
- * error and exits.
+ * `db` — meets the restart wherever its boot happens to be. The steps the
+ * boot cannot do without run through this wait: the migrator's first query
+ * (`db/migrate.ts`), pg-boss starting and creating its queues right after
+ * (`jobs/boss.ts`), and the schedules and MCP resources (`main.ts`). Each
+ * such step runs again with backoff while it fails because the database is
+ * unavailable (`db/unavailable.ts`), until `waitMs` has passed since the
+ * first refusal. Any other failure, and an outage that outlasts the wait,
+ * rejects at once, and the boot reports the error and exits. The boot's
+ * best-effort steps do not wait; `main.ts` says which.
  *
- * The clock is one per boot, deliberately: every step of a boot shares it,
- * so a second outage in the same boot is timed from the first one's first
- * refusal, the time between the two included. A database that keeps going
- * away cannot hold the boot without it ever being reported.
+ * The clock is one per boot, deliberately: every step a boot runs through it
+ * shares it, so a second outage in the same boot is timed from the first
+ * one's first refusal, the time between the two included. A database that
+ * keeps going away cannot hold the boot without it ever being reported.
  */
 
 /** The first pause after an attempt the database was unavailable for; it
@@ -75,4 +77,22 @@ export function createBootDatabaseWait(
       },
       ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
     });
+}
+
+/**
+ * One write that must land, run through a database restart on a clock of its
+ * own: the settle of a chat turn, say, which has no boot to share a clock
+ * with. A reply that had streamed for half a minute lost its settle to a
+ * three-second restart — `transactSerializable` reruns a dropped connection
+ * eight times, about two and a half seconds in all, which ends before a
+ * restarting container answers — and its placeholder stayed `pending`, with
+ * nothing left to write the failure, until the generation sweep took the turn
+ * for dead ten minutes on. Only an unavailable database is waited out; any
+ * other failure, and an outage that outlasts the wait, rejects at once.
+ */
+export function waitOutDatabaseOutage<T>(
+  write: () => Promise<T>,
+  options: BootDatabaseWaitOptions = {},
+): Promise<T> {
+  return createBootDatabaseWait(options)(write);
 }

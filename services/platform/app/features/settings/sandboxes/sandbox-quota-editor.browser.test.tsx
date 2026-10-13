@@ -25,6 +25,7 @@ const { saved, state } = vi.hoisted(() => ({
       maxSessionsPerOrg: 2,
       maxWorkflowSessionsPerOrg: 2,
       maxRenderSessionsPerOrg: 2,
+      maxLightSessionsPerOrg: 2,
     },
   },
 }));
@@ -42,6 +43,7 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
         cap: state.config.maxWorkflowSessionsPerOrg,
       },
       { budget: 'render', used: 0, cap: state.config.maxRenderSessionsPerOrg },
+      { budget: 'light', used: 0, cap: state.config.maxLightSessionsPerOrg },
     ],
   }),
 }));
@@ -62,6 +64,7 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
         maxSessionsPerOrg: 2,
         maxWorkflowSessionsPerOrg: 2,
         maxRenderSessionsPerOrg: 2,
+        maxLightSessionsPerOrg: 2,
       };
       saved
         .mockReset()
@@ -77,7 +80,7 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
               <EditorGroup>
                 <SandboxQuotaEditor
                   organizationId="org-test"
-                  deploymentLimits={{ status: 'available', maxSessions: 16 }}
+                  deploymentLimits={{ status: 'available', maxSessions: 18 }}
                   deploymentLimitsLoading={false}
                   onRefreshDeploymentLimits={vi.fn()}
                 />
@@ -89,13 +92,13 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
       const total = screen.getByRole('status', {
         name: 'Total organization sessions',
       });
-      expect(total).toHaveTextContent('6 / 16');
+      expect(total).toHaveTextContent('8 / 18');
       const workflow = screen.getByRole('spinbutton', {
         name: 'Workflow sessions',
       });
       await user.clear(workflow);
       await user.type(workflow, '13');
-      expect(total).toHaveTextContent('17 / 16');
+      expect(total).toHaveTextContent('19 / 18');
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
       expect(workflow).toHaveFocus();
       const error = screen.getByRole('alert');
@@ -111,7 +114,7 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
       );
-      expect(total).toHaveTextContent('16 / 16');
+      expect(total).toHaveTextContent('18 / 18');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       await user.keyboard('{Control>}s{/Control}');
       await waitFor(() =>
@@ -122,6 +125,7 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
             maxSessionsPerOrg: 2,
             maxWorkflowSessionsPerOrg: 12,
             maxRenderSessionsPerOrg: 2,
+            maxLightSessionsPerOrg: 2,
           },
         }),
       );
@@ -130,11 +134,11 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
       });
       await user.clear(renderLimit);
       await user.type(renderLimit, '3');
-      expect(total).toHaveTextContent('17 / 16');
+      expect(total).toHaveTextContent('19 / 18');
       await user.click(screen.getByRole('button', { name: 'Discard' }));
       expect(renderLimit).toHaveValue(2);
       expect(workflow).toHaveValue(12);
-      expect(total).toHaveTextContent('16 / 16');
+      expect(total).toHaveTextContent('18 / 18');
       expect(saved).toHaveBeenCalledOnce();
     },
   );

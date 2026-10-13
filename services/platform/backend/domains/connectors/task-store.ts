@@ -35,6 +35,7 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
+import { getTaskAgentRunIdentity } from '../tasks/agent-runs.ts';
 import {
   addTaskComment,
   listTaskComments,
@@ -724,7 +725,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         throw error;
       }
     },
-    async get({ organizationId, taskId }) {
+    async get({ organizationId, taskId, agentRunId }) {
       let task: Awaited<ReturnType<typeof loadTaskOrThrow>>;
       try {
         task = await loadTaskOrThrow(sql, taskId, organizationId);
@@ -739,6 +740,18 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         }
         throw error;
       }
+      const run =
+        agentRunId === undefined
+          ? null
+          : await getTaskAgentRunIdentity(sql, organizationId, agentRunId);
+      const matchingRun =
+        run !== null &&
+        run.id === agentRunId &&
+        run.organizationId === organizationId &&
+        run.taskId === task.id &&
+        run.projectId === task.projectId
+          ? run
+          : null;
       return {
         taskId: task.id,
         title: task.title,
@@ -762,6 +775,23 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           : {}),
         ...(task.externalId != null ? { externalId: task.externalId } : {}),
         ...(task.externalUrl != null ? { externalUrl: task.externalUrl } : {}),
+        ...(agentRunId !== undefined
+          ? {
+              agentRun:
+                matchingRun === null
+                  ? null
+                  : {
+                      id: matchingRun.id,
+                      taskId: matchingRun.taskId,
+                      agentId: matchingRun.agentId,
+                      status: matchingRun.status,
+                      execId: matchingRun.execId,
+                      startedAt: matchingRun.startedAt,
+                      launchedAt: matchingRun.launchedAt,
+                      settledAt: matchingRun.settledAt,
+                    },
+            }
+          : {}),
       };
     },
     async updateStatus({ organizationId, taskId, status }) {
@@ -893,7 +923,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         );
       });
     },
-    async listComments({ organizationId, taskId }) {
+    async listComments({ organizationId, taskId, includeIds }) {
       const auth = await systemAuth(organizationId);
       // The newest page at the read ceiling: a workflow reads feedback from
       // the tail, and `truncated` tells it when the discussion outgrew one
@@ -910,6 +940,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       );
       return {
         comments: page.comments.map((comment) => ({
+          ...(includeIds === true ? { messageId: comment.messageId } : {}),
           authorType:
             comment.authorType === 'user'
               ? ('user' as const)

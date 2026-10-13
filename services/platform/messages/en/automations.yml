@@ -604,6 +604,8 @@ editor:
     title: "Version {version} doesn't exist"
     description: This automation has no version with that number — the link may be stale, or the number mistyped.
     openLatest: Open latest
+    removedTitle: 'Version {version} was removed'
+    removedDescription: Your organization's retention policy removes old versions that nothing uses any more. Open the latest version instead.
   controlFlowTitle: Control flow
   nodeSheetDescription: Edit the node's fields, then save or discard the change.
   agent:
@@ -819,6 +821,7 @@ restore:
 compare:
   title: 'Changes from v{from} to v{to}'
   missing: 'There is no v{version} of this automation.'
+  removed: 'v{version} was removed by the retention policy.'
   backToVersions: Back to the versions
   moreActions: 'More actions for v{version}'
   from:
@@ -1198,7 +1201,7 @@ tests:
       dropped: '{nodes} can''t answer as in this run, so the test runs them as usual.'
     target: Adds the test to your draft.
     targetOtherVersion: 'This run used version {run}; the test is added to your draft of version {version}.'
-    privacy: The run's input and the outputs you keep become part of the automation. Anyone who can open the automation can read them.
+    privacy: The run inputs, outputs and failure messages you copy into tests become part of the saved automation version. Anyone who can open the automation can read them. The copies can remain after the source run is deleted or removed through retention or erasure. Review the values and use synthetic examples for personal data before saving.
     readFailed: Couldn't read that run. Try again from the runs list.
   pathNeed:
     when: "{value, select, true {Make the condition of {node} true, so it runs.} other {Make the condition of {node} false, so it is skipped.}}"

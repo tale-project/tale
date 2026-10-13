@@ -7,7 +7,7 @@
  */
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { resolveOrgSlug, resolveProvidersForOrg, getProviderCatalog } =
   vi.hoisted(() => ({
@@ -41,6 +41,7 @@ vi.mock('./budget-admission.ts', () => ({
 }));
 
 import { ThreadBusyError } from '../../../lib/chat/turn.ts';
+import { liveTurnCount } from './live-turns.ts';
 import {
   createPgTurnStore,
   createPgUsageLedger,
@@ -68,15 +69,63 @@ const PRICED_CATALOG = [
   { id: 'free/model' },
 ];
 
-/** A tagged-template `sql` that records every statement's bound values. */
+/** A tagged-template `sql` that records every statement's bound values; its
+ * `begin` runs the callback on the same tag. */
 function capturingSql(): { sql: Sql; calls: unknown[][] } {
   const calls: unknown[][] = [];
   const tag = (_strings: TemplateStringsArray, ...values: unknown[]) => {
     calls.push(values);
     return Promise.resolve([]);
   };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call is exercised by the ledger
-  return { sql: tag as unknown as Sql, calls };
+  const begin = (callback: (tx: typeof tag) => Promise<unknown>) =>
+    callback(tag);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and begin are exercised by the ledger
+  return { sql: Object.assign(tag, { begin }) as unknown as Sql, calls };
+}
+
+/**
+ * A `sql` whose transactions can be undone: statements outside `begin` count
+ * as committed at once, those inside only when the callback returns. The
+ * `failOn`th statement (1-based, across attempts) rejects once with `error`.
+ */
+function transactionalSql(
+  failOn: number,
+  error: Error,
+): {
+  sql: Sql;
+  committed: unknown[][];
+  rolledBack: number;
+} {
+  const state = { committed: [] as unknown[][], rolledBack: 0 };
+  let statements = 0;
+  let open: unknown[][] | null = null;
+  const tag = (_strings: TemplateStringsArray, ...values: unknown[]) => {
+    statements += 1;
+    if (statements === failOn) return Promise.reject(error);
+    (open ?? state.committed).push(values);
+    return Promise.resolve([]);
+  };
+  const begin = async (callback: (tx: typeof tag) => Promise<unknown>) => {
+    open = [];
+    try {
+      const result = await callback(tag);
+      state.committed.push(...open);
+      return result;
+    } catch (caught) {
+      state.rolledBack += 1;
+      throw caught;
+    } finally {
+      open = null;
+    }
+  };
+  return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and begin are exercised by the ledger
+    sql: Object.assign(tag, { begin }) as unknown as Sql,
+    committed: state.committed,
+    get rolledBack() {
+      return state.rolledBack;
+    },
+  };
 }
 
 const ENTRY = {
@@ -137,6 +186,17 @@ describe('estimateTurnCostCents', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await expect(estimateTurnCostCents(sql, ENTRY)).resolves.toBe(0);
     expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('does not book 0 for a database that is away: the error goes to the caller, which waits for it', async () => {
+    const { sql } = capturingSql();
+    const away = restarting();
+    resolveOrgSlug.mockRejectedValue(away);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(estimateTurnCostCents(sql, ENTRY)).rejects.toBe(away);
+    expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 });
@@ -202,6 +262,8 @@ function fakeChatSql(
     storedParts?: unknown[];
     /** Progress writes of the text that fail, as a dropped connection does. */
     failTextWrites?: number;
+    /** Statements containing `includes` that fail the first `times` times. */
+    failures?: { includes: string; times: number; error: Error };
   } = {},
 ): {
   sql: Sql;
@@ -214,6 +276,7 @@ function fakeChatSql(
   const transactions: Array<'commit' | 'rollback'> = [];
   let messageRows = 0;
   let textWriteFailures = options.failTextWrites ?? 0;
+  let failuresLeft = options.failures?.times ?? 0;
   const answer = (text: string): unknown[] => {
     if (text.includes('FOR UPDATE OF tm')) {
       return options.scopeChanged ? [] : [{ id: 'thread_1' }];
@@ -262,6 +325,14 @@ function fakeChatSql(
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
       log.push({ text, values });
+      if (
+        options.failures !== undefined &&
+        failuresLeft > 0 &&
+        text.includes(options.failures.includes)
+      ) {
+        failuresLeft -= 1;
+        return Promise.reject(options.failures.error);
+      }
       if (
         textWriteFailures > 0 &&
         text.includes('UPDATE app.generations SET') &&
@@ -760,6 +831,152 @@ describe('createPgTurnStore.finalizeAssistantMessage', () => {
     expect(f.pool[0]?.values).toContainEqual({
       json: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
     });
+  });
+});
+
+/** A server that is restarting: it ends the session an administrator's way. */
+function restarting(): Error {
+  return Object.assign(
+    new Error('terminating connection due to administrator command'),
+    { code: '57P01' },
+  );
+}
+
+describe('createPgTurnStore — a database restart while a reply settles', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const SETTLED = {
+    organizationId: 'org_1',
+    threadId: 'thread_1',
+    messageId: 'msg_2',
+    text: 'the whole reply',
+    parts: [{ type: 'text' as const, text: 'the whole reply' }],
+  };
+
+  it('writes the settle again until the restarted database answers it', async () => {
+    const f = fakeChatSql({
+      failures: {
+        includes: 'UPDATE app.messages SET',
+        times: 2,
+        error: restarting(),
+      },
+    });
+
+    const settled = createPgTurnStore(f.sql).finalizeAssistantMessage(SETTLED);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await settled;
+
+    // The reply that had streamed lands; it is not left `pending` for the
+    // generation sweep ten minutes on.
+    const writes = f.pool.filter((s) => s.text.includes('UPDATE app.messages'));
+    expect(writes).toHaveLength(3);
+    expect(writes[2]?.values).toContain('complete');
+  });
+
+  it('waits out the restart for the end of the generation too, and stops tracking the turn', async () => {
+    const f = fakeChatSql({
+      failures: {
+        includes: 'DELETE FROM app.generations',
+        times: 1,
+        error: restarting(),
+      },
+    });
+    const store = createPgTurnStore(f.sql);
+    const before = liveTurnCount();
+    await store.beginTurn({ ...OPEN });
+    expect(liveTurnCount()).toBe(before + 1);
+
+    const ended = store.endGeneration({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await ended;
+
+    expect(f.transactions).toEqual(['commit', 'rollback', 'commit']);
+    expect(liveTurnCount()).toBe(before);
+  });
+
+  it('prices the booking again after the restart, rather than booking the turn at 0', async () => {
+    const { sql, calls } = capturingSql();
+    resolveOrgSlug.mockRejectedValueOnce(restarting());
+
+    const booked = createPgUsageLedger(sql).record(ENTRY);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await booked;
+
+    // The first attempt found the database away while pricing and wrote
+    // nothing; the second priced the turn and wrote its three buckets.
+    expect(calls).toHaveLength(3);
+    for (const values of calls) {
+      expect(values).toContain(200);
+    }
+  });
+
+  it('books each period bucket once when the database fails between two of them', async () => {
+    // The second bucket's upsert meets the restart; the first had been
+    // written — in the transaction the rerun starts over from.
+    const f = transactionalSql(2, restarting());
+
+    const booked = createPgUsageLedger(f.sql).record(ENTRY);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await booked;
+
+    expect(f.rolledBack).toBe(1);
+    // One booking: the daily, weekly and monthly bucket, each added to once.
+    expect(f.committed).toHaveLength(3);
+  });
+
+  it('fails at once on an error that is not an outage', async () => {
+    const constraint = Object.assign(new Error('duplicate key value'), {
+      code: '23505',
+    });
+    const f = fakeChatSql({
+      failures: {
+        includes: 'UPDATE app.messages SET',
+        times: 1,
+        error: constraint,
+      },
+    });
+
+    await expect(
+      createPgTurnStore(f.sql).finalizeAssistantMessage(SETTLED),
+    ).rejects.toBe(constraint);
+    expect(
+      f.pool.filter((s) => s.text.includes('UPDATE app.messages')),
+    ).toHaveLength(1);
+  });
+
+  it('still stops tracking the turn when the outage outlasts the wait', async () => {
+    const f = fakeChatSql({
+      failures: {
+        includes: 'DELETE FROM app.generations',
+        times: 1_000,
+        error: restarting(),
+      },
+    });
+    const store = createPgTurnStore(f.sql);
+    const before = liveTurnCount();
+    await store.beginTurn({ ...OPEN });
+
+    const ended = store
+      .endGeneration({ organizationId: 'org_1', threadId: 'thread_1' })
+      .then(
+        () => 'ended',
+        (error: unknown) => error,
+      );
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(await ended).toBeInstanceOf(Error);
+    // Over, whatever happened to its settle: the sweep has it from here.
+    expect(liveTurnCount()).toBe(before);
   });
 });
 

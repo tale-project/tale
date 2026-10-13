@@ -15,6 +15,7 @@ import { SESSION_ENDED, SHIPPED_LOCALES } from '@/tests/utils/lapsed-session';
 
 import {
   authClientError,
+  authSessionRefusalMessage,
   isLapsedAuthClientAnswer,
   type AuthClientRefusal,
 } from './auth-client-error';
@@ -109,6 +110,64 @@ describe("Better Auth's answers once the session has ended", () => {
 });
 
 describe('authClientError', () => {
+  it('does not relabel another meaning of the code or an unauthenticated answer', async () => {
+    await i18n.changeLanguage('de');
+    for (const error of [
+      {
+        status: 403,
+        code: 'ORG_FORBIDDEN',
+        message: 'A different resource belongs to another organization',
+      },
+      {
+        status: 403,
+        code: 'SESSION_NOT_FRESH',
+        message: 'Session is not fresh',
+      },
+      {
+        status: 401,
+        code: 'ORG_FORBIDDEN',
+        message:
+          'This session is limited to the organization that signed you in.',
+      },
+    ]) {
+      expect(authSessionRefusalMessage(error)).toBeUndefined();
+      expect(authClientError(error).message).toBe(error.message);
+    }
+  });
+  it.each([
+    [
+      'de',
+      'ORG_FORBIDDEN',
+      'This session is limited to the organization that signed you in.',
+      'Diese Sitzung ist auf die Organisation beschränkt, die dich angemeldet hat.',
+    ],
+    [
+      'fr',
+      'ORG_FORBIDDEN',
+      'This session is limited to the organization that signed you in.',
+      'Cette session est limitée à l’organisation qui t’a connecté.',
+    ],
+    [
+      'de',
+      'SESSION_NOT_FRESH',
+      'Confirm your password or an account passkey before changing your account.',
+      'Bestätige dein Passwort oder einen Passkey für dein Konto, bevor du dein Konto änderst.',
+    ],
+    [
+      'fr',
+      'SESSION_NOT_FRESH',
+      'Confirm your password or an account passkey before changing your account.',
+      'Confirme ton mot de passe ou un passkey de ton compte avant de modifier ton compte.',
+    ],
+  ])(
+    'localizes the actual new authority refusal in %s (%s)',
+    async (locale, code, message, expected) => {
+      await i18n.changeLanguage(locale);
+      expect(authClientError({ status: 403, code, message }).message).toBe(
+        expected,
+      );
+    },
+  );
   describe.each([
     { write: 'create-team', key: 'createTeam' },
     { write: 'update-team', key: 'updateTeam' },

@@ -32,7 +32,13 @@ const BACKEND_BASE = process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005';
 // scripts/dev.ts). `/dav` is here too: the protocol door lives on the api,
 // and Vite's SPA catch-all would otherwise answer PROPFIND with index.html.
 const backendProxy = {
-  '/.well-known/oauth-authorization-server/api/auth': {
+  // The sign-in server's and the MCP endpoint's metadata documents
+  // (RFC 8414, RFC 9728) live under the host root's well-known paths.
+  '/.well-known/oauth-authorization-server': {
+    target: BACKEND_BASE,
+    changeOrigin: true,
+  },
+  '/.well-known/oauth-protected-resource': {
     target: BACKEND_BASE,
     changeOrigin: true,
   },
@@ -200,6 +206,9 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   server: {
+    // The local sandbox device runs in Docker and reaches the host through
+    // Docker Desktop's host alias rather than localhost.
+    allowedHosts: ['host.docker.internal'],
     // WebDAV clients probe OPTIONS before authenticating. Let the backend
     // advertise DAV/Allow while retaining Vite's default origin restriction.
     // nosemgrep: trailofbits.javascript.apollo-graphql.v3-cors-audit.v3-potentially-bad-cors -- Vite's anchored localhost/loopback allowlist, not an Apollo wildcard; dev and preview reject foreign origins in webdav-preflight.test.ts.

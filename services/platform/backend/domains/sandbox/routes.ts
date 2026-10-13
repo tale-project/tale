@@ -134,12 +134,13 @@ export function createSandboxRoutes(deps: {
       project: 0,
       workflow: 0,
       render: 0,
+      light: 0,
     };
     for (const row of rows) {
       const budget = sessionBudgetForOwnerType(row.ownerType);
       if (budget !== null) used[budget] += Number(row.count);
     }
-    const budgets: SessionBudget[] = ['project', 'workflow', 'render'];
+    const budgets: SessionBudget[] = ['project', 'workflow', 'render', 'light'];
     return c.json({
       usage: budgets.map((budget) => {
         const cap = sessionCapFor(budget, quota);

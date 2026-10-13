@@ -49,6 +49,11 @@ export function loadPdfjs(): Promise<PdfjsModule> {
     // The modern build (package root), not `legacy/`: both work on the Node
     // ≥22 runtime, but the legacy build embeds ~400 core-js polyfill modules
     // that count against Convex's pushed-module size cap.
+    // pdfjs-dist publishes this worker as JavaScript without a declaration;
+    // the platform's own program supplies one, while source-bundled CLI
+    // programs cannot include that ambient file. Keep the static import for
+    // bundling and suppress only this package boundary in the latter.
+    // @ts-expect-error — pdfjs worker entry is a typed-at-runtime static bundle
     const worker = await import('pdfjs-dist/build/pdf.worker.mjs');
     (globalThis as Record<string, unknown>).pdfjsWorker = worker;
     return import('pdfjs-dist');

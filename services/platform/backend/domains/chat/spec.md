@@ -5,9 +5,9 @@
 The rules a chat is held to: who can open, continue, share and delete it, what a project share
 and a share link give and take, what a message is refused for, that a chat answers one message
 at a time, what stopping, editing and trying again guarantee, what Arena Mode promises, what a
-delete takes with it, and what the REST API can and cannot do. Attachments, messages that wait
-for their attachments, the assistant's tools and search, usage booking, title generation and
-harness-backed chats are not covered; see Not yet.
+delete takes with it, what the REST API can and cannot do, and what the assistant may make and
+where it lands. Attachments, messages that wait for their attachments, the assistant's search,
+usage booking, title generation and harness-backed chats are not covered; see Not yet.
 
 ## Who can see a chat
 
@@ -219,6 +219,117 @@ reply id, the poll answering queued meanwhile.
 - **Example**: Noah's integration sends at the moment of a deploy → it polls queued a little
   longer, then reads its reply under the id the 202 named.
 
+## What the assistant makes
+
+Besides answering, the assistant can write a file, generate an image, read a skill and run code
+in a light sandbox. Which of these it is offered, the organization decides; which one it uses,
+the model decides.
+
+| Tool | Offered when |
+| --- | --- |
+| Writing a file | **Chat tools** › **Files** is on (the default) |
+| Reading a skill | **Chat tools** › **Skills** is on (the default) |
+| Running code in a light sandbox | **Chat tools** › **Code** is on (the default) |
+| Generating an image | **Image generation** is on and an image model is available |
+
+### CHAT-R18 · The assistant is offered only the tools the organization allows
+
+A tool switched off under Chat tools, or images while image generation is off, is not offered on
+any chat turn: the model is never told about it. A missing policy file offers every chat tool;
+images stay off until an admin turns them on.
+
+- **Example**: Ada, an admin, turns off **Code** under Chat tools. Mia asks her chat for an
+  Excel file → her turn is offered no code tool.
+
+### CHAT-R19 · A file the assistant makes belongs to the conversation it was made in
+
+The file is kept in the organization's storage and bound to the conversation, so whoever can
+read the conversation can open it. Code takes in only files of the same conversation; naming a
+file of another conversation is refused before any sandbox starts (not found).
+
+- **Example**: Mia's chat makes `report.docx` → the file is bound to that conversation. In
+  another chat, Mia names that file for code to read → not found, and no sandbox starts.
+
+### CHAT-R20 · A revised file replaces its earlier version in the same reply
+
+When a later step of the same reply makes a document under the same name, the reply shows the
+new version in the earlier one's place. Images are each a result of their own and always add.
+
+- **Example**: The assistant writes `report.docx` for Mia, checks it and writes it again in the
+  same reply → her reply shows one `report.docx`, the second version.
+
+### CHAT-R21 · The assistant reads only the skills the person chatting can see
+
+A skill beyond the person's reach, such as one shared with a team they are not in, is answered
+as if it did not exist, so its existence never leaks.
+
+- **Example**: Mia is not in the Finance team. Her chat asks for the Finance team's
+  `budget-review` skill → not found.
+
+### CHAT-R22 · A chat's images count against the person chatting, within their budget
+
+An image is booked to the person chatting and to the chat's project, if it has one. A budget
+limit that applies to them refuses the image before the image model is called, and holds
+nothing. While an admitted image is being made it holds its estimate on the reply it belongs
+to, and gives the hold back there: an image that finishes after its reply has ended lowers
+nothing on the next reply, and is still booked.
+
+- **Example**: Mia's monthly cap is spent. Her chat asks for an image → refused with the cap's
+  reason; the image model is not called.
+- **Example**: Mia stops a reply while an image is being made and sends a new message at once.
+  The image finishes after the new reply began → it is booked to Mia, and the new reply's hold
+  is unchanged.
+
+### CHAT-R23 · One reply creates at most 16 images
+
+Images asked for in the same step count together, however many calls make them.
+
+- **Example**: Mia's reply has already created 15 images and asks for 2 more → refused.
+- **Example**: The assistant asks for four images in each of ten calls at once → four calls
+  run and the other six are refused; the reply never holds more than 16.
+
+### CHAT-R24 · Each version of a file the code writes is attached once
+
+A file the code writes to its output folder is attached when it is new or changed since the
+sandbox's last run. An unchanged file, or one rewritten with the same content, is not attached
+again, and every file stays in the sandbox for the next run.
+
+- **Example**: Mia's chat writes `report.csv`, then runs code that only reads it → nothing new is
+  attached. A third run changes a row → the new version is attached.
+
+### CHAT-R25 · A step's tools are bounded, and Stop reaches them
+
+However many tools the assistant asks for in one step, at most 16 run and the rest answer that
+they did not. A step's tools run for at most five minutes. While they run, the reply stays
+alive and Stop is heard: Stop, or the end of the five minutes, tells every running tool to
+stop, and code is cut off in its sandbox — asked again a few times if the sandbox does not
+know the program yet. Files a stopped program had already written stay in its output folder
+and are attached by the next run.
+
+- **Example**: Mia's assistant asks for 20 files in one step → 16 are made and the other four
+  answer that they did not run; it can ask again in the next step.
+- **Example**: The assistant runs code that waits ten minutes and Mia presses **Stop** after
+  half a minute → the program is cut off within seconds, the reply is marked stopped, and her
+  composer is free again.
+
+### CHAT-R26 · A Chat tools policy that cannot be read offers no tool
+
+An absent file offers every chat tool, as ever. A file that exists but cannot be read turns
+files, skills and code off until it is repaired, rather than back on.
+
+- **Example**: Ada turned **Code** off, then edited the policy file by hand and broke it →
+  Mia's chat is offered no code tool, and Governance names the problem.
+
+### CHAT-R27 · What a code run reports back is bounded however many files it wrote
+
+At most ten new or changed files attach, as ever. A run looks at the 200 files of the output
+folder written most recently; of the others, a short list is named and the rest are counted,
+and the sandbox keeps them all. A file already delivered stays recorded as delivered while it
+is out of view.
+
+- **Example**: Mia's code writes 3,000 files to its output folder → the reply attaches ten,
+  names twenty of the others and says how many more there are.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
@@ -250,6 +361,11 @@ reply id, the poll answering queued meanwhile.
 - **Arena Mode** beyond `CHAT-R11` and `CHAT-R12`: which chats cannot enter it (shared,
   archived, sandbox, busy), the history copied into the second column and its bound, and a
   double settle (`arena.ts`).
+- **Which tool the assistant picks** for a request is the model's judgment, steered by the
+  tools' descriptions and the work ladder (`../../../lib/agent/work-tools.ts`,
+  `../../../lib/agent/ladder.ts`); no unit test can hold a model's choice. The light sandbox's
+  bounds (three minutes a run, 10 files of 20 MB each, inputs and skills per call) are held
+  only in part (`../agent_tools/run-code.ts`).
 - **What the assistant can search and fetch from a chat** (`../../core/chat/assistant_tools.ts`):
   the project boundary of a filed chat, the hub for a personal chat, and untrusted content;
   what a search finds is knowledge's (`KNOW-R3` to `KNOW-R5`), the inbox leg conversations'

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
 import type { Auth } from '../../auth/auth.ts';
+import { sessionOrganizationId } from '../../auth/session-authority.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { getTwoFactorWireStatus } from './service.ts';
 
@@ -20,7 +21,10 @@ export function createTwoFactorRoutes(deps: {
 
   app.get('/status', async (c) => {
     const userId = c.get('sessionBundle').user.id;
-    return c.json(await getTwoFactorWireStatus(deps.sql, userId));
+    const scope = sessionOrganizationId(c.get('sessionBundle').session);
+    return c.json(
+      await getTwoFactorWireStatus(deps.sql, userId, scope ?? undefined),
+    );
   });
 
   return app;

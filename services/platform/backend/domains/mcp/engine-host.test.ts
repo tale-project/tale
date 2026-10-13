@@ -38,6 +38,24 @@ function caller(apiKeyId?: string, clientName?: string): McpCaller {
   };
 }
 
+/** A coding agent that signed in: a connection, never a key. */
+function agent(clientName?: string): McpCaller {
+  return {
+    organizationId: 'org-acme',
+    orgSlug: 'acme',
+    userId: 'user-ada',
+    role: 'developer',
+    credential: {
+      kind: 'agent',
+      connectionId: 'conn-cursor',
+      clientId: 'https://cursor.example.test/client.json',
+      clientName: 'Cursor',
+      scopes: new Set(['tale:mcp']),
+    },
+    ...(clientName !== undefined ? { clientName } : {}),
+  };
+}
+
 describe('engineScope', () => {
   it('records a keyed caller as the api-key door, with the key, and reads as the app would show them [MCP-R9]', () => {
     expect(engineScope(caller('key-laptop'))).toEqual({
@@ -56,6 +74,22 @@ describe('engineScope', () => {
       organizationId: 'org-acme',
       origin: { actor: 'api-key:user-ada', via: 'mcp' },
       visibleOnly: true,
+    });
+  });
+
+  it('records a coding agent as the same door with its connection and the app the person connected, and no key [MCP-R42]', () => {
+    expect(engineScope(agent())).toEqual({
+      organizationId: 'org-acme',
+      origin: {
+        actor: 'api-key:user-ada',
+        via: 'mcp',
+        agentConnectionId: 'conn-cursor',
+        clientName: 'Cursor',
+      },
+      visibleOnly: true,
+    });
+    expect(engineScope(agent('Cursor 2.0'))).toMatchObject({
+      origin: { agentConnectionId: 'conn-cursor', clientName: 'Cursor 2.0' },
     });
   });
 
@@ -111,6 +145,17 @@ describe('mcpHost', () => {
       apiKeyId: 'key-laptop',
       method: 'search_capabilities',
       params: { query: 'send an invoice' },
+    });
+  });
+
+  it('books nothing to a key for a coding agent’s capability call: a connection is not one [MCP-R42]', async () => {
+    await mcpHost(sql).capability(agent(), 'search_capabilities', {});
+
+    expect(dispatchCapabilityAs).toHaveBeenLastCalledWith(sql, {
+      organizationId: 'org-acme',
+      userId: 'user-ada',
+      method: 'search_capabilities',
+      params: {},
     });
   });
 

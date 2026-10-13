@@ -68,6 +68,7 @@ import {
 import {
   isAgentSessionProfile,
   sessionDindEnabled,
+  sessionSharesPackageCaches,
 } from '../../session/session-profile.ts';
 import {
   listSessionWorkspaceDirs,
@@ -334,12 +335,14 @@ export class DockerSessionBackend implements SessionBackend {
       dind && this.cfg.dockerBuildCache
         ? retainBuildkitd(spec.organizationId)
         : undefined;
-    // Only a session without Docker inside mounts the package caches: held
-    // until its container exists or the create gave up, so their retention
-    // never removes them under it (package-cache-retention.ts).
-    const caches = dind
-      ? undefined
-      : holdPackageCaches(this.cfg, spec.organizationId);
+    // Only a session that mounts the package caches holds them: until its
+    // container exists or the create gave up, so their retention never
+    // removes them under it (package-cache-retention.ts). A session that
+    // mounts none — DinD, or the untrusted `default` profile — neither holds
+    // nor creates them, so a cache volume's trouble cannot fail its start.
+    const caches = sessionSharesPackageCaches(spec.profile, dind)
+      ? holdPackageCaches(this.cfg, spec.organizationId)
+      : undefined;
     try {
       return await withOperationBudget(
         this.cfg.session.createHealthTimeoutMs,
@@ -427,10 +430,11 @@ export class DockerSessionBackend implements SessionBackend {
     const pip = pipCacheVolumeName(this.cfg, spec.organizationId);
     const npm = npmCacheVolumeName(this.cfg, spec.organizationId);
     const bun = bunCacheVolumeName(this.cfg, spec.organizationId);
-    // Shared dependency caches are not mounted under DinD. Wait for every
-    // setup call to settle, including after the first failure. Failed setup
-    // keeps deterministic workspace/volume state that a peer may already use.
-    if (!dind) {
+    // Shared dependency caches are not mounted under DinD, nor into the
+    // untrusted `default` profile. Wait for every setup call to settle,
+    // including after the first failure. Failed setup keeps deterministic
+    // workspace/volume state that a peer may already use.
+    if (sessionSharesPackageCaches(spec.profile, dind)) {
       const caches = await Promise.allSettled(
         [pip, npm, bun].map((name) =>
           ensureCacheVolume(name, this.cfg.runtimeImage),

@@ -24,6 +24,80 @@ function isTransientOpener(element: HTMLElement): boolean {
   return role !== null && TRANSIENT_OPENER_ROLES.has(role);
 }
 
+/**
+ * Fired when an overlay closes and nothing it could return the focus to is
+ * left: the opener, the caller's `restoreFocusRef` and the menu button are
+ * gone or can no longer take focus, because a confirmed delete took the row
+ * with them. It is dispatched, bubbling and cancelable, from the nearest
+ * ancestor of that return point still in the document, so the part of the
+ * page that survived can say what took the row's place. A listener that
+ * moves the focus there cancels it: `DataTable` focuses the next row's
+ * control.
+ */
+export const RESTORE_FOCUS_LOST_EVENT = 'tale:restore-focus-lost';
+
+/**
+ * A verified overlay return to this element. An unfocused browser page can
+ * update activeElement without delivering native focusin, so a list needs
+ * this notification to track a restored row until its refetch removes it.
+ * Bubbles from the actual focused target; it never requests a focus move.
+ */
+export const RESTORE_FOCUS_RETURNED_EVENT = 'tale:restore-focus-returned';
+
+/**
+ * Focuses `element` if it is still in the document, and says whether it took
+ * the focus: a disabled control does not, and neither does `<body>`, which
+ * is no place to return to.
+ */
+function focusIfAble(
+  element: HTMLElement | null | undefined,
+  options?: FocusOptions,
+): boolean {
+  if (
+    element === null ||
+    element === undefined ||
+    !element.isConnected ||
+    element === element.ownerDocument.body
+  ) {
+    return false;
+  }
+  element.focus(options);
+  if (element.ownerDocument.activeElement !== element) return false;
+  element.dispatchEvent(
+    new CustomEvent(RESTORE_FOCUS_RETURNED_EVENT, { bubbles: true }),
+  );
+  return true;
+}
+
+/** `element`'s ancestors below `<body>`, nearest first. */
+export function ancestorsOf(element: Element): HTMLElement[] {
+  const ancestors: HTMLElement[] = [];
+  const body = element.ownerDocument.body;
+  for (
+    let ancestor = element.parentElement;
+    ancestor !== null && ancestor !== body;
+    ancestor = ancestor.parentElement
+  ) {
+    ancestors.push(ancestor);
+  }
+  return ancestors;
+}
+
+/**
+ * Focuses the nearest of `ancestors` that is still in the document and takes
+ * programmatic focus (`tabindex`): a list's labelled region, else the page's
+ * `<main>`. This is the last place for focus that a removed control held,
+ * short of the page itself. The view does not scroll: the reader's place is
+ * where the control was, not the region's top.
+ */
+export function focusNearestRegion(ancestors: readonly HTMLElement[]): boolean {
+  return ancestors.some(
+    (ancestor) =>
+      ancestor.hasAttribute('tabindex') &&
+      focusIfAble(ancestor, { preventScroll: true }),
+  );
+}
+
 /** The overlays a transient opener sits in. */
 const TRANSIENT_POPUP = '[role="menu"], [role="listbox"]';
 /** How far a submenu chain is followed before giving up. */
@@ -95,6 +169,15 @@ function popupButtonOf(element: HTMLElement): HTMLElement | null {
  * wiring at the call site. `fallbackRef` is for everything else — an opener
  * that unmounts or moves (a toolbar button the first row replaces), or a
  * return point the caller chooses — and, when set, wins over the menu button.
+ * Each of them counts only if it can still take the focus: a menu button its
+ * row disabled is skipped like a removed one.
+ *
+ * A completed action can take every return point away: a confirmed delete
+ * removes the row, its menu button with it. The hook then asks the part of
+ * the page that survived (`RESTORE_FOCUS_LOST_EVENT`), and failing an answer
+ * focuses the nearest surviving ancestor that takes focus
+ * (`focusNearestRegion`). Only with neither does Radix's default (`<body>`)
+ * apply.
  *
  * @param open Whether the overlay is currently open.
  * @param fallbackRef Optional stable element to focus when the captured opener
@@ -109,45 +192,69 @@ export function useRestoreFocus(
   const previouslyFocused = useRef<HTMLElement | null>(null);
   /** The menu button behind a transient opener, read while its menu stands. */
   const popupButton = useRef<HTMLElement | null>(null);
+  /**
+   * The return point's ancestors when the overlay opened, nearest first:
+   * what is left to ask once a completed action removed the point itself.
+   */
+  const returnPath = useRef<HTMLElement[]>([]);
 
   useLayoutEffect(() => {
     if (open) {
       const active = document.activeElement;
-      previouslyFocused.current = active instanceof HTMLElement ? active : null;
+      const opener = active instanceof HTMLElement ? active : null;
+      previouslyFocused.current = opener;
       popupButton.current =
-        previouslyFocused.current !== null &&
-        isTransientOpener(previouslyFocused.current)
-          ? popupButtonOf(previouslyFocused.current)
+        opener !== null && isTransientOpener(opener)
+          ? popupButtonOf(opener)
           : null;
+      const returnPoint =
+        popupButton.current ??
+        (opener !== null && canHoldFocus(opener) ? opener : null);
+      returnPath.current = returnPoint === null ? [] : ancestorsOf(returnPoint);
     }
   }, [open]);
 
   return useCallback(
     (event: Event) => {
-      let target = previouslyFocused.current;
+      const opener = previouslyFocused.current;
+      const path = returnPath.current;
       // Menu items and other transient openers go away with the overlay they
       // belong to; fall back to a stable trigger — the caller's, else the
       // menu button the item's menu named when the overlay opened.
       // `<body>` is no opener either: focus rests there when the focused
       // control was removed in the same update that opened this overlay — an
       // edit dialog's Cancel bringing a details dialog back.
-      if (
-        target === null ||
-        !target.isConnected ||
-        target === target.ownerDocument.body ||
-        isTransientOpener(target)
-      ) {
-        target = fallbackRef?.current ?? popupButton.current;
-      }
-      // Only take over from Radix when a restore target still exists in the
-      // document; otherwise let Radix's default close behaviour run.
-      if (target && target.isConnected) {
-        event.preventDefault();
-        target.focus();
-      }
+      const candidates = [
+        opener !== null && canHoldFocus(opener) ? opener : null,
+        fallbackRef?.current,
+        popupButton.current,
+      ];
       previouslyFocused.current = null;
       popupButton.current = null;
+      returnPath.current = [];
+      if (candidates.some((candidate) => focusIfAble(candidate))) {
+        event.preventDefault();
+        return;
+      }
+      // None of them survived the close, as when a confirmed delete took the
+      // row: the nearest ancestor still standing says where the focus goes.
+      const survivor = path.find((ancestor) => ancestor.isConnected);
+      if (survivor === undefined) return;
+      const lost = new CustomEvent(RESTORE_FOCUS_LOST_EVENT, {
+        bubbles: true,
+        cancelable: true,
+      });
+      survivor.dispatchEvent(lost);
+      if (lost.defaultPrevented || focusNearestRegion(path)) {
+        event.preventDefault();
+      }
+      // Otherwise Radix's default close behaviour runs.
     },
     [fallbackRef],
   );
+}
+
+/** An opener that can still be a return point once its overlay closes. */
+function canHoldFocus(element: HTMLElement): boolean {
+  return element !== element.ownerDocument.body && !isTransientOpener(element);
 }

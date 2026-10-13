@@ -9,15 +9,27 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
+import { compareVersions, dispatch } from '../../lib/engine/api/dispatch.ts';
+import { REPORT_DETAILS } from '../../lib/engine/api/report-details.ts';
 import { RUN_STATUSES } from '../../lib/engine/api/run-statuses.ts';
 import {
   NODE_PAGE_DEFAULT,
   NODE_PAGE_MAX,
 } from '../../lib/engine/core/record/read.ts';
+import { MAX_TESTS } from '../../lib/engine/core/test-limits.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
+import { assembleAutomationAuthoringHost } from '../core/automations/authoring_host.ts';
 import { answerRunAskAs } from '../domains/automations/ask-answer.ts';
+import { memberNamesOf } from '../domains/automations/author-names.ts';
+import { refusalDataOf } from '../domains/automations/authoring-refusal.ts';
+import {
+  deploymentEventWire,
+  listDeploymentEvents,
+  liveDeploymentWire,
+} from '../domains/automations/deployments.ts';
+import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { legacyRunStopSchema } from '../domains/automations/legacy-quarantine.ts';
 import {
   automationVisible,
@@ -51,12 +63,12 @@ import {
   deployedVersion,
   getPendingAskForRun,
   getRun,
+  type DeployResult,
   type IdempotentStart,
   listAutomations,
   type ListRunsOptions,
   listRunsPage,
   listTriggers,
-  listVersions,
   requestLegacyRunStopInTx,
   type RunRow,
   setTrigger,
@@ -66,8 +78,13 @@ import {
   unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
+import {
+  listVersionHistory,
+  readTestReport,
+} from '../domains/automations/versions.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
 import { requestIdOf } from '../error-reporting.ts';
+import { RateLimitExceededError } from '../lib/rate-limit.ts';
 import { runInRequestChannel } from '../lib/request-channel.ts';
 import {
   requestChannelOf,
@@ -91,6 +108,7 @@ import {
   loadRestProject,
   mintCursor,
   noQuery,
+  nonBlank,
   notFound,
   PAGE_QUERY,
   parseBody,
@@ -103,6 +121,7 @@ import {
   readSignedCursor,
   requireDeveloper,
   restApiKeyId,
+  restRateLimited,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -422,34 +441,567 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** The version history, with the deployed one marked — a client used to
-   * cross-reference the definition read to learn which entry is live. */
-  app.get('/automations/:name/versions', noQuery, async (c) => {
+  /** The engine store a version read or write runs on: the key's own door
+   * and, for a read, only the automations the key holder can see. */
+  const engineStore = (c: Context<RestEnv>, origin: WriteOrigin) =>
+    pgAutomationStore(deps.sql, {
+      organizationId: c.get('organizationId'),
+      origin,
+      visibleOnly: true,
+    });
+
+  /** A refusal the engine answered as data, as this door's `{error, code}`:
+   * the status its code carries, and what it names beside the sentence
+   * (the problems of a document, the report of the tests that failed) under
+   * `data`. A write's own store refusal (a stale base, a stale deploy) is
+   * thrown, not answered, and reaches `domainErrorResponse` with its own
+   * status and data. */
+  const AUTHORING_REFUSAL_STATUS: Readonly<Record<string, 400 | 404 | 409>> = {
+    AUTOMATION_NOT_FOUND: 404,
+    AUTOMATION_VERSION_UNKNOWN: 404,
+    AUTOMATION_NOT_DEPLOYED: 404,
+    AUTOMATION_INVALID: 409,
+    AUTOMATION_TESTS_FAILING: 409,
+    AUTOMATION_DEPLOY_REJECTED: 409,
+  };
+  const authoringRefusal = (
+    c: Context<RestEnv>,
+    result: unknown,
+  ): Response | null => {
+    if (!isRecord(result) || typeof result.error !== 'string') return null;
+    const code =
+      typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
+    const status = AUTHORING_REFUSAL_STATUS[code] ?? 400;
+    const data = refusalDataOf(result);
+    return domainErrorResponse(
+      c,
+      Object.assign(new Error(result.error), {
+        // A compare names a live version that is not there as an unknown
+        // version, as `?version=deployed` does.
+        code:
+          code === 'AUTOMATION_NOT_DEPLOYED'
+            ? 'AUTOMATION_VERSION_UNKNOWN'
+            : code,
+        status,
+        ...(data !== undefined && { data }),
+      }),
+    );
+  };
+
+  /** The version a path names, or null when it is not a version number: no
+   * such version, answered as one the automation never saved. */
+  const versionOfPath = (c: Context<RestEnv>): number | null => {
+    const raw = c.req.param('version') ?? '';
+    return /^[1-9]\d{0,8}$/.test(raw) ? Number(raw) : null;
+  };
+
+  /** The version history, newest first, with the deployed one marked and,
+   * for each version, who saved it (a member's name while they are one),
+   * through which door and client, what it was based on and restored from,
+   * what it changed and how its tests went. Without `limit` the answer is
+   * the whole history in one page, as it always was; with it a page, and
+   * `continueCursor` (signed for this list) reads the next. */
+  app.get('/automations/:name/versions', async (c) => {
     const name = decodeName(c);
     if (name instanceof Response) return name;
+    const query = readQuery(c, PAGE_QUERY);
+    if (query instanceof Response) return query;
+    const list = `automation-versions:${name}`;
+    const cursor = readSignedCursor(c, list);
+    if (cursor instanceof Response) return cursor;
+    let before: number | undefined;
+    if (cursor !== null) {
+      if (!/^[1-9]\d{0,8}$/.test(cursor)) {
+        return invalidQueryResponse(
+          c,
+          'INVALID_CURSOR',
+          'The "cursor" query parameter is not a cursor this list answered — pass the cursor the previous page answered, unchanged, or omit it for the first page',
+          [{ path: 'cursor', message: 'is not a cursor this list answered' }],
+        );
+      }
+      before = Number(cursor);
+    }
+    let limit: number | undefined;
+    if (query.limit !== undefined) {
+      const read = readPageLimit(c, { fallback: 50, max: 200 });
+      if (read instanceof Response) return read;
+      limit = read;
+    }
     if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
       return automationNotFound(c);
     }
     const organizationId = c.get('organizationId');
-    const deployed =
-      (await deployedVersion(deps.sql, organizationId, name)) ?? null;
+    let page = await listVersionHistory(deps.sql, organizationId, name, {
+      limit: limit ?? 200,
+      ...(before !== undefined && { before }),
+    });
+    const rows = [...page.versions];
+    // No limit named: the whole history, a page of the most one read holds
+    // at a time.
+    if (limit === undefined) {
+      while (page.nextBefore !== null) {
+        page = await listVersionHistory(deps.sql, organizationId, name, {
+          limit: 200,
+          before: page.nextBefore,
+        });
+        rows.push(...page.versions);
+      }
+    }
+    const names = await memberNamesOf(
+      deps.sql,
+      organizationId,
+      rows.map((row) => row.createdBy),
+    );
     return c.json({
       name,
-      deployedVersion: deployed,
-      // The documented fields only: the history also records the door each
-      // version came through, which this contract does not carry.
-      versions: (await listVersions(deps.sql, organizationId, name)).map(
-        (row) => ({
-          version: row.version,
-          message: row.message,
-          testsPassed: row.testsPassed,
-          testsCheckedAt: row.testsCheckedAt,
-          createdBy: row.createdBy,
-          createdAt: row.createdAt,
-          deployed: row.version === deployed,
-        }),
-      ),
+      deployedVersion: page.deployedVersion,
+      latestVersion: page.latestVersion,
+      versions: rows.map((row) => ({
+        version: row.version,
+        message: row.message,
+        testsPassed: row.testsPassed,
+        testsCheckedAt: row.testsCheckedAt,
+        createdBy: row.createdBy,
+        createdByName: names.get(row.createdBy) ?? null,
+        createdAt: row.createdAt,
+        createdVia: row.via,
+        viaInferred: row.viaInferred,
+        clientName: row.clientName,
+        basedOnVersion: row.basedOnVersion,
+        restoredFromVersion: row.restoredFromVersion,
+        changes: row.changes,
+        tests: row.tests,
+        deployed: row.live,
+        lastDeployedAt: row.lastDeployedAt,
+      })),
+      isDone: page.nextBefore === null || limit === undefined,
+      continueCursor:
+        limit !== undefined && page.nextBefore !== null
+          ? mintCursor(c, list, String(page.nextBefore))
+          : '',
     });
+  });
+
+  /** When each version went live, newest first, and what is live now with
+   * its runs still going — a page at a time, `continueCursor` signed for
+   * this list. */
+  app.get('/automations/:name/deployments', async (c) => {
+    const name = decodeName(c);
+    if (name instanceof Response) return name;
+    const query = readQuery(c, PAGE_QUERY);
+    if (query instanceof Response) return query;
+    const list = `automation-deployments:${name}`;
+    const before = readKeysetCursor(c, list);
+    if (before instanceof Response) return before;
+    const limit = readPageLimit(c, { fallback: 50, max: 200 });
+    if (limit instanceof Response) return limit;
+    if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+      return automationNotFound(c);
+    }
+    const organizationId = c.get('organizationId');
+    const history = await listDeploymentEvents(deps.sql, organizationId, name, {
+      limit,
+      ...(before !== null && { before }),
+    });
+    const names = await memberNamesOf(deps.sql, organizationId, [
+      ...history.events.map((event) => event.actor),
+      ...(history.live === null ? [] : [history.live.actor]),
+    ]);
+    return c.json({
+      name,
+      live:
+        history.live === null
+          ? null
+          : {
+              ...liveDeploymentWire(history.live),
+              deployedByName: names.get(history.live.actor) ?? null,
+            },
+      deployments: history.events.map((event) => ({
+        ...deploymentEventWire(event),
+        deployedByName: names.get(event.actor) ?? null,
+      })),
+      isDone: history.nextBefore === null,
+      continueCursor:
+        history.nextBefore === null
+          ? ''
+          : mintCursor(
+              c,
+              list,
+              formatKeysetCursor(history.nextBefore.at, history.nextBefore.id),
+            ),
+    });
+  });
+
+  /** What one version changed against another, node by node — or, in the
+   * unified format, a patch over the two versions' YAML. `from` defaults to
+   * the version saved before `to` and `to` to the latest; either takes a
+   * version number, `latest` or `deployed`, and `from` also `previous`. */
+  app.get('/automations/:name/compare', async (c) => {
+    const name = decodeName(c);
+    if (name instanceof Response) return name;
+    const query = readQuery(c, {
+      from: queryFilter(16).optional(),
+      to: queryFilter(16).optional(),
+      format: queryFilter(16).optional(),
+    });
+    if (query instanceof Response) return query;
+    if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+      return automationNotFound(c);
+    }
+    const answer = await compareVersions(engineStore(c, keyOrigin(c)), {
+      name,
+      from: query.from,
+      to: query.to,
+      format: query.format,
+    });
+    const refusal = authoringRefusal(c, answer);
+    if (refusal === null) return c.json(answer);
+    // A value the request could not carry is a refused query, named.
+    if (answer.code === 'INVALID_PARAMS') {
+      return invalidQueryResponse(
+        c,
+        'INVALID_QUERY',
+        `invalid query: ${String(answer.error)}`,
+        [
+          {
+            path: /params\.(from|to)\b/.test(String(answer.error))
+              ? (/params\.(from|to)\b/.exec(String(answer.error))?.[1] ??
+                'from')
+              : 'format',
+            message: String(answer.hint ?? answer.error),
+          },
+        ],
+      );
+    }
+    return refusal;
+  });
+
+  const deployBody = z
+    .object({
+      version: z.number().int().min(1),
+      expectedDeployedVersion: z.number().int().min(1).nullable().optional(),
+    })
+    .strict();
+
+  /** Put a saved version live. The same gate as the app's and the agent's
+   * deploy — the version must still validate and its tests must pass —
+   * and `expectedDeployedVersion` (`null` for none) refuses the deploy when
+   * another version went live meanwhile, so a pipeline never undoes a
+   * colleague's. An older version rolls back; `kind` says which it was. */
+  app.post('/automations/:name/deployments', async (c) => {
+    try {
+      requireDeveloper(c);
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      const body = await parseBody(c, deployBody);
+      if (body instanceof Response) return body;
+      // Charged once the body passed, before anything is looked up, as
+      // every request that starts work is.
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited !== null) return limited;
+      if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+        return automationNotFound(c);
+      }
+      assembleAutomationAuthoringHost();
+      let storeError: unknown;
+      let deployed: DeployResult | undefined;
+      const result = await asKeyWrite(c, (origin) => {
+        const store = engineStore(c, origin);
+        return dispatch(
+          'deploy_automation',
+          {
+            name,
+            version: body.version,
+            ...(body.expectedDeployedVersion !== undefined && {
+              expectedDeployedVersion: body.expectedDeployedVersion,
+            }),
+          },
+          {
+            store: {
+              ...store,
+              deploy: (...args) =>
+                store.deploy(...args).then(
+                  (answer) => {
+                    deployed = answer;
+                    return answer;
+                  },
+                  (error: unknown) => {
+                    storeError = error;
+                    throw error;
+                  },
+                ),
+            },
+          },
+        );
+      });
+      if (storeError !== undefined) throw storeError;
+      const refusal = authoringRefusal(c, result);
+      if (refusal !== null) return refusal;
+      if (deployed === undefined) {
+        throw new Error('the deploy passed its checks but deployed nothing');
+      }
+      return c.json({
+        name: deployed.name,
+        version: deployed.version,
+        previousVersion: deployed.previousVersion,
+        kind: deployed.kind,
+        deploymentId: deployed.deploymentId,
+        trigger:
+          deployed.trigger === null
+            ? null
+            : {
+                kind: deployed.trigger.kind,
+                enabled: deployed.trigger.enabled,
+                nextRunAt: deployed.trigger.nextRunAt,
+                warnings: deployed.trigger.warnings.map((warning) => ({
+                  code: warning.code,
+                  message: warning.message,
+                })),
+              },
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  const restoreBody = z
+    .object({
+      message: nonBlank(500).optional(),
+      baseVersion: z.number().int().min(1).optional(),
+    })
+    .strict();
+
+  /** Bring an older version back as the newest: its document passes a
+   * save's own checks and runs its own tests, and is saved restored from
+   * that version (201) — or nothing is saved when its content is the
+   * latest already (200, `unchanged`). Never a deploy. `baseVersion` refuses
+   * the restore when a version was saved since the one the caller read. */
+  app.post('/automations/:name/versions/:version/restore', async (c) => {
+    try {
+      requireDeveloper(c);
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      const body = await parseBody(c, restoreBody, { optional: true });
+      if (body instanceof Response) return body;
+      if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+        return automationNotFound(c);
+      }
+      const version = versionOfPath(c);
+      if (version === null) {
+        return notFound(
+          c,
+          `Automation "${name}" has no version "${c.req.param('version') ?? ''}"`,
+          'AUTOMATION_VERSION_UNKNOWN',
+        );
+      }
+      assembleAutomationAuthoringHost();
+      let storeError: unknown;
+      const result = await asKeyWrite(c, (origin) => {
+        const store = engineStore(c, origin);
+        return dispatch(
+          'save_automation',
+          {
+            name,
+            restoreVersion: version,
+            ...(body.message !== undefined && { message: body.message }),
+            ...(body.baseVersion !== undefined && {
+              baseVersion: body.baseVersion,
+            }),
+          },
+          {
+            store: {
+              ...store,
+              save: (automation, message, options) =>
+                store
+                  .save(automation, message, options)
+                  .catch((error: unknown) => {
+                    storeError = error;
+                    throw error;
+                  }),
+            },
+          },
+        );
+      });
+      if (storeError !== undefined) throw storeError;
+      const refusal = authoringRefusal(c, result);
+      if (refusal !== null) return refusal;
+      if (!isRecord(result) || typeof result.version !== 'number') {
+        throw new Error('the restore passed its checks but saved nothing');
+      }
+      const unchanged = result.unchanged === true;
+      return c.json(
+        {
+          name,
+          version: result.version,
+          restoredFrom: version,
+          ...(unchanged && { unchanged: true }),
+          ...(typeof result.testsPassed === 'boolean' && {
+            testsPassed: result.testsPassed,
+          }),
+          warnings: Array.isArray(result.warnings)
+            ? result.warnings.flatMap((warning: unknown) =>
+                isRecord(warning) &&
+                typeof warning.code === 'string' &&
+                typeof warning.message === 'string'
+                  ? [{ code: warning.code, message: warning.message }]
+                  : [],
+              )
+            : [],
+        },
+        unchanged ? 200 : 201,
+      );
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** The 404 for a version the automation never saved. */
+  const unknownVersion = (c: Context<RestEnv>, name: string): Response =>
+    notFound(
+      c,
+      `Automation "${name}" has no version "${c.req.param('version') ?? ''}"`,
+      'AUTOMATION_VERSION_UNKNOWN',
+    );
+
+  const versionTestsBody = z
+    .object({
+      tests: z.array(nonBlank(1_000)).min(1).max(MAX_TESTS).optional(),
+      detail: z
+        .array(z.enum(REPORT_DETAILS))
+        .max(REPORT_DETAILS.length)
+        .optional(),
+    })
+    .strict();
+
+  /** Run the tests of a saved version on the mocks — all of them, or those
+   * named by their name — and answer each with whether it passed and, for
+   * one that did not, what differed (`detail` adds what each run returned,
+   * did and went through). The whole suite, run to its end, is recorded on
+   * the version as its verdict, made by hand with this key; a part of it is
+   * not. The runs happen here and draw from the organization's budget for
+   * runs that are never stored, beside the key holder's execution budget. */
+  app.post('/automations/:name/versions/:version/tests', async (c) => {
+    try {
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      const body = await parseBody(c, versionTestsBody, { optional: true });
+      if (body instanceof Response) return body;
+      // Charged once the body passed, before anything is looked up, as
+      // every request that starts work is.
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited !== null) return limited;
+      if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+        return automationNotFound(c);
+      }
+      const version = versionOfPath(c);
+      if (version === null) return unknownVersion(c, name);
+      assembleAutomationAuthoringHost();
+      const saved = await engineStore(c, keyOrigin(c)).get(name, version);
+      if (saved === null) return unknownVersion(c, name);
+      // A version with no tests has nothing to run, charge or record.
+      const tests = isRecord(saved.automation) ? saved.automation.tests : null;
+      if (!Array.isArray(tests) || tests.length === 0) {
+        return c.json({ name, version, passed: 0, failed: 0, results: [] });
+      }
+      const result = await asKeyWrite(c, (origin) =>
+        dispatch(
+          'test_automation',
+          {
+            name,
+            version,
+            ...(body.tests !== undefined && { tests: body.tests }),
+            ...(body.detail !== undefined && { detail: body.detail }),
+          },
+          { store: engineStore(c, origin) },
+        ),
+      );
+      if (!isRecord(result)) {
+        throw new Error('the tests ran but answered nothing');
+      }
+      if (result.code === 'RATE_LIMITED') {
+        const data = isRecord(result.data) ? result.data : {};
+        return restRateLimited(
+          c,
+          new RateLimitExceededError(
+            String(result.error),
+            typeof data.retryAfterMs === 'number' ? data.retryAfterMs : 1_000,
+          ),
+        );
+      }
+      if (
+        result.code === 'INVALID_PARAMS' &&
+        typeof result.error === 'string'
+      ) {
+        const message =
+          typeof result.hint === 'string'
+            ? `${result.error} — ${result.hint}`
+            : result.error;
+        return c.json(
+          {
+            error: `invalid body: "tests" ${message}`,
+            code: 'INVALID_BODY',
+            data: { issues: [{ path: 'tests', message }] },
+          },
+          400,
+        );
+      }
+      // A version that no longer passes today's checks cannot be tested: the
+      // problems are the answer, as a deploy's are.
+      const refusal = authoringRefusal(
+        c,
+        result.status === 'invalid'
+          ? {
+              error: 'The automation does not pass the checks.',
+              code: 'AUTOMATION_INVALID',
+              errors: result.errors,
+              warnings: result.warnings,
+            }
+          : result,
+      );
+      if (refusal !== null) return refusal;
+      return c.json(result);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** What a saved version's tests found the last time they ran: the
+   * verdict, when, which act made it and who (a member's name while they
+   * are one), and the report — null when the verdict has none of its own. */
+  app.get('/automations/:name/versions/:version/tests', noQuery, async (c) => {
+    try {
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+        return automationNotFound(c);
+      }
+      const version = versionOfPath(c);
+      if (version === null) return unknownVersion(c, name);
+      const organizationId = c.get('organizationId');
+      const found = await readTestReport(
+        deps.sql,
+        organizationId,
+        name,
+        version,
+      );
+      if (found === undefined) return unknownVersion(c, name);
+      const names =
+        found.by === null
+          ? new Map<string, string | null>()
+          : await memberNamesOf(deps.sql, organizationId, [found.by]);
+      return c.json({
+        name,
+        version,
+        testsPassed: found.testsPassed,
+        testsCheckedAt: found.testsCheckedAt,
+        via: found.via,
+        by: found.by,
+        byName: found.by === null ? null : (names.get(found.by) ?? null),
+        report: found.report,
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
   });
 
   app.get('/automations/:name/triggers', noQuery, async (c) => {

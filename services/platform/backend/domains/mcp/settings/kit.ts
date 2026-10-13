@@ -10,7 +10,11 @@ import type { SettingsKind } from '@tale/shared/schemas/settings-kinds';
 
 import { unstorableTexts } from '../../../../lib/shared/utils/storable-text.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
-import type { SettingsChange, SettingsContext } from './registry.ts';
+import type {
+  SettingsChange,
+  SettingsContext,
+  SettingsResource,
+} from './registry.ts';
 
 /** One problem with a change, as a refusal lists it: where (a pointer into
  * the change), what kind of problem, and why — never the value sent. */
@@ -56,9 +60,12 @@ function escapeToken(token: string): string {
   return token.replaceAll('~', '~0').replaceAll('/', '~1');
 }
 
-/** An RFC 6901 pointer into the change's config. */
-function configPointer(path: readonly PropertyKey[]): string {
-  return `/config${path.map((part) => `/${escapeToken(String(part))}`).join('')}`;
+/** Where in a change a value sits: its config, or the arguments of its act. */
+type ChangePart = '/config' | '/args';
+
+/** An RFC 6901 pointer into the change's config or act arguments. */
+function changePointer(part: ChangePart, path: readonly PropertyKey[]): string {
+  return `${part}${path.map((token) => `/${escapeToken(String(token))}`).join('')}`;
 }
 
 /** A parse's failure as a schema library reports it. */
@@ -71,9 +78,9 @@ interface ParseFailure {
 }
 
 /** The problems of a failed parse, as issues of the change. */
-function configIssues(error: ParseFailure): SettingsIssue[] {
+function parseIssues(part: ChangePart, error: ParseFailure): SettingsIssue[] {
   return error.issues.map((issue) => ({
-    path: configPointer(issue.path),
+    path: changePointer(part, issue.path),
     code: issue.code,
     message: issue.message,
   }));
@@ -88,20 +95,21 @@ export function droppedMembers(
   sent: unknown,
   parsed: unknown,
   at: readonly PropertyKey[] = [],
+  part: ChangePart = '/config',
 ): SettingsIssue[] {
   if (Array.isArray(sent)) {
     if (!Array.isArray(parsed)) return [];
     return sent.flatMap((item, index) =>
-      droppedMembers(item, parsed[index], [...at, index]),
+      droppedMembers(item, parsed[index], [...at, index], part),
     );
   }
   if (!isRecord(sent) || !isRecord(parsed)) return [];
   return Object.entries(sent).flatMap(([name, value]) =>
     Object.hasOwn(parsed, name)
-      ? droppedMembers(value, parsed[name], [...at, name])
+      ? droppedMembers(value, parsed[name], [...at, name], part)
       : [
           {
-            path: configPointer([...at, name]),
+            path: changePointer(part, [...at, name]),
             code: 'unrecognized_key',
             message: 'is not a field of this setting',
           },
@@ -172,10 +180,32 @@ export function parseSettingsConfig<T>(
   config: unknown,
   what: string,
 ): T {
-  const parsed = schema.safeParse(config);
+  return parseChangePart('/config', schema, config, what);
+}
+
+/**
+ * What an act takes, read through its schema as a config is: what the
+ * writer would receive, or a refusal naming every problem — an argument the
+ * act does not take among them — by its pointer into `/args`.
+ */
+export function parseSettingsArgs<T>(
+  schema: ConfigSchema<T>,
+  args: unknown,
+  what: string,
+): T {
+  return parseChangePart('/args', schema, args, what);
+}
+
+function parseChangePart<T>(
+  part: ChangePart,
+  schema: ConfigSchema<T>,
+  value: unknown,
+  what: string,
+): T {
+  const parsed = schema.safeParse(value);
   const issues = parsed.success
-    ? droppedMembers(config, parsed.data)
-    : configIssues(parsed.error);
+    ? droppedMembers(value, parsed.data, [], part)
+    : parseIssues(part, parsed.error);
   if (!parsed.success || issues.length > 0) {
     throw invalidSettings(what, issues);
   }
@@ -231,6 +261,22 @@ export function identityOf(
 /** A cursor this listing answered: the place its next page starts. */
 const CURSOR = /^p([1-9]\d{0,6})$/;
 
+/** Where the page a cursor names starts; the first page when there is none. */
+function offsetOf(cursor: string | undefined): number {
+  if (cursor === undefined) return 0;
+  const match = CURSOR.exec(cursor);
+  if (match === null) {
+    throw new SettingsRefusalError(
+      'INVALID_CURSOR',
+      'the cursor is not one this listing answered',
+      {
+        hint: 'pass the nextCursor get_settings answered for this kind, or none for its first page',
+      },
+    );
+  }
+  return Number(match[1]);
+}
+
 /**
  * One page of a listing that reads everything it lists at once: `size`
  * resources from where the cursor says, and the cursor of the next page
@@ -241,25 +287,46 @@ export function pageOf<T>(
   cursor: string | undefined,
   size: number,
 ): { items: T[]; nextCursor: string | null } {
-  let offset = 0;
-  if (cursor !== undefined) {
-    const match = CURSOR.exec(cursor);
-    if (match === null) {
-      throw new SettingsRefusalError(
-        'INVALID_CURSOR',
-        'the cursor is not one this listing answered',
-        {
-          hint: 'pass the nextCursor get_settings answered for this kind, or none for its first page',
-        },
-      );
-    }
-    offset = Number(match[1]);
-  }
+  const offset = offsetOf(cursor);
   const end = offset + size;
   return {
     items: items.slice(offset, end),
     nextCursor: end < items.length ? `p${end}` : null,
   };
+}
+
+/** The most the configurations of one page may take, as JSON text. A page
+ * of free text (instructions run to 20,000 characters each) stays under the
+ * 250,000 characters `get_settings` advertises for its answer, whatever
+ * `size` says. */
+export const PAGE_CONFIG_CHARS = 200_000;
+
+/**
+ * One page of a listing whose resources are read one at a time: from where
+ * the cursor says, up to `size` of them, cut once the configurations read so
+ * far take {@link PAGE_CONFIG_CHARS} — the resource that crosses the line is
+ * the last of its page, and a page always holds one — with the cursor of the
+ * next page when ones remain. Reads only the resources it answers.
+ */
+export async function pageOfRead<T>(
+  ids: readonly T[],
+  cursor: string | undefined,
+  size: number,
+  read: (id: T) => Promise<SettingsResource>,
+): Promise<{ items: SettingsResource[]; nextCursor: string | null }> {
+  const items: SettingsResource[] = [];
+  let next = offsetOf(cursor);
+  let chars = 0;
+  while (next < ids.length && items.length < size) {
+    const id = ids[next];
+    if (id === undefined) break;
+    const item = await read(id);
+    items.push(item);
+    next += 1;
+    chars += (JSON.stringify(item.config) ?? '').length;
+    if (chars >= PAGE_CONFIG_CHARS) break;
+  }
+  return { items, nextCursor: next < ids.length ? `p${next}` : null };
 }
 
 /** The person a change acts as and is recorded under. */

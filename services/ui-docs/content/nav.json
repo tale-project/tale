@@ -47,6 +47,8 @@
         "components/data-table",
         "components/dialog",
         "components/property-list",
+        "components/permission-summary",
+        "components/connection-identity",
         "components/thread",
         "components/tabs-and-navigation",
         "components/toast",

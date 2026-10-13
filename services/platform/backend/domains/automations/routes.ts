@@ -13,10 +13,11 @@ import type { Automation } from '../../../lib/engine/core/types.ts';
 import { validate } from '../../../lib/engine/core/validate/index.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
-  BENCH_LIMITS,
+  benchOversize,
   runBenchSchema,
-} from '../../../lib/shared/schemas/automation-tests.ts';
+} from '../../../lib/shared/schemas/automation-bench.ts';
 import type { NodeTypeCatalog } from '../../../lib/shared/schemas/node-type-catalog.ts';
+import { jsonBytes } from '../../../lib/shared/utils/json-bytes.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole, isAdminRole } from '../../auth/membership.ts';
@@ -36,10 +37,7 @@ import {
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
-import {
-  checkOrganizationRateLimit,
-  RateLimitExceededError,
-} from '../../lib/rate-limit.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { appOrigin, type WriteOrigin } from '../../lib/write-origin.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -53,7 +51,8 @@ import {
   readApprovalAllowanceRows,
   setApprovalAllowances,
 } from './approval-allowances.ts';
-import { admitBenchRun, runTestsByHand, tryRun } from './bench.ts';
+import { refusalDataOf } from './authoring-refusal.ts';
+import { admitBenchRuns, runTestsByHand, tryRun } from './bench.ts';
 import {
   deploymentEventWire,
   listDeploymentEvents,
@@ -120,9 +119,7 @@ import { listTemplateCards, prepareTemplateInstance } from './templates.ts';
 import { uploadAutomationPg } from './upload.ts';
 import {
   listVersionHistory,
-  readRestoreSource,
   readTestReport,
-  restoreSaveArgs,
   versionHistoryWire,
 } from './versions.ts';
 
@@ -176,10 +173,6 @@ const runTestsSchema = z
   })
   .strict();
 
-function jsonBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value) ?? '').length;
-}
-
 /** The part of a bench request past what a door takes; null when it fits. */
 function oversizedPart(body: {
   document?: unknown;
@@ -192,18 +185,12 @@ function oversizedPart(body: {
     return { field: 'document', limitBytes: BENCH_DOCUMENT_BYTES_MAX };
   }
   if (body.bench === undefined) return null;
-  if (jsonBytes(body.bench) > BENCH_LIMITS.benchBytes) {
-    return { field: 'bench', limitBytes: BENCH_LIMITS.benchBytes };
-  }
-  for (const [node, mock] of Object.entries(body.bench.mocks ?? {})) {
-    if (jsonBytes(mock) > BENCH_LIMITS.mockBytes) {
-      return {
-        field: `bench.mocks.${node}`,
-        limitBytes: BENCH_LIMITS.mockBytes,
-      };
-    }
-  }
-  return null;
+  const over = benchOversize(body.bench);
+  if (over === null) return null;
+  return {
+    field: over.node === undefined ? 'bench' : `bench.mocks.${over.node}`,
+    limitBytes: over.limitBytes,
+  };
 }
 
 const saveSchema = z.object({
@@ -460,9 +447,6 @@ const replayQuerySchema = z.object({
   mode: z.enum(['mock', 'live']).optional(),
 });
 
-/** The parts of a refusal the editor reads as structure, not as a sentence. */
-const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
-
 /**
  * The app and MCP authoring doors share the engine's validation/test gate.
  *
@@ -479,27 +463,20 @@ export function authoringRefusalBody(
   const code =
     typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
   const status =
-    code === 'AUTOMATION_VERSION_UNKNOWN'
+    code === 'AUTOMATION_VERSION_UNKNOWN' || code === 'AUTOMATION_NOT_FOUND'
       ? 404
       : code === 'AUTOMATION_NAME_TAKEN' ||
           code === 'AUTOMATION_TESTS_FAILING' ||
           code === 'AUTOMATION_DEPLOY_REJECTED'
         ? 409
         : 400;
-  // A refusal's own `data` (a refused run input's schema problems, say)
-  // stays; the detail keys join it.
-  const data: Record<string, unknown> = isRecord(result.data)
-    ? { ...result.data }
-    : {};
-  for (const key of REFUSAL_DETAIL_KEYS) {
-    if (result[key] !== undefined) data[key] = result[key];
-  }
+  const data = refusalDataOf(result);
   return {
     body: {
       ...result,
       error: code,
       message: result.error,
-      ...(Object.keys(data).length > 0 && { data }),
+      ...(data !== undefined && { data }),
     },
     status,
   };
@@ -1365,29 +1342,13 @@ export function createAutomationRoutes(deps: {
     executions: number,
   ): Promise<(() => void) | Response> => {
     try {
-      await checkOrganizationRateLimit(
-        deps.sql,
-        'automation:bench',
-        c.get('orgId'),
-        Math.max(1, executions),
-      );
+      return await admitBenchRuns(deps.sql, c.get('orgId'), executions);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
         return rateLimitedResponse(c, error);
       }
       throw error;
     }
-    const release = admitBenchRun();
-    return (
-      release ??
-      rateLimitedResponse(
-        c,
-        new RateLimitExceededError(
-          'Every bench run of this server is busy.',
-          2_000,
-        ),
-      )
-    );
   };
 
   /** The document a bench request runs: its draft, or the saved version it
@@ -1663,11 +1624,12 @@ export function createAutomationRoutes(deps: {
     }
   });
 
-  // Bring an older version back as the newest. Its document passes the
-  // save's own checks and runs its own tests, as any save does, and is then
-  // saved restored from that version (201) — or nothing is saved when its
-  // content is the latest already (200, `unchanged`). Never a deploy: the
-  // live version stays live.
+  // Bring an older version back as the newest: the engine's own restore
+  // (`save_automation` with `restoreVersion`), the call a coding agent makes.
+  // The version's document passes the save's checks and runs its own tests,
+  // as any save does, and is saved restored from that version (201) — or
+  // nothing is saved when its content is the latest already (200,
+  // `unchanged`). Never a deploy: the live version stays live.
   app.post('/:name{.+}/restore', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
@@ -1675,75 +1637,56 @@ export function createAutomationRoutes(deps: {
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       assembleAutomationAuthoringHost();
-      const organizationId = c.get('orgId');
       const name = nameFrom(c, 'restore');
-      const source = await readRestoreSource(
-        deps.sql,
-        organizationId,
-        name,
-        body.data.version,
-      );
-      const restore = restoreSaveArgs(source, {
-        organizationId,
-        name,
-        origin: editorOrigin(c),
-        ...(body.data.message !== undefined && { message: body.data.message }),
-        ...(body.data.baseVersion !== undefined && {
-          baseVersion: body.data.baseVersion,
-        }),
-      });
       const store = pgAutomationStore(deps.sql, {
-        organizationId,
-        origin: restore.origin,
+        organizationId: c.get('orgId'),
+        origin: editorOrigin(c),
       });
+      // The store's own refusals (a base version saved since, 409) keep
+      // their status: they are thrown on, not answered as data.
       let storeError: unknown;
-      let saved: SavedVersion | undefined;
       const result = await dispatch(
         'save_automation',
-        { automation: source.document, message: restore.message },
+        {
+          name,
+          restoreVersion: body.data.version,
+          ...(body.data.message !== undefined && {
+            message: body.data.message,
+          }),
+          ...(body.data.baseVersion !== undefined && {
+            baseVersion: body.data.baseVersion,
+          }),
+        },
         {
           store: {
             ...store,
-            save: (automation, _message, options) =>
-              saveVersion(deps.sql, {
-                ...restore,
-                document: automation,
-                ...(options?.testsPassed !== undefined
-                  ? { testsPassed: options.testsPassed }
-                  : {}),
-                ...(options?.testReport !== undefined
-                  ? { testReport: options.testReport }
-                  : {}),
-              }).then(
-                (answer) => {
-                  saved = answer;
-                  return answer;
-                },
-                (error: unknown) => {
+            save: (automation, message, options) =>
+              store
+                .save(automation, message, options)
+                .catch((error: unknown) => {
                   storeError = error;
                   throw error;
-                },
-              ),
+                }),
           },
         },
       );
       if (storeError !== undefined) throw storeError;
       const refused = authoringRefusal(c, result);
       if (refused !== null) return refused;
-      if (saved === undefined) {
+      if (!isRecord(result) || typeof result.version !== 'number') {
         throw new Error('the restore passed its checks but saved nothing');
       }
-      const unchanged = saved.unchanged === true;
+      const unchanged = result.unchanged === true;
       return c.json(
         {
           name,
-          version: saved.version,
-          restoredFrom: source.version,
+          version: result.version,
+          restoredFrom: body.data.version,
           ...(unchanged && { unchanged: true }),
-          ...(isRecord(result) && typeof result.testsPassed === 'boolean'
+          ...(typeof result.testsPassed === 'boolean'
             ? { testsPassed: result.testsPassed }
             : {}),
-          ...(isRecord(result) && Array.isArray(result.warnings)
+          ...(Array.isArray(result.warnings)
             ? { warnings: result.warnings }
             : {}),
         },

@@ -13,6 +13,7 @@ import {
 } from './budget-admission.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
+import { chatWorkTools } from './work-tools.ts';
 
 /**
  * The chat lane's host: one user turn end to end, by REUSING the 0.4
@@ -20,12 +21,13 @@ import { createPgTurnStore, createPgUsageLedger } from './store.ts';
  * budget, context assembly, guardrails, tool rounds, streaming — with its
  * two write ports swapped for Postgres (`createPgTurnStore`,
  * `createPgUsageLedger`) and every `ctx.run*` dispatched through
- * `chatShimHandlers`. The 0.4 tool executor (`rag_search` / `rag_fetch` /
- * `web_fetch`) is NOT overridden: `executeTurn` builds it on the same shim
- * ctx, so the fixed three-tool loadout runs unchanged over 0.5 SQL. Its
- * knowledge searches embed their query through the meter this host hands
+ * `chatShimHandlers`. The 0.4 retrieval executor (`rag_search` /
+ * `rag_fetch` / `web_fetch`) is NOT overridden: `executeTurn` builds it on
+ * the same shim ctx, so it runs unchanged over 0.5 SQL. Its knowledge
+ * searches embed their query through the meter this host hands
  * `executeTurn` (`meterEmbeddings`): the turn's own spend, held and booked
- * like the reply.
+ * like the reply. Beside it the host hands the work tools
+ * (`work-tools.ts`), the shared tools every agent turn makes things with.
  *
  * Same execution contract as the 0.4 action host: the caller awaits the
  * turn (at-most-once, no retry — an LLM spend must not replay), streaming
@@ -155,6 +157,18 @@ export async function runChatTurn(
         embeddingMeter(sql, {
           organizationId: request.organizationId,
           subject,
+        }),
+      // The work tools — files, images, skills, the light sandbox — as the
+      // organization's policies allow them, acting for the chat's person.
+      workTools: (turn) =>
+        chatWorkTools(sql, {
+          organizationId: request.organizationId,
+          userId: request.userId,
+          ...(request.apiKeyId !== undefined
+            ? { apiKeyId: request.apiKeyId }
+            : {}),
+          threadId: request.threadId,
+          ...turn,
         }),
     },
   );

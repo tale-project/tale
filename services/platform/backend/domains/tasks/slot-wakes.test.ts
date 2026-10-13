@@ -69,6 +69,7 @@ function released(overrides: Row = {}): Row {
     taskId: 'task-1',
     agentId: 'agent-1',
     sessionId: 'pa-agent-1',
+    engine: 'harness',
     status: 'settled',
     launched: true,
     startedVia: null,
@@ -201,6 +202,27 @@ describe('recordSlotReleaseInTx — the signal rides the run’s end', () => {
     );
     await recordSlotReleaseInTx(tx, KEYS);
     expect(statements.some((text) => text.startsWith(UPSERT))).toBe(false);
+  });
+
+  it('signals nothing when a run without a workspace ends: it held no worker, so none was freed [TASK-R37]', async () => {
+    const { tx, statements } = fakeTx(
+      answering(released({ engine: 'native' })),
+    );
+
+    await recordSlotReleaseInTx(tx, KEYS);
+
+    expect(statements.some((text) => text.startsWith(UPSERT))).toBe(false);
+    // It ends before asking anything of the project's wake.
+    expect(statements.some((text) => text.startsWith(TARGET_READ))).toBe(false);
+  });
+
+  it('does not count a run without a workspace as one holding the workspace [TASK-R37]', async () => {
+    const { tx, statements } = fakeTx(answering(released()));
+
+    await recordSlotReleaseInTx(tx, KEYS);
+
+    const busy = statements.find((text) => text.startsWith(BUSY_READ));
+    expect(busy).toContain("engine = 'harness'");
   });
 
   it('writes nothing for a project without a wake target', async () => {

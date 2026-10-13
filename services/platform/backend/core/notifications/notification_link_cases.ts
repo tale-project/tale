@@ -154,6 +154,18 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/settings/api/rest`,
   },
+  // The connected agents, where the member sees which of theirs was
+  // disconnected and which still work.
+  agent_connection_ended: {
+    row: {
+      params: {
+        client: 'Claude Code',
+        name: 'Sam Rivera',
+        agentConnections: true,
+      },
+    },
+    path: `/dashboard/${ORG}/settings/api/agents`,
+  },
   // The page of the organization the step's message linked to. A message
   // linking to the web opens it from the bell's own action beside the row.
   automation_message: {

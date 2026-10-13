@@ -52,8 +52,14 @@ export default {
   ignoreExportsUsedInFile: { interface: true, type: true },
   workspaces: {
     '.': {
-      // The performance runner launches this worker by path in a fresh process.
-      entry: ['scripts/performance/worker.ts'],
+      entry: [
+        // The performance runner launches this worker by path in a fresh process.
+        'scripts/performance/worker.ts',
+        // The publish-packages workflow runs the publisher through a shell
+        // variable (`bun "$PUBLISHER"`), a path knip's workflow reader cannot
+        // follow.
+        'scripts/publish-package.ts',
+      ],
     },
     'services/platform': {
       vite: { config: ['vite.config.ts'] },

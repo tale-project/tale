@@ -20,10 +20,13 @@
  *  5. Timestamp + response-language directive
  *  6. How this person hands work to an agent (`handover.ts`) — their
  *     projects with an agent, the controls as their interface names them
- *  7. The person's own standing instructions (Settings > Preferences), when
+ *  7. The skills in this person's library a turn may load (name and a
+ *     description excerpt each) — per person, since team skills follow the
+ *     person's teams
+ *  8. The person's own standing instructions (Settings > Preferences), when
  *     their toggle has them on — per person, so they can never join the
  *     prefix that is shared by every user of the agent
- *  8. Full message history: tool messages, approval cards, and attachments as
+ *  9. Full message history: tool messages, approval cards, and attachments as
  *     content parts
  *
  * On overflow the OLDEST messages are dropped and a visible notice takes their
@@ -34,16 +37,22 @@
  *
  * Deliberately NOT assembled here, each removed on purpose: auto-injected
  * memories, auto-retrieved knowledge, auto web context, a todos prompt
- * augmentation, a branding section, a skills suffix, a tuning suffix, routing
- * metadata, and an artifacts section. Everything the model learns beyond its
- * instructions, it learns by CALLING something — which is visible in the
- * transcript, attributable, and refusable. The person's custom instructions
+ * augmentation, a branding section, a skill's instructions, a tuning suffix,
+ * routing metadata, and an artifacts section. Everything the model learns
+ * beyond its instructions, it learns by CALLING something — which is visible
+ * in the transcript, attributable, and refusable. The skill catalog is the
+ * one index it is handed: names and selection hints, so it knows what it may
+ * load; the instructions themselves arrive only through `load_skill`. The person's custom instructions
  * are instructions, not learned content: they are the one per-person block,
  * and the host resolves the person's toggle before they get here.
  *
  * Layer A: pure, no `node:*`, no Convex, no model call.
  */
 
+import {
+  renderSkillCatalog,
+  type SkillCatalogEntry,
+} from '../agent/skills-block';
 import { boundJson } from '../shared/utils/bound-json';
 import { languageDisplayName } from '../shared/utils/language-name';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
@@ -72,6 +81,8 @@ export const CONTEXT_BLOCK_ORDER = [
   // Per person, like the custom instructions below: which of their projects
   // have an agent, and the controls as their interface names them.
   'task-handover',
+  // Per person too: which skills the person's library lets a turn load.
+  'available-skills',
   // After the breakpoint on purpose: the block is per person, and the prefix
   // above must stay byte-identical for every user of the agent.
   'custom-instructions',
@@ -171,6 +182,13 @@ export interface ContextInput {
    * and skipped on a sub-agent turn, as the custom instructions are.
    */
   readonly taskHandover?: TaskHandover;
+  /**
+   * The skills this turn may load with `load_skill`, already filtered to
+   * what the person may read. Absent or empty, no catalog is rendered —
+   * a turn that offers no skill tools passes none. Skipped on a sub-agent
+   * turn, as the custom instructions are.
+   */
+  readonly skillCatalog?: readonly SkillCatalogEntry[];
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
@@ -501,6 +519,14 @@ export function assembleContext(input: ContextInput): AssembledContext {
     blocks.push({ id: 'task-handover', text: taskHandover });
   }
 
+  const skillCatalog =
+    input.isSubAgentTurn || input.skillCatalog === undefined
+      ? undefined
+      : renderSkillCatalog(input.skillCatalog);
+  if (skillCatalog) {
+    blocks.push({ id: 'available-skills', text: skillCatalog });
+  }
+
   // AFTER the breakpoint on purpose: the block is per person, and the prefix
   // above must stay byte-identical for every user of the agent to be served
   // from the provider's cache. The suffix is re-sent every turn regardless
@@ -512,7 +538,12 @@ export function assembleContext(input: ContextInput): AssembledContext {
     blocks.push({ id: 'custom-instructions', text: customInstructions });
   }
 
-  const volatileSuffix = [runtimeDirectives, taskHandover, customInstructions]
+  const volatileSuffix = [
+    runtimeDirectives,
+    taskHandover,
+    skillCatalog,
+    customInstructions,
+  ]
     .filter((text): text is string => text !== undefined && text.length > 0)
     .join(BLOCK_SEPARATOR);
 

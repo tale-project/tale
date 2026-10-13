@@ -150,7 +150,11 @@ const TOOLS = [
       'platform backend that answered this call is labelled with (for ' +
       'example "0.5.64"), or null with a note when its build has none; an ' +
       'older platform omits it. It is a label of that backend, not proof ' +
-      'of what is deployed or of its health.',
+      'of what is deployed or of its health. A live task-agent turn can also ' +
+      'return database-validated currentExecution (taskId, agentId, runId, ' +
+      'execId and clocks). Null or absent means unknown; never substitute ' +
+      'identity from earlier guidance. This read changes no grants and ' +
+      'does not authorize a start, command or publication.',
     inputSchema: { type: 'object', properties: {} },
   },
 ];

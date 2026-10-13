@@ -31,6 +31,7 @@ const {
   workflowRunOfSession,
   deferredEmbeddingMeter,
   resolveSessionOpAttribution,
+  readSessionCurrentExecution,
 } = vi.hoisted(() => ({
   dispatchWorkspaceToolImpl: vi.fn(),
   getSessionTokenByHash: vi.fn(),
@@ -41,6 +42,7 @@ const {
     release: vi.fn(),
   })),
   resolveSessionOpAttribution: vi.fn(),
+  readSessionCurrentExecution: vi.fn(),
 }));
 
 vi.mock(
@@ -58,7 +60,10 @@ vi.mock(
   },
 );
 vi.mock('../../lib/ctx-shim.ts', () => ({ createCtxShim: vi.fn(() => ({})) }));
-vi.mock('./shim.ts', () => ({ sandboxToolShimHandlers: vi.fn(() => ({})) }));
+vi.mock('./shim.ts', () => ({
+  sandboxToolShimHandlers: vi.fn(() => ({})),
+  readSessionCurrentExecution,
+}));
 vi.mock('./sessions.ts', () => ({
   getSessionTokenByHash,
   workflowRunOfSession,
@@ -326,10 +331,79 @@ describe('POST /api/tools/status — the serving platform version', () => {
     vi.clearAllMocks();
     vi.stubEnv('TALE_VERSION', '0.5.64');
     getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+    readSessionCurrentExecution.mockResolvedValue(null);
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it('adds only the database-validated task execution, ignoring forged request identity', async () => {
+    const identity = {
+      taskId: 'task-1',
+      agentId: 'agent-1',
+      runId: 'run-1',
+      execId: 'exec-current',
+      startedAt: 10,
+      launchedAt: 11,
+      observedAt: 12,
+    };
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { ...TOKEN_ROW.scope, taskRun: { execId: 'exec-current' } },
+    });
+    readSessionCurrentExecution.mockResolvedValue(identity);
+    const res = await postStatus({
+      body: JSON.stringify({
+        currentExecution: { runId: 'forged', execId: 'stale' },
+        organizationId: 'other-org',
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ...listGrantedTools(TOKEN_ROW.scope.toolGrants),
+      platform: { version: '0.5.64' },
+      currentExecution: identity,
+    });
+    expect(readSessionCurrentExecution).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      {
+        organizationId: 'org_1',
+        sessionId: 'sess_1',
+        taskRunExecId: 'exec-current',
+      },
+    );
+    expect(workspaceToolStatusImpl).toHaveBeenCalledExactlyOnceWith(
+      TOKEN_ROW.scope.toolGrants,
+    );
+  });
+
+  it('keeps a superseded or unavailable task execution null without changing discovery', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { taskRun: { execId: 'stale' }, toolGrants: [] },
+    });
+    const res = await postStatus();
+    expect(await res.json()).toEqual({
+      ...listGrantedTools([]),
+      platform: { version: '0.5.64' },
+      currentExecution: null,
+    });
+  });
+
+  it('an expired or revoked token cannot reach the identity reader [SBX-R27]', async () => {
+    getSessionTokenByHash.mockResolvedValue(null);
+    const res = await postStatus({
+      body: JSON.stringify({
+        currentExecution: { runId: 'forged', execId: 'stale' },
+      }),
+    });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      status: 'error',
+      message: 'Unauthorized.',
+    });
+    expect(readSessionCurrentExecution).not.toHaveBeenCalled();
   });
 
   it('adds the release beside the granted tools, which it lists unchanged [SBX-R6]', async () => {

@@ -15,14 +15,24 @@ import {
   assertProjectFolderWrite,
   getOrCreateProjectFolder,
 } from '../folders/service.ts';
+import { assertNotHeld } from '../legal_holds/service.ts';
 import {
   assertReadable,
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import {
+  auditDocumentCreated,
+  auditDocumentUpdated,
+  documentActor,
+} from './audit.ts';
 import { releasePreviousBlob } from './blob-rotation.ts';
 import { emitDocumentChangeHints } from './hints.ts';
-import { DocumentError } from './service.ts';
+import {
+  assertGenericDocumentContentWritableJson,
+  DocumentError,
+  requireDocumentWriteAccess,
+} from './service.ts';
 
 /**
  * Project TEXT documents — the settings panel's file lane (the 0.5 twin of
@@ -129,15 +139,23 @@ export async function ensureProjectTextDocument(
       : serializeYamlMap(args.yaml ?? {});
   const extension = extractExtension(fileName);
   const contentType = args.contentType ?? contentTypeFor(extension);
-  const externalItemId =
-    args.externalItemId?.trim() ||
-    projectTextExternalId({
-      projectId: args.projectId,
-      folderName: args.folderName,
-      fileName,
-    });
+  const externalItemId = projectTextExternalId({
+    projectId: args.projectId,
+    folderName: args.folderName,
+    fileName,
+  });
+  if (
+    args.externalItemId !== undefined &&
+    args.externalItemId !== externalItemId
+  ) {
+    throw new DocumentError(
+      'INVALID_ARGUMENT',
+      'The document key must match the project text file.',
+      400,
+    );
+  }
 
-  // The gate before the bytes: this door's only authorization is the
+  // The gate before the bytes: this door used to check only the
   // project's edit access, and running it after the store write let any org
   // member put up to the body cap into org storage before being refused.
   await assertProjectFolderWrite(sql, auth, args.projectId);
@@ -177,6 +195,28 @@ export async function ensureProjectTextDocument(
       id: string;
       fileRef: string | null;
     }): Promise<EnsureProjectTextResult> => {
+      const doc = await requireDocumentWriteAccess(tx, auth, existing.id, {
+        lock: true,
+      });
+      if (
+        doc.projectId !== args.projectId ||
+        doc.sourceProvider !== 'project_text'
+      ) {
+        throw new DocumentError(
+          'DOCUMENT_NOT_FOUND',
+          'Document not found',
+          404,
+        );
+      }
+      assertGenericDocumentContentWritableJson(doc.record);
+      await assertNotHeld(
+        tx,
+        auth.organizationId,
+        'document',
+        doc.id,
+        undefined,
+        doc.createdBy ?? undefined,
+      );
       await tx`
         UPDATE app.documents SET
           title = ${fileName}, file_ref = ${storageRef},
@@ -209,6 +249,18 @@ export async function ensureProjectTextDocument(
         orgId: auth.organizationId,
         entityId: existing.id,
         projectId: args.projectId,
+      });
+      await auditDocumentUpdated(tx, documentActor(auth), {
+        documentId: existing.id,
+        title: fileName,
+        changedFields: [
+          'title',
+          'fileRef',
+          'mimeType',
+          'extension',
+          'folderId',
+          'lifecycleStatus',
+        ],
       });
       return {
         folderId: folder.folderId,
@@ -254,6 +306,13 @@ export async function ensureProjectTextDocument(
       orgId: auth.organizationId,
       entityId: documentId,
       projectId: args.projectId,
+    });
+    await auditDocumentCreated(tx, documentActor(auth), {
+      documentId,
+      title: fileName,
+      sourceProvider: 'project_text',
+      projectId: args.projectId,
+      folderId: folder.folderId,
     });
     return {
       folderId: folder.folderId,

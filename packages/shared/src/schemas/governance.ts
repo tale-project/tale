@@ -50,7 +50,8 @@ export const POLICY_TYPES = [
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
-  // Per-org sandbox session budgets (project agents / workflows / renders).
+  // Per-org sandbox session budgets (project agents / workflows / renders /
+  // light sandboxes).
   // The deployment-wide host-capacity ceiling is spawner
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
   // org admin tunes. See `sandboxQuotaConfigSchema`.
@@ -83,9 +84,14 @@ export const POLICY_TYPES = [
   // Automatic; a pin applies to server dictation and uploaded audio/video alike.
   'transcription_model',
   // Whether agents (project agents working tasks, automation agent steps)
-  // may generate images, and with which model. Missing file ⇒ off — the
-  // capability is opt-in. See `imageGenerationConfigSchema`.
+  // and the chat assistant may generate images, and with which model.
+  // Missing file ⇒ off — the capability is opt-in. See
+  // `imageGenerationConfigSchema`.
   'image_generation',
+  // What the chat assistant may make beyond answering: files it writes out,
+  // skills from the person's library, code in a light sandbox. Missing
+  // file ⇒ every switch on. See `chatToolsConfigSchema`.
+  'chat_tools',
   // The organization's standard agent: the project agent Tale provides in
   // every project that has none of its own. Missing file ⇒ on, runtime and
   // model automatic. See `standardAgentConfigSchema`.
@@ -150,8 +156,8 @@ const taskAutomationConfigSchema = z.object({
  * so no one workload can starve another. Two-tier model: the GLOBAL host cap
  * (total sessions across every org) is spawner env `SANDBOX_MAX_SESSIONS`, sized
  * to the physical box. THIS policy is the per-tenant slice under it an org admin
- * tunes. Saving this policy requires the sum of its three budgets to fit
- * within the current deployment cap; there is no fourth organization limit.
+ * tunes. Saving this policy requires the sum of its budgets to fit within
+ * the current deployment cap; there is no separate organization limit.
  */
 export const sandboxQuotaConfigSchema = z.object({
   /**
@@ -170,6 +176,14 @@ export const sandboxQuotaConfigSchema = z.object({
    * for the old one-shot render pool.
    */
   maxRenderSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  /**
+   * Max concurrently-active **light** sandboxes: the small throwaway sessions
+   * a chat runs code in to make documents and charts. Each lives for one
+   * conversation's burst of work and is gone a few minutes after its last
+   * use, and an idle one gives way when the organization needs the room for
+   * another conversation, so a handful serves many people.
+   */
+  maxLightSessionsPerOrg: z.number().int().min(1).max(500).default(2),
 });
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =
@@ -196,12 +210,13 @@ export type SandboxWorkspacesConfig = z.infer<
 export const DEFAULT_SANDBOX_WORKSPACES: SandboxWorkspacesConfig =
   sandboxWorkspacesConfigSchema.parse({});
 
-/** The organization total is derived from its three workload budgets. */
+/** The organization total is derived from its workload budgets. */
 export function sandboxQuotaTotal(config: SandboxQuotaConfig): number {
   return (
     config.maxSessionsPerOrg +
     config.maxWorkflowSessionsPerOrg +
-    config.maxRenderSessionsPerOrg
+    config.maxRenderSessionsPerOrg +
+    config.maxLightSessionsPerOrg
   );
 }
 
@@ -501,6 +516,32 @@ export const imageGenerationConfigSchema = z
 export type ImageGenerationConfig = z.infer<typeof imageGenerationConfigSchema>;
 
 /**
+ * What the chat assistant may make beyond answering — its work tools. Each
+ * switch removes a tool from every chat turn of the organization, so the
+ * assistant is never told about something it cannot do. Missing file, and a
+ * missing switch, mean ON: these tools are cheap and stay inside the
+ * person's own conversation. Image generation is not here: the chat follows
+ * the `image_generation` policy, like the agents do.
+ */
+export const chatToolsConfigSchema = z
+  .object({
+    /** Files the assistant writes out itself — Markdown, CSV, HTML, …
+     * (`create_file`). No sandbox. */
+    files: z.boolean().default(true),
+    /** Skills from the person's skill library (`load_skill`,
+     * `read_skill_file`). */
+    skills: z.boolean().default(true),
+    /** Code in a light sandbox, to make documents, spreadsheets,
+     * presentations, PDFs and charts (`run_code`). */
+    code: z.boolean().default(true),
+  })
+  .strict();
+export type ChatToolsConfig = z.infer<typeof chatToolsConfigSchema>;
+export const DEFAULT_CHAT_TOOLS: ChatToolsConfig = chatToolsConfigSchema.parse(
+  {},
+);
+
+/**
  * The organization's standard agent — the project agent Tale provides in
  * every project that has none of its own, so work can go to an agent before
  * anyone sets one up (`backend/domains/projects/standard-agent.ts`).
@@ -613,6 +654,11 @@ export const retentionPolicyConfigSchema = z.object({
    * states only. */
   agentRunsEnabled: z.boolean().optional(),
   agentRunsRetentionDays: z.number().int().nonnegative().optional(),
+  /** Saved automation versions older than this are removed — except the
+   * live one, the last ten deploys' versions, every version a run used,
+   * the newest twenty and the versions those were built from. */
+  automationVersionsEnabled: z.boolean().optional(),
+  automationVersionsRetentionDays: z.number().int().nonnegative().optional(),
   deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
@@ -656,12 +702,25 @@ export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 // policy and existing consumers import it from this module.
 export { piiConfigSchema };
 
-export const modelAccessRuleSchema = z.object({
+const storedModelAccessRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),
   scopeId: z.string().optional(),
   allowedModels: z.array(z.string()),
   blockedModels: z.array(z.string()).optional(),
 });
+export function modelAccessRuleHasTarget(
+  rule: z.infer<typeof storedModelAccessRuleSchema>,
+): boolean {
+  return rule.scope === 'default' || Boolean(rule.scopeId?.trim());
+}
+
+export const modelAccessRuleSchema = storedModelAccessRuleSchema.refine(
+  modelAccessRuleHasTarget,
+  {
+    path: ['scopeId'],
+    message: 'User, team and role rules require a target',
+  },
+);
 export type ModelAccessRule = z.infer<typeof modelAccessRuleSchema>;
 
 /**
@@ -679,13 +738,16 @@ export const modelApiSettingsSchema = z.object({
 });
 export type ModelApiSettings = z.infer<typeof modelApiSettingsSchema>;
 
-export const modelAccessConfigSchema = z.object({
+export const storedModelAccessConfigSchema = z.object({
   /** Whether the allow and block `rules` bind — the door's switch below is
    * independent of it. */
   enabled: z.boolean(),
   mode: z.enum(['allowlist', 'blocklist']),
-  rules: z.array(modelAccessRuleSchema),
+  rules: z.array(storedModelAccessRuleSchema),
   modelApi: modelApiSettingsSchema.optional(),
+});
+export const modelAccessConfigSchema = storedModelAccessConfigSchema.extend({
+  rules: z.array(modelAccessRuleSchema),
 });
 export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
 
@@ -1350,11 +1412,17 @@ export const POLICY_SCHEMAS = {
   vision_model: visionModelConfigSchema,
   transcription_model: transcriptionModelConfigSchema,
   image_generation: imageGenerationConfigSchema,
+  chat_tools: chatToolsConfigSchema,
   standard_agent: standardAgentConfigSchema,
   review_policy: reviewPolicyConfigSchema,
   embedding: embeddingConfigSchema,
   skill_sharing: skillSharingConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
+
+export const POLICY_READ_SCHEMAS = {
+  ...POLICY_SCHEMAS,
+  model_access: storedModelAccessConfigSchema,
+};
 
 /** Policy types that have a file-based representation (every type except the
  *  legacy `personalization` toggle). */

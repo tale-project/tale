@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
+import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { releaseRefs } from '../knowledge/release.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import {
@@ -30,6 +31,9 @@ vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
 }));
 vi.mock('../knowledge/release.ts', () => ({ releaseRefs: vi.fn() }));
+vi.mock('../knowledge/release-queue.ts', () => ({
+  queueRefRelease: vi.fn(async () => undefined),
+}));
 vi.mock('../legal_holds/service.ts', () => ({ loadActiveHolds: vi.fn() }));
 vi.mock('../audit_logs/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../audit_logs/service.ts')>()),
@@ -450,9 +454,13 @@ describe('runRetentionCleanup — the run audit trail', () => {
     // ledger's clock and are counted with it, in the ledger delete's
     // transaction.
     const ledger = appendOf('usage_ledger.retention_deleted');
-    expect(ledger.tx).toBe(
-      txOf(fake.statements, 'DELETE FROM app.usage_ledger'),
+    const ledgerDelete = fake.statements.find((statement) =>
+      statement.text.startsWith('DELETE FROM app.usage_ledger'),
     );
+    expect(ledgerDelete?.text).toMatch(
+      /WHERE \(tableoid, ctid\) IN \( SELECT tableoid, ctid FROM app\.usage_ledger/,
+    );
+    expect(ledger.tx).toBe(ledgerDelete?.tx);
     expect(ledger.tx).toBe(
       txOf(fake.statements, 'DELETE FROM app.usage_events'),
     );
@@ -816,6 +824,53 @@ describe('sweepOrgPhase2 — destruction rows', () => {
     });
   });
 
+  it('ends the transcript of each native run it deletes in the delete’s own transaction, and counts runs, not transcripts [TASK-R36]', async () => {
+    const fake = fakeSql({
+      'DELETE FROM app.project_agent_runs': [
+        { id: 'run-1', threadId: 'thread-1' },
+        { id: 'run-2', threadId: null },
+        { id: 'run-3', threadId: 'thread-3' },
+      ],
+      'UPDATE app.file_metadata': [{ ref: 's3:scratch' }],
+    });
+
+    await sweepOrgPhase2(
+      fake.sql,
+      {
+        organizationId: 'org_1',
+        config: { agentRunsEnabled: true, agentRunsRetentionDays: 30 },
+      },
+      { orgHeld: false, userMembershipIds: new Set() },
+    );
+
+    const transcripts = fake.statements.find((statement) =>
+      statement.text.startsWith('DELETE FROM app.threads'),
+    );
+    // Only the runs that opened a transcript name one; a harness run's row
+    // goes alone.
+    expect(transcripts?.values).toEqual(['org_1', ['thread-1', 'thread-3']]);
+    expect(transcripts?.tx).toBe(
+      txOf(fake.statements, 'DELETE FROM app.project_agent_runs'),
+    );
+    // What the transcripts held is trashed first and its bytes queued.
+    expect(
+      fake.statements.some(
+        (statement) =>
+          statement.text.startsWith('UPDATE app.file_metadata') &&
+          statement.text.includes("lifecycle_status = 'trashed'"),
+      ),
+    ).toBe(true);
+    expect(queueRefRelease).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      'org_1',
+      ['s3:scratch'],
+    );
+    expect(appendOf('agent_run.retention_deleted').row.metadata).toEqual({
+      category: 'agentRuns',
+      deleted: 3,
+    });
+  });
+
   it('writes one row each for agent runs, automation runs and the sandbox ledgers, in their delete’s transaction', async () => {
     const fake = fakeSql({
       'DELETE FROM app.project_agent_runs': ids(2, 'agent-run-'),
@@ -935,5 +990,171 @@ describe('sweepOrgPhase2 — destruction rows', () => {
       ),
     ).toBe(false);
     expect(actions()).toEqual([]);
+  });
+});
+
+describe('the automationVersions category [AUTO-R51]', () => {
+  const policy = {
+    organizationId: 'org_1',
+    config: {
+      automationVersionsEnabled: true,
+      automationVersionsRetentionDays: 90,
+    },
+  };
+  const free = { orgHeld: false, userMembershipIds: new Set<string>() };
+
+  it('removes what nothing keeps, after taking the lock and reading the kept set again, in one transaction with its row', async () => {
+    let readsOfKept = 0;
+    const fake = fakeSql({
+      'SELECT name FROM app.automations': [{ name: 'ops/greet' }],
+      // A run started on v2 while the candidates were being locked: the
+      // second read sees it, the first did not.
+      'WITH kept AS': () => (++readsOfKept === 1 ? [] : [{ version: 2 }]),
+      'SELECT version FROM app.automations': [
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+      ],
+      'DELETE FROM app.automations': [{ version: 3 }, { version: 1 }],
+    });
+
+    const stats = await sweepOrgPhase2(fake.sql, policy, free);
+
+    expect(stats.automationVersions).toBe(2);
+    const tx = txOf(fake.statements, 'DELETE FROM app.automations');
+    const inTx = fake.statements
+      .filter((s) => s.tx === tx)
+      .map((s) => s.text.split(' ').slice(0, 4).join(' '));
+    // The name's lock first, then the kept set, the locked candidates, the
+    // kept set again, and only then the delete and the hint.
+    expect(inTx).toEqual([
+      "SELECT pg_advisory_xact_lock( hashtextextended('automation:' ||",
+      'WITH kept AS (',
+      'SELECT version FROM app.automations',
+      'WITH kept AS (',
+      'DELETE FROM app.automations WHERE',
+      'INSERT INTO app_realtime.outbox (org_id,',
+    ]);
+    expect(
+      fake.statements.find((s) =>
+        s.text.startsWith('SELECT version FROM app.automations'),
+      )?.text,
+    ).toContain('FOR UPDATE');
+    // v2 was kept the second time: only v1 and v3 go.
+    expect(
+      fake.statements.find((s) =>
+        s.text.startsWith('DELETE FROM app.automations'),
+      )?.values,
+    ).toEqual(['org_1', 'ops/greet', [1, 3]]);
+    const row = appendOf('automation_version.retention_deleted');
+    expect(row.tx).toBe(tx);
+    expect(row.row.metadata).toEqual({
+      category: 'automationVersions',
+      deleted: 2,
+      counts: { versions: 2 },
+      automation: 'ops/greet',
+      versions: [1, 3],
+    });
+  });
+
+  it('leaves the versions of a held custodian, and of their API keys, out of the candidates', async () => {
+    const fake = fakeSql({
+      'SELECT name FROM app.automations': [{ name: 'ops/greet' }],
+    });
+
+    await sweepOrgPhase2(fake.sql, policy, {
+      orgHeld: false,
+      userMembershipIds: new Set(['user_held']),
+    });
+
+    const candidates = fake.statements.find((s) =>
+      s.text.startsWith('SELECT version FROM app.automations'),
+    );
+    expect(candidates?.values).toContainEqual(['user_held']);
+    expect(candidates?.values).toContainEqual(['api-key:user_held']);
+  });
+
+  it('writes no row and deletes nothing when every old version is kept', async () => {
+    const fake = fakeSql({
+      'SELECT name FROM app.automations': [{ name: 'ops/greet' }],
+      'SELECT version FROM app.automations': [],
+    });
+
+    const stats = await sweepOrgPhase2(fake.sql, policy, free);
+
+    expect(stats.automationVersions).toBe(0);
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.automations'),
+      ),
+    ).toBe(false);
+    expect(actions()).toEqual([]);
+  });
+
+  it('takes one transaction and one row for each automation that lost versions', async () => {
+    const fake = fakeSql({
+      'SELECT name FROM app.automations': [
+        { name: 'a/one' },
+        { name: 'b/two' },
+      ],
+      'SELECT version FROM app.automations': [{ version: 4 }],
+      'DELETE FROM app.automations': [{ version: 4 }],
+    });
+
+    const stats = await sweepOrgPhase2(fake.sql, policy, free);
+
+    expect(stats.automationVersions).toBe(2);
+    const rows = appended().filter(
+      (call) => call.row.action === 'automation_version.retention_deleted',
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.tx).not.toBe(rows[1]?.tx);
+    expect(rows.map((call) => call.row.metadata?.automation)).toEqual([
+      'a/one',
+      'b/two',
+    ]);
+  });
+
+  it('does nothing while the category is off, or without a window', async () => {
+    for (const config of [
+      { automationVersionsEnabled: false, automationVersionsRetentionDays: 90 },
+      { automationVersionsEnabled: true, automationVersionsRetentionDays: 0 },
+      { automationVersionsEnabled: true },
+    ]) {
+      const fake = fakeSql({});
+      await sweepOrgPhase2(fake.sql, { organizationId: 'org_1', config }, free);
+      expect(
+        fake.statements.some((s) => s.text.includes('FROM app.automations')),
+      ).toBe(false);
+    }
+  });
+
+  it('takes the window from the policy, with the grace days added', async () => {
+    const fake = fakeSql({
+      'SELECT name FROM app.automations': [],
+    });
+    const before = Date.now();
+
+    await sweepOrgPhase2(
+      fake.sql,
+      {
+        organizationId: 'org_1',
+        config: {
+          automationVersionsEnabled: true,
+          automationVersionsRetentionDays: 90,
+          deletionGraceDays: 10,
+        },
+      },
+      free,
+    );
+
+    const names = fake.statements.find((s) =>
+      s.text.startsWith('SELECT name FROM app.automations'),
+    );
+    const cutoff = names?.values.find(
+      (value): value is number => typeof value === 'number' && value > 1e12,
+    );
+    expect(cutoff).toBeGreaterThanOrEqual(before - 100 * DAY_MS - 1000);
+    expect(cutoff).toBeLessThanOrEqual(Date.now() - 100 * DAY_MS + 1000);
   });
 });

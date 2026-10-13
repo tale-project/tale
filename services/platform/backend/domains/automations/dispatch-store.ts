@@ -10,6 +10,7 @@ import type {
   RunPage,
   RunSummary,
   TriggerView,
+  VersionPage,
   VersionSummary,
   VersionView,
 } from '../../../lib/engine/api/dispatch.ts';
@@ -24,6 +25,7 @@ import {
   verifyCursorFor,
 } from '../../core/lib/signed_cursor.ts';
 import { toJson } from '../../db/sql.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -33,6 +35,8 @@ import {
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
+import { memberNamesOf } from './author-names.ts';
+import { admitBenchRuns } from './bench.ts';
 import { recentDeployments } from './deployments.ts';
 import { walkLlmServingForOrganization } from './llm-serving.ts';
 import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
@@ -83,6 +87,7 @@ import {
   beginRunIdempotent,
   beginRunIdempotentInTx,
 } from './store.ts';
+import { listVersionHistory, versionHistoryWire } from './versions.ts';
 import { withinBudget } from './within-budget.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
@@ -420,7 +425,7 @@ export function pgAutomationStore(
       return triggerInputSample(row, Date.now());
     },
     save: async (automation, message, options) => {
-      const name = assertAutomationName(automation.name ?? '');
+      const name = assertAutomationName(options?.name ?? automation.name ?? '');
       // Ownership travels with the scope: a project-scoped authoring caller
       // pins its first save to that project; a caller naming one installs a
       // new automation there — a write on the project, so it must be one
@@ -489,6 +494,16 @@ export function pgAutomationStore(
           : {}),
         ...(options?.create === true ? { create: true } : {}),
         ...(projectId !== undefined ? { projectId } : {}),
+        // A restore: the content is a copy of an older version, recorded as
+        // based on and restored from it, and nothing is saved when the
+        // latest version already holds it.
+        ...(options?.restoredFrom !== undefined
+          ? {
+              basedOnVersion: options.restoredFrom,
+              restoredFromVersion: options.restoredFrom,
+              unlessIdentical: true,
+            }
+          : {}),
         // The engine's caller names only what it changes: the version
         // fields it leaves out are kept from the latest version.
         ...(metadata === undefined
@@ -522,6 +537,16 @@ export function pgAutomationStore(
           },
         }),
       }),
+    admitBench: async (executions) => {
+      try {
+        return await admitBenchRuns(sql, organizationId, executions);
+      } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return { retryAfterMs: error.retryAfter };
+        }
+        throw error;
+      }
+    },
     deploy: (name, version, options) =>
       deployVersion(sql, {
         organizationId,
@@ -884,6 +909,64 @@ export function pgAutomationStore(
         versions.push(version);
       }
       return versions;
+    },
+    listVersionHistory: async (name, page): Promise<VersionPage> => {
+      if (await hidden(name)) {
+        return {
+          versions: [],
+          nextBefore: null,
+          latestVersion: null,
+          deployedVersion: null,
+        };
+      }
+      // MCP has always answered the complete history without a limit. The
+      // app reader still defaults to 50; exhaust its bounded cursor pages
+      // here instead of silently applying that default to an agent's read.
+      const history = await listVersionHistory(sql, organizationId, name, {
+        ...page,
+        limit: page?.limit ?? 200,
+      });
+      const versions = [...history.versions];
+      let batch = history;
+      let before = page?.before;
+      if (page?.limit === undefined) {
+        while (batch.nextBefore !== null) {
+          const next = batch.nextBefore;
+          if (
+            !Number.isInteger(next) ||
+            next < 1 ||
+            next !== batch.versions.at(-1)?.version ||
+            (before !== undefined && next >= before)
+          ) {
+            // A broken reader is a fault, not a complete or partial history.
+            throw new Error('the automation version history did not advance');
+          }
+          before = next;
+          batch = await listVersionHistory(sql, organizationId, name, {
+            limit: 200,
+            before,
+          });
+          versions.push(...batch.versions);
+        }
+      }
+      const names = await memberNamesOf(
+        sql,
+        organizationId,
+        versions.map((row) => row.createdBy),
+      );
+      return {
+        versions: versions.map((row) =>
+          Object.assign(versionHistoryWire(row), {
+            // All rows use the live pointer answered beside the history, even
+            // if a deploy lands while a complete read advances its cursor.
+            deployed: row.version === history.deployedVersion,
+            createdByName: names.get(row.createdBy) ?? null,
+          }),
+        ),
+        nextBefore: page?.limit === undefined ? null : history.nextBefore,
+        latestVersion: history.latestVersion,
+        deployedVersion: history.deployedVersion,
+      };
     },
     listTriggers: async (name): Promise<TriggerView[]> => {
       const views: TriggerView[] = [];

@@ -21,6 +21,10 @@ vi.mock('@/app/features/settings/governance/components/budget-editor', () => ({
   BudgetEditor: () => null,
 }));
 vi.mock(
+  '@/app/features/settings/governance/components/chat-tools-policy-editor',
+  () => ({ ChatToolsPolicyEditor: () => null }),
+);
+vi.mock(
   '@/app/features/settings/governance/components/conversation-routing-policy-editor',
   () => ({ ConversationRoutingPolicyEditor: () => null }),
 );
@@ -63,6 +67,7 @@ const ADMIN_ONLY = [
   'budgets',
   'project_budgets',
   'retention_policy',
+  'chat_tools',
   'voice_output',
   'conversation_routing',
   'skill_sharing',

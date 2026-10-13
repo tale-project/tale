@@ -200,6 +200,10 @@ export function diffServerMetrics(
   for (const name of [
     'tale_backend_hint_streams_open',
     'tale_backend_generations_inflight',
+    // Sign-ins waiting for a hashing slot, and the ones refused as busy
+    // (`PASSWORD_CHECK_BUSY`), when a profile signs people in.
+    'tale_backend_password_checks_active',
+    'tale_backend_password_checks_waiting',
     'nodejs_eventloop_lag_p99_seconds',
     'nodejs_active_handles_total',
   ]) {

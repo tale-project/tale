@@ -46,12 +46,19 @@ interface DocsReplyModelVariant extends DocsReplyContent {
  *
  *  - `file_write` executes server-side (no sandbox), so the files land in the
  *    thread workspace and the Canvas pane auto-opens on agent-produced content.
+ *  - `create_file` is the chat assistant's own file tool (no sandbox): the
+ *    file lands under the reply as a card.
  *  - `request_human_input` creates a real pending approval card in the chat.
  */
 export type DocsReplyTool =
   | {
       readonly name: 'file_write';
       readonly files: readonly { path: string; content: string }[];
+    }
+  | {
+      readonly name: 'create_file';
+      readonly fileName: string;
+      readonly content: string;
     }
   | {
       readonly name: 'request_human_input';
@@ -638,6 +645,59 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       '',
       'The setup friction is the clear priority — every call raised it, and two customers tied it directly to their go-live date. The project workspace praise suggests leading future onboardings with a prepared shared project.',
     ].join('\n'),
+  },
+  {
+    // Files in chat (`chat-reply-files`): the onboarding themes as a CSV the
+    // assistant writes itself — no sandbox, so the shot needs none.
+    match: 'onboarding feedback themes into a csv file',
+    toolIntro: 'Here are the three themes as a CSV file.',
+    reply:
+      '**onboarding-feedback-themes.csv** is attached: one row per theme, with how many of the three calls raised it and a representative quote. It opens in Excel and Google Sheets.',
+    tool: {
+      name: 'create_file',
+      fileName: 'onboarding-feedback-themes.csv',
+      content: [
+        'theme,mentions,representative_quote',
+        'Setup took too long,3 of 3,"Two days from invite to first useful answer."',
+        'Docs assume context,2 of 3,"The guide names screens I could not find."',
+        'Loved the shared projects,2 of 3,"The team space made adoption easy."',
+        '',
+      ].join('\n'),
+    },
+  },
+  {
+    match: 'feedback-themen aus dem onboarding in eine csv-datei',
+    toolIntro: 'Hier sind die drei Themen als CSV-Datei.',
+    reply:
+      '**onboarding-feedback-themen.csv** ist angehängt: eine Zeile pro Thema, mit der Zahl der Gespräche, in denen es aufkam, und einem typischen Zitat. Die Datei öffnet sich in Excel und Google Sheets.',
+    tool: {
+      name: 'create_file',
+      fileName: 'onboarding-feedback-themen.csv',
+      content: [
+        'thema,nennungen,zitat',
+        'Einrichtung dauerte zu lange,3 von 3,"Zwei Tage von der Einladung bis zur ersten brauchbaren Antwort."',
+        'Doku setzt Wissen voraus,2 von 3,"Die Anleitung nennt Ansichten, die ich nicht gefunden habe."',
+        'Gemeinsame Projekte kamen gut an,2 von 3,"Der Team-Bereich hat den Einstieg leicht gemacht."',
+        '',
+      ].join('\n'),
+    },
+  },
+  {
+    match: 'thèmes des retours d’onboarding dans un fichier csv',
+    toolIntro: 'Voici les trois thèmes dans un fichier CSV.',
+    reply:
+      '**themes-retours-onboarding.csv** est joint : une ligne par thème, avec le nombre d’appels qui l’ont soulevé et une citation représentative. Il s’ouvre dans Excel et Google Sheets.',
+    tool: {
+      name: 'create_file',
+      fileName: 'themes-retours-onboarding.csv',
+      content: [
+        'theme,mentions,citation',
+        'Mise en route trop longue,3 sur 3,"Deux jours entre l’invitation et la première réponse utile."',
+        'Docs qui supposent du contexte,2 sur 3,"Le guide cite des écrans que je n’ai pas trouvés."',
+        'Projets partagés appréciés,2 sur 3,"L’espace d’équipe a facilité l’adoption."',
+        '',
+      ].join('\n'),
+    },
   },
   {
     // The Arena Mode prompt (`chat-arena-split`), which pins one model per

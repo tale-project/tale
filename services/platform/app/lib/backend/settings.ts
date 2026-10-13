@@ -17,7 +17,7 @@ import {
 } from '@/lib/shared/hint-entities';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
-import { invalidateMyPasswordPolicy } from './account';
+import { currentUserQuery, invalidateMyPasswordPolicy } from './account';
 import type {
   ActionQueryAdapter,
   AdapterContext,
@@ -26,6 +26,7 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
+import { memberContextQuery } from './org';
 import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
 import {
   backendEntityPrefix,
@@ -1339,6 +1340,14 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         orgId: requireOrg(args, ctx),
         body: { name: stringArg(args, 'name') },
       }).then(() => null),
+    invalidate: (client, _args, ctx) => {
+      void client.invalidateQueries({ queryKey: currentUserQuery().queryKey });
+      if (ctx.organizationId !== undefined) {
+        void client.invalidateQueries({
+          queryKey: memberContextQuery(ctx.organizationId).queryKey,
+        });
+      }
+    },
   },
   'users/mutations:updateUserPassword': {
     // User-scoped: the forced-change page sits outside `/dashboard/$id` and
@@ -1390,6 +1399,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
           authMethod: stringArg(args, 'authMethod'),
           name: stringArg(args, 'name'),
           ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+          ...(typeof args.accountId === 'string'
+            ? { accountId: args.accountId }
+            : {}),
           ...(args.broker !== undefined
             ? { secret: JSON.stringify(args.broker) }
             : {}),
@@ -1432,6 +1444,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
               ? { envName: args.envName }
               : {}),
             ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+            ...(typeof args.accountId === 'string'
+              ? { accountId: args.accountId }
+              : {}),
             ...(args.broker !== undefined
               ? { secret: JSON.stringify(args.broker) }
               : {}),

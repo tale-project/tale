@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 35 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 36 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with; chat
@@ -326,6 +326,19 @@ builtin skill from `configs/platform/custom/skills/`.
   still holds all nine and **Save** stays off; with eight, the save stores
   exactly the eight you kept (close, reload, reopen and read them back); the
   long label shows `skills.editor.labelTooLong` and **Save** stays off.
+- [ ] `SKILL-B9` · **A stale edit never replaces a newer save** — Open a skill
+  you own in two windows, A and B. In A change the **Description**
+  (`skills.form.description`) and do not save; in B change the instructions
+  (`skills.section.body`) and **Save** (`common.actions.save`); then in A
+  **Save** → A's toast reads `skills.editor.saveFailed` with
+  `skills.editor.stale`, A's description edit stays in the field, and after a
+  reload B's instructions and the original description are stored, with no
+  **Skill updated** row for A's attempt in Governance → Logs. Close A's skill
+  and open it again → it shows B's instructions; changing the description and
+  saving now goes through, and B's instructions are still stored. Then leave
+  a skill untouched in A while B saves new instructions → within a few
+  seconds A's field shows B's text and **Save** stays disabled; a description
+  change in A saved after that stores both.
 
 ## Accessibility (WCAG 2.1 AA)
 

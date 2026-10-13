@@ -24,28 +24,23 @@ import type { DiffKind } from '@tale/ui/data/value-diff';
 import type { ValueKind } from '@tale/ui/data/value-summary';
 import { z } from 'zod';
 
-import { reportText } from '../../engine/api/expect';
 import type { TestFailure, TestReport } from '../../engine/api/tests';
 import type { TransientRecord } from '../../engine/core/record/transient';
 import type { EvalTrace, ValueRedaction } from '../../engine/core/record/types';
 import type { BenchMark } from '../../engine/core/types';
 import { isRecord } from '../../utils/type-utils';
+import { jsonBytes } from '../utils/json-bytes';
+import { reportText } from '../utils/storable-text';
+import {
+  BENCH_LIMITS,
+  benchOversize,
+  failuresSchema,
+  mocksSchema,
+  runBenchSchema,
+} from './automation-bench';
 import { issueSchema } from './automation-issues';
 
-/**
- * What a bench may carry, at a door that takes one: one simulated output
- * (as UTF-8 JSON), a whole bench — every stand-in of a test or a step
- * test — and one simulated failure's message, which the document check
- * holds to the same length.
- */
-export const BENCH_LIMITS = {
-  mockBytes: 65_536,
-  benchBytes: 524_288,
-  failureChars: 2_000,
-} as const;
-
-/** The longest node id the grammar allows (`^[a-z][a-z0-9_]{0,49}$`). */
-const NODE_ID_MAX = 50;
+export { BENCH_LIMITS, benchOversize, runBenchSchema };
 
 const count = z.number().int().nonnegative();
 
@@ -96,12 +91,6 @@ const testExpectationSchema = z
     },
   );
 
-const mocksSchema = z.record(z.string(), z.json());
-const failuresSchema = z.record(
-  z.string(),
-  z.string().max(BENCH_LIMITS.failureChars),
-);
-
 /** A test as a document holds it: its input, the calls it stands in for,
  * and what the run must do. */
 export const automationTestSchema = z.looseObject({
@@ -111,20 +100,6 @@ export const automationTestSchema = z.looseObject({
   mocks: mocksSchema.optional(),
   failures: failuresSchema.optional(),
   expect: testExpectationSchema.optional(),
-});
-
-/** The bench a run is given: a test's stand-ins, and a step test's scope.
- * Which nodes it may name, and how its scopes combine, the engine's bench
- * plan decides (`planBench`), with a refusal of its own for each. */
-export const runBenchSchema = z.strictObject({
-  mocks: mocksSchema.optional(),
-  failures: failuresSchema.optional(),
-  upTo: z.string().max(NODE_ID_MAX).optional(),
-  only: z.string().max(NODE_ID_MAX).optional(),
-  item: count.optional(),
-  test: z
-    .strictObject({ name: z.string(), index: count.optional() })
-    .optional(),
 });
 
 // ------------------------------------------------------------ the answers
@@ -545,9 +520,33 @@ export const versionTestReportSchema = z.object({
   by: z.string().nullable(),
 });
 
-function jsonBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).length;
-}
+/**
+ * What running a saved version's tests answers on the machine doors (`POST
+ * /automations/{name}/versions/{version}/tests`, `test_automation` over
+ * MCP): the report, the version it ran and — when it ran the whole suite to
+ * its end — the verdict it recorded on it.
+ */
+export const versionTestsRunSchema = testReportSchema.extend({
+  name: z.string(),
+  version: z.number().int().min(1),
+  recorded: z
+    .object({
+      version: z.number().int().min(1),
+      testsPassed: z.boolean(),
+    })
+    .optional(),
+});
+
+/**
+ * A saved version's latest test check as the REST API reads it: the app's
+ * answer (`versionTestReportSchema`) with the version it belongs to and the
+ * name of the member behind the check, while they are one.
+ */
+export const versionTestsReadSchema = versionTestReportSchema.extend({
+  name: z.string(),
+  version: z.number().int().min(1),
+  byName: z.string().nullable(),
+});
 
 /**
  * The report a saved version keeps of a run of its tests, made at
