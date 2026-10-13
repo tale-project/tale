@@ -246,6 +246,22 @@ undo the disconnect.
   old sign-in was reused. Olav disconnects Ada's Claude Code in Acme → Ada's bell there says Olav did.
   Ada disconnects it herself → she finds nothing.
 
+### AGCONN-R21 · The consent page is told only what the gate would accept
+
+Before the consent page of a coding agent shows its choices, the server tells it who the app is — its
+name made safe to show, and whether it proved who it is by its own domain or only registered itself —,
+which of the scopes the app asked for a connection can hold, and, for each organization the person
+belongs to, whether they may connect an agent there, the most their role lets them allow and what they
+allowed this app there before. These are the rules the consent gate applies when they choose, so the
+page never offers what the gate would refuse. An account that may not sign in to an organization yet is
+told so; an app the server does not know and a request that asks for no agent access are refused; a
+sign-in that belongs to one organization is refused, as it may not connect an agent anywhere.
+
+- **Example**: Ada is a Developer in Acme, a Member in Beta and has a switched-off seat in Zed, and
+  Claude Code asks for edit access → Acme is offered with everything a Developer may allow and what she
+  allowed before, Beta and Zed are listed as places she may not connect an agent, and none is chosen for
+  her.
+
 ## Not yet
 
 - What the consent page shows and how it reads is not covered yet.

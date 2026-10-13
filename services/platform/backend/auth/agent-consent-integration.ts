@@ -234,6 +234,127 @@ export async function checkAgentConsent(
       `holder=${holderReads.status}, stale reads=${staleReads.status}`,
     );
 
+    // The consent page is told only what the gate would accept: who the app
+    // is, where this person may connect it and with how much, and what they
+    // allowed before — for each of the people above.
+    const contextSchema = z.object({
+      client: z.object({
+        id: z.string(),
+        name: z.string(),
+        provenance: z.string(),
+        host: z.string().nullable(),
+      }),
+      requestedScopes: z.array(z.string()),
+      eligible: z.boolean(),
+      activeOrganizationId: z.string().nullable(),
+      organizations: z.array(
+        z.object({
+          id: z.string(),
+          slug: z.string(),
+          name: z.string(),
+          role: z.string(),
+          allowed: z.boolean(),
+          reason: z.string().optional(),
+          ceiling: z.array(z.string()),
+          previous: z.array(z.string()).nullable(),
+        }),
+      ),
+    });
+    const contextRoute = `${base}/api/app/agent-connections/consent-context`;
+    const contextFor = async (cookie: string | null, query: string) => {
+      const res = await fetch(`${contextRoute}?${query}`, {
+        headers: cookie === null ? {} : { cookie },
+      });
+      const body: unknown = await res.json();
+      return {
+        status: res.status,
+        cacheControl: res.headers.get('cache-control'),
+        body,
+        parsed: contextSchema.safeParse(body),
+      };
+    };
+    const asked = `client_id=${encodeURIComponent(DOCUMENT_URL)}&scope=${encodeURIComponent(EDIT)}`;
+    const here = (person: { cookie: string }) =>
+      contextFor(person.cookie, asked).then((answer) => ({
+        ...answer,
+        org: answer.parsed.success
+          ? answer.parsed.data.organizations.find((org) => org.id === orgId)
+          : undefined,
+      }));
+    const contextOfDev = await here(dev);
+    const contextOfOwner = await here(owner);
+    const contextOfMember = await here(member);
+    const contextOfHolder = await here(holder);
+    const contextOfStranger = await here(stranger);
+    await sql`UPDATE "user" SET "emailVerified" = false WHERE "id" = ${stranger.userId}`;
+    const unverified = await contextFor(stranger.cookie, asked);
+    await sql`UPDATE "user" SET "emailVerified" = true WHERE "id" = ${stranger.userId}`;
+    const unknownApp = await contextFor(
+      dev.cookie,
+      `client_id=https%3A%2F%2Fnobody.example.test%2Fc.json&scope=${encodeURIComponent(EDIT)}`,
+    );
+    const singleSignOn = await contextFor(
+      dev.cookie,
+      `client_id=${encodeURIComponent(DOCUMENT_URL)}&scope=openid%20profile`,
+    );
+    const noApp = await contextFor(dev.cookie, 'scope=tale%3Amcp');
+    const signedOut = await contextFor(null, asked);
+    const CEILING = [
+      'tale:mcp',
+      'tale:automations.write',
+      'tale:automations.deploy',
+      'tale:settings.read',
+      'tale:settings.write',
+      'tale:subscriptions.connect',
+    ];
+    record(
+      'agent consent: the consent page is told who the app is, which scopes it asked for, and for each organization whether the person may connect it and the most their role allows, with what they allowed before — a developer and an owner fully, a member who holds a key-using competence reading only, a plain member not at all, a stranger to every organization nothing (AGCONN-R21)',
+      contextOfDev.status === 200 &&
+        contextOfDev.cacheControl === 'no-store' &&
+        contextOfDev.parsed.success &&
+        contextOfDev.parsed.data.client.name === 'Lane Agent' &&
+        contextOfDev.parsed.data.client.provenance === 'metadata_document' &&
+        contextOfDev.parsed.data.client.host === 'agent.example.test' &&
+        contextOfDev.parsed.data.client.id === DOCUMENT_URL &&
+        contextOfDev.parsed.data.requestedScopes.join(' ') === EDIT &&
+        contextOfDev.parsed.data.eligible &&
+        contextOfDev.org?.allowed === true &&
+        contextOfDev.org.role === 'developer' &&
+        contextOfDev.org.name === 'Agent consent lane' &&
+        contextOfDev.org.slug === `agent-consent-${suffix}` &&
+        contextOfDev.org.ceiling.join() === CEILING.join() &&
+        contextOfDev.org.previous?.join() ===
+          'tale:mcp,tale:automations.write' &&
+        contextOfOwner.org?.role === 'owner' &&
+        contextOfOwner.org.ceiling.join() === CEILING.join() &&
+        contextOfOwner.org.previous === null &&
+        contextOfMember.org?.allowed === false &&
+        contextOfMember.org.reason === 'AGENT_CONNECT_FORBIDDEN' &&
+        contextOfMember.org.ceiling.length === 0 &&
+        contextOfHolder.org?.allowed === true &&
+        contextOfHolder.org.role === 'member' &&
+        contextOfHolder.org.ceiling.join() === 'tale:mcp,tale:settings.read' &&
+        contextOfHolder.org.previous?.join() ===
+          'tale:mcp,tale:settings.read' &&
+        contextOfStranger.parsed.success &&
+        contextOfStranger.parsed.data.organizations.length === 0 &&
+        contextOfStranger.parsed.data.eligible,
+      `dev=${JSON.stringify(contextOfDev.body).slice(0, 400)}, member=${JSON.stringify(contextOfMember.org)}, holder=${JSON.stringify(contextOfHolder.org)}, stranger=${JSON.stringify(contextOfStranger.body).slice(0, 200)}`,
+    );
+    record(
+      'agent consent: an account with an unverified address is not eligible, an unknown app is 404, a request for no agent access and one without an app are 400, and nobody signed in is 401 (AGCONN-R21)',
+      unverified.parsed.success &&
+        !unverified.parsed.data.eligible &&
+        unknownApp.status === 404 &&
+        JSON.stringify(unknownApp.body).includes('CLIENT_NOT_FOUND') &&
+        singleSignOn.status === 400 &&
+        JSON.stringify(singleSignOn.body).includes('NOT_AN_AGENT_REQUEST') &&
+        noApp.status === 400 &&
+        JSON.stringify(noApp.body).includes('INVALID_QUERY') &&
+        signedOut.status === 401,
+      `unverified=${JSON.stringify(unverified.body).slice(0, 160)}, unknown=${unknownApp.status}, sso=${singleSignOn.status}, none=${noApp.status}, out=${signedOut.status}`,
+    );
+
     // A person who left cannot refresh; an ended seat ends the agent.
     await sql`
       DELETE FROM "member"

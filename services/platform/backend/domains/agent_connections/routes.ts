@@ -4,11 +4,16 @@ import { z } from 'zod';
 
 import { loadTrustedProxies, type Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import { requireGlobalSession } from '../../auth/session-authority.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   getClientIp,
   nodePeerAddress,
 } from '../../core/lib/utils/client_ip.ts';
+import {
+  ConsentContextError,
+  readAgentConsentContext,
+} from './consent-context.ts';
 import {
   type AgentConnectionViewer,
   AgentConnectionError,
@@ -26,7 +31,17 @@ import {
  *    changed or ended after it.
  *  - `DELETE /:id` ends a connection: the caller's own, or — for an owner
  *    or admin — anyone's here. Any other is not found.
+ *
+ * `GET /consent-context` is the one route that names no organization: the
+ * consent page of a coding agent asks it, before the person has chosen one,
+ * who the app is and where they may connect it. It answers a person who
+ * signed in for themselves, and no session that belongs to one organization.
  */
+
+const contextQuerySchema = z.object({
+  client_id: z.string().min(1).max(2048),
+  scope: z.string().max(2048).optional(),
+});
 
 const listQuerySchema = z.object({
   scope: z.enum(['mine', 'everyone']).default('mine'),
@@ -39,7 +54,38 @@ export function createAgentConnectionRoutes(deps: {
   auth: Auth;
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
-  app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  app.use(requireSession(deps.auth));
+
+  app.get('/consent-context', requireGlobalSession(), async (c) => {
+    const query = contextQuerySchema.safeParse(c.req.query());
+    if (!query.success) {
+      return c.json(
+        {
+          error: 'client_id is required and scope is a space-separated list',
+          code: 'INVALID_QUERY',
+        },
+        400,
+      );
+    }
+    const { user, session } = c.get('sessionBundle');
+    try {
+      const context = await readAgentConsentContext(deps.sql, {
+        userId: user.id,
+        activeOrganizationId: session.activeOrganizationId ?? null,
+        clientId: query.data.client_id,
+        scope: query.data.scope,
+      });
+      c.header('cache-control', 'no-store');
+      return c.json(context);
+    } catch (error) {
+      if (error instanceof ConsentContextError) {
+        return c.json({ error: error.message, code: error.code }, error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.use(requireOrgMember(deps.sql));
 
   /** The signed-in person acting here, as the audit rows name them. */
   const viewerOf = async (

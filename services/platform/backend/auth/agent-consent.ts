@@ -11,15 +11,17 @@ import {
   scopeCeilingForRole,
   scopesOf,
 } from '../../lib/shared/agent-access.ts';
-import { displayClientName } from '../../lib/shared/client-name.ts';
 import {
   SESSION_FRESH_AGE_SECONDS,
   SESSION_NOT_FRESH_CODE,
 } from '../../lib/shared/constants/session-freshness.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import {
+  agentClientIdentity,
+  readAgentClientRow,
+} from '../domains/agent_connections/client-identity.ts';
+import {
   agentConnectionActor,
-  type AgentClientProvenance,
   connectAgent,
 } from '../domains/agent_connections/service.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
@@ -337,28 +339,19 @@ export async function agentConsentGate(
   if (redirect === null || !redirect.searchParams.has('code')) return answer;
   try {
     const clientId = query.get('client_id') ?? '';
-    const clients = await deps.sql<
-      { name: string | null; discovery: string | null }[]
-    >`
-      SELECT "name", "clientDiscoveryId" AS "discovery" FROM "oauthClient"
-      WHERE "clientId" = ${clientId} LIMIT 1
-    `;
-    const provenance: AgentClientProvenance =
-      clients[0]?.discovery === 'cimd' ? 'metadata_document' : 'registered';
+    const client = agentClientIdentity(
+      clientId,
+      await readAgentClientRow(deps.sql, clientId),
+    );
     const ip = await deps.clientIp();
     const userAgent = request.headers.get('user-agent');
     await connectAgent(deps.sql, {
       organizationId,
       userId: user.id,
       clientId,
-      clientName:
-        displayClientName(clients[0]?.name) ??
-        (URL.canParse(clientId) ? new URL(clientId).hostname : 'App'),
-      provenance,
-      clientHost:
-        provenance === 'metadata_document' && URL.canParse(clientId)
-          ? new URL(clientId).hostname
-          : null,
+      clientName: client.name,
+      provenance: client.provenance,
+      clientHost: client.host,
       redirectHost: redirectHostOf(query.get('redirect_uri')),
       scopes: accepted.filter(isAgentScope),
       actor: await agentConnectionActor({
