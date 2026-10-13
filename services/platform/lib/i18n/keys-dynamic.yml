@@ -180,6 +180,13 @@ entries:
   # created an API key that acts as the member in this organization.
   - 'inbox.apiKeyCreatedForYou'
   - 'inbox.apiKeyCreatedForYouBody'
+  # A coding agent disconnected by something other than the member
+  # (domains/agent_connections/end.ts): a refresh token used twice, a changed
+  # password or sign-in method, an admin's disconnect.
+  - 'inbox.agentConnectionEnded'
+  - 'inbox.agentConnectionEndedReuseBody'
+  - 'inbox.agentConnectionEndedAccountBody'
+  - 'inbox.agentConnectionEndedAdminBody'
   # Paused schedules (domains/automations/trigger-failures.ts): a schedule
   # stopped itself after repeated permanent failures; owners and admins.
   - 'inbox.automationTriggerPaused'

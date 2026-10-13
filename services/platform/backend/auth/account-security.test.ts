@@ -8,11 +8,11 @@
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { endAgentConnectionsInTx } from '../domains/agent_connections/end.ts';
+import { endAgentConnectionsAndTellInTx } from '../domains/agent_connections/end-and-tell.ts';
 import { endAgentsOf, endAllAccessOf } from './account-security.ts';
 
-vi.mock('../domains/agent_connections/end.ts', () => ({
-  endAgentConnectionsInTx: vi.fn(() => Promise.resolve([])),
+vi.mock('../domains/agent_connections/end-and-tell.ts', () => ({
+  endAgentConnectionsAndTellInTx: vi.fn(() => Promise.resolve([])),
 }));
 
 function recordingTx() {
@@ -36,7 +36,7 @@ const admin = {
 };
 
 beforeEach(() => {
-  vi.mocked(endAgentConnectionsInTx).mockClear();
+  vi.mocked(endAgentConnectionsAndTellInTx).mockClear();
 });
 
 describe('ending the coding agents of a person [AGCONN-R17]', () => {
@@ -44,7 +44,7 @@ describe('ending the coding agents of a person [AGCONN-R17]', () => {
     const { tx, statements } = recordingTx();
     await endAgentsOf(tx, 'user-mia');
     expect(statements).toEqual([]);
-    expect(endAgentConnectionsInTx).toHaveBeenCalledExactlyOnceWith(tx, {
+    expect(endAgentConnectionsAndTellInTx).toHaveBeenCalledExactlyOnceWith(tx, {
       userId: 'user-mia',
       reason: 'account_security',
       revokedBy: 'system',
@@ -54,7 +54,7 @@ describe('ending the coding agents of a person [AGCONN-R17]', () => {
   it('names the admin whose act it is, in the trail and as the one who ended them', async () => {
     const { tx } = recordingTx();
     await endAgentsOf(tx, 'user-mia', admin);
-    expect(endAgentConnectionsInTx).toHaveBeenCalledExactlyOnceWith(tx, {
+    expect(endAgentConnectionsAndTellInTx).toHaveBeenCalledExactlyOnceWith(tx, {
       userId: 'user-mia',
       reason: 'account_security',
       revokedBy: 'user-olav',
@@ -73,7 +73,7 @@ describe('ending every access of a person [AGCONN-R17]', () => {
         values: ['user-mia'],
       },
     ]);
-    expect(endAgentConnectionsInTx).toHaveBeenCalledExactlyOnceWith(tx, {
+    expect(endAgentConnectionsAndTellInTx).toHaveBeenCalledExactlyOnceWith(tx, {
       userId: 'user-mia',
       reason: 'account_security',
       revokedBy: 'user-olav',
@@ -84,11 +84,11 @@ describe('ending every access of a person [AGCONN-R17]', () => {
   it('is the platform’s doing when no admin is named', async () => {
     const { tx } = recordingTx();
     await endAllAccessOf(tx, 'user-mia');
-    expect(vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1]).toMatchObject(
-      { revokedBy: 'system' },
-    );
     expect(
-      vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1],
+      vi.mocked(endAgentConnectionsAndTellInTx).mock.calls[0]?.[1],
+    ).toMatchObject({ revokedBy: 'system' });
+    expect(
+      vi.mocked(endAgentConnectionsAndTellInTx).mock.calls[0]?.[1],
     ).not.toHaveProperty('actor');
   });
 });

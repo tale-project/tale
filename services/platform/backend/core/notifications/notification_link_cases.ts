@@ -154,6 +154,17 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/settings/api/rest`,
   },
+  // The MCP settings, where the member connects the coding agent again.
+  agent_connection_ended: {
+    row: {
+      params: {
+        client: 'Claude Code',
+        name: 'Sam Rivera',
+        agentConnections: true,
+      },
+    },
+    path: `/dashboard/${ORG}/settings/api/mcp`,
+  },
   // The page of the organization the step's message linked to. A message
   // linking to the web opens it from the bell's own action beside the row.
   automation_message: {

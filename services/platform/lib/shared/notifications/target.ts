@@ -90,6 +90,12 @@ export type NotificationTarget =
       to: '/dashboard/$id/settings/api/rest';
       params: { id: string };
     }
+  // The MCP settings — where a coding agent that was disconnected is
+  // connected again.
+  | {
+      to: '/dashboard/$id/settings/api/mcp';
+      params: { id: string };
+    }
   // The websites list, filtered to the status the alert is about.
   | {
       to: '/dashboard/$id/websites';
@@ -258,6 +264,13 @@ export function personalNotificationTarget(args: {
   // `buildPersonalNotificationUrl`.
   if (params?.apiKeys === true) {
     return { to: '/dashboard/$id/settings/api/rest', params: { id } };
+  }
+
+  // A coding agent disconnected by something other than the member
+  // (`agent_connection_ended`) opens the MCP settings, where it is connected
+  // again. Mirrors `buildPersonalNotificationUrl`.
+  if (params?.agentConnections === true) {
+    return { to: '/dashboard/$id/settings/api/mcp', params: { id } };
   }
 
   // A paused schedule (`automation_failed`) opens its automation's General

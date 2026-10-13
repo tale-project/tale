@@ -3,7 +3,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { endAgentConnectionsInTx } from '../domains/agent_connections/end.ts';
+import { endAgentConnectionsAndTellInTx } from '../domains/agent_connections/end-and-tell.ts';
 import {
   checkIpRateLimit,
   checkKeyedRateLimit,
@@ -35,8 +35,10 @@ vi.mock('../lib/rate-limit.ts', async (importOriginal) => {
   };
 });
 
-vi.mock('../domains/agent_connections/end.ts', () => ({
-  endAgentConnectionsInTx: vi.fn(() => Promise.resolve([{ id: 'conn-1' }])),
+vi.mock('../domains/agent_connections/end-and-tell.ts', () => ({
+  endAgentConnectionsAndTellInTx: vi.fn(() =>
+    Promise.resolve([{ id: 'conn-1' }]),
+  ),
 }));
 
 const SITE = 'https://tale.example.com';
@@ -947,7 +949,7 @@ describe('a refresh token used twice at the auth mount [AGCONN-R16]', () => {
 
   beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.mocked(endAgentConnectionsInTx).mockClear();
+    vi.mocked(endAgentConnectionsAndTellInTx).mockClear();
   });
 
   it('ends the connections of the person and the app once the provider ended their sign-in, and leaves its answer as it was', async () => {
@@ -964,8 +966,10 @@ describe('a refresh token used twice at the auth mount [AGCONN-R16]', () => {
     });
     // The token is read before the provider takes it from its table.
     expect(events).toEqual(['lookup', 'provider', 'check']);
-    expect(endAgentConnectionsInTx).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1]).toEqual({
+    expect(endAgentConnectionsAndTellInTx).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(endAgentConnectionsAndTellInTx).mock.calls[0]?.[1],
+    ).toEqual({
       userId: REUSED.userId,
       clientId: REUSED.clientId,
       reason: 'refresh_reuse',
@@ -983,7 +987,7 @@ describe('a refresh token used twice at the auth mount [AGCONN-R16]', () => {
     const { sql, events } = tokens({ used: true, onFile: () => true });
     expect((await run(sql, events, refused)).status).toBe(400);
     expect(events).toEqual(['lookup', 'provider', 'check']);
-    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+    expect(endAgentConnectionsAndTellInTx).not.toHaveBeenCalled();
   });
 
   it('ends nothing when the provider answered, even if the token it presented was a used one: a retry is answered the same', async () => {
@@ -993,19 +997,19 @@ describe('a refresh token used twice at the auth mount [AGCONN-R16]', () => {
     );
     expect(answered.status).toBe(200);
     expect(events).toEqual(['lookup', 'provider']);
-    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+    expect(endAgentConnectionsAndTellInTx).not.toHaveBeenCalled();
   });
 
   it('ends nothing, and asks nothing more, for a refusal of a token that is not a used one', async () => {
     const { sql, events } = tokens({ used: false, onFile: () => false });
     expect((await run(sql, events, refused)).status).toBe(400);
     expect(events).toEqual(['lookup', 'provider']);
-    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+    expect(endAgentConnectionsAndTellInTx).not.toHaveBeenCalled();
   });
 
   it('answers as the provider did when ending the connections fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.mocked(endAgentConnectionsInTx).mockRejectedValueOnce(
+    vi.mocked(endAgentConnectionsAndTellInTx).mockRejectedValueOnce(
       new Error('lock timeout'),
     );
     const { sql, events } = tokens({ used: true, onFile: () => false });

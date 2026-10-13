@@ -9,7 +9,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { endAgentConnectionsInTx } from '../domains/agent_connections/end.ts';
+import { endAgentConnectionsAndTellInTx } from '../domains/agent_connections/end-and-tell.ts';
 import {
   endAgentsAfterReuse,
   storedRefreshToken,
@@ -17,8 +17,10 @@ import {
   usedRefreshToken,
 } from './agent-reuse.ts';
 
-vi.mock('../domains/agent_connections/end.ts', () => ({
-  endAgentConnectionsInTx: vi.fn(() => Promise.resolve([{ id: 'conn-1' }])),
+vi.mock('../domains/agent_connections/end-and-tell.ts', () => ({
+  endAgentConnectionsAndTellInTx: vi.fn(() =>
+    Promise.resolve([{ id: 'conn-1' }]),
+  ),
 }));
 
 interface Statement {
@@ -67,7 +69,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.mocked(endAgentConnectionsInTx).mockClear();
+  vi.mocked(endAgentConnectionsAndTellInTx).mockClear();
 });
 
 describe('what a token request presents', () => {
@@ -236,7 +238,9 @@ describe('what Tale does once the provider refused a used refresh token [AGCONN-
     );
     expect(statements[0]?.values).toEqual(['rt-1']);
     // No organization is named: the provider ended the sign-in everywhere.
-    expect(vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1]).toEqual({
+    expect(
+      vi.mocked(endAgentConnectionsAndTellInTx).mock.calls[0]?.[1],
+    ).toEqual({
       userId: 'user-ada',
       clientId: 'https://c.test/c',
       reason: 'refresh_reuse',
@@ -248,13 +252,13 @@ describe('what Tale does once the provider refused a used refresh token [AGCONN-
   it('ends nothing when the token is still on file: the provider refused it for another reason', async () => {
     const { sql } = fakeSql(() => [{ id: 'rt-1' }]);
     expect(await endAgentsAfterReuse(sql, used)).toBe(0);
-    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+    expect(endAgentConnectionsAndTellInTx).not.toHaveBeenCalled();
   });
 
   it('never throws: the answer to the agent is the provider’s whatever happens here', async () => {
     const failing = fakeSql(() => new Error('connection reset'));
     expect(await endAgentsAfterReuse(failing.sql, used)).toBe(0);
-    vi.mocked(endAgentConnectionsInTx).mockRejectedValueOnce(
+    vi.mocked(endAgentConnectionsAndTellInTx).mockRejectedValueOnce(
       new Error('lock timeout'),
     );
     const { sql } = fakeSql(() => []);

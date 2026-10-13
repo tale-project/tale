@@ -232,8 +232,20 @@ access tokens that expired or were retired a month ago go too.
   reads. An app that registered on Monday and nobody connected → gone on Wednesday. Cursor, which Ada
   connected, stays.
 
+### AGCONN-R20 · A disconnect the person did not make is told to them
+
+When an agent a person connected is disconnected by a refresh token that was used twice, by a change
+of their password or sign-in method, or by an owner or admin, the person finds a notice in their bell,
+in the organization the connection was to, saying which agent was disconnected and why — an admin by
+name. A person who disconnects an agent themselves, leaving an organization and an erasure leave no
+notice. It is never e-mailed and never shown to anyone else, and one that cannot be written does not
+undo the disconnect.
+
+- **Example**: Ada connected Claude Code to Acme and to Beta, and a copy of its refresh token is
+  used → the bell of Acme and the bell of Beta each say that Claude Code was disconnected because an
+  old sign-in was reused. Olav disconnects Ada's Claude Code in Acme → Ada's bell there says Olav did.
+  Ada disconnects it herself → she finds nothing.
+
 ## Not yet
 
 - What the consent page shows and how it reads is not covered yet.
-- The notice a person finds in their bell when an agent they connected is disconnected for a reason
-  that is not theirs (a refresh token used twice, a password someone changed) is not covered yet.

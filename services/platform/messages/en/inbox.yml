@@ -60,6 +60,10 @@ usageCreditsRequested: Usage credits requested
 usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
 apiKeyCreatedForYou: API key created for you
 apiKeyCreatedForYouBody: '{name} created the API key "{keyName}" for you. It acts as you in this organization; revoke it under Settings > API > REST if you do not need it.'
+agentConnectionEnded: Coding agent disconnected
+agentConnectionEndedReuseBody: '{client} was disconnected because an old sign-in was reused. Connect it again if this was you.'
+agentConnectionEndedAccountBody: '{client} was disconnected because your password or another sign-in method changed. Connect it again when you want it to work.'
+agentConnectionEndedAdminBody: '{name} disconnected {client} from this organization. Connect it again if you still need it.'
 automationTriggerPaused: Schedule paused
 automationTriggerPausedBody: '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.'
 automationMessage: '{title}'
