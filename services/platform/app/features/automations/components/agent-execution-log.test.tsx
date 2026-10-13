@@ -127,6 +127,30 @@ describe('AgentExecutionLog', () => {
     ).toBeInTheDocument();
   });
 
+  // The question a reader only asks when an image read went wrong — and it
+  // has to be answerable from the SETTLED run, since resolving again today
+  // can pick a different model than the one that actually ran.
+  it('names the model that read the images, once the turn recorded one', () => {
+    state.data = {
+      ...op([{ type: 'text', text: 'read the slides' }], 'completed'),
+      visionModelRef: 'openrouter/qwen/qwen3-vl-32b-instruct',
+    };
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(
+      screen.getByText(
+        'Images in this run were read by openrouter/qwen/qwen3-vl-32b-instruct.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // A serving model that reads images itself arms nothing — a footnote
+  // claiming otherwise would be a lie.
+  it('stays silent about vision when no polyfill was armed', () => {
+    state.data = op([{ type: 'text', text: 'read the slides' }], 'completed');
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(screen.queryByText(/were read by/)).not.toBeInTheDocument();
+  });
+
   // A step waiting for sandbox room re-kicks its start for up to two hours:
   // the newest op is a kicked start that has not run, or the refused one.
   it.each([
