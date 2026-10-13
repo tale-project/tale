@@ -55,6 +55,12 @@ describe('API key expiry', () => {
       expiresAt: '2027-02-15T17:30:00+01:00',
     },
     {
+      name: 'a clock reading with milliseconds still gives whole seconds',
+      now: '2027-02-01T17:30:00.123+01:00',
+      selected: '2027-02-15T00:00:00+01:00',
+      expiresAt: '2027-02-15T17:30:00.123+01:00',
+    },
+    {
       name: 'spring-forward tomorrow cannot fit the 24-hour minimum',
       now: '2027-03-27T23:30:00+01:00',
       selected: '2027-03-28T00:00:00+01:00',
@@ -91,7 +97,7 @@ describe('API key expiry', () => {
       selected: '2028-02-02T00:00:00+01:00',
       expiresAt: null,
     },
-  ])('$name', ({ now, selected, expiresAt, minimum }) => {
+  ])('$name [APIKEY-R10]', ({ now, selected, expiresAt, minimum }) => {
     const input = { now: Date.parse(now), selected: Date.parse(selected) };
     // The UI project gives import.meta.url a browser URL; the workspace
     // script's cwd supplies the real module for the isolated Node process.
@@ -127,6 +133,9 @@ describe('API key expiry', () => {
       expiresAt === null ? null : Date.parse(expiresAt),
     );
     if (expiresAt !== null) {
+      // The server refuses a lifetime that is not whole seconds between one
+      // day and 365 days (`API_KEY_EXPIRY_INVALID`).
+      expect(Number.isInteger(result.seconds)).toBe(true);
       expect(result.seconds).toBeGreaterThanOrEqual(86_400);
       expect(result.seconds).toBeLessThanOrEqual(31_536_000);
     }
