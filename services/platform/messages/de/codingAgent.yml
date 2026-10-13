@@ -9,8 +9,7 @@ clients:
 steps:
   claudeCodeAdd: Füge Tale zu Claude Code hinzu. Führe das in deinem Terminal aus.
   claudeCodeSignIn: Melde dich an. Dein Browser öffnet Tale; wähle die Organisation und was der Agent darf.
-  codexAdd: Füge Tale zu Codex hinzu. Führe das in deinem Terminal aus.
-  codexSignIn: Melde dich an. Dein Browser öffnet Tale; wähle die Organisation und was der Agent darf.
+  codexAdd: Füge Tale zu Codex hinzu und melde dich an. Führe das in deinem Terminal aus; dein Browser öffnet Tale, wähle dort die Organisation und was der Agent darf.
   otherAddress: Trage diese Adresse in deinem Client als Remote-MCP-Server ein.
   otherSignIn: Wähle die Anmeldung im Browser (OAuth), wenn der Client fragt, wie er sich authentifizieren soll. Die Anleitung enthält die Schritte für Cursor, opencode und Claude im Web.
 copy:

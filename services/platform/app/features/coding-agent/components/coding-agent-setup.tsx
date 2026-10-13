@@ -137,7 +137,6 @@ function useStepText(): (text: StepText) => string {
     claudeCodeAdd: t('steps.claudeCodeAdd'),
     claudeCodeSignIn: t('steps.claudeCodeSignIn'),
     codexAdd: t('steps.codexAdd'),
-    codexSignIn: t('steps.codexSignIn'),
     otherAddress: t('steps.otherAddress'),
     otherSignIn: t('steps.otherSignIn'),
   };

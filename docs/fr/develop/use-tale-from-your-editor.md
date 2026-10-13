@@ -340,14 +340,13 @@ Pour partager le serveur avec une équipe dans un `.mcp.json` versionné, laisse
 
 ### Codex {#codex}
 
-Ajoute l’endpoint, puis connecte-toi :
+Ajoute l’endpoint. Codex constate qu’il se connecte par OAuth et lance aussitôt la connexion :
 
 ```bash
 codex mcp add tale --url "$TALE_URL/api/v1/mcp"
-codex mcp login tale
 ```
 
-Codex ouvre ton navigateur. Sur une machine sans navigateur, lance `codex mcp login tale --no-browser` : Codex affiche l’adresse à ouvrir et te demande de coller l’adresse sur laquelle ton navigateur s’est arrêté. Codex se présente avec un document de métadonnées client qu’OpenAI publie et que le serveur Tale récupère en HTTPS ; le déploiement a donc besoin d’un accès sortant vers `chatgpt.com`. `codex mcp list` affiche les serveurs configurés.
+Codex ouvre ton navigateur, et la commande se termine quand tu as choisi l’organisation et ce que l’agent peut faire. Pour te reconnecter plus tard, lance `codex mcp login tale`. Sur une machine sans navigateur, interromps la connexion que `add` lance (le serveur reste ajouté) et lance `codex mcp login tale --no-browser` : Codex affiche l’adresse à ouvrir et te demande de coller l’adresse sur laquelle ton navigateur s’est arrêté. Codex se présente avec un document de métadonnées client qu’OpenAI publie et que le serveur Tale récupère en HTTPS ; le déploiement a donc besoin d’un accès sortant vers `chatgpt.com`. `codex mcp list` affiche les serveurs configurés.
 
 Pour utiliser plutôt une clé, indique dans `~/.codex/config.toml` la variable d’environnement qui la contient et l’organisation :
 
