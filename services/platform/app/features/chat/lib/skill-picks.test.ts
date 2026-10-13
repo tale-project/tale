@@ -31,6 +31,14 @@ describe('skillTokenAtCaret', () => {
     });
   });
 
+  it('reads a pasted run of paths at once, however its spaces fall', () => {
+    const paths = `${'/api\n\n/users\n\n'.repeat(200)}x`;
+    expect(skillTokenAtCaret(paths, paths.length)).toBeNull();
+    const spaced = `${'/a   '.repeat(40)}x`;
+    expect(skillTokenAtCaret(spaced, spaced.length)).toBeNull();
+    expect(insertSkillSlash(spaced).text).toBe(`${spaced.slice(0, 197)} / x`);
+  });
+
   it('finds nothing in the message’s own words', () => {
     expect(skillTokenAtCaret('Write it /do', 12)).toBeNull();
     expect(skillTokenAtCaret('/docx ', 6)).toBeNull();

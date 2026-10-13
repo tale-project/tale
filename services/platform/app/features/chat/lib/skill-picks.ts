@@ -22,11 +22,6 @@ export interface SkillToken {
   readonly query: string;
 }
 
-/** The text before the caret is a run of whole `/name` tokens, then a `/`
- * and the start of a name — the only place a pick can go. */
-const TOKEN_BEFORE_CARET =
-  /^(?:\s*\/[a-z0-9]+(?:-[a-z0-9]+)*\s+)*\s*\/([a-z0-9-]*)$/;
-
 /**
  * The `/name` the caret is typing, when it types one at the start of the
  * message — `/do|` or `/docx /x|` — and nothing when the caret is anywhere
@@ -37,7 +32,15 @@ export function skillTokenAtCaret(
   caret: number,
 ): SkillToken | null {
   const before = text.slice(0, caret);
-  const match = TOKEN_BEFORE_CARET.exec(before);
+  // Name by name, never one pattern over the whole run: a pattern free to
+  // split the spaces between names more than one way backtracks for seconds
+  // on a pasted list of paths, and this runs on every keystroke.
+  const whole = /\s*\/[a-z0-9]+(?:-[a-z0-9]+)*\s+/y;
+  let at = 0;
+  while (whole.exec(before) !== null) at = whole.lastIndex;
+  const typed = /\s*\/([a-z0-9-]*)$/y;
+  typed.lastIndex = at;
+  const match = typed.exec(before);
   const query = match?.[1];
   if (match === null || query === undefined) return null;
   // The name goes on past the caret until whitespace: replacing a token
