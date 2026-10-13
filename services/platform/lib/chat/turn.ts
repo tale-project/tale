@@ -43,6 +43,7 @@ import {
   type HarnessTable,
 } from '../shared/providers/resolve_execution';
 import { languageDisplayName } from '../shared/utils/language-name';
+import { isRecord } from '../utils/type-utils';
 import {
   assembleContext,
   type AssembledContext,
@@ -477,6 +478,12 @@ export interface TurnRequest {
   /** The skills the turn may load (`ContextInput.skillCatalog`); only a
    * turn that offers the skill tools passes any. */
   readonly skillCatalog?: readonly SkillCatalogEntry[];
+  /** The skills the person chose for this reply (`lib/skills/slash.ts`),
+   * already kept to what the catalog holds. Each is read with `load_skill`
+   * before the model's first round — a step on the reply like any other,
+   * which costs no round of the model's — unless the conversation already
+   * shows it read; the context then names the choice. */
+  readonly chosenSkills?: readonly string[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary
    * server-side). Absent for an unbound thread. */
@@ -678,6 +685,9 @@ function assembleTurnContext(
       : {}),
     ...(request.skillCatalog !== undefined
       ? { skillCatalog: request.skillCatalog }
+      : {}),
+    ...(request.chosenSkills !== undefined && request.chosenSkills.length > 0
+      ? { chosenSkills: request.chosenSkills }
       : {}),
     now,
     history,
@@ -1287,6 +1297,73 @@ async function recordUsage(
  * the earlier one's place, so the person gets the file once, as it ended
  * up. Images are each a result of their own and always add.
  */
+/** Whether `messages` show the skill `name` read: a `load_skill` result
+ * that answered with it. */
+function skillReadIn(messages: readonly ChatMessage[], name: string): boolean {
+  return messages.some((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === 'tool-result' &&
+        part.capabilityId === 'load_skill' &&
+        isRecord(part.output) &&
+        part.output.status === 'ok' &&
+        part.output.name === name,
+    ),
+  );
+}
+
+/**
+ * The call id of the turn's own read of a chosen skill: nine letters and
+ * digits — the strictest spelling a provider accepts — from the reply's id
+ * and the skill's place, so the turn's ids never meet another reply's.
+ */
+export function chosenSkillCallId(replyId: string, index: number): string {
+  const tail = replyId
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(-6)
+    .padStart(6, '0');
+  return `sk${tail}${index % 10}`;
+}
+
+/**
+ * Read each chosen skill the conversation does not already show read, as
+ * the parts of the reply's opening step: a `load_skill` call and its result
+ * per skill. A skill gone since it was chosen answers not found there, as
+ * any read would.
+ */
+async function readChosenSkills(
+  names: readonly string[],
+  messages: readonly ChatMessage[],
+  executor: ChatToolExecutor,
+  replyId: string,
+  signal: AbortSignal | undefined,
+): Promise<MessagePart[]> {
+  const parts: MessagePart[] = [];
+  for (const [index, name] of names.entries()) {
+    if (skillReadIn(messages, name)) continue;
+    const callId = chosenSkillCallId(replyId, index);
+    const input = { name };
+    parts.push({
+      type: 'tool-call',
+      callId,
+      capabilityId: 'load_skill',
+      input,
+    });
+    const output = await executor.execute(
+      { id: callId, name: 'load_skill', input },
+      signal !== undefined ? { signal } : {},
+    );
+    parts.push({
+      type: 'tool-result',
+      callId,
+      capabilityId: 'load_skill',
+      output,
+      structured: true,
+    });
+  }
+  return parts;
+}
+
 /** The refs of the files `parts` show. */
 function artifactRefs(parts: readonly MessagePart[]): string[] {
   return parts.flatMap((part) =>
@@ -1540,6 +1617,23 @@ export async function runTurn(
         parts: [...settledParts],
       });
     };
+
+    // The skills the person chose are read before the model writes a word:
+    // a `load_skill` the turn makes for them, on the reply like the model's
+    // own, so the first round reads its instructions and the step shows it.
+    if (executor !== undefined) {
+      const opening = await readChosenSkills(
+        request.chosenSkills ?? [],
+        context.messages,
+        executor,
+        placeholder.id,
+        request.signal,
+      );
+      if (opening.length > 0) {
+        settledParts.push(...opening);
+        await persistSettledParts();
+      }
+    }
 
     // The tool loop. Each pass is one model round: a round that ends in tool
     // calls settles its parts on the placeholder, executes the calls, and

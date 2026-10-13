@@ -72,6 +72,7 @@ import {
 } from '../../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
+import { chosenSkills } from '../../../lib/skills/slash';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import type { EmbeddingMeter } from '../knowledge/embedding';
@@ -792,6 +793,10 @@ export interface TurnWorkTools {
   readonly toolDocs: readonly ToolDoc[];
   readonly loadout: WorkLoadout;
   readonly skillCatalog: readonly SkillCatalogEntry[];
+  /** The skills the conversation uses, chosen in the composer: each reply
+   * reads them before the model answers, as it does the skills a message
+   * names (`lib/skills/slash.ts`). */
+  readonly conversationSkills?: readonly string[];
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -1470,6 +1475,17 @@ export async function executeTurn(
 
   const workSetup = await pendingWorkTools;
   const workTools = workSetup.tools;
+  // The skills the person chose — named at the start of the message, or
+  // used by the conversation — that their library holds: the turn reads
+  // them before the model answers.
+  const chosen =
+    workTools !== undefined && workTools.loadout.skills
+      ? chosenSkills(
+          userText,
+          workTools.conversationSkills ?? [],
+          new Set(workTools.skillCatalog.map((entry) => entry.slug)),
+        )
+      : [];
   const agent =
     overrides.persona !== undefined
       ? overrides.persona(workTools?.loadout)
@@ -1546,6 +1562,7 @@ export async function executeTurn(
     ...(workTools !== undefined && workTools.skillCatalog.length > 0
       ? { skillCatalog: workTools.skillCatalog }
       : {}),
+    ...(chosen.length > 0 ? { chosenSkills: chosen } : {}),
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
     ...(args.localeFixed === true ? { localeFixed: true } : {}),

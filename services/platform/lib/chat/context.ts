@@ -22,7 +22,7 @@
  *     projects with an agent, the controls as their interface names them
  *  7. The skills in this person's library a turn may load (name and a
  *     description excerpt each) — per person, since team skills follow the
- *     person's teams
+ *     person's teams — and the ones the person chose for this reply
  *  8. The person's own standing instructions (Settings > Preferences), when
  *     their toggle has them on — per person, so they can never join the
  *     prefix that is shared by every user of the agent
@@ -42,7 +42,9 @@
  * beyond its instructions, it learns by CALLING something — which is visible
  * in the transcript, attributable, and refusable. The skill catalog is the
  * one index it is handed: names and selection hints, so it knows what it may
- * load; the instructions themselves arrive only through `load_skill`. The person's custom instructions
+ * load; the instructions themselves arrive only through `load_skill` — the
+ * model's own call, or the one its turn makes for a skill the person chose,
+ * which this contract names and the transcript shows. The person's custom instructions
  * are instructions, not learned content: they are the one per-person block,
  * and the host resolves the person's toggle before they get here.
  *
@@ -83,6 +85,8 @@ export const CONTEXT_BLOCK_ORDER = [
   'task-handover',
   // Per person too: which skills the person's library lets a turn load.
   'available-skills',
+  // Per reply: the skills the person chose for it.
+  'chosen-skills',
   // After the breakpoint on purpose: the block is per person, and the prefix
   // above must stay byte-identical for every user of the agent.
   'custom-instructions',
@@ -189,6 +193,13 @@ export interface ContextInput {
    * turn, as the custom instructions are.
    */
   readonly skillCatalog?: readonly SkillCatalogEntry[];
+  /**
+   * The skills the person chose for this reply — named at the start of the
+   * message, or used by the conversation — already read with `load_skill`
+   * for them. Named after the catalog, so the model knows the choice was the
+   * person's and not its own. Skipped on a sub-agent turn.
+   */
+  readonly chosenSkills?: readonly string[];
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
@@ -455,6 +466,13 @@ const CUSTOM_INSTRUCTIONS_HEADER =
   "with the organization's or the project's instructions above, those take " +
   'precedence.';
 
+/** The skills the person chose for this reply, by name. Names are skill
+ * folder names (`lib/skills/slash.ts`), so they need no escaping. */
+function renderChosenSkills(names?: readonly string[]): string | undefined {
+  if (names === undefined || names.length === 0) return undefined;
+  return `The person chose ${names.length === 1 ? 'this skill' : 'these skills'} for this reply: ${names.join(', ')}. Their instructions are in this conversation, read with load_skill; follow them for the work they cover.`;
+}
+
 function renderCustomInstructions(text?: string): string | undefined {
   const instructions = text?.trim();
   if (!instructions) return undefined;
@@ -527,6 +545,13 @@ export function assembleContext(input: ContextInput): AssembledContext {
     blocks.push({ id: 'available-skills', text: skillCatalog });
   }
 
+  const chosenSkills = input.isSubAgentTurn
+    ? undefined
+    : renderChosenSkills(input.chosenSkills);
+  if (chosenSkills) {
+    blocks.push({ id: 'chosen-skills', text: chosenSkills });
+  }
+
   // AFTER the breakpoint on purpose: the block is per person, and the prefix
   // above must stay byte-identical for every user of the agent to be served
   // from the provider's cache. The suffix is re-sent every turn regardless
@@ -542,6 +567,7 @@ export function assembleContext(input: ContextInput): AssembledContext {
     runtimeDirectives,
     taskHandover,
     skillCatalog,
+    chosenSkills,
     customInstructions,
   ]
     .filter((text): text is string => text !== undefined && text.length > 0)

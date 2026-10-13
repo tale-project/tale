@@ -10,6 +10,7 @@ import {
   buildHarnessTable,
   type CredentialAuth,
 } from '../shared/providers/resolve_execution';
+import { isRecord } from '../utils/type-utils';
 import type { GuardrailFilter } from './guardrails';
 import {
   MAX_TOOL_CALLS_PER_ROUND,
@@ -21,6 +22,7 @@ import {
   attachArtifact,
   CAP_CUT_CALL_OUTPUT,
   CAP_WITHHELD_CALL_OUTPUT,
+  chosenSkillCallId,
   estimateCostCents,
   fixedLocaleNotice,
   LAST_TOOL_ROUND_NOTICE,
@@ -1958,6 +1960,145 @@ describe('runTurn — the tool loop', () => {
     ]);
     expect(calls.streamed[1]?.text).toBe('partial');
   }, 10_000);
+});
+
+describe('runTurn — the skills the person chose [CHAT-R29]', () => {
+  function skillExecutor(): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          { name: 'load_skill', description: 'Load.', parameters: {} },
+        ],
+        execute(call) {
+          executed.push(call);
+          const name = isRecord(call.input) ? call.input.name : undefined;
+          return Promise.resolve({
+            status: 'ok',
+            name,
+            instructions: `How to make ${String(name)} files.`,
+          });
+        },
+      },
+    };
+  }
+
+  function recordingModel(): {
+    model: ModelCall;
+    requests: ModelCallRequest[];
+  } {
+    const requests: ModelCallRequest[] = [];
+    return {
+      requests,
+      model: async function* stream(req) {
+        requests.push(req);
+        yield { text: 'Here is the letter.' };
+      },
+    };
+  }
+
+  it('reads each chosen skill before the model answers, as the reply’s first step', async () => {
+    const { executor, executed } = skillExecutor();
+    const { model, requests } = recordingModel();
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(
+      request({ userText: '/docx Write the letter', chosenSkills: ['docx'] }),
+      d.deps,
+    );
+
+    expect(outcome.status).toBe('completed');
+    expect(executed).toEqual([
+      {
+        id: expect.stringMatching(/^[a-zA-Z0-9]{9}$/),
+        name: 'load_skill',
+        input: { name: 'docx' },
+      },
+    ]);
+    // The first round already reads the skill, and the choice is named.
+    const first = requests[0];
+    expect(first?.messages.at(-1)?.parts.map((part) => part.type)).toEqual([
+      'tool-call',
+      'tool-result',
+    ]);
+    expect(first?.system).toContain(
+      'The person chose this skill for this reply: docx.',
+    );
+    // The step is on the reply, before the answer.
+    const parts = d.store.finalized.at(-1)?.parts as MessagePart[];
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-call',
+      'tool-result',
+      'text',
+    ]);
+    // Reading costs no round of the model's: no step limit was hit.
+    expect(outcome.status === 'completed' && outcome.usage.stepLimitHit).toBe(
+      undefined,
+    );
+  });
+
+  it('does not read again a skill the conversation already shows read', async () => {
+    const { executor, executed } = skillExecutor();
+    const { model, requests } = recordingModel();
+    const d = deps({ model, tools: executor });
+
+    await runTurn(
+      request({
+        chosenSkills: ['docx', 'xlsx'],
+        history: [
+          { role: 'user', parts: [{ type: 'text', text: '/docx A letter' }] },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-call',
+                callId: 'sk0000010',
+                capabilityId: 'load_skill',
+                input: { name: 'docx' },
+              },
+              {
+                type: 'tool-result',
+                callId: 'sk0000010',
+                capabilityId: 'load_skill',
+                output: { status: 'ok', name: 'docx', instructions: 'x' },
+                structured: true,
+              },
+              { type: 'text', text: 'Done.' },
+            ],
+          },
+        ],
+      }),
+      d.deps,
+    );
+
+    expect(executed.map((call) => call.input)).toEqual([{ name: 'xlsx' }]);
+    expect(requests[0]?.system).toContain(
+      'The person chose these skills for this reply: docx, xlsx.',
+    );
+  });
+
+  it('reads nothing without a skill tool to read with', async () => {
+    const { model, requests } = recordingModel();
+    const d = deps({ model });
+
+    await runTurn(request({ chosenSkills: ['docx'] }), d.deps);
+
+    expect(requests[0]?.messages.at(-1)?.role).toBe('user');
+  });
+});
+
+describe('chosenSkillCallId', () => {
+  it('spells nine letters and digits, distinct per reply and per skill', () => {
+    const first = chosenSkillCallId('018f2c1e-7b3a-7c9d-a1b2-c3d4e5f60718', 0);
+    const second = chosenSkillCallId('018f2c1e-7b3a-7c9d-a1b2-c3d4e5f60718', 1);
+    const other = chosenSkillCallId('018f2c1e-7b3a-7c9d-a1b2-c3d4e5f6ffff', 0);
+    expect(first).toMatch(/^[a-zA-Z0-9]{9}$/);
+    expect(new Set([first, second, other]).size).toBe(3);
+  });
 });
 
 describe('runTurn — image attachments', () => {
