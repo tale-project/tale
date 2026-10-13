@@ -340,14 +340,13 @@ To share the server with a team through a committed `.mcp.json`, leave the crede
 
 ### Codex {#codex}
 
-Add the endpoint, then sign in:
+Add the endpoint. Codex finds that it signs in by OAuth and starts the sign-in at once:
 
 ```bash
 codex mcp add tale --url "$TALE_URL/api/v1/mcp"
-codex mcp login tale
 ```
 
-Codex opens your browser. On a machine without one, run `codex mcp login tale --no-browser`: Codex prints the address to open and asks you to paste the address your browser ended on. Codex identifies itself by a client metadata document that OpenAI publishes and the Tale server fetches over HTTPS, so the deployment needs outbound access to `chatgpt.com` for it. `codex mcp list` shows the configured servers.
+Codex opens your browser, and the command finishes once you have chosen the organization and what the agent may do. To sign in again later, run `codex mcp login tale`. On a machine without a browser, stop the sign-in that `add` starts (the server stays added) and run `codex mcp login tale --no-browser`: Codex prints the address to open and asks you to paste the address your browser ended on. Codex identifies itself by a client metadata document that OpenAI publishes and the Tale server fetches over HTTPS, so the deployment needs outbound access to `chatgpt.com` for it. `codex mcp list` shows the configured servers.
 
 To use a key instead, name the environment variable that holds it and the organization in `~/.codex/config.toml`:
 

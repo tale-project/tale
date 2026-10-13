@@ -340,14 +340,13 @@ Willst du den Server über eine eingecheckte `.mcp.json` mit dem Team teilen, la
 
 ### Codex {#codex}
 
-Füge den Endpunkt hinzu und melde dich dann an:
+Füge den Endpunkt hinzu. Codex erkennt, dass er sich per OAuth anmeldet, und startet die Anmeldung sofort:
 
 ```bash
 codex mcp add tale --url "$TALE_URL/api/v1/mcp"
-codex mcp login tale
 ```
 
-Codex öffnet deinen Browser. Auf einem Rechner ohne Browser führst du `codex mcp login tale --no-browser` aus: Codex gibt die Adresse zum Öffnen aus und bittet dich, die Adresse einzufügen, bei der dein Browser gelandet ist. Codex weist sich durch ein Client-Metadatendokument aus, das OpenAI veröffentlicht und der Tale-Server über HTTPS abruft; deshalb braucht die Bereitstellung dafür ausgehenden Zugriff auf `chatgpt.com`. `codex mcp list` zeigt die eingerichteten Server.
+Codex öffnet deinen Browser, und der Befehl endet, sobald du die Organisation und das, was der Agent darf, gewählt hast. Willst du dich später erneut anmelden, führe `codex mcp login tale` aus. Auf einem Rechner ohne Browser brich die Anmeldung ab, die `add` startet (der Server bleibt eingerichtet), und führe `codex mcp login tale --no-browser` aus: Codex gibt die Adresse zum Öffnen aus und bittet dich, die Adresse einzufügen, bei der dein Browser gelandet ist. Codex weist sich durch ein Client-Metadatendokument aus, das OpenAI veröffentlicht und der Tale-Server über HTTPS abruft; deshalb braucht die Bereitstellung dafür ausgehenden Zugriff auf `chatgpt.com`. `codex mcp list` zeigt die eingerichteten Server.
 
 Willst du stattdessen einen Schlüssel nutzen, nenne in `~/.codex/config.toml` die Umgebungsvariable, die ihn enthält, und die Organisation:
 

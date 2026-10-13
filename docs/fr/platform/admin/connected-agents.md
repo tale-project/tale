@@ -8,7 +8,7 @@ Un agent de code comme Claude Code, Codex ou Cursor peut se connecter lui-même 
 ## Connecter un agent
 
 1. Sélectionne **Connecter un agent de code** sur cette page. La boîte de dialogue donne les commandes pour Claude Code et Codex, et l’adresse à ajouter à tout autre agent ; [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#connecter-opencode-ou-claude-code) couvre le reste. **Paramètres > API > MCP** affiche aussi l’adresse, avec un bouton de copie.
-2. Exécute les commandes de ton agent, la dernière étant sa connexion : `claude mcp login tale` ou `codex mcp login tale`. L’agent ouvre Tale dans ton navigateur. Si tu es déconnecté, connecte-toi d’abord.
+2. Exécute les commandes de ton agent. Avec Claude Code, la connexion est la dernière commande, `claude mcp login tale` ; Codex se connecte dès `codex mcp add`. L’agent ouvre Tale dans ton navigateur. Si tu es déconnecté, connecte-toi d’abord.
 3. Vérifie sur la page de consentement qui fait la demande. **Domaine vérifié** signifie que Tale a lu les informations de l’application sur son propre domaine ; seul le propriétaire de ce domaine peut les publier. **Application non vérifiée** signifie que l’agent s’est enregistré lui-même et a choisi son nom : continue seulement si tu viens de lancer cette connexion depuis ton agent.
 4. Choisis l’**Organisation**. L’agent travaille uniquement dans cette organisation ; pour en utiliser une autre, connecte-le à nouveau.
 5. Choisis l’**Accès** et, si besoin, ce que tu veux **Autoriser aussi**. La liste « Ce que Claude Code peut faire », avec le nom de ton agent, montre ce que ton choix représente. Ton rôle s’applique toujours : l’agent ne peut jamais faire plus que toi dans cette organisation.

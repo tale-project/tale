@@ -8,7 +8,7 @@ Ein Coding-Agent wie Claude Code, Codex oder Cursor kann sich selbst am [MCP-End
 ## Einen Agent verbinden
 
 1. Wähle auf dieser Seite **Coding-Agent verbinden**. Der Dialog nennt die Befehle für Claude Code und Codex sowie die Adresse, die du bei jedem anderen Agent einträgst; [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor#opencode-oder-claude-code-verbinden) deckt den Rest ab. **Einstellungen > API > MCP** zeigt die Adresse ebenfalls, mit einer Kopierschaltfläche.
-2. Führe die Befehle für deinen Agent aus, zuletzt die Anmeldung: `claude mcp login tale` oder `codex mcp login tale`. Der Agent öffnet Tale in deinem Browser. Bist du abgemeldet, melde dich zuerst an.
+2. Führe die Befehle für deinen Agent aus. Bei Claude Code ist die Anmeldung der letzte Befehl, `claude mcp login tale`; Codex meldet sich schon bei `codex mcp add` an. Der Agent öffnet Tale in deinem Browser. Bist du abgemeldet, melde dich zuerst an.
 3. Prüfe auf der Zustimmungsseite, wer anfragt. **Bestätigte Domain** heißt: Tale hat die Angaben zur App von deren eigener Domain gelesen, und nur wer diese Domain besitzt, kann sie veröffentlichen. **Nicht bestätigte App** heißt: Der Agent hat sich selbst registriert und seinen Namen selbst gewählt; fahre nur fort, wenn du die Verbindung gerade in deinem Agent gestartet hast.
 4. Wähle die **Organisation**. Der Agent arbeitet nur in dieser Organisation; für eine andere verbindest du ihn erneut.
 5. Wähle den **Zugriff** und, wenn du möchtest, unter **Zusätzlich erlauben**, was der Agent noch darf. Die Liste „Was Claude Code darf“ (bei dir mit dem Namen deines Agents) zeigt, worauf die Wahl hinausläuft. Deine Rolle gilt weiter: Der Agent darf nie mehr als du in dieser Organisation.
