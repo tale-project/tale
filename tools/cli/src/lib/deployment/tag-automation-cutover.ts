@@ -106,14 +106,22 @@ export async function assessTagAutomationCutover(
     scope.writerProjects,
     dependencies,
   );
-  // New writers already exist: the barrier verifies the recorded handoff.
-  if (inventory.protocol === 2) return 'resume';
+  // A new colour that runs is migrating: the barrier verifies the recorded
+  // handoff. One that does not run is recreated by the deploy, so the old
+  // writers alone are judged and counted, as on a first attempt.
+  const newWriters = inventory.writers.filter(
+    (writer) => writer.protocol === 2,
+  );
+  if (newWriters.some((writer) => writer.running)) return 'resume';
+  const oldWriters = inventory.writers.filter(
+    (writer) => writer.protocol !== 2,
+  );
   const shape = legacyLedgerShape(ledger.ids);
   if (shape === 'unsupported')
     throw preconditionError(
       `${running}This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(args.release)}${UNCHANGED}`,
     );
-  const refusal = legacyWriterRefusal(inventory.writers, scope.writerProjects);
+  const refusal = legacyWriterRefusal(oldWriters, scope.writerProjects);
   if (refusal !== null)
     throw preconditionError(
       `${running}${workspaceWriterRefusalMessage(refusal, args.release)}${UNCHANGED}`,
@@ -134,9 +142,7 @@ export async function assessTagAutomationCutover(
   }
   requireRuntime(!busy, CUTOVER_BUSY);
   // An earlier deploy already stopped the old backend: it stays stopped.
-  return inventory.writers.every((writer) => !writer.running)
-    ? 'resume'
-    : 'ready';
+  return oldWriters.every((writer) => !writer.running) ? 'resume' : 'ready';
 }
 
 /** The plan for a deploy whose admitted image is `platformImage` (undefined

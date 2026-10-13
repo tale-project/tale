@@ -292,17 +292,17 @@ function fixture(
       });
     },
     /** Compose created the new colour's writers on the admitted image. */
-    addTargetWriters: (project: string) => {
+    addTargetWriters: (project: string, running = true) => {
       ['backend-api', 'backend-worker'].forEach((service, index) =>
         writers.push({
           Id: (index ? '4' : '5').repeat(64),
           Image: targetId,
           RestartCount: 0,
           State: {
-            Running: true,
+            Running: running,
             StartedAt: '2026-10-08T00:05:00Z',
-            Pid: index + 3000,
-            Status: 'running',
+            Pid: running ? index + 3000 : 0,
+            Status: running ? 'running' : 'exited',
             Dead: false,
           },
           HostConfig: { RestartPolicy: { Name: 'unless-stopped' } },
@@ -796,4 +796,39 @@ test('a workspace resumes onto the digest of its own registry only', async () =>
   await expect(f.run()).rejects.toThrow(
     'exact prepared backend image references',
   );
+});
+
+test('a stopped new colour never skips the census, so a database restored under it is counted again', async () => {
+  // The cutover stopped the old writers; the new colour was created and
+  // stopped before 0163; then a snapshot with unfinished runs was restored in
+  // place (same container, new start).
+  const restored = fixture({ writerProject: 'example-blue', workspace: true });
+  await restored.run();
+  restored.events.length = 0;
+  restored.addTargetWriters('example-green', false);
+  restored.database.RestartCount++;
+  restored.database.State.StartedAt = '2026-10-14T00:00:00Z';
+  restored.busy();
+  await expect(restored.run()).rejects.toThrow(
+    'let the runs finish or cancel them',
+  );
+  expect(restored.events).toEqual(['acquire', 'close']);
+
+  // The same state once nothing is unfinished: a fresh census, and the deploy
+  // recreates the stopped colour. Nothing to stop.
+  const rebooted = fixture({ writerProject: 'example-blue', workspace: true });
+  await rebooted.run();
+  rebooted.events.length = 0;
+  rebooted.addTargetWriters('example-green', false);
+  rebooted.database.RestartCount++;
+  await rebooted.run();
+  expect(rebooted.events[0]).toBe('acquire');
+  expect(rebooted.events).not.toContain('stop');
+  expect(rebooted.receipt().phase).toBe('stopped');
+
+  // A stopped new writer outside the colour projects is not this deploy's.
+  const stray = fixture({ writerProject: 'example-blue', workspace: true });
+  stray.addTargetWriters('example', false);
+  await expect(stray.run()).rejects.toThrow('outside this deployment');
+  expect(stray.events).toEqual([]);
 });

@@ -218,7 +218,7 @@ function workspaceHost() {
       database.State.StartedAt = '2026-10-14T09:00:00Z';
     },
     /** Compose created the new colour's writers on the admitted image. */
-    addNewWriters: () => {
+    addNewWriters: (running = true) => {
       for (const [index, service] of [
         'backend-api',
         'backend-worker',
@@ -229,9 +229,9 @@ function workspaceHost() {
           Image: target.Id,
           State: {
             ...writers[index].State,
-            Running: true,
-            Pid: 300 + index,
-            Status: 'running',
+            Running: running,
+            Pid: running ? 300 + index : 0,
+            Status: running ? 'running' : 'exited',
           },
           Config: {
             ...writers[index].Config,
@@ -511,5 +511,19 @@ test('a rerun resumes after the old writers stopped, the new ones were created, 
   expect(host.mutations).toEqual([
     ['stop', '--time=-1', 'c'.repeat(64), 'd'.repeat(64)],
     ['stop', '--time=-1', 'd'.repeat(64)],
+  ]);
+});
+
+test('a stopped new colour is recreated, so the plan counts the runs again first', async () => {
+  const host = workspaceHost();
+  await barrier(host);
+  host.addNewWriters(false);
+  host.restartDatabase();
+  host.state.unfinished = true;
+  await expect(plan(host)).rejects.toThrow(CUTOVER_BUSY);
+  host.state.unfinished = false;
+  expect((await plan(host))?.resume).toBe(true);
+  expect(host.mutations).toEqual([
+    ['stop', '--time=-1', 'c'.repeat(64), 'd'.repeat(64)],
   ]);
 });

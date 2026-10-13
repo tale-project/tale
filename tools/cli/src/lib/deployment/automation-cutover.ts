@@ -258,14 +258,21 @@ export async function cutoverLegacyAutomation(
   };
   const asStopped = (writer: InstalledWriter | z.infer<typeof writerSchema>) =>
     Object.assign({}, writer, { running: false, pid: 0, status: 'exited' });
-  // A workspace's database stays the same container across a host reboot or
-  // a daemon restart; only its start time and restart count move.
-  const custody = (value: typeof database) =>
-    workspace
-      ? { Id: value.Id, Image: value.Image, Config: value.Config }
-      : value;
   const notStopped = ' The old backend was not stopped.';
-  if (before.protocol === 2) {
+  // A workspace's new colour that runs installs 0163 before it serves or
+  // works, so only its resume is left to verify. One that does not run never
+  // finished migrating and the deploy recreates it: the old writers then take
+  // a fresh held census below, whatever the database went through since (a
+  // reboot, or a snapshot restored in place with unfinished runs in it).
+  const newWriters = before.writers.filter((writer) => writer.protocol === 2);
+  const oldWriters = workspace
+    ? before.writers.filter((writer) => writer.protocol !== 2)
+    : before.writers;
+  if (
+    workspace
+      ? newWriters.some((writer) => writer.running)
+      : before.protocol === 2
+  ) {
     // A created protocol-2 image raises the rollback floor, but is not itself
     // proof this legacy transition ever held a zero census. Resume only our
     // stopped-writer handoff for this exact target and DB incarnation.
@@ -326,7 +333,10 @@ export async function cutoverLegacyAutomation(
       prior.phase === 'stopped' &&
         prior.targetRevision === options.targetRevision &&
         prior.project === project &&
-        stableJson(custody(prior.database)) === stableJson(custody(database)) &&
+        // A running new colour restarts with its database after a reboot and
+        // migrates on; a workspace does not ask for the same incarnation.
+        (workspace !== undefined ||
+          stableJson(prior.database) === stableJson(database)) &&
         before.writers.every((writer) => {
           const old = prior.writers.find(
             (retained) => retained.id === writer.id,
@@ -357,7 +367,14 @@ export async function cutoverLegacyAutomation(
       legacyLedgerShape(ledger.ids) !== 'unsupported',
       `This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(workspace.release)}${notStopped}`,
     );
-  const refusal = legacyWriterRefusal(before.writers, writerProjects);
+  if (workspace)
+    requireRuntime(
+      newWriters.every(
+        (writer) => !writer.running && targetProjects.includes(writer.project),
+      ),
+      `Automation cutover found new backend writers outside this deployment's colour projects.${notStopped}`,
+    );
+  const refusal = legacyWriterRefusal(oldWriters, writerProjects);
   if (workspace && refusal !== null)
     throw preconditionError(
       `${workspaceWriterRefusalMessage(refusal, workspace.release)}${notStopped}`,
@@ -376,7 +393,7 @@ export async function cutoverLegacyAutomation(
     refusal !== 'custody',
     'Automation cutover requires the single managed Compose project; blue/green writers are outside its custody.',
   );
-  const writers = z.array(writerSchema).parse(before.writers);
+  const writers = z.array(writerSchema).parse(oldWriters);
   const receipt = {
     schemaVersion: 1 as const,
     phase: 'stopping' as const,
@@ -482,7 +499,14 @@ export async function cutoverLegacyAutomation(
     await probe();
     const after = await inventory();
     requireRuntime(
-      stableJson(after.writers) === stableJson(writers.map(asStopped)) &&
+      stableJson(
+        workspace
+          ? after.writers.filter((writer) => writer.protocol !== 2)
+          : after.writers,
+      ) === stableJson(writers.map(asStopped)) &&
+        after.writers.every(
+          (writer) => writer.protocol !== 2 || !writer.running,
+        ) &&
         stableJson(database) === stableJson(await readDatabase()),
       'Automation cutover did not observe every exact old writer stopped. Keep the pending deployment; do not start the new runtime.',
     );

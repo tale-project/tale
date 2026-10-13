@@ -166,12 +166,13 @@ colour, no `--stop` or `--services`, and, when new writers already exist, the
 recorded handoff (a verify-only barrier call that never locks or stops). Each
 refusal names the next step (`tale update -v 0.5.77` for an older workspace).
 Right before the new colour starts, the held census stops the old writers and
-records them in `.tale/automation-cutover.json`. A rerun resumes: while new
-writers exist it verifies the recorded handoff (the database compared by
-container, image and labels, so a reboot does not break it); otherwise it takes
-a fresh held census, over v0.5.77's ledger or over one a first boot cut before
-`0163` continued (the interrupt removes that colour and migrations commit per
-file). `tale rollback` never crosses the cutover and refuses while such a
+records them in `.tale/automation-cutover.json`. A rerun resumes: while the new
+colour runs (it installs `0163` before it serves or works), it verifies the
+recorded handoff; otherwise, with no new colour or one that stopped before it
+finished, it takes a fresh held census over the old writers, over v0.5.77's
+ledger or one a first boot cut before `0163` continued (the interrupt removes
+that colour and migrations commit per file). A reboot or a snapshot restored in
+place is therefore counted again, never waved through. `tale rollback` never crosses the cutover and refuses while such a
 partly upgraded ledger exists. `scripts/workspace-upgrade-check.ts` (the
 **Workspace upgrade** workflow, nightly) upgrades a real v0.5.77 workspace and
 one on the previous release with the CLI built from `main`.
