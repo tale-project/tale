@@ -33,7 +33,7 @@ A write that waits for a person on every run — a morning digest posting to Sla
 
 </Frame>
 
-A rule of the [approval policy](/self-hosted/configuration/approvals) that requires a person for the action still wins over an allowance. Each grant and withdrawal is recorded in the [audit log](/platform/admin/governance/audit-logs), and deleting the automation removes its allowances.
+A rule of the [approval policy](/self-hosted/configuration/approvals) that requires a person for the action still wins over an allowance. Each grant and withdrawal is recorded in the [audit log](/platform/admin/governance/audit-logs), and deleting the automation removes its allowances. A coding agent connected over [MCP](/develop/mcp-settings#automation-approval) reads the same allowances, and the key of an owner or admin can change them.
 
 ## Answer an agent’s question
 

@@ -22,9 +22,10 @@ Tale liest und schreibt jede Art von Einstellung mit seinem eigenen Code und den
 | `agent-model` | Die Agent-Laufzeit (Harness), das Modell und der Anbieter, mit denen ein Projekt-Agent läuft. Eine Änderung gilt für die Läufe, die er danach startet. | Setzen | Wer das Projekt bearbeiten darf |
 | `task-instructions`    | Die Beschreibung einer Aufgabe.                                                                                                                                                       | Setzen                                                               | Wer die Aufgabe ändern darf                                                                                                                                   |
 | `task-review-context` | Ob die Arbeit an einer Aufgabe ein unabhängiges Review durch einen anderen Projekt-Agenten erhält, und durch welchen. Einmal gesetzt, bleibt der Reviewer-Agent derselbe. | Setzen | Wer das Projekt bearbeiten darf |
+| `automation-approval` | Die Schreibzugriffe auf externe Systeme, die eine Automatisierung ohne Freigabe bei jedem Lauf ausführen darf, so benannt, wie ein Schritt sie nennt, etwa `slack.send_message`, dazu die, die ihre neueste Version ausführt, und wer sie erlaubt hat. Nur lesbar; ihre Aktionen ändern sie. | Einen Schreibzugriff erlauben oder zurücknehmen (`grant`, `revoke`) | Inhaber und Admins; Entwickler lesen sie |
 | `deployment`           | Die eigenen Einstellungen des Deployments, die für jede Organisation darauf gelten, etwa die Sandbox-Laufzeit.                                                                        | Setzen                                                               | Lesen darf sie jeder Inhaber und Admin einer Organisation auf dem Deployment, mit dem eigenen API-Schlüssel; ändern dürfen sie nur die Adressen auf der Editor-Freigabeliste des Deployments. Ein Schlüssel, der für ein anderes Mitglied, ein Team, ein Projekt oder die Organisation erstellt wurde, erreicht keine davon |
 
-Eine Ressource hat innerhalb ihrer Art eine ID: ein Anbieter seinen Namen, Zugangsdaten `<provider>/<name>` mit URI-kodiertem Namen, eine Richtlinie ihren Schlüssel wie `password_policy`, ein Projekt seine ID, ein Agent `<projectId>/<agentId>` und eine Aufgabe `<projectId>/<taskId>`. Embedding-Modell, Branding und Deployment-Einstellungen haben keine ID. `get_settings` listet Projekt- und Agenteneinstellungen seitenweise über die Projekte, die du lesen darfst; die Beschreibung einer Aufgabe und ihren Review-Kontext liest es nur über die ID der Aufgabe.
+Eine Ressource hat innerhalb ihrer Art eine ID: ein Anbieter seinen Namen, Zugangsdaten `<provider>/<name>` mit URI-kodiertem Namen, eine Richtlinie ihren Schlüssel wie `password_policy`, ein Projekt seine ID, ein Agent `<projectId>/<agentId>`, eine Aufgabe `<projectId>/<taskId>` und die Erlaubnisse einer Automatisierung deren Name, etwa `ops/morning-digest`. Embedding-Modell, Branding und Deployment-Einstellungen haben keine ID. `get_settings` listet Projekt- und Agenteneinstellungen seitenweise über die Projekte, die du lesen darfst, und die Automatisierungen, die eine Erlaubnis haben; die Beschreibung einer Aufgabe, ihren Review-Kontext und eine Automatisierung ohne Erlaubnis liest es nur über die ID.
 
 Manche Änderungen bleiben in Tale:
 
@@ -38,7 +39,7 @@ Manche Änderungen bleiben in Tale:
 ## Eine Änderung vornehmen {#make-a-change}
 
 1. Ruf `get_settings` ohne Argumente auf. Die Antwort listet jede Art, ob dieses Deployment sie bedient und ob deine Rolle sie lesen und ändern darf.
-2. Lies mit `get_settings` und `kinds` (und `ids`), was du ändern willst. Jede Ressource kommt mit ihrem `key`, ihrer `config` und ihrem `hash`.
+2. Lies mit `get_settings` und `kinds` (und `ids`), was du ändern willst. Jede Ressource kommt mit ihrem `key`, ihrer `config` und ihrem `hash`. Eine Art mit vielen Ressourcen antwortet mit einer Seite und ihrem Cursor unter `cursors`; die nächste Seite liest du mit genau dieser Art und `cursor`.
 3. Plane die Änderung mit `plan_settings`. Ein `set` ersetzt die ganze Ressource durch ihre `config`. Schick deshalb jedes Feld mit, das erhalten bleiben soll, so wie du es gelesen hast. Der Plan nennt für jede Änderung ihre Aktion, ihren Diff, ihre Auswirkungen und ihr Risiko oder die Ablehnung, an der sie scheitert. Geschrieben wird dabei nichts.
 4. Zeig der Person den Plan und warte auf ihre Entscheidung. Stell die Auswirkungen und das Risiko an den Anfang.
 5. Nimm dieselben Änderungen mit `apply_settings` vor. `expected` ordnet dem `key` jeder geänderten Ressource den Hash zu, den du gelesen hast, oder `null` für eine, die du anlegst.
@@ -90,6 +91,37 @@ Zum Übernehmen schickst du dieselben `changes` mit `"expected": { "governance/p
 
 `apply_settings` fragt die Person vor jedem Aufruf und hat ein eigenes [Budget](/de/develop/rate-limits).
 
+## Eine Automatisierung ohne Freigabe schreiben lassen {#automation-approval}
+
+Ein Schreibzugriff auf ein externes System, etwa eine Slack-Nachricht oder ein neues GitHub-Issue, wartet bei jedem Live-Lauf auf die Freigabe einer Person — es sei denn, ein Inhaber oder Admin hat ihn für genau diese Automatisierung erlaubt. Das sind die Schalter unter **Läuft ohne Freigabe** im Tab **Allgemein** der Automatisierung (siehe [Auf einen wartenden Workflow reagieren](/de/platform/automations/approvals-in-workflows)); die Art `automation-approval` liest und ändert dieselben Erlaubnisse.
+
+Die Erlaubnisse einer Automatisierung liest du, indem du sie nennst: `get_settings` mit `kinds: ["automation-approval"]` und `ids: ["ops/morning-digest"]`. Ohne `ids` listet es seitenweise die Automatisierungen, die eine Erlaubnis haben. Die Konfiguration ist nur lesbar:
+
+| Feld               | Was es enthält                                                                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allowed`          | Die Schreibzugriffe, die ohne Freigabe laufen, so benannt, wie ein Schritt sie nennt: `<connector>.<action>`, etwa `slack.send_message`.                                                                      |
+| `used`             | Die Schreibzugriffe, die die neueste Version der Automatisierung ausführt.                                                                                                                                      |
+| `requiredByPolicy` | Die erlaubten und genutzten Schreibzugriffe, für die eine Regel der [Freigaberichtlinie](/de/self-hosted/configuration/approvals) deiner Organisation weiterhin eine Person verlangt. Eine solche Regel hat Vorrang vor einer Erlaubnis. |
+| `grants`           | Wer jeden Schreibzugriff erlaubt hat, mit Namen, und wann. Wer die Organisation verlassen hat, hat keinen Namen.                                                                                                |
+
+Eine Erlaubnis ändert sich über eine Aktion, einen einmaligen Schritt auf einer bestehenden Ressource: `grant` erlaubt Schreibzugriffe, `revoke` nimmt die Erlaubnis zurück. Beide nehmen die Schreibzugriffe als `args.types`:
+
+```json
+{
+  "changes": [
+    {
+      "kind": "automation-approval",
+      "id": "ops/morning-digest",
+      "op": "act",
+      "act": "grant",
+      "args": { "types": ["github.create_issue"] }
+    }
+  ]
+}
+```
+
+Erlaubt werden kann nur ein Schreibzugriff auf ein externes System eines Connectors. Ein Lesezugriff und ein Schreibzugriff in Tale selbst, etwa das Erstellen einer Aufgabe, wartet nie auf eine Freigabe. Einen Schreibzugriff zu erlauben nimmt eine Person aus den Live-Läufen dieser Automatisierung heraus; deshalb nennt der Plan die Auswirkung `removes-human-approval` mit dem Risiko critical — zeig sie der Person zuerst. Eine Erlaubnis zurückzunehmen trägt diese Auswirkung nicht: Der Schreibzugriff fragt wieder nach einer Freigabe. Eine Änderung lässt die übrigen Erlaubnisse, wie sie sind, und ihr Hash umfasst nur die Automatisierung und ihre erlaubten Schreibzugriffe. Eine neue Version der Automatisierung macht einen Plan also nicht veraltet, die Änderung ihrer Erlaubnisse durch eine andere Person schon. Inhaber und Admins ändern Erlaubnisse, Entwickler lesen sie. Das [Audit-Protokoll](/de/platform/admin/governance/audit-logs) hält jede Erlaubnis und jede Rücknahme als über MCP vorgenommen fest, wie beim Tab **Allgemein**.
+
 ## Die Auswirkungen eines Plans lesen {#effects}
 
 Das Risiko eines Plans ist das höchste aus dem Grundrisiko seiner Art und dem Risiko seiner Auswirkungen. Diese Auswirkungen können die heute bedienten Arten nennen:
@@ -98,7 +130,7 @@ Das Risiko eines Plans ist das höchste aus dem Grundrisiko seiner Art und dem R
 | ------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `may-lock-out-members`    | critical | Die Anmeldesperre ist nach der Änderung aktiv, die Passwort-Rotation beginnt oder wird kürzer, oder die Zwei-Faktor-Authentifizierung wird strenger |
 | `signs-out-members`       | critical | Das Inaktivitätslimit wird eingeschaltet oder kürzer                                                                                                |
-| `removes-human-approval`  | critical | Eine Freigaberegel oder eine Prüfpflicht fragt keine Person mehr                                                                                    |
+| `removes-human-approval`  | critical | Eine Freigaberegel oder eine Prüfpflicht fragt keine Person mehr, oder eine Automatisierung darf einen Schreibzugriff ohne Freigabe ausführen        |
 | `changes-serving-account` | high     | Der Endpunkt eines Anbieters ändert sich, oder andere Zugangsdaten bedienen seine Anfragen                                                          |
 | `breaks-dependents`       | high     | Die aktiven Standard-Zugangsdaten des Anbieters werden entfernt, und nichts ersetzt sie                                                             |
 | `requires-empty-corpus`   | critical | Das Embedding-Modell ändert sich; das setzt voraus, dass das Wissen der Organisation leer ist                                                                                     |
@@ -121,9 +153,11 @@ Eine Ablehnung kommt als Daten zurück, mit `error`, `code`, `hint` und manchmal
 | `SETTINGS_INVALID`                                           | Die Konfiguration passt nicht zur Art. `data.issues` nennt jedes Problem mit seiner Stelle in der Konfiguration, auch ein Feld, das die Einstellung nicht kennt, und Text, den Tale nicht speichern kann, etwa ein NUL-Zeichen. |
 | `SECRET_ARGUMENT_REFUSED`                                    | Die Änderung enthält ein Secret. `data.places` nennt die Stelle.                                                                                                 |
 | `SETTINGS_TALE_ONLY`                                         | Diese Änderung geht nur in Tale, zum Beispiel bei Zugangsdaten mit Schlüssel.                                                                                    |
+| `USE_SUBSCRIPTION_FLOW`                                      | Ein Abonnement wird über den eigenen Ablauf von Tale verbunden, nie durch eine Änderung gesetzt. Sag der Person, dass sie es unter **Einstellungen > KI-Anbieter** verbindet; Entfernen geht auch hier. |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Die Rolle der Person erlaubt diese Änderung auch in Tale nicht. Ein neuer Versuch hilft nicht.                                                                   |
 | `EMBEDDING_CORPUS_NOT_EMPTY`                                 | Das Embedding-Modell ändert sich nur, solange das Wissen der Organisation leer ist. `data` nennt, wie viele Dokumente und Websites es enthält.                                    |
 | `BRANDING_IMAGE_UNKNOWN`                                     | Ein Branding-Dateiname nennt kein Bild, das in die Organisation hochgeladen wurde.                                                                               |
+| `APPROVAL_ALLOWANCE_INVALID`                                 | Ein Name ist kein Schreibzugriff auf ein externes System eines Connectors und lässt sich daher nicht erlauben. `data.types` nennt sie.                          |
 | `PROVIDER_IN_USE`, `CREDENTIAL_IN_USE`                       | Zugangsdaten nennen den Anbieter noch, oder das Embedding-Modell nutzt die Zugangsdaten. Ändere zuerst diese.                                                    |
 
-Die Einstellungsreferenz listet jeden Code. Die Seite zum [MCP-Endpunkt](/de/develop/mcp-endpoint#settings) beschreibt die Argumente und Antworten der Tools.
+Die Einstellungsreferenz listet die Codes, mit denen die Einstellungs-Tools selbst antworten; der Writer einer Art antwortet zusätzlich mit eigenen, jeweils mit Satz und Hinweis. Die Seite zum [MCP-Endpunkt](/de/develop/mcp-endpoint#settings) beschreibt die Argumente und Antworten der Tools.

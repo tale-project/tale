@@ -359,14 +359,21 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     expect(syncTeamsFromGroupNames).not.toHaveBeenCalled();
   });
 
-  it("refreshes the cookie's own live session instead of minting, rebinding it to this organization", async () => {
+  it('refreshes a live session already scoped to this organization', async () => {
     const future = new Date(Date.now() + 60 * 60 * 1000);
     const { sql, queries } = fakeSql([
       ...memberScript().filter((entry) => !/session/.test(entry.match.source)),
       {
-        match: /SELECT "id", "userId", "token", "expiresAt" FROM "session"/,
+        match:
+          /SELECT "id", "userId", "token", "expiresAt", "trustedOrganizationId" FROM "session"/,
         rows: [
-          { id: 'sess-1', userId: 'user-1', token: 'tok-1', expiresAt: future },
+          {
+            id: 'sess-1',
+            userId: 'user-1',
+            token: 'tok-1',
+            expiresAt: future,
+            trustedOrganizationId: 'org-1',
+          },
         ],
       },
     ]);
@@ -388,12 +395,51 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     ).toBe(false);
   });
 
+  it.each([null, 'org-other'])(
+    'preserves an existing global/foreign session %s and mints a separate realm cookie',
+    async (trustedOrganizationId) => {
+      const { sql, queries } = fakeSql([
+        ...memberScript().filter(
+          (entry) => !/session/.test(entry.match.source),
+        ),
+        {
+          match: /SELECT .* FROM "session"/,
+          rows: [
+            {
+              id: 'old-session',
+              userId: 'user-1',
+              token: 'old-token',
+              expiresAt: new Date(Date.now() + 60_000),
+              trustedOrganizationId,
+            },
+          ],
+        },
+      ]);
+      const result = await trustedHeadersAuthenticate(sql, {
+        ...baseArgs,
+        existingSessionToken: 'old-token',
+      });
+      expect(result.sessionToken).not.toBe('old-token');
+      expect(
+        queries.some((query) => query.text.startsWith('INSERT INTO "session"')),
+      ).toBe(true);
+      expect(
+        queries.some(
+          (query) =>
+            query.text.startsWith('UPDATE "session"') ||
+            query.text.startsWith('DELETE FROM "session"'),
+        ),
+      ).toBe(false);
+    },
+  );
+
   it("kills another user's session on an account switch and mints afresh", async () => {
     const future = new Date(Date.now() + 60 * 60 * 1000);
     const { sql, queries } = fakeSql([
       ...memberScript().filter((entry) => !/session/.test(entry.match.source)),
       {
-        match: /SELECT "id", "userId", "token", "expiresAt" FROM "session"/,
+        match:
+          /SELECT "id", "userId", "token", "expiresAt", "trustedOrganizationId" FROM "session"/,
         rows: [
           {
             id: 'sess-other',
@@ -594,9 +640,16 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     const { app, queries } = makeApp([
       ...memberScript().filter((entry) => !/session/.test(entry.match.source)),
       {
-        match: /SELECT "id", "userId", "token", "expiresAt" FROM "session"/,
+        match:
+          /SELECT "id", "userId", "token", "expiresAt", "trustedOrganizationId" FROM "session"/,
         rows: [
-          { id: 'sess-1', userId: 'user-1', token: 'tok-1', expiresAt: future },
+          {
+            id: 'sess-1',
+            userId: 'user-1',
+            token: 'tok-1',
+            expiresAt: future,
+            trustedOrganizationId: 'org-1',
+          },
         ],
       },
     ]);
@@ -612,7 +665,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(res.status).toBe(302);
     const lookup = queries.find((q) =>
       q.text.startsWith(
-        'SELECT "id", "userId", "token", "expiresAt" FROM "session"',
+        'SELECT "id", "userId", "token", "expiresAt", "trustedOrganizationId" FROM "session"',
       ),
     );
     expect(lookup?.values).toEqual(['tok-1']);
@@ -631,7 +684,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(
       queries.some((q) =>
         q.text.startsWith(
-          'SELECT "id", "userId", "token", "expiresAt" FROM "session"',
+          'SELECT "id", "userId", "token", "expiresAt", "trustedOrganizationId" FROM "session"',
         ),
       ),
     ).toBe(false);

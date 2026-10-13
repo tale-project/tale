@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n/client';
 import type { TestFromRunWarning } from '@/lib/shared/schemas/automation-tests';
 
 import { nodeTitle } from '../../lib/node-face';
+import { TestDataNotice } from './test-data-notice';
 
 export interface SaveAsTestDialogProps {
   run: RunForTest;
@@ -235,9 +236,9 @@ export function SaveAsTestDialog({
                 run: runVersion,
                 version,
               })
-            : t('tests.fromRun.target')}{' '}
-          {t('tests.fromRun.privacy')}
+            : t('tests.fromRun.target')}
         </Text>
+        <TestDataNotice />
       </div>
     </ConfirmDialog>
   );

@@ -206,6 +206,7 @@ describe('get_settings', () => {
       'agent-model',
       'task-instructions',
       'task-review-context',
+      'automation-approval',
       'deployment',
     ]);
     expect(kinds.find((entry) => entry.kind === 'governance')).toMatchObject({
@@ -289,9 +290,125 @@ describe('get_settings', () => {
       getSettings(contextFor(), state.registry, { kinds: ['branding'] }),
     ).rejects.toThrow('connection refused');
   });
+
+  describe('paging several kinds', () => {
+    /** Two kinds whose listings have a second page, the way the project and
+     * agent listings do: both hand out the same `p<n>` form. */
+    function twoPaged() {
+      const state = seeded();
+      const paged = (kind: 'provider' | 'governance'): SettingsKindHandler => ({
+        ...state.handlers[kind]!,
+        list: async (_ctx, query) => ({
+          items: [],
+          nextCursor: query.cursor === undefined ? 'p10' : null,
+        }),
+      });
+      return {
+        ...state,
+        registry: {
+          ...state.registry,
+          provider: paged('provider'),
+          governance: paged('governance'),
+        },
+      };
+    }
+
+    it('answers the cursor of each kind that has another page, by kind, and none for a read of several [MCP-R35]', async () => {
+      const answer = await getSettings(contextFor(), twoPaged().registry, {
+        kinds: ['provider', 'governance'],
+      });
+      expect(answer.cursors).toEqual({
+        provider: 'provider:p10',
+        governance: 'governance:p10',
+      });
+      expect(answer.nextCursor).toBeNull();
+    });
+
+    it('answers a read of one kind its cursor both ways, and redeems it on that kind alone [MCP-R35]', async () => {
+      const state = twoPaged();
+      const first = await getSettings(contextFor(), state.registry, {
+        kinds: ['provider'],
+      });
+      expect(first.cursors).toEqual({ provider: 'provider:p10' });
+      expect(first.nextCursor).toBe('provider:p10');
+      const handlerList = vi.spyOn(state.registry.provider!, 'list');
+      const next = await getSettings(contextFor(), state.registry, {
+        kinds: ['provider'],
+        cursor: 'provider:p10',
+      });
+      expect(next.cursors).toEqual({});
+      expect(next.nextCursor).toBeNull();
+      // The listing is handed the place it issued, not the wire form.
+      expect(handlerList).toHaveBeenCalledWith(expect.anything(), {
+        cursor: 'p10',
+      });
+    });
+
+    it("refuses another kind's cursor as one no listing of this kind answered, reading nothing [MCP-R35]", async () => {
+      const state = twoPaged();
+      const handlerList = vi.spyOn(state.registry.governance!, 'list');
+      const answer = await getSettings(contextFor(), state.registry, {
+        kinds: ['governance'],
+        cursor: 'provider:p10',
+      });
+      expect(answer.resources).toEqual([]);
+      expect(answer.refused).toEqual([
+        {
+          kind: 'governance',
+          code: 'INVALID_CURSOR',
+          error: 'the cursor is not one this listing answered',
+          hint: expect.stringContaining('governance'),
+        },
+      ]);
+      expect(handlerList).not.toHaveBeenCalled();
+      // A cursor of no kind at all is refused the same way.
+      const bare = await getSettings(contextFor(), state.registry, {
+        kinds: ['governance'],
+        cursor: 'p10',
+      });
+      expect(bare.refused).toMatchObject([{ code: 'INVALID_CURSOR' }]);
+    });
+
+    it('answers no cursors for a catalog', async () => {
+      const catalog = await getSettings(contextFor(), seeded().registry, {});
+      expect(catalog.cursors).toEqual({});
+      expect(catalog.nextCursor).toBeNull();
+    });
+  });
 });
 
 describe('plan_settings', () => {
+  it('plans an act that would change nothing as unchanged, with no effects, and applies it by writing nothing', async () => {
+    const state = seeded();
+    vi.spyOn(state.handlers.provider!, 'plan').mockResolvedValue({
+      unchanged: true,
+      effects: ['reaches-vendor'],
+    });
+    const changes = [
+      {
+        kind: 'provider' as const,
+        id: 'vendor',
+        op: 'act' as const,
+        act: 'refresh-catalogs',
+      },
+    ];
+    const plan = await planSettings(contextFor(), state.registry, changes);
+    expect(plan.changes[0]).toMatchObject({
+      action: 'unchanged',
+      diff: [],
+      effects: [],
+      risk: 'low',
+    });
+    expect(
+      await applySettings(contextFor(), state.registry, changes, {
+        'provider/vendor': hashOf(state, 'provider/vendor'),
+      }),
+    ).toMatchObject({
+      applied: [{ key: 'provider/vendor', action: 'unchanged' }],
+    });
+    expect(state.writes).toEqual([]);
+  });
+
   it('refuses text Postgres could not store, naming every field it sits in', async () => {
     const state = seeded();
     const plan = await planSettings(contextFor(), state.registry, [
@@ -570,6 +687,30 @@ describe('apply_settings', () => {
       },
     });
     expect(read).not.toHaveBeenCalled();
+    expect(state.writes).toEqual([]);
+  });
+
+  it('lists at most fifty of the hashes it was given for resources no change names, and counts them all [MCP-R11]', async () => {
+    const state = seeded();
+    const stray = Object.fromEntries(
+      Array.from({ length: 80 }, (_, i) => [`governance/stray-${i}`, null]),
+    );
+    const answer = await applySettings(
+      contextFor(),
+      state.registry,
+      [passwordChange],
+      {
+        'governance/password_policy': hashOf(
+          state,
+          'governance/password_policy',
+        ),
+        ...stray,
+      },
+    );
+    expect(answer.code).toBe('INVALID_ARGUMENTS');
+    expect(answer.error).toContain('(and 79 more)');
+    const issues = (answer.data as { issues: unknown[] }).issues;
+    expect(issues).toHaveLength(50);
     expect(state.writes).toEqual([]);
   });
 

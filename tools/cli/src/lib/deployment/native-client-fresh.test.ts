@@ -389,7 +389,10 @@ test('actual pinned provider closures honor intent callbacks and authenticate re
               role: 'owner',
             },
           ]) as unknown as Parameters<typeof createOidcProvider>[0];
-          const plugin = createOidcProvider(sql, 'https://native.example.org');
+          const plugin = createOidcProvider(sql, 'https://native.example.org', {
+            dynamicRegistration: false,
+            clientDiscovery: null,
+          });
           // Better Auth 1.7 runs a client create inside `adapter.transaction`.
           // The real Postgres adapter supplies one; this in-memory stub has a
           // single store and no rollback, so it runs the body against itself.
@@ -518,7 +521,7 @@ test('actual pinned provider closures honor intent callbacks and authenticate re
 });
 
 test.each([
-  { grantTypes: ['authorization_code', 'refresh_token'] },
+  { grantTypes: ['authorization_code', 'implicit'] },
   { allowDynamicClientRegistration: true },
   { allowUnauthenticatedClientRegistration: true },
   { storeClientSecret: 'encrypted' },
@@ -536,6 +539,7 @@ test.each([
     const plugin = createOidcProvider(
       (async () => []) as unknown as Parameters<typeof createOidcProvider>[0],
       'https://native.example.org',
+      { dynamicRegistration: false, clientDiscovery: null },
     );
     Object.assign(plugin.options, change);
     const before = { ...plugin.options };
@@ -639,6 +643,7 @@ test.each([
                         typeof createOidcProvider
                       >[0],
                       'https://native.example.org',
+                      { dynamicRegistration: false, clientDiscovery: null },
                     ),
                   ],
                   database: { end: async () => undefined },

@@ -49,6 +49,19 @@ describe('the settings reference', () => {
     );
   });
 
+  test('says of a kind with no operation that its config is read only and its acts change it', () => {
+    const section = text.slice(text.indexOf('### automation-approval'));
+    expect(section).toContain(
+      'Operations: none; acts: grant, revoke. Base risk: high.',
+    );
+    expect(section).toContain(
+      'Config, as get_settings answers it (read only; the acts change it):',
+    );
+    // A kind that changes by operation says what its config is, plainly.
+    expect(text).toContain('### branding\n');
+    expect(text.slice(text.indexOf('### branding'))).toContain('\nConfig:\n');
+  });
+
   test('names every policy the governance kind takes, and why the others are not', () => {
     for (const key of FILE_POLICY_TYPES) {
       if (Object.hasOwn(GOVERNANCE_KEYS_NOT_OVER_MCP, key)) {

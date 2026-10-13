@@ -1,5 +1,5 @@
-import { signInViaApi, E2E_PASSWORD } from '../helpers/auth';
-import { BASE_URL, TIMEOUT } from '../helpers/env';
+import { signInViaApi, E2E_PASSWORD, newPersonContext } from '../helpers/auth';
+import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
@@ -69,7 +69,7 @@ test('admin adds a member who cannot see the add-member control', async ({
 
   // Second context as the new member: the add-member control is admin-only, so
   // it must be absent for a `member`-role user on the same settings page.
-  const memberContext = await browser.newContext({ baseURL: BASE_URL });
+  const memberContext = await newPersonContext(browser);
   try {
     await signInViaApi(memberContext.request, memberCreds);
     const memberPage = await memberContext.newPage();

@@ -1,11 +1,11 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 135 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 141 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
 AI providers, Connectors, Skills, Branding, Sandboxes, Governance, Metrics)
-and **Advanced** (API: REST / Models / MCP / WebDAV, Enterprise SSO, Data residency).
+and **Advanced** (API: REST / Models / MCP / Connected agents / WebDAV, Enterprise SSO, Data residency).
 Governance has its own guide ([governance.md](governance.md)); data-residency
 depth lives in [data-residency.md](data-residency.md) (one route case here);
 connector depth (per-type credentials, OAuth, imap-smtp) lives in
@@ -43,6 +43,7 @@ disclosure rows whose children render indented.
 | API → REST (API keys)      | `/dashboard/{org}/settings/api/rest` (`…/settings/api` redirects here)     |
 | API → Models               | `/dashboard/{org}/settings/api/models`                                     |
 | API → MCP                  | `/dashboard/{org}/settings/api/mcp`                                        |
+| API → Connected agents     | `/dashboard/{org}/settings/api/agents`                                     |
 | API → WebDAV               | `/dashboard/{org}/settings/api/webdav`                                     |
 | Enterprise SSO             | `/dashboard/{org}/settings/enterprise-sso`                                 |
 | Data residency             | `/dashboard/{org}/settings/data-residency`                                 |
@@ -64,15 +65,18 @@ Bring the stack up and sign in per [SETUP.md](../setup.md) as an **owner**.
 Role gating (from `lib/permissions/ability.ts`): the Organization-group pages
 plus Enterprise SSO, Data residency, Governance, and Metrics need
 `orgSettings` read (**owner/admin**); Providers, Connectors, Sandboxes, and
-the API section need `developerSettings` read (**owner/admin/developer**), except that a member holding the **Call models over the API** competence opens the API section's REST and Models tabs (SET-B26);
+the API section need `developerSettings` read (**owner/admin/developer**), except that a member holding the **Call models over the API** competence opens the API section's REST and Models tabs (SET-B26), and one who may connect a coding agent here, or still holds a live connection, opens Connected agents (SET-B38);
 Skills and the Personal group are open to every member. SET-B4–SET-B5 need a
 second account per role (mint via `POST /api/auth/sign-up/email`, add under
 Settings → Members); SET-F16 needs a second **already-existing** account. Mode
 A makes the connector add-credential smoke (SET-F25) deterministic. The model
 endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
 endpoints switched on as in governance.md GOV-F41; a real answer needs mode B
-with the sandbox model gateway running. Restore any toggled setting after the
-run.
+with the sandbox model gateway running. The Connected agents boxes (SET-F85–SET-F88, SET-B38, SET-A11)
+need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe, which takes
+the agent sign-in switched on (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=true`);
+the page itself is absent while it is off (SET-B38).
+Restore any toggled setting after the run.
 
 > **Agent note**: pages on the header **Save** / **Discard** cluster
 > (`common.actions.save` / `common.actions.discard`) — Account profile,
@@ -820,7 +824,8 @@ run.
 - [ ] `SET-F64` · **Models tab while the model endpoints are off** — As an
   owner, with **Model endpoints for API keys** off (governance.md GOV-F40),
   open `/dashboard/{org}/settings/api/models` → The API pages read **REST**,
-  **Models** (`navigation.apiModels`), **MCP** and **WebDAV** in that order,
+  **Models** (`navigation.apiModels`), **MCP**, **Connected agents**
+  (`navigation.connectedAgents`) and **WebDAV** in that order,
   in the settings rail's API row and, at narrow widths, in the tab strip; the
   page shows **Model endpoints are not enabled for your organization**
   (`settings.modelEndpoints.disabled.title`) with
@@ -975,6 +980,56 @@ run.
   (`sandboxes.lightSandbox`) beneath it; the row menu offers **Destroy**
   (`sandboxes.actions.destroy`) but no **Pin**. **Destroy** it → the row goes;
   the chat's next code run starts a fresh sandbox and still succeeds.
+
+- [ ] `SET-F85` · **Connected agents: your own agents** — With two coding
+  agents connected as AUTH-F34–AUTH-F36 describe, one that proved its own
+  domain and one that registered itself, open `/dashboard/{org}/settings/api/agents`
+  from the rail's **API** row, where **Connected agents** sits between **MCP**
+  and **WebDAV** → The page (`navigation.connectedAgents`) shows its
+  description (`agentConnections.list.description`) and a table named
+  **Connected coding agents** (`agentConnections.list.caption`): each agent's
+  name over its domain, or over the **Unverified** badge
+  (`agentConnections.list.unverified`) for the app that registered itself;
+  **Access** shows the level chosen on the consent page — **Read and test**,
+  **Edit automations** or **Edit and deploy** — and each extra beside it in a
+  warmer tint where it acts live or changes something, a long word wrapping in
+  its badge rather than cut short; **Connected** shows the day; **Last used**
+  reads **Never** (`agentConnections.list.never`) until the agent calls the MCP
+  endpoint and a relative time after a `tools/list` call and a reload;
+  **Connect a coding agent** (`agentConnections.list.connectAction`) leads to
+  the MCP page. As a person who connected nothing the page shows **No coding
+  agents connected** with the same button inside it.
+- [ ] `SET-F86` · **Disconnecting an agent** — From a row's menu (**Actions
+  for {agent}**, `agentConnections.list.actionsLabel`) choose **Disconnect**
+  (`agentConnections.list.actions.disconnect`) → The dialog asks **Disconnect
+  {agent}?** and says it loses access to this organization at once and can be
+  connected again; **Cancel** (or Escape) changes nothing; **Disconnect**
+  shows **{agent} disconnected** (`agentConnections.disconnect.success`) and the
+  row leaves the list; a `tools/list` call with the agent's token now answers
+  401, its refresh token is refused, and Governance › Logs holds **Coding agent
+  disconnected** (`settings.logs.audit.actionLabels.agent_connection.revoked`)
+  with your name. With the backend stopped, **Disconnect** keeps the dialog
+  open and the toast says it could not be disconnected
+  (`agentConnections.disconnect.failed`); with the backend back, the same
+  button disconnects it.
+- [ ] `SET-F87` · **An owner or admin sees everyone's agents** — As the owner,
+  with agents of two other people connected, choose **Everyone**
+  (`agentConnections.list.everyone`) → **Person** joins the table, each
+  name over their address with your own reading **You**
+  (`agentConnections.list.you`), and the description reads
+  `agentConnections.list.adminDescription`; **Show disconnected**
+  (`agentConnections.list.showDisconnected`) adds the ended ones, each saying
+  **Disconnected {date} · {reason}** whole, wrapping instead of cutting the
+  reason, and none with a menu; **Mine** goes back to yours. Disconnect
+  another person's agent → the dialog names whose it is
+  (`agentConnections.disconnect.adminBody`), and that person's bell then says
+  you disconnected it (`inbox.agentConnectionEndedAdminBody`) and opens
+  **Connected agents** from the notice.
+- [ ] `SET-F88` · **The list follows changes made elsewhere** — With the page
+  open as one person and a second session as the owner, the owner disconnects
+  that person's only agent → on the open page, with no reload, the row goes,
+  the empty state shows and the bell gains the notice; an agent connected on
+  the consent page in another tab appears in the open list on its own.
 
 ## Boundary & error tests
 
@@ -1275,6 +1330,22 @@ run.
   while A holds an unsaved color → A's **Save** is refused the same way and the
   reset stays after a reload.
 
+- [ ] `SET-B38` · **Who opens Connected agents** — With the agent sign-in on,
+  sign in as a member who holds a competence that is used with a key, with no
+  developer role (SET-B26's setup) → the rail's **API** row lists **REST** and **Connected agents** and
+  no other; the page lists their own agents, with no **Mine** / **Everyone**,
+  no **Show disconnected** and no **Connect a coding agent**; `…/api/mcp` and
+  `…/api/webdav` by URL show **This page is for Owners, Admins and
+  Developers.** (`accessDenied.apiTab`). Revoke the competence and the API key
+  → **API** keeps **Connected agents** alone while they hold a live agent;
+  disconnect it → the row disappears and `…/api/agents` by URL shows **Access
+  denied** with `accessDenied.apiKeys`. A plain member who never had either
+  never sees the row. With the agent sign-in switched off
+  (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and `TALE_MCP_CLIENT_METADATA_DOCUMENTS`
+  unset) the owner's rail has no **Connected agents** while they hold no agent,
+  and a person who still holds one keeps the page, without **Connect a coding
+  agent**.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `SET-A1` · **Settings rail** → The rail is a labelled `nav`
@@ -1328,6 +1399,21 @@ run.
   at narrow widths in `en`, `de` and `fr` the setups wrap or scroll inside
   their own block and the page never scrolls sideways; in the not-enabled
   state, **Open model access** is reachable the same way.
+
+- [ ] `SET-A11` · **Connected agents by keyboard and screen reader** — On
+  `/dashboard/{org}/settings/api/agents` as the owner, Tab through the page →
+  **Mine** and **Everyone** are one group named **Agents to show**
+  (`agentConnections.list.viewLabel`) and the arrow keys move between them;
+  **Show disconnected**, **Connect a coding agent** and each row's menu take
+  visible focus, each menu named for its agent; **Disconnect** opens a dialog
+  that holds focus, announces its question and gives focus back on Escape; the
+  table has a caption and a header for the menu column
+  (`agentConnections.list.columns.actions`); no state is colour alone — the
+  access reads in words and **Unverified** and **Disconnected** are text. At
+  320, 390, 768, 1024 and 1280 px in `en`, `de` and `fr` the table never
+  scrolls sideways: a phone shows each agent with its menu in reach, a
+  tablet adds **Access** and **Last used**, a wide screen **Connected**; a
+  very long app name ends in an ellipsis with its full name on hover.
 
 ## Performance
 

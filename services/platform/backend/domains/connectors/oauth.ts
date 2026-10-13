@@ -610,6 +610,8 @@ export async function completeOauth2(
     /** The signed-in user completing the flow, or null when the browser
      * carries no session. */
     requesterUserId: string | null;
+    /** The returning session's server-owned realm; null is a global session. */
+    requesterOrganizationId: string | null;
   },
   /** The reused exchange's own documented seam — injected only by tests, so
    * the whole flow is exercisable without a network. */
@@ -640,7 +642,12 @@ export async function completeOauth2(
     pending;
   const intent = intentOf(pending.reconnectCredentialId);
 
-  if (args.requesterUserId === null || args.requesterUserId !== userId) {
+  if (
+    args.requesterUserId === null ||
+    args.requesterUserId !== userId ||
+    (args.requesterOrganizationId !== null &&
+      args.requesterOrganizationId !== organizationId)
+  ) {
     // Same page as a forged state: the completer learns nothing about whose
     // flow this was, and the state is already gone.
     console.warn(

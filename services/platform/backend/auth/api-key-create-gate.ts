@@ -79,3 +79,31 @@ export async function mayCreateApiKeys(
   `;
   return grants.length > 0;
 }
+
+/**
+ * Whether a person may connect a coding agent to one organization, by
+ * signing in from the agent: the rule of holding a personal API key, read
+ * for that organization alone. An owner, admin or developer there passes;
+ * so does a member holding a live grant of a key-using capability in it,
+ * while their seat is not disabled; nobody else. A connection works in the
+ * organization it was made for and nowhere else, so another organization's
+ * role or grant never counts.
+ */
+export async function mayConnectAgentIn(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; userId: string; role: string },
+  now: number = Date.now(),
+): Promise<boolean> {
+  if (defineAbilityFor(args.role).can('read', 'developerSettings')) return true;
+  if (args.role.toLowerCase() === 'disabled') return false;
+  const grants = await sql<{ id: string }[]>`
+    SELECT id FROM app.competence_records
+    WHERE user_id = ${args.userId}
+      AND org_id = ${args.organizationId}
+      AND competence IN ${sql([...API_KEY_CAPABILITIES])}
+      AND revoked_at_ms IS NULL
+      AND (expires_at_ms IS NULL OR expires_at_ms > ${now})
+    LIMIT 1
+  `;
+  return grants.length > 0;
+}

@@ -300,6 +300,14 @@ One run sends at most 100 messages across its steps; a step that would pass that
   run stops at the step that would send the 101st message, and says to send one message to
   several members instead.
 
+## Native task receipt metadata
+
+### CONN-R28 · A task read names one requested run, and comment IDs come from their rows
+
+`task.get` with `agentRunId` returns only that run’s identity, status and clocks when it belongs to the already read task, project and organization. A missing or foreign run is `agentRun: null`, never a different or latest run. Without the option, the original response stays unchanged. `task.list_comments` with `includeIds: true` adds native message IDs beside the existing trusted author metadata; text in a comment cannot supply its ID. Reads change no grants or admission rules.
+
+- **Example**: A checkpoint claims a run from another task → the read returns null metadata; the checker keeps identity unknown instead of borrowing the latest run.
+
 ## Not yet
 
 - **The catalog of connectors**, what each can do, and which need an approval before they

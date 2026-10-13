@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   API_KEY_CAPABILITIES,
+  mayConnectAgentIn,
   mayCreateApiKeys,
 } from './api-key-create-gate.ts';
 
@@ -119,5 +120,56 @@ describe('mayCreateApiKeys', () => {
       'tale:notifications.export',
       'tale:rest.act-as',
     ]);
+  });
+});
+
+/**
+ * Who may connect a coding agent to one organization: the rule of holding a
+ * personal API key, read for that organization alone [AGCONN-R7].
+ */
+describe('mayConnectAgentIn [AGCONN-R7]', () => {
+  const ask = (role: string, grant: boolean, organizationId = 'org-1') => {
+    const { sql, queries } = database([], grant);
+    return mayConnectAgentIn(
+      sql,
+      { organizationId, userId: 'u1', role },
+      NOW,
+    ).then((allowed) => ({ allowed, queries }));
+  };
+
+  it.each(['owner', 'admin', 'developer', 'Developer'])(
+    'lets a %s connect one without reading grants',
+    async (role) => {
+      const { allowed, queries } = await ask(role, false);
+      expect(allowed).toBe(true);
+      expect(queries).toEqual([]);
+    },
+  );
+
+  it('lets a member holding a live key-using grant in this organization connect one, and reads only this organization’s grants', async () => {
+    const { allowed, queries } = await ask('member', true, 'org-7');
+    expect(allowed).toBe(true);
+    expect(queries[0]?.text).toContain('FROM app.competence_records');
+    expect(queries[0]?.text).toContain('org_id = ?');
+    expect(queries[0]?.text).toContain('revoked_at_ms IS NULL');
+    expect(queries[0]?.values).toEqual([
+      'u1',
+      'org-7',
+      [...API_KEY_CAPABILITIES],
+      NOW,
+    ]);
+  });
+
+  it.each(['member', 'editor'])(
+    'refuses a %s without such a grant',
+    async (role) => {
+      expect((await ask(role, false)).allowed).toBe(false);
+    },
+  );
+
+  it('refuses a disabled seat, whatever it was granted, without reading grants', async () => {
+    const { allowed, queries } = await ask('disabled', true);
+    expect(allowed).toBe(false);
+    expect(queries).toEqual([]);
   });
 });

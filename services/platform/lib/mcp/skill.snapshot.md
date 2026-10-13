@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Needs Tale's MCP server connected (https://<your Tale>/api/v1/mcp); works with any MCP client that reads skills."
 metadata:
   publisher: tale
-  contract: "3.38.0"
+  contract: "3.43.0"
 ---
 
 # Tale
@@ -40,7 +40,9 @@ A save refused with AUTOMATION_VERSION_STALE means someone saved meanwhile: read
 
 ## Testing
 
-- run_automation runs a draft on the mocks; test_automation runs the tests of a draft, or of a saved version (name, version) and records the verdict on it.
+- run_automation runs a draft on the mocks. mocks and failures stand in for nodes (the outside world’s answers, or a failure); upTo runs a node and what it needs, only runs one node on pinned data. The answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).
+- test_automation runs the tests of a draft, or of a saved version (name, version): all of them, or those named in tests. Without detail you get each verdict and, for a failing test, what differed; detail adds what each run returned (output), did (effects) and went through (trace). The whole suite of a saved version is recorded on it as its verdict; a part of it is not.
+- Both run inside Tale and draw from the organization’s budget for runs that are never stored: on RATE_LIMITED wait data.retryAfterMs, then call again.
 - start_run with mode "mock" runs a saved version on the mocks and records the run, so the person can review it in Tale. Without mode, start_run is live.
 
 ## Versions and rollback
@@ -81,10 +83,12 @@ A refusal is data, never a crash: {error, code, hint, data}. Branch on code and 
 | AUTOMATION_NAME_TAKEN | The name is in use, perhaps by an automation the person cannot see: pick another name. |
 | AUTOMATION_DEPLOYMENT_STALE | Another version went live meanwhile: tell the person and ask again. |
 | AUTOMATION_NOT_FOUND | Check the name with list_automations; it may be one the person cannot see. |
+| BENCH_INVALID | The stand-ins or the scope do not fit the document: data.issue names the node or field and what to give instead. Fix it and run again. |
 | FORBIDDEN_DEVELOPER_SETTINGS | The person's role cannot do this. Say so; do not retry. |
 | SETTINGS_STALE | The setting changed since you read it: read it again with get_settings, plan against what is stored, apply with data.currentHash. |
 | SECRET_ARGUMENT_REFUSED | Take the secret out of the change (data.places says where); the person enters it in Tale. |
 | SETTINGS_TALE_ONLY | The change is made in Tale alone: tell the person where. |
+| USE_SUBSCRIPTION_FLOW | A subscription is connected through Tale, never by a change: tell the person to connect it under Settings > AI providers. |
 | RATE_LIMITED | Wait data.retryAfterMs, then call again. |
 | INTERNAL_ERROR | Tell the person data.requestId; whoever runs Tale can look it up. |
 

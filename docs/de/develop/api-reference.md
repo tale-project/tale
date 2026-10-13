@@ -633,6 +633,26 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/
 
 `POST /api/v1/automations/{name}/versions/{version}/restore` holt eine ältere Version als neueste zurück, wiederhergestellt aus ihr, nach den Prüfungen und Tests jedes Speicherns: **201** mit der neuen `version` oder **200** mit `unchanged: true`, wenn die neueste Version diesen Inhalt schon hat und nichts gespeichert wurde. Es deployt nie; die Live-Version bleibt live. `baseVersion` ist die neueste Version, die du gelesen hast, und eine seither gespeicherte Version lehnt das Wiederherstellen mit **409** `AUTOMATION_VERSION_STALE` und `data.latestVersion` ab.
 
+### Die Tests einer Version ausführen
+
+`POST /api/v1/automations/{name}/versions/{version}/tests` führt die Tests aus dem Dokument einer gespeicherten Version mit den deterministischen Mocks aus – dieselben, die [der Editor ausführt](/de/platform/automations/testing). Nichts verlässt Tale, und nichts wird gespeichert; deshalb darf der Schlüssel jedes Mitglieds sie ausführen. Der Body ist optional:
+
+```bash
+# Zwei Tests von v7 ausführen und lesen, was jeder Lauf zurückgab
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/versions/7/tests" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "tests": ["late invoice", "paid in full"], "detail": ["output"] }'
+# → 200 { "name": "billing/dunning", "version": 7, "passed": 1, "failed": 1, "results": [ … ] }
+```
+
+`tests` nennt die Tests, die laufen sollen, mit dem Namen, den das Dokument jedem gibt; lässt du es weg, laufen alle. Ein Name, den kein Test oder den zwei Tests tragen, wird mit **400** `INVALID_BODY` abgelehnt und nennt die vorhandenen Tests. Jeder Eintrag von `results` sagt, ob sein Test bestanden hat und wie lange er dauerte, und listet bei einem, der es nicht hat, unter `failures` auf, was abwich und wo: Jeder Eintrag hat eine `kind` (`output`, `effect_missing`, `node_state`, `run_failed`, `timeout` und weitere) und die dazugehörigen Fakten, dazu als `message` den ersten Satz der Engine. `detail` ergänzt jedes Ergebnis um das, was sein Lauf zurückgab (`output`), getan hätte (`effects`) und durchlief (`trace`, der Lauf Schritt für Schritt unter `run.record`); ein Lauf über 256 KB und Läufe über 384 KB zusammen werden weggelassen und mit `detailOmitted` markiert – führe diesen Test dann allein aus, um ihn zu lesen. Ein Test endet nach 10 Sekunden, eine Suite nach 60; die Tests, die die Zeit der Suite nicht mehr erreichte, stehen in `notRun` und zählen als fehlgeschlagen.
+
+Läuft die ganze Suite bis zum Ende, wird das Ergebnis an der Version als ihr Ergebnis festgehalten, als von Hand mit dem Schlüssel ausgeführt: Die Antwort trägt `recorded` (`version`, `testsPassed`), und `GET …/tests` liest es zurück. Ein Teil der Suite, eine Version ohne Tests (ein leerer Bericht) und eine Suite, deren Zeit abgelaufen ist, halten nichts fest. Eine Version, die die Prüfungen nicht mehr besteht, antwortet mit **409** `AUTOMATION_INVALID` (`data.errors` listet die Probleme). Der Aufruf verbraucht eine Anfrage aus dem Ausführungsbudget, bevor irgendetwas nachgeschlagen wird, und eine Einheit je Test aus dem Budget der Organisation für Läufe, die nie gespeichert werden; ist eines davon aufgebraucht, antwortet er mit **429** `RATE_LIMITED` und `Retry-After`.
+
+`GET /api/v1/automations/{name}/versions/{version}/tests` liest, was die Tests einer Version zuletzt ergeben haben: das Ergebnis (`testsPassed`, `null`, solange keines festgehalten wurde), wann (`testsCheckedAt`), durch welchen Vorgang (`via`: `save`, `deploy` oder `manual`) und von wem (`by`, dazu `byName`, solange die Person Mitglied ist) sowie den `report` dieser Prüfung – jeden Test, ob er bestanden hat, und bei einem, der es nicht hat, was abwich. Ein Bericht über 64 KB behält von jedem Eintrag in `failures` nur die `kind` (`trimmed: true`). Eine Version, die nie geprüft wurde, antwortet mit `null`-Werten, nicht mit einem Fehler.
+
 ## Trigger
 
 Ein Trigger startet eine Automatisierung ohne deinen Aufruf: nach Zeitplan, über eine Webhook-URL oder wenn die Plattform ein Event auslöst. Binde einen mit `PUT /api/v1/automations/{name}/triggers` — ein Trigger pro Automatisierung, und das `PUT` ersetzt, was vorher gebunden war:

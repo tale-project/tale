@@ -87,6 +87,12 @@ The agent's report appears in task comments and collected files appear as delive
 
 [Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 
+## Read the current execution {#current-execution}
+
+On a task-agent turn, call the separate `workspace_status` tool with `{}` to read fresh execution identity. For a live turn, the platform checks the token’s organization, session and exec against the current task run and returns `currentExecution`: `taskId`, `agentId`, `runId`, `execId`, `startedAt`, `launchedAt` and the server’s `observedAt`. Times are epoch milliseconds; `launchedAt` can be `null` while the run is queued.
+
+A superseded or ended turn has no current identity. `null`, an absent field or a failed read means unknown; do not copy identity from earlier guidance or a saved receipt. Ordinary chat, workflow and older platform responses can omit this field. Expired authentication stays refused. The tool listing and grants stay unchanged, and discovery needs no additional tool grant. This observation does not authorize a start, command or publication.
+
 ## Run one agent on several tasks
 
 An agent is a configuration; a worker is one running copy of it. Each task the agent works on at the same time runs in a worker of its own: a sandbox with its own workspace, memory and processes, so two tasks never share files or slow each other down. Start the agent Scribe on “Release notes” and on “Changelog”, and both work at once, one per worker. The one exception is the [standard agent](#standard-agent-runs) when a person starts it: it works the task without a worker until the work needs one.

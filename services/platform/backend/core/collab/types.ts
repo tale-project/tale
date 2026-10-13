@@ -76,4 +76,9 @@ export type NotificationType =
   // An Owner or Admin made an API key that acts as the member in this
   // organization (`api_keys/service.ts`): the member hears of a credential
   // in their name, and can revoke it. Bell only — nothing waits on them.
-  | 'api_key_created';
+  | 'api_key_created'
+  // A coding agent the member connected was disconnected by something other
+  // than their own hand (`agent_connections/end.ts`): a refresh token used
+  // twice, a password or sign-in method that changed, an admin's disconnect.
+  // Bell only: never e-mailed, never shown to anyone else.
+  | 'agent_connection_ended';

@@ -635,6 +635,24 @@ export async function deleteOrganization(
   // Native OAuth clients bind to the organization through referenceId.
   // Better Auth's foreign keys cascade their tokens and consent grants.
   await tx`DELETE FROM "oauthClient" WHERE "referenceId" = ${organizationId}`;
+  // The grants coding agents hold for the organization are not clients of
+  // it: the sign-in server keys their consent and tokens by the
+  // organization they were made for. (`app.agent_connections` is keyed by
+  // org_id and went with the cascade above.)
+  await tx`
+    DELETE FROM "oauthAccessToken"
+    WHERE "referenceId" = ${organizationId}
+      OR "refreshId" IN (
+        SELECT "id" FROM "oauthRefreshToken"
+        WHERE "referenceId" = ${organizationId}
+      )
+  `;
+  await tx`
+    DELETE FROM "oauthRefreshToken" WHERE "referenceId" = ${organizationId}
+  `;
+  await tx`
+    DELETE FROM "oauthConsent" WHERE "referenceId" = ${organizationId}
+  `;
   await tx`
     DELETE FROM "teamMember"
     WHERE "teamId" IN (

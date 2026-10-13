@@ -77,6 +77,8 @@ Während der Übergangsfrist sehen Mitglieder eine Erinnerung. Danach sperrt Tal
 
 ## Einem ausgesperrten Mitglied helfen
 
+Die Passkeys eines Mitglieds kannst du nur anzeigen oder entfernen und seinen Authenticator nur zurücksetzen, wenn du in jeder Organisation mit einer Mitgliedschaft dieser Person Inhaber oder Admin bist. Das gilt auch für deaktivierte Mitgliedschaften. Hat die Person irgendwo die Rolle Inhaber, musst du in jeder solchen Organisation ein anderer Inhaber sein, um einen Faktor zu entfernen. Inhaber verwalten ihre eigenen Faktoren unter **Einstellungen > Konto**.
+
 Prüfe zuerst die Identität der Person nach dem Wiederherstellungsprozess deiner Organisation. Öffne dann **Einstellungen > Mitglieder**, bearbeite das Mitglied und wähle **Zwei-Faktor zurücksetzen**. Die Bestätigung entfernt die Authenticator-Einrichtung und beendet alle aktiven Sitzungen. Die Person kann sich erneut anmelden und einen neuen Authenticator einrichten. Gilt die Pflicht, muss sie die Einrichtung abschließen, bevor sie weiterarbeiten kann.
 
 Ist ein Passkey verloren gegangen, entferne stattdessen diesen Eintrag im Abschnitt **Passkeys** des Mitglieddialogs. Auch das beendet alle Sitzungen des Mitglieds. Die Wiederherstellungsaktionen findest du in den [Audit-Logs](/de/platform/admin/governance/audit-logs).

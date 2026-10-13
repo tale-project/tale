@@ -9,6 +9,8 @@ import { backendFetch } from '@/app/lib/backend/api-client';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
+import { AgentConsent } from './agent-consent/agent-consent';
+import { isAgentRequest } from './agent-consent/agent-consent-request';
 import { AuthFormLayout } from './auth-form-layout';
 import { AuthPageLayout } from './auth-page-layout';
 
@@ -20,6 +22,9 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
   const [email, setEmail] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  // A coding agent's request is answered by its own page, once the sign-in
+  // and two-factor checks below have passed.
+  const [agent, setAgent] = useState(false);
   const started = useRef(false);
   const mounted = useRef(true);
 
@@ -80,6 +85,10 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
           return;
         }
         setEmail(session.data.user.email);
+        if (consent && isAgentRequest(window.location.search)) {
+          setAgent(true);
+          return;
+        }
         if (!consent) {
           await continueRequest();
           return;
@@ -103,6 +112,8 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
       mounted.current = false;
     };
   }, [consent, navigate]);
+
+  if (agent && email !== undefined) return <AgentConsent email={email} />;
 
   return (
     <AuthPageLayout>

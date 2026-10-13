@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 
 import { dispatch } from '../../../lib/engine/api/dispatch.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
 import { appOrigin } from '../../lib/write-origin.ts';
 import { memberNamesOf } from './author-names.ts';
@@ -51,6 +52,7 @@ export async function checkVersionHistory(
   const otherOrg = `itest-names-org-${suffix}`;
   const agentRestored = `itest-versions-restore-${suffix}`;
   const namedInstead = `itest-versions-named-${suffix}`;
+  const complete = `itest-versions-complete-${suffix}`;
   const node = (id: string) => ({
     id,
     type: 'transform',
@@ -75,6 +77,11 @@ export async function checkVersionHistory(
     });
 
   try {
+    await checkMcpVersionHistory(sql, record, {
+      orgId,
+      userId,
+      name: complete,
+    });
     const v1 = await save(name, ['a']);
     const v2 = await save(name, ['a', 'b'], { baseVersion: 1 });
     const v3 = await save(name, ['a', 'b', 'c']);
@@ -336,7 +343,7 @@ export async function checkVersionHistory(
         );
       },
     );
-    for (const automation of [name, kept, agentRestored]) {
+    for (const automation of [name, kept, agentRestored, complete]) {
       await deleteAutomationCascade(sql, {
         organizationId: orgId,
         name: automation,
@@ -349,4 +356,135 @@ export async function checkVersionHistory(
       });
     }
   }
+}
+
+/** The production MCP adapter and dispatch must keep their complete-history
+ * default across both the app's 50-row default and its 200-row page ceiling.
+ * The caller owns this fixture name and removes it in its cleanup. */
+async function checkMcpVersionHistory(
+  sql: Sql,
+  record: (name: string, ok: boolean, detail: string) => void,
+  args: { orgId: string; userId: string; name: string },
+): Promise<void> {
+  const { orgId, userId, name } = args;
+  const origin = appOrigin(userId);
+  const store = pgAutomationStore(sql, {
+    organizationId: orgId,
+    origin,
+    visibleOnly: true,
+  });
+  const read = async (params: { before?: number; limit?: number } = {}) => {
+    const answer = await dispatch(
+      'list_versions',
+      { name, ...params },
+      { store },
+    );
+    if (
+      !isRecord(answer) ||
+      !Array.isArray(answer.versions) ||
+      !answer.versions.every(isRecord)
+    ) {
+      throw new Error('the MCP version history did not answer versions');
+    }
+    return {
+      versions: answer.versions,
+      nextBefore: answer.nextBefore,
+      latestVersion: answer.latestVersion,
+      deployedVersion: answer.deployedVersion,
+    };
+  };
+  for (let version = 1; version <= 205; version += 1) {
+    await saveVersion(sql, {
+      organizationId: orgId,
+      name,
+      document: {
+        version: 1,
+        name,
+        description: `retained version ${String(version === 2 ? 1 : version)}`,
+        nodes: [],
+      },
+      message: `Version ${String(version)}`,
+      origin,
+      ...(version === 2 ? { basedOnVersion: 1, restoredFromVersion: 1 } : {}),
+      testsPassed: true,
+      testReport: {
+        passed: 1,
+        failed: 0,
+        results: [{ name: 'kept', pass: true, index: 0, ms: 1 }],
+      },
+    });
+    if (version === 51) {
+      const answer = await read();
+      record(
+        'MCP complete history exceeds the app reader’s 50-row default [MCP-R30]',
+        answer.versions.length === 51 &&
+          answer.versions.at(-1)?.version === 1 &&
+          answer.nextBefore === null,
+        JSON.stringify({
+          count: answer.versions.length,
+          last: answer.versions.at(-1)?.version,
+          nextBefore: answer.nextBefore,
+        }),
+      );
+    }
+  }
+  const answer = await read();
+  const oldest = answer.versions.at(-1);
+  const restored = answer.versions.find((row) => row.version === 2);
+  const authorName =
+    (await memberNamesOf(sql, orgId, [userId])).get(userId) ?? null;
+  const expected = Array.from({ length: 205 }, (_, index) => 205 - index);
+  record(
+    'MCP complete history crosses the 200-row ceiling with every retained row and rich metadata [MCP-R30]',
+    JSON.stringify(answer.versions.map((row) => row.version)) ===
+      JSON.stringify(expected) &&
+      answer.latestVersion === 205 &&
+      answer.deployedVersion === null &&
+      answer.nextBefore === null &&
+      oldest?.createdVia === 'app' &&
+      oldest.createdBy === userId &&
+      oldest.createdByName === authorName &&
+      restored?.basedOnVersion === 1 &&
+      restored.restoredFromVersion === 1 &&
+      isRecord(oldest.tests) &&
+      oldest.tests.passed === 1 &&
+      oldest.tests.failed === 0 &&
+      isRecord(oldest.changes) &&
+      oldest.changes.first === true,
+    JSON.stringify({
+      count: answer.versions.length,
+      latest: answer.latestVersion,
+      nextBefore: answer.nextBefore,
+      oldest,
+    }),
+  );
+  const before = await read({ before: 205 });
+  record(
+    'MCP before without a limit exhausts the older retained history [MCP-R30]',
+    before.versions.length === 204 &&
+      before.versions[0]?.version === 204 &&
+      before.versions.at(-1)?.version === 1 &&
+      before.nextBefore === null,
+    JSON.stringify({
+      count: before.versions.length,
+      first: before.versions[0]?.version,
+      last: before.versions.at(-1)?.version,
+      nextBefore: before.nextBefore,
+    }),
+  );
+  const page = await read({ limit: 200 });
+  const direct = await listVersionHistory(sql, orgId, name);
+  record(
+    'MCP explicit pages and the app’s direct 50-row default remain bounded [MCP-R30]',
+    page.versions.length === 200 &&
+      page.nextBefore === 6 &&
+      direct.versions.length === 50 &&
+      direct.nextBefore === 156,
+    JSON.stringify({
+      mcpCount: page.versions.length,
+      mcpNext: page.nextBefore,
+      directCount: direct.versions.length,
+      directNext: direct.nextBefore,
+    }),
+  );
 }

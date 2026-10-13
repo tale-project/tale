@@ -58,6 +58,49 @@ and its answer would reveal it.
 - **Example**: Noah, a developer outside the HR team, has his agent save `hr/onboarding` without
   `create` → refused as a taken name, and no version is added; the agent picks another name.
 
+## A coding agent that signed in
+
+An agent can call the endpoint with an access token instead of a key, once its person connected it
+from the agent (see the [agent connections](../agent_connections/spec.md)). The call acts as that
+person, in the organization the connection was made for, with their role at the time of the request,
+as a key's does — and the connection adds one limit more: the access the person allowed.
+
+### MCP-R40 · What a person allowed an agent narrows their role and never widens it
+
+A connection holds the access its person allowed when they connected the agent: reading and
+testing, editing, editing and deploying, and reading or changing settings. A call needs both the
+role of its tool and the access of its tool; without either it is refused. The role is judged first,
+so a person whose role cannot do something is told so, not told to ask for more. A run started on
+the mocks and the plan of a replay need only reading and testing; a live start needs deploying. A
+key holds no such access: its person's role alone decides.
+
+- **Example**: Ada, a developer, connected Cursor to read and test. Cursor starts a mock run →
+  it runs. It starts a live one → refused, asking for "Edit and deploy". Mia, a member, connected
+  hers to read and test; her agent saves an automation → refused as her role's, with nothing to ask for.
+
+### MCP-R41 · A request that needs missing access runs nothing and says what to ask for
+
+When any call in a request needs access the connection lacks and its person could allow, the whole
+request is refused with 403 `INSUFFICIENT_SCOPE` and none of its calls run, so a batch is never half
+done. The answer carries a challenge that names the access to ask for together with all the connection
+already holds, so asking again never drops what the agent had. Calls that the person's role could never
+allow are not refused this way: each is refused as a tool error, since asking would change nothing. The
+handshake, the lists and a notification are never refused for access.
+
+- **Example**: Cursor sends a batch that reads a run and then deploys an automation, holding reading and
+  editing → 403, nothing ran, and the challenge asks for reading, editing and deploying.
+
+### MCP-R42 · What a connection's call leaves behind names the connection
+
+A call made through a connection writes as its person through the MCP door, as a key's does, and names
+the connection where a key's names the key: the audit rows it writes carry the connection and the app
+(or the client name the call gave), a version it saves records the MCP door and the app, and its
+counters are kept under the connection, which is where its "last used" is read from. A connection is
+not a key, so the budgets and the spend of a key do not see it; its person's do.
+
+- **Example**: Ada's Cursor saves a version of Dunning → the version says it was saved through MCP by
+  Cursor, the audit row names Ada's connection, and the connection's last use moves to now.
+
 ## Saving, deploying and deleting
 
 An agent saves, deploys and deletes through the same store the editor does, with the same rules
@@ -102,8 +145,9 @@ version again rolls back.
 
 ## Reading and bringing back versions
 
-A version never changes once it is saved, so an older one is always there to read, compare and
-bring back. What an agent reads here is what the version screens show the person (`AUTO-R47`,
+A retained version's document and package data do not change after saving. Governance retention
+or automation deletion can remove versions; only retained versions can be read, compared and
+brought back. What an agent reads here is what the version screens show the person (`AUTO-R47`,
 `AUTO-R48`), and it reaches only the automations the person may see (MCP-R9).
 
 ### MCP-R30 · An agent reads the version history a page at a time
@@ -151,6 +195,54 @@ already holds that content, and a version that no longer validates is refused
 - **Example**: `billing/dunning` has seven versions, and Ben's v6 is live and worse than v3. Ada's
   agent restores v3 naming `baseVersion: 7` → v8 is saved, restored from v3, and v6 stays live; Ada
   reads v8 against v6, agrees, and the agent deploys v8.
+
+## Testing a draft or a version
+
+A draft is tried before it is saved, and a saved version is tested before it goes live. What an
+agent tries here runs in Tale, on the mocks: nothing leaves Tale, and nothing it runs is stored.
+
+### MCP-R33 · An agent runs the tests it names, and sees what each run did when it asks
+
+`test_automation` runs the tests of a draft (`automation`) or of a saved version (`name`,
+`version`). With `tests` it runs only the tests named, by the name the document gives each; a name
+no test bears is refused (`INVALID_PARAMS`) with the names there are, and so is a name that several
+tests bear, with the places they stand at. Each result says whether its test passed and, for one
+that did not, what differed and where. With `detail` (`output`, `effects`, `trace`) each result
+also carries what its run returned, did and went through; a run too large for the answer (256 KB
+for one, 384 KB together) is left out and marked `detailOmitted`, and its test is run alone. The
+whole suite of a saved version, run to its end, is recorded on the version as its verdict, as made
+by hand, and the answer says so (`recorded`); a part of the suite, a draft, and a suite the time
+ran out on record nothing. The runs happen in Tale and draw from the organization's budget for
+runs that are never stored, one execution per test — the budget the app's own tries and test runs
+draw from, beside the key holder's run-start budget (MCP-R5): when it is spent, or the server is
+running as many as it can, the call is refused (`RATE_LIMITED`, `data.retryAfterMs`) before
+anything runs.
+
+- **Example**: `billing/dunning` has three tests. Ada's agent changed one, so it runs that test
+  by name with `detail: ["trace"]` → one result with the steps of that run, and the version's
+  verdict is as it was. It then runs all three on v8 → all pass, and the answer says the verdict is
+  recorded on v8 as made by hand; the version history shows it. The same call with a budget spent
+  by a test script is refused with the wait, and no test runs.
+
+### MCP-R34 · An agent runs an automation on stand-ins, one step at a time
+
+`run_automation` takes, beside the document and its input, the stand-ins and the scope a test and
+the app's step test give a run: `mocks` (the node does not make its call, and the value given is
+its output), `failures` (the node fails with the message given), `upTo` (a node and what it needs),
+`only` (one node, on the data pinned in `mocks` for what it reads) and `item` (with `only`, one
+item of a forEach). A stand-in replaces a node's call, never the node: its input is still resolved
+and its effect recorded. The answer says where the run stood in (`focus`) and which stand-ins it
+never used (`unusedMocks`). A bench the document cannot take — a node it does not have, with the
+nearest it does, or scopes that cannot combine — is refused as the request's fault
+(`BENCH_INVALID`, `data.issue` the engine's own), and stand-ins past 64 KB each or 512 KB together
+are refused as invalid arguments. A run on the mocks stops at its next step after 20 seconds
+(`stoppedBy: "time_limit"`), and draws one execution from the budget MCP-R33 names.
+
+- **Example**: Ada's agent wants to know what `billing/dunning` does when the mail server is down.
+  It runs the draft with `failures: {send_reminder: "the mail server is down"}` → the run ends in
+  error at `send_reminder`, the way the document says; it then runs `only: "format_amount"` with
+  the data that step reads pinned in `mocks` → the answer is that step's output alone, `focus` says
+  so, and nothing else ran.
 
 ## Running
 
@@ -251,8 +343,10 @@ refused with the reason the app's check gives, and nothing in the call is applie
 
 ### MCP-R11 · A settings call applies only when each setting is still what the agent read
 
-Every change names the hash of the setting the agent read, or none for a setting it creates.
-Before anything is written, each change is planned again against what is stored now: when one
+Every change names the hash of the setting the agent read, or none for a setting it creates;
+a call that names a hash for a setting no change in it changes, or leaves one out, is refused
+(`INVALID_ARGUMENTS`) listing the first fifty such problems and counting the rest. Before
+anything is written, each change is planned again against what is stored now: when one
 setting has moved since it was read, or one change is refused, nothing in the call is applied,
 and the agent learns the hash stored now (`SETTINGS_STALE`). The changes then run one setting at
 a time, each checking its hash again; a failure stops the rest, and the agent is told what was
@@ -297,14 +391,93 @@ is queued again. The similarity floor and the serving limits change at any time.
 
 The deployment's settings are every organization's, and who may read and change them is decided
 by a person's standing in every organization they belong to. A key made for a member, a team, a
-project or the organization works in its own organization alone, so it reads and changes none of
-them, and `get_settings` says so for the kind (`FORBIDDEN_INSTANCE_ADMIN`). A person's own key
-reads and changes them as the person may in the app.
+project or the organization, and the connection of a coding agent that signed in, work in their own
+organization alone, so they read and change none of them, and `get_settings` says so for the kind
+(`FORBIDDEN_INSTANCE_ADMIN`). A person's own key reads and changes them as the person may in the
+app.
 
 - **Example**: Mia is a developer at Acme and an admin of Beta, and her address is on the
   deployment's editor allowlist. Ada, an admin at Acme, makes the key "Billing sync" for Mia;
   Ada's agent reads the deployment's settings with it → refused, and a change of the sandbox
-  runtime is refused too. Mia's own key reads and changes them.
+  runtime is refused too. Mia's own key reads and changes them, and an agent Mia connected by signing
+  in reads none of them.
+
+### MCP-R35 · Settings are read a page at a time, by kind, and a page fits the answer
+
+`get_settings` reads a kind's resources a page at a time. Each kind that has another page answers
+its cursor under `cursors`, by kind, and after a read of one kind also as `nextCursor`; a read of
+several kinds answers no `nextCursor`, so no page is taken for another kind's. A cursor reads only
+the kind that issued it: another kind's, or one no listing answered, is refused (`INVALID_CURSOR`)
+beside what the other kinds read. A page of the listings of free text — a project's instructions,
+an agent's instructions, tools and model — ends once what it read would crowd the answer (about
+200,000 characters), and agents are paged over their (project, agent) pairs, so reading them all
+takes as many pages as it takes, never repeating or skipping one.
+
+- **Example**: Ada's agent reads the instructions of her 25 projects, each as long as one may be.
+  The first page holds ten of them and the cursor under `cursors["project-instructions"]`; it
+  passes that back with `kinds: ["project-instructions"]` and reads ten more, then five. Asked for
+  project and agent instructions together it gets a cursor for each, by kind; it hands the project
+  cursor with the agent kind → refused as a cursor no agent listing answered, and nothing is read.
+
+### MCP-R36 · A subscription is connected through Tale's own flow, never by a change
+
+A change that creates a provider credential which is a subscription, or changes one that is, is
+refused (`USE_SUBSCRIPTION_FLOW`) with where a person connects it — not as a key entered in Tale
+(`SETTINGS_TALE_ONLY`), which is what a credential with a key is. Removing one works, as for any
+credential, unless something still uses it (`CREDENTIAL_IN_USE`).
+
+- **Example**: Ada's agent asks to add a ChatGPT subscription as a credential → refused, and the
+  hint says to connect it under **Settings > AI providers**; asked to add an API key it is refused
+  as a secret entered in Tale; asked to remove the subscription nobody uses → it is removed.
+
+### MCP-R37 · A provider Tale ships is no setting; the keys that serve it are
+
+Reading, refreshing the catalog of or removing a provider Tale ships (such as `openai`) is
+refused as no setting of the organization (`SETTINGS_NOT_FOUND`), its hint naming where the
+organization's keys for it are: the `provider-credential` kind. A change that would define a
+provider of the organization under a shipped name is still refused as a name no provider of the
+organization may take (`PROVIDER_NAME_RESERVED`).
+
+- **Example**: Ada's agent asks to refresh the model catalog of `openai` → refused as no setting
+  with a hint to the credential kind; asked to define its own provider named `openai` → refused as
+  a name it may not take; asked to refresh its own `local-chat` → it is refreshed.
+
+### MCP-R38 · An agent reads what an automation may write unapproved; admins change it
+
+The kind `automation-approval` holds, for each automation (its id is the automation's name), the
+writes to outside systems it may make without a person approving each run: what the **Runs
+without approval** switches of its General tab list. Owners, admins and developers read it —
+`allowed`, `used` (the writes the latest version makes), `requiredByPolicy` (the ones a rule of
+the approval policy still requires a person for) and `grants` (who allowed what and when, by
+name, never by address) — and any other member's read is refused (`FORBIDDEN`). Only owners and
+admins change it, by the acts `grant` and `revoke` with the step types as `args.types`, through
+the writer the tab saves with, so each change leaves the tab's own audit row
+(`automation.approval_allowance.granted` or `.revoked`), made over MCP. An automation the person
+cannot see reads as one that does not exist. A read lists the automations that hold an allowance;
+one that holds none is read by naming it.
+
+- **Example**: Ada, an admin, asks her agent to let `ops/morning-digest` post to Slack without
+  approval → it reads the automation's allowances (none), plans a `grant` of `slack.send_message`
+  and applies it, and the audit log shows the write allowed, made over MCP. Dev, a developer,
+  reads the same allowances; his agent's `grant` is refused (`FORBIDDEN`) when it is planned, and
+  nothing is written.
+
+### MCP-R39 · Allowing a write says what it removes; a set that moved is never changed
+
+Allowing a write takes a person out of that automation's live runs, so the plan of a `grant`
+names the effect `removes-human-approval`, at critical risk, unless a rule of the approval policy
+already decides the write; a `revoke` names none. Only a write to an outside system of the
+connector catalog can be allowed (`APPROVAL_ALLOWANCE_INVALID`); one still on file whose action
+the catalog has lost can still be withdrawn. A change that changes nothing plans and applies as
+`unchanged`. The hash a read answers covers the automation and the writes allowed alone, so a
+new version of the automation or an edit of the policy never makes a plan stale, and another
+person's change to the allowances does (`SETTINGS_STALE`): the writer checks it under the
+automation's name lock, and the other allowances stay as they are.
+
+- **Example**: Ada's agent plans allowing `github.create_issue` → critical risk,
+  `removes-human-approval`. Before she decides, Ben allows `http.send` for the same automation;
+  applying with the hash Ada's agent read is refused as stale and nothing changes. The agent
+  reads again, plans again and applies, and both allowances stand.
 
 ## Answers and refusals
 
@@ -353,7 +526,8 @@ A tool that executes an automation — a run on the mocks (`run_automation`), it
 REST API's run starts and run answers draw from, once its role check has passed.
 When the budget is spent, the call is refused (`RATE_LIMITED`) with how long to wait
 (`data.retryAfterMs`) and nothing runs. Reads, validation and saving never draw from it, and
-neither does a call refused for its arguments or its role.
+neither does a call refused for its arguments or its role. A run on the mocks and a suite of tests
+also draw from the organization's budget for runs that are never stored (MCP-R33).
 
 - **Example**: Ada's agent starts its 41st run inside a minute → refused with the wait, and no run
   starts; it reads the runs it started meanwhile → they are listed.

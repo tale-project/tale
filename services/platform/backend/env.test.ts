@@ -8,6 +8,28 @@ const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
 
 describe('loadEnv', () => {
+  it('accepts only an already-reached exact operator UTC cutover', () => {
+    const past = '2026-01-01T00:00:00.000Z';
+    expect(loadEnv(BASE).TALE_ORG_SESSION_CUTOVER_AT).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, TALE_ORG_SESSION_CUTOVER_AT: '' })
+        .TALE_ORG_SESSION_CUTOVER_AT,
+    ).toBe('');
+    expect(
+      loadEnv({ ...BASE, TALE_ORG_SESSION_CUTOVER_AT: past })
+        .TALE_ORG_SESSION_CUTOVER_AT,
+    ).toBe(past);
+    for (const value of [
+      ' ',
+      '2026-01-01T00:00:00Z',
+      '2026-02-30T00:00:00.000Z',
+      new Date(Date.now() + 60_000).toISOString(),
+    ]) {
+      expect(() =>
+        loadEnv({ ...BASE, TALE_ORG_SESSION_CUTOVER_AT: value }),
+      ).toThrow('TALE_ORG_SESSION_CUTOVER_AT');
+    }
+  });
   it('validates and normalizes the authenticator client name', () => {
     expect(loadEnv(BASE).TOTP_CLIENT_NAME).toBeUndefined();
     expect(
@@ -35,6 +57,33 @@ describe('loadEnv', () => {
     expect(() =>
       loadEnv({ ...BASE, TALE_MCP_ORIGIN_ENFORCE: 'yes' }),
     ).toThrow();
+  });
+  it('refuses a coding-agent sign-in host list that holds something other than host names', () => {
+    const env = loadEnv({
+      ...BASE,
+      TALE_MCP_CLIENT_METADATA_DOCUMENTS: 'false',
+      TALE_MCP_CLIENT_METADATA_HOSTS: 'claude.ai, Agents.Example.com',
+      TALE_MCP_DYNAMIC_CLIENT_REGISTRATION: 'true',
+      TALE_MCP_DCR_WEB_REDIRECT_HOSTS: 'vscode.dev insiders.vscode.dev',
+    });
+    expect(env.TALE_MCP_CLIENT_METADATA_HOSTS).toBe(
+      'claude.ai, Agents.Example.com',
+    );
+    for (const [name, value] of [
+      ['TALE_MCP_CLIENT_METADATA_HOSTS', 'https://claude.ai'],
+      ['TALE_MCP_DCR_WEB_REDIRECT_HOSTS', 'claude.ai:443'],
+      ['TALE_MCP_DCR_WEB_REDIRECT_HOSTS', 'claude.ai/callback'],
+    ] as const) {
+      expect(() => loadEnv({ ...BASE, [name]: value })).toThrow(
+        new RegExp(name),
+      );
+    }
+    for (const name of [
+      'TALE_MCP_CLIENT_METADATA_DOCUMENTS',
+      'TALE_MCP_DYNAMIC_CLIENT_REGISTRATION',
+    ]) {
+      expect(() => loadEnv({ ...BASE, [name]: 'yes' })).toThrow();
+    }
   });
   it('validates and normalizes the authenticator environment', () => {
     expect(loadEnv(BASE).TOTP_ENVIRONMENT).toBeUndefined();

@@ -8,9 +8,9 @@
  * platform-capability grants, which a re-added member would otherwise get
  * back carrying a right no admin re-granted.
  *
- * The plugin's door is mounted (it answers, unlike `/organization/delete`,
- * which is disabled), so it needs the same cascade: this pins the hook that
- * gives it one.
+ * The plugin's HTTP member mutations are disabled: role changes and
+ * removals must use the guarded app routes. Trusted server-side plugin
+ * calls still keep the cascade hook.
  */
 
 import type { PgBoss } from 'pg-boss';
@@ -61,11 +61,50 @@ function removalHook(sql: Sql) {
 
 describe('the plugin’s leave door', () => {
   it('is closed, because it would delete a membership with no guard at all', () => {
-    // Its remove-member sibling at least fires afterRemoveMember; `/leave`
+    // The server-side remove-member API fires afterRemoveMember; `/leave`
     // calls the adapter directly, so no hook can give it the cascade, the
     // legal-hold check or the audit row the app's own removal carries.
     const auth = createAuth({ ...BASE, sql: null as unknown as Sql });
     expect(auth.options.disabledPaths).toContain('/organization/leave');
+  });
+});
+
+describe('the plugin’s HTTP member mutations', () => {
+  it('closes role changes through the sign-in handler [MEMBER-R10]', async () => {
+    const auth = createAuth({ ...BASE, sql: null as unknown as Sql });
+    const response = await auth.handler(
+      new Request(`${BASE.baseUrl}/api/auth/organization/update-member-role`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: BASE.baseUrl,
+        },
+        body: JSON.stringify({
+          organizationId: 'org-1',
+          memberId: 'member-1',
+          role: 'member',
+        }),
+      }),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it('closes removal through the sign-in handler [MEMBER-R10]', async () => {
+    const auth = createAuth({ ...BASE, sql: null as unknown as Sql });
+    const response = await auth.handler(
+      new Request(`${BASE.baseUrl}/api/auth/organization/remove-member`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: BASE.baseUrl,
+        },
+        body: JSON.stringify({
+          organizationId: 'org-1',
+          memberIdOrEmail: 'member-1',
+        }),
+      }),
+    );
+    expect(response.status).toBe(404);
   });
 });
 
@@ -89,7 +128,7 @@ afterEach(() => {
   setEnqueueBoss(null as unknown as PgBoss);
 });
 
-describe('the plugin’s remove-member door', () => {
+describe('the plugin’s server-side remove-member cleanup', () => {
   it('ends the membership’s capability grants, not just its member row', async () => {
     const sends = installFakeBoss();
     const { sql, statements } = recordingSql();

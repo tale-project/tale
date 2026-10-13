@@ -260,12 +260,14 @@ OCI index. `docker manifest inspect` lists the index but hides its annotations;
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 
-Release admits at most one new full cohort per UTC calendar day. Every tag shares one
-workflow concurrency group, so admission waits for an earlier run to finish publishing.
-Running cohorts are never cancelled by a newer tag. GitHub keeps only one pending run;
-if a pending tag is superseded, dispatch its immutable tag again when it is eligible.
-Recovery of the latest published tag remains allowed, and unreadable release history
-refuses a full release. A `sites_only` dispatch keeps its existing publication scope.
+Release has no per-day limit: a version goes out whenever it is needed, a second one on
+the same UTC day included. How often to release is the release lane's decision, never the
+workflow's, and Prepare reads no release history. Every tag shares one workflow
+concurrency group, so admission waits for an earlier run to finish publishing. Running
+cohorts are never cancelled by a newer tag. GitHub keeps only one pending run; if a
+pending tag is superseded, dispatch its immutable tag again when it is eligible. Recovery
+of a published tag remains allowed. A `sites_only` dispatch keeps its existing
+publication scope.
 
 To retry or backfill a version's package tags, dispatch Publish packages the same way, on
 `main`, with the tag and the full commit SHA it names:
@@ -308,6 +310,65 @@ The existing Release workflow supplies both together. Manual CLI publication fro
 matching tag ref when recovering a publication for Ops verification.
 
 A published version is not a deployment. Deployments follow their own procedure.
+
+## A release that has to go out
+
+No rule limits how often a version goes out, so a release that cannot wait does not
+wait for a day to pass. What can stop it is `main`: a candidate validates the whole
+graph, and every job that already fails on `main` fails the candidate. Work in this
+order.
+
+1. **Read `main`'s red before choosing the candidate.** Open the newest completed run
+   of each workflow on `main`, push and scheduled, and read its failed jobs:
+
+   ```bash
+   gh run list --repo tale-project/tale --workflow checks.yml --branch main --event push --limit 8
+   gh run view <run id> --repo tale-project/tale --json jobs \
+     --jq '.jobs[] | select(.conclusion == "failure") | .name'
+   gh run list --repo tale-project/tale --workflow e2e.yml --branch main --event schedule --limit 3
+   ```
+
+   The scheduled E2E run is where a browser regression shows first: pull request
+   checks skip the browser E2E and the suites that run only in the queue, and a direct
+   merge skips the queue, so a defect can sit on `main` for hours.
+2. **A failure every run of the same source shows is a defect of `main`.** Never
+   re-dispatch a candidate hoping it clears and never waive a job: repair it through
+   the queue, then choose a candidate that contains the repair. A failure that the
+   same source also passes (a `Backend integration` check that failed on one run and
+   passed on the next, tracked in #4921) is a flake: re-run all jobs of that single
+   run, put the check's name on the issue that tracks it, and let a green attempt be
+   the evidence. What cost a release attempt on 2026-10-13:
+   - `Unit (workspaces)` refusing "native CLI scopes cover every imported platform
+     backend module": a backend file the CLI now imports must be named in
+     `.github/ci-scope.yml`, `.github/workflows/cli.yml` and `tools/cli/turbo.json`.
+     Refresh the descriptor with `bun tools/cli/scripts/release-candidate-contract.ts --write`
+     and format it with the repository's `oxfmt`.
+   - `Unit (workspaces)` refusing "an explicit reviewed profile on every source
+     change": a source workflow's bytes changed, so add its SHA-256
+     (`shasum -a 256 .github/workflows/<file>`) to
+     `tools/cli/scripts/ci-merge-group-profiles.ts`. A change to `cli.yml` needs both
+     this and the descriptor.
+   - `UI (platform N/4)` failing one test: run that file alone from `services/platform`
+     (`bunx vitest --run --config vitest.ui.config.ts <file>` takes seconds) and bisect
+     it across the recent commits.
+   - `Playwright (platform 4/4)` failing at a second person's sign-in: `fixtures.ts`
+     overrides `storageState`, and that reaches every `browser.newContext()`. A second
+     person needs `newPersonContext(browser)`.
+3. **Holds are read again right before the tag.** Findings another lane recorded
+   against the candidate (the platform's release task lists them) bind a manual
+   operator too, and green checks do not clear them. Re-read them just before tagging
+   and say how each stands: fixed in the candidate, not applicable and why, or an
+   explicit decision by the owner. Waiting clears nothing.
+4. **Write the receipt.** After the release is verified, record in one comment where
+   the release lane coordinates, and on the pull request that carried the candidate:
+   candidate SHA and version, the seven candidate run ids, the gate report's state,
+   the tag's time, the Release, CLI and Publish packages run ids, the image revision
+   check, and how each hold stood. An agent that reconciles the release later needs
+   exactly those identities and has no other way to find them.
+5. **Hand it to Ops.** A published version is not a deployment. Ops adopts it with its
+   release adopter, or by hand when the adopter is blocked or the owner asks:
+   `tools/release-adoption/README.md` in `tale-project/ops`, section "Adopting a
+   release by hand".
 
 ## Failure, resume and idempotency
 

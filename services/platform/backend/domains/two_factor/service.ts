@@ -2,6 +2,8 @@ import { DEFAULT_TWO_FACTOR_POLICY } from '@tale/shared/schemas/governance';
 import { symmetricDecrypt } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { qualifyingPasskeyIds } from '../../auth/passkey-authority.ts';
+import { orgSessionCutoverAt } from '../../auth/session-authority.ts';
 import { mergeStrictestTwoFactorPolicy } from '../../core/governance/helpers.ts';
 import {
   computeLockedUntil,
@@ -195,6 +197,9 @@ export async function evaluateTwoFactorEnforcement(
     /** The user row's `twoFactorEnabled`, when the caller holds the row
      * (the org gate does, in its session). */
     twoFactorEnabled?: boolean;
+    /** A scoped session is judged in its realm, never against a different
+     * membership or an organization factor enrolled elsewhere. */
+    organizationId?: string;
   },
 ): Promise<TwoFactorEnforcement> {
   const orgIds = known?.organizationIds ?? (await userOrgIds(db, userId));
@@ -241,9 +246,12 @@ export async function evaluateTwoFactorEnforcement(
     };
   }
   // A registered passkey is a phishing-resistant second factor.
-  const passkeys = await db<{ id: string }[]>`
-    SELECT "id" FROM "passkey" WHERE "userId" = ${userId} LIMIT 1
-  `;
+  const passkeys = await qualifyingPasskeyIds(
+    db,
+    userId,
+    known?.organizationId,
+    orgSessionCutoverAt(),
+  );
   if (passkeys.length > 0) {
     return {
       decision: 'ok',
@@ -338,8 +346,15 @@ async function setGraceUntilIfAbsent(
 export async function anchorTwoFactorGraceOnSignIn(
   db: Db,
   userId: string,
+  organizationId?: string,
 ): Promise<TwoFactorEnforcement> {
-  const enforcement = await evaluateTwoFactorEnforcement(db, userId);
+  const enforcement = await evaluateTwoFactorEnforcement(
+    db,
+    userId,
+    organizationId === undefined
+      ? undefined
+      : { organizationIds: [organizationId], organizationId },
+  );
   if (
     enforcement.decision === 'grace' &&
     enforcement.graceUntilToSet !== null
@@ -387,18 +402,23 @@ async function countBackupCodes(encrypted: string): Promise<number | null> {
 export async function getTwoFactorWireStatus(
   db: Db,
   userId: string,
+  organizationId?: string,
 ): Promise<TwoFactorWireStatus> {
   const [users, passkeys, accounts, enforcement] = await Promise.all([
     db<{ twoFactorEnabled: boolean | null }[]>`
       SELECT "twoFactorEnabled" FROM "user" WHERE "id" = ${userId} LIMIT 1
     `,
-    db<{ id: string }[]>`
-      SELECT "id" FROM "passkey" WHERE "userId" = ${userId} LIMIT 1
-    `,
+    qualifyingPasskeyIds(db, userId, organizationId, orgSessionCutoverAt()),
     db<{ providerId: string }[]>`
       SELECT "providerId" FROM "account" WHERE "userId" = ${userId}
     `,
-    evaluateTwoFactorEnforcement(db, userId),
+    evaluateTwoFactorEnforcement(
+      db,
+      userId,
+      organizationId === undefined
+        ? undefined
+        : { organizationIds: [organizationId], organizationId },
+    ),
   ]);
   const twoFactorEnabled = users[0]?.twoFactorEnabled === true;
   let backupCodesRemaining: number | null = null;

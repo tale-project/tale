@@ -70,9 +70,24 @@ export interface WorkflowTaskView {
   /** The same text with each mention as `@` and the current name of whoever
    * it names. */
   descriptionText?: string;
+  /** The explicitly requested run on this task; null when unavailable. */
+  agentRun?: WorkflowTaskAgentRun | null;
+}
+
+export interface WorkflowTaskAgentRun {
+  id: string;
+  taskId: string;
+  agentId: string;
+  status: string;
+  execId: string;
+  startedAt: number;
+  launchedAt: number | null;
+  settledAt: number | null;
 }
 
 export interface WorkflowTaskComment {
+  /** Included only when the caller requests native comment IDs. */
+  messageId?: string;
   authorType: 'user' | 'agent';
   authorId: string;
   /** The comment as stored, each mention a mention link. */
@@ -202,6 +217,7 @@ export interface WorkflowTaskStore {
   get(args: {
     organizationId: string;
     taskId: string;
+    agentRunId?: string;
   }): Promise<WorkflowTaskView | null>;
   /** A project's tasks, newest first, archived ones left out — read as the
    * run's automation and its starter may read the project. */
@@ -230,6 +246,7 @@ export interface WorkflowTaskStore {
   listComments(args: {
     organizationId: string;
     taskId: string;
+    includeIds?: boolean;
   }): Promise<{ comments: WorkflowTaskComment[]; truncated: boolean }>;
   /** Put the task's project agent (or the named one) to work, answering to
    * whoever the calling automation run answers to. */
@@ -418,6 +435,7 @@ const commentInput = taskRef
 
 const listCommentsInput = taskRef
   .extend({
+    includeIds: z.boolean().optional(),
     authorTypes: z.array(z.enum(['user', 'agent'])).optional(),
     /** Only comments NEWER than the last comment containing this marker —
      * how a workflow reads "operator feedback since the last delivery". */
@@ -623,11 +641,24 @@ export function platformTaskNatives(
     input: unknown,
     ctx: NativeConnectorContext,
   ) => {
-    const parsed = taskRef.strict().safeParse(input);
+    const parsed = taskRef
+      .extend({
+        agentRunId: z
+          .string()
+          .min(1)
+          .max(200)
+          .refine((value) => value.trim().length > 0)
+          .optional(),
+      })
+      .strict()
+      .safeParse(input);
     if (!parsed.success) refuse('get', parsed.error);
     const task = await store.get({
       organizationId: ctx.organizationId,
       taskId: parsed.data.taskId,
+      ...(parsed.data.agentRunId !== undefined
+        ? { agentRunId: parsed.data.agentRunId }
+        : {}),
     });
     if (task === null) notFound(parsed.data.taskId);
     return task;
@@ -680,6 +711,7 @@ export function platformTaskNatives(
     const listed = await store.listComments({
       organizationId: ctx.organizationId,
       taskId: parsed.data.taskId,
+      ...(parsed.data.includeIds === true ? { includeIds: true } : {}),
     });
     const all = listed.comments;
     const { afterMarker, authorTypes, limit } = parsed.data;
@@ -718,6 +750,20 @@ export function platformTaskNatives(
           bodyText: entry.bodyText,
           createdAt: entry.createdAt,
         };
+        if (parsed.data.includeIds === true) {
+          if (
+            typeof entry.messageId !== 'string' ||
+            entry.messageId.length === 0 ||
+            entry.messageId.length > 200
+          ) {
+            throw new ConnectorError(
+              'INPUT_INVALID',
+              'The native comment identifier is unavailable.',
+              {},
+            );
+          }
+          projected.messageId = entry.messageId;
+        }
         if (entry.bodyByLocale !== undefined)
           projected.bodyByLocale = entry.bodyByLocale;
         return projected;

@@ -47,12 +47,19 @@ import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { checkAuditEventOrder } from './audit-order.integration.ts';
+import { checkAgentConsent } from './auth/agent-consent-integration.ts';
+import { checkAgentDoor } from './auth/agent-door-integration.ts';
+import {
+  agentLaneMetadataFetch,
+  checkAgentOAuth,
+} from './auth/agent-oauth-integration.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { checkPasswordConfirmationThrottle } from './auth/password-confirmations.integration.ts';
 import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
 import { checkAuthRequestCache } from './auth/request-cache.integration.ts';
+import { checkOrganizationSessionAuthority } from './auth/session-authority.integration.ts';
 import { checkSessionTrustFieldsAreServerOnly } from './auth/session-trust-fields.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
@@ -70,6 +77,8 @@ import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
+import { checkAgentLifecycle } from './domains/agent_connections/agent-lifecycle.integration.ts';
 import { checkImageHoldIdentity } from './domains/agent_tools/image-billing.integration.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
@@ -132,6 +141,7 @@ import {
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
 } from './domains/knowledge_entries/write-races.integration.ts';
+import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
@@ -28255,6 +28265,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28351,6 +28362,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-r',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28399,6 +28411,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-s',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28488,6 +28501,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-race',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -28677,6 +28691,7 @@ async function checkConnectorOauth(
         code: 'itest-auth-code-2',
         vendorError: null,
         requesterUserId: userId,
+        requesterOrganizationId: null,
       },
       { fetchImpl: vendorFetch },
     );
@@ -64430,11 +64445,17 @@ async function main(): Promise<void> {
   process.env.TALE_PROVISIONING_DISABLED ??= '1';
   // WebDAV app-password HMAC (64 hex chars, the boot rule).
   process.env.WEBDAV_APP_PASSWORD_HMAC_KEY ??= 'ab'.repeat(32);
+  // Coding agents' ways in to the MCP endpoint are off unless the operator
+  // opens them; the agent sign-in lane exercises both, with its own client
+  // metadata document served by a stub instead of a host that does not exist.
+  process.env.TALE_MCP_CLIENT_METADATA_DOCUMENTS ??= 'true';
+  process.env.TALE_MCP_DYNAMIC_CLIENT_REGISTRATION ??= 'true';
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
     baseUrl,
     sql,
+    cimdFetch: agentLaneMetadataFetch,
   });
 
   console.log('[itest] starting pg-boss (installs its own schema)…');
@@ -65033,6 +65054,11 @@ async function main(): Promise<void> {
           ),
       ],
       [
+        'checkOrganizationSessionAuthority',
+        async () =>
+          checkOrganizationSessionAuthority(sql, baseUrl, auth, record),
+      ],
+      [
         'checkSessionTrustFieldsAreServerOnly',
         async () =>
           checkSessionTrustFieldsAreServerOnly(
@@ -65608,6 +65634,14 @@ async function main(): Promise<void> {
         'checkNativeIdentity',
         () => checkNativeIdentity(sql, baseUrl, auth, record),
       ],
+      ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
+      ['checkAgentConsent', () => checkAgentConsent(sql, baseUrl, record)],
+      ['checkAgentDoor', () => checkAgentDoor(sql, baseUrl, record)],
+      ['checkAgentLifecycle', () => checkAgentLifecycle(sql, baseUrl, record)],
+      [
+        'checkAgentConnections',
+        () => checkAgentConnections(sql, baseUrl, record),
+      ],
       [
         'checkConversationApi',
         async () => {
@@ -65913,6 +65947,10 @@ async function main(): Promise<void> {
       [
         'checkOrganizationLifecycle',
         () => checkOrganizationLifecycle(sql, baseUrl, orgSuffix),
+      ],
+      [
+        'checkMemberAccountAuthority',
+        () => checkMemberAccountAuthority(sql, auth, baseUrl, record),
       ],
     ]);
   } catch (error) {

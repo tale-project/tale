@@ -164,7 +164,21 @@ function mp4MimeFromBrand(head: Uint8Array, brandOffset: number): string {
 export async function detectMediaMime(blob: Blob): Promise<string | null> {
   const sampleSize = Math.min(blob.size, 512);
   if (sampleSize < 4) return null;
-  const head = new Uint8Array(await blob.slice(0, sampleSize).arrayBuffer());
+  // Bun's fallback Blob declaration omits the standard `slice` method when
+  // this shared module is imported by the CLI's node-only type program. The
+  // browser/Node/Bun runtime Blob implementations all provide it; retain the
+  // bounded read rather than buffering the complete upload.
+  const sliced = (
+    blob as unknown as {
+      slice(
+        start?: number,
+        end?: number,
+      ): {
+        arrayBuffer(): Promise<ArrayBuffer>;
+      };
+    }
+  ).slice(0, sampleSize);
+  const head = new Uint8Array(await sliced.arrayBuffer());
 
   // MPEG TS: 188-byte packets, each starting with 0x47 sync byte.
   if (sampleSize >= 189 && head[0] === 0x47 && head[188] === 0x47) {

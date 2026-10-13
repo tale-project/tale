@@ -18,7 +18,6 @@ import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 const io = vi.hoisted(() => ({
   stored: {} as unknown,
   charge: vi.fn(),
-  admit: vi.fn(),
   record: vi.fn(),
   report: vi.fn(),
 }));
@@ -45,10 +44,6 @@ vi.mock('../../lib/rate-limit.ts', async (original) => ({
   ...(await original<typeof import('../../lib/rate-limit.ts')>()),
   checkOrganizationRateLimit: io.charge,
 }));
-vi.mock('./bench.ts', async (original) => {
-  const actual = await original<typeof import('./bench.ts')>();
-  return { ...actual, admitBenchRun: io.admit };
-});
 vi.mock('./store.ts', async (original) => ({
   ...(await original<typeof import('./store.ts')>()),
   recordTestVerdict: io.record,
@@ -66,6 +61,7 @@ vi.mock('./dispatch-store.ts', () => ({
   }),
 }));
 
+import { admitBenchRun, BENCH_CONCURRENCY } from './bench.ts';
 import { createAutomationRoutes } from './routes.ts';
 
 function document(tests: unknown[] = []) {
@@ -113,13 +109,23 @@ async function request(path: string, init: { body?: unknown } = {}) {
   );
 }
 
-const release = vi.fn();
+/** How many of this process's places for bench runs are free: every one it
+ * can take, taken and given back. */
+function freePlaces(): number {
+  const held: Array<() => void> = [];
+  for (;;) {
+    const place = admitBenchRun();
+    if (place === null) break;
+    held.push(place);
+  }
+  for (const release of held) release();
+  return held.length;
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
   io.stored = document([PASSING]);
   io.charge.mockResolvedValue(undefined);
-  io.admit.mockReturnValue(release);
 });
 
 describe('POST /:name/try', () => {
@@ -147,7 +153,7 @@ describe('POST /:name/try', () => {
     expect(tryAnswerSchema.safeParse(body).success).toBe(true);
     // Charged once, and its place in the process given back.
     expect(io.charge).toHaveBeenCalledWith({}, 'automation:bench', 'o1', 1);
-    expect(release).toHaveBeenCalledOnce();
+    expect(freePlaces()).toBe(BENCH_CONCURRENCY);
   });
 
   it('runs a saved version the request names', async () => {
@@ -204,7 +210,7 @@ describe('POST /:name/try', () => {
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: 'BENCH_INVALID' });
-    expect(release).toHaveBeenCalledOnce();
+    expect(freePlaces()).toBe(BENCH_CONCURRENCY);
   });
 
   it('refuses a stand-in past what a door takes', async () => {
@@ -230,10 +236,13 @@ describe('POST /:name/try', () => {
     });
     expect(spent.status).toBe(429);
     expect(spent.headers.get('retry-after')).toBe('30');
-    io.admit.mockReturnValueOnce(null);
+    const held = Array.from({ length: BENCH_CONCURRENCY }, () =>
+      admitBenchRun(),
+    );
     const busy = await request('/double/try', {
       body: { document: document(), input: { n: 1 } },
     });
+    for (const place of held) place?.();
     expect(busy.status).toBe(429);
     expect(busy.headers.get('retry-after')).toBe('2');
   });

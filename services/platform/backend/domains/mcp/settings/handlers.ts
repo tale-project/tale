@@ -7,6 +7,7 @@
 
 import type { SettingsKind } from '@tale/shared/schemas/settings-kinds';
 
+import { automationApprovalSettings } from '../../automations/settings-resource.ts';
 import { brandingSettings } from '../../branding/settings-resource.ts';
 import { deploymentSettings } from '../../deployment/settings-resource.ts';
 import { governanceSettings } from '../../governance/settings-resource.ts';
@@ -39,5 +40,6 @@ export const SETTINGS_HANDLERS: Readonly<
   'agent-model': agentModelSettings,
   'task-instructions': taskInstructionsSettings,
   'task-review-context': taskReviewContextSettings,
+  'automation-approval': automationApprovalSettings,
   deployment: deploymentSettings,
 };

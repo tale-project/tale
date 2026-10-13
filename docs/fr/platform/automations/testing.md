@@ -23,6 +23,8 @@ Chaque ligne est un test, dans l’ordre du document : son statut, son nom et, 
 2. Dans **Configuration**, remplis le test : son **Nom**, l’**Entrée** que reçoit l’exécution en JSON, les **Sorties simulées** et les **Échecs simulés** qui remplacent des étapes, et sous **Attentes** ce que l’exécution doit faire. Tes modifications passent dans le brouillon au fil de la saisie.
 3. Enregistre le brouillon pour garder le test. L’enregistrement exécute tous les tests et consigne le résultat avec la version.
 
+Une nouvelle sortie simulée est vide : `{}` pour un nœud, ou `[]` s’il s’exécute une fois par élément. **Utiliser la sortie de la dernière exécution** copie la sortie de l’exécution sur le canevas lorsque tu le choisis. Vérifie cette valeur avant d’enregistrer.
+
 <Frame caption="La configuration d’un test : l’entrée de l’exécution en JSON, les étapes qu’il simule et ce qu’il attend de l’exécution.">
 
 ![L’onglet Setup du test Big order gets 10% off à côté du canevas d’Order discounts : Name, une Description vide, un Input avec quantity 120 et unitPrice 20, Simulated outputs et Simulated failures avec chacun un sélecteur, et Expectations, où la sortie est vérifiée avec Includes.](/images/platform/automation-test-setup.webp)
@@ -63,6 +65,8 @@ Une exécution qui a fait ce qu’il fallait, ou une qui a mal tourné, devient 
 - **Attendre aussi les mêmes actions** attend chaque action de l’exécution, sans son entrée.
 
 **Ajouter le test** place le test dans ton brouillon et l’ouvre sur **Configuration** ; enregistrer le brouillon le conserve. Les valeurs qui ressemblent à des identifiants sont laissées de côté, et la boîte de dialogue dit combien. L’entrée de l’exécution et les sorties que tu gardes font partie de l’automatisation, donc toute personne qui peut l’ouvrir peut les lire.
+
+Les entrées, sorties et messages d’erreur copiés font partie du contenu rédigé dans la version enregistrée. Ils peuvent rester dans les versions conservées après la suppression de l’exécution d’origine, y compris par rétention ou effacement. Supprimer un test dans une version ultérieure ne modifie pas les versions précédentes. Avant d’enregistrer, vérifie **Entrée**, **Sorties simulées**, **Échecs simulés** et **Attentes**, puis remplace les données personnelles par des exemples synthétiques.
 
 <Frame caption="Une exécution réelle d’Answer launch questions enregistrée comme test : elle attend ce que l’exécution a renvoyé, et la recherche répond comme dans l’exécution.">
 

@@ -24,6 +24,10 @@ The **Model requests** category covers requests to the model API and direct mode
 
 Tasks that name the person as **Reviewer** lose that designation. A task review still waiting on them moves to the first eligible human fallback, the task creator or project creator, and that person is notified. On an archived task the review moves without a notification. Review decisions the person already made stay on record without their name.
 
+An erasure leaves saved automation version content and test reports unchanged. It replaces the person's attribution with a pseudonym where they saved a version or checked its tests, deployed it, set its trigger, installed it in a project or deleted it.
+
+Run erasure does not rewrite values copied into tests in retained automation versions. Review these authored values separately using your organization's data process. [Use synthetic examples when saving a run as a test](/platform/automations/testing#save-a-run).
+
 ## Check the policy before filing
 
 | Setting | Effect |

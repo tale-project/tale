@@ -22,6 +22,8 @@ import type { Sql } from 'postgres';
 
 import { loadTrustedProxies, type Auth } from '../auth/auth.ts';
 import { getUserOrganizations } from '../auth/membership.ts';
+import { sessionOrganizationId } from '../auth/session-authority.ts';
+import type { SessionBundle } from '../auth/session.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { rateLimitedPlainResponse } from '../lib/rate-limit-response.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
@@ -70,7 +72,7 @@ async function authenticateForwardedCookie(
   deps: OracleDeps,
   headers: Headers,
   limit: 'security:sse-auth',
-): Promise<{ user: { id: string; email: string } } | Response> {
+): Promise<SessionBundle | Response> {
   const trusted = await loadTrustedProxies();
   const ip = getClientIp(headers, trusted);
   try {
@@ -82,14 +84,16 @@ async function authenticateForwardedCookie(
     throw error;
   }
 
-  const session = await deps.auth.api.getSession({ headers });
+  const cached = await deps.auth.api.getSession({ headers });
+  const session =
+    cached === null ? null : await deps.auth.resolveSessionAuthority(cached);
   if (!session?.user) {
     return new Response('Unauthenticated', {
       status: 401,
       headers: noStore({ 'WWW-Authenticate': 'Cookie' }),
     });
   }
-  return { user: session.user };
+  return session;
 }
 
 /**
@@ -123,6 +127,10 @@ export function createSseAuthRoutes(deps: OracleDeps): Hono {
     // they were kicked out of until the row is hard-deleted.
     const orgIds = memberships
       .filter((m) => m.role !== 'disabled')
+      .filter((m) => {
+        const scope = sessionOrganizationId(authenticated.session);
+        return scope === null || scope === m.organizationId;
+      })
       .slice(0, MEMBERSHIP_SOFT_CAP)
       .map((m) => m.organizationId);
 

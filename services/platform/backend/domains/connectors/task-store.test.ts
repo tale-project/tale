@@ -106,6 +106,130 @@ describe('pgTaskStore.get', () => {
   });
 });
 
+describe('pgTaskStore.get exact run metadata', () => {
+  const task = {
+    id: 'task-1',
+    title: 'Check',
+    status: 'todo',
+    description: null,
+    projectId: 'project-1',
+  };
+  const run = {
+    id: 'run-1',
+    organizationId: 'org-1',
+    projectId: 'project-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+    status: 'running',
+    execId: 'current-exec',
+    startedAt: 10,
+    launchedAt: 11,
+    settledAt: null,
+    sessionId: 'private-session',
+    harness: 'private-harness',
+    error: 'private-output',
+    brokerTokenHash: 'private-stamp',
+  };
+  function reader(row: unknown = run, failure?: Error) {
+    const read = vi.fn().mockResolvedValueOnce([task]);
+    if (failure !== undefined) read.mockRejectedValueOnce(failure);
+    else read.mockResolvedValueOnce(row === null ? [] : [row]);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the real readers use only the tag and unsafe on this bounded path
+    const sql = Object.assign(read, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+    return { store: pgTaskStore(sql), read };
+  }
+
+  it('projects the requested task run and no workspace/provider payload', async () => {
+    const { store, read } = reader();
+    await expect(
+      store.get({
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        agentRunId: 'run-1',
+      }),
+    ).resolves.toEqual({
+      taskId: 'task-1',
+      title: 'Check',
+      status: 'todo',
+      projectId: 'project-1',
+      agentRun: {
+        id: 'run-1',
+        taskId: 'task-1',
+        agentId: 'agent-1',
+        status: 'running',
+        execId: 'current-exec',
+        startedAt: 10,
+        launchedAt: 11,
+        settledAt: null,
+      },
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+    const [query, ...values] = read.mock.calls[1] ?? [];
+    expect(query.join('?')).toContain('WHERE id = ? AND org_id = ?');
+    expect(query.join('?')).not.toMatch(
+      /result_text|feedback|model|broker_token_hash|session_id/,
+    );
+    expect(values).toContain('run-1');
+    expect(values).toContain('org-1');
+  });
+
+  it.each([
+    null,
+    { ...run, id: 'another-run' },
+    { ...run, organizationId: 'org-2' },
+    { ...run, projectId: 'project-2' },
+    { ...run, taskId: 'task-2' },
+  ])('keeps an absent or nonmatching run unknown: %j', async (row) => {
+    const { store } = reader(row);
+    const result = await store.get({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      agentRunId: 'run-1',
+    });
+    expect(result).toHaveProperty('agentRun', null);
+  });
+
+  it('does not read run metadata when omitted', async () => {
+    const { store, read } = reader();
+    const result = await store.get({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+    });
+    expect(result).not.toHaveProperty('agentRun');
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not read any run before the task itself is found in the organization', async () => {
+    const read = vi.fn().mockResolvedValue([]);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the task reader only uses the tag and unsafe
+    const sql = Object.assign(read, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+    await expect(
+      pgTaskStore(sql).get({
+        organizationId: 'org-1',
+        taskId: 'missing',
+        agentRunId: 'run-1',
+      }),
+    ).resolves.toBeNull();
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates run-read failure rather than inventing a missing run', async () => {
+    const failure = new Error('connection terminated');
+    const { store } = reader(null, failure);
+    await expect(
+      store.get({
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        agentRunId: 'run-1',
+      }),
+    ).rejects.toBe(failure);
+  });
+});
+
 describe('pgTaskStore.comment', () => {
   /** The `task.comment` native validates `bodyByLocale` (one narrator per
    * language) and the reader picks their locale from it; the store used to
@@ -211,6 +335,19 @@ it('preserves localized workflow comments through native readback', async () => 
   expect(result.comments[0]).toMatchObject({
     body: 'Checked.',
     bodyByLocale: bodies,
+  });
+  expect(result.comments[0]).not.toHaveProperty('messageId');
+  const identified = await pgTaskStore(sqlStub({ rows: [] })).listComments({
+    organizationId: 'org-1',
+    taskId: 'task-1',
+    includeIds: true,
+  });
+  expect(identified.comments[0]).toMatchObject({
+    messageId: 'm-1',
+    body: 'Checked.',
+    bodyByLocale: bodies,
+    authorType: 'agent',
+    authorId: 'workflow',
   });
 });
 

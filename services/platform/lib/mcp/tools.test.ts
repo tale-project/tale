@@ -2,13 +2,16 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, test } from 'vitest';
 
 import { RUN_STATUSES } from '../engine/api/run-statuses';
+import { AGENT_SCOPES, type AgentScope } from '../shared/agent-access';
 import { ENGINE_TOOL_ARGS } from './args';
 import { toolJsonSchema } from './json-schema';
 import {
+  findMcpTool,
   MCP_TOOL_GROUPS,
   MCP_TOOLS,
   type McpToolAnnotations,
   type McpToolGroup,
+  requiredScopes,
 } from './tools';
 
 /**
@@ -369,6 +372,125 @@ describe('MCP tool roles and budgets', () => {
         expect(tool.lane, tool.name).toBe('api');
       }
     }
+  });
+});
+
+/**
+ * The access a coding agent's connection needs for each tool. An API key
+ * holds no scopes, so these only narrow what a connection that signed in
+ * does with its person's role — and a tool that ships without saying what
+ * it needs does not compile (`METHOD_SCOPES` and its siblings are
+ * exhaustive).
+ */
+describe('MCP tool access', () => {
+  const needing = (scope: AgentScope) =>
+    MCP_TOOLS.filter((tool) => tool.scopes.includes(scope)).map(
+      (tool) => tool.name,
+    );
+
+  test('every tool is called with at least one scope a connection can hold, none twice', () => {
+    for (const tool of MCP_TOOLS) {
+      expect(tool.scopes.length, tool.name).toBeGreaterThan(0);
+      expect(new Set(tool.scopes).size, tool.name).toBe(tool.scopes.length);
+      for (const scope of tool.scopes) {
+        expect(AGENT_SCOPES, `${tool.name} needs ${scope}`).toContain(scope);
+      }
+    }
+  });
+
+  test('a read needs reading and testing, or a settings scope; nothing that reads asks for more', () => {
+    const readLevel: readonly AgentScope[] = [
+      'tale:mcp',
+      'tale:settings.read',
+      'tale:settings.write',
+    ];
+    for (const tool of MCP_TOOLS) {
+      if (!tool.annotations.readOnlyHint) continue;
+      for (const scope of tool.scopes) {
+        expect(readLevel, `${tool.name} (a read) needs ${scope}`).toContain(
+          scope,
+        );
+      }
+    }
+  });
+
+  test('a tool that changes something needs more than reading — except the runs on the mocks and the tests', () => {
+    const atReadingLevel = MCP_TOOLS.filter(
+      (tool) =>
+        !tool.annotations.readOnlyHint && tool.scopes.includes('tale:mcp'),
+    ).map((tool) => tool.name);
+    expect(atReadingLevel).toEqual(['run_automation', 'test_automation']);
+  });
+
+  test('editing, deploying and changing settings are each one tool family', () => {
+    expect(needing('tale:automations.write')).toEqual(['save_automation']);
+    expect(needing('tale:automations.deploy')).toEqual([
+      'deploy_automation',
+      'delete_automation',
+      'set_trigger',
+      'run_deployed',
+      'start_run',
+      'replay_run',
+      'cancel_run',
+      'answer_run_ask',
+      'set_automation_projects',
+      'delete_trigger',
+      'invoke_capability',
+    ]);
+    expect(needing('tale:settings.read')).toEqual([
+      'get_settings',
+      'plan_settings',
+    ]);
+    expect(needing('tale:settings.write')).toEqual([
+      'get_settings',
+      'plan_settings',
+      'apply_settings',
+    ]);
+    expect(needing('tale:subscriptions.connect')).toEqual([]);
+  });
+
+  test('a run started on the mocks needs only reading and testing; a live start, the default, needs the deploy access', () => {
+    const start = findMcpTool('start_run');
+    if (start === undefined) throw new Error('start_run is in the inventory');
+    expect(requiredScopes(start, { mode: 'mock' })).toEqual(['tale:mcp']);
+    expect(requiredScopes(start, { mode: 'live' })).toEqual([
+      'tale:automations.deploy',
+    ]);
+    expect(requiredScopes(start, {})).toEqual(['tale:automations.deploy']);
+    expect(requiredScopes(start, undefined)).toEqual([
+      'tale:automations.deploy',
+    ]);
+  });
+
+  test('only the value that makes a call harmless lowers what it needs: not a look-alike, not an array', () => {
+    const start = findMcpTool('start_run');
+    const replay = findMcpTool('replay_run');
+    if (start === undefined || replay === undefined) {
+      throw new Error('both are in the inventory');
+    }
+    for (const mode of ['MOCK', 'mock ', ['mock'], null, 1, true]) {
+      expect(requiredScopes(start, { mode }), String(mode)).toEqual([
+        'tale:automations.deploy',
+      ]);
+    }
+    expect(requiredScopes(replay, { dryRun: true })).toEqual(['tale:mcp']);
+    expect(requiredScopes(replay, { mode: 'mock' })).toEqual(['tale:mcp']);
+    for (const dryRun of ['true', 1, [true], null]) {
+      expect(requiredScopes(replay, { dryRun }), String(dryRun)).toEqual([
+        'tale:automations.deploy',
+      ]);
+    }
+    expect(requiredScopes(replay, { kind: 'again' })).toEqual([
+      'tale:automations.deploy',
+    ]);
+  });
+
+  test('a tool with no lowering needs what it declares, whatever it is called with', () => {
+    const deploy = findMcpTool('deploy_automation');
+    if (deploy === undefined) throw new Error('deploy_automation exists');
+    expect(requiredScopes(deploy, { mode: 'mock', dryRun: true })).toEqual([
+      'tale:automations.deploy',
+    ]);
   });
 });
 

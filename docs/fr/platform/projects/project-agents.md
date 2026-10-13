@@ -87,6 +87,12 @@ Le compte rendu apparaît dans les commentaires et les fichiers collectés sont 
 
 L’[automatisation des tâches](/fr/platform/projects/task-automation) explique le suivi, l’arrêt et la revue. L’assistant de chat ordinaire reste distinct, même avec un contexte de projet.
 
+## Lire l’exécution actuelle {#current-execution}
+
+Pendant une exécution d’agent de tâche, appelle l’outil distinct `workspace_status` avec `{}` pour lire son identité actuelle. Si l’exécution est active ou en file d’attente, la plateforme vérifie l’organisation, la session et l’ID d’exécution du jeton dans l’exécution actuelle de la tâche. Elle renvoie `currentExecution` avec `taskId`, `agentId`, `runId`, `execId`, `startedAt`, `launchedAt` et son horodatage `observedAt`. Les temps sont en millisecondes depuis l’époque Unix ; `launchedAt` peut être `null` tant que l’exécution attend.
+
+Une exécution remplacée ou terminée n’a plus d’identité actuelle. `null`, un champ absent ou une lecture échouée signifie que l’identité est inconnue. Ne la recopie pas depuis d’anciennes consignes ou un reçu enregistré. Les réponses des chats, des workflows et des anciennes plateformes peuvent omettre ce champ. Une authentification expirée reste refusée. La liste des outils et les autorisations ne changent pas ; cette découverte ne demande pas d’autorisation supplémentaire. Cette observation n’autorise ni démarrage, ni commande, ni publication.
+
 ## Faire travailler un agent sur plusieurs tâches {#run-one-agent-on-several-tasks}
 
 Un agent est une configuration ; un worker en est une copie en cours d’exécution. Chaque tâche sur laquelle l’agent travaille en même temps s’exécute dans un worker distinct : une sandbox avec son propre espace de travail, sa mémoire et ses processus. Deux tâches ne partagent donc jamais de fichiers et ne se ralentissent pas l’une l’autre. Lance l’agent Scribe sur « Notes de version » et sur « Journal des modifications » : les deux avancent en même temps, chacune dans son worker. L’[agent standard](#standard-agent-runs) fait exception quand une personne le démarre : il travaille sur la tâche sans worker, jusqu’à ce que le travail en demande un.

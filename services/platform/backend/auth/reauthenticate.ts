@@ -127,7 +127,7 @@ export function reauthenticate(deps: {
           const fresh = await ctx.context.internalAdapter.createSession(
             user.id,
             dontRememberMe,
-            carried,
+            { ...carried, independentIdentityVerifiedAt: new Date() },
           );
           await setSessionCookie(ctx, { session: fresh, user });
           await ctx.context.internalAdapter.deleteSession(session.token);

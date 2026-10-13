@@ -4,12 +4,15 @@ import {
   MEMBER_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '../../../lib/shared/hint-entities.ts';
+import { endAllAccessOf } from '../../auth/account-security.ts';
 import {
   findOrganizationMember,
+  getUserOrganizations,
   isAdminRole,
   removeMembershipCascade,
 } from '../../auth/membership.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import type { AgentConnectionAuditActor } from '../agent_connections/end.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 
@@ -612,36 +615,48 @@ export async function getUserIdByEmail(
   return rows[0]?.id ?? null;
 }
 
-/** Admin guard shared by the member 2FA/passkey admin ops: caller must be
- * owner/admin in the target's org; an OWNER target is only touchable by a
- * DIFFERENT owner (self-service goes through account settings). */
+/** Global account security actions require admin authority in every
+ * organization where the target has a seat. This prevents a membership
+ * created in one workspace from controlling an account used elsewhere. */
 async function requireMemberAdminTarget(
   tx: TransactionSql | Sql,
   actor: { userId: string; email?: string },
   memberId: string,
   opts: { ownerNeedsOtherOwner: boolean },
-): Promise<MemberRow> {
+): Promise<MemberRow & { callerRole: string }> {
   const member = await findMemberById(tx, memberId);
-  if (!member) {
+  if (!member)
     throw new MemberServiceError('MEMBER_NOT_FOUND', 'Member not found', 404);
-  }
   const caller = await findOrganizationMember(
     tx,
     member.organizationId,
     actor.userId,
   );
   const callerRole = caller?.role.toLowerCase() ?? '';
-  if (!caller || !(callerRole === 'owner' || callerRole === 'admin')) {
+  if (!caller || !isAdminRole(callerRole)) {
     throw new MemberServiceError('FORBIDDEN', 'Admin role required', 403);
   }
+  const actorMemberships = await getUserOrganizations(tx, actor.userId);
+  const targetMemberships = await getUserOrganizations(tx, member.userId);
+  const actorRoles = new Map(
+    actorMemberships.map((seat) => [seat.organizationId, seat.role]),
+  );
   if (
-    opts.ownerNeedsOtherOwner &&
-    member.role.toLowerCase() === 'owner' &&
-    (callerRole !== 'owner' || actor.userId === member.userId)
+    targetMemberships.length === 0 ||
+    targetMemberships.some((seat) => {
+      const role = actorRoles.get(seat.organizationId);
+      return (
+        !role ||
+        !isAdminRole(role) ||
+        (opts.ownerNeedsOtherOwner &&
+          seat.role.toLowerCase() === 'owner' &&
+          (role.toLowerCase() !== 'owner' || actor.userId === member.userId))
+      );
+    })
   ) {
     throw new MemberServiceError('FORBIDDEN', 'Cannot act on this member', 403);
   }
-  return member;
+  return { ...member, callerRole };
 }
 
 export interface MemberPasskeyItem {
@@ -686,6 +701,20 @@ export async function listPasskeysForMember(
   }));
 }
 
+/** The admin as the audit row of an agent connection their act ended names
+ * them. */
+function endedBy(
+  actor: { userId: string; email?: string },
+  role: string,
+): AgentConnectionAuditActor {
+  return {
+    actorId: actor.userId,
+    actorType: 'user',
+    actorRole: role,
+    ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+  };
+}
+
 /** Admin passkey revocation: the credential must belong to the target
  * (IDOR guard), every session dies with it, and the act is audited — all in
  * the caller's transaction, so a failed audit row (or a failed session
@@ -707,13 +736,14 @@ export async function revokePasskeyForMember(
   if (!deleted[0]) {
     throw new MemberServiceError('PASSKEY_NOT_FOUND', 'Passkey not found', 404);
   }
-  await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await endAllAccessOf(tx, member.userId, endedBy(actor, member.callerRole));
   await logSuccess(tx, {
     auditCtx: {
       organizationId: member.organizationId,
       actor: {
         id: actor.userId,
         ...(actor.email !== undefined ? { email: actor.email } : {}),
+        role: member.callerRole,
         type: 'user',
       },
     },
@@ -749,13 +779,14 @@ export async function resetTwoFactorForMember(
   await tx`
     DELETE FROM app.two_factor_attempts WHERE user_id = ${member.userId}
   `;
-  await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await endAllAccessOf(tx, member.userId, endedBy(actor, member.callerRole));
   await logSuccess(tx, {
     auditCtx: {
       organizationId: member.organizationId,
       actor: {
         id: actor.userId,
         ...(actor.email !== undefined ? { email: actor.email } : {}),
+        role: member.callerRole,
         type: 'user',
       },
     },

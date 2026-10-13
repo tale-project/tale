@@ -26,7 +26,11 @@ import { setCodeRunner } from '../../../lib/engine/core/slots';
 import type { Automation, RunResult } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { memoryStore } from '../../../lib/engine/selftest/memory-store';
-import { findMcpTool, MCP_TOOLS } from '../../../lib/mcp/tools';
+import {
+  findMcpTool,
+  MCP_TOOLS,
+  type McpToolSpec,
+} from '../../../lib/mcp/tools';
 import type { McpCaller } from './caller';
 import { dispatchPlatformTool } from './platform-tools';
 import { callTool, listTools, type McpHost } from './tools';
@@ -299,6 +303,7 @@ describe('tools/list', () => {
       get_catalog: { 'anthropic/maxResultSizeChars': 250_000 },
       validate_automation: { 'anthropic/maxResultSizeChars': 200_000 },
       run_automation: { 'anthropic/maxResultSizeChars': 200_000 },
+      test_automation: { 'anthropic/maxResultSizeChars': 500_000 },
       get_automation: { 'anthropic/maxResultSizeChars': 200_000 },
       deploy_automation: { 'anthropic/requiresUserInteraction': true },
       delete_automation: { 'anthropic/requiresUserInteraction': true },
@@ -437,6 +442,13 @@ describe('settings over MCP', () => {
           { kind: 'provider', id: 'vendor', op: 'set' },
           { kind: 'provider', id: 'vendor', op: 'act', act: 'rename' },
           { kind: 'files', op: 'set', config: {} },
+          { kind: 'automation-approval', id: 'digest', op: 'delete' },
+          {
+            kind: 'automation-approval',
+            id: 'digest',
+            op: 'set',
+            config: {},
+          },
         ],
       },
       { host: { ...host, platform }, requestId: 'r' },
@@ -455,6 +467,8 @@ describe('settings over MCP', () => {
       'changes.2.config required',
       'changes.3.act act_unknown',
       'changes.4.kind invalid_value',
+      'changes.5.op op_not_supported',
+      'changes.6.op op_not_supported',
     ]);
     expect(platform).not.toHaveBeenCalled();
   });
@@ -502,5 +516,276 @@ describe('settings over MCP', () => {
         message: 'must name exactly one kind when ids or cursor is given',
       },
     ]);
+  });
+});
+
+/**
+ * A run on stand-ins and a suite run by name, at the door and against the
+ * real engine: what the calls take, what they answer, what they refuse and
+ * what they draw from the organization's budget for runs that are never
+ * stored. [MCP-R33] [MCP-R34]
+ */
+describe('stand-ins and tests picked by name over MCP', () => {
+  const run = findMcpTool('run_automation');
+  const test = findMcpTool('test_automation');
+  if (run === undefined || test === undefined) throw new Error('no tools');
+
+  /** What a call answers, parsed. */
+  async function answer(
+    tool: McpToolSpec,
+    args: Record<string, unknown>,
+    options: { host?: McpHost } = {},
+    // oxlint-disable-next-line typescript/no-explicit-any -- a parsed answer the test probes by path
+  ): Promise<{ isError: boolean; body: Record<string, any> }> {
+    const reply = await callTool(caller, tool, args, {
+      host: options.host ?? host,
+      requestId: 'r',
+    });
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    return {
+      isError: reply.answer.result.isError,
+      body: JSON.parse(reply.answer.result.content[0]?.text ?? '{}'),
+    };
+  }
+
+  const ORDERS = { min_total: 100, orders: [{ total: 250 }, { total: 40 }] };
+  const NOBODY = { min_total: 1000, orders: [{ total: 250 }] };
+  const WITH_TESTS = {
+    ...DOC_EXAMPLE.automation,
+    tests: [
+      ...(DOC_EXAMPLE.automation.tests ?? []),
+      {
+        name: 'one big order',
+        input: ORDERS,
+        mocks: { summary: { text: 'One big order.' } },
+        expect: {
+          output: {
+            stats: { count: 1, sum: 250 },
+            message: 'One big order.',
+          },
+        },
+      },
+      {
+        name: 'wrong on purpose',
+        input: ORDERS,
+        mocks: { summary: { text: 'One big order.' } },
+        expect: { output: { stats: { count: 9, sum: 9 }, message: 'x' } },
+      },
+    ],
+  };
+
+  it('stands in for the model’s answer, and says which stand-ins it never used [MCP-R34]', async () => {
+    const used = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      input: ORDERS,
+      mocks: { summary: { text: 'Mocked words.' } },
+    });
+    expect(used.isError).toBe(false);
+    expect(used.body.output.message).toBe('Mocked words.');
+    expect(used.body).not.toHaveProperty('unusedMocks');
+
+    const unused = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      input: NOBODY,
+      mocks: { summary: { text: 'Mocked words.' } },
+    });
+    expect(unused.body.output.message).toBe('No qualifying orders.');
+    expect(unused.body.unusedMocks).toEqual(['summary']);
+  });
+
+  it('runs one step alone, or a step and what it needs, and says where it stood in [MCP-R34]', async () => {
+    const upTo = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      input: ORDERS,
+      upTo: 'calc',
+    });
+    expect(upTo.body).toMatchObject({
+      status: 'success',
+      output: { count: 1, sum: 250 },
+      focus: { node: 'calc', kind: 'upTo' },
+    });
+    const only = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      input: ORDERS,
+      only: 'summary',
+      mocks: { calc: { count: 3, sum: 300 } },
+    });
+    expect(only.body).toMatchObject({
+      status: 'success',
+      focus: { node: 'summary', kind: 'only' },
+    });
+  });
+
+  it('makes a node fail with the message given, to see what the rest does', async () => {
+    const failed = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      input: ORDERS,
+      failures: { calc: 'the sums are down' },
+    });
+    expect(failed.body).toMatchObject({
+      status: 'error',
+      error: { nodeId: 'calc' },
+    });
+  });
+
+  it('refuses a stand-in for a node the document does not have, naming the nodes it has [MCP-R34]', async () => {
+    const refused = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      mocks: { summery: { text: 'x' } },
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.body).toMatchObject({
+      code: 'BENCH_INVALID',
+      data: { issue: { code: 'BENCH_UNKNOWN_NODE' } },
+    });
+    expect(refused.body.hint).toEqual(expect.any(String));
+  });
+
+  it('refuses a scope the engine cannot combine, as the request’s fault', async () => {
+    const refused = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      item: 0,
+    });
+    expect(refused.body).toMatchObject({
+      code: 'BENCH_INVALID',
+      data: { issue: { code: 'BENCH_SCOPE_CONFLICT' } },
+    });
+  });
+
+  it('refuses stand-ins too large for a door, with every other problem, before anything runs [MCP-R34]', async () => {
+    const engine = vi.fn(host.engine);
+    const refused = await answer(
+      run,
+      {
+        automation: DOC_EXAMPLE.automation,
+        mocks: { summary: 'x'.repeat(70_000) },
+        failures: { calc: 'y'.repeat(2_001) },
+        item: -1,
+        upTo: 'z'.repeat(51),
+      },
+      { host: { ...host, engine } },
+    );
+    expect(refused.body.code).toBe('INVALID_ARGUMENTS');
+    expect(
+      refused.body.data.issues.map(
+        (issue: { path: string; code: string }) =>
+          `${issue.path} ${issue.code}`,
+      ),
+    ).toEqual([
+      'failures.calc too_big',
+      'item too_small',
+      'mocks.summary too_large',
+      'upTo too_big',
+    ]);
+    expect(engine).not.toHaveBeenCalled();
+  });
+
+  it('runs the tests named, and only those, answering what each returned when asked [MCP-R33]', async () => {
+    const picked = await answer(test, {
+      automation: WITH_TESTS,
+      tests: ['wrong on purpose', 'one big order'],
+      detail: ['output'],
+    });
+    expect(picked.isError).toBe(false);
+    expect(picked.body).toMatchObject({ passed: 1, failed: 1 });
+    expect(picked.body.results.map((r: { name: string }) => r.name)).toEqual([
+      'one big order',
+      'wrong on purpose',
+    ]);
+    const wrong = picked.body.results[1];
+    expect(wrong.pass).toBe(false);
+    expect(wrong.failures[0]).toMatchObject({ kind: 'output', mode: 'exact' });
+    // The run's output, and nothing else of it.
+    expect(wrong.run).toMatchObject({
+      status: 'success',
+      output: { stats: { count: 1, sum: 250 } },
+    });
+    expect(wrong.run).not.toHaveProperty('record');
+    expect(wrong.run).not.toHaveProperty('effects');
+  });
+
+  it('answers the verdicts alone unless asked for more', async () => {
+    const plain = await answer(test, { automation: WITH_TESTS });
+    expect(plain.body).toMatchObject({ passed: 2, failed: 1 });
+    for (const result of plain.body.results) {
+      expect(result).not.toHaveProperty('run');
+    }
+  });
+
+  it('answers the steps of a test’s run as a record when asked for the trace [MCP-R33]', async () => {
+    const traced = await answer(test, {
+      automation: WITH_TESTS,
+      tests: ['one big order'],
+      detail: ['trace'],
+    });
+    expect(traced.body.results[0].run.record).toMatchObject({
+      view: { nodes: expect.any(Array) },
+      details: expect.any(Array),
+    });
+    expect(traced.body.results[0].run).not.toHaveProperty('output');
+  });
+
+  it('refuses a test name the document does not have, naming the tests it has [MCP-R33]', async () => {
+    const refused = await answer(test, {
+      automation: WITH_TESTS,
+      tests: ['one big ordre'],
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.body).toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(refused.body.hint).toContain('one big order');
+  });
+
+  it('refuses names that are not a list of tests, an unknown detail and a blank name at the door', async () => {
+    for (const args of [
+      { automation: WITH_TESTS, tests: [] },
+      { automation: WITH_TESTS, tests: ['  '] },
+      { automation: WITH_TESTS, tests: 'one big order' },
+      { automation: WITH_TESTS, detail: ['everything'] },
+    ]) {
+      const refused = await answer(test, args);
+      expect(refused.body.code, JSON.stringify(args)).toBe('INVALID_ARGUMENTS');
+    }
+  });
+
+  it('draws one execution for a run and one per test from the organization’s bench budget, and refuses with the wait when it is spent [MCP-R33]', async () => {
+    const asked: number[] = [];
+    const metered = (retryAfterMs?: number): McpHost => ({
+      ...host,
+      engine: (_caller, method, params) =>
+        dispatch(method, params, {
+          store: {
+            ...referenceStore(),
+            admitBench: async (executions: number) => {
+              asked.push(executions);
+              return retryAfterMs === undefined ? () => {} : { retryAfterMs };
+            },
+          },
+        }),
+    });
+    await answer(
+      run,
+      { automation: DOC_EXAMPLE.automation },
+      {
+        host: metered(),
+      },
+    );
+    await answer(test, { automation: WITH_TESTS }, { host: metered() });
+    await answer(
+      test,
+      { automation: WITH_TESTS, tests: ['one big order'] },
+      { host: metered() },
+    );
+    expect(asked).toEqual([1, 3, 1]);
+
+    const spent = await answer(
+      test,
+      { automation: WITH_TESTS },
+      { host: metered(1500) },
+    );
+    expect(spent.isError).toBe(true);
+    expect(spent.body).toMatchObject({
+      code: 'RATE_LIMITED',
+      data: { retryAfterMs: 1500 },
+    });
   });
 });

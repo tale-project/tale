@@ -34,6 +34,13 @@
       "description": "Edit code, JSON, YAML and templates with highlighting, completion and inline problems, and leave the field with the keyboard."
     }
   },
+  "components/connection-identity": {
+    "slug": "components/connection-identity",
+    "frontmatter": {
+      "title": "Connection identity",
+      "description": "Show who is asking to connect to what, as two marks joined by a dashed line, named for assistive technology by one sentence."
+    }
+  },
   "components/data-core": {
     "slug": "components/data-core",
     "frontmatter": {
@@ -102,6 +109,13 @@
     "frontmatter": {
       "title": "Issue list",
       "description": "List problems a check found in the reader's words, take the reader to each one, and count and announce the result."
+    }
+  },
+  "components/permission-summary": {
+    "slug": "components/permission-summary",
+    "frontmatter": {
+      "title": "Permission summary",
+      "description": "Show what a choice lets someone do and what it does not, one line for each permission, with a check for what is allowed and a dash for what is not."
     }
   },
   "components/property-list": {

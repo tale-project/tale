@@ -87,7 +87,9 @@ import { AGENT_TOOL_GRANT_NAMES } from '../../backend/domains/projects/agent-equ
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
 import { TURN_FINISH_REASONS } from '../../lib/chat/types.ts';
+import { REPORT_DETAILS } from '../../lib/engine/api/report-details.ts';
 import { STEP_FAILURE_REASONS } from '../../lib/engine/core/record/failure.ts';
+import { MAX_TESTS } from '../../lib/engine/core/test-limits.ts';
 import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
 import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
@@ -98,6 +100,11 @@ import {
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
 import { EMITTED_EVENT_TYPES } from '../../lib/shared/event-types.ts';
+import {
+  testFailureSchema,
+  versionTestsReadSchema,
+  versionTestsRunSchema,
+} from '../../lib/shared/schemas/automation-tests.ts';
 import {
   CONTACT_EMAIL_LOCAL_PART_MAX,
   CONTACT_EMAIL_MAX,
@@ -817,6 +824,153 @@ function houseNullability(node: unknown): unknown {
   );
   return isNullable === true ? nullable(rest) : rest;
 }
+
+/** A shared wire schema as the document publishes it: rendered to OpenAPI
+ * 3.0, open at every object (a read answers what it knows today and a client
+ * accepts what it learns tomorrow), the renderer's references to its
+ * recursive "any JSON value" definitions written as the open schema they
+ * stand for, and nullability spelled the house way. */
+function wireSchemaSpec(schema: z.ZodType): Json {
+  const open = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(open);
+    if (!isJsonRecord(node)) return node;
+    const isJsonValue = (candidate: unknown): boolean =>
+      isJsonRecord(candidate) &&
+      typeof candidate.$ref === 'string' &&
+      candidate.$ref.startsWith('#/definitions/');
+    if (isJsonValue(node)) return {};
+    if (
+      Array.isArray(node.allOf) &&
+      node.allOf.length === 1 &&
+      isJsonValue(node.allOf[0])
+    ) {
+      const { allOf: _alias, ...rest } = node;
+      return open(rest);
+    }
+    return Object.fromEntries(
+      Object.entries(node)
+        .filter(
+          ([key, value]) =>
+            key !== 'definitions' &&
+            !(key === 'additionalProperties' && value === false),
+        )
+        .map(([key, value]) => [key, open(value)]),
+    );
+  };
+  const rendered = z.toJSONSchema(schema, {
+    target: 'openapi-3.0',
+    io: 'output',
+    unrepresentable: 'any',
+  });
+  const shaped = houseNullability(open(rendered));
+  return isJsonRecord(shaped) ? shaped : {};
+}
+
+/** Why a test did not pass — one branch for each `kind`. */
+const automationTestFailureSpec: Json = {
+  ...wireSchemaSpec(testFailureSchema),
+  description:
+    'Why a test did not pass, by `kind`: the run could not start (`refused`, ' +
+    'with the `issues`), it failed where the test expects success ' +
+    '(`run_failed`), succeeded where it expects failure (`run_succeeded`), ' +
+    'failed at another step (`failed_elsewhere`) or with another message ' +
+    '(`failure_message`), its output differs (`output`, the first few ' +
+    '`mismatches` and how many there are in `total`), an expected effect did ' +
+    'not happen (`effect_missing`, with the closest effect and what ' +
+    'happened) or one that must not did (`effect_present`), a step did not ' +
+    'do what the test expects (`node_state`), or the test ran past its time ' +
+    'limit (`timeout`).',
+};
+
+/** A rendered wire schema with each place that holds a test failure
+ * pointing at the one component, so the document names the type once. */
+function sharingTestFailures(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(sharingTestFailures);
+  if (!isJsonRecord(node)) return node;
+  if (
+    JSON.stringify(node) === JSON.stringify(wireSchemaSpec(testFailureSchema))
+  ) {
+    return ref('AutomationTestFailure');
+  }
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [
+      key,
+      sharingTestFailures(value),
+    ]),
+  );
+}
+
+/** The tests of a saved version run in one call: the report, the version
+ * it ran and the verdict recorded. A run's `record` is the run record's read
+ * model (`GET …/runs/{runId}/record`'s `view` and `details`), read whole. */
+const automationTestRunSpec: Json = (() => {
+  const rendered = sharingTestFailures(wireSchemaSpec(versionTestsRunSchema));
+  if (!isJsonRecord(rendered)) return {};
+  const properties = isJsonRecord(rendered.properties)
+    ? rendered.properties
+    : {};
+  const results = isJsonRecord(properties.results) ? properties.results : {};
+  const result = isJsonRecord(results.items) ? results.items : {};
+  const resultProperties = isJsonRecord(result.properties)
+    ? result.properties
+    : {};
+  const run = isJsonRecord(resultProperties.run) ? resultProperties.run : {};
+  const testRunProperties = isJsonRecord(run.properties) ? run.properties : {};
+  return {
+    ...rendered,
+    description:
+      'What running a saved version’s tests answers: how many passed and ' +
+      'failed, one result for each test run — whether it passed, how long it ' +
+      'took, and for one that did not the typed `failures` (`kind` says what ' +
+      'differed and where) with the engine’s first sentence as `message` — ' +
+      'the tests a suite’s time did not reach (`notRun`) and, when the ' +
+      'whole suite ran to its end, the verdict recorded on the version ' +
+      '(`recorded`). With `detail`, a result’s `run` holds the parts of its ' +
+      'run that were asked for; a run too large for the answer is left out ' +
+      'and marked `detailOmitted`.',
+    properties: {
+      ...properties,
+      results: {
+        ...results,
+        items: {
+          ...result,
+          properties: {
+            ...resultProperties,
+            run: {
+              ...run,
+              properties: {
+                ...testRunProperties,
+                record: {
+                  type: 'object',
+                  additionalProperties: true,
+                  description:
+                    'The run step by step, read as a stored run’s record is: ' +
+                    '`view` (every step in order, its status and decisions) ' +
+                    'and `details` (each step read whole).',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+})();
+
+/** A saved version's latest test check as `GET …/tests` reads it. */
+const automationTestCheckSpec: Json = {
+  ...(sharingTestFailures(wireSchemaSpec(versionTestsReadSchema)) as Json),
+  description:
+    'What a saved version’s tests found the last time they ran: the verdict ' +
+    '(`testsPassed`, null while none was recorded), when (`testsCheckedAt`), ' +
+    'which act made it (`via`: the save, the deploy gate, or someone running ' +
+    'the tests) and who (`by`, and `byName` while that person is a member), ' +
+    'and the `report` of that check — each test, whether it passed and how ' +
+    'long it took, and for one that failed what differed; null when the ' +
+    'verdict has no report of its own. A report past 64 KB keeps each ' +
+    'failure’s `kind` alone (`trimmed`). A check is judged by the same ' +
+    'tests `POST …/tests` runs.',
+};
 
 /** The trigger a `PUT …/triggers` binds: the shared write contract
  * (`triggerWriteSchema`) the app's editor and MCP `set_trigger` send,
@@ -5470,6 +5624,105 @@ export function buildSpec(): Json {
     },
   };
 
+  paths['/api/v1/automations/{name}/versions/{version}/tests'] = {
+    post: {
+      tags: ['Automations'],
+      summary: 'Run a saved version’s tests',
+      description:
+        'Runs the tests in the version’s document on the deterministic ' +
+        'mocks — nothing leaves Tale and nothing is stored — all of them, ' +
+        'or those named in `tests`, by the name the document gives each (a ' +
+        'name no test bears answers 400 `INVALID_BODY`, naming the tests ' +
+        'there are and the nearest). Each result says whether its test ' +
+        'passed and, for one that did not, what differed and where. ' +
+        '`detail` adds to each result what its run returned (`output`), ' +
+        'would have done (`effects`) and went through (`trace`, the run ' +
+        'step by step); a run larger than 256 KB, or runs larger than 384 ' +
+        'KB together, are left out and marked `detailOmitted`. The whole ' +
+        'suite, run to its end, is recorded on the version as its verdict, ' +
+        'as made by hand with this key (`recorded` says so, and `GET …/tests` ' +
+        'reads it back); a part of the suite records nothing, nor does a ' +
+        'suite the time ran out on (`notRun`). A test stops after 10 ' +
+        'seconds, a suite after 60. A version with no tests answers an ' +
+        'empty report. Any member’s key may run them. Charges the execute ' +
+        'bucket on top of the general REST bucket — before anything is ' +
+        'looked up — and one unit for each test from the organization’s ' +
+        'budget for runs that are never stored, the one the app’s own ' +
+        'tries and test runs draw from.',
+      operationId: 'runAutomationVersionTests',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        pathParam('version', 'The saved version whose tests to run'),
+      ],
+      requestBody: jsonBody(
+        {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            tests: {
+              type: 'array',
+              minItems: 1,
+              maxItems: MAX_TESTS,
+              items: { type: 'string', minLength: 1, maxLength: 1000 },
+              description:
+                'Run only these tests, by name; omitted, all of them. A ' +
+                'name no test bears, or several do, is refused.',
+            },
+            detail: {
+              type: 'array',
+              maxItems: REPORT_DETAILS.length,
+              items: { type: 'string', enum: [...REPORT_DETAILS] },
+              description:
+                'What of each test’s run to answer beside its verdict: ' +
+                '`output`, `effects`, `trace`. Omitted, the verdicts alone.',
+            },
+          },
+        },
+        false,
+      ),
+      responses: {
+        '200': jsonResponse('The report', ref('AutomationTestRun')),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        '409': errorResponse(
+          'The version no longer passes today’s checks (`AUTOMATION_INVALID` — `data.errors` lists the problems)',
+        ),
+        ...standardErrors,
+        '429': errorResponse(
+          'The key holder’s request or execution budget is spent, or the organization’s budget for runs that are never stored is, or the server is already running as many as it can (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds; the envelope carries a `requestId`',
+        ),
+      },
+    },
+    get: {
+      tags: ['Automations'],
+      summary: 'Read a saved version’s latest test check',
+      description:
+        'The verdict the version carries — from its save, the deploy gate or ' +
+        'someone running its tests — when it was judged, by which act and ' +
+        'whom, and the report of that check. A version never checked answers ' +
+        'nulls, not a refusal. `POST …/tests` runs the tests and records a ' +
+        'new check.',
+      operationId: 'getAutomationVersionTests',
+      security: sec,
+      parameters: [
+        automationNameParam,
+        pathParam('version', 'The saved version to read'),
+      ],
+      responses: {
+        '200': jsonResponse(
+          'The version’s latest test check',
+          ref('AutomationTestCheck'),
+        ),
+        '404': errorResponse(
+          'Automation not found (`AUTOMATION_NOT_FOUND`), or the version was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
   const projectAutomationParameters = [
     orgSlugHeaderParam,
     pathParam('id', 'Project ID'),
@@ -7475,7 +7728,16 @@ export function buildSpec(): Json {
         'instructions; a request carries one message; and every result adds ' +
         '`resultType` and the server under `_meta`, with `ttlMs` and ' +
         '`cacheScope` where a client may cache it. Authenticate with ' +
-        'the same Bearer org API key as the REST API. Call `tools/list` for ' +
+        'the same Bearer org API key as the REST API — or, where the operator ' +
+        'lets coding agents sign in, with the access token of a connection a ' +
+        'person made from their agent (OAuth), which this endpoint alone ' +
+        'takes: its 401 carries a `WWW-Authenticate` challenge naming the ' +
+        'endpoint’s metadata and the scopes to ask for. A connection acts in ' +
+        'the organization it was made for (`X-Organization-Slug` naming ' +
+        'another answers `ORG_MISMATCH`) and holds the access its person ' +
+        'allowed: a request that calls a tool needing access the connection ' +
+        'lacks is refused whole (`INSUFFICIENT_SCOPE`) and runs nothing. ' +
+        'Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
         'and the organization’s capability surface — and the `get_docs` tool ' +
         'for the in-band authoring reference; `resources/list` and ' +
@@ -7523,7 +7785,7 @@ export function buildSpec(): Json {
         ),
         '401': standardErrors['401'],
         '403': errorResponse(
-          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none',
+          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; for a coding agent that signed in, the request names another organization than its connection’s (`ORG_MISMATCH`, `data.organization` the one it is for), or calls tools that need access its connection lacks and its person could allow (`INSUFFICIENT_SCOPE`: `data.tools`, `data.requiredScopes` and `data.grantedScopes`, and a `WWW-Authenticate` challenge whose `scope` is everything to ask for) — nothing in the request runs. A call that its person’s role could never give the access for answers the same code as a tool result instead',
         ),
         '429': standardErrors['429'],
       },
@@ -8484,7 +8746,7 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'http',
           scheme: 'bearer',
           description:
-            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored.',
+            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored. The MCP endpoint alone also takes the access token of a coding agent’s connection, where the operator lets agents sign in.',
         },
       },
       schemas: {
@@ -10952,6 +11214,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             warnings: { type: 'array', items: ref('AutomationWarning') },
           },
         },
+        AutomationTestRun: automationTestRunSpec,
+        AutomationTestCheck: automationTestCheckSpec,
+        AutomationTestFailure: automationTestFailureSpec,
         Trigger: triggerViewSpec,
         TriggerWarning: triggerWarningSpec,
         TriggerSkipDetail: triggerSkipDetailSpec,

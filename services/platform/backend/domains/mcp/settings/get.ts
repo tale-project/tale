@@ -16,6 +16,7 @@ import {
 
 import { declaredSettingsNames } from '../../../../lib/mcp/settings-schemas.ts';
 import { type McpRefusal, refusalFromThrown } from '../refusals.ts';
+import { SettingsRefusalError } from './kit.ts';
 import { unavailable } from './plan.ts';
 import {
   type SettingsContext,
@@ -36,6 +37,29 @@ const CATALOG_HINT =
 
 const RESOURCES_HINT =
   'change one with plan_settings, show the plan to the person, then apply_settings naming each key with the hash read here';
+
+/** A cursor as a read answers it, bound to the kind whose listing issued it:
+ * two kinds hand out the same `p<n>` form, and one kind's place must never
+ * read as a place in another's listing. */
+function issued(kind: SettingsKind, cursor: string): string {
+  return `${kind}:${cursor}`;
+}
+
+/** The place a kind's own listing issued, from the cursor a call passes back;
+ * refused when another kind's listing — or none — answered it. */
+function redeemed(kind: SettingsKind, cursor: string): string {
+  const prefix = `${kind}:`;
+  if (!cursor.startsWith(prefix) || cursor.length === prefix.length) {
+    throw new SettingsRefusalError(
+      'INVALID_CURSOR',
+      'the cursor is not one this listing answered',
+      {
+        hint: `pass the cursor get_settings answered for ${kind} (cursors.${kind}), or none for its first page`,
+      },
+    );
+  }
+  return cursor.slice(prefix.length);
+}
 
 /** What `get_settings` answers. */
 export async function getSettings(
@@ -69,14 +93,16 @@ export async function getSettings(
       kinds,
       resources: [],
       refused: [],
+      cursors: {},
       nextCursor: null,
       hint: CATALOG_HINT,
     };
   }
   const resources: Record<string, unknown>[] = [];
   const refused: Array<{ kind: SettingsKind } & McpRefusal> = [];
-  let nextCursor: string | null = null;
-  for (const kind of new Set(query.kinds)) {
+  const cursors: Record<string, string> = {};
+  const wanted = [...new Set(query.kinds)];
+  for (const kind of wanted) {
     const handler = registry[kind];
     if (handler === undefined) {
       refused.push({ kind, ...unavailable(kind) });
@@ -84,9 +110,11 @@ export async function getSettings(
     }
     const { secretPaths } = settingsKindDescriptor(kind);
     try {
+      const cursor =
+        query.cursor === undefined ? undefined : redeemed(kind, query.cursor);
       const page = await handler.list(ctx, {
         ...(query.ids === undefined ? {} : { ids: query.ids }),
-        ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+        ...(cursor === undefined ? {} : { cursor }),
       });
       for (const item of page.items) {
         resources.push({
@@ -101,12 +129,19 @@ export async function getSettings(
           ),
         });
       }
-      nextCursor = page.nextCursor ?? nextCursor;
+      if (page.nextCursor !== null && page.nextCursor !== undefined) {
+        cursors[kind] = issued(kind, page.nextCursor);
+      }
     } catch (error) {
       const refusal = refusalFromThrown(error);
       if (refusal === null) throw error;
       refused.push({ kind, ...refusal });
     }
   }
-  return { resources, refused, nextCursor, hint: RESOURCES_HINT };
+  // One cursor per kind, by kind; `nextCursor` stays for the read of one
+  // kind, the only read whose next page is a single place.
+  const [only] = wanted;
+  const nextCursor =
+    wanted.length === 1 && only !== undefined ? (cursors[only] ?? null) : null;
+  return { resources, refused, cursors, nextCursor, hint: RESOURCES_HINT };
 }

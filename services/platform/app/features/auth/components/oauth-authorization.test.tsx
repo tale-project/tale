@@ -23,15 +23,24 @@ vi.mock('@/app/lib/backend/api-client', () => ({
 vi.mock('@/app/components/logo/logo-link', () => ({
   LogoLink: () => <a href="/">Tale</a>,
 }));
+// A coding agent's request has a page of its own (tested beside it).
+vi.mock('./agent-consent/agent-consent', () => ({
+  AgentConsent: ({ email }: { email: string }) => (
+    <p>The page for a coding agent, signed in as {email}</p>
+  ),
+}));
 
 import { OAuthAuthorization } from './oauth-authorization';
 
 const navigate = vi.fn();
 const signedQuery =
   'client_id=reviewed&ba_param=state&ba_param=nonce&sig=bytes%2B';
+/** What the address of the page says, as the browser has it. */
+let search = `?${signedQuery}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  search = `?${signedQuery}`;
   auth.getSession.mockResolvedValue({
     data: { user: { email: 'staff@example.test' } },
   });
@@ -55,7 +64,7 @@ beforeEach(() => {
           return {
             origin: 'https://identity.example.test',
             pathname: '/oauth/continue',
-            search: `?${signedQuery}`,
+            search,
             assign: navigate,
             replace: navigate,
           };
@@ -101,6 +110,39 @@ describe('native identity consent', () => {
       expect(navigate).not.toHaveBeenCalled();
     },
   );
+
+  it('leaves a coding agent’s request to the page made for it, asking the provider nothing about the app', async () => {
+    search = `?client_id=agent&scope=tale%3Amcp+offline_access&sig=bytes%2B`;
+    render(<OAuthAuthorization consent />);
+    expect(
+      await screen.findByText(
+        'The page for a coding agent, signed in as staff@example.test',
+      ),
+    ).toBeVisible();
+    expect(auth.publicClient).not.toHaveBeenCalled();
+    expect(auth.consent).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'Allow and continue' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps a single sign-on that asks for no agent access on the identity page', async () => {
+    search = `?client_id=reviewed&scope=openid+profile+email&sig=bytes%2B`;
+    render(<OAuthAuthorization consent />);
+    expect(
+      await screen.findByRole('button', { name: 'Allow and continue' }),
+    ).toBeVisible();
+    expect(auth.publicClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('still resumes a coding agent’s request after sign-in before it is shown the page', async () => {
+    search = `?client_id=agent&scope=tale%3Amcp&sig=bytes%2B`;
+    render(<OAuthAuthorization consent={false} />);
+    await waitFor(() => expect(auth.continue).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText(/The page for a coding agent/),
+    ).not.toBeInTheDocument();
+  });
 
   it('resumes a signed authorization only once under StrictMode', async () => {
     render(

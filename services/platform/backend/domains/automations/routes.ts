@@ -13,10 +13,11 @@ import type { Automation } from '../../../lib/engine/core/types.ts';
 import { validate } from '../../../lib/engine/core/validate/index.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
-  BENCH_LIMITS,
+  benchOversize,
   runBenchSchema,
-} from '../../../lib/shared/schemas/automation-tests.ts';
+} from '../../../lib/shared/schemas/automation-bench.ts';
 import type { NodeTypeCatalog } from '../../../lib/shared/schemas/node-type-catalog.ts';
+import { jsonBytes } from '../../../lib/shared/utils/json-bytes.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole, isAdminRole } from '../../auth/membership.ts';
@@ -36,10 +37,7 @@ import {
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
-import {
-  checkOrganizationRateLimit,
-  RateLimitExceededError,
-} from '../../lib/rate-limit.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { appOrigin, type WriteOrigin } from '../../lib/write-origin.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -54,7 +52,7 @@ import {
   setApprovalAllowances,
 } from './approval-allowances.ts';
 import { refusalDataOf } from './authoring-refusal.ts';
-import { admitBenchRun, runTestsByHand, tryRun } from './bench.ts';
+import { admitBenchRuns, runTestsByHand, tryRun } from './bench.ts';
 import {
   deploymentEventWire,
   listDeploymentEvents,
@@ -175,10 +173,6 @@ const runTestsSchema = z
   })
   .strict();
 
-function jsonBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value) ?? '').length;
-}
-
 /** The part of a bench request past what a door takes; null when it fits. */
 function oversizedPart(body: {
   document?: unknown;
@@ -191,18 +185,12 @@ function oversizedPart(body: {
     return { field: 'document', limitBytes: BENCH_DOCUMENT_BYTES_MAX };
   }
   if (body.bench === undefined) return null;
-  if (jsonBytes(body.bench) > BENCH_LIMITS.benchBytes) {
-    return { field: 'bench', limitBytes: BENCH_LIMITS.benchBytes };
-  }
-  for (const [node, mock] of Object.entries(body.bench.mocks ?? {})) {
-    if (jsonBytes(mock) > BENCH_LIMITS.mockBytes) {
-      return {
-        field: `bench.mocks.${node}`,
-        limitBytes: BENCH_LIMITS.mockBytes,
-      };
-    }
-  }
-  return null;
+  const over = benchOversize(body.bench);
+  if (over === null) return null;
+  return {
+    field: over.node === undefined ? 'bench' : `bench.mocks.${over.node}`,
+    limitBytes: over.limitBytes,
+  };
 }
 
 const saveSchema = z.object({
@@ -1354,29 +1342,13 @@ export function createAutomationRoutes(deps: {
     executions: number,
   ): Promise<(() => void) | Response> => {
     try {
-      await checkOrganizationRateLimit(
-        deps.sql,
-        'automation:bench',
-        c.get('orgId'),
-        Math.max(1, executions),
-      );
+      return await admitBenchRuns(deps.sql, c.get('orgId'), executions);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
         return rateLimitedResponse(c, error);
       }
       throw error;
     }
-    const release = admitBenchRun();
-    return (
-      release ??
-      rateLimitedResponse(
-        c,
-        new RateLimitExceededError(
-          'Every bench run of this server is busy.',
-          2_000,
-        ),
-      )
-    );
   };
 
   /** The document a bench request runs: its draft, or the saved version it

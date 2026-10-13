@@ -1631,6 +1631,7 @@ dataSubjectRequests:
     feedback: Retours sur messages
     memories: Mémoires personnelles
     mcpActivity: Activité des agents de code
+    agentConnections: Connexions des agents de code
     directCalls: Appels directs aux modèles
     videoLinks: Liens vidéo
     cloudGrants: "Autorisations d'importation cloud"

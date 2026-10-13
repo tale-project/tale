@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 159 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 160 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -835,6 +835,20 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   one shows everything from the top; a comment sent in one appears in the
   other without a reload. On a phone the dialog's drawer scrolls as one
   column: brief, conversation, comment box, then the details.
+- [ ] `TASK-F92` · **A long task scrolls under a trackpad or a wheel** — Open a
+  task with more comments than fit, twenty will do, from the board and then
+  from Home → it opens on its latest comment; a two-finger trackpad swipe, or
+  the wheel, over the thread scrolls it up to the brief and back down to the
+  latest comment, in the board's dialog and on the task's page alike, while the
+  header, the details and the comment box stay where they are; a comment sent
+  while you read near the top leaves your place alone, and one sent from the
+  latest comment stays in view, on a task with more than a page of comments
+  (fifty) too, where each new comment pushes the oldest off the top; in Safari
+  too, scrolling up through a long thread never throws the comment you are
+  reading off the screen. **Page Up**, **Page Down** and the scrollbar move the
+  same thread. On an iPhone flick the task's page up through a long thread, and
+  on an iPad flick the thread in the board's dialog: each flick carries on to
+  where it was heading and the comment you are reading never jumps.
 - [ ] `TASK-F84` · **What the agent cost** — On a task whose agent ran at
   least twice at a cost → **Details** shows **Agent cost**
   (`tasks.agentRuns.costLabel`) with the total (`tasks.agentRuns.totalCost`),
@@ -1637,3 +1651,4 @@ TASK-F86 is a Member of the project's team.
 - [ ] `TASK-F90` · **A start by an automation works in a worker** — Deploy an automation whose step starts the agent on a task (as in AUTO-F32) and run it on a task assigned to the standard agent → the run works in a worker of the agent (**Worker 1** on Sandboxes) and **Details** shows a live harness transcript, as before; a person pressing **Start agent** on the same agent works without one (`TASK-F86`).
 - [ ] `TASK-F91` · **An organization works four such runs at a time** — With a model slow enough to catch (Mode A: `TALE_MOCK_STREAM_PACE_MS=1500` on the mock gateway), start the standard agent on five tasks within a few seconds → four Run rows read **Working…** (`tasks.agentRun.status.running`) and the fifth reads **Queued** (`tasks.agentRun.status.queued`), never **Waiting for a worker**; when one of the four reads **Finished**, the fifth starts by itself. A start in another organization at the same time reads **Working…** at once. Press **Cancel run** on the queued one instead → it reads **Cancelled** and never starts.
 - [ ] `TASK-B53` · **A policy that blocks the task's text stops the run for good** — Under **Governance**, add a guardrail that blocks a word; put that word in a task's description and start the standard agent → The Run row reads **Failed** and the failure sentence is `tasks.agentRun.failure.policy`; no **Auto-retry** caption appears and no new run starts; the starter's notifications show a row with `inbox.agentRunFailedPolicyBody`. Remove the guardrail, press **Retry** (`tasks.agentRun.retry`) → the run works.
+- [ ] `TASK-B54` · **Native receipts stay bound to the current task run** — With a runnable native task, request the task's exact run metadata and comment row IDs, then read **workspace status** in the same session → the returned run and execution IDs match the database-backed task, organization, session and exec; a foreign, superseded, expired or ended run returns no current execution, and the ordinary grants and admission controls are unchanged. Omit the optional fields → the legacy response shape remains. A model-written identity in a comment or status body is ignored.

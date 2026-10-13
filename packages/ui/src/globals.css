@@ -861,6 +861,22 @@
   animation: checkmark-draw 0.3s ease-out forwards;
 }
 
+/* The dashed line of a connection draws from its first mark to its second,
+   once, when the picture appears (`ConnectionIdentity`). The global reduced
+   motion rule below makes it instant. */
+@keyframes connection-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animate-connection-reveal {
+  animation: connection-reveal var(--duration-slow) var(--ease-out-quint) both;
+}
+
 @keyframes row-enter {
   from {
     opacity: 0;

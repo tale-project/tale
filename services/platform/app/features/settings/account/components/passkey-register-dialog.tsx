@@ -7,19 +7,13 @@ import { Select } from '@tale/ui/select';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useState } from 'react';
 
-import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
-import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
-import { useAuth } from '@/app/hooks/use-session-user';
-import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
+import { useConfirmPassword } from '@/app/features/auth/hooks/use-confirm-password';
+import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
 import {
   isSessionFresh,
   PASSKEY_CEREMONY_MARGIN_MS,
-  reauthenticate,
 } from '@/app/lib/auth/session-freshness';
-import {
-  invalidateAuthState,
-  sessionQueryOptions,
-} from '@/app/lib/auth/session-query';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -70,17 +64,19 @@ export function PasskeyRegisterDialog({
 }: PasskeyRegisterDialogProps) {
   const { t } = useT('twoFactor');
   const { t: tAuth } = useT('auth');
-  const queryClient = useReactQueryClient();
-  const refusalMessage = usePasswordRefusalMessage();
-  const { signOut } = useAuth();
 
   const [name, setName] = useState('');
   const [attachment, setAttachment] = useState<AttachmentChoice>('any');
-  const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  // What the registration step says went wrong; the confirm step's own
+  // refusals are the confirmation's.
   const [error, setError] = useState<string | null>(null);
   const [stepChoice, setStepChoice] = useState<StepChoice>('auto');
   const [openedAt, setOpenedAt] = useState(0);
+  const confirmation = useConfirmPassword({
+    onConfirmed: () => setStepChoice('name'),
+  });
+  const submitting = registering || confirmation.submitting;
 
   // Read while the dialog is still closed, so the age is known by the time
   // someone opens it.
@@ -88,9 +84,9 @@ export function PasskeyRegisterDialog({
   const createdAt = sessionResult?.data?.session.createdAt;
   const { data: status } = useQuery(twoFactorStatusQuery());
   // Without a status yet, assume a password: the server says otherwise.
-  const [passwordless, setPasswordless] = useState(false);
   const hasPassword =
-    !passwordless && (status?.authenticated !== true || status.hasCredential);
+    !confirmation.passwordless &&
+    (status?.authenticated !== true || status.hasCredential);
 
   // Each opening starts over and takes its own reading of the clock — in a
   // layout effect, so the first frame already shows the right step.
@@ -119,58 +115,12 @@ export function PasskeyRegisterDialog({
   function reset() {
     setName('');
     setAttachment('any');
-    setPassword('');
     setError(null);
-  }
-
-  async function confirmPassword() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const result = await reauthenticate(password);
-      if (result.ok) {
-        setPassword('');
-        setStepChoice('name');
-        // The session was replaced: every cached answer about it is stale.
-        void invalidateAuthState(queryClient).catch((invalidateError) =>
-          console.warn(
-            '[passkeys] Refreshing the session after confirming the password failed',
-            invalidateError,
-          ),
-        );
-        return;
-      }
-      if (result.reason === 'wrong-password' || result.reason === 'locked') {
-        setError(refusalMessage(result));
-      } else if (result.reason === 'no-password') {
-        setPasswordless(true);
-      } else {
-        setError(t('passkeys.errors.confirmFailed'));
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function signInAgain() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await signOut();
-    } catch (signOutError) {
-      console.warn(
-        '[passkeys] Ending the session to sign in again failed',
-        signOutError,
-      );
-      setSubmitting(false);
-      setError(tAuth('userButton.toast.signOutFailed'));
-      return;
-    }
-    redirectToLogIn();
+    confirmation.reset();
   }
 
   async function register(passkeyName: string) {
-    setSubmitting(true);
+    setRegistering(true);
     setError(null);
     try {
       // Drives the WebAuthn registration ceremony (navigator.credentials.create).
@@ -189,7 +139,11 @@ export function PasskeyRegisterDialog({
           setStepChoice('confirm');
           return;
         }
-        setError(result.error.message ?? t('passkeys.errors.registerFailed'));
+        setError(
+          authSessionRefusalMessage(result.error) ??
+            result.error.message ??
+            t('passkeys.errors.registerFailed'),
+        );
         return;
       }
       onOpenChange(false);
@@ -200,7 +154,7 @@ export function PasskeyRegisterDialog({
       // is available — surface a non-alarming message.
       setError(t('passkeys.errors.registerFailed'));
     } finally {
-      setSubmitting(false);
+      setRegistering(false);
     }
   }
 
@@ -232,22 +186,26 @@ export function PasskeyRegisterDialog({
             : t('passkeys.addButton')
       }
       isSubmitting={submitting}
-      isDirty={signingInAgain || (confirming ? password : name).length > 0}
+      isDirty={
+        signingInAgain || (confirming ? confirmation.password : name).length > 0
+      }
       isValid={
         signingInAgain ||
-        (confirming ? password.length > 0 : name.trim().length > 0)
+        (confirming ? confirmation.password.length > 0 : name.trim().length > 0)
       }
       onSubmit={(e) => {
         e?.preventDefault?.();
         if (submitting) return;
-        if (signingInAgain) void signInAgain();
+        if (signingInAgain) void confirmation.signInAgain();
         else if (confirming) {
-          if (password) void confirmPassword();
+          if (confirmation.password) void confirmation.confirm();
         } else if (name.trim()) void register(name.trim());
       }}
     >
       {signingInAgain ? (
-        error && <Alert variant="destructive" description={error} />
+        confirmation.error && (
+          <Alert variant="destructive" description={confirmation.error} />
+        )
       ) : confirming ? (
         <Input
           // Each step's field takes the focus as it appears.
@@ -256,13 +214,10 @@ export function PasskeyRegisterDialog({
           type="password"
           autoComplete="current-password"
           label={t('confirmPassword.label')}
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-            setError(null);
-          }}
+          value={confirmation.password}
+          onChange={(e) => confirmation.setPassword(e.target.value)}
           disabled={submitting}
-          errorMessage={error ?? undefined}
+          errorMessage={confirmation.error ?? undefined}
         />
       ) : (
         <>

@@ -64,8 +64,8 @@ export interface HandlerPlan {
   /** The config the resource would hold afterwards, as its native writer
    * would store it; left out by an act that changes no config. */
   readonly after?: unknown;
-  /** The stored resource already is what the change asks for: applying it
-   * writes nothing. */
+  /** The stored resource already is what the change asks for — or an act
+   * would change nothing: applying it writes nothing. */
   readonly unchanged?: boolean;
   /** What the change does beyond replacing a value. */
   readonly effects?: readonly SettingsEffect[];

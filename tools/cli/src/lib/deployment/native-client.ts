@@ -180,7 +180,30 @@ export const existingSchema = z.object({
   taleOrganizationId: z.string(),
 });
 type ExistingClient = z.infer<typeof existingSchema>;
-const scopes = ['openid', 'profile', 'email', 'tale:organization'].sort();
+// The hosted provider exposes the organization application's OIDC scopes and
+// the coding-agent scopes from one Better Auth plugin. Managed application
+// clients still request only the OIDC subset in createBodySchema; this full
+// policy check prevents the CLI from accepting a provider that dropped the
+// agent capability while preserving that application boundary.
+const applicationScopes = [
+  'openid',
+  'profile',
+  'email',
+  'tale:organization',
+].sort();
+const providerScopes = [
+  'openid',
+  'profile',
+  'email',
+  'tale:organization',
+  'offline_access',
+  'tale:mcp',
+  'tale:automations.write',
+  'tale:automations.deploy',
+  'tale:settings.read',
+  'tale:settings.write',
+  'tale:subscriptions.connect',
+].sort();
 
 /** Shared native OAuth security policy for reconciliation and read-only export. */
 export function assertNativeClientPolicy(
@@ -195,7 +218,8 @@ export function assertNativeClientPolicy(
     client.grant_types.join(' ') !== 'authorization_code' ||
     client.response_types.join(' ') !== 'code' ||
     client.application_type !== 'web' ||
-    JSON.stringify(client.scope.split(' ').sort()) !== JSON.stringify(scopes) ||
+    JSON.stringify(client.scope.split(' ').sort()) !==
+      JSON.stringify(applicationScopes) ||
     client.taleOrganizationId !== organizationId
   )
     throw preconditionError(
@@ -607,14 +631,21 @@ function providerOptions(auth: NativeAuth): ProviderOptions {
         allowUnauthenticatedClientRegistration: z.literal(false),
         disableJwtPlugin: z.literal(false),
         storeClientSecret: z.literal('hashed'),
-        grantTypes: z.tuple([z.literal('authorization_code')]),
+        grantTypes: z.tuple([
+          z.literal('authorization_code'),
+          z.literal('refresh_token'),
+        ]),
         scopes: z
           .array(z.string())
           .refine(
             (values) =>
-              JSON.stringify([...values].sort()) === JSON.stringify(scopes),
+              JSON.stringify([...values].sort()) ===
+              JSON.stringify(providerScopes),
           ),
-        validAudiences: z.tuple([]),
+        // Better Auth omits the option when no audience override is
+        // configured; accept that canonical absence and an explicit empty
+        // tuple, while still refusing any configured audience.
+        validAudiences: z.tuple([]).optional(),
         // The platform signs its login and consent continuation with this
         // same lifetime, so it is also how long a person has to sign in
         // before the request expires (services/platform/backend/auth/oidc.ts).

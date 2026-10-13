@@ -29,6 +29,7 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { endAgentConnectionsInTx } from '../agent_connections/end.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
@@ -702,7 +703,9 @@ async function scrubSubjectAuditLogs(
            OR metadata->'keyAttribution'->>'makerUserId' = ${userId}
            OR metadata->'keyAttribution'->>'subjectUserId' = ${userId}
            OR metadata->'keyAttribution'->>'eventActorId' = ${userId}
-           OR (resource_type = 'user' AND resource_id = ${userId}))
+           OR (resource_type = 'user' AND resource_id = ${userId})
+           OR (resource_type = 'agent_connection'
+               AND previous_state->>'userId' = ${userId}))
     RETURNING id
   `;
   return scrubbed.length;
@@ -1113,6 +1116,28 @@ export async function processErasure(
     return removed.length;
   });
 
+  // The coding agents the subject connected here: the live ones end first,
+  // with their consent and tokens, and every record of them goes — a
+  // client's name and where it sends a person back are the subject's too.
+  // What the audit log says of them is scrubbed with the rest of the
+  // subject's rows below.
+  await pass('agentConnections', async () => {
+    return sql.begin(async (tx) => {
+      await endAgentConnectionsInTx(tx, {
+        organizationId,
+        userId: targetUserId,
+        reason: 'account_security',
+        revokedBy: 'system',
+      });
+      const removed = await tx<{ id: string }[]>`
+        DELETE FROM app.agent_connections
+        WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+        RETURNING id
+      `;
+      return removed.length;
+    });
+  });
+
   await pass('memories', async () => {
     const removed = await sql<{ id: string }[]>`
       DELETE FROM app.memories
@@ -1410,8 +1435,8 @@ export async function processErasure(
     return changed.length;
   });
 
-  // Who changed an automation's definition: who saved each version, who
-  // put one live (the live pointer and the deployment history), who set its
+  // Who changed an automation's definition: who saved each version, checked
+  // its tests, put one live (the live pointer and deployment history), set its
   // trigger, installed it in a project or deleted it. The versions and their
   // history are the organization's work and stay; the person gives way to
   // the pseudonym in each form an actor takes — a bare id, `user:<id>` and
@@ -1428,6 +1453,13 @@ export async function processErasure(
       await sql<{ id: string }[]>`
         UPDATE app.automations SET created_by = ${ERASED_SUBJECT}
         WHERE org_id = ${organizationId} AND created_by = ANY(${forms})
+        RETURNING id
+      `
+    ).length;
+    changed += (
+      await sql<{ id: string }[]>`
+        UPDATE app.automations SET tests_checked_by = ${ERASED_SUBJECT}
+        WHERE org_id = ${organizationId} AND tests_checked_by = ANY(${forms})
         RETURNING id
       `
     ).length;

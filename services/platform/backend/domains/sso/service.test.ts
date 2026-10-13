@@ -360,6 +360,11 @@ describe('createSsoUserSession', () => {
 
     expect(sessionToken).not.toBe('');
     expect(queries[0]?.text).toContain('"activeOrganizationId"');
+    expect(queries[0]?.text).toContain('"trustedOrganizationId"');
+    expect(
+      queries[0]?.values.filter((value) => value === 'org-1'),
+    ).toHaveLength(2);
+    expect(queries[0]?.text).not.toContain('"independentIdentityVerifiedAt"');
     expect(queries[0]?.values).toContain('org-1');
     expect(queries[0]?.values).toContain('user-1');
   });

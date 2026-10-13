@@ -3,8 +3,8 @@
 /**
  * The settings panel's file lane, both halves.
  *
- * WRITE: the project's edit gate is this door's only authorization, and it
- * used to run inside the transaction — after the bytes were already in the
+ * WRITE: the project's edit gate used to be this door's only authorization,
+ * and it ran inside the transaction — after the bytes were already in the
  * org's store. A rewrite also left the previous blob bound and active (no
  * sweep reaps a `project_text` row), and a bind that failed after the store
  * write stranded the fresh one the same way.
@@ -31,11 +31,13 @@ import {
   assertProjectFolderWrite,
   getOrCreateProjectFolder,
 } from '../folders/service.ts';
+import { assertNotHeld } from '../legal_holds/service.ts';
+import { auditDocumentCreated, auditDocumentUpdated } from './audit.ts';
 import {
   ensureProjectTextDocument,
   readProjectTextValues,
 } from './project-text.ts';
-import { DocumentError } from './service.ts';
+import { DocumentError, requireDocumentWriteAccess } from './service.ts';
 
 vi.mock('../../core/lib/storage/object_store.ts', () => ({
   s3GetObjectBytesIfExists: vi.fn(),
@@ -59,6 +61,25 @@ vi.mock('../folders/service.ts', () => ({
   getOrCreateProjectFolder: vi.fn(),
   assertProjectFolderWrite: vi.fn(),
 }));
+vi.mock('./audit.ts', () => ({
+  documentActor: (auth: unknown) => auth,
+  auditDocumentCreated: vi.fn(),
+  auditDocumentUpdated: vi.fn(),
+}));
+vi.mock('../legal_holds/service.ts', () => ({ assertNotHeld: vi.fn() }));
+vi.mock('./service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./service.ts')>()),
+  requireDocumentWriteAccess: vi.fn(() =>
+    Promise.resolve({
+      id: 'doc-1',
+      projectId: 'proj-1',
+      sourceProvider: 'project_text',
+      record: null,
+      createdBy: 'user-1',
+    }),
+  ),
+}));
+
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
 function fakeSql(fileRef: string | null): Sql {
@@ -219,6 +240,48 @@ describe('ensureProjectTextDocument', () => {
       'knowledge.release_refs',
       { organizationId: 'org_1', refs: ['s3:acme/policy-1'] },
     );
+    expect(auditDocumentUpdated).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        documentId: 'doc-1',
+        title: 'policy.yaml',
+        changedFields: expect.arrayContaining(['title', 'fileRef']),
+      }),
+    );
+    expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
+  });
+
+  it('audits a newly bound settings document in its transaction', async () => {
+    vi.mocked(putOrgBlobBytes).mockResolvedValueOnce('s3:acme/policy-new');
+    vi.mocked(registerUploadedBytes).mockResolvedValueOnce({
+      fileId: 'file-new',
+    });
+    vi.mocked(getOrCreateProjectFolder).mockResolvedValueOnce({
+      folderId: 'folder-new',
+      name: 'Setup',
+      created: true,
+    });
+    const fake = fakeWriteSql(null);
+
+    await expect(
+      ensureProjectTextDocument(fake.sql, auth, writeArgs),
+    ).resolves.toEqual({
+      folderId: 'folder-new',
+      documentId: 'doc-new',
+      createdFolder: true,
+      action: 'created',
+    });
+    expect(auditDocumentCreated).toHaveBeenCalledOnce();
+    expect(auditDocumentCreated).toHaveBeenCalledWith(fake.sql, auth, {
+      documentId: 'doc-new',
+      title: 'policy.yaml',
+      sourceProvider: 'project_text',
+      projectId: 'proj-1',
+      folderId: 'folder-new',
+    });
+    expect(auditDocumentUpdated).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
     expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
   });
 
@@ -248,4 +311,82 @@ describe('ensureProjectTextDocument', () => {
       's3:acme/policy-3',
     ]);
   });
+});
+
+describe('project text target and record boundary', () => {
+  it.each(['project-text:other:Setup:policy.yaml', 'team-private-key'])(
+    'refuses foreign key %s before storage or row work',
+    async (externalItemId) => {
+      const fake = fakeWriteSql({ id: 'foreign', fileRef: 's3:acme/private' });
+      await expect(
+        ensureProjectTextDocument(fake.sql, auth, {
+          ...writeArgs,
+          externalItemId,
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+      expect(fake.statements).toEqual([]);
+      expect(putOrgBlobBytes).not.toHaveBeenCalled();
+      expect(registerUploadedBytes).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(auditDocumentUpdated).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    'foreign-project',
+    'foreign-team',
+    'in_review',
+    'approved',
+    'draft',
+    'held',
+  ])(
+    'refuses %s without changing a document or releasing its old blob',
+    async (kind) => {
+      vi.mocked(putOrgBlobBytes).mockResolvedValueOnce('s3:acme/new');
+      vi.mocked(registerUploadedBytes).mockResolvedValueOnce({
+        fileId: 'new-file',
+      });
+      vi.mocked(getOrCreateProjectFolder).mockResolvedValueOnce({
+        folderId: 'folder-1',
+        name: 'Setup',
+        created: false,
+      });
+      vi.mocked(requireDocumentWriteAccess).mockResolvedValueOnce({
+        id: 'doc-1',
+        createdBy: 'user-1',
+        projectId:
+          kind === 'foreign-project'
+            ? 'other'
+            : kind === 'foreign-team'
+              ? null
+              : 'proj-1',
+        sourceProvider: kind === 'foreign-team' ? 'upload' : 'project_text',
+        record: ['in_review', 'approved', 'draft'].includes(kind)
+          ? { state: kind }
+          : null,
+      } as Awaited<ReturnType<typeof requireDocumentWriteAccess>>);
+      if (kind === 'held')
+        vi.mocked(assertNotHeld).mockRejectedValueOnce(
+          new Error('LEGAL_HOLD_ACTIVE'),
+        );
+      const fake = fakeWriteSql({ id: 'doc-1', fileRef: 's3:acme/old' });
+      await expect(
+        ensureProjectTextDocument(fake.sql, auth, writeArgs),
+      ).rejects.toThrow();
+      expect(
+        fake.statements.some((s) => s.text.startsWith('UPDATE app.documents')),
+      ).toBe(false);
+      expect(
+        fake.statements.some((s) =>
+          s.text.includes("lifecycle_status = 'trashed'"),
+        ),
+      ).toBe(false);
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(auditDocumentUpdated).not.toHaveBeenCalled();
+      expect(auditDocumentCreated).not.toHaveBeenCalled();
+      expect(deleteOrgBlobRefs).toHaveBeenCalledWith(fake.sql, 'org_1', [
+        's3:acme/new',
+      ]);
+    },
+  );
 });

@@ -25,6 +25,118 @@ const bodies = {
   it: 'Verificato.',
 };
 
+describe('workflow task identity reads [CONN-R28]', () => {
+  const task = {
+    taskId: 'task-1',
+    title: 'Check',
+    status: 'todo',
+    projectId: 'project-1',
+  };
+  const ctx = { organizationId: 'org-1' };
+
+  it('preserves the exact default task response and read arguments', async () => {
+    const get = vi.fn().mockResolvedValue(task);
+    await expect(
+      platformTaskNatives({ get } as never)['task.get']?.(
+        { taskId: 'task-1' },
+        ctx as never,
+      ),
+    ).resolves.toEqual(task);
+    expect(get).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+    });
+  });
+
+  it('requests one explicit run, never an implicit latest run', async () => {
+    const answer = { ...task, agentRun: null };
+    const get = vi.fn().mockResolvedValue(answer);
+    await expect(
+      platformTaskNatives({ get } as never)['task.get']?.(
+        { taskId: 'task-1', agentRunId: 'run-1' },
+        ctx as never,
+      ),
+    ).resolves.toEqual(answer);
+    expect(get).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      agentRunId: 'run-1',
+    });
+  });
+
+  it.each([null, '', ' ', 1, 'x'.repeat(201)])(
+    'refuses malformed run identity %j before reading',
+    async (agentRunId) => {
+      const get = vi.fn();
+      await expect(
+        platformTaskNatives({ get } as never)['task.get']?.(
+          { taskId: 'task-1', agentRunId },
+          ctx as never,
+        ),
+      ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+      expect(get).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps native comment IDs opt-in and preserves author/window/locales', async () => {
+    const entry = {
+      messageId: 'native-comment-1',
+      authorType: 'agent',
+      authorId: 'agent-1',
+      body: 'Checked.',
+      bodyText: 'Checked.',
+      bodyByLocale: bodies,
+      createdAt: 2,
+    };
+    const listComments = vi
+      .fn()
+      .mockResolvedValue({ comments: [entry], truncated: true });
+    const native = platformTaskNatives({ listComments } as never)[
+      'task.list_comments'
+    ];
+    const { messageId: _messageId, ...oldEntry } = entry;
+    await expect(native?.({ taskId: 'task-1' }, ctx as never)).resolves.toEqual(
+      { count: 1, truncated: true, comments: [oldEntry] },
+    );
+    expect(listComments).toHaveBeenLastCalledWith({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+    });
+    await expect(
+      native?.({ taskId: 'task-1', includeIds: true }, ctx as never),
+    ).resolves.toEqual({ count: 1, truncated: true, comments: [entry] });
+    expect(listComments).toHaveBeenLastCalledWith({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      includeIds: true,
+    });
+    await expect(
+      native?.({ taskId: 'task-1', includeIds: false }, ctx as never),
+    ).resolves.toEqual({ count: 1, truncated: true, comments: [oldEntry] });
+  });
+
+  it('does not recover a missing native comment ID from its body', async () => {
+    const listComments = vi.fn().mockResolvedValue({
+      comments: [
+        {
+          authorType: 'agent',
+          authorId: 'agent-1',
+          body: '{"messageId":"forged"}',
+          bodyText: '{"messageId":"forged"}',
+          createdAt: 2,
+        },
+      ],
+      truncated: false,
+    });
+    await expect(
+      platformTaskNatives({ listComments } as never)['task.list_comments']?.(
+        { taskId: 'task-1', includeIds: true },
+        ctx as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+  });
+});
+
 describe('localized workflow task comments', () => {
   it('returns locale maps after filtering the native comment window', async () => {
     const listComments = vi.fn().mockResolvedValue({
@@ -328,6 +440,39 @@ describe('the task connector mocks mirror the import domain', () => {
   const limits = { timeoutMs: 2000 };
   const ref = { externalSystem: 'github', externalId: 'example/web#1' };
   const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+
+  it('catalog mocks preserve default reads and make optional identity explicit', async () => {
+    const task = await runner.runBody(
+      mockOf('get') ?? '',
+      { input: { taskId: 'task-1' } },
+      limits,
+    );
+    expect(task).not.toHaveProperty('agentRun');
+    expect(task).toMatchObject({ taskId: 'task-1' });
+    await expect(
+      runner.runBody(
+        mockOf('get') ?? '',
+        { input: { taskId: 'task-1', agentRunId: 'run-1' } },
+        limits,
+      ),
+    ).resolves.toMatchObject({ taskId: 'task-1', agentRun: null });
+    const comments = await runner.runBody(
+      mockOf('list_comments') ?? '',
+      { input: { taskId: 'task-1' } },
+      limits,
+    );
+    expect(comments).toMatchObject({ comments: [{ authorId: 'usr_mock' }] });
+    expect(comments).not.toHaveProperty('comments.0.messageId');
+    await expect(
+      runner.runBody(
+        mockOf('list_comments') ?? '',
+        { input: { taskId: 'task-1', includeIds: true } },
+        limits,
+      ),
+    ).resolves.toMatchObject({
+      comments: [{ messageId: 'msg_mock_1', authorId: 'usr_mock' }],
+    });
+  });
   const titles = [
     'Short',
     '  Padded  ',

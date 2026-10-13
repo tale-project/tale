@@ -553,13 +553,13 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     for (let i = 0; i < subscribers.length; i += RECHECK_CHUNK) {
       const chunk = subscribers.slice(i, i + RECHECK_CHUNK);
       const sessionIds = [...new Set(chunk.map((s) => s.sessionId))];
-      const liveSessions = new Set(
+      const liveSessions = new Map(
         (
-          await sql<{ id: string }[]>`
-            SELECT "id" FROM "session"
+          await sql<{ id: string; trustedOrganizationId: string | null }[]>`
+            SELECT "id", "trustedOrganizationId" FROM "session"
             WHERE "id" = ANY(${sessionIds}::text[]) AND "expiresAt" > now()
           `
-        ).map((row) => row.id),
+        ).map((row) => [row.id, row.trustedOrganizationId]),
       );
       const orgIds = chunk.map((s) => s.orgId);
       const userIds = chunk.map((s) => s.userId);
@@ -579,6 +579,8 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
         if (subscriber.ended) continue;
         const allowed =
           liveSessions.has(subscriber.sessionId) &&
+          (liveSessions.get(subscriber.sessionId) === null ||
+            liveSessions.get(subscriber.sessionId) === subscriber.orgId) &&
           activeMembers.has(`${subscriber.orgId}\u0000${subscriber.userId}`);
         if (!allowed) {
           // Terminal: the reader no longer belongs here. The client closes

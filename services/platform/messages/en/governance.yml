@@ -1539,6 +1539,7 @@ dataSubjectRequests:
     feedback: Message feedback
     memories: Personal memories
     mcpActivity: Coding agent activity
+    agentConnections: Coding agent connections
     directCalls: Direct model calls
     videoLinks: Video links
     cloudGrants: Cloud import authorizations

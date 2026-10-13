@@ -75,6 +75,29 @@ L’étape renvoie `{ tasks, hasMore }`. Chaque tâche porte son `taskId`, `numb
 
 </Frame>
 
+## Lire une tâche et une exécution précise
+
+Une étape `task.get` renvoie normalement le titre, le statut, le projet et la description de la tâche. Ajoute `agentRunId` pour lire une exécution précise de cette tâche. `agentRun` contient alors `id`, `taskId`, `agentId`, `status`, `execId`, `startedAt`, `launchedAt` et `settledAt`. Les horodatages sont en millisecondes depuis l’époque Unix ; les deux derniers peuvent être `null`. Si l’exécution manque ou appartient à une autre tâche ou organisation, la réponse contient `agentRun: null`. Aucune exécution plus récente ne la remplace. Sans `agentRunId`, la réponse habituelle reste inchangée.
+
+Avec `includeIds: true`, `task.list_comments` ajoute la `messageId` native de chaque commentaire à `authorType`, `authorId`, au contenu et à l’horodatage. La réponse par défaut reste inchangée et `truncated` signale toujours un historique incomplet. Une ID écrite dans le commentaire n’est pas son identité native.
+
+Ces lectures ne réservent aucune capacité et n’autorisent ni démarrage, ni commande, ni publication. Un champ absent ou un refus d’une ancienne plateforme laisse l’identité inconnue. Pour lire sa propre exécution actuelle, un agent de tâche utilise la [découverte de l’espace de travail](/fr/platform/projects/project-agents#current-execution).
+
+```yaml
+nodes:
+  - id: task
+    type: task.get
+    input:
+      taskId: '{{ input.taskId }}'
+      agentRunId: '{{ input.agentRunId }}'
+  - id: comments
+    type: task.list_comments
+    input:
+      taskId: '{{ input.taskId }}'
+      includeIds: true
+      limit: 10
+```
+
 ## Quand une étape échoue
 
 | Échec                                                         | Ce qui s’est passé                                                                                              |

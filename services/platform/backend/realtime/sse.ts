@@ -2,10 +2,12 @@ import type { Context } from 'hono';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import type { Sql } from 'postgres';
 
+import { SESSION_ORGANIZATION_MESSAGE } from '../../lib/shared/constants/session-authority.ts';
 import {
   MembershipError,
   requireOrganizationMember,
 } from '../auth/membership.ts';
+import { sessionAllowsOrganization } from '../auth/session-authority.ts';
 import type { AuthEnv } from '../auth/session.ts';
 import { ROUTINE_RESTART_MS } from '../db/unavailable.ts';
 import { hintStreamClosed, hintStreamOpened } from '../telemetry.ts';
@@ -163,6 +165,12 @@ export function createEventsHandler(
       );
     }
     const { user, session } = c.get('sessionBundle');
+    if (!sessionAllowsOrganization(session, orgId)) {
+      return c.json(
+        { code: 'ORG_FORBIDDEN', error: SESSION_ORGANIZATION_MESSAGE },
+        403,
+      );
+    }
     const userId = user.id;
     const sessionId = session.id;
     try {

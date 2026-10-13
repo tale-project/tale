@@ -578,6 +578,44 @@ export async function getAgentRun(
   return rows[0] ?? null;
 }
 
+/**
+ * The connector task read's optional identity projection. Keep this query
+ * narrower than {@link getAgentRun}: a workflow that asks whether one run is
+ * current must not load its transcript, model, error, feedback or credential
+ * fields merely to return the run/exec binding.
+ */
+export interface TaskAgentRunIdentity {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  taskId: string;
+  agentId: string;
+  status: string;
+  execId: string;
+  startedAt: number;
+  launchedAt: number | null;
+  settledAt: number | null;
+}
+
+export async function getTaskAgentRunIdentity(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<TaskAgentRunIdentity | null> {
+  const rows = await sql<TaskAgentRunIdentity[]>`
+    SELECT id, org_id AS "organizationId", project_id AS "projectId",
+           task_id AS "taskId", agent_id AS "agentId", status,
+           exec_id AS "execId",
+           started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt",
+           settled_at_ms::float8 AS "settledAt"
+    FROM app.project_agent_runs
+    WHERE id = ${runId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 export async function listAgentRunsForTask(
   sql: Sql,
   organizationId: string,

@@ -21,9 +21,19 @@ const READER_TAKEOVER_EVENTS = [
 ] as const;
 const MAX_SETTLE_MS = 500;
 
+/** What marks a row of the thread's history: a comment, an event, a fold of
+ *  events. They sit in document order, one below the other. */
+export const HISTORY_ENTRY_SELECTOR = '[data-task-history-entry]';
+
+/** Scrollports whose reader's place a history load is holding itself, for as
+ *  long as the capture lasts. The thread's own place-holding stands down on
+ *  them, so the two never correct one shift twice. */
+export const HELD_SCROLLPORTS = new WeakSet<HTMLElement>();
+
 /** Preserve the history entry being read when an older page is inserted.
- * Rectangle deltas work in both the page's reverse scrollport and the
- * dialog's ordinary scrollport. A reader's own scroll cancels the capture. */
+ * Rectangle deltas hold wherever the thread scrolls: the task page's column,
+ * the board dialog's, or the phone drawer's one column. A reader's own scroll
+ * cancels the capture. */
 export function useTaskHistoryAnchor(
   oldestId: string | undefined,
   loadEarlier: () => void,
@@ -39,7 +49,7 @@ export function useTaskHistoryAnchor(
     if (history && scroller) {
       const viewport = scroller.getBoundingClientRect();
       for (const entry of history.querySelectorAll<HTMLElement>(
-        '[data-task-history-entry]',
+        HISTORY_ENTRY_SELECTOR,
       )) {
         const bounds = entry.getBoundingClientRect();
         if (bounds.bottom <= viewport.top || bounds.top >= viewport.bottom) {
@@ -62,10 +72,12 @@ export function useTaskHistoryAnchor(
             if (anchor.frame !== undefined) cancelAnimationFrame(anchor.frame);
             if (anchor.timeout !== undefined) clearTimeout(anchor.timeout);
             scroller.style.overflowAnchor = overflowAnchor;
+            HELD_SCROLLPORTS.delete(scroller);
             if (anchorRef.current === anchor) anchorRef.current = null;
           },
         };
         scroller.style.overflowAnchor = 'none';
+        HELD_SCROLLPORTS.add(scroller);
         scroller.addEventListener('scroll', anchor.release, { once: true });
         for (const event of READER_TAKEOVER_EVENTS) {
           scroller.addEventListener(event, anchor.release, { passive: true });

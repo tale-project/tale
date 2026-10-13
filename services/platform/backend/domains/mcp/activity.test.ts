@@ -62,6 +62,24 @@ function caller(organizationId: string, apiKeyId?: string): McpCaller {
   };
 }
 
+/** A coding agent that signed in: its calls are counted under the
+ * connection, not under a key. */
+function agentCaller(organizationId: string): McpCaller {
+  return {
+    organizationId,
+    orgSlug: organizationId,
+    userId: 'user_ada',
+    role: 'developer',
+    credential: {
+      kind: 'agent',
+      connectionId: 'conn_cursor',
+      clientId: 'https://cursor.example.test/client.json',
+      clientName: 'Cursor',
+      scopes: new Set(['tale:mcp']),
+    },
+  };
+}
+
 const NOW = Date.UTC(2026, 9, 8, 23, 59, 30);
 
 afterEach(() => {
@@ -162,6 +180,54 @@ describe('recordMcpActivity', () => {
     );
   });
 
+  it('counts a coding agent’s call under its connection, as an oauth credential [MCP-R42]', async () => {
+    const fake = fakeSql();
+    await recordMcpActivity(
+      fake.sql,
+      agentCaller('org_a'),
+      { method: 'tools/call', tool: 'get_run', outcome: 'ok', ms: 12 },
+      NOW,
+    );
+    expect(fake.statements[0]?.values).toEqual([
+      'org_a',
+      'user_ada',
+      'oauth',
+      'conn_cursor',
+      'tools/call',
+      'get_run',
+      20261008,
+      0,
+      0,
+      'Cursor',
+      NOW,
+    ]);
+  });
+
+  it('names the app the person connected when a call names no client, and keeps the name a call gave', async () => {
+    const fake = fakeSql();
+    await recordMcpActivity(
+      fake.sql,
+      agentCaller('org_a'),
+      { method: 'tools/call', tool: 'get_run', outcome: 'ok', ms: 1 },
+      NOW,
+    );
+    await recordMcpActivity(
+      fake.sql,
+      agentCaller('org_a'),
+      {
+        method: 'initialize',
+        outcome: 'ok',
+        ms: 1,
+        clientName: 'Cursor 2.0',
+      },
+      NOW,
+    );
+    expect(fake.statements.map((entry) => entry.values[9])).toEqual([
+      'Cursor',
+      'Cursor 2.0',
+    ]);
+  });
+
   it('writes nothing for a credential without an id', async () => {
     const fake = fakeSql();
     await recordMcpActivity(
@@ -202,6 +268,18 @@ describe('mcpCallLogLine', () => {
       }),
     ).toBe(
       '[mcp] org=org_a user=user_ada cred=key_1 method=tools/call tool=start_run outcome=refused code=RATE_LIMITED ms=42',
+    );
+  });
+
+  it('names a coding agent’s connection where it names a key', () => {
+    expect(
+      mcpCallLogLine(agentCaller('org_a'), {
+        method: 'tools/list',
+        outcome: 'ok',
+        ms: 3,
+      }),
+    ).toBe(
+      '[mcp] org=org_a user=user_ada cred=conn_cursor method=tools/list tool=- outcome=ok code=- ms=3',
     );
   });
 

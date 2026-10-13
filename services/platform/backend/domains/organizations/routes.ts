@@ -2,6 +2,7 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
+import { SESSION_ORGANIZATION_MESSAGE } from '../../../lib/shared/constants/session-authority.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
@@ -12,6 +13,10 @@ import {
   organizationCreationAllowed,
   parseOrganizationCreators,
 } from '../../auth/organization-creation-gate.ts';
+import {
+  sessionAllowsOrganization,
+  sessionOrganizationId,
+} from '../../auth/session-authority.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { notifyUser } from '../collab/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
@@ -45,11 +50,18 @@ export function createOrganizationRoutes(deps: {
 
   // The caller's own memberships (the org picker / boot resolution).
   app.get('/', async (c) => {
+    const scope = sessionOrganizationId(c.get('sessionBundle').session);
+    const organizations = await listUserOrganizations(
+      deps.sql,
+      c.get('sessionBundle').user.id,
+    );
     return c.json({
-      organizations: await listUserOrganizations(
-        deps.sql,
-        c.get('sessionBundle').user.id,
-      ),
+      organizations:
+        scope === null
+          ? organizations
+          : organizations.filter(
+              (organization) => organization.organizationId === scope,
+            ),
     });
   });
 
@@ -59,6 +71,9 @@ export function createOrganizationRoutes(deps: {
   // when the door would answer. A managed deployment that declares no
   // creators still answers this at its edge with `{"canCreate":false}`.
   app.get('/capabilities', async (c) => {
+    if (sessionOrganizationId(c.get('sessionBundle').session) !== null) {
+      return c.json({ canCreate: false }, 200, { 'cache-control': 'no-store' });
+    }
     const canCreate = await organizationCreationAllowed({
       overHttp: true,
       email: c.get('sessionBundle').user.email,
@@ -66,6 +81,35 @@ export function createOrganizationRoutes(deps: {
       deploymentHasOrganizations: () => hasAnyOrganizations(deps.sql),
     });
     return c.json({ canCreate }, 200, { 'cache-control': 'no-store' });
+  });
+
+  app.use('/:id/*', async (c, next) => {
+    if (
+      !sessionAllowsOrganization(
+        c.get('sessionBundle').session,
+        c.req.param('id') ?? '',
+      )
+    ) {
+      return c.json(
+        { code: 'ORG_FORBIDDEN', error: SESSION_ORGANIZATION_MESSAGE },
+        403,
+      );
+    }
+    return next();
+  });
+  app.use('/:id', async (c, next) => {
+    if (
+      !sessionAllowsOrganization(
+        c.get('sessionBundle').session,
+        c.req.param('id') ?? '',
+      )
+    ) {
+      return c.json(
+        { code: 'ORG_FORBIDDEN', error: SESSION_ORGANIZATION_MESSAGE },
+        403,
+      );
+    }
+    return next();
   });
 
   app.get('/:id', async (c) => {

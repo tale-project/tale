@@ -33,7 +33,7 @@ Une écriture qui attend une personne à chaque exécution — un résumé du ma
 
 </Frame>
 
-Une règle de la [politique d’approbation](/fr/self-hosted/configuration/approvals) qui exige une personne pour l’action l’emporte toujours sur une autorisation. Chaque autorisation et chaque retrait figurent dans le [journal d’audit](/fr/platform/admin/governance/audit-logs), et supprimer l’automatisation supprime ses autorisations.
+Une règle de la [politique d’approbation](/fr/self-hosted/configuration/approvals) qui exige une personne pour l’action l’emporte toujours sur une autorisation. Chaque autorisation et chaque retrait figurent dans le [journal d’audit](/fr/platform/admin/governance/audit-logs), et supprimer l’automatisation supprime ses autorisations. Un agent de code connecté par [MCP](/fr/develop/mcp-settings#automation-approval) lit les mêmes autorisations, et la clé d’un propriétaire ou d’un admin peut les modifier.
 
 ## Répondre à une question de l’agent
 

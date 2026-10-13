@@ -271,7 +271,9 @@ async function planOne(
   }
   const action: SettingsAction =
     change.op === 'act'
-      ? 'act'
+      ? plan.unchanged === true
+        ? 'unchanged'
+        : 'act'
       : change.op === 'delete'
         ? current === null
           ? 'unchanged'

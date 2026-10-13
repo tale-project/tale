@@ -17,6 +17,7 @@ function doorFor(session: unknown) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   const auth = {
     api: { getSession: () => Promise.resolve(session) },
+    resolveSessionAuthority: () => Promise.resolve(session),
   } as unknown as Auth;
   return createMcpRoutes({ auth });
 }
