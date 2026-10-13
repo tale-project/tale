@@ -57,6 +57,20 @@ export function customExpiryBounds(now: number): {
   };
 }
 
+/** Whether two instants fall on one calendar date where the viewer is. Not
+ * dayjs's `isSame(…, 'day')`: that bounds a day by its first 23:59:59.999, so
+ * an instant in the hour a midnight clock change repeats reads as the next
+ * day. */
+function sameLocalDate(a: number, b: number): boolean {
+  const first = new Date(a);
+  const second = new Date(b);
+  return (
+    first.getFullYear() === second.getFullYear() &&
+    first.getMonth() === second.getMonth() &&
+    first.getDate() === second.getDate()
+  );
+}
+
 /**
  * Lifetime in seconds: null means never; undefined means an unavailable
  * custom date. Keep the local clock time where possible, then constrain it
@@ -82,7 +96,7 @@ export function expirySeconds(
       now + DAY_MS,
       Math.min(target, now + API_KEY_MAX_EXPIRY_DAYS * DAY_MS),
     );
-    if (!picked.isSame(expiresAt, 'day')) return undefined;
+    if (!sameLocalDate(customDate, expiresAt)) return undefined;
     return (expiresAt - now) / 1000;
   }
   return Number(choice) * 86_400;

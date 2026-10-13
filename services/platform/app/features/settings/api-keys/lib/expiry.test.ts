@@ -86,6 +86,22 @@ describe('API key expiry', () => {
       expiresAt: '2027-11-01T00:30:00+01:00',
     },
     {
+      name: 'a 25-hour day that a midnight clock change repeats keeps its date (Cairo)',
+      zone: 'Africa/Cairo',
+      now: '2026-10-29T00:07:00.123+03:00',
+      selected: '2026-10-29T00:00:00+03:00',
+      expiresAt: '2026-10-29T23:07:00.123+02:00',
+      minimum: '2026-10-29T00:00:00+03:00',
+    },
+    {
+      name: 'a 25-hour day that a midnight clock change repeats keeps its date (Santiago)',
+      zone: 'America/Santiago',
+      now: '2026-04-04T00:07:00.123-03:00',
+      selected: '2026-04-04T00:00:00-03:00',
+      expiresAt: '2026-04-04T23:07:00.123-04:00',
+      minimum: '2026-04-04T00:00:00-03:00',
+    },
+    {
       name: 'maximum stays within the selected date when offsets differ',
       now: '2026-03-28T23:30:00+01:00',
       selected: '2027-03-29T00:00:00+02:00',
@@ -97,7 +113,7 @@ describe('API key expiry', () => {
       selected: '2028-02-02T00:00:00+01:00',
       expiresAt: null,
     },
-  ])('$name [APIKEY-R10]', ({ now, selected, expiresAt, minimum }) => {
+  ])('$name [APIKEY-R10]', ({ zone, now, selected, expiresAt, minimum }) => {
     const input = { now: Date.parse(now), selected: Date.parse(selected) };
     // The UI project gives import.meta.url a browser URL; the workspace
     // script's cwd supplies the real module for the isolated Node process.
@@ -121,7 +137,7 @@ describe('API key expiry', () => {
          }));`,
       ],
       {
-        env: { ...process.env, TZ: 'Europe/Zurich' },
+        env: { ...process.env, TZ: zone ?? 'Europe/Zurich' },
         encoding: 'utf8',
         timeout: 5000,
       },
