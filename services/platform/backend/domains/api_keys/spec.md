@@ -97,7 +97,11 @@ project's key whose team or project is gone, is refused on its next request.
 ### APIKEY-R10 · A key expires on the day its maker picks, at most a year away, or never
 
 The choices are 7, 30, 90 or 365 days, a day picked in a calendar between tomorrow and a year
-from today, or never (`API_KEY_EXPIRY_INVALID`). The list shows when each key expires.
+from today, or never (`API_KEY_EXPIRY_INVALID`). A picked day is the day the key stops working
+where its maker is, even with a clock change in between. The calendar offers only the days on
+which a lifetime of 24 hours to 365 days can end, so after a clock change the first day may be
+the one after tomorrow, and a form left open is checked again when it is sent. The list shows
+when each key expires.
 
 - **Example**: Ada picks Custom date and November 20 → the key works until then, and the list
   says so.
