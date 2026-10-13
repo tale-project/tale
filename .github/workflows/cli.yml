@@ -26,6 +26,7 @@ on:
       - 'services/platform/backend/domains/agent_connections/**'
       - 'services/platform/backend/domains/automations/writer-protocol.ts'
       - 'services/platform/backend/domains/chat/**'
+      - 'services/platform/backend/domains/collab/service.ts'
       - 'services/platform/backend/domains/file_metadata/**'
       - 'services/platform/backend/domains/files/**'
       - 'services/platform/backend/domains/folders/**'

@@ -13,6 +13,7 @@
         "$TURBO_ROOT$/services/platform/backend/domains/agent_connections/**",
         "$TURBO_ROOT$/services/platform/backend/domains/automations/writer-protocol.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/chat/**",
+        "$TURBO_ROOT$/services/platform/backend/domains/collab/service.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/file_metadata/**",
         "$TURBO_ROOT$/services/platform/backend/domains/files/**",
         "$TURBO_ROOT$/services/platform/backend/domains/folders/**",
