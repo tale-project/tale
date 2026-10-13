@@ -202,6 +202,9 @@ iconPicker:
 editor:
   saved: Skill enregistré
   saveFailed: Échec de l'enregistrement du skill
+  stale: Ce skill a changé depuis que tu l’as ouvert, donc rien n’a été
+    enregistré. Tes modifications sont toujours là. Copie ce dont tu as
+    besoin, puis ferme le skill et rouvre-le pour voir la dernière version.
   descriptionHelp:
     Une ou deux phrases sur ce que couvre le skill — c'est ce qui indique
     au modèle quand le lire.

@@ -23,6 +23,7 @@ import { useT } from '@/lib/i18n/client';
 
 import {
   isSkillPublishRefusal,
+  isSkillStaleRefusal,
   useDeleteSkill,
   useSaveSkill,
 } from '../hooks/mutations';
@@ -44,6 +45,8 @@ interface SkillFormState {
   readonly body: string;
 }
 
+/** The document the editor started from: what its form was filled with, and
+ * the tag that document carried when it was read. */
 /**
  * One skill inside the library dialog: the bundle's file tree on the left,
  * and on the right either the metadata + body editor (`SKILL.md` selected)
@@ -76,6 +79,11 @@ export function SkillDetailPane({
 
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
   const [draft, setDraft] = useState<SkillFormState | null>(null);
+  // The document tag the draft began from. A save names it, so the door
+  // refuses a save that a newer document, another editor's, would lose. An
+  // editor nobody has touched has no draft: it shows, and follows, the
+  // newest document.
+  const [draftEtag, setDraftEtag] = useState<string | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const savedForm = useMemo<SkillFormState | null>(() => {
@@ -98,9 +106,14 @@ export function SkillDetailPane({
   // clears the draft after invalidation, even when a normalized no-op keeps
   // the same document or its detail refresh finishes before the library.
   const form = draft ?? savedForm;
+  const edit = (next: SkillFormState) => {
+    if (draft === null) setDraftEtag(skill?.etag);
+    setDraft(next);
+  };
 
   useEffect(() => {
     setDraft(null);
+    setDraftEtag(undefined);
     setSelectedPath('SKILL.md');
   }, [slug]);
 
@@ -158,6 +171,9 @@ export function SkillDetailPane({
       await saveSkill.mutateAsync({
         organizationId,
         slug,
+        // The document the form started from, not the newest one the cache
+        // holds: the door refuses a save whose document has changed since.
+        etag: draftEtag,
         description: form.metadata.description.trim(),
         body: form.body,
         visibility: form.metadata.sharing.visibility,
@@ -171,17 +187,21 @@ export function SkillDetailPane({
           ? { labels: parseLabelsInput(form.metadata.labels) }
           : {}),
       });
-      setDraft(null); // Show the saved document without waiting for a seed effect.
+      // Show the saved document without waiting for a seed effect.
+      setDraft(null);
+      setDraftEtag(undefined);
       toast({ title: t('editor.saved'), variant: 'success' });
     } catch (error) {
       console.error('Failed to save skill', error);
       toast({
         title: t('editor.saveFailed'),
-        // A refused audience in the viewer's language, any other refusal
-        // in the door's words.
+        // A refused audience and a document saved since this one was opened
+        // in the viewer's language, any other refusal in the door's words.
         description: isSkillPublishRefusal(error)
           ? t('publishing.refused')
-          : failureDetail(error),
+          : isSkillStaleRefusal(error)
+            ? t('editor.stale')
+            : failureDetail(error),
         variant: 'destructive',
       });
     }
@@ -286,7 +306,7 @@ export function SkillDetailPane({
                     values={form.metadata}
                     savedSharing={savedSharing}
                     savedLabels={savedForm?.metadata.labels}
-                    onChange={(metadata) => setDraft({ ...form, metadata })}
+                    onChange={(metadata) => edit({ ...form, metadata })}
                     disabled={!canEdit}
                     orgReservedReason={orgReservedReason}
                   />
@@ -299,7 +319,7 @@ export function SkillDetailPane({
                       aria-label={t('section.body')}
                       value={form.body}
                       onChange={(e) =>
-                        setDraft({ ...form, body: e.target.value })
+                        edit({ ...form, body: e.target.value })
                       }
                       rows={12}
                       className="font-mono text-sm"

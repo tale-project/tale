@@ -33,6 +33,7 @@ import { configKeys } from '@/app/hooks/config-query-keys';
 
 import {
   isSkillPublishRefusal,
+  isSkillStaleRefusal,
   useSaveSkill,
   useUploadSkillBundle,
 } from './mutations';
@@ -73,6 +74,14 @@ describe('isSkillPublishRefusal', () => {
   });
 });
 
+describe('isSkillStaleRefusal', () => {
+  it('recognizes only the refusal of an edit whose document changed since it was read', () => {
+    expect(isSkillStaleRefusal(refusal('SKILL_STALE'))).toBe(true);
+    expect(isSkillStaleRefusal(refusal('SKILL_EXISTS'))).toBe(false);
+    expect(isSkillStaleRefusal(new Error('offline'))).toBe(false);
+  });
+});
+
 describe('useSaveSkill', () => {
   it('names the reason and refreshes the listing when the audience is refused', () => {
     const options = optionsOf(() => useSaveSkill());
@@ -97,12 +106,24 @@ describe('useSaveSkill', () => {
 
   it('keeps the generic feedback for any other failure', () => {
     const options = optionsOf(() => useSaveSkill());
-    const error = refusal('SKILL_STALE');
+    const error = refusal('SKILL_FORBIDDEN');
     const errorToast = options.errorToast || undefined;
 
     expect(errorToast?.description?.(error)).toBeUndefined();
     options.onError?.(error);
     expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  // The edit's own pane says what happened; the library reads again so the
+  // skill opened next is the document that was saved since.
+  it('refreshes the listing when a save is refused as stale, and leaves the report to the caller', () => {
+    const options = optionsOf(() => useSaveSkill({ errorToast: false }));
+
+    expect(options.errorToast).toBe(false);
+    options.onError?.(refusal('SKILL_STALE'));
+    expect(invalidateQueries).toHaveBeenCalledExactlyOnceWith({
+      queryKey: configKeys.type('skills'),
+    });
   });
 
   // The detail pane toasts a failed save itself: its opt-out must win over

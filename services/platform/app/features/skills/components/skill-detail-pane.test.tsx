@@ -6,24 +6,36 @@
  * A failed read is its own state (#3752): never "Skill not found", always a
  * way to try again, and a failed refresh never takes a draft away. The labels
  * field keeps every entry it is given (#3753).
+ *
+ * A save names the document the editor started from (`If-Match`), so a
+ * document another editor saved since refuses it and the draft stays. An
+ * editor nobody has touched follows a newer document instead.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { toBackendError } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
-const { useSkill, useSkillPublishing, useOrgTeams, saveSkill } = vi.hoisted(
-  () => ({
+const { useSkill, useSkillPublishing, useOrgTeams, saveSkill, toast } =
+  vi.hoisted(() => ({
     useSkill: vi.fn(),
     useSkillPublishing: vi.fn(),
     useOrgTeams: vi.fn(),
     saveSkill: vi.fn().mockResolvedValue(undefined),
-  }),
-);
+    toast: vi.fn(),
+  }));
+
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
+  toast,
+}));
 
 vi.mock('../hooks/queries', () => ({ useSkill, useSkillPublishing }));
-vi.mock('../hooks/mutations', () => ({
+vi.mock('../hooks/mutations', async (importOriginal) => ({
+  // The refusal readers stay real: the pane names a refusal by its code.
+  ...(await importOriginal<typeof import('../hooks/mutations')>()),
   useSaveSkill: () => ({ mutateAsync: saveSkill, isPending: false }),
   useDeleteSkill: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -108,8 +120,15 @@ function rerenderPane(rerender: (ui: React.ReactElement) => void) {
 
 const NINE_LABELS = Array.from({ length: 9 }, (_, i) => `label-${i + 1}`);
 
+/** The document as the door read it, under the tag its `SKILL.md` carries. */
+function skillAt(slug: string, body: string, etag: string) {
+  return { ...skillDoc(slug, body), etag };
+}
+
 beforeEach(() => {
-  saveSkill.mockClear();
+  saveSkill.mockReset();
+  saveSkill.mockResolvedValue(undefined);
+  toast.mockClear();
   useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
 });
 
@@ -335,6 +354,116 @@ describe('SkillDetailPane', () => {
       expect(
         screen.getByDisplayValue('Alpha body and a draft'),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('a document another editor saved while this one was open', () => {
+    it('saves under the tag of the document it opened', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(
+        read(skillAt('alpha', 'Original instructions', '"e1"')),
+      );
+      const { user } = mountPane('alpha');
+
+      await user.type(screen.getByDisplayValue('Original instructions'), '!');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: 'Original instructions!',
+          etag: '"e1"',
+        }),
+      );
+    });
+
+    it('keeps the draft and its tag when a newer document reaches the cache', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(
+        read(skillAt('alpha', 'Original instructions', '"e1"')),
+      );
+      const { user, rerender } = mountPane('alpha');
+      await user.type(screen.getByDisplayValue('Original instructions'), '!');
+
+      useSkill.mockReturnValue(
+        read(skillAt('alpha', 'Newer instructions', '"e2"')),
+      );
+      rerenderPane(rerender);
+      expect(
+        screen.getByDisplayValue('Original instructions!'),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      // The newer tag would let the draft's older text replace the newer one.
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: 'Original instructions!',
+          etag: '"e1"',
+        }),
+      );
+    });
+
+    it('lets an editor nobody touched follow it, and then saves under its tag', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(
+        read(skillAt('alpha', 'Original instructions', '"e1"')),
+      );
+      const { user, rerender } = mountPane('alpha');
+
+      useSkill.mockReturnValue(
+        read(skillAt('alpha', 'Newer instructions', '"e2"')),
+      );
+      rerenderPane(rerender);
+
+      expect(
+        screen.getByDisplayValue('Newer instructions'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByDisplayValue('Original instructions'),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+      await user.type(screen.getByDisplayValue('Newer instructions'), '!');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: 'Newer instructions!',
+          etag: '"e2"',
+        }),
+      );
+    });
+
+    it('says in the reader language that nothing was saved, and keeps the draft', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(
+        read(skillAt('alpha', 'Original instructions', '"e1"')),
+      );
+      // As the write adapter hands the door's 412 to the pane.
+      saveSkill.mockRejectedValueOnce(
+        toBackendError(
+          new BackendApiError(
+            412,
+            'The skill "alpha" changed since you read it — If-Match named no tag matching its current one; nothing was written.',
+            'SKILL_STALE',
+          ),
+        ),
+      );
+      const { user } = mountPane('alpha');
+      await user.type(screen.getByDisplayValue('Original instructions'), '!');
+
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: "Couldn't save skill",
+          description:
+            'This skill changed after you opened it, so nothing was saved. Your edits are still here. Copy what you need, then close this skill and open it again to see the latest version.',
+          variant: 'destructive',
+        }),
+      );
+      expect(toast).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByDisplayValue('Original instructions!'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     });
   });
 
