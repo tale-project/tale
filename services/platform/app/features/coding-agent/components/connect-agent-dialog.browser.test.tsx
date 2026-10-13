@@ -145,6 +145,19 @@ describe('the connect dialog in both themes', () => {
         await i18n.changeLanguage('en');
         renderDialog();
         const dialog = await screen.findByRole('dialog');
+        // The dialog and its overlay fade in, and axe reads the opacity of
+        // every ancestor: an audit that starts a few frames in judges the text
+        // at a few percent. The waiting dot pulses for good, so only the
+        // animations that end are awaited.
+        await Promise.allSettled(
+          document
+            .getAnimations()
+            .filter(
+              (animation) =>
+                animation.effect?.getComputedTiming().iterations !== Infinity,
+            )
+            .map((animation) => animation.finished),
+        );
         const result = await axe.run(dialog, {
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] },
         });

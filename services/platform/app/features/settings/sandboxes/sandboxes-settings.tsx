@@ -100,6 +100,12 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     'node_only/sandbox/session_admin_actions:setSandboxPinned',
     { errorToast: false },
   );
+  // `useMutation` returns a new object on every render, but its async trigger
+  // stays the same. The column definitions below depend on the triggers, not
+  // the objects: a changed definition remounts every cell, and an open row
+  // menu closes with it.
+  const stopTask = stop.mutateAsync;
+  const setSandboxPinned = setPinned.mutateAsync;
 
   // Reconcile business allocation records on mount. Physical runtime state
   // comes from the separate infrastructure snapshot below.
@@ -371,7 +377,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                       void run(
                         s.sessionId,
                         () =>
-                          stop.mutateAsync({
+                          stopTask({
                             organizationId,
                             sessionId: s.sessionId,
                           }),
@@ -390,7 +396,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                       void run(
                         s.sessionId,
                         () =>
-                          setPinned.mutateAsync({
+                          setSandboxPinned({
                             organizationId,
                             sessionId: s.sessionId,
                             pinned: !s.pinned,
@@ -415,7 +421,16 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         },
       },
     ],
-    [t, organizationId, pendingId, stop, setPinned, run, snapshot, devicesView],
+    [
+      t,
+      organizationId,
+      pendingId,
+      stopTask,
+      setSandboxPinned,
+      run,
+      snapshot,
+      devicesView,
+    ],
   );
 
   if ((canManage && data === null) || (!abilityLoading && !canRead)) {
