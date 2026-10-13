@@ -455,8 +455,15 @@ export async function checkRetentionAuditTrail(
   `;
   const collisionMetadata = collisionAudit[0]?.metadata;
   const collisionModels = new Set(collisionRows.map((row) => row.model));
-  const remainingBatchRows = collisionRows.filter((row) =>
-    row.model.startsWith('collision-batch-'),
+  // The sweep deletes 1000 of the 1003 stale rows — the 1001 batch rows and
+  // the stale row of each table — in the order the planner scans them, so
+  // which three stay is not the point; that exactly three do, beside the
+  // seven rows no sweep may touch, is.
+  const staleLeft = collisionRows.filter(
+    (row) =>
+      row.userId === collisionUser &&
+      (row.model.startsWith('collision-batch-') ||
+        row.model.startsWith('collision-parent-stale')),
   ).length;
   const collisionAuditCounts = collisionMetadata?.counts;
   const collisionAuditExact =
@@ -464,6 +471,7 @@ export async function checkRetentionAuditTrail(
     isDeepStrictEqual(collisionAuditCounts, {
       usageLedger: 1000,
       usageEvents: 0,
+      projectUsage: 0,
     });
   record(
     'retention ledger: inherited tuple identity preserves tenant, fresh and held rows with exact bounded audit counts',
@@ -475,9 +483,9 @@ export async function checkRetentionAuditTrail(
       collisionModels.has('collision-parent-held-child') &&
       collisionModels.has('collision-other-tenant') &&
       collisionModels.has('collision-other-tenant-child') &&
-      remainingBatchRows === 3 &&
+      staleLeft === 3 &&
       collisionAuditExact,
-    `rows=${collisionRows.map((row) => `${row.tableName}:${row.model}:${row.userId}`).join(',')}, batchRemaining=${remainingBatchRows} (want 3), audit=${JSON.stringify(collisionMetadata)} (want deleted=1000, usageLedger=1000, usageEvents=0)`,
+    `rows=${collisionRows.map((row) => `${row.tableName}:${row.model}:${row.userId}`).join(',')}, staleLeft=${staleLeft} (want 3), audit=${JSON.stringify(collisionMetadata)} (want deleted=1000, usageLedger=1000, usageEvents=0, projectUsage=0)`,
   );
   await sql`
     DELETE FROM app.legal_holds
