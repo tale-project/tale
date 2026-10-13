@@ -238,10 +238,11 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
     );
     await waitFor(() => expect(chart).toHaveAttribute('aria-busy', 'false'));
     await viewportAtRest(view.container);
-    // It plays like a stored run, on its own timeline.
-    expect(
-      await screen.findByRole('group', { name: 'Run timeline' }),
-    ).toBeVisible();
+    // It plays like a stored run, on its own timeline. The chart, toolbar
+    // included, fades in from nothing, and nothing is not visible: a loaded
+    // runner can still be at the first frame of that fade.
+    const bar = await screen.findByRole('group', { name: 'Run timeline' });
+    await waitFor(() => expect(bar).toBeVisible(), { timeout: 5_000 });
     await waitFor(() =>
       expect(node(first)).toHaveAttribute('data-flow-substitute', 'simulated'),
     );
