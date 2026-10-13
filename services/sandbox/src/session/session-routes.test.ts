@@ -7999,6 +7999,52 @@ describe('Kubernetes namespace admission', () => {
       await Promise.allSettled([first, second]);
     }
   });
+
+  test('a re-ask that ends on an unreadable inventory leaves no waiter that expiry spares', async () => {
+    const sessions: BackendSession[] = [];
+    let lists = 0;
+    let failOnList = Number.POSITIVE_INFINITY;
+    const routes = new SessionRoutes(namespaceCfg, {
+      ...fakeBackend,
+      kind: 'kubernetes',
+      async createSession(spec) {
+        sessions.push({
+          ...mkBackendSession(spec.sessionId, spec.organizationId),
+          createdAtMs: spec.createdAtMs,
+        });
+        return { resumed: false };
+      },
+      async destroySession(sessionId) {
+        const at = sessions.findIndex((s) => s.sessionId === sessionId);
+        if (at >= 0) sessions.splice(at, 1);
+        return at >= 0;
+      },
+      async listSessions() {
+        lists += 1;
+        if (lists === failOnList)
+          throw new Error('apiserver temporarily unavailable');
+        return [...sessions];
+      },
+    });
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await create(routes, 'held')).status).toBe(201);
+      expect((await create(routes, 'waiter')).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(1);
+      // The re-ask reads the inventory, finds no room, then cannot read it
+      // again after its reclaim: it ends without a place to give.
+      failOnList = lists + 2;
+      expect((await create(routes, 'waiter')).status).toBe(503);
+      // Silent for its hint and the slack, the waiter gives its place up,
+      // as any waiter that stopped asking does: no ask is left running.
+      setSystemTime(new Date(Date.now() + 26_000));
+      await routes.handleDestroy('held');
+      expect((await create(routes, 'next')).status).toBe(201);
+    } finally {
+      setSystemTime();
+      warning.mockRestore();
+    }
+  });
 });
 
 function mkBackendSession(
