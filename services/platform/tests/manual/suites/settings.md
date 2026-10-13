@@ -73,9 +73,10 @@ A makes the connector add-credential smoke (SET-F25) deterministic. The model
 endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
 endpoints switched on as in governance.md GOV-F41; a real answer needs mode B
 with the sandbox model gateway running. The Connected agents boxes (SET-F85–SET-F88, SET-B38, SET-A11)
-need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe, which takes
-the agent sign-in switched on (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=true`);
-the page itself is absent while it is off (SET-B38).
+need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe; the agent
+sign-in is on unless `TALE_MCP_CLIENT_METADATA_DOCUMENTS` and
+`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` are both `false`, and the page itself is
+absent while it is off (SET-B38).
 Restore any toggled setting after the run.
 
 > **Agent note**: pages on the header **Save** / **Discard** cluster
@@ -1342,7 +1343,7 @@ Restore any toggled setting after the run.
   denied** with `accessDenied.apiKeys`. A plain member who never had either
   never sees the row. With the agent sign-in switched off
   (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and `TALE_MCP_CLIENT_METADATA_DOCUMENTS`
-  unset) the owner's rail has no **Connected agents** while they hold no agent,
+  both `false`) the owner's rail has no **Connected agents** while they hold no agent,
   and a person who still holds one keeps the page, without **Connect a coding
   agent**.
 

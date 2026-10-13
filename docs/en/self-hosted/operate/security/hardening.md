@@ -21,6 +21,18 @@ If you use trusted-header authentication, only the trusted upstream proxy may re
 
 The platform’s `robots.txt` discourages indexing of the application but explicitly allows public developer and status paths, including `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` and `/status`. These crawler instructions are not access controls. Keep confidential data behind authentication and review what your public status report exposes.
 
+## Decide whether coding agents may sign in {#agent-sign-in}
+
+[Coding-agent sign-in](/self-hosted/configuration/authentication#coding-agent-sign-in) lets a person connect Claude Code, Codex, Cursor or another agent to the MCP endpoint without an API key, and it is on unless you turn it off. It adds public surfaces: the `/.well-known/oauth-*` discovery documents, the sign-in server's `/api/auth/oauth2/*` endpoints (self-registration among them, rate-limited) and the consent page at `/oauth/consent`. A connection never does more than its person's role allows, belongs to one organization and the access the person chose, and every connect, change and disconnect is in the audit log. Removing the person, a new password or a refresh token used twice disconnect it.
+
+If you keep it on, check three things:
+
+- **Reachability.** Agents that run on a person's computer (Claude Code, Codex, Cursor, VS Code, Gemini CLI) reach Tale through that person's browser and a loopback redirect, so they need no exposure beyond the public address people already use. claude.ai, Claude Desktop and mobile connect from Anthropic's cloud instead. For them, allow inbound HTTPS from Anthropic's published outbound range — currently `160.79.104.0/21`, see [Anthropic's IP addresses](https://platform.claude.com/docs/en/api/ip-addresses) — to `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server*`, `/api/auth/.well-known/openid-configuration`, `/api/auth/oauth2/token`, `/api/auth/oauth2/register` and `/api/v1/mcp`. A deployment reachable only on a private network cannot be used from those hosted apps.
+- **Egress.** The backend fetches an agent's client metadata document from the agent's own host, `claude.ai` for Claude Code and `chatgpt.com` for Codex. If you restrict the backend's outbound traffic, allow those hosts, or list the hosts you accept in `TALE_MCP_CLIENT_METADATA_HOSTS`.
+- **Who can connect.** An Owner, Admin or Developer, and a member holding a competence that is used with an API key. The person needs a verified address and a finished two-factor enrolment where it is enforced, and allowing more than reading takes a sign-in from the last day. Review who holds those roles and competences as you would for API keys.
+
+To keep agents on API keys, set `TALE_MCP_CLIENT_METADATA_DOCUMENTS=false` and `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=false` and recreate the backend.
+
 ## Verify TLS at the public address
 
 Use a trusted certificate for the address people actually open. Configure `TLS_MODE=letsencrypt` for the bundled public TLS path, or `TLS_MODE=external` when your edge terminates TLS. A self-signed local setup does not establish public certificate trust.
