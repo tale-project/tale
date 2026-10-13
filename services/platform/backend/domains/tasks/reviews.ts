@@ -9,6 +9,8 @@ import type { Sql, TransactionSql } from 'postgres';
 import {
   getUserTeamIds,
   findOrganizationMember,
+  setMembershipAccessLossHook,
+  type MembershipAccessLoss,
 } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
@@ -559,10 +561,7 @@ export async function retargetPendingTaskReview(
 }
 
 /** What took a person's project access away; the audit row names it. */
-export type ReviewAccessLoss =
-  | 'member_removed'
-  | 'role_changed'
-  | 'team_removed';
+export type ReviewAccessLoss = MembershipAccessLoss;
 
 /**
  * Hand on the reviews that wait on a person who can no longer take them: they
@@ -706,6 +705,23 @@ export async function retargetPendingTaskReviewsForUser(
       entityId: task.id,
     });
   }
+}
+
+/**
+ * Hand the reviews on when a removal or a role change takes a person's
+ * access, from inside the doors that do it (`auth/membership.ts`,
+ * `domains/members/service.ts`), in their transaction. The boot sequence
+ * calls this once (`main.ts`), as does the integration harness; those doors
+ * cannot import this module themselves, see `MembershipAccessLossHook`.
+ */
+export function installReviewHandoverHook(): void {
+  setMembershipAccessLossHook(async (tx, { organizationId, userId, cause }) => {
+    await retargetPendingTaskReviewsForUser(tx, {
+      organizationId,
+      userId,
+      cause,
+    });
+  });
 }
 
 export interface TaskReviewPolicyOutcome {

@@ -10,14 +10,14 @@
  */
 
 import type { TransactionSql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { retargetPendingTaskReviewsForUser } from '../tasks/reviews.ts';
+import {
+  type MembershipAccessLossHook,
+  setMembershipAccessLossHook,
+} from '../../auth/membership.ts';
 import { updateMemberRole } from './service.ts';
 
-vi.mock('../tasks/reviews.ts', () => ({
-  retargetPendingTaskReviewsForUser: vi.fn(),
-}));
 vi.mock('../audit_logs/service.ts', () => ({ logSuccess: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
@@ -77,14 +77,20 @@ function recordingTx(targetRole: string): TransactionSql {
   return tag as unknown as TransactionSql;
 }
 
+/** The step the boot installs (`installReviewHandoverHook`), as a spy. */
+const handOver = vi.fn<MembershipAccessLossHook>();
+
 beforeEach(() => {
   timeline = [];
-  vi.mocked(retargetPendingTaskReviewsForUser)
-    .mockReset()
-    .mockImplementation(() => {
-      timeline.push('hand over');
-      return Promise.resolve();
-    });
+  handOver.mockReset().mockImplementation(() => {
+    timeline.push('hand over');
+    return Promise.resolve();
+  });
+  setMembershipAccessLossHook(handOver);
+});
+
+afterEach(() => {
+  setMembershipAccessLossHook(null);
 });
 
 describe('updateMemberRole — the reviews waiting on the member [TASK-R39]', () => {
@@ -103,8 +109,8 @@ describe('updateMemberRole — the reviews waiting on the member [TASK-R39]', ()
         { memberId: TARGET_MEMBER_ID, role: to },
       );
 
-      expect(retargetPendingTaskReviewsForUser).toHaveBeenCalledTimes(1);
-      expect(retargetPendingTaskReviewsForUser).toHaveBeenCalledWith(tx, {
+      expect(handOver).toHaveBeenCalledTimes(1);
+      expect(handOver).toHaveBeenCalledWith(tx, {
         organizationId: ORG_ID,
         userId: TARGET_USER_ID,
         cause: 'role_changed',
@@ -125,7 +131,7 @@ describe('updateMemberRole — the reviews waiting on the member [TASK-R39]', ()
       { userId: CALLER_ID },
       { memberId: TARGET_MEMBER_ID, role: 'editor' },
     );
-    expect(retargetPendingTaskReviewsForUser).not.toHaveBeenCalled();
+    expect(handOver).not.toHaveBeenCalled();
   });
 
   it('writes no role and hands nothing on when the change is refused', async () => {
@@ -137,7 +143,7 @@ describe('updateMemberRole — the reviews waiting on the member [TASK-R39]', ()
         { memberId: TARGET_MEMBER_ID, role: 'member' },
       ),
     ).rejects.toMatchObject({ code: 'MEMBER_OWNER_ROLE_IMMUTABLE' });
-    expect(retargetPendingTaskReviewsForUser).not.toHaveBeenCalled();
+    expect(handOver).not.toHaveBeenCalled();
     expect(timeline.some((text) => text.startsWith('UPDATE'))).toBe(false);
   });
 });

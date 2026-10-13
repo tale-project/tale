@@ -196,6 +196,7 @@ import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkReviewAccessLoss } from './domains/tasks/review-access-loss.integration.ts';
+import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskSearchPriority } from './domains/tasks/search-priority.integration.ts';
@@ -64517,6 +64518,9 @@ async function main(): Promise<void> {
     }
   }
   setEnqueueBoss(boss);
+  // The same boot wiring: a removed member's reviews are handed on in the
+  // removal's own transaction.
+  installReviewHandoverHook();
   // No itest job may ever open a real IMAP/SMTP connection.
   setMailTransportForTesting(DEFAULT_MAIL_FAKE);
 

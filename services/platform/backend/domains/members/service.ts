@@ -10,12 +10,12 @@ import {
   getUserOrganizations,
   isAdminRole,
   removeMembershipCascade,
+  runMembershipAccessLossHook,
 } from '../../auth/membership.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { AgentConnectionAuditActor } from '../agent_connections/end.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
-import { retargetPendingTaskReviewsForUser } from '../tasks/reviews.ts';
 
 /**
  * Members domain — org-membership management with the 0.4 guard semantics.
@@ -465,7 +465,7 @@ export async function updateMemberRole(
   // takes the reviews waiting on the person with it; where they can still
   // edit, the hand-over leaves them alone.
   if (newRole !== previousRole) {
-    await retargetPendingTaskReviewsForUser(tx, {
+    await runMembershipAccessLossHook(tx, {
       organizationId: member.organizationId,
       userId: member.userId,
       cause: 'role_changed',
