@@ -33,6 +33,44 @@ ${AUTOMATION_LEDGER_QUERY.slice(0, -1)}
 \\gexec
 ${AUTOMATION_CUTOVER_CENSUS_SQL}`;
 
+/** A workspace deployment asks the held census's question before it changes
+ * anything: in a read-only transaction and without the lock, so neither a busy
+ * writer nor this read waits on the other. The held census still decides. */
+export const AUTOMATION_CUTOVER_READINESS_SQL = `BEGIN ${AUTOMATION_CUTOVER_ISOLATION}, READ ONLY;
+${AUTOMATION_CUTOVER_SESSION_SQL}
+${AUTOMATION_CUTOVER_CENSUS_SQL}
+ROLLBACK;`;
+
+/** Whether unfinished runs exist; throws when the census is unreadable. */
+export function legacyCutoverBusy(raw: string): boolean {
+  return z
+    .strictObject({
+      safeTable: z.literal(true),
+      unfinished: z.boolean(),
+      owned: z.boolean(),
+    })
+    .parse(JSON.parse(raw.trim())).unfinished;
+}
+
+/** v0.5.77's ledger is every application migration numbered below 0154; the
+ * protocol-2 runtime adds 0154 onwards, 0163 among them. */
+const FIRST_PROTOCOL_TWO_MIGRATION = '0154';
+
+/** How a ledger without 0163 stands against the supported legacy runtime:
+ * exactly v0.5.77's; v0.5.77's plus only newer migrations, which only a
+ * protocol-2 boot cut short before 0163 committed can leave; or neither. */
+export type LegacyLedgerShape = 'legacy' | 'continued' | 'unsupported';
+
+export function legacyLedgerShape(ids: readonly string[]): LegacyLedgerShape {
+  const legacy = ids.filter((id) => id < FIRST_PROTOCOL_TWO_MIGRATION);
+  if (
+    createHash('sha256').update(JSON.stringify(legacy)).digest('hex') !==
+    LEGACY_CUTOVER_LEDGER_SHA256
+  )
+    return 'unsupported';
+  return legacy.length === ids.length ? 'legacy' : 'continued';
+}
+
 export function emptyLegacyCutoverCensus(raw: string): boolean {
   try {
     const lines = raw.trim().split('\n');

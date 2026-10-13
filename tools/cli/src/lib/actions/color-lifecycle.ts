@@ -202,9 +202,25 @@ export async function startColor(args: StartColorArgs): Promise<void> {
     throw new Error('Color deployment failed');
   }
 
+  await awaitColorHealthy(args);
+}
+
+/**
+ * Wait until EVERY replica of every role in a colour is healthy, without
+ * touching the colour. Throws when one is not, so traffic never moves onto
+ * it. `wait` is injectable for tests only.
+ */
+export async function awaitColorHealthy(
+  args: Pick<
+    StartColorArgs,
+    'color' | 'services' | 'replicas' | 'healthTimeout' | 'streamLogs'
+  >,
+  wait: typeof waitForServiceHealthy = waitForServiceHealthy,
+): Promise<void> {
+  const project = colorProject(args.color);
   logger.step('Waiting for services to be healthy...');
   for (const service of args.services) {
-    const healthy = await waitForServiceHealthy(project, service, {
+    const healthy = await wait(project, service, {
       timeout: args.healthTimeout,
       expectedReplicas: args.replicas[service],
       ...(args.streamLogs === undefined ? {} : { streamLogs: args.streamLogs }),

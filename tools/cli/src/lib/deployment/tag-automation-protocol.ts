@@ -17,21 +17,12 @@ import {
 } from './runtime-model';
 import { imageInspectSchema } from './runtime-prepare';
 
-/** No hidden database start and no container-name guess on an existing host. */
-export async function tagDeploymentProtocol(
+/** The deployment's bundled database container, created or not; none on an
+ * empty host. More than one is never guessed between. */
+export async function tagDatabaseId(
   project: string,
-  existing: boolean,
   dependencies: RuntimeDependencies = {},
-): Promise<AutomationWriterProtocol> {
-  requireRuntime(
-    /^[a-z][a-z0-9-]{0,62}$/.test(project),
-    'Invalid deployment project.',
-  );
-  requireRuntime(
-    !process.env.DATABASE_URL &&
-      (!process.env.APP_DB_NAME || process.env.APP_DB_NAME === 'tale_app'),
-    'Custom database connections require a separately verified protocol readback. This CLI cannot safely deploy or roll back that topology.',
-  );
+): Promise<string | null> {
   const ids = (
     await protocolRead(
       [
@@ -55,13 +46,32 @@ export async function tagDeploymentProtocol(
     ids.length <= 1 && ids.every((id) => /^[a-f0-9]{64}$/.test(id)),
     'The installed automation writer protocol requires one unambiguous database.',
   );
-  if (ids.length === 1) {
+  return ids[0] ?? null;
+}
+
+/** No hidden database start and no container-name guess on an existing host. */
+export async function tagDeploymentProtocol(
+  project: string,
+  existing: boolean,
+  dependencies: RuntimeDependencies = {},
+): Promise<AutomationWriterProtocol> {
+  requireRuntime(
+    /^[a-z][a-z0-9-]{0,62}$/.test(project),
+    'Invalid deployment project.',
+  );
+  requireRuntime(
+    !process.env.DATABASE_URL &&
+      (!process.env.APP_DB_NAME || process.env.APP_DB_NAME === 'tale_app'),
+    'Custom database connections require a separately verified protocol readback. This CLI cannot safely deploy or roll back that topology.',
+  );
+  const database = await tagDatabaseId(project, dependencies);
+  if (database !== null) {
     const before = await bundledBackendIdentity(
       [project, `${project}-blue`, `${project}-green`],
       dependencies,
     );
     const floor = await installedAutomationProtocol(
-      ids[0],
+      database,
       project,
       dependencies,
     );
@@ -114,11 +124,15 @@ export async function tagDeploymentProtocol(
   return 1;
 }
 
-/** Return the immutable platform reference admitted for all three backend roles. */
+/** Return the immutable platform reference admitted for all three backend roles.
+ * `legacyCutover` is `tale deploy`'s: it admits a protocol-2 image over an
+ * existing protocol-1 database because it runs the cutover barrier itself
+ * (`tag-automation-cutover.ts`) before that image starts. Rollback never does. */
 export async function admitTagAutomationImage(
   config: ServiceConfig,
   installed: AutomationWriterProtocol,
   dependencies: RuntimeDependencies = {},
+  admission: { legacyCutover?: boolean } = {},
 ): Promise<string | undefined> {
   const reference = imageRef(config, 'platform');
   const [image] = z
@@ -136,9 +150,10 @@ export async function admitTagAutomationImage(
   const protocol = imageWriterProtocol(image.Config.Labels);
   requireAutomationProtocol(installed, protocol);
   if (protocol === 1) return undefined;
-  if (installed === 1) {
-    // A tag/color deployment does not own the managed cutover recovery journal.
-    // Empty-host installs are safe; an existing DB must use managed apply.
+  if (installed === 1 && admission.legacyCutover !== true) {
+    // Only a deploy that runs the cutover barrier may start a protocol-2
+    // writer beside an existing protocol-1 database. Empty-host installs are
+    // safe; rollback has no barrier and never crosses the cutover.
     const databases = await protocolRead(
       [
         'ps',
@@ -155,7 +170,7 @@ export async function admitTagAutomationImage(
     );
     requireRuntime(
       databases.trim() === '',
-      'An existing protocol-1 database must upgrade through managed deployment apply and its automation cutover barrier before using tag deployments.',
+      'An existing protocol-1 database crosses the automation writer protocol cutover only through `tale deploy` (or managed deployment apply), which runs the cutover barrier; rollback cannot cross it.',
     );
   }
   const repository = `${config.registry}/tale-platform`;

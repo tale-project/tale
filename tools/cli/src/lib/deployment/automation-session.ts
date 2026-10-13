@@ -5,15 +5,16 @@ import { migrationSessionCommand } from './acceptance-migrations';
 import { runtimeProcessEnvironment } from './runtime-command';
 import { requireRuntime, type RuntimeSqlSession } from './runtime-model';
 
-const sessionFailure = () =>
+const sessionFailure = (retry: string) =>
   preconditionError(
-    'The automation cutover lock session was lost or timed out. No new runtime may start; retry the same managed deployment to reconcile its stopped writers.',
+    `The automation cutover lock session was lost or timed out. No new runtime may start; ${retry} to reconcile its stopped writers.`,
   );
 
 /** Private bounded psql session. It never exposes Docker/SQL error payloads.
  * PostgreSQL's idle timeout also retires the transaction after a CLI crash. */
 export async function automationSession(
   containerId: string,
+  retry = 'retry the same managed deployment',
 ): Promise<RuntimeSqlSession> {
   requireRuntime(
     /^[a-f0-9]{64}$/.test(containerId),
@@ -49,7 +50,7 @@ export async function automationSession(
     | undefined;
   const fail = () => {
     alive = false;
-    pending?.reject(sessionFailure());
+    pending?.reject(sessionFailure(retry));
     pending = undefined;
     proc.kill();
   };
@@ -98,7 +99,7 @@ export async function automationSession(
     healthy: () => alive && !closing && proc.exitCode === null,
     async query(sql) {
       if (!alive || closing || pending || proc.exitCode !== null)
-        throw sessionFailure();
+        throw sessionFailure(retry);
       const token = `TALE_${randomUUID().replaceAll('-', '')}`;
       const timer = setTimeout(fail, 10_000);
       try {
@@ -119,7 +120,7 @@ export async function automationSession(
       clearTimeout(deadline);
       closing = true;
       alive = false;
-      pending?.reject(sessionFailure());
+      pending?.reject(sessionFailure(retry));
       pending = undefined;
       const timer = setTimeout(() => proc.kill(), 5_000);
       try {

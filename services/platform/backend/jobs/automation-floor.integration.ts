@@ -15,10 +15,13 @@ import {
   AUTOMATION_CUTOVER_SESSION_SQL,
   cutoverLockOwned,
   emptyLegacyCutoverCensus,
+  legacyCutoverBusy,
+  legacyLedgerShape,
 } from '../../../../tools/cli/src/lib/deployment/automation-cutover-sql.ts';
 import {
   AUTOMATION_LEDGER_QUERY,
   automationFloor,
+  automationLedger,
   checkedAutomationLedgerQuery,
 } from '../../../../tools/cli/src/lib/deployment/automation-floor.ts';
 import { AUTOMATION_PROTOCOL_MIGRATION } from '../../../../tools/cli/src/lib/deployment/automation-model.ts';
@@ -56,6 +59,66 @@ async function checkCutover(
   await db`INSERT INTO tale.app_migrations ${db(ids.map((name) => ({ name })))}`;
   await db`CREATE SCHEMA app`;
   await db`CREATE TABLE app.automation_runs (id text PRIMARY KEY, org_id text NOT NULL, status text NOT NULL)`;
+  // `tale deploy` asks the census's question before it changes anything: in a
+  // read-only transaction, without the lock (AUTOMATION_CUTOVER_READINESS_SQL).
+  const readiness = async () => {
+    try {
+      return await db.begin(
+        `${AUTOMATION_CUTOVER_ISOLATION} read only`,
+        async (tx) => {
+          await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+          const result = await tx
+            .unsafe(AUTOMATION_CUTOVER_CENSUS_SQL)
+            .values();
+          return legacyCutoverBusy(JSON.stringify(result[0]?.[0]));
+        },
+      );
+    } catch {
+      return null;
+    }
+  };
+  const shape = () =>
+    db.begin('read only', async (tx) =>
+      legacyLedgerShape(
+        automationLedger(JSON.stringify(await ledgerValue(tx))).ids,
+      ),
+    );
+  record(
+    'automation cutover reads the released v0.5.77 ledger as the legacy shape',
+    (await shape()) === 'legacy',
+    'the exact 152 names, in the C order the ledger query returns',
+  );
+  record(
+    'automation cutover readiness reads an idle legacy census without its lock',
+    (await readiness()) === false,
+    'read-only transaction; no SHARE lock taken',
+  );
+  await peer.begin(async (writer) => {
+    await writer`INSERT INTO app.automation_runs VALUES ('in-flight', 'second-org', 'queued')`;
+    record(
+      'automation cutover readiness neither waits for nor blocks a write in flight',
+      (await readiness()) === false,
+      'the uncommitted admission stays invisible; the held census later refuses it',
+    );
+    await writer`DELETE FROM app.automation_runs WHERE id = 'in-flight'`;
+  });
+  await peer`INSERT INTO app.automation_runs VALUES ('queued-elsewhere', 'second-org', 'queued')`;
+  record(
+    'automation cutover readiness reports unfinished work in another organization',
+    (await readiness()) === true,
+    'refused before tale deploy changes anything',
+  );
+  await peer`DELETE FROM app.automation_runs WHERE id = 'queued-elsewhere'`;
+  const [first] = readdirSync(new URL('../db/migrations/', import.meta.url))
+    .filter((name) => /^0154_[a-z0-9_]+\.(sql|ts)$/.test(name))
+    .sort();
+  await db`INSERT INTO tale.app_migrations (name) VALUES (${first})`;
+  record(
+    'automation cutover reads a first boot cut before 0163 as the continued shape',
+    (await shape()) === 'continued',
+    `v0.5.77's ledger plus ${first}`,
+  );
+  await db`DELETE FROM tale.app_migrations WHERE name = ${first}`;
   const census = async (tx: Pick<Sql, 'unsafe'>) => {
     const ledger = await ledgerValue(tx);
     const result = await tx.unsafe(AUTOMATION_CUTOVER_CENSUS_SQL).values();

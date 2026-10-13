@@ -38,6 +38,7 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
+  awaitColorHealthy,
   colorLooksUp,
   colorProject,
   colorPlatformVersion,
@@ -291,6 +292,15 @@ export async function rollback(
         compose: generateColorCompose(serviceConfig, promoting),
         replicas,
         cwd: env.DEPLOY_DIR,
+        healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+      });
+    } else {
+      // A colour left up by an interrupted rollback takes traffic only once
+      // every replica is healthy.
+      await awaitColorHealthy({
+        color: promoting,
+        services,
+        replicas,
         healthTimeout: env.HEALTH_CHECK_TIMEOUT,
       });
     }

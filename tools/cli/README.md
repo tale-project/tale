@@ -153,9 +153,26 @@ claims while the CLI gracefully stops every recorded backend API and worker
 container. The CLI observes those exact containers exited before releasing the
 lock; the new images install their protocol fence before serving requests or
 starting workers. Busy or unsupported sources and database layouts refuse the
-upgrade before any backend stop. Existing protocol-1 tag deployments must use
-this managed upgrade first; fresh installations and compatible later deployments
-do not need the legacy barrier.
+upgrade before any backend stop. Fresh installations and compatible later
+deployments do not need the legacy barrier.
+
+A workspace deployment (`tale deploy`, blue/green) runs the same barrier itself
+when its admitted image is protocol 2 and its database is not: with custody of
+the deployment's own and both colour projects, where its backend writers run.
+Everything that can refuse is read first, without the lock and before the deploy
+changes anything: the v0.5.77 backend source and restart policy, the exact
+v0.5.77 ledger and an empty census across every organization. Each refusal names
+the next step (`tale update -v 0.5.77` for an older workspace). Right before
+the new colour starts, the held census stops the old writers and records them in
+`.tale/automation-cutover.json`. A rerun of `tale deploy` resumes its own
+handoff: while new writers exist, or after a first boot was cut before `0163`
+committed (the ledger is then v0.5.77's plus newer migrations only, so no census
+can run), it verifies the recorded stopped writers instead. While the ledger is
+still exactly v0.5.77's, an earlier attempt's receipt proves nothing and a fresh
+held census decides. `tale rollback` never crosses the cutover.
+`scripts/workspace-upgrade-check.ts` (the **Workspace upgrade** workflow, nightly)
+upgrades a real v0.5.77 workspace and one on the previous release with the CLI
+built from `main`.
 
 If the lock connection drops, a stop times out, or identities change, the CLI
 leaves the runtime pending and starts no new containers. Keep the bundle and
