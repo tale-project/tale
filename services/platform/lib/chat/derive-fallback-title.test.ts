@@ -34,16 +34,6 @@ describe('deriveFallbackTitle', () => {
     expect(title?.endsWith('…')).toBe(true);
   });
 
-  it('leaves out the skill names the message starts with', () => {
-    expect(deriveFallbackTitle('/xlsx /pdf  Make a table of the planets')).toBe(
-      'Make a table of the planets',
-    );
-    expect(deriveFallbackTitle('/xlsx')).toBe('/xlsx');
-    expect(deriveFallbackTitle('/etc/hosts is read-only')).toBe(
-      '/etc/hosts is read-only',
-    );
-  });
-
   it('returns null for empty and all-whitespace sources', () => {
     expect(deriveFallbackTitle('')).toBeNull();
     expect(deriveFallbackTitle('   \n\t ')).toBeNull();

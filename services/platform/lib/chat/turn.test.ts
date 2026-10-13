@@ -2135,6 +2135,29 @@ describe('runTurn — the skills the person chose [CHAT-R29]', () => {
     );
   });
 
+  it('names the conversation from the words after the skills the message chose', async () => {
+    const titles = async (userText: string, chosenSkills: string[]) => {
+      const { store } = fakeStore();
+      const setups: Parameters<TurnDeps['store']['beginTurn']>[0][] = [];
+      const d = deps({
+        tools: skillExecutor().executor,
+        store: {
+          ...store,
+          beginTurn(setup) {
+            setups.push(setup);
+            return store.beginTurn(setup);
+          },
+        },
+      });
+      await runTurn(request({ userText, chosenSkills }), d.deps);
+      return setups[0]?.titleText;
+    };
+
+    expect(await titles('/xlsx Make a table', ['xlsx'])).toBe('Make a table');
+    // A name that chose nothing is the message's own words.
+    expect(await titles('/api returns 500 on login', [])).toBeUndefined();
+  });
+
   it('reads nothing without a skill tool to read with', async () => {
     const { model, requests } = recordingModel();
     const d = deps({ model });

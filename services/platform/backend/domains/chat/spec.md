@@ -353,7 +353,8 @@ skill again before the model answers, as a step of its own that costs the model 
 and what it reads counts against the reply's window: older turns give way to it. Only skills the
 person can see count, at most four a reply; any other name stays text. A conversation's skills are
 kept with it, every version of it reads them, and only its owner changes them. A conversation is
-named from what its first message says after the names it starts with.
+named from what its first message says after the skills it chose; a name that chose nothing stays
+in the title.
 
 - **Example**: Mia sends "/docx Write the cover letter" → the reply's first step reads the docx
   skill, then the model answers.

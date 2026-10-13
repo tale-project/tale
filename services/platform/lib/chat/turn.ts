@@ -43,6 +43,7 @@ import {
   type HarnessTable,
 } from '../shared/providers/resolve_execution';
 import { languageDisplayName } from '../shared/utils/language-name';
+import { withoutLeadingSkillNames } from '../skills/slash';
 import {
   assembleContext,
   type AssembledContext,
@@ -334,6 +335,9 @@ export interface TurnStore {
      * refuses the open when a cap that binds the sender is already reached,
      * counting what every other live turn holds. */
     spend?: TurnSpend;
+    /** What names the conversation when this message opens it, where that
+     * is not the message as written: its words after the skills it chose. */
+    titleText?: string;
   }): Promise<{
     userMessage?: { id: string; sequence: number };
     /** The placeholder the turn streams into. */
@@ -1511,11 +1515,20 @@ export async function runTurn(
   // User message, placeholder, and generation row commit as ONE transaction —
   // the setup wait is a single authenticated round-trip, and no partial
   // combination of the three can survive a failure.
+  // The skills a message chose say how to make the reply, not what the
+  // conversation is about: its name comes from the words after them.
+  const titleText = withoutLeadingSkillNames(
+    input.text,
+    new Set(request.chosenSkills ?? []),
+  );
   const opened = await deps.store.beginTurn({
     organizationId: request.organizationId,
     threadId: request.threadId,
     ...(request.appendUserMessage !== false
       ? { userParts: userTurnParts(input.text, request.attachments) }
+      : {}),
+    ...(request.appendUserMessage !== false && titleText !== input.text
+      ? { titleText }
       : {}),
     // Silent observability: the reply records that its context was fitted
     // by dropping history. Never rendered — telemetry and debugging only.

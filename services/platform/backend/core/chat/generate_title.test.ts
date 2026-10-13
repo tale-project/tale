@@ -416,40 +416,6 @@ describe('generateThreadTitleImpl — model choice', () => {
   });
 });
 
-describe('generateThreadTitleImpl — a message that chose skills [CHAT-R29]', () => {
-  it('names the thread from what the message says, not the skills it chose', async () => {
-    const model = vi.fn(async () => ({
-      content: 'Inner Planets Table',
-      usage: { prompt: 20, completion: 4 },
-    }));
-    createBuilderModelMock.mockReturnValue(model);
-    const { ctx, runMutation } = servingCtx();
-
-    await generateThreadTitleImpl(ctx, {
-      organizationId: ORG,
-      threadId: THREAD,
-      userId: USER,
-      firstMessage: '/xlsx Make a table of the inner planets',
-    });
-
-    expect(model).toHaveBeenCalledWith(
-      expect.objectContaining({
-        messages: [
-          expect.objectContaining({ role: 'system' }),
-          {
-            role: 'user',
-            content: 'Make a table of the inner planets',
-          },
-        ],
-      }),
-    );
-    expect(runMutation).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ title: 'Inner Planets Table' }),
-    );
-  });
-});
-
 describe('generateThreadTitleImpl — limits and model access', () => {
   it('writes the derived title without a model call when a limit refuses the naming call [GOV-R4]', async () => {
     const { ctx, runMutation } = servingCtx();

@@ -51,16 +51,21 @@ export function leadingSkillNames(text: string): string[] {
 }
 
 /**
- * What `text` says after the skill names it starts with — the words that
- * name the conversation: `"/xlsx Make a table"` → `"Make a table"`. A
- * message that is nothing but names stays as it is.
+ * What `text` says after the names of `chosen` skills it starts with — the
+ * words that name the conversation: `"/xlsx Make a table"` → `"Make a
+ * table"` when `xlsx` was chosen. A name that chose nothing is the
+ * message's own (`"/api returns 500"` stays whole), and a message that is
+ * nothing but names stays as it is.
  */
-export function withoutLeadingSkillNames(text: string): string {
+export function withoutLeadingSkillNames(
+  text: string,
+  chosen: ReadonlySet<string>,
+): string {
   let rest = text;
   for (let read = 0; read < LEADING_TOKENS_READ; read += 1) {
     const match = LEADING_TOKEN.exec(rest);
     const name = match?.[1];
-    if (match === null || name === undefined || !isSkillName(name)) break;
+    if (match === null || name === undefined || !chosen.has(name)) break;
     rest = rest.slice(match[0].length);
   }
   const words = rest.trim();

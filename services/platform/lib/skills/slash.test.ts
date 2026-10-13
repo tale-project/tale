@@ -33,25 +33,30 @@ describe('leadingSkillNames', () => {
 });
 
 describe('withoutLeadingSkillNames', () => {
-  it('keeps what the message says after the names it starts with', () => {
-    expect(withoutLeadingSkillNames('/docx Write the cover letter')).toBe(
-      'Write the cover letter',
-    );
-    expect(withoutLeadingSkillNames(' /xlsx /pdf\nMonthly revenue ')).toBe(
-      'Monthly revenue',
-    );
-    expect(withoutLeadingSkillNames('Write it with /docx')).toBe(
+  const chosen = new Set(['docx', 'pdf', 'xlsx']);
+
+  it('keeps what the message says after the chosen names it starts with', () => {
+    expect(
+      withoutLeadingSkillNames('/docx Write the cover letter', chosen),
+    ).toBe('Write the cover letter');
+    expect(
+      withoutLeadingSkillNames(' /xlsx /pdf\nMonthly revenue ', chosen),
+    ).toBe('Monthly revenue');
+    expect(withoutLeadingSkillNames('Write it with /docx', chosen)).toBe(
       'Write it with /docx',
     );
   });
 
-  it('keeps a message that is nothing but names, or no name at all', () => {
-    expect(withoutLeadingSkillNames('/docx /pdf')).toBe('/docx /pdf');
-    expect(withoutLeadingSkillNames('/etc/hosts is read-only')).toBe(
-      '/etc/hosts is read-only',
+  it('keeps a name that chose nothing, and a message of nothing but names', () => {
+    expect(withoutLeadingSkillNames('/api returns 500 on login', chosen)).toBe(
+      '/api returns 500 on login',
     );
-    expect(withoutLeadingSkillNames(`/${'a'.repeat(65)} text`)).toBe(
-      `/${'a'.repeat(65)} text`,
+    expect(withoutLeadingSkillNames('/docx /api login', chosen)).toBe(
+      '/api login',
+    );
+    expect(withoutLeadingSkillNames('/docx /pdf', chosen)).toBe('/docx /pdf');
+    expect(withoutLeadingSkillNames('/etc/hosts is read-only', chosen)).toBe(
+      '/etc/hosts is read-only',
     );
   });
 });
