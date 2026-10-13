@@ -779,22 +779,18 @@ const AUTO_REFUSAL_REASONS: Record<ChatAutoResolutionRefusal, string> = {
  * The text + attachment facts the Auto pick reads: the message being sent,
  * or — on a regenerate — the thread's trailing user message, fetched
  * narrowly here because the full history read is budgeted by the resolved
- * model's context window, which does not exist yet on the Auto path.
- * `hasDocuments` uses the attached-documents classification (non-image,
- * non-audio/video) — it floors the band, images gate vision instead.
+ * model's context window, which does not exist yet on the Auto path. The
+ * text decides the band; an image only narrows the pool to vision models.
  */
 async function autoPromptFacts(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
-): Promise<{ text: string; hasImages: boolean; hasDocuments: boolean }> {
+): Promise<{ text: string; hasImages: boolean }> {
   if (args.resend !== true) {
     const attachments = args.attachments ?? [];
     return {
       text: args.userText,
       hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
-      hasDocuments: attachments.some((attachment) =>
-        isDocument(attachment.fileType),
-      ),
     };
   }
   const { messages } = await ctx.runQuery(
@@ -808,15 +804,12 @@ async function autoPromptFacts(
   );
   const trailing = messages.at(-1);
   if (trailing === undefined || trailing.role !== 'user') {
-    return { text: args.userText, hasImages: false, hasDocuments: false };
+    return { text: args.userText, hasImages: false };
   }
   const attachments = attachmentsFromParts(trailing.parts);
   return {
     text: typedTextFromParts(trailing.parts),
     hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
-    hasDocuments: attachments.some((attachment) =>
-      isDocument(attachment.fileType),
-    ),
   };
 }
 
@@ -1136,7 +1129,6 @@ export async function executeTurn(
       userId: args.userId,
       promptText: prompt.text,
       requiresVision: prompt.hasImages,
-      hasDocumentAttachments: prompt.hasDocuments,
     });
     if (!resolution.ok) {
       return refuse(AUTO_REFUSAL_REASONS[resolution.refusal]);

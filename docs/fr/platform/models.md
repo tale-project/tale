@@ -7,7 +7,7 @@ Le sélecteur affiche les modèles que ton organisation peut utiliser actuelleme
 
 ## Choisir une sélection automatique ou explicite
 
-Dans Chat, **Auto** choisit un modèle pour chaque message selon ses caractéristiques, comme la longueur, le code et les documents joints. Il utilise une heuristique légère, sans second appel à une IA. Consulte les détails d’une réponse pour voir quel modèle a répondu.
+Dans Chat, **Auto** choisit un modèle pour chaque message d’après son texte : sa longueur, le code qu’il contient ou encore le fait qu’il touche à des questions juridiques, médicales ou financières. Les pièces jointes ne changent pas ce choix ; une image jointe demande seulement un modèle capable de lire les images. Auto utilise une heuristique légère, sans second appel à une IA. Consulte les détails d’une réponse pour voir quel modèle a répondu.
 
 Choisis un modèle précis dans la zone de saisie pour comparer les résultats, maîtriser le choix ou traiter une tâche connue. Cette sélection reste en place jusqu’à ce que tu la changes ou reviennes à Auto. L’[Arène](/fr/platform/chat/arena-mode) compare deux modèles disponibles sur le même message.
 
