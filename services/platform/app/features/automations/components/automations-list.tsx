@@ -16,6 +16,7 @@ import { useListPage } from '@tale/ui/use-list-page';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
+  Bot,
   CheckCircle2,
   CircleDashed,
   FileUp,
@@ -45,6 +46,7 @@ import {
 } from '../lib/list-target';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
+import { CodingAgentDialog } from './coding-agent-entry';
 import { StarterGalleryDialog } from './starter-gallery-dialog';
 import {
   type TriggerReadiness,
@@ -97,7 +99,7 @@ export function AutomationsList({
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
   const [createDialog, setCreateDialog] = useState<
-    'starter' | 'blank' | 'upload' | null
+    'starter' | 'agent' | 'blank' | 'upload' | null
   >(null);
   const automationsQuery = useAutomations(
     organizationId,
@@ -375,6 +377,11 @@ export function AutomationsList({
           onClick: () => setCreateDialog('starter'),
         },
         {
+          label: t('createMenu.withAgent'),
+          icon: Bot,
+          onClick: () => setCreateDialog('agent'),
+        },
+        {
           label: t('createMenu.blank'),
           icon: Workflow,
           onClick: () => setCreateDialog('blank'),
@@ -393,6 +400,16 @@ export function AutomationsList({
         <StarterGalleryDialog
           organizationId={organizationId}
           {...(projectId !== undefined && { projectId })}
+          open
+          onOpenChange={(next) => {
+            if (!next) setCreateDialog(null);
+          }}
+        />
+      )}
+      {createDialog === 'agent' && (
+        <CodingAgentDialog
+          organizationId={organizationId}
+          context={{ kind: 'create' }}
           open
           onOpenChange={(next) => {
             if (!next) setCreateDialog(null);
