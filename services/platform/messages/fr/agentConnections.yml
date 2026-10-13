@@ -6,15 +6,15 @@ consent:
   verified: 'Domaine vérifié : {host}'
   verifiedHelp: 'Tale a lu les informations de cette application sur {host}. Seul le propriétaire de ce domaine peut les publier.'
   unverified: Application non vérifiée
-  unverifiedHelp: Cette application s’est enregistrée elle-même auprès de Tale et a choisi son nom. Continue seulement si tu viens de lancer cette connexion depuis ton agent de programmation.
+  unverifiedHelp: Cette application s’est enregistrée elle-même auprès de Tale et a choisi son nom. Continue seulement si tu viens de lancer cette connexion depuis ton agent de code.
   returnsToComputer: 'Après la connexion, Tale te renvoie vers cet ordinateur ({host}).'
   returnsToSite: 'Après la connexion, Tale te renvoie vers {host}.'
   organization:
     label: Organisation
     description: L’agent travaille uniquement dans cette organisation. Pour en utiliser une autre, connecte-le à nouveau.
     option: '{name} · {role}'
-    notAllowed: Pour connecter un agent de programmation ici, il faut le rôle Propriétaire, Admin ou Développeur, ou une compétence attribuée par un Admin.
-    none: Aucune de tes organisations ne te permet de connecter un agent de programmation. Demande le rôle Développeur à un Admin.
+    notAllowed: Pour connecter un agent de code ici, il faut le rôle Propriétaire, Admin ou Développeur, ou une compétence attribuée par un Admin.
+    none: Aucune de tes organisations ne te permet de connecter un agent de code. Demande le rôle Développeur à un Admin.
     disabled: Ton compte est désactivé dans cette organisation.
   access:
     label: Accès
@@ -51,7 +51,7 @@ consent:
   connecting: Connexion…
   loading: Chargement…
   errors:
-    expired: Cette demande a expiré. Relance la connexion depuis ton agent de programmation.
+    expired: Cette demande a expiré. Relance la connexion depuis ton agent de code.
     orgRequired: Choisis une organisation.
     notMember: Tu n’es plus membre de cette organisation.
     notEligible: 'Ton compte ne peut pas encore connecter d’agents : confirme ton adresse e-mail ou active l’authentification à deux facteurs.'
@@ -59,14 +59,14 @@ consent:
     notFresh: Confirme d’abord ton mot de passe.
     clientUnavailable: Tale n’a pas pu lire les informations de cette application. Réessaie dans un instant.
     unavailable: La connexion n’a pas pu être établie pour le moment. Réessaie dans un instant.
-    scopedSession: Cette connexion ne concerne qu’une seule organisation et ne peut donc pas connecter d’agent de programmation. Connecte-toi avec ton propre compte pour continuer.
-    failed: Cette connexion n’a pas pu aboutir. Relance-la depuis ton agent de programmation.
+    scopedSession: Cette connexion ne concerne qu’une seule organisation et ne peut donc pas connecter d’agent de code. Connecte-toi avec ton propre compte pour continuer.
+    failed: Cette connexion n’a pas pu aboutir. Relance-la depuis ton agent de code.
 list:
-  description: Agents de programmation connectés à Tale en ton nom. Chacun travaille dans cette organisation avec l’accès que tu lui as donné.
-  adminDescription: Agents de programmation que des membres ont connectés à cette organisation.
-  caption: Agents de programmation connectés
-  entityLabelOne: agent de programmation
-  entityLabel: agents de programmation
+  description: Agents de code connectés à Tale en ton nom. Chacun travaille dans cette organisation avec l’accès que tu lui as donné.
+  adminDescription: Agents de code que des membres ont connectés à cette organisation.
+  caption: Agents de code connectés
+  entityLabelOne: agent de code
+  entityLabel: agents de code
   viewLabel: Agents à afficher
   mine: Les miens
   everyone: Tous
@@ -92,9 +92,9 @@ list:
     refresh_reuse: une ancienne connexion a été réutilisée
     client_removed: application supprimée
   empty:
-    title: Aucun agent de programmation connecté
+    title: Aucun agent de code connecté
     description: Connecte Claude Code, Codex, Cursor ou un autre agent pour modifier tes automatisations depuis ton éditeur.
-  connectAction: Connecter un agent de programmation
+  connectAction: Connecter un agent de code
   actions:
     disconnect: Déconnecter
   actionsLabel: Actions pour {client}
