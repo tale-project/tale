@@ -112,7 +112,7 @@ Releases from v0.5.78 on write automation runs with writer protocol 2. Their mig
    tale deploy --dry-run
    ```
 
-4. Deploy:
+4. Deploy, without `--stop` or `--services`. If db, object-store or proxy need an update, run `tale deploy --stop` afterwards:
 
    ```bash
    tale deploy
@@ -122,11 +122,12 @@ Before it changes anything, `tale deploy` checks the running backend's release, 
 
 The new colour's first start applies every database migration since v0.5.77 before it reports healthy, and with a large knowledge base the vector copy can take longer than `HEALTH_CHECK_TIMEOUT`. If the deploy stops at any point after the old backend stopped, run `tale deploy` again with the same release: it recognizes its own handoff, including a first start that was cut off partway through its migrations, waits for the colour that is already starting instead of recreating it, and finishes the upgrade. Keep `.tale/automation-cutover.json`, and do not start the old containers by hand. From the moment the cutover begins, `tale rollback` refuses to return to v0.5.77; recover forward as the next section describes.
 
-Without `tale deploy`, on your own Compose files or the [Kubernetes manifests](/self-hosted/install/kubernetes), nothing holds this barrier for you, and a rolling update starts the new backend containers while the old ones still run. Hold it by hand: pause schedules and triggers, wait until this query answers `0`, stop every v0.5.77 `backend-api` and `backend-worker`, and only then roll out the new version. With Compose, the stop is `docker compose stop backend-api backend-worker`.
+Without `tale deploy`, on your own Compose files or the [Kubernetes manifests](/self-hosted/install/kubernetes), nothing holds this barrier for you, and a rolling update starts the new backend containers while the old ones still run. Hold it by hand, in this order: pause schedules and triggers and let the runs finish; stop every v0.5.77 `backend-api` and `backend-worker` and make sure none is left running; check that the query below answers `0`; and only then roll out the new version. If it answers more, start the old backend again, let those runs finish, and stop it again. With Compose, `docker compose stop backend-api backend-worker` stops both and returns once they have exited.
 
 ```bash
-psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+kubectl -n tale get pods -l 'app in (backend-api, backend-worker)'
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 ```
 
 ## Automation protocol cutover: repair forward

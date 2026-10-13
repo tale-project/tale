@@ -112,7 +112,7 @@ Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Mi
    tale deploy --dry-run
    ```
 
-4. Stelle bereit:
+4. Stelle bereit, ohne `--stop` oder `--services`. Brauchen db, object-store oder proxy ein Update, führe danach `tale deploy --stop` aus:
 
    ```bash
    tale deploy
@@ -122,11 +122,12 @@ Bevor `tale deploy` etwas ändert, prüft es das Release des laufenden Backends,
 
 Der erste Start der neuen Farbe wendet jede Datenbankmigration seit v0.5.77 an, bevor er sich gesund meldet; bei einer großen Wissensdatenbank kann das Kopieren der Vektoren länger dauern als `HEALTH_CHECK_TIMEOUT`. Bricht das Deployment ab, nachdem das alte Backend angehalten wurde, führe `tale deploy` mit demselben Release erneut aus: Es erkennt seine eigene Übergabe, auch einen ersten Start, der mitten in seinen Migrationen abgebrochen wurde, wartet auf die bereits startende Farbe, statt sie neu zu erstellen, und schließt das Upgrade ab. Bewahre `.tale/automation-cutover.json` auf und starte die alten Container nicht von Hand. Sobald die Umstellung begonnen hat, lehnt `tale rollback` die Rückkehr zu v0.5.77 ab; repariere mit einer kompatiblen Version, wie der nächste Abschnitt beschreibt.
 
-Ohne `tale deploy`, mit eigenen Compose-Dateien oder den [Kubernetes-Manifesten](/de/self-hosted/install/kubernetes), hält niemand diese Sperre für dich, und ein Rolling Update startet die neuen Backend-Container, während die alten noch laufen. Halte sie von Hand: Pausiere Zeitpläne und Auslöser, warte, bis diese Abfrage `0` liefert, halte jedes `backend-api` und `backend-worker` von v0.5.77 an und rolle erst dann die neue Version aus. Mit Compose hältst du sie mit `docker compose stop backend-api backend-worker` an.
+Ohne `tale deploy`, mit eigenen Compose-Dateien oder den [Kubernetes-Manifesten](/de/self-hosted/install/kubernetes), hält niemand diese Sperre für dich, und ein Rolling Update startet die neuen Backend-Container, während die alten noch laufen. Halte sie von Hand, in dieser Reihenfolge: Pausiere Zeitpläne und Auslöser und lass die Läufe zu Ende laufen; halte jedes `backend-api` und `backend-worker` von v0.5.77 an und stelle sicher, dass keines mehr läuft; prüfe, dass die Abfrage unten `0` liefert; und rolle erst dann die neue Version aus. Liefert sie mehr, starte das alte Backend wieder, lass diese Läufe zu Ende laufen und halte es erneut an. Mit Compose hält `docker compose stop backend-api backend-worker` beide an und kehrt zurück, sobald sie beendet sind.
 
 ```bash
-psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+kubectl -n tale get pods -l 'app in (backend-api, backend-worker)'
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 ```
 
 ## Umstellung des Automations-Protokolls: mit kompatibler Version reparieren

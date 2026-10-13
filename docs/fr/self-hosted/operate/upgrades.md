@@ -112,7 +112,7 @@ tale rollback
    tale deploy --dry-run
    ```
 
-4. Déploie :
+4. Déploie, sans `--stop` ni `--services`. Si db, object-store ou proxy doivent être mis à jour, lance ensuite `tale deploy --stop` :
 
    ```bash
    tale deploy
@@ -122,11 +122,12 @@ Avant de modifier quoi que ce soit, `tale deploy` vérifie la version du backend
 
 Le premier démarrage de la nouvelle couleur applique toutes les migrations de base depuis v0.5.77 avant de se déclarer opérationnel ; avec une grande base de connaissances, la copie des vecteurs peut dépasser `HEALTH_CHECK_TIMEOUT`. Si le déploiement s’interrompt après l’arrêt de l’ancien backend, relance `tale deploy` avec la même version : il reconnaît son propre relais, y compris un premier démarrage interrompu au milieu de ses migrations, attend la couleur déjà en cours de démarrage au lieu de la recréer et termine la mise à niveau. Conserve `.tale/automation-cutover.json` et ne redémarre pas les anciens conteneurs à la main. Dès que le changement a commencé, `tale rollback` refuse de revenir à v0.5.77 ; répare avec une version compatible, comme le décrit la section suivante.
 
-Sans `tale deploy`, avec tes propres fichiers Compose ou les [manifestes Kubernetes](/fr/self-hosted/install/kubernetes), personne ne tient cette barrière pour toi, et une mise à jour progressive démarre les nouveaux conteneurs backend pendant que les anciens tournent encore. Tiens-la à la main : mets en pause les planifications et déclencheurs, attends que cette requête réponde `0`, arrête chaque `backend-api` et `backend-worker` de v0.5.77, et ne déploie la nouvelle version qu’ensuite. Avec Compose, l’arrêt se fait avec `docker compose stop backend-api backend-worker`.
+Sans `tale deploy`, avec tes propres fichiers Compose ou les [manifestes Kubernetes](/fr/self-hosted/install/kubernetes), personne ne tient cette barrière pour toi, et une mise à jour progressive démarre les nouveaux conteneurs backend pendant que les anciens tournent encore. Tiens-la à la main, dans cet ordre : mets en pause les planifications et déclencheurs et laisse les exécutions se terminer ; arrête chaque `backend-api` et `backend-worker` de v0.5.77 et vérifie qu’aucun ne tourne encore ; vérifie que la requête ci-dessous répond `0` ; et ne déploie la nouvelle version qu’ensuite. Si elle répond davantage, redémarre l’ancien backend, laisse ces exécutions se terminer et arrête-le de nouveau. Avec Compose, `docker compose stop backend-api backend-worker` arrête les deux et rend la main une fois qu’ils sont arrêtés.
 
 ```bash
-psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+kubectl -n tale get pods -l 'app in (backend-api, backend-worker)'
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 ```
 
 ## Changement de protocole des automatisations : réparer avec une version compatible
