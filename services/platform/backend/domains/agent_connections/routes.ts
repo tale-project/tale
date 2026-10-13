@@ -19,6 +19,7 @@ import {
   AgentConnectionError,
   disconnectAgent,
   listAgentConnections,
+  readAgentConnectionAccess,
 } from './service.ts';
 
 /**
@@ -29,6 +30,10 @@ import {
  *    for everyone's (`scope=everyone`) and for the ended ones
  *    (`ended=true`). `since` (epoch milliseconds) keeps what was made,
  *    changed or ended after it.
+ *  - `GET /access` says whether the caller may connect an agent here,
+ *    whether they hold a live connection, and whether the deployment lets
+ *    agents sign in at all: what Settings reads to decide whether to show
+ *    them the Connected agents page.
  *  - `DELETE /:id` ends a connection: the caller's own, or — for an owner
  *    or admin — anyone's here. Any other is not found.
  *
@@ -52,6 +57,9 @@ const listQuerySchema = z.object({
 export function createAgentConnectionRoutes(deps: {
   sql: Sql;
   auth: Auth;
+  /** Whether the deployment lets coding agents sign in
+   * (`agentSignInOn`): until it does, nothing advertises a way in. */
+  signInOn: boolean;
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth));
@@ -128,6 +136,17 @@ export function createAgentConnectionRoutes(deps: {
       }),
     );
   });
+
+  app.get('/access', async (c) =>
+    c.json({
+      ...(await readAgentConnectionAccess(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+        role: c.get('orgMember').role,
+      })),
+      signInOn: deps.signInOn,
+    }),
+  );
 
   app.delete('/:id', async (c) => {
     try {

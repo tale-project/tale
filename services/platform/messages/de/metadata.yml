@@ -175,6 +175,9 @@ webdav:
 mcp:
   title: MCP
   description: Verbinde MCP-Clients über MCP mit diesem Arbeitsbereich.
+connectedAgents:
+  title: Verbundene Agenten
+  description: Sieh die mit diesem Arbeitsbereich verbundenen Coding-Agenten und trenne sie.
 modelEndpoints:
   title: Modell-Endpunkte
   description: Rufe die Modelle der Organisation über OpenAI- und Anthropic-kompatible Endpunkte aus deinen eigenen Werkzeugen auf.

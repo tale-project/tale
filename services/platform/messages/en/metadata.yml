@@ -173,6 +173,9 @@ webdav:
 mcp:
   title: MCP
   description: Connect MCP clients to this workspace over MCP.
+connectedAgents:
+  title: Connected agents
+  description: See the coding agents connected to this workspace and disconnect them.
 modelEndpoints:
   title: Model endpoints
   description: Call the organization's models from your own tools over OpenAI- and Anthropic-compatible endpoints.

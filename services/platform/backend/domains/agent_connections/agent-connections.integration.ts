@@ -16,6 +16,10 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import {
+  agentOAuthOptionsFromEnv,
+  agentSignInOn,
+} from '../../auth/agent-oauth-config.ts';
 import { removeMembershipCascade } from '../../auth/membership.ts';
 import {
   type RecordCheck,
@@ -27,6 +31,7 @@ import {
   connectAgent,
   disconnectAgent,
   listAgentConnections,
+  readAgentConnectionAccess,
 } from './service.ts';
 
 const SCOPES_READ = ['tale:mcp'];
@@ -45,6 +50,7 @@ export async function checkAgentConnections(
   const owner = await signUpUser(base, `agent-conn-owner-${suffix}`);
   const ada = await signUpUser(base, `agent-conn-ada-${suffix}`);
   const mia = await signUpUser(base, `agent-conn-mia-${suffix}`);
+  const noah = await signUpUser(base, `agent-conn-noah-${suffix}`);
   const createOrg = async (cookie: string, slug: string): Promise<string> =>
     z.object({ id: z.string() }).parse(
       await (
@@ -64,6 +70,7 @@ export async function checkAgentConnections(
     `;
   await join(acme, ada.userId, 'developer');
   await join(acme, mia.userId, 'member');
+  await join(acme, noah.userId, 'member');
 
   const claude = `https://claude.example.test/${suffix}/client.json`;
   const cursor = `https://cursor.example.test/${suffix}/client.json`;
@@ -341,6 +348,102 @@ export async function checkAgentConnections(
         adaLastUsed === usedAt &&
         miaLastUsed === null,
       `ada=${ids(asAda)}, ada asks all=${ids(adaAsksAll)}, owner=${ids(asOwner)}, owner own=${ids(ownerOwn)}, mia=${ids(asMia)}, since future=${sinceFuture.connections.length}, since past=${sincePast.connections.length}, last used ada=${String(adaLastUsed)}/${usedAt} mia=${String(miaLastUsed)}/null`,
+    );
+
+    // Each connection names its person, from the account, so an owner
+    // reading everyone's can tell whose each is — and a person's own list
+    // carries only their own name.
+    const personOf = (userId: string) =>
+      asOwner.connections.find((connection) => connection.userId === userId);
+    record(
+      'agent connections: the list names the person who connected each agent, from their account (AGCONN-R1)',
+      personOf(ada.userId)?.personName === `Itest agent-conn-ada-${suffix}` &&
+        personOf(ada.userId)?.personEmail === ada.email &&
+        personOf(mia.userId)?.personName === `Itest agent-conn-mia-${suffix}` &&
+        personOf(mia.userId)?.personEmail === mia.email &&
+        asAda.connections.every(
+          (connection) => connection.personEmail === ada.email,
+        ),
+      JSON.stringify(
+        asOwner.connections.map((connection) => [
+          connection.personName,
+          connection.personEmail,
+        ]),
+      ),
+    );
+
+    // Settings shows the page to a person who may connect an agent here or
+    // who holds a live connection here, and to no one else.
+    const accessOf = (userId: string, role: string) =>
+      readAgentConnectionAccess(sql, {
+        organizationId: acme,
+        userId,
+        role,
+      });
+    const adaAccess = await accessOf(ada.userId, 'developer');
+    const ownerAccess = await accessOf(owner.userId, 'owner');
+    const miaAccess = await accessOf(mia.userId, 'member');
+    const noahAccess = await accessOf(noah.userId, 'member');
+    const adaBeta = await readAgentConnectionAccess(sql, {
+      organizationId: beta,
+      userId: ada.userId,
+      role: 'owner',
+    });
+    record(
+      'agent connections: a person has to do with agents here when they may connect one or hold a live connection here; another organization’s connection does not count (AGCONN-R23)',
+      adaAccess.mayConnect &&
+        adaAccess.holdsConnection &&
+        ownerAccess.mayConnect &&
+        !ownerAccess.holdsConnection &&
+        !miaAccess.mayConnect &&
+        miaAccess.holdsConnection &&
+        !noahAccess.mayConnect &&
+        !noahAccess.holdsConnection &&
+        adaBeta.mayConnect &&
+        !adaBeta.holdsConnection,
+      JSON.stringify({
+        ada: adaAccess,
+        owner: ownerAccess,
+        mia: miaAccess,
+        noah: noahAccess,
+        adaBeta,
+      }),
+    );
+
+    // The route answers each person's own standing through the real door, and
+    // says whether the deployment lets agents sign in.
+    const accessOver = async (cookie: string) =>
+      z
+        .object({
+          mayConnect: z.boolean(),
+          holdsConnection: z.boolean(),
+          signInOn: z.boolean(),
+        })
+        .safeParse(
+          await (
+            await fetch(
+              `${base}/api/app/agent-connections/access?orgId=${acme}`,
+              { headers: { cookie, origin: base } },
+            )
+          ).json(),
+        );
+    const signInOn = agentSignInOn(agentOAuthOptionsFromEnv());
+    const overAda = await accessOver(ada.cookie);
+    const overMia = await accessOver(mia.cookie);
+    const overNoah = await accessOver(noah.cookie);
+    record(
+      'agent connections: GET /access answers a person’s own standing and whether agents may sign in (AGCONN-R23)',
+      overAda.success &&
+        overAda.data.mayConnect &&
+        overAda.data.holdsConnection &&
+        overAda.data.signInOn === signInOn &&
+        overMia.success &&
+        !overMia.data.mayConnect &&
+        overMia.data.holdsConnection &&
+        overNoah.success &&
+        !overNoah.data.mayConnect &&
+        !overNoah.data.holdsConnection,
+      JSON.stringify([overAda, overMia, overNoah]),
     );
 
     // Ending one: not another person's, and only this organization's grant.

@@ -97,10 +97,11 @@ export function buildPersonalNotificationUrl(args: {
   if (args.params?.apiKeys === true) {
     return `${base}/dashboard/${args.organizationId}/settings/api/rest`;
   }
-  // A disconnected coding agent opens the MCP settings, where it is
-  // connected again — parity with `personalNotificationTarget`.
+  // A disconnected coding agent opens the connected agents, where the person
+  // sees which of theirs was disconnected and which still work — parity with
+  // `personalNotificationTarget`.
   if (args.params?.agentConnections === true) {
-    return `${base}/dashboard/${args.organizationId}/settings/api/mcp`;
+    return `${base}/dashboard/${args.organizationId}/settings/api/agents`;
   }
   // A paused schedule opens its automation's General tab — parity with
   // `personalNotificationTarget`.
