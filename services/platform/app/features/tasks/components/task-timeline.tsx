@@ -90,6 +90,14 @@ type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
  *  a task with a few of them. */
 const ACTIVITY_TEXT_MAX = 160;
 
+/**
+ * What a run did, read in place under its own row: where it stands, how long
+ * it took, how many tool actions and what it cost, then the agent's
+ * transcript — live while it works and preserved after it settles. Nothing is
+ * fetched until the row is opened. A failed run keeps the reason it recorded
+ * above the log unless the log already says it, so a failure the transcript
+ * does not show (a watchdog's, a refused start's) is still read here.
+ */
 function TaskAgentRunTimelineDetail({
   organizationId,
   run,
@@ -105,35 +113,54 @@ function TaskAgentRunTimelineDetail({
     runId: run.runId,
   });
   const op = query.data ?? null;
-  const retryFocus = useRetryFocus(
-    query.isError ? 'failed' : op === null ? 'loading' : 'ready',
-    run.runId,
-  );
-  if (query.isError) {
-    return (
-      <div ref={retryFocus.ref}>
-        <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              retryFocus.arm();
-              void query.refetch();
-            }}
-          >
-            {tCommon('actions.tryAgain')}
-          </Button>
-        </Alert>
-      </div>
+  // A transcript already read stays on screen through a failed background
+  // refresh.
+  const readStatus =
+    op !== null
+      ? 'ready'
+      : query.isFetching
+        ? 'loading'
+        : query.isError
+          ? 'failed'
+          : query.data === null
+            ? 'ready'
+            : 'loading';
+  const retryFocus = useRetryFocus(readStatus, run.runId);
+  // A harness often ends its transcript on the very words the run reported
+  // (its own API error as its last text): then the log says them, and the
+  // reported block would only repeat them.
+  const reported = run.error?.trim();
+  const reportedInLog =
+    reported !== undefined &&
+    op !== null &&
+    [...(op.liveTimeline ?? []).map((part) => part.text), op.progressText].some(
+      (text) => text?.trim() === reported,
     );
-  }
-  if (op !== null) {
-    const toolActions = (op.liveTimeline ?? []).filter(
-      (part) => part.toolCallId !== undefined && part.toolCallId !== '',
-    ).length;
-    return (
-      <Stack gap={2}>
+  const reportedBlock =
+    reported !== undefined && reported !== '' && !reportedInLog ? (
+      <Stack gap={1}>
+        <Text as="h3" variant="label">
+          {t('agentRun.reported')}
+        </Text>
+        <Text
+          as="p"
+          variant="muted"
+          className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
+        >
+          {run.error}
+        </Text>
+      </Stack>
+    ) : null;
+  const toolActions =
+    op === null
+      ? 0
+      : (op.liveTimeline ?? []).filter(
+          (part) => part.toolCallId !== undefined && part.toolCallId !== '',
+        ).length;
+
+  return (
+    <Stack gap={2}>
+      {op !== null && (
         <Row gap={1} className="text-muted-foreground flex-wrap text-xs">
           <span>{t(`agentRuns.status.${run.status}`)}</span>
           {run.durationMs !== undefined && (
@@ -161,38 +188,44 @@ function TaskAgentRunTimelineDetail({
             </>
           )}
         </Row>
+      )}
+      {reportedBlock}
+      {op !== null ? (
         <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
-      </Stack>
-    );
-  }
-  if (query.isFetching) {
-    return (
-      <Row gap={2} role="status">
-        <Loader2
-          className="text-muted-foreground size-4 animate-spin"
-          aria-hidden
-        />
-        <Text variant="muted">{tCommon('actions.loading')}</Text>
-      </Row>
-    );
-  }
-  return run.error !== undefined ? (
-    <Stack gap={1}>
-      <Text as="h3" variant="label">
-        {t('agentRun.reported')}
-      </Text>
-      <Text
-        as="p"
-        variant="muted"
-        className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
-      >
-        {run.error}
-      </Text>
+      ) : readStatus === 'failed' ? (
+        <div ref={retryFocus.ref}>
+          <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                retryFocus.arm();
+                void query.refetch();
+              }}
+            >
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </Alert>
+        </div>
+      ) : readStatus === 'ready' ? (
+        // A run that reported why it failed said enough; "no log" would only
+        // repeat that it never got to work.
+        reportedBlock === null && (
+          <Text as="p" variant="muted">
+            {tAutomations('runs.agentLog.empty')}
+          </Text>
+        )
+      ) : (
+        <Row gap={2} role="status">
+          <Loader2
+            className="text-muted-foreground size-4 animate-spin"
+            aria-hidden
+          />
+          <Text variant="muted">{tCommon('actions.loading')}</Text>
+        </Row>
+      )}
     </Stack>
-  ) : (
-    <Text as="p" variant="muted">
-      {tAutomations('runs.agentLog.empty')}
-    </Text>
   );
 }
 

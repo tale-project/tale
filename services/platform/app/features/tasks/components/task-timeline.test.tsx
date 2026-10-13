@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,18 +62,56 @@ vi.mock('@/app/features/automations/components/agent-execution-log', () => ({
   ExecutionLogView: () => <div data-testid="execution-log" />,
 }));
 
-const sandboxOp = vi.hoisted(() => ({
-  value: null as unknown,
-}));
-
-vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({
-    data: sandboxOp.value,
+// The run's sandbox op as the opened row reads it: `null` for a run that left
+// none, `undefined` before the first answer. It is an external store, as the
+// real query is: `emit()` re-renders every row reading it.
+const sandboxOp = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  let version = 0;
+  return {
+    value: null as unknown,
     isError: false,
     isFetching: false,
     refetch: vi.fn(),
-  }),
-}));
+    getVersion: () => version,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    emit: () => {
+      version += 1;
+      for (const listener of listeners) listener();
+    },
+  };
+});
+
+function resetSandboxOp() {
+  sandboxOp.value = null;
+  sandboxOp.isError = false;
+  sandboxOp.isFetching = false;
+  sandboxOp.refetch.mockReset().mockResolvedValue(undefined);
+}
+
+vi.mock('@/app/hooks/use-backend-query', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    useBackendQuery: () => {
+      useSyncExternalStore(
+        sandboxOp.subscribe,
+        sandboxOp.getVersion,
+        sandboxOp.getVersion,
+      );
+      return {
+        data: sandboxOp.value,
+        isError: sandboxOp.isError,
+        isFetching: sandboxOp.isFetching,
+        refetch: sandboxOp.refetch,
+      };
+    },
+  };
+});
 
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
@@ -164,6 +202,11 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'agentRuns.trigger.manual': 'manual',
         'agentRuns.status.settled': 'settled',
         'agentRuns.totalCost': `${String(values?.amount)} total`,
+        'agentRun.logReadFailed': 'The log could not be read.',
+        'agentRun.reported': 'Reported',
+        'actions.tryAgain': 'Try again',
+        'actions.loading': 'Loading...',
+        'runs.agentLog.empty': 'The agent produced no log for this run.',
         'agentRun.waiting.org_limit': 'Waiting for a worker',
         'agentRun.waitingWhy.org_limit':
           "All of your organization's agent workers are busy.",
@@ -462,7 +505,7 @@ describe('TaskTimeline — runs no person started', () => {
   beforeEach(() => {
     timelineMocks.activity = [];
     timelineMocks.runs = [];
-    sandboxOp.value = null;
+    resetSandboxOp();
   });
 
   it('names the automation run that started an agent run', () => {
@@ -609,5 +652,163 @@ describe('TaskTimeline — runs no person started', () => {
     expect(screen.getByText('manual')).toBeInTheDocument();
     expect(screen.queryByText(/started by/)).not.toBeInTheDocument();
     expect(screen.queryByText('Fleet manager cycle')).not.toBeInTheDocument();
+  });
+});
+
+describe('TaskTimeline — a run read under its own row', () => {
+  const failedRun = (error?: string): TaskAgentRunRow => ({
+    runId: 'run_read' as string,
+    agentSlug: 'agent-worker',
+    trigger: 'manual',
+    status: 'failed',
+    startedAt: Date.now(),
+    costCents: 0,
+    ...(error !== undefined ? { error } : {}),
+  });
+  const timeline = (
+    <TaskTimeline
+      taskId={'task_1' as string}
+      organizationId="org_1"
+      projectId={'project_1' as string}
+    />
+  );
+
+  beforeEach(() => {
+    timelineMocks.activity = [];
+    timelineMocks.runs = [failedRun()];
+    resetSandboxOp();
+  });
+
+  async function open(element = timeline) {
+    const user = userEvent.setup();
+    const view = render(element);
+    await user.click(screen.getByRole('button', { name: 'View' }));
+    return { user, ...view };
+  }
+
+  it('reads nothing until the row is opened', () => {
+    sandboxOp.value = undefined;
+    sandboxOp.isFetching = true;
+    render(timeline);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('execution-log')).not.toBeInTheDocument();
+  });
+
+  it('says a run is being read while its log loads', async () => {
+    sandboxOp.value = undefined;
+    sandboxOp.isFetching = true;
+    await open();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...');
+  });
+
+  it('does not confuse a failed read with no log, and retries it', async () => {
+    sandboxOp.value = undefined;
+    sandboxOp.isError = true;
+    const { user } = await open();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The log could not be read.',
+    );
+    expect(
+      screen.queryByText('The agent produced no log for this run.'),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(sandboxOp.refetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])(
+    'puts the focus back on Try again without stealing a deliberate move (%s)',
+    async (moveFocus) => {
+      sandboxOp.value = undefined;
+      sandboxOp.isError = true;
+      const { user } = await open();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      act(() => {
+        sandboxOp.isFetching = true;
+        sandboxOp.emit();
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('Loading...');
+      if (moveFocus) screen.getByRole('button', { name: 'Hide' }).focus();
+      act(() => {
+        sandboxOp.isFetching = false;
+        sandboxOp.emit();
+      });
+      expect(
+        screen.getByRole('button', { name: moveFocus ? 'Hide' : 'Try again' }),
+      ).toHaveFocus();
+    },
+  );
+
+  it('recovers the same row to the transcript after a retry', async () => {
+    sandboxOp.value = undefined;
+    sandboxOp.isError = true;
+    const { user } = await open();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    act(() => {
+      sandboxOp.isError = false;
+      sandboxOp.value = { execId: 'exec-1', status: 'completed', startedAt: 1 };
+      sandboxOp.emit();
+    });
+    expect(screen.getByTestId('execution-log')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('keeps a transcript already read through a failed background refresh', async () => {
+    sandboxOp.value = { execId: 'exec-1', status: 'completed', startedAt: 1 };
+    sandboxOp.isError = true;
+    await open();
+    expect(screen.getByTestId('execution-log')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('degrades to the empty notice when a run left no log and no reason', async () => {
+    await open();
+    expect(
+      screen.getByText('The agent produced no log for this run.'),
+    ).toBeInTheDocument();
+  });
+
+  it('leads a run that left no log with the reason it recorded', async () => {
+    timelineMocks.runs = [failedRun('the agent run was refused: cap reached')];
+    await open();
+    expect(screen.getByText('Reported')).toBeInTheDocument();
+    expect(
+      screen.getByText('the agent run was refused: cap reached'),
+    ).toBeInTheDocument();
+    // A run that never got to work has no log to miss.
+    expect(
+      screen.queryByText('The agent produced no log for this run.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps a recorded reason the transcript does not say above the log', async () => {
+    timelineMocks.runs = [failedRun('stopped: no output for 45 minutes')];
+    sandboxOp.value = {
+      execId: 'exec-1',
+      status: 'failed',
+      startedAt: 1,
+      liveTimeline: [{ type: 'text', text: 'Reading the brief' }],
+    };
+    await open();
+    expect(screen.getByText('Reported')).toBeInTheDocument();
+    expect(
+      screen.getByText('stopped: no output for 45 minutes'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('execution-log')).toBeInTheDocument();
+  });
+
+  it('says what the run reported once, when its transcript ends on it', async () => {
+    timelineMocks.runs = [failedRun('API Error: 502 failed to execute')];
+    sandboxOp.value = {
+      execId: 'exec-1',
+      status: 'failed',
+      startedAt: 1,
+      liveTimeline: [
+        { type: 'text', text: 'API Error: 502 failed to execute\n' },
+      ],
+    };
+    await open();
+    expect(screen.queryByText('Reported')).not.toBeInTheDocument();
+    expect(screen.getByTestId('execution-log')).toBeInTheDocument();
   });
 });

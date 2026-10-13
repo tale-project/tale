@@ -11,9 +11,10 @@
  * `TaskAgentRunFailureNotice`), settled as "reported for review" (the report
  * itself is the agent's comment in the timeline) — and, before any run
  * exists, an explicit Start so kicking the agent never requires knowing the
- * drag verb. Every run offers Details: the agent's sandbox transcript, live
- * while it works and preserved after it settles, and for a failed run what
- * the run itself reported.
+ * drag verb. The strip says where the run stands and offers its verbs; what
+ * the run did — the agent's sandbox transcript, live while it works and
+ * preserved after it settles, and for a failed run what the run itself
+ * reported — is read in the task's activity, under the run's own row.
  */
 
 import { Alert } from '@tale/ui/alert';
@@ -48,9 +49,9 @@ interface TaskAgentRunEntryProps {
   canStopRun?: (startedBy: string | undefined) => boolean;
   /**
    * Whether the task's assignee is an agent that still exists in the project
-   * (default `true`). A deleted agent's runs stay readable — Details is a
-   * read — but Start and Retry would only kick a run that cannot exist, so
-   * both are withheld until the task is reassigned.
+   * (default `true`). A deleted agent's runs stay readable in the activity,
+   * but Start and Retry would only kick a run that cannot exist, so both are
+   * withheld until the task is reassigned.
    */
   assigneeLive?: boolean;
 }
@@ -152,12 +153,7 @@ export function TaskAgentRunEntry({
       {/* Run output belongs in the activity thread; the property bar only
           exposes the current state and available controls. */}
       <Row align="center" gap={2} className="min-w-0">
-        <button
-          type="button"
-          className="inline-flex min-w-0 items-center gap-2 rounded-md text-left"
-          aria-label={statusLabel}
-          disabled
-        >
+        <div className="inline-flex min-w-0 items-center gap-2 text-left">
           {run.status === 'failed' ? (
             <Badge variant="destructive" icon={XCircle}>
               {statusLabel}
@@ -190,7 +186,7 @@ export function TaskAgentRunEntry({
               </Text>
             </>
           )}
-        </button>
+        </div>
         {canKick &&
         !live &&
         !previousAssignee &&

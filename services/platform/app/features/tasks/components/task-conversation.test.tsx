@@ -299,6 +299,49 @@ describe('TaskConversation', () => {
     expect(screen.getAllByText('timeline.runLabel')).toHaveLength(3);
   });
 
+  it('keeps runs apart that a comment or another day separates', () => {
+    data.comments = [
+      {
+        messageId: 'm1',
+        authorType: 'user',
+        authorId: 'u1',
+        body: 'Try again with the new brief',
+        createdAt: NOON - 2000,
+      },
+    ];
+    data.runs = [
+      {
+        runId: 'run-1',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: NOON - 3000,
+        costCents: 0,
+      },
+      {
+        runId: 'run-2',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'settled',
+        startedAt: NOON - 1000,
+        costCents: 0,
+      },
+      {
+        runId: 'run-0',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: NOON - DAY,
+        costCents: 0,
+      },
+    ];
+
+    renderConversation();
+
+    expect(screen.queryByText(/timeline\.agentRuns/)).toBeNull();
+    expect(screen.getAllByText('timeline.runLabel')).toHaveLength(3);
+  });
+
   it('opens each day under its own date pill', () => {
     data.comments = [
       {
