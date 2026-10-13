@@ -21,6 +21,18 @@ Si tu utilises l’authentification par en-têtes de confiance, seul le proxy am
 
 Le fichier `robots.txt` de la plateforme déconseille l’indexation de l’application, mais autorise explicitement les chemins publics destinés aux intégrateurs et au suivi d’état, dont `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` et `/status`. Ces consignes aux robots ne sont pas des contrôles d’accès. Protège les données confidentielles par authentification et examine les informations exposées dans le rapport public.
 
+## Décider si les agents de code peuvent se connecter {#agent-sign-in}
+
+La [connexion des agents de code](/fr/self-hosted/configuration/authentication#coding-agent-sign-in) permet à une personne de connecter Claude Code, Codex, Cursor ou un autre agent au point d’accès MCP sans clé API, et elle est activée tant que tu ne la désactives pas. Elle ajoute des surfaces publiques : les documents de découverte sous `/.well-known/oauth-*`, les points d’accès `/api/auth/oauth2/*` du serveur de connexion (dont l’auto-enregistrement, limité en débit) et la page où la personne autorise l’accès, `/oauth/consent`. Une connexion ne fait jamais plus que ce que le rôle de sa personne permet, appartient à une organisation et à l’accès que la personne a choisi, et chaque connexion, modification et déconnexion figure dans le journal d’audit. Le retrait de la personne, un nouveau mot de passe ou un jeton de rafraîchissement utilisé deux fois la déconnectent.
+
+Si tu la laisses activée, vérifie trois points :
+
+- **Accessibilité.** Les agents qui tournent sur l’ordinateur d’une personne (Claude Code, Codex, Cursor, VS Code, Gemini CLI) joignent Tale par le navigateur de cette personne et une redirection en boucle locale : ils n’exigent aucune ouverture au-delà de l’adresse publique que les personnes ouvrent déjà. claude.ai, Claude Desktop et l’application mobile se connectent en revanche depuis le cloud d’Anthropic. Pour eux, autorise le HTTPS entrant depuis la plage sortante publiée par Anthropic (actuellement `160.79.104.0/21`, voir [adresses IP d’Anthropic](https://platform.claude.com/docs/en/api/ip-addresses)) vers `/.well-known/oauth-protected-resource*`, `/.well-known/oauth-authorization-server*`, `/api/auth/.well-known/openid-configuration`, `/api/auth/oauth2/token`, `/api/auth/oauth2/register` et `/api/v1/mcp`. Un déploiement accessible uniquement sur un réseau privé ne peut pas être utilisé depuis ces applications hébergées.
+- **Trafic sortant.** Le backend récupère le document de métadonnées client d’un agent sur l’hôte de l’agent : `claude.ai` pour Claude Code, `chatgpt.com` pour Codex. Si tu restreins le trafic sortant du backend, autorise ces hôtes, ou indique les hôtes que tu acceptes dans `TALE_MCP_CLIENT_METADATA_HOSTS`.
+- **Qui peut connecter.** Les propriétaires, admins et développeurs, ainsi que les membres qui détiennent une compétence utilisée avec une clé API. La personne doit avoir une adresse vérifiée et, là où elle est imposée, avoir terminé l’inscription à l’authentification à deux facteurs ; autoriser plus que la lecture exige une connexion de moins d’un jour. Passe en revue qui détient ces rôles et ces compétences, comme pour les clés API.
+
+Pour garder les agents sur des clés API, définis `TALE_MCP_CLIENT_METADATA_DOCUMENTS=false` et `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=false`, puis recrée le backend.
+
 ## Vérifier TLS à l’adresse publique
 
 Utilise un certificat de confiance pour l’adresse réellement ouverte par les utilisateurs. Choisis `TLS_MODE=letsencrypt` pour le point d’entrée TLS public fourni, ou `TLS_MODE=external` si ton proxy amont termine TLS. Un certificat local autosigné n’établit pas une confiance publique.

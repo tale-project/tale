@@ -1,6 +1,7 @@
 title: Contacts
 entityLabelOne: contact
 searchPlaceholder: Rechercher des contacts
+refreshFailed: Impossible de charger les derniers contacts. La liste est peut-être incomplète ou obsolète.
 filter:
   source:
     manual: Manuel

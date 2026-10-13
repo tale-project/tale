@@ -817,7 +817,9 @@ agent.
   `governance.standardAgent.offNote` shows, and **Agent type**, **Model** and
   **Instructions** are hidden. In a project without agents, **Assignee**
   (`tasks.fields.assignee`) offers no **Standard agent**
-  (`tasks.assignee.standardAgent`), and **Start agent**
+  (`tasks.assignee.standardAgent`) — and in a project the standard agent was
+  set up in earlier it offers no agent at all, the footer reading
+  `tasks.assignee.noAgentsReader` for a Member — and **Start agent**
   (`tasks.agentRun.start`) on a task already given to a standard agent
   answers the toast `tasks.agentRun.standardAgent.switchedOff` and queues
   nothing. A comment there that @mentions the standard agent shows
@@ -955,11 +957,17 @@ agent.
   Write `enabled: perhaps` into the organization's
   `governance/standard-agent.yml` under `TALE_CONFIG_DIR` and reload
   `content-models` → **Standard agent** shows the alert
-  `governance.standardAgent.invalidPolicy` with its controls enabled, and
-  **Start agent** (`tasks.agentRun.start`) on a task given to a standard
-  agent answers the toast `tasks.agentRun.standardAgent.unreadable` and
-  queues nothing. Turn the switch off and on again (each saves at once) →
-  the file parses again, the alert is gone, and the task starts.
+  `governance.standardAgent.invalidPolicy` with its controls enabled,
+  **Model** reading `governance.standardAgent.invalidSelection` and the
+  header **Save** disabled, and **Start agent** (`tasks.agentRun.start`) on a
+  task given to a standard agent answers the toast
+  `tasks.agentRun.standardAgent.unreadable` and queues nothing. Type in
+  **Instructions** → **Save** stays disabled; choose **Automatic** under
+  **Model** → **Save** enables, and saving writes `enabled: true` (a chosen
+  model is written with it), the alert gives way to what the standard agent
+  runs on, and the task starts. Write the malformed file again and turn the
+  switch off and on again (each saves at once) → the file parses again and
+  the alert is gone.
 - [ ] `GOV-B19` · **A pinned model follows the person who starts the run** —
   Pin a model (`GOV-F51`), then add a **Model access** rule that blocks it for
   the Member role. As a Member, open a task given to a standard agent and

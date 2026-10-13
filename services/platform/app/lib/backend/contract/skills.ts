@@ -89,6 +89,11 @@ export interface SkillsContract {
       body: string;
       /** Refuse the write if the slug already exists. Used by blank create. */
       createOnly?: boolean;
+      /**
+       * The document tag the edit started from, sent as `If-Match`: a
+       * document saved since refuses the write (`SKILL_STALE`).
+       */
+      etag?: string;
     };
     returns: {
       body: string;

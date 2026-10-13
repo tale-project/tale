@@ -7,6 +7,7 @@
  */
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { i18n } from '@/lib/i18n/i18n';
 import {
   API_KEY_HINT_ENTITY,
   CONNECTOR_CREDENTIAL_HINT_ENTITY,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/shared/hint-entities';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
-import { invalidateMyPasswordPolicy } from './account';
+import { currentUserQuery, invalidateMyPasswordPolicy } from './account';
 import type {
   ActionQueryAdapter,
   AdapterContext,
@@ -25,6 +26,7 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
+import { memberContextQuery } from './org';
 import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
 import {
   backendEntityPrefix,
@@ -1338,6 +1340,14 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         orgId: requireOrg(args, ctx),
         body: { name: stringArg(args, 'name') },
       }).then(() => null),
+    invalidate: (client, _args, ctx) => {
+      void client.invalidateQueries({ queryKey: currentUserQuery().queryKey });
+      if (ctx.organizationId !== undefined) {
+        void client.invalidateQueries({
+          queryKey: memberContextQuery(ctx.organizationId).queryKey,
+        });
+      }
+    },
   },
   'users/mutations:updateUserPassword': {
     // User-scoped: the forced-change page sits outside `/dashboard/$id` and
@@ -1723,10 +1733,20 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     run: (args, ctx) =>
-      backendFetch<{ cancelled: number }>(
+      backendFetch<{ cancelled: number; refused: number }>(
         `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/stop-task`,
         { orgId: requireOrg(args, ctx), body: {} },
-      ),
+      ).then((result) => {
+        if (result.refused > 0) {
+          throw new Error(
+            i18n.t('toast.stopRefused', {
+              ns: 'sandboxes',
+              count: result.refused,
+            }),
+          );
+        }
+        return result;
+      }),
     invalidate: invalidateSandboxSessions,
   },
   'node_only/sandbox/session_admin_actions:destroySandbox': {

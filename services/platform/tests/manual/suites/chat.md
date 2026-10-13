@@ -169,7 +169,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.messageInfo.duration`) over a bar whose legend's phases add up to the
   total time, then **Token usage** (`chat.messageInfo.tokenUsage`) with its
   total beside the heading, and the timestamp and message ID last; the model
-  line matches the CHAT-F6 pick.
+  line matches the CHAT-F6 pick. On a reply that ran a tool (a search step in
+  its timeline), **Output speed** is absent and the legend shows **Model and
+  tools** (`chat.messageInfo.phases.tools`) and no waiting or thinking phase.
 - [ ] `CHAT-F62` · **Where a reply ran** — Mode A: send a message containing
   `e2e:gateway-route` → **Show info** → **Served by**
   (`chat.messageInfo.servedBy`) reads **Anthropic**, **Region** reads **Not
@@ -891,7 +893,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   root deployment the same link has no prefix.
 - [ ] `CHAT-B20` · **A hand-over where no project has an agent** — With the
   organization's standard agent switched off ([governance.md](governance.md)
-  `GOV-F52`), as a Member whose projects all lack agents, **Create task** in
+  `GOV-F52`), as a Member whose projects all lack agents — a project the
+  standard agent was set up in earlier (`CHAT-F56`; its **Agents** tab still
+  lists it as **Standard**) counts as lacking one too — **Create task** in
   the chat header
   (`chat.createTask.headerButton`) → every project sits under **No agent
   yet** (`chat.createTask.withoutAgents`) reading **An Editor or Admin can
@@ -945,6 +949,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`governance.policyReadRetry`) where the Chat tools switches would be.
   Delete the file → the defaults return and the same request runs code. Write a
   valid file with **Code** off → only code is gone.
+- [ ] `CHAT-B26` · **A failed send stays in its own conversation** — In a
+  chat, attach a text file, send a message and go offline while the reply
+  streams (as `CHAT-B4`); at once open another chat from the Home panel →
+  The send-failure toast (`chat.toast.sendFailed`) shows over the other
+  chat, whose message box stays empty with no file chip in its tray, and
+  whose draft is still empty after a reload; opening the first chat again
+  shows its message box holding the message and its tray the file, ready
+  to send once more.
 - [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
   newline; a blocked send announces its reason (toast) instead of silently
   no-opping.

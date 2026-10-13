@@ -21,6 +21,8 @@ const {
   destroyStates,
   deletions,
   waitingRuns,
+  runningOps,
+  cancelExec,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   capacity: vi.fn(),
@@ -48,6 +50,8 @@ const {
   destroyStates: vi.fn(),
   deletions: vi.fn(),
   waitingRuns: vi.fn(),
+  runningOps: vi.fn(),
+  cancelExec: vi.fn(),
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -76,7 +80,7 @@ vi.mock('../../auth/org.ts', () => ({
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
   sandboxCapacity: capacity,
   sandboxDeploymentLimits: deploymentLimits,
-  sessionCancelExec: vi.fn(),
+  sessionCancelExec: cancelExec,
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: policy,
@@ -97,7 +101,7 @@ vi.mock('./workspace-cleanup.ts', () => ({
 vi.mock('./sessions.ts', () => ({
   countWaitingAgentRuns: waitingRuns,
   listSandboxViewsForOrg: listViews,
-  listRunningOpsBySession: vi.fn(),
+  listRunningOpsBySession: runningOps,
   getAgentNodeSandboxOp: agentNodeOp,
 }));
 vi.mock('../automations/store.ts', () => ({ getRun }));
@@ -138,6 +142,7 @@ beforeEach(() => {
   listViews.mockResolvedValue([]);
   deletions.mockResolvedValue(new Map());
   destroyStates.mockResolvedValue(new Map());
+  runningOps.mockResolvedValue([]);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -340,11 +345,12 @@ describe('sandbox settings read and write authority', () => {
       { execId: 'exec-1' },
       { execId: 'exec-2' },
     ] as never);
+    cancelExec.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
     const response = await app().request('/sessions/pa-1/stop-task?orgId=x', {
       method: 'POST',
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ cancelled: 2 });
+    expect(await response.json()).toEqual({ cancelled: 2, refused: 0 });
     // The workspace is looked up in the caller's organization first.
     expect(query.mock.calls[0]?.slice(1)).toEqual(['pa-1', 'member-org']);
     expect(vi.mocked(sessionCancelExec).mock.calls).toEqual([
@@ -362,6 +368,112 @@ describe('sandbox settings read and write authority', () => {
     expect(await response.json()).toEqual({ error: 'SESSION_NOT_FOUND' });
     expect(listRunningOpsBySession).not.toHaveBeenCalled();
     expect(sessionCancelExec).not.toHaveBeenCalled();
+  });
+
+  it('counts only confirmed cancellations and reports refused ones', async () => {
+    query.mockResolvedValueOnce([{ id: 'row-1' }] as never);
+    runningOps.mockResolvedValueOnce([
+      { execId: 'confirmed' },
+      { execId: 'refused' },
+      { execId: 'unreachable' },
+    ]);
+    cancelExec
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error('spawner unreachable'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const response = await app().request('/sessions/s1/stop-task', {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cancelled: 1, refused: 2 });
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  describe('stop-task through the real spawner client', () => {
+    const transport = vi.fn<typeof fetch>();
+
+    beforeEach(async () => {
+      const actual = await vi.importActual<
+        typeof import('../../core/node_only/sandbox/helpers/session_client.ts')
+      >('../../core/node_only/sandbox/helpers/session_client.ts');
+      cancelExec.mockReset().mockImplementation(actual.sessionCancelExec);
+      transport.mockReset();
+      vi.stubGlobal('fetch', transport);
+      vi.stubEnv('SANDBOX_URL', 'http://sandbox-cancel.test:8003');
+    });
+
+    afterEach(() => {
+      cancelExec.mockReset();
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      ['spawner 503', [[503, { error: 'unavailable' }]], 0, 1],
+      ['killed:false', [[200, { killed: false }]], 0, 1],
+      ['confirmed', [[200, { killed: true }]], 1, 0],
+      [
+        'mixed',
+        [
+          [200, { killed: true }],
+          [200, { killed: false }],
+          [503, { error: 'unavailable' }],
+        ],
+        1,
+        2,
+      ],
+    ] as const)(
+      'counts only confirmed stops for %s',
+      async (_label, answers, cancelled, refused) => {
+        query.mockResolvedValueOnce([{ id: 'row-1' }] as never);
+        runningOps.mockResolvedValueOnce(
+          answers.map((_answer, index) => ({ execId: `exec-${index}` })),
+        );
+        for (const [status, body] of answers) {
+          transport.mockResolvedValueOnce(Response.json(body, { status }));
+        }
+        const response = await app().request(
+          '/sessions/owned/stop-task?orgId=foreign',
+          { method: 'POST' },
+        );
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ cancelled, refused });
+        expect(query.mock.calls[0]?.slice(1)).toEqual(['owned', 'member-org']);
+        expect(
+          transport.mock.calls.map(([url, init]) => [url, init?.method]),
+        ).toEqual(
+          answers.map((_answer, index) => [
+            `http://sandbox-cancel.test:8003/v1/sessions/owned/exec/exec-${index}/cancel`,
+            'POST',
+          ]),
+        );
+      },
+    );
+
+    it('returns foreign-session 404 before enumerating or calling the spawner', async () => {
+      query.mockResolvedValueOnce([] as never);
+      const response = await app().request('/sessions/foreign/stop-task', {
+        method: 'POST',
+      });
+      expect(response.status).toBe(404);
+      expect(query.mock.calls[0]?.slice(1)).toEqual(['foreign', 'member-org']);
+      expect(runningOps).not.toHaveBeenCalled();
+      expect(transport).not.toHaveBeenCalled();
+    });
+
+    it('returns developer 403 before querying ownership or calling the spawner', async () => {
+      caller.role = 'developer';
+      const response = await app().request('/sessions/owned/stop-task', {
+        method: 'POST',
+      });
+      expect(response.status).toBe(403);
+      expect(query).not.toHaveBeenCalled();
+      expect(runningOps).not.toHaveBeenCalled();
+      expect(transport).not.toHaveBeenCalled();
+    });
   });
 
   it('queues a Destroy for the caller organization and answers before it runs [SBX-R2] [SBX-R3] [SBX-R11]', async () => {

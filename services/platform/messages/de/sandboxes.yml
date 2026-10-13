@@ -127,6 +127,7 @@ destroyConfirm:
   confirm: Löschen
 toast:
   stopped: Aufgabe gestoppt
+  stopRefused: '{count, plural, one {Eine Sandbox-Aufgabe konnte nicht gestoppt werden} other {# Sandbox-Aufgaben konnten nicht gestoppt werden}}'
   pinned: Sandbox angepinnt
   unpinned: Sandbox gelöst
   destroying: Sandbox wird gelöscht

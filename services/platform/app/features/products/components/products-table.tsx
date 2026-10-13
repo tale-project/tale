@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@tale/ui/use-list-page';
@@ -9,6 +10,7 @@ import { Package } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
@@ -123,6 +125,9 @@ export function ProductsTable({
     [deleteProduct],
   );
 
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery(paginatedResult);
+
   const list = useListPage<Product>({
     dataSource: {
       type: 'paginated',
@@ -130,6 +135,10 @@ export function ProductsTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
+      // A failed first page is the table's error state with its retry,
+      // never "No products yet" (#3843).
+      error: paginatedResult.error,
+      retry: retryRead,
     },
     pageSize,
     search: {
@@ -149,44 +158,69 @@ export function ProductsTable({
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        stickyLayout
-        onRowClick={handleRowClick}
-        enableRowSelection={canSelectRow}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        actionMenu={
-          <ProductsActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
+      {/* Rows already on screen outlive a failed read — a refresh, or a page
+          a search or a scroll asked for — and the failure is named above
+          them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={tProducts('title')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
+            message={tProducts('refreshFailed')}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
           />
-        }
-        emptyState={{
-          icon: Package,
-          title: tEmpty('products.title'),
-          description: tEmpty('products.description'),
-          headingLevel: 2,
-        }}
-        footer={
-          canWrite && (
-            <BulkDeleteBar
-              rowSelection={rowSelection}
-              onRowSelectionChange={setRowSelection}
-              getItemLabel={(id) =>
-                paginatedResult.results.find((item) => item._id === id)?.name ??
-                id
-              }
-              onClearSelection={handleClearSelection}
-              onDeleteItem={handleDeleteItem}
-              onDeleteComplete={handleClearSelection}
-              describeFailure={firstFailureDetail}
+        )}
+        <DataTable
+          columns={columns}
+          stickyLayout
+          onRowClick={handleRowClick}
+          enableRowSelection={canSelectRow}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
+          actionMenu={
+            <ProductsActionMenu
+              organizationId={organizationId}
+              createOpen={createOpen}
+              onCreateOpenChange={setCreateOpen}
             />
-          )
-        }
-        {...list.tableProps}
-      />
+          }
+          emptyState={{
+            icon: Package,
+            title: tEmpty('products.title'),
+            description: tEmpty('products.description'),
+            headingLevel: 2,
+          }}
+          footer={
+            canWrite && (
+              <BulkDeleteBar
+                rowSelection={rowSelection}
+                onRowSelectionChange={setRowSelection}
+                getItemLabel={(id) =>
+                  paginatedResult.results.find((item) => item._id === id)
+                    ?.name ?? id
+                }
+                onClearSelection={handleClearSelection}
+                onDeleteItem={handleDeleteItem}
+                onDeleteComplete={handleClearSelection}
+                describeFailure={firstFailureDetail}
+              />
+            )
+          }
+          {...list.tableProps}
+        />
+      </div>
 
       {viewedRecord && (
         <ProductViewDialog

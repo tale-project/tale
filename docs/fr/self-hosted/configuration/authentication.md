@@ -2,7 +2,7 @@
 title: Choisir l’authentification
 description: Configure des comptes locaux, le SSO d’entreprise ou un proxy d’authentification de confiance.
 ---
-Tale prend en charge les comptes locaux par e-mail et mot de passe, le SSO propre à chaque organisation et les identités transmises par un reverse proxy de confiance. Choisis selon l’endroit où ton équipe gère ses identités et la personne responsable des comptes. L’authentification et le provisionnement sont distincts : le SSO authentifie, tandis que les invitations, le provisionnement à la connexion ou SCIM gèrent l’appartenance.
+Tale prend en charge les comptes locaux par e-mail et mot de passe, le SSO propre à chaque organisation et les identités transmises par un reverse proxy de confiance. Choisis selon l’endroit où ton équipe gère ses identités et la personne responsable des comptes. L’authentification et le provisionnement sont distincts : le SSO authentifie, tandis que les invitations, le provisionnement à la connexion ou SCIM gèrent l’appartenance. Les agents de code qui modifient des automatisations se connectent à part, au point d’accès MCP, comme [décrit plus bas](#coding-agent-sign-in).
 
 ## Choisir l’intégration adaptée
 
@@ -11,6 +11,7 @@ Tale prend en charge les comptes locaux par e-mail et mot de passe, le SSO propr
 | Comptes locaux gérés dans Tale | Connexion locale et invitations | Secrets stables et URL de l’instance accessible. |
 | Fournisseur d’identité d’entreprise existant | SSO : Microsoft Entra ID, OIDC générique, OAuth2 ou SAML 2.0 | Une application IdP avec les URL exactes de callback ou de métadonnées. |
 | Une application ou un proxy authentifie déjà ses utilisateurs | En-têtes de confiance, par organisation | Une clé créée dans **Paramètres > SSO d’entreprise** et un proxy qui l’envoie avec les en-têtes d’identité. |
+| Des personnes connectent Claude Code, Codex, Cursor ou un autre agent de code au point d’accès MCP | Connexion des agents de code, activée par défaut | Une adresse HTTPS publique et un proxy qui transmet les documents sous `/.well-known/`. |
 
 Le SSO d’entreprise et les en-têtes de confiance se configurent tous deux par organisation. Prépare et teste la correspondance des identités avant de changer le mécanisme de comptes existants.
 
@@ -59,6 +60,21 @@ Le proxy doit supprimer les en-têtes d’identité fournis par le client, défi
 Un visiteur qui arrive par le proxy est connecté dès la première requête que l’application fait pour elle-même : si cette requête porte la clé et l’en-tête d’identité mais aucun cookie de session, le backend crée la session sur place et l’application s’ouvre connectée — sans page de connexion, sans redirection. Si l’application atterrit malgré tout sur sa page de connexion (un cookie périmé, par exemple), la page envoie elle-même le navigateur vers l’adresse de passage, et un refus revient sur cette page avec sa raison. Rediriger `/log-in` du proxy directement vers l’adresse de passage reste possible ; l’adresse répond à un succès par une redirection vers l’application et à un refus par une page avec son code d’état. Le proxy possédant la session, l’application ne propose pas de déconnexion à un membre connecté ainsi ; après une déconnexion pour inactivité, la connexion automatique marque une pause jusqu’à ce que le membre continue depuis l’avis.
 
 Pour afficher Tale dans la page de l’application elle-même plutôt que dans un onglet, un administrateur ajoute l’origine de cette page sous **Intégration dans un cadre**, sur la même page de paramètres. Les pages de Tale répondent alors avec une règle `frame-ancestors` qui nomme `'self'` et les origines listées au lieu de refuser tout cadre, et l’en-tête `X-Frame-Options` disparaît. La liste appartient à une organisation, mais l’enveloppe de connexion est un seul document pour toute l’instance : une origine admise par n’importe quelle organisation peut donc la charger. Le navigateur n’envoie le cookie de session dans un cadre que si la page englobante est sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi sous le domaine de l’hôte ; un cadre d’un autre site affiche la page de connexion.
+
+## Laisser les agents de code se connecter {#coding-agent-sign-in}
+
+Une personne connecte un agent de code comme Claude Code, Codex ou Cursor au [point d’accès MCP](/fr/develop/mcp-endpoint) en se connectant depuis l’agent : il n’y a pas de clé API à copier dans sa configuration. L’agent envoie le navigateur de la personne vers le serveur de connexion de Tale. Elle s’y connecte comme d’habitude, choisit une organisation et ce que l’agent peut y faire, puis l’agent travaille en son nom, jamais au-delà de son rôle. La connexion est activée tant que tu ne la désactives pas. Les clés API continuent de fonctionner, pour les scripts et pour les outils qui ne savent pas se connecter.
+
+Ce que ton déploiement doit fournir :
+
+- **Une adresse publique que les personnes peuvent ouvrir.** Le serveur de connexion répond à `SITE_URL` suivi de `/api/auth`, et chaque adresse de `ADDITIONAL_SITE_URLS` est annoncée comme un point d’accès MCP à part.
+- **Des documents de découverte accessibles.** Un agent trouve le serveur de connexion dans des documents sous `/.well-known/`, à la racine de l’hôte. Le proxy de Tale les transmet. Un proxy à toi doit transmettre `/.well-known/oauth-protected-resource*` et `/.well-known/oauth-authorization-server*` au backend sur chaque adresse, y compris quand Tale tourne sous un chemin de base, car ces chemins se trouvent toujours à la racine de l’hôte. [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#agent-sign-in-domains) les énumère.
+- **Un accès HTTPS sortant vers l’hôte de l’agent.** Claude Code et Codex se présentent avec un document de métadonnées client publié sur l’hôte de leur éditeur (`claude.ai`, `chatgpt.com`), que le backend récupère quand un agent se connecte. Tale refuse les adresses de réseaux privés et les documents situés sur ses propres adresses. Avec `TALE_MCP_CLIENT_METADATA_HOSTS`, tu limites encore les hôtes acceptés.
+- **Des limites pour l’auto-enregistrement.** Cursor, VS Code et Gemini CLI ne publient pas un tel document et s’enregistrent eux-mêmes. Tale accepte dix enregistrements par heure depuis une même adresse, 500 par jour et 5 000 au total, n’accepte des redirections web que vers les hôtes de `TALE_MCP_DCR_WEB_REDIRECT_HOSTS`, affiche une telle application comme **Non vérifiée** et supprime chaque jour les enregistrements que personne n’a utilisés.
+
+Les jetons sont de courte durée. Un jeton d’accès dure cinq minutes, et un agent resté inutilisé pendant trente jours doit être reconnecté. La personne elle-même, ou un propriétaire ou un admin, déconnecte un agent sous **Paramètres > API > Agents connectés**. Le retrait de la personne de l’organisation, un nouveau mot de passe et un jeton de rafraîchissement utilisé deux fois mettent aussi fin à la connexion ; pour les deux derniers, la personne trouve un avis dans ses notifications.
+
+Pour garder les agents sur des clés API, définis `TALE_MCP_CLIENT_METADATA_DOCUMENTS=false` et `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=false`, puis recrée le backend. Le document `oauth-protected-resource` du point d’accès répond alors `404`, et les jetons d’accès des agents déjà connectés cessent de fonctionner aussitôt. [Durcir un déploiement de production](/fr/self-hosted/operate/security/hardening#agent-sign-in) liste ce qu’il faut vérifier avant de la laisser activée.
 
 ## Diagnostiquer les échecs de connexion
 

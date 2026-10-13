@@ -188,6 +188,11 @@ export function createSkillRoutes(deps: {
     try {
       const who = await caller(c);
       const slug = c.req.param('slug');
+      // An edit names the document it read (`If-Match`), a create names
+      // that nothing is stored (`If-None-Match: *`); the file layer checks
+      // both under the lock below.
+      const ifMatch = c.req.header('if-match');
+      const ifNoneMatch = c.req.header('if-none-match');
       const mayPublishOrgWide = await who.readMayPublishOrgWide();
       // Serialized with the upload lane on the per-slug writer lock: a save
       // must never land between an upload's two swap renames.
@@ -200,16 +205,18 @@ export function createSkillRoutes(deps: {
             ...who,
             slug,
             ...body.data,
-            ...(c.req.header('if-none-match') !== undefined
+            ...(ifMatch !== undefined || ifNoneMatch !== undefined
               ? {
                   precondition: {
-                    ifNoneMatch: parseEntityTagList(
-                      c.req.header('if-none-match') ?? '',
-                    ),
+                    ...(ifMatch !== undefined
+                      ? { ifMatch: parseEntityTagList(ifMatch) }
+                      : {}),
+                    ...(ifNoneMatch !== undefined
+                      ? { ifNoneMatch: parseEntityTagList(ifNoneMatch) }
+                      : {}),
                   },
                 }
               : {}),
-
             assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
             mayPublishOrgWide,
           });

@@ -1,6 +1,7 @@
 title: Products
 entityLabelOne: product
 searchPlaceholder: Search products
+refreshFailed: "Couldn't load the latest products. What's listed may be incomplete or out of date."
 addButton: Add product
 importMenu:
   fromDevice: From your device

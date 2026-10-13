@@ -60,6 +60,20 @@ be recorded, the agent gets no code and the person is told to try again
 - **Example**: Ada allows Claude Code while the database is unreachable → she is told to try again, and
   Claude Code never receives a code to sign in with.
 
+### AGCONN-R25 · An agent that asks for more than the endpoint grants is given what it grants
+
+A coding agent that asks to sign in, or to register, for every scope the sign-in server lists is not
+refused: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes
+and `offline_access`. Tale takes what the endpoint grants — the agent scopes and `offline_access` — and
+leaves the rest out, so the consent page offers exactly those, the connection holds only those and the
+token says which. An agent is never granted an identity scope. An agent that asks for nothing the
+endpoint grants — identity scopes alone — is refused with `invalid_scope`, not given the agent scopes
+in their place.
+
+- **Example**: Codex asks for `openid profile email tale:organization offline_access tale:mcp
+  tale:automations.write` → the consent page offers Read and test or Edit automations, Ada allows Edit
+  automations, and the token's scope is `tale:mcp tale:automations.write offline_access`; no `id_token`.
+
 ## Who sees and ends a connection
 
 |                                                       | The person who connected it | Owner or admin | Anyone else |

@@ -46,10 +46,10 @@ describe('incrementUsageLedger', () => {
     expect(statements).toHaveLength(3);
     for (const text of statements) {
       expect(text).toMatch(
-        /character_count =\s+CASE\s+WHEN app\.usage_ledger\.character_count IS NULL\s+AND EXCLUDED\.character_count IS NULL THEN NULL/,
+        /character_count =\s+CASE\s+WHEN ledger\.character_count IS NULL\s+AND EXCLUDED\.character_count IS NULL THEN NULL/,
       );
       expect(text).toMatch(
-        /audio_duration_sec =\s+CASE\s+WHEN app\.usage_ledger\.audio_duration_sec IS NULL\s+AND EXCLUDED\.audio_duration_sec IS NULL THEN NULL/,
+        /audio_duration_sec =\s+CASE\s+WHEN ledger\.audio_duration_sec IS NULL\s+AND EXCLUDED\.audio_duration_sec IS NULL THEN NULL/,
       );
     }
   });
@@ -140,9 +140,9 @@ describe('incrementUsageLedger', () => {
     // tokens and cost, and a connector call adds none of them.
     expect(statements).toHaveLength(3);
     for (const [index, text] of statements.entries()) {
-      expect(text).toContain('INSERT INTO app.usage_ledger');
+      expect(text).toContain('INSERT INTO app.usage_ledger_provider AS ledger');
       expect(text).toContain(
-        'request_count = app.usage_ledger.request_count + EXCLUDED.request_count',
+        'request_count = ledger.request_count + EXCLUDED.request_count',
       );
       const values = bindings[index] ?? [];
       // api_key_id, connector_name, connector_operation …
@@ -164,5 +164,25 @@ describe('incrementUsageLedger', () => {
     });
     // request_count 1, connector_call_count 0.
     expect(bindings[0]?.slice(15, 17)).toEqual([1, 0]);
+  });
+
+  it('uses provider as an immutable bucket dimension in every period', async () => {
+    const { sql, statements } = capturingSql();
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      model: 'shared-model',
+      provider: 'provider-b',
+      inputTokens: 10,
+      outputTokens: 5,
+      costEstimateCents: 90,
+      timestamp: Date.now(),
+    });
+    expect(statements).toHaveLength(3);
+    for (const text of statements) {
+      expect(text).toContain('INSERT INTO app.usage_ledger_provider AS ledger');
+      expect(text).toMatch(/ON CONFLICT \([\s\S]*coalesce\(provider, ''\)/);
+      expect(text).not.toMatch(/provider\s*=/);
+    }
   });
 });

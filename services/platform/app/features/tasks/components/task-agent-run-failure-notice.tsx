@@ -19,8 +19,8 @@ import { useTaskAgentRunControls } from '../hooks/use-task-agent-run-controls';
  * with nothing working on it.
  *
  * Leads with what the failure means for the reader (the run's failure class,
- * `lib/shared/task-run-failure.ts`); the raw reason stays behind Details on
- * the run strip. Shown only for a failure that is final — a run the platform
+ * `lib/shared/task-run-failure.ts`); the raw reason stays under the run's own
+ * row in the task's activity. Shown only for a failure that is final — a run the platform
  * is about to retry by itself asks nothing of anyone — and only while the
  * task still waits on that agent: the caller mounts it for an agent-assigned
  * task at In progress.

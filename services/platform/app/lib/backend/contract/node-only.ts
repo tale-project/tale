@@ -27,6 +27,6 @@ export interface NodeOnlyContract {
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     kind: 'action';
     args: { organizationId: string; sessionId: string };
-    returns: { cancelled: number };
+    returns: { cancelled: number; refused: number };
   };
 }

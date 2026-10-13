@@ -43,6 +43,12 @@ export const pendingReviewIdentitySchema = z
   .strict();
 export type PendingReviewIdentity = z.infer<typeof pendingReviewIdentitySchema>;
 
+export const taskReviewerHandoffValueSchema = z
+  .object({
+    reviewer: taskReviewerSchema,
+    pendingReview: pendingReviewIdentitySchema,
+  })
+  .strict();
 export const setTaskReviewerInputSchema = z
   .object({
     reviewer: taskReviewerSchema,

@@ -316,6 +316,7 @@ chatHealth:
       temps de réponse, d'erreurs et de routage apparaissent ici.
   errors:
     loadFailed: Impossible de charger les métriques
+    guardrailsLoadFailed: Impossible de charger les métriques des garde-fous. Réessayer
     unauthorized: Tu n'as pas accès à ces métriques
   errorType:
     missing_api_key: Clé API manquante

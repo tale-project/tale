@@ -63,6 +63,7 @@ import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggl
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
+import type { FileAttachment } from '@/app/features/shared/files/types';
 import { useFileUpload } from '@/app/features/shared/files/use-file-upload';
 import {
   freezeActiveStream,
@@ -211,6 +212,21 @@ interface BranchFork {
    * returns when the turn never lands (the parent's own tail when nothing
    * was chosen there). */
   readonly restoreTo: string;
+}
+
+/** A send that did not go through: the words and the files it took out of the
+ * composer, on their way back. */
+interface FailedSend {
+  readonly text: string;
+  readonly attachments: readonly FileAttachment[];
+}
+
+/** Where a failed send belongs: one slot per conversation of an organization
+ * and one for the new-chat index, like the composer's drafts — without the
+ * user, whose id resolves after the surface mounted and would move the slot
+ * under a send already in flight. */
+function recoverySlotOf(organizationId: string, threadId: string | undefined) {
+  return `${organizationId}/${threadId ?? 'new'}`;
 }
 
 interface ChatSurfaceProps {
@@ -372,6 +388,15 @@ function ChatSurfaceInner({
   // The composer owns its draft (persisted per thread); the surface reaches
   // in for the starter fill and the failed-send restore.
   const composerRef = useRef<ComposerHandle>(null);
+  // A send can fail long after Send, with the reader in another conversation.
+  // This surface outlives the switch, so the composer on screen is not the one
+  // the words came out of: a send reads the slot on screen through the ref,
+  // and a failure whose conversation is away waits in the map until the
+  // reader is back.
+  const recoverySlot = recoverySlotOf(organizationId, threadId);
+  const recoverySlotRef = useRef(recoverySlot);
+  recoverySlotRef.current = recoverySlot;
+  const parkedRecoveries = useRef(new Map<string, FailedSend[]>());
   // A new chat starts in the message box for a pointer user: nothing else on
   // the screen wants the focus, and the alternative was ~290 Tabs through the
   // sidebar (2026-09-26 evaluation, G-11). A coarse pointer keeps the
@@ -1065,6 +1090,29 @@ function ChatSurfaceInner({
     if (arenaLive) clearAttachments();
   }, [arenaLive, clearAttachments]);
 
+  // A failed send's words go back through the composer, which fills only an
+  // empty field — nothing typed since is overwritten — and its files onto the
+  // tray, which keeps what was staged since.
+  const putBack = useCallback(
+    ({ text, attachments }: FailedSend) => {
+      composerRef.current?.restoreText(text);
+      if (attachments.length > 0) {
+        setStagedAttachments((previous) =>
+          previous.length === 0 ? [...attachments] : previous,
+        );
+      }
+    },
+    [setStagedAttachments],
+  );
+  // The reader is back in a conversation whose send failed while they were
+  // away: it returns now, after the clears above have emptied the tray.
+  useEffect(() => {
+    const parked = parkedRecoveries.current.get(recoverySlot);
+    if (parked === undefined) return;
+    parkedRecoveries.current.delete(recoverySlot);
+    for (const failed of parked) putBack(failed);
+  }, [recoverySlot, putBack]);
+
   // Sent-image previews (`fileId → objectURL`): a send moves the staged
   // object URLs here instead of revoking them, so the optimistic bubble (and
   // the real row that adopts it) paints the image the instant Send is
@@ -1098,6 +1146,31 @@ function ChatSurfaceInner({
     }
     setStagedAttachments([]);
     return taken;
+  };
+
+  /**
+   * Hand a failed send back to the conversation it came out of. `sentFrom` is
+   * the slot it was typed in — the one on screen when Send was pressed;
+   * `turnSlot` the one its turn ran in, which differs for a first message: it
+   * creates the conversation and the surface follows it there, so the failure
+   * is as much at home in the one as in the other. On either slot the
+   * composer on screen takes it at once; anywhere else the reader has moved
+   * on, and it waits in `turnSlot` for them.
+   */
+  const restoreFailedSend = (
+    failed: FailedSend,
+    sentFrom: string,
+    turnSlot: string = sentFrom,
+  ) => {
+    const onScreen = recoverySlotRef.current;
+    if (onScreen === sentFrom || onScreen === turnSlot) {
+      putBack(failed);
+      return;
+    }
+    parkedRecoveries.current.set(turnSlot, [
+      ...(parkedRecoveries.current.get(turnSlot) ?? []),
+      failed,
+    ]);
   };
 
   // The composer locks only while nothing behind it could EVER serve: the
@@ -1281,7 +1354,7 @@ function ChatSurfaceInner({
           // side's transcript shows the prompt and a blocked reply) keeps
           // the composer clear — restoring would invite a duplicate send.
           if (failed.persisted !== true) {
-            composerRef.current?.restoreText(text);
+            restoreFailedSend({ text, attachments: [] }, recoverySlot);
           }
           refusalToast(failed.reason, failed.code, failed.budgetScope);
         });
@@ -1350,10 +1423,10 @@ function ChatSurfaceInner({
         } catch (error) {
           console.error('[chat] could not park the send', error);
           videoLinks.unmarkJobsSent(jobIds);
-          composerRef.current?.restoreText(text);
-          if (consumedAttachments.length > 0) {
-            setStagedAttachments(consumedAttachments);
-          }
+          restoreFailedSend(
+            { text, attachments: consumedAttachments },
+            recoverySlot,
+          );
           // A reached cap refuses the park itself: name it as a refused send
           // would be named, not as a bare "Send failed". Any other refusal
           // (a full tray, too many attachments, a thread it cannot find)
@@ -1422,6 +1495,12 @@ function ChatSurfaceInner({
               : previous,
           );
         }
+        // Where the composer stands once this turn runs: a first message
+        // creates its conversation, and the surface navigates into it below.
+        const turnSlot = recoverySlotOf(
+          organizationId,
+          threadId ?? turn.threadId,
+        );
         // Surface a refusal or a failure; success streams in by itself.
         turn.outcome.then(
           (outcome) => {
@@ -1440,10 +1519,11 @@ function ChatSurfaceInner({
             // composer stays clear: restoring would duplicate the message
             // on the next Send. Edit sends never touched the composer.
             if (intoThreadId === undefined && outcome.persisted !== true) {
-              composerRef.current?.restoreText(text);
-              if (consumedAttachments.length > 0) {
-                setStagedAttachments(consumedAttachments);
-              }
+              restoreFailedSend(
+                { text, attachments: consumedAttachments },
+                recoverySlot,
+                turnSlot,
+              );
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
@@ -1464,10 +1544,11 @@ function ChatSurfaceInner({
               previous !== null && previous.sentAt === sentAt ? null : previous,
             );
             if (intoThreadId === undefined) {
-              composerRef.current?.restoreText(text);
-              if (consumedAttachments.length > 0) {
-                setStagedAttachments(consumedAttachments);
-              }
+              restoreFailedSend(
+                { text, attachments: consumedAttachments },
+                recoverySlot,
+                turnSlot,
+              );
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
@@ -1497,10 +1578,10 @@ function ChatSurfaceInner({
           previous !== null && previous.sentAt === sentAt ? null : previous,
         );
         if (intoThreadId === undefined) {
-          composerRef.current?.restoreText(text);
-          if (consumedAttachments.length > 0) {
-            setStagedAttachments(consumedAttachments);
-          }
+          restoreFailedSend(
+            { text, attachments: consumedAttachments },
+            recoverySlot,
+          );
           videoLinks.unmarkJobsSent(consumedJobIds);
         }
         // A turn that never started wrote nothing into the sibling.

@@ -63,6 +63,8 @@ export interface ChatProjectSummary {
   readonly pinnedAt?: number;
   /** How many agents the project has — the hand-over asks where work can go. */
   readonly agentCount?: number;
+  /** How many of those rows are Tale-managed standard agents. */
+  readonly managedAgentCount?: number;
   /** The reader may add agents to it (its editors). */
   readonly canEdit?: boolean;
 }

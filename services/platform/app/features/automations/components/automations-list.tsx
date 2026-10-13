@@ -46,6 +46,11 @@ import {
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
 import { StarterGalleryDialog } from './starter-gallery-dialog';
+import {
+  type TriggerReadiness,
+  TriggerReadinessBadge,
+  triggerReadinessOf,
+} from './trigger-readiness-badge';
 import { UploadAutomationDialog } from './upload-automation-dialog';
 
 interface AutomationListRow {
@@ -58,6 +63,8 @@ interface AutomationListRow {
   latest: number;
   projectIds: string[];
   deployedVersion?: number;
+  /** Whether its trigger starts runs on its own, apart from the version. */
+  trigger: TriggerReadiness;
   presentation?: unknown;
 }
 
@@ -67,9 +74,10 @@ interface AutomationListRow {
  *
  * A DataTable like Projects and the Knowledge tables: full-width rows under
  * the area header, create in the toolbar, search, and a row menu for delete.
- * Each row still answers the two questions the list can — how many versions
- * exist, and which one (if any) is live — so an undeployed draft cannot be
- * mistaken for a running schedule.
+ * Each row still answers the questions the list can — how many versions
+ * exist, which one (if any) is live, and, apart from that, whether its
+ * trigger starts runs on its own — so an undeployed draft cannot be
+ * mistaken for a running schedule, nor a paused schedule for a live one.
  *
  * The area shell owns the page title (`AdaptiveHeaderTitle`) and the
  * `ContentArea variant="list"` frame this table measures its `stickyLayout`
@@ -123,6 +131,10 @@ export function AutomationsList({
         labels: automationDisplayLabels(automation.presentation),
         latest: automation.latest,
         projectIds: automation.projectIds,
+        trigger: triggerReadinessOf(
+          automation.trigger,
+          automation.deployedVersion !== undefined,
+        ),
         presentation: automation.presentation,
       };
       if (icon !== undefined) row.icon = icon;
@@ -248,6 +260,20 @@ export function AutomationsList({
               })}
             </Badge>
           ),
+      },
+      {
+        // Beside the version, never folded into it: a live version whose
+        // schedule is paused or off starts nothing on its own, and one
+        // without a trigger still runs by hand, the API or MCP.
+        id: 'trigger',
+        header: t('list.columnTrigger'),
+        size: 200,
+        meta: {
+          skeleton: { type: 'badge-text', badge: { variant: 'slate' } },
+        },
+        cell: ({ row }) => (
+          <TriggerReadinessBadge readiness={row.original.trigger} />
+        ),
       },
     );
     if (canAuthor) {

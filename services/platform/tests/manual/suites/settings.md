@@ -73,9 +73,10 @@ A makes the connector add-credential smoke (SET-F25) deterministic. The model
 endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
 endpoints switched on as in governance.md GOV-F41; a real answer needs mode B
 with the sandbox model gateway running. The Connected agents boxes (SET-F85–SET-F88, SET-B38, SET-A11)
-need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe, which takes
-the agent sign-in switched on (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION=true`);
-the page itself is absent while it is off (SET-B38).
+need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe; the agent
+sign-in is on unless `TALE_MCP_CLIENT_METADATA_DOCUMENTS` and
+`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` are both `false`, and the page itself is
+absent while it is off (SET-B38).
 Restore any toggled setting after the run.
 
 > **Agent note**: pages on the header **Save** / **Discard** cluster
@@ -118,6 +119,10 @@ Restore any toggled setting after the run.
   (`settings.account.profile.name`) → edit → header **Save**
   (`common.actions.save`) → The Save cluster flashes **Saved**
   (`common.actions.saved`) and disables again — no page toast; the new value
+  reaches other mounted current-user readers, including the account menu,
+  without a reload. Edit the name
+  again, then header **Discard** (`common.actions.discard`) → the last saved
+  name returns, not the name from before Save; the saved value
   is still in the Name field after a reload; the **Email** field
   (`settings.account.profile.email`) is read-only.
 - [ ] `SET-F4` · **Account security** — Same page → **Password** section
@@ -1329,6 +1334,19 @@ Restore any toggled setting after the run.
   goes through. Repeat with B's **Reset** (`common.actions.reset`) confirmed
   while A holds an unsaved color → A's **Save** is refused the same way and the
   reset stays after a reload.
+- [ ] `SET-B39` · **A roster draft survives another session's change** — On a
+  throwaway organization with a team of one member and two more people, open
+  `/dashboard/{org}/settings/teams` in two windows, A and B, and **Edit team**
+  (`settings.teams.editTeam`) in both. In A tick a second person under
+  **Members** (`settings.teams.manageMembers`) without saving; in B tick a
+  third person → **Save changes** (`settings.teams.saveChanges`). Back in A →
+  One alert says the membership changed in another session
+  (`settings.teams.membershipRefreshConflict`); A's ticked person stays ticked
+  and **Save changes** stays disabled. Close A's dialog and open it again → it lists the team as B saved it, no
+  alert shows and **Save changes** is disabled until the next edit. Then
+  tick a person in A and save → the dialog closes with the toast
+  (`settings.teams.teamUpdated`); opening it right after shows the saved roster
+  with no alert.
 
 - [ ] `SET-B38` · **Who opens Connected agents** — With the agent sign-in on,
   sign in as a member who holds a competence that is used with a key, with no
@@ -1342,7 +1360,7 @@ Restore any toggled setting after the run.
   denied** with `accessDenied.apiKeys`. A plain member who never had either
   never sees the row. With the agent sign-in switched off
   (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and `TALE_MCP_CLIENT_METADATA_DOCUMENTS`
-  unset) the owner's rail has no **Connected agents** while they hold no agent,
+  both `false`) the owner's rail has no **Connected agents** while they hold no agent,
   and a person who still holds one keeps the page, without **Connect a coding
   agent**.
 

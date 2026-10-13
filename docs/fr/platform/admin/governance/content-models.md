@@ -18,6 +18,10 @@ Le modèle par défaut s’applique lorsqu’aucun modèle n’a été choisi ex
 
 Sous **Accès aux modèles**, choisis le mode et ajoute des règles pour les personnes, équipes, rôles ou la portée par défaut à couvrir.
 
+Les règles visant une personne, une équipe ou un rôle nécessitent une cible avant confirmation, dans les deux modes. La portée par défaut s’applique à tout le monde et n’a pas besoin de cible. Changer de portée efface la cible précédente ; sélectionne une cible dans la nouvelle portée.
+
+Les anciennes règles enregistrées sans cible restent visibles avec **Cible manquante** et un avertissement : elles ne s’appliquent à personne. Modifie chaque règle concernée pour sélectionner la cible prévue, ou supprime-la. Les modifications ne sont enregistrées que lorsque chaque règle ciblée a une cible ; la dernière correction enregistre la politique corrigée. Tale ne devine pas les cibles et ne supprime pas automatiquement les règles existantes.
+
 | Mode | Effet d’une règle correspondante |
 | --- | --- |
 | Liste d’autorisation | Seuls les modèles autorisés dans la liste sont utilisables ; un modèle bloqué reste refusé. |

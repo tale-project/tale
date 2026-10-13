@@ -53,7 +53,8 @@ beforeEach(() => {
   vi.stubEnv('SITE_URL', 'https://tale.example.com');
   vi.stubEnv('ADDITIONAL_SITE_URLS', '');
   vi.stubEnv('BASE_PATH', '');
-  // Agents have a way in only when the operator opens one.
+  // Both ways in are on unless the operator turns them off; saying so keeps
+  // each test's setting in view.
   vi.stubEnv('TALE_MCP_CLIENT_METADATA_DOCUMENTS', 'true');
   vi.stubEnv('TALE_MCP_DYNAMIC_CLIENT_REGISTRATION', 'true');
 });
@@ -121,8 +122,8 @@ describe('the MCP endpoint’s resource metadata', () => {
 
 describe('a deployment that leaves agents no way in', () => {
   it('answers no resource metadata and hands a self-registration to the provider untouched', async () => {
-    vi.stubEnv('TALE_MCP_CLIENT_METADATA_DOCUMENTS', '');
-    vi.stubEnv('TALE_MCP_DYNAMIC_CLIENT_REGISTRATION', '');
+    vi.stubEnv('TALE_MCP_CLIENT_METADATA_DOCUMENTS', 'false');
+    vi.stubEnv('TALE_MCP_DYNAMIC_CLIENT_REGISTRATION', 'false');
     const handler = vi.fn(() => Promise.resolve(new Response('{}')));
     const application = app('https://tale.example.com', handler);
     expect(

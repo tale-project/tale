@@ -182,6 +182,7 @@ import {
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
+import { checkTaskDependencyResolution } from './domains/tasks/dependencies.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
@@ -18111,6 +18112,15 @@ async function checkGovernance(
   const { cookie, orgId, userId } = ctx;
   const governance = await import('./domains/governance/service.ts');
   const orgConfig = await import('./lib/org-config.ts');
+
+  const { verifyProviderUsageLedger } =
+    await import('./domains/governance/usage-ledger.integration.ts');
+  await verifyProviderUsageLedger(sql);
+  record(
+    'usage ledger: provider-local models, filters and totals',
+    true,
+    'all granularities, repeated provider, distinct IDs, null provider and deletion',
+  );
 
   const restoreViaTrash = (body: unknown): Promise<Response> =>
     fetch(`${base}/api/app/governance/trash/restore?orgId=${orgId}`, {
@@ -65581,6 +65591,10 @@ async function main(): Promise<void> {
       [
         'checkTaskSearchPriority',
         () => checkTaskSearchPriority(sql, authCtx, record),
+      ],
+      [
+        'checkTaskDependencyResolution',
+        () => checkTaskDependencyResolution(sql, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',

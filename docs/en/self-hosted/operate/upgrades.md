@@ -101,6 +101,12 @@ The current tag-based guard supports the bundled application database only. An e
 
 Older CLIs and manual image replacement do not implement this deployment guard. The database writer fence and separate execution queues remain necessary during mixed-version operation. A backup restores stored data, not messages, payments or other effects already sent to an external service; it does not authorize a pre-protocol runtime after this cutover. Use a compatible forward repair and preserve held runs and their evidence.
 
+## Check the sandbox disk floor before upgrading
+
+The Docker spawner now refuses every new session with HTTP 429 `host_disk` when the disk holding session workspaces is below `SANDBOX_MIN_FREE_DISK`. This also applies to a host already below the floor at upgrade time, even with an explicit `SANDBOX_MAX_SESSIONS`. Existing sessions keep running, but new work waits until space is freed. Stopping idle sessions does not free their preserved workspaces.
+
+Check free space before deploying. The default floor is a twentieth of that disk, at least 2 GiB and at most 20 GiB. Free space safely or deliberately configure another floor; `SANDBOX_MIN_FREE_DISK=0` disables this protection and leaves disk exhaustion to the operator. The spawner can remove unused stopped organizations’ build caches, but pauses relief for six hours after three consecutive removals each gain less than 1 MiB. Do not rely on cache removal to rescue a full host. See the [environment reference](/self-hosted/configuration/environment-reference) for configuration and recovery limits.
+
 ## Bifrost 1.6 → 2.2: the model gateway's store is migrated
 
 A release after 0.5.64 moves the model gateway (`sandbox-llm-gateway`) from Bifrost 1.6 to Bifrost 2.2; its release notes list the move. On its first start, the new gateway migrates its store in `llm-gateway-data` in place and keeps its providers, keys, budgets and admin account; nothing needs to be done by hand. The migration also indexes the gateway's request log, so that start can take longer on an instance with a long request history.
