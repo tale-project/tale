@@ -231,10 +231,17 @@ const arenaSettle = vi.hoisted(() =>
 // The pair's fanned turn: a test holds its answer open; reset in the shared
 // afterEach.
 const arenaStartTurn = vi.hoisted(() => vi.fn());
+// The bare conversation a comparison starts from on the index; reset in the
+// shared afterEach.
+const arenaCreateThread = vi.hoisted(() =>
+  vi.fn<(...args: unknown[]) => Promise<string | null>>(() =>
+    Promise.resolve(null),
+  ),
+);
 vi.mock('../data/arena-actions', () => ({
   useArenaActions: () => ({
     available: true,
-    createThread: vi.fn(() => Promise.resolve(null)),
+    createThread: arenaCreateThread,
     ensurePair: vi.fn(() => Promise.resolve({ refused: 'error' })),
     startTurn: arenaStartTurn,
     settle: arenaSettle,
@@ -367,6 +374,7 @@ afterEach(() => {
     Promise.resolve({ refused: 'not_found' }),
   );
   arenaStartTurn.mockReset();
+  arenaCreateThread.mockClear();
 });
 
 it.each([
@@ -2681,6 +2689,156 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     ).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'pdf' }));
     expect(save).toHaveBeenCalledWith('t1', ['docx', 'pdf']);
+  });
+
+  it('reads the skills of a chat the list does not hold from the chat itself', async () => {
+    vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
+    vi.mocked(useComposerSkills).mockReturnValue({
+      enabled: true,
+      skills: [{ slug: 'docx' }, { slug: 'pdf' }],
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: () => Promise.reject(new Error('unavailable')),
+      defer: () => Promise.reject(new Error('unavailable')),
+      unbindVideoJobs: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+    } as never);
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    } as never);
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: {
+        id: 't1',
+        kind: 'direct',
+        archived: false,
+        createdAt: 0,
+        updatedAt: 0,
+        generating: false,
+        viewerIsOwner: true,
+        capabilities: { skills: ['pdf'], connectors: [] },
+      },
+    } as never);
+
+    render(<ChatSurface organizationId="org-1" threadId="t1" />);
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Choose model, reasoning effort and skills, 1 skill',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not carry one chat’s skills into the next while its row loads', async () => {
+    vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
+    vi.mocked(useComposerSkills).mockReturnValue({
+      enabled: true,
+      skills: [{ slug: 'docx' }],
+    });
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 't1',
+          kind: 'direct',
+          archived: false,
+          createdAt: 0,
+          updatedAt: 0,
+          generating: false,
+          viewerIsOwner: true,
+          capabilities: { skills: ['docx'], connectors: [] },
+        },
+      ],
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: () => Promise.reject(new Error('unavailable')),
+      defer: () => Promise.reject(new Error('unavailable')),
+      unbindVideoJobs: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+    } as never);
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    } as never);
+    vi.mocked(useChatThread).mockReturnValue({ status: 'loading' } as never);
+
+    const { rerender } = render(
+      <ChatSurface organizationId="org-1" threadId="t1" />,
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: 'Choose model, reasoning effort and skills, 1 skill',
+      }),
+    ).toBeInTheDocument();
+
+    rerender(<ChatSurface organizationId="org-1" threadId="t2" />);
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('starts a comparison from a new chat with the skills chosen for it', async () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      ...READY_MODELS,
+      data: {
+        ...READY_MODELS.data,
+        models: [
+          MODEL,
+          { ...MODEL, id: 'deepseek-v4-pro', label: 'deepseek-v4-pro' },
+        ],
+      },
+    });
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useComposerSkills).mockReturnValue({
+      enabled: true,
+      skills: [{ slug: 'xlsx' }],
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: () => Promise.reject(new Error('unavailable')),
+      defer: () => Promise.reject(new Error('unavailable')),
+      unbindVideoJobs: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+    } as never);
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    } as never);
+
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: /Skills/ }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'xlsx' }));
+    await user.keyboard('{Escape}{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Arena Mode' }),
+    );
+
+    await waitFor(() => {
+      expect(arenaCreateThread).toHaveBeenCalled();
+    });
+    expect(arenaCreateThread.mock.calls[0]?.[2]).toEqual(['xlsx']);
   });
 
   it('starts a new chat with the skills chosen for it', async () => {

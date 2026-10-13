@@ -777,11 +777,16 @@ function ChatSurfaceInner({
   }, [threadId, activeThread]);
 
   // The conversation's skills hydrate from its row the way the effort pick
-  // does, once per thread; a new chat starts with none. A pick in this
-  // session is left alone.
+  // does, once per thread: the list's row, or the thread's own read for a
+  // chat the list does not hold. Until one answers the picker shows none,
+  // never the last chat's; a new chat starts with none; and a pick in this
+  // session is left alone — a chat made here is stamped with its own.
   const skillsHydratedFor = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (threadId === undefined) {
+    if (threadId !== undefined && skillsHydratedFor.current === threadId) {
+      return;
+    }
+    if (threadId === undefined || headerThread === undefined) {
       if (skillsHydratedFor.current === undefined) return;
       skillsHydratedFor.current = undefined;
       setSelection((previous) =>
@@ -791,12 +796,10 @@ function ChatSurfaceInner({
       );
       return;
     }
-    if (activeThread === undefined) return;
-    if (skillsHydratedFor.current === threadId) return;
     skillsHydratedFor.current = threadId;
-    const stored = conversationSkillsOf(activeThread.capabilities);
+    const stored = conversationSkillsOf(headerThread.capabilities);
     setSelection((previous) => ({ ...previous, skills: stored }));
-  }, [threadId, activeThread]);
+  }, [threadId, headerThread]);
 
   const handleArenaSettle = async (verdict?: ArenaVerdict) => {
     if (viewThreadId === undefined) return;
@@ -870,6 +873,7 @@ function ChatSurfaceInner({
         const created = await arenaActions.createThread(
           projectId,
           selection.reasoningEffort,
+          selection.skills,
         );
         if (created === null) {
           toast({ title: t('arena.startFailed'), variant: 'destructive' });
@@ -877,6 +881,7 @@ function ChatSurfaceInner({
         }
         target = created;
         effortHydratedFor.current = created;
+        skillsHydratedFor.current = created;
         void navigate({
           to: '/dashboard/$id/chat/$threadId',
           params: { id: organizationId, threadId: created },
@@ -1464,6 +1469,7 @@ function ChatSurfaceInner({
           });
           if (threadId === undefined) {
             effortHydratedFor.current = parkedThreadId;
+            skillsHydratedFor.current = parkedThreadId;
             void navigate({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: parkedThreadId },
@@ -1622,6 +1628,7 @@ function ChatSurfaceInner({
         );
         if (threadId === undefined) {
           effortHydratedFor.current = turn.threadId;
+          skillsHydratedFor.current = turn.threadId;
           void navigate({
             to: '/dashboard/$id/chat/$threadId',
             params: { id: organizationId, threadId: turn.threadId },
