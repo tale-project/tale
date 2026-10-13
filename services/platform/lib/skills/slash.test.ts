@@ -5,6 +5,7 @@ import {
   chosenSkills,
   isSkillName,
   leadingSkillNames,
+  withoutLeadingSkillNames,
 } from './slash';
 
 describe('leadingSkillNames', () => {
@@ -28,6 +29,30 @@ describe('leadingSkillNames', () => {
 
   it('stops at the first word that is not a name', () => {
     expect(leadingSkillNames('/docx please /pdf')).toEqual(['docx']);
+  });
+});
+
+describe('withoutLeadingSkillNames', () => {
+  it('keeps what the message says after the names it starts with', () => {
+    expect(withoutLeadingSkillNames('/docx Write the cover letter')).toBe(
+      'Write the cover letter',
+    );
+    expect(withoutLeadingSkillNames(' /xlsx /pdf\nMonthly revenue ')).toBe(
+      'Monthly revenue',
+    );
+    expect(withoutLeadingSkillNames('Write it with /docx')).toBe(
+      'Write it with /docx',
+    );
+  });
+
+  it('keeps a message that is nothing but names, or no name at all', () => {
+    expect(withoutLeadingSkillNames('/docx /pdf')).toBe('/docx /pdf');
+    expect(withoutLeadingSkillNames('/etc/hosts is read-only')).toBe(
+      '/etc/hosts is read-only',
+    );
+    expect(withoutLeadingSkillNames(`/${'a'.repeat(65)} text`)).toBe(
+      `/${'a'.repeat(65)} text`,
+    );
   });
 });
 

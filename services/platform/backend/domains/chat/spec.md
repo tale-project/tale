@@ -352,7 +352,8 @@ A message that starts with `/` and a skill's name chooses that skill; so does ch
 skill before the model answers, as a step of its own that costs the model none of its steps,
 unless the conversation already shows it read. Only skills the person can see count, at most
 four a reply; any other name stays text. A conversation's skills are kept with it, every version
-of it reads them, and only its owner changes them.
+of it reads them, and only its owner changes them. A conversation is named from what its first
+message says after the names it starts with.
 
 - **Example**: Mia sends "/docx Write the cover letter" → the reply's first step reads the docx
   skill, then the model answers.

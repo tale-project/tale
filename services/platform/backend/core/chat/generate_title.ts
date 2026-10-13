@@ -5,6 +5,7 @@ import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
 import { estimateTokens } from '../../../lib/chat/types';
+import { withoutLeadingSkillNames } from '../../../lib/skills/slash';
 import { logDetail } from '../../db/unavailable';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
@@ -419,7 +420,9 @@ export async function generateThreadTitleImpl(
                 ctx,
                 args.organizationId,
                 args.userId,
-                args.firstMessage,
+                // The skills the message chose say how to make the reply,
+                // not what the conversation is about.
+                withoutLeadingSkillNames(args.firstMessage),
                 deadline.signal,
                 meter,
               ),

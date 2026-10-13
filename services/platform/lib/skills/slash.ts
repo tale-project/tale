@@ -51,6 +51,23 @@ export function leadingSkillNames(text: string): string[] {
 }
 
 /**
+ * What `text` says after the skill names it starts with — the words that
+ * name the conversation: `"/xlsx Make a table"` → `"Make a table"`. A
+ * message that is nothing but names stays as it is.
+ */
+export function withoutLeadingSkillNames(text: string): string {
+  let rest = text;
+  for (let read = 0; read < LEADING_TOKENS_READ; read += 1) {
+    const match = LEADING_TOKEN.exec(rest);
+    const name = match?.[1];
+    if (match === null || name === undefined || !isSkillName(name)) break;
+    rest = rest.slice(match[0].length);
+  }
+  const words = rest.trim();
+  return words.length > 0 ? words : text;
+}
+
+/**
  * The skills a reply reads because the person chose them: those the message
  * names at its start, then those the conversation uses, once each, kept to
  * the ones `available` holds — the person's own library as a turn sees it —
