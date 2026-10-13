@@ -93,7 +93,7 @@ tale rollback
 
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
-À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend tant qu’aucune exécution n’est inachevée, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.
+À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.
 
 1. Si le workspace exécute une version antérieure à v0.5.77, amène-le d’abord en v0.5.77. Le changement ne part que de cette version :
 
@@ -118,7 +118,7 @@ tale rollback
    tale deploy
    ```
 
-Avant de modifier quoi que ce soit, `tale deploy` vérifie la version du backend en cours, l’historique des migrations de la base et les exécutions d’automatisation. Si l’un d’eux n’est pas prêt, il s’arrête en indiquant l’étape suivante et laisse le workspace fonctionner tel quel. Sinon, il prend son snapshot et remplace les services sandbox comme d’habitude. Juste avant le démarrage de la nouvelle couleur, il bloque les nouvelles exécutions d’automatisation, confirme qu’aucune n’est inachevée, arrête proprement les anciens conteneurs `backend-api` et `backend-worker` et les consigne dans `.tale/automation-cutover.json`. L’API reste indisponible de cet arrêt jusqu’à ce que la nouvelle couleur soit opérationnelle.
+Avant de modifier quoi que ce soit, `tale deploy` vérifie la version du backend en cours, l’historique des migrations de la base et les exécutions d’automatisation. Si l’un de ces éléments n’est pas prêt, il s’arrête en indiquant l’étape suivante et laisse le workspace fonctionner tel quel. Sinon, il prend son snapshot et remplace les services sandbox comme d’habitude. Juste avant le démarrage de la nouvelle couleur, il bloque les nouvelles exécutions d’automatisation, confirme qu’aucune n’est inachevée, arrête proprement les anciens conteneurs `backend-api` et `backend-worker` et les consigne dans `.tale/automation-cutover.json`. L’API reste indisponible de cet arrêt jusqu’à ce que la nouvelle couleur soit opérationnelle.
 
 Le premier démarrage de la nouvelle couleur applique toutes les migrations de base depuis v0.5.77 avant de se déclarer opérationnel ; avec une grande base de connaissances, la copie des vecteurs peut dépasser `HEALTH_CHECK_TIMEOUT`. Si le déploiement s’interrompt après l’arrêt de l’ancien backend, relance `tale deploy` avec la même version : il reconnaît son propre relais, y compris un premier démarrage interrompu au milieu de ses migrations, attend la couleur déjà en cours de démarrage au lieu de la recréer et termine la mise à niveau. Conserve `.tale/automation-cutover.json` et ne redémarre pas les anciens conteneurs à la main. Dès que le changement a commencé, `tale rollback` refuse de revenir à v0.5.77 ; répare avec une version compatible, comme le décrit la section suivante.
 

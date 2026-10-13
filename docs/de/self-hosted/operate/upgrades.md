@@ -93,7 +93,7 @@ tale rollback
 
 ## Upgrade von v0.5.77 oder älter
 
-Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf setzt nie wieder ein. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, solange kein Lauf offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
+Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
 
 1. Läuft der Workspace auf einem Release vor v0.5.77, bringe ihn zuerst auf v0.5.77. Die Umstellung beginnt nur bei diesem Release:
 
