@@ -5,8 +5,8 @@
 The rules a task write is held to before anything is saved: who can create, change and delete
 a task, what an archived task or project refuses, how long its text can be, how often
 automations can start an agent on it, how one agent works several tasks at once, and what a
-deleted task leaves behind. The rest of agent runs, reviews beyond captured agent handoffs,
-repeating tasks and the importers are not covered; see Not yet.
+deleted task leaves behind. The rest of agent runs, reviews beyond captured agent handoffs and a
+reviewer who loses access, repeating tasks and the importers are not covered; see Not yet.
 
 ## Who can do what
 
@@ -290,6 +290,23 @@ historical handoff into its latest gate, separately from current pending ownersh
 - **Example**: The recipient decides before that retry → the old handoff refuses;
   its historical receipt does not claim the review is still pending.
 
+## A reviewer who loses access
+
+### TASK-R39 · A review waiting on someone who can no longer edit the project goes on
+
+A person is no longer the reviewer in a project once they are removed from the organization,
+given a role that cannot edit it, or taken out of the last team that reaches it. Their choice
+as reviewer is cleared on every task of the project, and a review that waited on them moves
+to the task's creator or, when the creator cannot edit the project either, to the project's
+creator, who is asked. A person who can still edit the project, through an admin role or
+another team, keeps their reviews. A review that waits on an agent, a review already decided
+and the tasks of other organizations stay as they are.
+
+- **Example**: Mia created a task and Noor is its reviewer. An admin changes Noor's role to
+  Member → the task no longer names Noor, and the review moves to Mia, who is asked.
+- **Example**: Noor belongs to two teams that both reach the project. An admin takes her out
+  of one → she keeps the review.
+
 ## Dates
 
 ### TASK-R23 · A start date that has already arrived raises no bell
@@ -530,8 +547,10 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
 
 - **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27` and `TASK-R30`–`TASK-R38`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
-- **Reviews beyond `TASK-R21`–`TASK-R22` and `TASK-R28`–`TASK-R29`**: who a review goes to, an agent as reviewer, and what a decision does to the task
-  (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).
+- **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29` and `TASK-R39`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
+  (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`). `TASK-R39` hands reviews on from the members door
+  (removal, role change), the team door and the removal cascade that SCIM and the sign-in handler's hook share; SCIM role updates, SSO role
+  reconciliation, a deleted team and an edited project audience do not hand them on yet.
 - **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).
 - **Imported and externally referenced tasks** beyond `TASK-R9` and `TASK-R14`–`TASK-R20` (`external-ref.ts`,

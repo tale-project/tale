@@ -10,6 +10,7 @@ import {
   getUserOrganizations,
   isAdminRole,
   removeMembershipCascade,
+  runMembershipAccessLossHook,
 } from '../../auth/membership.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { AgentConnectionAuditActor } from '../agent_connections/end.ts';
@@ -337,7 +338,8 @@ export async function removeMember(
   const targetEmail = await userEmail(tx, member.userId);
   await tx`DELETE FROM "member" WHERE "id" = ${memberId}`;
   // The membership's per-org footprint goes with it: team memberships (and
-  // their SSO-sync provenance) and the preference row.
+  // their SSO-sync provenance), the preference row, and the reviews that
+  // waited on the member, which go on to the next reviewer.
   const { teamIds } = await removeMembershipCascade(
     tx,
     member.organizationId,
@@ -459,6 +461,16 @@ export async function updateMemberRole(
   }
 
   await tx`UPDATE "member" SET "role" = ${newRole} WHERE "id" = ${args.memberId}`;
+  // A role that loses project edit access (down to Member, or Disabled)
+  // takes the reviews waiting on the person with it; where they can still
+  // edit, the hand-over leaves them alone.
+  if (newRole !== previousRole) {
+    await runMembershipAccessLossHook(tx, {
+      organizationId: member.organizationId,
+      userId: member.userId,
+      cause: 'role_changed',
+    });
+  }
 
   const targetEmail = await userEmail(tx, member.userId);
   await logSuccess(tx, {

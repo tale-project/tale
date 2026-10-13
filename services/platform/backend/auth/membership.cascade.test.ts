@@ -15,8 +15,12 @@ import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { recordingSql } from '../domains/agent_connections/test-helpers.ts';
+import { installReviewHandoverHook } from '../domains/tasks/reviews.ts';
 import { setEnqueueBoss } from '../jobs/enqueue.ts';
-import { removeMembershipCascade } from './membership.ts';
+import {
+  removeMembershipCascade,
+  setMembershipAccessLossHook,
+} from './membership.ts';
 
 /** Capture what the cascade queues: a stand-in exposing the one method
  * `addJobInTx` calls. */
@@ -36,6 +40,7 @@ function installFakeBoss(): { name: string; data: unknown }[] {
 afterEach(() => {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reset the module-level boss between tests
   setEnqueueBoss(null as unknown as PgBoss);
+  setMembershipAccessLossHook(null);
 });
 
 function fakeTx(): {
@@ -95,6 +100,79 @@ describe('removeMembershipCascade — coding agents [AGCONN-R4]', () => {
       'org-1',
       'u-1',
     ]);
+  });
+});
+
+describe('removeMembershipCascade — waiting reviews [TASK-R39]', () => {
+  it('looks for the reviews that wait on the member in this organization only, after their teams are gone', async () => {
+    installFakeBoss();
+    installReviewHandoverHook();
+    const { tx, statements } = fakeTx();
+    await removeMembershipCascade(tx, 'org-1', 'u-1');
+
+    const teamsGoneAt = statements.findIndex((statement) =>
+      statement.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    const candidatesAt = statements.findIndex((statement) =>
+      statement.text.startsWith(
+        'SELECT id, project_id AS "projectId" FROM app.tasks',
+      ),
+    );
+    expect(teamsGoneAt).toBeGreaterThan(-1);
+    // Their access is judged on what is left, so it reads after the delete.
+    expect(candidatesAt).toBeGreaterThan(teamsGoneAt);
+    const candidates = statements[candidatesAt];
+    expect(candidates?.text).toContain('reviewer_user_id = ?');
+    // The designations and the open requests, both in this organization.
+    expect(candidates?.values).toEqual(
+      expect.arrayContaining(['org-1', 'u-1']),
+    );
+    expect(
+      candidates?.values.filter((value) => value === 'org-1'),
+    ).toHaveLength(2);
+  });
+
+  it('hands the installed step the organization, the person who left and the cause, inside the cascade', async () => {
+    installFakeBoss();
+    const calls: unknown[] = [];
+    setMembershipAccessLossHook((_tx, event) => {
+      calls.push(event);
+      return Promise.resolve();
+    });
+    const { tx } = fakeTx();
+    await removeMembershipCascade(tx, 'org-1', 'u-1');
+    expect(calls).toEqual([
+      { organizationId: 'org-1', userId: 'u-1', cause: 'member_removed' },
+    ]);
+  });
+
+  it('runs no hand-over, and still removes the rest, until a step is installed', async () => {
+    installFakeBoss();
+    const { tx, statements } = fakeTx();
+    await removeMembershipCascade(tx, 'org-1', 'u-1');
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith(
+          'SELECT id, project_id AS "projectId" FROM app.tasks',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith('DELETE FROM "teamMember"'),
+      ),
+    ).toBe(true);
+  });
+
+  it('fails the cascade when the step fails, so the removal and the hand-over roll back together', async () => {
+    installFakeBoss();
+    setMembershipAccessLossHook(() =>
+      Promise.reject(new Error('hand-over failed')),
+    );
+    const { tx } = fakeTx();
+    await expect(removeMembershipCascade(tx, 'org-1', 'u-1')).rejects.toThrow(
+      'hand-over failed',
+    );
   });
 });
 
