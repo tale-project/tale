@@ -16,6 +16,7 @@ import {
   AUTO_RETRY_MAX_ATTEMPTS,
   AUTO_RETRY_PROGRESS_MS,
   CREDENTIAL_ROTATION_FREE_RETRIES,
+  MODEL_CAPACITY_RETRY_DELAY_MS,
 } from '../tasks/task_auto_retry';
 
 /** Producer-side failure classification, stamped where each failure is
@@ -23,6 +24,8 @@ import {
  * free-text reason. */
 export type WorkflowAgentFailureCode =
   | 'harness_error'
+  /** The selected model/provider answered 429; delay before re-kicking. */
+  | 'model_capacity'
   | 'turn_crashed'
   /** The sandbox ended the harness because it stalled: no output and
    * almost no CPU for the sandbox's stall window. A re-kick at once would
@@ -81,6 +84,11 @@ export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
  * stalled-turn sweep's window), so the 10 and 30 minutes a task run waits
  * are not available here. */
 export const RESOURCE_EXHAUSTED_REKICK_DELAY_MS = SANDBOX_ROOM_RETRY_CEILING_MS;
+
+/** The retry floor after a harness exits on a provider 429. The request-level
+ * harness backoff has already ended, but immediately launching every waiting
+ * node together recreates the same provider pressure. */
+export const MODEL_CAPACITY_REKICK_DELAY_MS = MODEL_CAPACITY_RETRY_DELAY_MS;
 
 /** The most a start that holds a place in the spawner's line comes back
  * after its hint: enough to keep waiters refused together apart. */

@@ -19,6 +19,7 @@ import { isAutoRetryableFailure } from './task_auto_retry';
 
 const io = vi.hoisted(() => ({
   stdout: '',
+  execErrorMessage: undefined as string | undefined,
   checkpoint: null as { seq: number; state: unknown } | null,
   resumedAt: [] as number[],
   beforeStdout: undefined as (() => void) | undefined,
@@ -63,12 +64,15 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
       io.beforeStdout?.();
       callbacks.onStdout?.(io.stdout);
       return {
-        status: 'completed',
-        exitCode: 0,
+        status: io.execErrorMessage === undefined ? 'completed' : 'failed',
+        exitCode: io.execErrorMessage === undefined ? 0 : 1,
         durationMs: 1,
         stdoutBase64: '',
         stderrBase64: '',
         truncated: { stdout: false, stderr: false },
+        ...(io.execErrorMessage !== undefined
+          ? { errorMessage: io.execErrorMessage }
+          : {}),
       };
     },
     sessionCancelExec: async () => true,
@@ -168,6 +172,7 @@ const CODEX_REVOKED = ndjson([
 
 beforeEach(() => {
   io.stdout = '';
+  io.execErrorMessage = undefined;
   io.checkpoint = null;
   io.resumedAt = [];
   io.beforeStdout = undefined;
@@ -232,6 +237,71 @@ describe('a brokered task agent turn the vendor answered 401', () => {
 });
 
 describe('a Codex model-capacity failure', () => {
+  it('classifies a provider 429 when the CLI exits before turn-ended', async () => {
+    const message =
+      'exceeded retry limit, last status: 429 Too Many Requests, request id: req-1';
+    io.execErrorMessage = message;
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'selected-account',
+    });
+
+    await driveTaskAgentTurnImpl(ctx, { ...KEYS, harness: 'codex' });
+
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'model_capacity',
+      apiErrorStatus: 429,
+      error: `The harness stopped: ${message}`,
+    });
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(true);
+  });
+
+  it('records an exhausted provider 429 with the delayed-capacity code and cools its selected broker account', async () => {
+    const message =
+      'exceeded retry limit, last status: 429 Too Many Requests, request id: req-1';
+    io.stdout = ndjson([
+      { type: 'thread.started', thread_id: 'rate-limit-conversation' },
+      { type: 'turn.failed', error: { message } },
+    ]);
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'selected-account',
+    });
+
+    await driveTaskAgentTurnImpl(ctx, { ...KEYS, harness: 'codex' });
+
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'model_capacity',
+      apiErrorStatus: 429,
+      error: message,
+      agentSessionId: 'rate-limit-conversation',
+    });
+    expect(
+      mutations.filter(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toEqual([
+      {
+        name: 'provider_credentials/mutations:recordBrokerFailureInternal',
+        args: {
+          organizationId: 'org-1',
+          brokerTokenHash: 'selected-account',
+          apiErrorStatus: 429,
+        },
+      },
+    ]);
+  });
+
   it('retains the typed failure after checkpoint restoration without replaying the consumed terminal event', async () => {
     const message =
       'Selected model is at capacity. Please try a different model.';

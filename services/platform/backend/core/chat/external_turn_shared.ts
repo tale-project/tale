@@ -1211,6 +1211,18 @@ export function isSpendRefusal(
   return ended?.apiErrorStatus === 402;
 }
 
+/** A pinned CLI may exit before `turn-ended` when its provider retry loop
+ * gives up. Preserve only this exact boundary envelope so a 429 follows the
+ * existing delayed-capacity path; unknown exit text remains a crash. */
+function providerStatusFromExecFailure(
+  errorMessage: string | undefined,
+): number | undefined {
+  const match = /^exceeded retry limit, last status: ([45]\d{2})\b/i.exec(
+    errorMessage?.trim() ?? '',
+  );
+  return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
 /** The settle reason for a spend refusal: names the cause (the harness's
  * own last words only quote the gateway's 402 line) and keeps that line as
  * the detail. */
@@ -1238,6 +1250,10 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   reason?: string;
   /** A completed turn with nothing from its model (`isEmptyAnswer`). */
   emptyAnswer: boolean;
+  /** Provider status preserved when a CLI exits before `turn-ended`. */
+  apiErrorStatus?: number;
+  /** A 429 from that exit is the same capacity refusal as a typed event. */
+  providerErrorKind?: 'model_capacity';
 } {
   const { ended, execResult } = window;
   if (unreplayableExecResult(execResult)) {
@@ -1250,6 +1266,9 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   }
   if (ended === undefined) {
     if (!window.exited) return { errored: false, emptyAnswer: false };
+    const apiErrorStatus = providerStatusFromExecFailure(
+      execResult?.errorMessage,
+    );
     const crashed =
       execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
         ? `The harness stopped: ${execResult.errorMessage}`
@@ -1263,7 +1282,15 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
       window.stderrTail !== undefined && window.stderrTail !== ''
         ? `${crashed} Last output: ${window.stderrTail}`
         : crashed;
-    return { errored: true, reason, emptyAnswer: false };
+    return {
+      errored: true,
+      reason,
+      emptyAnswer: false,
+      ...(apiErrorStatus !== undefined ? { apiErrorStatus } : {}),
+      ...(apiErrorStatus === 429
+        ? { providerErrorKind: 'model_capacity' as const }
+        : {}),
+    };
   }
   if (ended.isError === true) {
     const named = window.harnessError?.trim() ?? '';

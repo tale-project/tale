@@ -77,6 +77,7 @@ const AGENT_RETRY_ONLY_CODES: Record<
   Exclude<WorkflowAgentFailureCode, AgentWireFailureCode>,
   AgentWireFailureCode
 > = {
+  model_capacity: 'harness_error',
   credential_cooldown: 'start_failed',
   credential_rotated: 'harness_error',
   // The sandbox ended a hung harness: it reads as the crashed turn it was

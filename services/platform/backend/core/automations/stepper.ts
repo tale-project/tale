@@ -54,6 +54,7 @@ import {
   type WorkflowAgentRequest,
 } from './agent_host';
 import {
+  MODEL_CAPACITY_REKICK_DELAY_MS,
   RESOURCE_EXHAUSTED_REKICK_DELAY_MS,
   SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
@@ -2112,7 +2113,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
           })
         : settled.failureCode === 'resource_exhausted'
           ? now + RESOURCE_EXHAUSTED_REKICK_DELAY_MS
-          : settled.retryAtMs;
+          : settled.failureCode === 'model_capacity'
+            ? now + MODEL_CAPACITY_REKICK_DELAY_MS
+            : settled.retryAtMs;
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
