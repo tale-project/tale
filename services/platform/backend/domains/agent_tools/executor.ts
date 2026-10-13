@@ -93,8 +93,13 @@ export function createWorkToolExecutor(
   const offered = offeredWorkTools(scope);
   if (offered.length === 0) return undefined;
   const names = new Set<string>(offered);
+  // A description points only at the tools offered beside it.
+  const peers = {
+    createFile: offered.includes('create_file'),
+    runCode: offered.includes('run_code'),
+  };
   return {
-    wireTools: offered.map(workWireTool),
+    wireTools: offered.map((name) => workWireTool(name, peers)),
     async execute(
       call: ToolCallRequest,
       options: ToolCallOptions = {},

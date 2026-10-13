@@ -4,17 +4,22 @@
  * Light sandboxes: one per owner under a deterministic id, reused while it
  * lives, created fresh when it is gone, and — when the organization's light
  * budget is full — given the slot of the least recently used idle one. A
- * busy budget or host is a `LightSandboxBusyError`, never a hang.
+ * busy budget or host is a `LightSandboxBusyError`, never a hang; a host
+ * that cannot start one says why, as a `LightSandboxUnavailableError`.
  */
 
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SpawnerBusyError } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import {
+  SpawnerBusyError,
+  SpawnerUnreachableError,
+} from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   acquireLightSession,
   LIGHT_SESSION_IDLE_MS,
   LightSandboxBusyError,
+  LightSandboxUnavailableError,
   lightSessionId,
   releaseIdleLightSessions,
   releaseLightSession,
@@ -31,13 +36,17 @@ import {
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => {
   class MockSpawnerBusyError extends Error {
     readonly retryAfterMs: number | undefined;
-    constructor(retryAfterMs?: number) {
+    readonly refusal: string | undefined;
+    constructor(retryAfterMs?: number, _queue?: unknown, refusal?: string) {
       super('busy');
       this.retryAfterMs = retryAfterMs;
+      this.refusal = refusal;
     }
   }
+  class MockSpawnerUnreachableError extends Error {}
   return {
     SpawnerBusyError: MockSpawnerBusyError,
+    SpawnerUnreachableError: MockSpawnerUnreachableError,
     sessionCreate: vi.fn(),
     sessionDestroy: vi.fn(),
     sessionDestroyIfIdle: vi.fn(),
@@ -281,6 +290,90 @@ describe('acquireLightSession', () => {
     );
     expect(spawner.destroy).toHaveBeenCalledOnce();
     warn.mockRestore();
+  });
+
+  describe('when the host cannot start a sandbox', () => {
+    const startFailure = async (
+      error: Error,
+      spawnerOverrides: Partial<LightSessionSpawner> = {},
+    ) => {
+      const { sql } = fakeSql();
+      const spawner = fakeSpawner({
+        create: vi.fn().mockRejectedValue(error),
+        ...spawnerOverrides,
+      });
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      let thrown: unknown;
+      try {
+        await acquireLightSession(sql, OWNER, spawner);
+      } catch (rejection) {
+        thrown = rejection;
+      }
+      warn.mockRestore();
+      return thrown;
+    };
+
+    it('reads a host without its runtime image as not ready, not as busy', async () => {
+      const thrown = await startFailure(
+        new SpawnerBusyError(30_000, undefined, 'runtime_image'),
+      );
+      expect(thrown).toBeInstanceOf(LightSandboxUnavailableError);
+      expect(thrown).toMatchObject({ kind: 'not_ready' });
+      expect(setSessionStatus).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ status: 'failed' }),
+      );
+    });
+
+    it('keeps any other host refusal busy, as the host', async () => {
+      const thrown = await startFailure(
+        new SpawnerBusyError(5_000, undefined, 'host_memory'),
+      );
+      expect(thrown).toBeInstanceOf(LightSandboxBusyError);
+      expect(thrown).toMatchObject({ kind: 'host', retryAfterMs: 5_000 });
+    });
+
+    it('says the sandbox service could not be reached', async () => {
+      const cause = new SpawnerUnreachableError(
+        'POST',
+        '/v1/sessions',
+        'http://sandbox:8003',
+        new Error('connect ECONNREFUSED'),
+      );
+      const thrown = await startFailure(cause);
+      expect(thrown).toBeInstanceOf(LightSandboxUnavailableError);
+      expect(thrown).toMatchObject({ kind: 'unreachable', cause });
+    });
+
+    it('says the start failed, keeping the spawner error as its cause', async () => {
+      const cause = new Error('sandbox session create failed (500): boom');
+      const thrown = await startFailure(cause);
+      expect(thrown).toBeInstanceOf(LightSandboxUnavailableError);
+      expect(thrown).toMatchObject({ kind: 'failed', cause });
+      expect((thrown as Error).message).not.toContain('boom');
+    });
+
+    it('says the service could not be reached when a running sandbox cannot be checked', async () => {
+      vi.mocked(getSessionBySessionId).mockResolvedValueOnce(
+        sessionRow('active'),
+      );
+      const thrown = await startFailure(new Error('never called'), {
+        isAlive: vi.fn(() =>
+          Promise.reject(
+            new SpawnerUnreachableError(
+              'POST',
+              '/v1/sessions',
+              'http://sandbox:8003',
+              new Error('connect ECONNREFUSED'),
+            ),
+          ),
+        ),
+      });
+      expect(thrown).toBeInstanceOf(LightSandboxUnavailableError);
+      expect(thrown).toMatchObject({ kind: 'unreachable' });
+    });
   });
 
   it('shares one start between two calls of one round', async () => {

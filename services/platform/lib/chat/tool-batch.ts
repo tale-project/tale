@@ -50,6 +50,7 @@ export const TOOL_CALL_OVER_LIMIT_OUTPUT = {
 export const TOOL_CALL_TIMED_OUT_OUTPUT = {
   status: 'error',
   message: `This tool did not finish in the ${TOOL_BATCH_MAX_MS / 60_000} minutes one step may take and was stopped. Do not repeat the same call: answer with what you have, or try something smaller.`,
+  reason: 'timed_out',
 } as const;
 
 /** The result of a call that was running when the reply was stopped. */

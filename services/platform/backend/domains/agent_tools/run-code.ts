@@ -26,7 +26,9 @@ import {
   sessionListFiles,
   sessionReadFile,
   SessionFileTooLargeError,
+  SessionNotFoundError,
   sessionStageFiles,
+  SpawnerUnreachableError,
   type SessionExecResult,
   type SessionStageFile,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
@@ -35,6 +37,7 @@ import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import {
   acquireLightSession,
   LightSandboxBusyError,
+  LightSandboxUnavailableError,
   type LightSessionLease,
   touchLightSession,
 } from '../sandbox/light-sessions.ts';
@@ -128,6 +131,46 @@ function stopped(): ReturnType<typeof failure> {
     'cancelled',
     `The program was stopped before it finished: the reply was stopped or the step ran out of time. Files it had already written stay in ${LIGHT_SANDBOX_PATHS.output}/ and are attached by the next run.`,
   );
+}
+
+/**
+ * What the model reads when no light sandbox could run its program for a
+ * reason that is not room — the host has no runtime image yet, the sandbox
+ * service does not answer, the sandbox failed to start or stopped under the
+ * program. Each says whether a second try can help, and what to tell the
+ * person, so a reply never ends on a bare "it did not work"; the step shows
+ * the reason. The spawner's own words stay in the server log.
+ */
+const SANDBOX_UNAVAILABLE: Record<
+  LightSandboxUnavailableError['kind'] | 'lost',
+  ReturnType<typeof failure>
+> = {
+  not_ready: failure(
+    'unavailable',
+    'The sandbox host has no runtime image ready yet, so no sandbox can start. Tell the user that code cannot run here at the moment and to try again in a few minutes; answer without running code meanwhile.',
+    'sandbox_not_ready',
+  ),
+  unreachable: failure(
+    'unavailable',
+    'The sandbox service cannot be reached right now, so no code can run. Tell the user that code cannot run at the moment and answer without running code; do not call run_code again in this reply.',
+    'sandbox_unreachable',
+  ),
+  failed: failure(
+    'unavailable',
+    'The light sandbox could not start. You may call run_code once more; if it fails again, tell the user that code cannot run right now and answer without running code.',
+    'sandbox_failed',
+  ),
+  lost: failure(
+    'unavailable',
+    'The light sandbox stopped while the program ran (its host may have restarted), and the files it held are gone. Run the program again: a fresh sandbox starts.',
+    'sandbox_failed',
+  ),
+};
+
+function sandboxUnavailable(
+  kind: LightSandboxUnavailableError['kind'] | 'lost',
+): ReturnType<typeof failure> {
+  return { ...SANDBOX_UNAVAILABLE[kind] };
 }
 
 /** How often the sandbox is asked to cancel a program it does not know yet,
@@ -380,124 +423,192 @@ export async function runRunCode(
       return failure(
         'busy',
         `${error.message} Try again in a minute, or answer without running code.`,
+        error.kind === 'host' ? 'sandbox_host_busy' : 'sandboxes_busy',
       );
+    }
+    if (error instanceof LightSandboxUnavailableError) {
+      console.warn(
+        `[run_code] no light sandbox for ${scope.organizationId} (${error.kind}):`,
+        error.cause ?? error,
+      );
+      return sandboxUnavailable(error.kind);
     }
     throw error;
   }
 
-  return serialized(lease.sessionId, async () => {
-    // The batch may have given up on this call while it waited its turn behind
-    // another program of the sandbox: it starts nothing then.
-    if (toldToStop()) return stopped();
-    const execId = randomUUID().replace(/-/g, '');
-    const codePath = `code/run-${execId.slice(0, 12)}.${EXTENSIONS[args.language]}`;
-    const paths = inputPaths(inputFiles);
-    const staged: SessionStageFile[] = [
-      {
-        path: codePath,
-        contentBase64: Buffer.from(args.code, 'utf8').toString('base64'),
-      },
-    ];
-    for (const file of inputFiles) {
-      const url = await stageUrlForBlobRef(
-        file.ref,
-        scope.organizationId,
-        file.sizeBytes,
-        file.sizeBytes,
-      );
-      if (url === null) {
-        return failure(
-          'unavailable',
-          `"${file.name}" cannot be copied into the sandbox on this deployment.`,
-        );
+  return serialized(lease.sessionId, () =>
+    runInSandbox(
+      scope,
+      args,
+      lease,
+      { inputFiles, skillFiles, skillRoots },
+      options,
+    ).catch((error: unknown) => {
+      // The sandbox went away under the call: its service stopped
+      // answering, or the sandbox itself was gone. Anything else is a
+      // fault the executor reports.
+      if (error instanceof SpawnerUnreachableError) {
+        console.warn(`[run_code] the sandbox service did not answer:`, error);
+        return sandboxUnavailable('unreachable');
       }
-      staged.push({ path: `inputs/${paths.get(file.ref) ?? 'file'}`, url });
-    }
-    const stage = await sessionStageFiles(
-      lease.sessionId,
-      [...staged, ...skillFiles],
-      skillRoots.length > 0 ? { reuse: true, replaceRoots: skillRoots } : {},
+      if (error instanceof SessionNotFoundError) {
+        console.warn(
+          `[run_code] the light sandbox ${lease.sessionId} is gone:`,
+          error,
+        );
+        return sandboxUnavailable('lost');
+      }
+      throw error;
+    }),
+  );
+}
+
+/** What a call stages beside its program: the input files it reads and the
+ * skill bundles it uses. */
+interface CallStaging {
+  inputFiles: InputFile[];
+  skillFiles: SessionStageFile[];
+  skillRoots: string[];
+}
+
+/** Steps 3 to 5 of a call, in its leased sandbox: stage, run, harvest. */
+async function runInSandbox(
+  scope: WorkToolScope,
+  args: RunCodeArgs,
+  lease: LightSessionLease,
+  { inputFiles, skillFiles, skillRoots }: CallStaging,
+  { signal, shownFiles }: ToolCallOptions,
+): Promise<unknown> {
+  const toldToStop = (): boolean => signal?.aborted === true;
+  // The batch may have given up on this call while it waited its turn behind
+  // another program of the sandbox: it starts nothing then.
+  if (toldToStop()) return stopped();
+  const execId = randomUUID().replace(/-/g, '');
+  const codePath = `code/run-${execId.slice(0, 12)}.${EXTENSIONS[args.language]}`;
+  const paths = inputPaths(inputFiles);
+  const staged: SessionStageFile[] = [
+    {
+      path: codePath,
+      contentBase64: Buffer.from(args.code, 'utf8').toString('base64'),
+    },
+  ];
+  for (const file of inputFiles) {
+    const url = await stageUrlForBlobRef(
+      file.ref,
+      scope.organizationId,
+      file.sizeBytes,
+      file.sizeBytes,
     );
-    if (stage.skipped.length > 0) {
+    if (url === null) {
+      return failure(
+        'unavailable',
+        `"${file.name}" cannot be copied into the sandbox on this deployment.`,
+      );
+    }
+    staged.push({ path: `inputs/${paths.get(file.ref) ?? 'file'}`, url });
+  }
+  const stage = await sessionStageFiles(
+    lease.sessionId,
+    [...staged, ...skillFiles],
+    skillRoots.length > 0 ? { reuse: true, replaceRoots: skillRoots } : {},
+  );
+  if (stage.skipped.length > 0) {
+    return failure(
+      'error',
+      `The sandbox could not take every file: ${stage.skipped.map((entry) => `${entry.path} (${entry.reason})`).join(', ')}.`,
+    );
+  }
+  const startedAt = Date.now();
+  const deadline = AbortSignal.timeout((args.timeoutSeconds + 60) * 1000);
+  let result: SessionExecResult;
+  try {
+    result = await drainSessionExecResilient(
+      lease.sessionId,
+      {
+        execId,
+        command: [INTERPRETERS[args.language], `/agent/${codePath}`],
+        cwd: LIGHT_SANDBOX_PATHS.workspace,
+        env: PROGRAM_ENV,
+        collectOutput: true,
+        timeoutMs: args.timeoutSeconds * 1000,
+      },
+      signal === undefined ? deadline : AbortSignal.any([signal, deadline]),
+    );
+  } catch (error) {
+    // The platform's own deadline is the sandbox's plus a minute: it ends a
+    // drain whose sandbox stopped answering about the program.
+    const outOfTime = deadline.aborted && !toldToStop();
+    if (!toldToStop() && !outOfTime) throw error;
+    // Stopped, or out of time: the program must not run on in a sandbox
+    // nobody is waiting for.
+    await cancelProgram(lease.sessionId, execId);
+    if (outOfTime) {
       return failure(
         'error',
-        `The sandbox could not take every file: ${stage.skipped.map((entry) => `${entry.path} (${entry.reason})`).join(', ')}.`,
+        `The program ran past its ${args.timeoutSeconds}-second deadline and was stopped. Files it had already written stay in ${LIGHT_SANDBOX_PATHS.output}/ and are attached by the next run.`,
+        'timed_out',
       );
     }
-    const startedAt = Date.now();
-    const deadline = AbortSignal.timeout((args.timeoutSeconds + 60) * 1000);
-    let result: SessionExecResult;
-    try {
-      result = await drainSessionExecResilient(
-        lease.sessionId,
-        {
-          execId,
-          command: [INTERPRETERS[args.language], `/agent/${codePath}`],
-          cwd: LIGHT_SANDBOX_PATHS.workspace,
-          env: PROGRAM_ENV,
-          collectOutput: true,
-          timeoutMs: args.timeoutSeconds * 1000,
-        },
-        signal === undefined ? deadline : AbortSignal.any([signal, deadline]),
-      );
-    } catch (error) {
-      if (!toldToStop()) throw error;
-      // Stopped, or out of time: the program must not run on in a sandbox
-      // nobody is waiting for.
-      await cancelProgram(lease.sessionId, execId);
-      return stopped();
-    }
-    const elapsedMs = Date.now() - startedAt;
+    return stopped();
+  }
+  const elapsedMs = Date.now() - startedAt;
 
-    const { artifacts, skipped } = await harvestOutputs(
-      scope,
-      lease.sessionId,
-      signal,
-    );
-    await touchLightSession(
-      scope.sql,
-      scope.organizationId,
-      lease.sessionId,
-    ).catch((error: unknown) => {
-      console.warn('[run_code] marking the sandbox used failed:', error);
-    });
-
-    const timedOut = result.errorCode === 'TIMEOUT';
-    const ok =
-      result.status === 'completed' && result.exitCode === 0 && !timedOut;
-    return {
-      status: ok ? 'ok' : 'error',
-      ...(ok
-        ? {}
-        : {
-            message: timedOut
-              ? `The program ran past its ${args.timeoutSeconds}-second deadline and was stopped.`
-              : result.status === 'cancelled'
-                ? 'The program was stopped before it finished.'
-                : `The program ended with exit code ${result.exitCode ?? 'unknown'}${result.errorMessage !== undefined ? ` (${result.errorMessage})` : ''}.`,
-          }),
-      exitCode: result.exitCode,
-      stdout: tail(decode(result.stdoutBase64)),
-      stderr: tail(decode(result.stderrBase64)),
-      durationMs: result.durationMs > 0 ? result.durationMs : elapsedMs,
-      sandbox: lease.created ? 'started' : 'reused',
-      ...(inputFiles.length > 0
-        ? {
-            inputs: inputFiles.map(
-              (file) =>
-                `${LIGHT_SANDBOX_PATHS.inputs}/${paths.get(file.ref) ?? 'file'}`,
-            ),
-          }
-        : {}),
-      artifacts,
-      ...(skipped.length > 0 ? { skippedOutputs: skipped } : {}),
-      ...(artifacts.length === 0 && ok
-        ? {
-            note: `No file was attached: only files in ${LIGHT_SANDBOX_PATHS.output}/ that are new or changed are.`,
-          }
-        : {}),
-    };
+  const { artifacts, skipped } = await harvestOutputs(
+    scope,
+    lease.sessionId,
+    signal,
+    shownFiles,
+  );
+  await touchLightSession(
+    scope.sql,
+    scope.organizationId,
+    lease.sessionId,
+  ).catch((error: unknown) => {
+    console.warn('[run_code] marking the sandbox used failed:', error);
   });
+
+  const timedOut = result.errorCode === 'TIMEOUT';
+  const ok =
+    result.status === 'completed' && result.exitCode === 0 && !timedOut;
+  const failedRun = !ok && !timedOut && result.status !== 'cancelled';
+  return {
+    status: ok ? 'ok' : 'error',
+    ...(ok
+      ? {}
+      : {
+          message: timedOut
+            ? `The program ran past its ${args.timeoutSeconds}-second deadline and was stopped.`
+            : result.status === 'cancelled'
+              ? 'The program was stopped before it finished.'
+              : `The program ended with exit code ${result.exitCode ?? 'unknown'}${result.errorMessage !== undefined ? ` (${result.errorMessage})` : ''}.`,
+          ...(timedOut
+            ? { reason: 'timed_out' }
+            : failedRun
+              ? { reason: 'program_failed' }
+              : {}),
+        }),
+    exitCode: result.exitCode,
+    stdout: tail(decode(result.stdoutBase64)),
+    stderr: tail(decode(result.stderrBase64)),
+    durationMs: result.durationMs > 0 ? result.durationMs : elapsedMs,
+    sandbox: lease.created ? 'started' : 'reused',
+    ...(inputFiles.length > 0
+      ? {
+          inputs: inputFiles.map(
+            (file) =>
+              `${LIGHT_SANDBOX_PATHS.inputs}/${paths.get(file.ref) ?? 'file'}`,
+          ),
+        }
+      : {}),
+    artifacts,
+    ...(skipped.length > 0 ? { skippedOutputs: skipped } : {}),
+    // A run that wrote nothing to deliver says where files go — and, since a
+    // skill's own examples save to the working directory, which files sit
+    // there instead. A run whose outputs were skipped says why already.
+    ...(artifacts.length === 0 && skipped.length === 0 && ok
+      ? { note: await noOutputNote(lease.sessionId) }
+      : {}),
+  };
 }
 
 /**
@@ -531,7 +642,14 @@ const DELIVERED_MANIFEST_MAX_BYTES = 256 * 1024;
 
 const deliveredSchema = z.record(
   z.string(),
-  z.object({ size: z.number(), mtimeMs: z.number(), sha256: z.string() }),
+  z.object({
+    size: z.number(),
+    mtimeMs: z.number(),
+    sha256: z.string(),
+    /** The file it was delivered as. Absent on a record written before
+     * deliveries kept it. */
+    ref: z.string().optional(),
+  }),
 );
 
 type Delivered = z.infer<typeof deliveredSchema>[string];
@@ -575,7 +693,17 @@ async function harvestOutputs(
   scope: WorkToolScope,
   sessionId: string,
   signal?: AbortSignal,
+  shownFiles?: ReadonlySet<string>,
 ): Promise<{ artifacts: ToolArtifact[]; skipped: SkippedOutput[] }> {
+  /** Whether a version the sandbox delivered is one the conversation still
+   * shows. A delivery left on a reply that was tried again, or behind a
+   * message that was edited, is not: the version comes again, so the reply
+   * that is shown has its file. */
+  const shown = (delivered: Delivered | undefined): delivered is Delivered =>
+    delivered !== undefined &&
+    (shownFiles === undefined ||
+      delivered.ref === undefined ||
+      shownFiles.has(delivered.ref));
   const artifacts: ToolArtifact[] = [];
   // Set when a Stop (or the step's time) ended the harvest between two files:
   // what it stored stays stored and is returned, but it is not recorded as
@@ -642,7 +770,7 @@ async function harvestOutputs(
     }
     const previous = before.get(entry.name);
     if (
-      previous !== undefined &&
+      shown(previous) &&
       previous.size === entry.size &&
       previous.mtimeMs === entry.mtimeMs
     ) {
@@ -684,9 +812,14 @@ async function harvestOutputs(
       mtimeMs: entry.mtimeMs,
       sha256: createHash('sha256').update(bytes).digest('hex'),
     };
-    if (previous?.sha256 === version.sha256) {
+    if (shown(previous) && previous.sha256 === version.sha256) {
       // Rewritten with the same bytes: nothing new to deliver.
-      after.set(entry.name, version);
+      after.set(
+        entry.name,
+        previous.ref === undefined
+          ? version
+          : { ...version, ref: previous.ref },
+      );
       continue;
     }
     const name = uniqueArtifactName(
@@ -695,14 +828,13 @@ async function harvestOutputs(
     );
     names.add(name);
     try {
-      artifacts.push(
-        await scope.artifacts.store({
-          name,
-          mediaType: artifactMediaType(name),
-          bytes,
-        }),
-      );
-      after.set(entry.name, version);
+      const artifact = await scope.artifacts.store({
+        name,
+        mediaType: artifactMediaType(name),
+        bytes,
+      });
+      artifacts.push(artifact);
+      after.set(entry.name, { ...version, ref: artifact.ref });
     } catch (error) {
       console.warn(`[run_code] storing ${entry.name} failed:`, error);
       skip(
@@ -736,4 +868,32 @@ async function harvestOutputs(
     });
   }
   return { artifacts, skipped };
+}
+
+/** The most files of the working directory a no-output note names. */
+const WORKSPACE_FILES_NAMED = 5;
+
+/**
+ * What the model reads when a run attached nothing: only new or changed
+ * files directly in the output box are attached, and — when the working
+ * directory holds files at its top — their names, newest first, so a
+ * program that saved its document beside itself (as a skill's examples do)
+ * is told where it went instead of guessing.
+ */
+async function noOutputNote(sessionId: string): Promise<string> {
+  const base = `No file was attached: only files in ${LIGHT_SANDBOX_PATHS.output}/ that are new or changed are.`;
+  let listing: Awaited<ReturnType<typeof sessionListFiles>>;
+  try {
+    listing = await sessionListFiles(sessionId, LIGHT_SANDBOX_PATHS.workspace);
+  } catch (error) {
+    console.warn('[run_code] listing the working directory failed:', error);
+    return base;
+  }
+  const files = (listing ?? [])
+    .filter((entry) => entry.type === 'file' && !entry.name.startsWith('.'))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .slice(0, WORKSPACE_FILES_NAMED)
+    .map((entry) => entry.name);
+  if (files.length === 0) return base;
+  return `${base} ${LIGHT_SANDBOX_PATHS.workspace}/ holds ${files.join(', ')}: write or copy the files the user should get to ${LIGHT_SANDBOX_PATHS.output}/.`;
 }

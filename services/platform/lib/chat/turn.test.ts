@@ -360,6 +360,23 @@ describe('runTurn — the happy path', () => {
     ]);
   });
 
+  it('says on the reply that its file tools could not be set up [CHAT-R28]', async () => {
+    const d = deps();
+    const outcome = await runTurn(
+      request({ workToolsUnavailable: 'policy_unreadable' }),
+      d.deps,
+    );
+
+    expect(
+      outcome.status === 'completed' && outcome.usage.workToolsUnavailable,
+    ).toBe('policy_unreadable');
+    const plain = deps();
+    const normal = await runTurn(request(), plain.deps);
+    expect(normal.status === 'completed' && normal.usage).not.toHaveProperty(
+      'workToolsUnavailable',
+    );
+  });
+
   it('books the usage against the API key that authenticated the turn', async () => {
     const d = deps();
     await runTurn(request({ apiKeyId: 'key_1' }), d.deps);
@@ -1264,7 +1281,11 @@ describe('runTurn — the tool loop', () => {
     const requests: ModelCallRequest[] = [];
     const alwaysCalling: ModelCall = async function* stream(req) {
       requests.push(req);
-      if (req.tools !== undefined && req.tools.length > 0) {
+      if (
+        req.tools !== undefined &&
+        req.tools.length > 0 &&
+        req.toolsWithheld !== true
+      ) {
         yield {
           text: '',
           toolCalls: [
@@ -1290,12 +1311,17 @@ describe('runTurn — the tool loop', () => {
     });
     expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
     expect(requests).toHaveLength(MAX_TOOL_ROUNDS + 1);
-    expect(requests.at(-1)?.tools).toBeUndefined();
+    // The forced round lists the tools for a wire that refuses a transcript
+    // of tool calls without their definitions, and forbids calling them.
+    expect(requests.at(-1)?.toolsWithheld).toBe(true);
+    expect(requests.at(-1)?.tools?.length).toBeGreaterThan(0);
+    expect(
+      requests.slice(0, -1).every((req) => req.toolsWithheld === undefined),
+    ).toBe(true);
     // The budget is steered, not silent. The last offered round tells the
     // model to spend its remaining calls in parallel; the forced round
-    // tells it the budget is gone — withheld tools are invisible on the
-    // wire, and an uninformed model narrates its next lookup instead of
-    // answering.
+    // tells it the budget is gone — a model that cannot call tools any more
+    // and is not told why narrates its next lookup instead of answering.
     const lastOffered = requests[MAX_TOOL_ROUNDS - 1];
     expect(lastOffered?.tools).toBeDefined();
     expect(lastOffered?.messages.at(-1)).toEqual({
@@ -1329,6 +1355,32 @@ describe('runTurn — the tool loop', () => {
     expect(d.store.finalized[0]).toMatchObject({
       usage: expect.objectContaining({ stepLimitHit: true }),
     });
+  });
+
+  it('runs no call a model makes after the budget is spent', async () => {
+    const ignoring: ModelCall = async function* stream(req) {
+      yield {
+        text: req.toolsWithheld === true ? 'Here is what I found.' : '',
+        toolCalls: [
+          { id: 'call_x', name: 'rag_search', input: { query: 'more' } },
+        ],
+      };
+    };
+    const { executor, executed } = fakeExecutor();
+    const d = deps({ model: ignoring, tools: executor });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Here is what I found.',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('after the tool budget was spent were not run'),
+    );
+    warn.mockRestore();
   });
 
   // The two Stop paths #2962 named. Both break AFTER the round settles its
@@ -2917,6 +2969,58 @@ describe('runTurn — the files a tool made', () => {
     mediaType: XLSX,
     sizeBytes: 4935,
   };
+
+  it('tells the tools which files the conversation shows: its history’s and this reply’s [CHAT-R24]', async () => {
+    const seen: (ReadonlySet<string> | undefined)[] = [];
+    let round = 0;
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        { name: 'run_code', description: 'Run code.', parameters: {} },
+      ],
+      execute(_call, options) {
+        seen.push(options?.shownFiles);
+        return Promise.resolve({ status: 'ok', artifacts: [ARTIFACT] });
+      },
+    };
+    const twice: ModelCall = async function* stream() {
+      round += 1;
+      if (round <= 2) {
+        yield {
+          text: '',
+          toolCalls: [{ id: `call_${round}`, name: 'run_code', input: {} }],
+        };
+        return;
+      }
+      yield { text: 'Done.' };
+    };
+    const d = deps({ model: twice, tools: executor });
+
+    await runTurn(
+      request({
+        history: [
+          { role: 'user', parts: [{ type: 'text', text: 'a chart' }] },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'artifact',
+                fileId: 's3:org/earlier',
+                name: 'chart.png',
+                mediaType: 'image/png',
+                sizeBytes: 10,
+              },
+            ],
+          },
+        ],
+      }),
+      d.deps,
+    );
+
+    expect(seen.map((files) => [...(files ?? [])].sort())).toEqual([
+      ['s3:org/earlier'],
+      ['s3:org/earlier', 's3:org/sheet'],
+    ]);
+  });
 
   it('lifts each produced file onto the reply, after the result that names it', async () => {
     const { executor } = workExecutor({ status: 'ok', artifacts: [ARTIFACT] });

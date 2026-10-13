@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CREATE_FILE_MAX_BYTES } from '../../../lib/agent/work-tools.ts';
 import { runCreateFile } from './create-file.ts';
-import { testScope } from './test-helpers.ts';
+import { FULL_LOADOUT, testScope } from './test-helpers.ts';
 
 describe('create_file', () => {
   it('stores a typed-out file and names it in its result', async () => {
@@ -48,6 +48,18 @@ describe('create_file', () => {
     expect(result).toMatchObject({ status: 'invalid_args' });
     expect(JSON.stringify(result)).toMatch(reason);
     expect(stored).toHaveLength(0);
+  });
+
+  it('sends a binary format to run_code only where code can run', async () => {
+    const { scope } = testScope({
+      loadout: { ...FULL_LOADOUT, runCode: false },
+    });
+    const result = await runCreateFile(scope, {
+      name: 'deck.pptx',
+      content: 'x',
+    });
+    expect(result).toMatchObject({ status: 'invalid_args' });
+    expect(JSON.stringify(result)).not.toMatch(/run_code/);
   });
 
   it('refuses empty and oversized content', async () => {

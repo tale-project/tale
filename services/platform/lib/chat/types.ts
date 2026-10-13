@@ -159,7 +159,17 @@ export interface TurnUsage {
   /** Where the turn's model rounds were served, as the providers' own
    * responses said. Absent when no response named anything. */
   readonly serving?: TurnServing;
+  /** Why the turn ran without the work tools it was meant to have — the
+   * organization's Chat tools policy could not be read, or setting the
+   * tools up failed. The client says so under the reply instead of leaving
+   * a missing file unexplained. Absent whenever the tools were what the
+   * policy says, switched off ones included. */
+  readonly workToolsUnavailable?: WorkToolsUnavailableReason;
 }
+
+/** Why a turn's work tools could not be offered as its organization's
+ * policy says: the policy could not be read, or setting them up failed. */
+export type WorkToolsUnavailableReason = 'policy_unreadable' | 'setup_failed';
 
 /**
  * What one model response said about where it was served: the upstream a

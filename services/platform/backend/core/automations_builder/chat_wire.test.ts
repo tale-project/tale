@@ -554,6 +554,58 @@ describe('tools on the wire', () => {
     ]);
   });
 
+  describe('the round after the tool budget is spent', () => {
+    const withheld = (
+      apiFormat: 'anthropic' | 'openai',
+      extra: { toolCallingApi?: 'responses' } = {},
+    ): Record<string, unknown> =>
+      JSON.parse(
+        buildChatRequest({
+          apiFormat,
+          baseUrl: 'https://api.example.com',
+          modelId: 'm',
+          apiKey: 'k',
+          messages: toolTranscript,
+          tools,
+          toolsWithheld: true,
+          maxTokens: 800,
+          ...extra,
+        }).body,
+      ) as Record<string, unknown>;
+
+    it('keeps the tools an Anthropic transcript of tool calls needs, and forbids calling them', () => {
+      const body = withheld('anthropic');
+      expect(body.tools).toHaveLength(1);
+      expect(body.tool_choice).toEqual({ type: 'none' });
+      expect(JSON.stringify(body.messages)).toContain('tool_use');
+    });
+
+    it('leaves the tools off the OpenAI-format wires, as before', () => {
+      for (const body of [
+        withheld('openai'),
+        withheld('openai', { toolCallingApi: 'responses' }),
+      ]) {
+        expect(body).not.toHaveProperty('tools');
+        expect(body).not.toHaveProperty('tool_choice');
+      }
+    });
+
+    it('forbids nothing on a round that may call its tools', () => {
+      const body = JSON.parse(
+        buildChatRequest({
+          apiFormat: 'anthropic',
+          baseUrl: 'https://api.example.com',
+          modelId: 'm',
+          apiKey: 'k',
+          messages: toolTranscript,
+          tools,
+          maxTokens: 800,
+        }).body,
+      ) as Record<string, unknown>;
+      expect(body).not.toHaveProperty('tool_choice');
+    });
+  });
+
   it('keeps a tool-free body byte-identical to the pre-tools shape', () => {
     const before = request('anthropic', 'https://api.anthropic.com');
     const again = request('anthropic', 'https://api.anthropic.com');

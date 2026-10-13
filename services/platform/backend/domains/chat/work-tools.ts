@@ -9,7 +9,10 @@ import { CHAT_ASSISTANT_SLUG } from '../../../lib/chat/assistant.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { UserSkillViewer } from '../../../lib/skills/visibility.ts';
 import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
-import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
+import type {
+  TurnWorkTools,
+  WorkToolsUnavailable,
+} from '../../core/chat/turn_action.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import {
   readGovernancePolicyForOrg,
@@ -70,35 +73,49 @@ const NO_CHAT_TOOLS: ChatToolsConfig = {
 async function readChatToolSwitches(
   sql: Sql,
   organizationId: string,
-): Promise<ChatToolsConfig> {
+): Promise<{ switches: ChatToolsConfig; unreadable: boolean }> {
   try {
-    return (
-      (await readGovernancePolicyForOrg(sql, organizationId, 'chat_tools', {
-        strict: true,
-      })) ?? DEFAULT_CHAT_TOOLS
-    );
+    return {
+      switches:
+        (await readGovernancePolicyForOrg(sql, organizationId, 'chat_tools', {
+          strict: true,
+        })) ?? DEFAULT_CHAT_TOOLS,
+      unreadable: false,
+    };
   } catch (error) {
     if (!(error instanceof ConfigurationError)) throw error;
     console.warn(
       `[chat] the chat_tools policy of ${organizationId} cannot be read, so no chat tool is offered until it is repaired:`,
       error.message,
     );
-    return NO_CHAT_TOOLS;
+    return { switches: NO_CHAT_TOOLS, unreadable: true };
   }
 }
 
+/**
+ * The turn's work tools: what the policy allows, built for the person. A
+ * policy that cannot be read still offers images, which it does not
+ * govern, and says why the rest is missing; so does a turn whose
+ * organization or member cannot be resolved, which offers nothing.
+ */
 export async function chatWorkTools(
   sql: Sql,
   turn: ChatWorkTurn,
-): Promise<TurnWorkTools | undefined> {
-  const [switches, orgSlug, member, teamIds, imageModel] = await Promise.all([
+): Promise<TurnWorkTools | WorkToolsUnavailable | undefined> {
+  const [policy, orgSlug, member, teamIds, imageModel] = await Promise.all([
     readChatToolSwitches(sql, turn.organizationId),
     resolveOrgSlug(sql, turn.organizationId),
     findActingMember(sql, turn.organizationId, turn.userId),
     getUserTeamIds(sql, turn.organizationId, turn.userId),
     offeredImageModel(sql, turn.organizationId),
   ]);
-  if (orgSlug === null || member === null) return undefined;
+  if (orgSlug === null || member === null) {
+    console.warn(
+      `[chat] work tools for ${turn.organizationId} were not set up: ${orgSlug === null ? 'the organization has no slug' : 'the person is not a member'}`,
+    );
+    return { unavailable: 'setup_failed' };
+  }
+  const switches = policy.switches;
   const loadout: WorkLoadout = {
     createFile: switches.files,
     generateImage: imageModel !== undefined,
@@ -160,8 +177,12 @@ export async function chatWorkTools(
         }
       : {}),
   };
-  return turnWorkToolsFor(
+  const tools = turnWorkToolsFor(
     scope,
     loadout.skills ? await listSkillCatalog(orgSlug, skillViewer) : [],
   );
+  if (!policy.unreadable) return tools;
+  return tools === undefined
+    ? { unavailable: 'policy_unreadable' }
+    : { unavailable: 'policy_unreadable', tools };
 }

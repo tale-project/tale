@@ -80,6 +80,7 @@ import {
   type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
+  type WorkToolsUnavailableReason,
 } from './types';
 
 /** The pipeline, in order. A step is recorded when it runs, so the result
@@ -187,9 +188,12 @@ export interface ModelCallRequest {
   readonly system: string;
   readonly messages: readonly ChatMessage[];
   /** The tool definitions to put on the wire. Absent means the model is not
-   * offered tools for this call — the loop's final round withholds them so
-   * the model must answer. */
+   * offered tools for this call. */
   readonly tools?: readonly WireTool[];
+  /** The loop's final round, after the round budget is spent: the model may
+   * call none of `tools` and must answer. They are still listed for a wire
+   * that refuses a transcript of tool calls without their definitions. */
+  readonly toolsWithheld?: boolean;
   /** How the turn runs — direct API call, or the harness in a sandbox. */
   readonly execution: ExecutionResolution;
   /** The turn's resolved sampling — maxTokens, temperature (absent while
@@ -517,6 +521,9 @@ export interface TurnRequest {
    * truncation notice. */
   readonly historyOmittedCount?: number;
   readonly signal?: AbortSignal;
+  /** The host meant to offer work tools and could not (`TurnUsage`): the
+   * settled reply carries the reason. */
+  readonly workToolsUnavailable?: WorkToolsUnavailableReason;
 }
 
 export interface TurnDeps {
@@ -709,6 +716,9 @@ interface StreamRoundOptions {
    * history; later rounds append the turn's settled parts. */
   readonly messages: readonly ChatMessage[];
   readonly tools?: readonly WireTool[];
+  /** `tools` are listed but may not be called ({@link
+   * ModelCallRequest.toolsWithheld}). */
+  readonly toolsWithheld?: boolean;
   readonly signal?: AbortSignal;
   /** Invoked once when the store reports a user cancel; the caller aborts
    * the round's signal in response. */
@@ -882,6 +892,7 @@ async function streamWithOutputGuardrails(
       system: context.system,
       messages: round.messages,
       ...(round.tools !== undefined ? { tools: round.tools } : {}),
+      ...(round.toolsWithheld === true ? { toolsWithheld: true } : {}),
       execution,
       sampling,
       // The catalog's own capability flag decides whether image attachments
@@ -1276,6 +1287,13 @@ async function recordUsage(
  * the earlier one's place, so the person gets the file once, as it ended
  * up. Images are each a result of their own and always add.
  */
+/** The refs of the files `parts` show. */
+function artifactRefs(parts: readonly MessagePart[]): string[] {
+  return parts.flatMap((part) =>
+    part.type === 'artifact' ? [part.fileId] : [],
+  );
+}
+
 export function attachArtifact(
   parts: MessagePart[],
   artifact: Extract<MessagePart, { type: 'artifact' }>,
@@ -1502,6 +1520,10 @@ export async function runTurn(
 
     const executor = deps.tools;
     const maxToolRounds = deps.maxToolRounds ?? MAX_TOOL_ROUNDS;
+    /** The files the turn's history already shows, by ref. */
+    const historyFileRefs = request.history.flatMap((message) =>
+      artifactRefs(message.parts),
+    );
     /** Parts settled by finished tool rounds, in authored order. */
     const settledParts: MessagePart[] = [];
     /** The TTFT anchor is the FIRST round's first provider text SSE;
@@ -1555,6 +1577,14 @@ export async function runTurn(
         executor !== undefined && toolRounds < maxToolRounds
           ? executor.wireTools
           : undefined;
+      // The round after the budget is spent may call nothing. Its transcript
+      // still holds the earlier calls, and a wire that refuses those without
+      // their definitions keeps them listed, with calls forbidden.
+      const withheldTools =
+        executor !== undefined && toolRounds >= maxToolRounds
+          ? executor.wireTools
+          : undefined;
+      const toolsWithheld = withheldTools !== undefined;
       // The notice rides the wire only, never the store: the transcript
       // shows the answer, not the host steering the model toward it.
       const budgetNotice =
@@ -1597,6 +1627,9 @@ export async function runTurn(
         {
           messages: roundMessages,
           ...(offeredTools !== undefined ? { tools: offeredTools } : {}),
+          ...(withheldTools !== undefined
+            ? { tools: withheldTools, toolsWithheld: true }
+            : {}),
           signal: roundSignal,
           onCancelRequested: () => cancel.abort(),
           observed,
@@ -1611,11 +1644,19 @@ export async function runTurn(
       serving.add(streamed.servedBy);
 
       const calls = streamed.toolCalls ?? [];
+      if (toolsWithheld && calls.length > 0) {
+        // A provider that ignored the withheld tools still gets no call run:
+        // the budget is spent, and the reply ends with what it wrote.
+        console.warn(
+          `[chat] ${calls.length} tool call(s) after the tool budget was spent were not run`,
+        );
+      }
       if (
         streamed.refusal !== undefined ||
         streamed.cancelled === true ||
         calls.length === 0 ||
-        executor === undefined
+        executor === undefined ||
+        toolsWithheld
       ) {
         break;
       }
@@ -1688,9 +1729,16 @@ export async function runTurn(
       // round follows.
       let stoppedByBatch = false;
       const runBatch = async (): Promise<readonly unknown[]> => {
+        // What the conversation shows at this step: the files its history
+        // carries and those earlier steps of this reply attached.
+        const shownFiles = new Set([
+          ...historyFileRefs,
+          ...artifactRefs(settledParts),
+        ]);
         const batch = await runToolBatch({
           calls,
-          execute: (call, options) => executor.execute(call, options),
+          execute: (call, options) =>
+            executor.execute(call, { ...options, shownFiles }),
           signal: request.signal,
           poll: async () => {
             // The same write that keeps a streaming reply alive and reads
@@ -1844,6 +1892,9 @@ export async function runTurn(
     const usage: TurnUsage = {
       ...summedUsage(summed, request.model.pricing),
       ...(toolRounds >= maxToolRounds ? { stepLimitHit: true } : {}),
+      ...(request.workToolsUnavailable !== undefined
+        ? { workToolsUnavailable: request.workToolsUnavailable }
+        : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
       ...servingStamp(),

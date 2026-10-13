@@ -72,7 +72,7 @@ export function renderWorkLadder(loadout: WorkLoadout): string | undefined {
   ];
   if (loadout.skills) {
     lines.push(
-      'When a skill in the list below matches the work, load it with load_skill before you start and follow it — the document skills (docx, xlsx, pptx, pdf) say how to build those files well.',
+      'When a skill in the list below matches the work — such as one for the file format you are making — load it with load_skill before you start and follow it.',
     );
   }
   lines.push(

@@ -107,6 +107,13 @@ export interface ToolCallOptions {
    * limit). A tool that waits or works for long honours it and answers a
    * structured result; one that finishes in moments may ignore it. */
   readonly signal?: AbortSignal;
+  /** The refs of the files the conversation already shows: those its loaded
+   * history carries and those this reply attached in earlier steps. A tool
+   * that remembers what it delivered delivers a file again when its earlier
+   * delivery is not among them — a reply that was tried again, or a message
+   * that was edited, left it on a version no longer shown. Absent, the tool
+   * trusts its own memory. */
+  readonly shownFiles?: ReadonlySet<string>;
 }
 
 /**

@@ -115,11 +115,13 @@ async function drive(
     threadId: args.threadId,
     userParts: [{ type: 'text', text: args.userText }],
   });
-  const tools = await overrides.workTools?.({
+  const answer = await overrides.workTools?.({
     rootThreadId: args.threadId,
     threadIds: [args.threadId],
     projectId: args.expectedProjectId ?? null,
   });
+  const tools =
+    answer !== undefined && 'unavailable' in answer ? answer.tools : answer;
   const parts: MessagePart[] = [];
   const results: unknown[] = [];
   try {
