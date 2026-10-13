@@ -55,9 +55,15 @@ vi.mock('../sandbox/light-sessions.ts', () => {
   }
   class MockLightSandboxUnavailableError extends Error {
     readonly kind: string;
-    constructor(kind: string, message: string) {
+    readonly retryAfterMs: number | undefined;
+    constructor(
+      kind: string,
+      message: string,
+      options?: { retryAfterMs?: number },
+    ) {
       super(message);
       this.kind = kind;
+      this.retryAfterMs = options?.retryAfterMs;
     }
   }
   return {
@@ -706,6 +712,27 @@ describe('run_code', () => {
       expect(vi.mocked(acquireLightSession).mock.calls.length).toBeGreaterThan(
         2,
       );
+    });
+
+    it('waits for a host that is still preparing its image [CHAT-R30]', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession)
+        .mockRejectedValueOnce(
+          new LightSandboxUnavailableError('not_ready', 'image', {
+            retryAfterMs: 5_000,
+          }),
+        )
+        .mockResolvedValueOnce({ sessionId: 'lt-1', created: true });
+      const { scope } = testScope({ lightSandboxWaitMs: 90_000 });
+
+      const running = runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'ok' });
+      expect(acquireLightSession).toHaveBeenCalledTimes(2);
     });
 
     it('does not wait out a failure that is not a busy host', async () => {

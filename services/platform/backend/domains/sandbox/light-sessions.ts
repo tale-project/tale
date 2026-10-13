@@ -101,14 +101,21 @@ export class LightSandboxBusyError extends Error {
  * reader of the call. */
 export class LightSandboxUnavailableError extends Error {
   readonly kind: 'not_ready' | 'unreachable' | 'failed';
+  /** When the host asked to be asked again — a host preparing its image
+   * says when it expects to be ready. */
+  readonly retryAfterMs: number | undefined;
   constructor(
     kind: LightSandboxUnavailableError['kind'],
     message: string,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; retryAfterMs?: number },
   ) {
-    super(message, options);
+    super(
+      message,
+      options?.cause === undefined ? undefined : { cause: options.cause },
+    );
     this.name = 'LightSandboxUnavailableError';
     this.kind = kind;
+    this.retryAfterMs = options?.retryAfterMs;
   }
 }
 
@@ -134,7 +141,7 @@ function lightSandboxStartError(error: unknown): Error {
       return new LightSandboxUnavailableError(
         'not_ready',
         UNAVAILABLE_MESSAGES.not_ready,
-        { cause: error },
+        { cause: error, retryAfterMs: error.retryAfterMs },
       );
     }
     return new LightSandboxBusyError(

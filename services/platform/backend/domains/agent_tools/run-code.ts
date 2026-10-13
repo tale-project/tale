@@ -220,8 +220,9 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
 /**
  * The owner's light sandbox, waiting up to the scope's patience when none can
  * be had now. Every sandbox of the organization running code frees within
- * the three minutes one call may take, so a lane with nobody to ask again
- * (a task run) waits for one rather than giving up on its first refusal.
+ * the three minutes one call may take, and a host preparing its image is
+ * ready soon after, so a lane with nobody to ask again (a task run) waits
+ * rather than giving up on its first refusal.
  */
 async function acquireLeased(
   scope: WorkToolScope,
@@ -237,7 +238,15 @@ async function acquireLeased(
         createdBy: scope.userId,
       });
     } catch (error) {
-      if (!(error instanceof LightSandboxBusyError)) throw error;
+      if (
+        !(error instanceof LightSandboxBusyError) &&
+        !(
+          error instanceof LightSandboxUnavailableError &&
+          error.kind === 'not_ready'
+        )
+      ) {
+        throw error;
+      }
       const left = deadline - Date.now();
       if (left <= 0) throw error;
       await pause(Math.min(error.retryAfterMs ?? BUSY_POLL_MS, left), signal);
