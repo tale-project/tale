@@ -9,6 +9,7 @@ import { render, screen } from '@/tests/utils/render';
 import {
   useArchivedThreads,
   useChatGeneration,
+  useChatProjects,
   useChatQuery,
   useChatSend,
   useChatThreads,
@@ -134,6 +135,59 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       expect(typeof firstUrl === 'string' ? firstUrl : '').toContain(
         '/api/app/tasks/by-thread/thread-1',
       );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  // The hand-over asks where work can go. The projects read keeps only the
+  // fields its projection names, so a count the backend sends and the
+  // projection leaves out never reaches the dialog.
+  it('reads how many of a project’s agents are the standard agent', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            projects: [
+              {
+                id: 'project-1',
+                name: 'Website',
+                projectAgentCount: 2,
+                managedAgentCount: 1,
+                canEdit: true,
+              },
+              {
+                id: 'project-2',
+                name: 'Handbook',
+                projectAgentCount: 0,
+                canEdit: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
+    function ProjectsProbe() {
+      const read = useChatProjects('org-projects');
+      return (
+        <output>
+          {read.status === 'ready'
+            ? read.data
+                .map(
+                  (project) =>
+                    `${project.name}:${project.agentCount}/${project.managedAgentCount ?? '-'}`,
+                )
+                .join(' ')
+            : read.status}
+        </output>
+      );
+    }
+    try {
+      render(<ProjectsProbe />);
+      expect(
+        await screen.findByText('Website:2/1 Handbook:0/-'),
+      ).toBeInTheDocument();
     } finally {
       fetchSpy.mockRestore();
     }

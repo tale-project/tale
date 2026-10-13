@@ -817,7 +817,9 @@ agent.
   `governance.standardAgent.offNote` shows, and **Agent type**, **Model** and
   **Instructions** are hidden. In a project without agents, **Assignee**
   (`tasks.fields.assignee`) offers no **Standard agent**
-  (`tasks.assignee.standardAgent`), and **Start agent**
+  (`tasks.assignee.standardAgent`) — and in a project the standard agent was
+  set up in earlier it offers no agent at all, the footer reading
+  `tasks.assignee.noAgentsReader` for a Member — and **Start agent**
   (`tasks.agentRun.start`) on a task already given to a standard agent
   answers the toast `tasks.agentRun.standardAgent.switchedOff` and queues
   nothing. A comment there that @mentions the standard agent shows
