@@ -502,7 +502,7 @@ describe('an agent registering itself', () => {
     });
   });
 
-  it('refuses grants, response types, keys, auth methods and scopes an agent client never needs', async () => {
+  it('refuses grants, response types, keys and auth methods an agent client never needs, and a scope that is not a list', async () => {
     const { sql } = fakeSql({});
     for (const [body, description] of [
       [
@@ -519,8 +519,8 @@ describe('an agent registering itself', () => {
         'token_endpoint_auth_method may be none, client_secret_basic or client_secret_post',
       ],
       [
-        { scope: 'tale:mcp openid' },
-        'scope may name only tale:mcp, tale:automations.write, tale:automations.deploy, tale:settings.read, tale:settings.write, tale:subscriptions.connect, offline_access',
+        { scope: ['tale:mcp'] },
+        'scope is a space-separated list of tale:mcp, tale:automations.write, tale:automations.deploy, tale:settings.read, tale:settings.write, tale:subscriptions.connect, offline_access',
       ],
     ] as const) {
       expect(
@@ -541,6 +541,50 @@ describe('an agent registering itself', () => {
         },
       });
     }
+  });
+
+  it('registers a client that asks for every scope the sign-in server lists for the agent scopes alone, as RFC 7591 allows [AGCONN-R25]', async () => {
+    const { sql } = fakeSql({});
+    const { body } = await registered(
+      await registerPrecheck(
+        registration({
+          client_name: 'Gemini CLI',
+          redirect_uris: ['http://localhost:7777/oauth/callback'],
+          scope:
+            'openid profile email tale:organization offline_access tale:mcp tale:automations.write',
+        }),
+        { sql, clientIp, options: OPTIONS },
+      ),
+    );
+    expect(body.scope).toBe('offline_access tale:mcp tale:automations.write');
+    // Nothing of the agent's own left: the provider's default applies.
+    const bare = await registered(
+      await registerPrecheck(
+        registration({
+          redirect_uris: ['http://localhost:7777/oauth/callback'],
+          scope: 'openid profile email',
+        }),
+        { sql, clientIp, options: OPTIONS },
+      ),
+    );
+    expect('scope' in bare.body).toBe(false);
+  });
+
+  it('leaves a scope it need not touch as the client wrote it', async () => {
+    const { sql } = fakeSql({});
+    const { request, body } = await registered(
+      await registerPrecheck(
+        registration({
+          redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+          application_type: 'web',
+          scope: 'tale:mcp offline_access',
+        }),
+        { sql, clientIp, options: OPTIONS },
+      ),
+    );
+    expect(body.scope).toBe('tale:mcp offline_access');
+    expect(body.application_type).toBe('web');
+    expect(request.headers.get('cookie')).toBeNull();
   });
 
   it('refuses a registration past 16 KiB', async () => {
@@ -638,6 +682,72 @@ describe('an agent’s authorization request', () => {
     );
     expect(new URL(bound.url).searchParams.get('scope')).toBe(
       'tale:mcp offline_access',
+    );
+  });
+
+  it('keeps the agent scopes of a client that asks for everything the sign-in server lists, identity scopes included — whether or not it names the resource [AGCONN-R25]', async () => {
+    const { sql } = fakeSql({});
+    // Codex's request, as the real client sends it.
+    const everything =
+      'openid profile email tale:organization offline_access tale:mcp tale:automations.write tale:automations.deploy tale:settings.read tale:settings.write tale:subscriptions.connect';
+    const granted =
+      'offline_access tale:mcp tale:automations.write tale:automations.deploy tale:settings.read tale:settings.write tale:subscriptions.connect';
+    const unbound = await authorizePrecheck(
+      authorize({
+        client_id: 'https://chatgpt.com/oauth/codex/client.json',
+        scope: everything,
+        response_type: 'code',
+      }),
+      { sql, options: OPTIONS },
+    );
+    expect(new URL(unbound.url).searchParams.get('scope')).toBe(granted);
+    expect(new URL(unbound.url).searchParams.get('resource')).toBe(
+      'https://tale.example.com/api/v1/mcp',
+    );
+    const bound = await authorizePrecheck(
+      authorize({
+        client_id: 'https://chatgpt.com/oauth/codex/client.json',
+        scope: everything,
+        response_type: 'code',
+        resource: 'https://tale.example.com/api/v1/mcp',
+      }),
+      { sql, options: OPTIONS },
+    );
+    expect(new URL(bound.url).searchParams.get('scope')).toBe(granted);
+    expect(new URL(bound.url).searchParams.get('resource')).toBe(
+      'https://tale.example.com/api/v1/mcp',
+    );
+    // Everything else the client sent rides along untouched.
+    expect(new URL(bound.url).searchParams.get('response_type')).toBe('code');
+  });
+
+  it('cuts a form-posted request the same way [AGCONN-R25]', async () => {
+    const { sql } = fakeSql({});
+    const request = new Request(
+      'http://backend-api:3005/api/auth/oauth2/authorize',
+      {
+        method: 'POST',
+        headers: {
+          host: 'tale.example.com',
+          'x-forwarded-proto': 'https',
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: 'client_id=agent&scope=openid+tale%3Amcp&resource=https%3A%2F%2Ftale.example.com%2Fapi%2Fv1%2Fmcp',
+      },
+    );
+    const cut = await authorizePrecheck(request, { sql, options: OPTIONS });
+    expect(new URLSearchParams(await cut.text()).get('scope')).toBe('tale:mcp');
+  });
+
+  it('does not touch a request that asks only for what the endpoint grants', async () => {
+    const { sql } = fakeSql({});
+    const request = authorize({
+      client_id: 'agent-client',
+      scope: 'tale:mcp offline_access',
+      resource: 'https://tale.example.com/api/v1/mcp',
+    });
+    expect(await authorizePrecheck(request, { sql, options: OPTIONS })).toBe(
+      request,
     );
   });
 
