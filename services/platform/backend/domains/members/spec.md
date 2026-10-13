@@ -63,11 +63,13 @@ The caller must be an owner or admin in every organization where the target has 
 
 ### MEMBER-R8 · Revoking a passkey or resetting two-factor authentication signs the member out
 
-The factor is removed, every session of the member is ended, and the action is written to the
-audit log, all in one step: when the audit entry cannot be written, nothing is changed.
+The factor is removed, every session of the member is ended, and so is every coding agent the
+member connected, in every organization — each recorded as the admin's act, for account security —
+and the action is written to the audit log, all in one step: when the audit entry cannot be
+written, nothing is changed.
 
-- **Example**: Ada resets Mia's two-factor authentication → Mia is signed out on every device
-  and sets it up again at her next sign-in.
+- **Example**: Ada resets Mia's two-factor authentication → Mia is signed out on every device, her
+  Cursor connection to Acme ends, and she sets two-factor up again at her next sign-in.
 
 ## The role a person acts with
 

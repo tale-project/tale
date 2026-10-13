@@ -29,6 +29,9 @@ interface Statement {
 }
 
 interface Scenario {
+  /** A coding agent the target connected, which ending the target's access
+   * ends (what `UPDATE app.agent_connections … RETURNING` answers). */
+  agentConnection?: { id: string; organizationId: string };
   /** The caller's role in the org, or null when not a member. */
   callerRole: string | null;
   targetRole?: string;
@@ -117,19 +120,65 @@ function createRecordingTx(scenario: Scenario): {
       }
       return [{ id: 'audit-1' }];
     }
+    if (text.startsWith('UPDATE app.agent_connections')) {
+      return scenario.agentConnection === undefined
+        ? []
+        : [
+            {
+              id: scenario.agentConnection.id,
+              organizationId: scenario.agentConnection.organizationId,
+              userId: TARGET_USER_ID,
+              clientId: 'https://claude.example.test/client.json',
+              clientName: 'Claude Code',
+              scopes: ['tale:mcp'],
+            },
+          ];
+    }
+    if (text.startsWith('INSERT INTO app_realtime.outbox')) {
+      return [];
+    }
     if (/^(DELETE|UPDATE)\b/.test(text)) {
       return [];
     }
     throw new Error(`unexpected SQL in recording tx: ${text}`);
   };
+  /** What each answer says it asked, so a template nested in another (a
+   * condition that is only sometimes there) is found again and inlined into
+   * the statement that holds it, as the database would read it. */
+  const asked = new WeakMap<object, Statement>();
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.raw.join('$').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
-    try {
-      return Promise.resolve(answer(text));
-    } catch (error) {
-      return Promise.reject(error);
+    let text = strings.raw[0] ?? '';
+    const bound: unknown[] = [];
+    for (const [index, value] of values.entries()) {
+      const nested =
+        typeof value === 'object' && value !== null
+          ? asked.get(value)
+          : undefined;
+      if (nested === undefined) {
+        text += '$';
+        bound.push(value);
+      } else {
+        text += nested.text;
+        bound.push(...nested.values);
+        statements.splice(statements.indexOf(nested), 1);
+      }
+      text += strings.raw[index + 1] ?? '';
     }
+    const statement = { text: text.replace(/\s+/g, ' ').trim(), values: bound };
+    statements.push(statement);
+    let result: Promise<unknown[]>;
+    try {
+      // A fragment (no statement of its own) answers nothing.
+      result = Promise.resolve(
+        /^(SELECT|INSERT|UPDATE|DELETE)\b/.test(statement.text)
+          ? answer(statement.text)
+          : [],
+      );
+    } catch (error) {
+      result = Promise.reject(error);
+    }
+    asked.set(result, statement);
+    return result;
   };
   Object.assign(tag, {
     json: (value: unknown) => value,
@@ -153,7 +202,7 @@ const writeHead = (text: string): string | undefined =>
 const AUDIT_WRITES = ['INSERT INTO app.audit_logs'];
 
 describe('revokePasskeyForMember', () => {
-  it('deletes the passkey, the sessions and writes the audit row on the one tx [MEMBER-R8]', async () => {
+  it('deletes the passkey, the sessions and the member’s agents and writes the audit row on the one tx [MEMBER-R8]', async () => {
     const { tx, statements } = createRecordingTx({ callerRole: 'admin' });
     await revokePasskeyForMember(
       tx,
@@ -164,6 +213,7 @@ describe('revokePasskeyForMember', () => {
     expect(writes.map(writeHead)).toEqual([
       'DELETE FROM "passkey"',
       'DELETE FROM "session"',
+      'UPDATE app.agent_connections',
       ...AUDIT_WRITES,
     ]);
     // Every guard read precedes the first write.
@@ -227,8 +277,60 @@ describe('revokePasskeyForMember', () => {
   });
 });
 
+describe('the agents a member connected end with their sessions [MEMBER-R8]', () => {
+  it.each([
+    [
+      'a revoked passkey',
+      (tx: TransactionSql) =>
+        revokePasskeyForMember(
+          tx,
+          { userId: ADMIN_ID, email: 'admin@acme.test' },
+          { memberId: TARGET_MEMBER_ID, passkeyId: 'pk-1' },
+        ),
+    ],
+    [
+      'a reset second factor',
+      (tx: TransactionSql) =>
+        resetTwoFactorForMember(
+          tx,
+          { userId: ADMIN_ID, email: 'admin@acme.test' },
+          TARGET_MEMBER_ID,
+        ),
+    ],
+  ])(
+    'ends every connection of the member for account security, as the admin’s act, after %s',
+    async (_name, act) => {
+      const { tx, statements } = createRecordingTx({
+        callerRole: 'admin',
+        agentConnection: { id: 'conn-1', organizationId: ORG_ID },
+      });
+      await act(tx);
+      const ending = statements.find((s) =>
+        s.text.startsWith('UPDATE app.agent_connections'),
+      );
+      // Every organization (none named), this person, and the admin as the
+      // one who ended it.
+      expect(ending?.values.slice(1)).toEqual([
+        ADMIN_ID,
+        'account_security',
+        TARGET_USER_ID,
+      ]);
+      const audited = statements.filter((s) =>
+        s.text.startsWith('INSERT INTO app.audit_logs'),
+      );
+      // One row for the ended connection, one for the act.
+      expect(audited).toHaveLength(2);
+      expect(audited[0]?.values).toContain('agent_connection.revoked');
+      // The admin as the trail names them: who, their address and their role.
+      expect(audited[0]?.values).toContain(ADMIN_ID);
+      expect(audited[0]?.values).toContain('admin@acme.test');
+      expect(audited[0]?.values).toContain('admin');
+    },
+  );
+});
+
 describe('resetTwoFactorForMember', () => {
-  it('clears enrolment, flag, counters and sessions, then audits — all on the one tx [MEMBER-R8]', async () => {
+  it('clears enrolment, flag, counters, sessions and the member’s agents, then audits — all on the one tx [MEMBER-R8]', async () => {
     const { tx, statements } = createRecordingTx({ callerRole: 'owner' });
     await resetTwoFactorForMember(
       tx,
@@ -242,6 +344,7 @@ describe('resetTwoFactorForMember', () => {
       'DELETE FROM app.two_factor_grace',
       'DELETE FROM app.two_factor_attempts',
       'DELETE FROM "session"',
+      'UPDATE app.agent_connections',
       ...AUDIT_WRITES,
     ]);
     // Every mutation is bound to the target user.

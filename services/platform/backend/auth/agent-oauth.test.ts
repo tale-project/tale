@@ -3,6 +3,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { endAgentConnectionsInTx } from '../domains/agent_connections/end.ts';
 import {
   checkIpRateLimit,
   checkKeyedRateLimit,
@@ -33,6 +34,10 @@ vi.mock('../lib/rate-limit.ts', async (importOriginal) => {
     checkKeyedRateLimit: vi.fn(() => Promise.resolve()),
   };
 });
+
+vi.mock('../domains/agent_connections/end.ts', () => ({
+  endAgentConnectionsInTx: vi.fn(() => Promise.resolve([{ id: 'conn-1' }])),
+}));
 
 const SITE = 'https://tale.example.com';
 const ISSUER = `${SITE}/api/auth`;
@@ -874,5 +879,158 @@ describe('a refresh the provider refused as an ineligible identity [AGCONN-R7]',
     expect(answered.status).toBe(403);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('a refresh token used twice at the auth mount [AGCONN-R16]', () => {
+  const REUSED = {
+    id: 'rt-1',
+    userId: 'user-ada',
+    clientId: 'https://claude.example.test/client.json',
+  };
+  const refreshRequest = () =>
+    new Request(`${SITE}/api/auth/oauth2/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: 'an-old-token',
+        client_id: REUSED.clientId,
+      }).toString(),
+    });
+
+  /** The token table as the steps read it: the used token the request
+   * presents (when it is one), and which tokens are still on file. */
+  function tokens(options: { used: boolean; onFile: () => boolean }) {
+    const events: string[] = [];
+    const tag = (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      if (text.startsWith('SELECT "id", "userId", "clientId" FROM')) {
+        events.push('lookup');
+        return Promise.resolve(options.used ? [REUSED] : []);
+      }
+      if (text.startsWith('SELECT "id" FROM "oauthRefreshToken"')) {
+        events.push('check');
+        return Promise.resolve(options.onFile() ? [{ id: REUSED.id }] : []);
+      }
+      return Promise.reject(new Error(`unexpected query: ${text}`));
+    };
+    const sql = Object.assign(tag, {
+      begin: (work: (tx: unknown) => Promise<unknown>) => work(sql),
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SQL tag test double
+    return { sql: sql as unknown as Sql, events };
+  }
+
+  const refused = () =>
+    Response.json(
+      { error: 'invalid_grant', error_description: 'invalid refresh token' },
+      { status: 400 },
+    );
+
+  async function run(
+    sql: Sql,
+    events: string[],
+    answer: () => Response,
+    onProvider: () => void = () => {},
+  ) {
+    return withAgentOAuth(
+      refreshRequest(),
+      { sql, clientIp, options: OPTIONS, session: () => Promise.resolve(null) },
+      () => {
+        events.push('provider');
+        onProvider();
+        return Promise.resolve(answer());
+      },
+    );
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(endAgentConnectionsInTx).mockClear();
+  });
+
+  it('ends the connections of the person and the app once the provider ended their sign-in, and leaves its answer as it was', async () => {
+    let onFile = true;
+    const { sql, events } = tokens({ used: true, onFile: () => onFile });
+    const answered = await run(sql, events, refused, () => {
+      // The provider ends every refresh token of the app for the person.
+      onFile = false;
+    });
+    expect(answered.status).toBe(400);
+    expect(await answered.json()).toEqual({
+      error: 'invalid_grant',
+      error_description: 'invalid refresh token',
+    });
+    // The token is read before the provider takes it from its table.
+    expect(events).toEqual(['lookup', 'provider', 'check']);
+    expect(endAgentConnectionsInTx).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(endAgentConnectionsInTx).mock.calls[0]?.[1]).toEqual({
+      userId: REUSED.userId,
+      clientId: REUSED.clientId,
+      reason: 'refresh_reuse',
+      revokedBy: 'system',
+    });
+    // The failed request is still charged to its source.
+    expect(checkIpRateLimit).toHaveBeenCalledWith(
+      sql,
+      'oauth:token-fail-ip',
+      '203.0.113.9',
+    );
+  });
+
+  it('ends nothing when the provider refused for another reason and left the token on file', async () => {
+    const { sql, events } = tokens({ used: true, onFile: () => true });
+    expect((await run(sql, events, refused)).status).toBe(400);
+    expect(events).toEqual(['lookup', 'provider', 'check']);
+    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+  });
+
+  it('ends nothing when the provider answered, even if the token it presented was a used one: a retry is answered the same', async () => {
+    const { sql, events } = tokens({ used: true, onFile: () => false });
+    const answered = await run(sql, events, () =>
+      Response.json({ access_token: 'a', refresh_token: 'b' }),
+    );
+    expect(answered.status).toBe(200);
+    expect(events).toEqual(['lookup', 'provider']);
+    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+  });
+
+  it('ends nothing, and asks nothing more, for a refusal of a token that is not a used one', async () => {
+    const { sql, events } = tokens({ used: false, onFile: () => false });
+    expect((await run(sql, events, refused)).status).toBe(400);
+    expect(events).toEqual(['lookup', 'provider']);
+    expect(endAgentConnectionsInTx).not.toHaveBeenCalled();
+  });
+
+  it('answers as the provider did when ending the connections fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(endAgentConnectionsInTx).mockRejectedValueOnce(
+      new Error('lock timeout'),
+    );
+    const { sql, events } = tokens({ used: true, onFile: () => false });
+    const answered = await run(sql, events, refused);
+    expect(answered.status).toBe(400);
+    expect(await answered.json()).toMatchObject({ error: 'invalid_grant' });
+  });
+
+  it('is not looked for in a request that is no refresh', async () => {
+    const { sql, events } = tokens({ used: true, onFile: () => false });
+    await withAgentOAuth(
+      new Request(`${SITE}/api/auth/oauth2/token`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: 'c',
+        }).toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      }),
+      { sql, clientIp, options: OPTIONS, session: () => Promise.resolve(null) },
+      () => {
+        events.push('provider');
+        return Promise.resolve(refused());
+      },
+    );
+    expect(events).toEqual(['provider']);
   });
 });

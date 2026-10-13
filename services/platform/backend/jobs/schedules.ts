@@ -27,6 +27,9 @@ export const SCHEDULES: CronSchedule[] = [
   { name: 'maintenance.login_attempts_ttl', cron: '40 3 * * *' },
   // An MCP client's daily call counters are kept 90 days. Daily sweep.
   { name: 'maintenance.mcp_activity_ttl', cron: '50 3 * * *' },
+  // Ended agent connections are history for 90 days; apps nobody connected
+  // and the tokens they retired go with them. Daily sweep.
+  { name: 'maintenance.agent_connections_gc', cron: '20 4 * * *' },
   // Realtime hints are reclaimed lazily by the `/events` poll loops, which
   // only run while a browser is connected: a headless deployment (REST and
   // automation use, nights, weekends) inserts hints on every write and

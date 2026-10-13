@@ -78,6 +78,7 @@ import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
+import { CHANGE_PASSWORD_PATH, endAgentsOf } from './account-security.ts';
 import { agentOAuthOptionsFromEnv } from './agent-oauth-config.ts';
 import { agentClientDiscovery } from './agent-oauth.ts';
 import {
@@ -1331,6 +1332,29 @@ export function createAuth(config: AuthConfig) {
             } catch (error) {
               console.error(
                 `[password-confirmation] failed to book the ${confirmation} attempt`,
+                error instanceof Error ? error.message : error,
+              );
+            }
+          }
+        }
+
+        // A changed password ends the coding agents the person connected, in
+        // every organization: what a sign-in gave does not outlive the
+        // password that earned it (`account-security.ts`). The app's own
+        // route reaches this endpoint server-side, so it passes here too.
+        // Non-fatal like the booking above — the change has happened — and,
+        // like it, LOUD when it fails.
+        if (
+          mw.path === CHANGE_PASSWORD_PATH &&
+          !(mw.context.returned instanceof APIError)
+        ) {
+          const changer = sessionPayloadUser(mw.context.session);
+          if (changer !== null) {
+            try {
+              await sql.begin((tx) => endAgentsOf(tx, changer.id));
+            } catch (error) {
+              console.error(
+                '[account-security] failed to end the coding agents of a person who changed their password',
                 error instanceof Error ? error.message : error,
               );
             }

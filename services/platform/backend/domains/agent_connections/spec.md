@@ -185,11 +185,55 @@ challenge holds nothing a caller wrote.
   that ran out → 401 `invalid_token` saying so, not counted against its source. A token no one issued
   → 401, counted, and 429 once the source has failed too often.
 
+## Keeping connections honest
+
+### AGCONN-R16 · A refresh token used twice disconnects the agent everywhere
+
+When an agent presents a refresh token it already used — outside the few seconds in which a retried
+refresh is answered with the same result — the sign-in server ends the whole sign-in of that app for
+the person, and so does Tale: every connection of that person and app, in every organization, ends as
+the platform's act with the reason "refresh reuse", with its consent and tokens. A refresh that fails
+for any other reason ends nothing.
+
+- **Example**: Ada connected Claude Code to Acme and to Beta. A copy of its refresh token from last
+  week is presented → both connections end. A retry two seconds after a refresh gets the same answer
+  again and ends nothing.
+
+### AGCONN-R17 · A new password or a removed sign-in method disconnects every agent
+
+When a person changes their own password (replacing an expired or admin-set one included), when an
+admin sets it for them, or when an admin removes their passkey or resets their two-factor sign-in,
+every agent they connected, in every organization, ends for account security beside the sessions that
+already end: as the platform's act when the person changed their own password, as the admin's when an
+admin did it. A change that was refused ends nothing.
+
+- **Example**: Olav resets Mia's two-factor sign-in because her phone was stolen → Mia's sessions end,
+  and so do the agents she connected to Acme and to Beta, with Olav named in the trail.
+
+### AGCONN-R18 · Erasing a person deletes their connections in that organization
+
+A data-subject erasure in an organization deletes the person's connections there — the live ones with
+their consent and tokens, and the ended ones that are history — and keeps nothing of them but the
+audit rows, which lose their personal data like every other. Their connections in other organizations
+stay.
+
+- **Example**: Noah's erasure in Acme → his Cursor connection to Acme is gone, with its consent and
+  tokens; his connection to Beta stays, and the audit rows in Acme no longer say who he was.
+
+### AGCONN-R19 · Old connections and unused apps are cleaned up every day
+
+A connection that ended is removed 90 days later; the audit log keeps its trace. An app that
+registered itself, or identified itself by a document, and that nobody connected is removed a day
+after it appeared, with its consent and tokens. An app with a live connection or a refresh token that
+still works is never removed, and neither is an organization's own sign-in application. Refresh and
+access tokens that expired or were retired a month ago go too.
+
+- **Example**: A connection ended on 1 July → on 30 September it is gone from the history an admin
+  reads. An app that registered on Monday and nobody connected → gone on Wednesday. Cursor, which Ada
+  connected, stays.
+
 ## Not yet
 
 - What the consent page shows and how it reads is not covered yet.
-- A password change or reset, an admin's sign-out of every session, and an account's deletion should
-  disconnect the person's agents too; only leaving an organization does today.
-- A refresh token that is used twice, which should disconnect the agent and tell the person, is not
-  handled yet.
-- The daily clean-up of old connections and of apps nobody connected is not covered yet.
+- The notice a person finds in their bell when an agent they connected is disconnected for a reason
+  that is not theirs (a refresh token used twice, a password someone changed) is not covered yet.
