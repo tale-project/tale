@@ -594,6 +594,18 @@ compute codes from the enrollment secret.
   the application's name and your email appear, and **Allow and continue**
   works. While the request is still pending (a throttled network) **Cancel**
   is already enabled and **Allow and continue** is not.
+- [ ] `AUTH-B22` · **The coding agent's consent page cannot read the app** —
+  Start a coding agent's connection as AUTH-F34 describes with a proxy rule or
+  local override that answers `/api/app/agent-connections/consent-context` with
+  `503` (blocking the request instead opens the app's own **Can't reach Tale**
+  screen) → after a few seconds the page says Tale could not read the app's
+  details (`agentConnections.consent.errors.clientUnavailable`) and offers **Try
+  again** (`auth.oauth.retry`) and **Cancel** (`agentConnections.consent.cancel`)
+  with no **Connect**; **Cancel** returns once to the agent with an
+  access-denied answer. Repeat, lift the rule and choose **Try again** → the
+  organization and access choices, and **Connect** works. Answer it with `404`
+  instead → the same notice with **Connect** unavailable and **Cancel** alone,
+  since asking again would not change the answer.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -10,7 +10,10 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { useConfirmPassword } from '@/app/features/auth/hooks/use-confirm-password';
 import { isSessionFresh } from '@/app/lib/auth/session-freshness';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
-import { agentConsentContextQuery } from '@/app/lib/backend/agent-connections';
+import {
+  agentConsentContextQuery,
+  isRetryableFailure,
+} from '@/app/lib/backend/agent-connections';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -266,6 +269,10 @@ export function AgentConsent({ email }: { email: string }) {
         ? t('consent.errors.notEligible')
         : null;
   const loading = !expired && context === undefined && loadFailure === null;
+  // The app's details could not be read because the server or the network
+  // failed, which asking again can change; an answer that refused is final.
+  const canRetry =
+    !expired && contextQuery.isError && isRetryableFailure(contextQuery.error);
   const nothingAllowed =
     context !== undefined && context.eligible && organizationId === null;
   // A choice exists only for an organization the person may connect to.
@@ -437,14 +444,20 @@ export function AgentConsent({ email }: { email: string }) {
           ) : null}
           {!expired ? (
             <Stack gap={2}>
-              <Button
-                fullWidth
-                disabled={!canConnect}
-                aria-describedby={mustConfirm ? confirmId : undefined}
-                onClick={() => void connect()}
-              >
-                {busy ? t('consent.connecting') : t('consent.connect')}
-              </Button>
+              {canRetry ? (
+                <Button fullWidth onClick={() => void contextQuery.refetch()}>
+                  {tAuth('oauth.retry')}
+                </Button>
+              ) : (
+                <Button
+                  fullWidth
+                  disabled={!canConnect}
+                  aria-describedby={mustConfirm ? confirmId : undefined}
+                  onClick={() => void connect()}
+                >
+                  {busy ? t('consent.connecting') : t('consent.connect')}
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 fullWidth

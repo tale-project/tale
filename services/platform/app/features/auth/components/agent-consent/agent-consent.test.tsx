@@ -107,8 +107,9 @@ function open(search = SIGNED) {
 }
 
 function renderPage(ui: ReactNode = <AgentConsent email="ada@example.test" />) {
+  // The read's own retries (a server or network failure) come at once.
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false, retryDelay: 0 } },
   });
   return render(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
@@ -1058,6 +1059,9 @@ describe('what stands in the way', () => {
     expect(
       screen.queryByText(/belongs to one organization/),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
   });
 
   it('says an app Tale could not read cannot be connected', async () => {
@@ -1069,6 +1073,73 @@ describe('what stands in the way', () => {
       await screen.findByText(/Tale could not read this app’s details/),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Connect' })).toBeDisabled();
+    // The server's answer is final: asking again would not change it.
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+  });
+
+  describe('when the server or the network failed to answer', () => {
+    /** The read's own retries are used up; the person asks again. */
+    function failThrice(failure: unknown) {
+      h.context
+        .mockRejectedValueOnce(failure)
+        .mockRejectedValueOnce(failure)
+        .mockRejectedValueOnce(failure);
+    }
+
+    it.each([
+      ['the server failed', new BackendApiError(503, 'down', 'UNAVAILABLE')],
+      ['the network failed', new TypeError('Failed to fetch')],
+    ])(
+      'offers Try again in place of Connect, and reads the app again, when %s',
+      async (_case, failure) => {
+        failThrice(failure);
+        const { user } = renderPage();
+        expect(
+          await screen.findByText(/Tale could not read this app’s details/),
+        ).toBeVisible();
+        expect(
+          screen.queryByRole('button', { name: 'Connect' }),
+        ).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(
+          await screen.findByRole('radio', { name: /Edit automations/ }),
+        ).toBeVisible();
+        expect(
+          screen.queryByRole('button', { name: 'Try again' }),
+        ).not.toBeInTheDocument();
+        expect(await connectButton()).toBeEnabled();
+        expect(h.context).toHaveBeenCalledTimes(4);
+      },
+    );
+
+    it('keeps Try again while the answer keeps failing, and Cancel all the while', async () => {
+      h.context.mockRejectedValue(new BackendApiError(502, 'bad', 'GATEWAY'));
+      const { user } = renderPage();
+      await screen.findByText(/Tale could not read this app’s details/);
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+      expect(
+        await screen.findByRole('button', { name: 'Try again' }),
+      ).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(h.consent).toHaveBeenCalledExactlyOnceWith({
+        accept: false,
+        oauth_query: SIGNED,
+      });
+    });
+
+    it('passes an accessibility audit', async () => {
+      failThrice(new BackendApiError(503, 'down', 'UNAVAILABLE'));
+      const { container } = renderPage();
+      await screen.findByRole('button', { name: 'Try again' });
+      await checkAccessibility(container);
+    });
   });
 
   it('stops saying it is loading once it has the answer', async () => {
