@@ -66,7 +66,9 @@ A coding agent that asks to sign in, or to register, for every scope the sign-in
 refused: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes
 and `offline_access`. Tale takes what the endpoint grants — the agent scopes and `offline_access` — and
 leaves the rest out, so the consent page offers exactly those, the connection holds only those and the
-token says which. An agent is never granted an identity scope.
+token says which. An agent is never granted an identity scope. An agent that asks for nothing the
+endpoint grants — identity scopes alone — is refused with `invalid_scope`, not given the agent scopes
+in their place.
 
 - **Example**: Codex asks for `openid profile email tale:organization offline_access tale:mcp
   tale:automations.write` → the consent page offers Read and test or Edit automations, Ada allows Edit

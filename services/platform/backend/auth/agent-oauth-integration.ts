@@ -340,6 +340,20 @@ export async function checkAgentOAuth(
         wideNext.searchParams.get('error') === null,
       `${wideAsk.status} ${wideNext.href}`,
     );
+    // Identity scopes alone ask for nothing the endpoint grants: refused,
+    // not given the agent scopes in their place.
+    const identityAsk = await authorize({
+      client_id: DOCUMENT_URL,
+      redirect_uri: AGENT_REDIRECT,
+      scope: 'openid profile email',
+    });
+    const identityNext = await locationOf(identityAsk);
+    check(
+      'an agent that asks for identity scopes alone is refused, not given the agent scopes in their place',
+      identityNext.pathname !== '/oauth/consent' &&
+        identityNext.searchParams.get('error') === 'invalid_scope',
+      `${identityAsk.status} ${identityNext.href}`,
+    );
     // The deployment's own host, on the scheme a document needs.
     const ownDocument = `https://${new URL(base).host}/agents/client.json`;
     const ownHost = await authorize({

@@ -739,6 +739,21 @@ describe('an agent’s authorization request', () => {
     expect(new URLSearchParams(await cut.text()).get('scope')).toBe('tale:mcp');
   });
 
+  it('leaves the scope of an agent client that asks for nothing the endpoint grants as it is, for the provider to refuse [AGCONN-R25]', async () => {
+    const { sql } = fakeSql({});
+    const bound = await authorizePrecheck(
+      authorize({
+        client_id: 'https://chatgpt.com/oauth/codex/client.json',
+        scope: 'openid profile email',
+        response_type: 'code',
+      }),
+      { sql, options: OPTIONS },
+    );
+    expect(new URL(bound.url).searchParams.get('scope')).toBe(
+      'openid profile email',
+    );
+  });
+
   it('does not touch a request that asks only for what the endpoint grants', async () => {
     const { sql } = fakeSql({});
     const request = authorize({
