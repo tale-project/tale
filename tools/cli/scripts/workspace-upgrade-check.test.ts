@@ -24,7 +24,7 @@ test('the upgrade check needs a release to start from, a CLI and a workdir', () 
   ).toEqual({
     from: '0.5.77',
     cli: resolve('dist/tale'),
-    workdir: '/tmp/upgrade',
+    workdir: resolve('/tmp/upgrade'),
     keep: false,
   });
   expect(
