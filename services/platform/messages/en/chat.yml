@@ -551,10 +551,21 @@ effort:
   maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
   toolsLockedHint: This model can't combine chat tools with an effort pick — every message is sent at its default effort.
 picker:
-  ariaLabel: Choose model and reasoning effort
+  ariaLabel: Choose model, reasoning effort and skills
   searchPlaceholder: Search
   searchEmpty: No matches
   sectionModel: Model
+  sectionSkills: Skills
+  skillsDescription: Every reply in this chat reads the skills you check before it answers. For one message only, type / at the start of it.
+  skillsLimit: Up to {max} skills.
+  skillsChosen: '{count, plural, one {# skill} other {# skills}}'
+skillPicker:
+  listLabel: Skills
+  empty: No skill is named "{query}". The message is sent as written.
+  count: '{count, plural, =0 {No skill matches} one {# skill matches} other {# skills match}}'
+  explicitOnly: Only when chosen
+skillChip:
+  label: Skill
 thinking:
   label: Thinking
   done: Thought for {seconds}s

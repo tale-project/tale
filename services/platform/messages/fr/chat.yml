@@ -557,10 +557,21 @@ effort:
   maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
   toolsLockedHint: "Ce modèle ne peut pas combiner les outils du chat avec un niveau d'effort — chaque message part avec l'effort par défaut."
 picker:
-  ariaLabel: Choisir le modèle et l'effort
+  ariaLabel: Choisir le modèle, l'effort et les skills
   searchPlaceholder: Rechercher
   searchEmpty: Aucun résultat
   sectionModel: Modèle
+  sectionSkills: Skills
+  skillsDescription: Chaque réponse de ce chat lit les skills que tu coches avant de répondre. Pour un seul message, tape / au début de celui-ci.
+  skillsLimit: '{max} skills au plus.'
+  skillsChosen: '{count, plural, one {# skill} other {# skills}}'
+skillPicker:
+  listLabel: Skills
+  empty: Aucun skill ne s'appelle "{query}". Le message est envoyé tel quel.
+  count: '{count, plural, =0 {Aucun skill ne correspond} one {# skill correspond} other {# skills correspondent}}'
+  explicitOnly: Seulement si choisi
+skillChip:
+  label: Skill
 thinking:
   label: Réflexion
   done: A réfléchi pendant {seconds}s

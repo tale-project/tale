@@ -54,6 +54,7 @@ import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { BlockedNotice } from './blocked-notice';
 import { BranchNavigator } from './branch-navigator';
 import { ChatErrorDisplay } from './chat-error-display';
+import { useChatSkillNames } from './chosen-skill-chips';
 import {
   GenerationIncompleteNotice,
   isGenerationIncomplete,
@@ -341,6 +342,7 @@ function UserBubble({
 }) {
   const { t } = useT('chat');
   const { formatDateHeader, formatDate } = useFormatDate();
+  const skillNames = useChatSkillNames();
   const [editing, setEditing] = useState(false);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(false);
@@ -424,7 +426,7 @@ function UserBubble({
           }
         : {})}
     >
-      <MessageParts parts={message.parts} />
+      <MessageParts parts={message.parts} skillNames={skillNames} />
     </ThreadMessage>
   );
 }

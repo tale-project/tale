@@ -2,15 +2,16 @@
 
 /**
  * The composer's ONE selection picker: which model answers, at which
- * reasoning effort — a single trigger ("<model> <effort> ▾") over a single
- * menu.
+ * reasoning effort, with which skills — a single trigger ("<model> <effort>
+ * ▾") over a single menu.
  *
- * Deliberately nothing else. The chat page offers MODEL SELECTION ONLY (the
- * Chat·Task·Automation boundary model): no agent rows, no skill or connector
- * equipment, no sandbox harnesses — those live on tasks and automations. The
- * menu is two SECTION rows, each opening a submenu whose list is searchable
- * and scrolls after four rows, so a hundred-model catalog never grows the
- * menu past the viewport.
+ * The skills are the conversation's: every reply in it reads the ones
+ * checked before it answers (one message's own skills are typed as `/name`
+ * in the field). There are no agent rows, no connector equipment and no
+ * sandbox harnesses — those live on tasks and automations (the
+ * Chat·Task·Automation boundary model). The menu is SECTION rows, each
+ * opening a submenu whose list is searchable and scrolls after four rows, so
+ * a hundred-model catalog never grows the menu past the viewport.
  */
 
 import { Button } from '@tale/ui/button';
@@ -20,11 +21,13 @@ import {
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { ChevronDown, Cpu, Gauge } from 'lucide-react';
+import { BookOpen, ChevronDown, Cpu, Gauge } from 'lucide-react';
 import { useMemo, useState, type ComponentType } from 'react';
 
+import type { ComposerSkillChoice } from '@/app/lib/backend/chat';
 import { EFFORT_LEVELS, type ReasoningEffort } from '@/lib/chat/effort';
 import { useT } from '@/lib/i18n/client';
+import { CHOSEN_SKILLS_MAX } from '@/lib/skills/slash';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { autoAvailable } from './composer-model-picker';
@@ -51,6 +54,8 @@ interface ComposerSelectionPickerProps {
   subscriptionProviders?: readonly string[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
+  /** The skills the person may choose; none hides the Skills section. */
+  skills?: readonly ComposerSkillChoice[];
   disabled?: boolean;
 }
 
@@ -59,6 +64,7 @@ export function ComposerSelectionPicker({
   subscriptionProviders = [],
   selection,
   onSelectionChange,
+  skills = [],
   disabled,
 }: ComposerSelectionPickerProps) {
   const { t } = useT('chat');
@@ -147,6 +153,53 @@ export function ComposerSelectionPicker({
       ...rows,
     ];
   }, [models, selection, autoSelected, onSelectionChange, t]);
+
+  /** The skills the conversation uses: a checkbox per skill the person may
+   * use, beside any it still names that they no longer can — those read
+   * unavailable and can only be unchecked. At most {@link CHOSEN_SKILLS_MAX}
+   * are checked; the others wait until one is unchecked. */
+  const chosenSkills = useMemo(
+    () => selection.skills ?? [],
+    [selection.skills],
+  );
+  const skillChoices = useMemo<PickerSearchOption[]>(() => {
+    const full = chosenSkills.length >= CHOSEN_SKILLS_MAX;
+    const toggle = (slug: string) => {
+      const next = chosenSkills.includes(slug)
+        ? chosenSkills.filter((name) => name !== slug)
+        : [...chosenSkills, slug];
+      onSelectionChange({ ...selection, skills: next });
+    };
+    const available = new Set(skills.map((skill) => skill.slug));
+    return [
+      ...skills.map((skill): PickerSearchOption => ({
+        key: skill.slug,
+        search: `${skill.slug} ${skill.description ?? ''}`,
+        label: (
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate">{skill.slug}</span>
+            {skill.description !== undefined && (
+              <span className="text-muted-foreground/70 line-clamp-2 text-xs leading-snug text-wrap">
+                {skill.description}
+              </span>
+            )}
+          </span>
+        ),
+        ariaLabel: skill.slug,
+        selected: chosenSkills.includes(skill.slug),
+        disabled: full && !chosenSkills.includes(skill.slug),
+        onSelect: () => toggle(skill.slug),
+      })),
+      ...chosenSkills
+        .filter((slug) => !available.has(slug))
+        .map((slug): PickerSearchOption => ({
+          key: slug,
+          label: t('skills.unavailableOption', { slug }),
+          selected: true,
+          onSelect: () => toggle(slug),
+        })),
+    ];
+  }, [skills, chosenSkills, selection, onSelectionChange, t]);
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     /** One section: a submenu row whose panel is a searchable list. */
@@ -248,6 +301,36 @@ export function ComposerSelectionPicker({
       ]);
     }
 
+    if (skillChoices.length > 0) {
+      groups.push([
+        section(
+          t('picker.sectionSkills'),
+          BookOpen,
+          chosenSkills.length > 0
+            ? t('picker.skillsChosen', { count: chosenSkills.length })
+            : undefined,
+          {
+            type: 'custom',
+            content: (
+              <div className="flex min-w-0 flex-col">
+                <p className="text-muted-foreground max-w-64 px-2 pt-1 pb-1.5 text-xs leading-snug">
+                  {t('picker.skillsDescription')}
+                </p>
+                <PickerSearchList
+                  options={skillChoices}
+                  emptyHint={t('skills.emptySkills')}
+                  multiSelect
+                />
+                <p className="text-muted-foreground max-w-64 px-2 pt-1.5 pb-1 text-xs leading-snug">
+                  {t('picker.skillsLimit', { max: CHOSEN_SKILLS_MAX })}
+                </p>
+              </div>
+            ),
+          },
+        ),
+      ]);
+    }
+
     return groups;
   }, [
     modelChoices,
@@ -259,6 +342,8 @@ export function ComposerSelectionPicker({
     effort,
     effortApplies,
     effortLocked,
+    skillChoices,
+    chosenSkills,
     t,
   ]);
 
@@ -293,6 +378,17 @@ export function ComposerSelectionPicker({
           {triggerSuffix !== undefined && (
             <span className="text-muted-foreground shrink-0">
               {` ${triggerSuffix}`}
+            </span>
+          )}
+          {chosenSkills.length > 0 && (
+            // How many skills the conversation reads, at a glance; the
+            // Skills section names them.
+            <span
+              aria-hidden
+              className="text-muted-foreground inline-flex shrink-0 items-center gap-0.5"
+            >
+              <BookOpen className="size-3" />
+              {chosenSkills.length}
             </span>
           )}
           <ChevronDown aria-hidden className="size-3.5 shrink-0" />

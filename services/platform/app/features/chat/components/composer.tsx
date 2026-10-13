@@ -5,9 +5,14 @@
  * message is sent — the `+` mode menu, the model picker, dictation, the
  * voice-output toggle, and send/stop.
  *
- * Model selection only, by design (the Chat·Task·Automation boundary): there
- * is no agent picker, no skill picker, and no sandbox control here. Chat
- * asks and retrieves; work that needs execution or review belongs to a Task.
+ * Skills are the person's to choose: typing `/` at the start of the message
+ * (or **Use a skill** in the `+` menu) opens the skills they may use, and a
+ * pick writes `/name` into the message, which its reply reads before the
+ * model answers (`lib/skills/slash.ts`); the picker's Skills section sets
+ * them for the whole conversation. There is no agent picker and no sandbox
+ * control (the Chat·Task·Automation boundary): the assistant makes files
+ * with its own tools, and work that needs an owner or a review belongs to a
+ * Task.
  *
  * Send and stop are the same slot, because a thread is either taking input
  * or producing output: while a turn is in flight the button stops it, and
@@ -33,14 +38,18 @@ import {
   THREAD_COMPOSER_FRAME_CLASS,
 } from '@tale/ui/thread/layout';
 import { Tooltip } from '@tale/ui/tooltip';
+import { TypeaheadListbox } from '@tale/ui/typeahead-listbox';
 import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { toast } from '@tale/ui/use-toast';
-import { CircleStop, Loader2 } from 'lucide-react';
+import { BookOpen, CircleStop, Loader2 } from 'lucide-react';
 import {
   forwardRef,
   memo,
+  useId,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
+  useState,
   type ClipboardEvent,
   type KeyboardEvent,
 } from 'react';
@@ -51,12 +60,19 @@ import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-t
 import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-images';
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import type { ComposerSkillChoices } from '@/app/lib/backend/chat';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { hasVisibleText } from '@/lib/shared/utils/visible-text';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
+import {
+  completeSkillToken,
+  insertSkillSlash,
+  matchSkills,
+  skillTokenAtCaret,
+} from '../lib/skill-picks';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { ComposerAttachments } from './composer-attachments';
@@ -176,6 +192,9 @@ interface ComposerProps {
   /** Arena Mode — the pair state and its toggle; absent hides the entry. */
   arenaActive?: boolean;
   onArenaChange?: (next: boolean) => void;
+  /** The skills the person may choose. Absent, disabled or empty hides the
+   * `/` typeahead, the `+` menu's entry and the picker's Skills section. */
+  skillChoices?: ComposerSkillChoices;
 }
 
 export const Composer = memo(
@@ -219,6 +238,7 @@ export const Composer = memo(
       onTranscriptionUnavailable,
       arenaActive,
       onArenaChange,
+      skillChoices,
     },
     ref,
   ) {
@@ -234,6 +254,63 @@ export const Composer = memo(
     // attachments instead of colliding in the upload dedup.
     const pasteCounterRef = useRef(1);
     const { isComposing, compositionProps } = useImeComposition();
+
+    // The skills typeahead: a `/` and the start of a name at the start of
+    // the message opens the skills the person may use. The caret decides —
+    // a name typed anywhere else is the message's own words. Escape closes
+    // it until the text changes.
+    const skills =
+      skillChoices?.enabled === true && !disabled ? skillChoices.skills : [];
+    const [caret, setCaret] = useState<number | null>(null);
+    const [dismissedText, setDismissedText] = useState<string | null>(null);
+    const [skillHighlight, setSkillHighlight] = useState(0);
+    const pendingCaretRef = useRef<number | null>(null);
+    const skillListboxId = useId();
+    const skillOptionId = (index: number) =>
+      `${skillListboxId}-option-${index}`;
+    const skillToken =
+      skills.length > 0 && caret !== null
+        ? skillTokenAtCaret(text, caret)
+        : null;
+    const skillMatches =
+      skillToken === null ? [] : matchSkills(skills, skillToken.query);
+    const skillPickerOpen = skillToken !== null && dismissedText !== text;
+    const skillsListed = skillPickerOpen && skillMatches.length > 0;
+    const skillIndex = Math.min(
+      skillHighlight,
+      Math.max(skillMatches.length - 1, 0),
+    );
+    // A pick or the `+` menu rewrote the text: put the caret where the
+    // rewrite says, once the field holds the new text.
+    useLayoutEffect(() => {
+      const at = pendingCaretRef.current;
+      const textarea = textareaRef.current;
+      if (at === null || textarea === null) return;
+      pendingCaretRef.current = null;
+      textarea.focus();
+      textarea.setSelectionRange(at, at);
+      setCaret(at);
+    }, [text]);
+    const syncCaret = (field: HTMLTextAreaElement) => {
+      setCaret(
+        field.selectionStart === field.selectionEnd ? field.selectionEnd : null,
+      );
+    };
+    const pickSkill = (index: number) => {
+      const skill = skillMatches[index];
+      if (skillToken === null || skill === undefined) return;
+      const next = completeSkillToken(text, skillToken, skill.slug);
+      pendingCaretRef.current = next.caret;
+      setSkillHighlight(0);
+      setText(next.text);
+    };
+    const startSkillPick = () => {
+      const next = insertSkillSlash(text);
+      pendingCaretRef.current = next.caret;
+      setDismissedText(null);
+      setSkillHighlight(0);
+      setText(next.text);
+    };
 
     useImperativeHandle(
       ref,
@@ -293,6 +370,37 @@ export const Composer = memo(
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      // While the skills typeahead is open it takes the keys a listbox
+      // needs: Up/Down move, Enter or Tab pick, Escape closes. With nothing
+      // matching, Enter sends the message as written.
+      if (skillPickerOpen && !isComposing(event.nativeEvent)) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setDismissedText(text);
+          return;
+        }
+        if (skillMatches.length > 0) {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            setSkillHighlight(
+              Math.min(Math.max(skillIndex + step, 0), skillMatches.length - 1),
+            );
+            return;
+          }
+          if (
+            event.key === 'Tab' ||
+            (event.key === 'Enter' &&
+              !event.shiftKey &&
+              !event.metaKey &&
+              !event.ctrlKey)
+          ) {
+            event.preventDefault();
+            pickSkill(skillIndex);
+            return;
+          }
+        }
+      }
       // Enter sends, Shift+Enter breaks the line — the convention every
       // message field in the product follows.
       if (
@@ -473,10 +581,31 @@ export const Composer = memo(
                 // `aria-label` rather than a label that would duplicate the chrome.
                 aria-label={t('aria.chatInput')}
                 value={text}
-                onChange={(event) => setText(event.target.value)}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setSkillHighlight(0);
+                  syncCaret(event.target);
+                }}
                 onKeyDown={onKeyDown}
+                onKeyUp={(event) => syncCaret(event.currentTarget)}
+                onClick={(event) => syncCaret(event.currentTarget)}
+                {...(skills.length > 0
+                  ? { 'aria-autocomplete': 'list' as const }
+                  : {})}
+                {...(skillsListed
+                  ? {
+                      'aria-controls': skillListboxId,
+                      'aria-activedescendant': skillOptionId(skillIndex),
+                    }
+                  : {})}
                 onPaste={onPaste}
                 {...compositionProps}
+                // Leaving the field ends a composition and closes the skills
+                // typeahead.
+                onBlur={() => {
+                  compositionProps.onBlur();
+                  setCaret(null);
+                }}
                 // The placeholder renders as the overlay below so it can carry the
                 // Enter-to-send hint; the attribute stays empty.
                 placeholder=""
@@ -513,6 +642,47 @@ export const Composer = memo(
                   </span>
                 </Text>
               )}
+              {skillPickerOpen && skillToken !== null && (
+                <TypeaheadListbox
+                  listboxId={skillListboxId}
+                  optionId={skillOptionId}
+                  label={t('skillPicker.listLabel')}
+                  emptyLabel={t('skillPicker.empty', {
+                    query: skillToken.query,
+                  })}
+                  options={skillMatches.map((skill) => {
+                    const caption = [
+                      skill.description,
+                      skill.explicitOnly === true
+                        ? t('skillPicker.explicitOnly')
+                        : undefined,
+                    ]
+                      .filter((line) => line !== undefined && line !== '')
+                      .join(' · ');
+                    return {
+                      key: skill.slug,
+                      name: `/${skill.slug}`,
+                      ...(caption !== '' ? { caption } : {}),
+                      leading: (
+                        <BookOpen
+                          aria-hidden
+                          className="text-muted-foreground size-4 shrink-0"
+                        />
+                      ),
+                    };
+                  })}
+                  highlight={skillIndex}
+                  onPick={pickSkill}
+                  onHighlight={setSkillHighlight}
+                />
+              )}
+              {/* How many skills the typed name finds, for a screen reader:
+              the list itself is reached through the field. */}
+              <span role="status" aria-live="polite" className="sr-only">
+                {skillPickerOpen
+                  ? t('skillPicker.count', { count: skillMatches.length })
+                  : ''}
+              </span>
             </div>
 
             <Row
@@ -532,6 +702,7 @@ export const Composer = memo(
                   {...(onAttachFiles !== undefined
                     ? { onAttachFiles: () => fileInputRef.current?.click() }
                     : {})}
+                  {...(skills.length > 0 ? { onUseSkill: startSkillPick } : {})}
                   disabled={disabled}
                 />
                 <ComposerSelectionPicker
@@ -541,6 +712,7 @@ export const Composer = memo(
                     : {})}
                   selection={selection}
                   onSelectionChange={onSelectionChange}
+                  skills={skills}
                   disabled={disabled}
                 />
               </Row>

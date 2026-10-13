@@ -101,6 +101,8 @@ import {
   useThreadBranches,
   useThreadHolds,
   useThreadReasoningEffort,
+  useComposerSkills,
+  useConversationSkills,
   useThreadFeedback,
   useVoiceMode,
   type ChatTurnAttachment,
@@ -129,6 +131,7 @@ import {
   VoiceOutputProvider,
 } from '../hooks/voice-output-context';
 import { chatDraftKey } from '../lib/draft-key';
+import { conversationSkillsOf } from '../lib/skill-picks';
 import type {
   ChatMessageView,
   ComposerModelOption,
@@ -154,6 +157,7 @@ import { BudgetBanner } from './budget-banner';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatTaskTray } from './chat-task-tray';
 import { ChatTranscript } from './chat-transcript';
+import { ChatSkillNamesContext } from './chosen-skill-chips';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
@@ -372,6 +376,14 @@ function ChatSurfaceInner({
   const composerOptions = useComposerModels(organizationId);
   const chatSend = useChatSend(organizationId);
   const threadReasoningEffort = useThreadReasoningEffort(organizationId);
+  // The skills the person may choose, and the conversation's own: every
+  // reply reads those before the model answers.
+  const skillChoices = useComposerSkills(organizationId);
+  const conversationSkills = useConversationSkills(organizationId);
+  const skillNames = useMemo(
+    () => new Set(skillChoices.skills.map((skill) => skill.slug)),
+    [skillChoices.skills],
+  );
   const branchActions = useBranchActions(organizationId);
   const modelPreference = useChatModelPreference(organizationId);
 
@@ -763,6 +775,28 @@ function ChatSurfaceInner({
     }));
   }, [threadId, activeThread]);
 
+  // The conversation's skills hydrate from its row the way the effort pick
+  // does, once per thread; a new chat starts with none. A pick in this
+  // session is left alone.
+  const skillsHydratedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (threadId === undefined) {
+      if (skillsHydratedFor.current === undefined) return;
+      skillsHydratedFor.current = undefined;
+      setSelection((previous) =>
+        previous.skills === undefined
+          ? previous
+          : { ...previous, skills: undefined },
+      );
+      return;
+    }
+    if (activeThread === undefined) return;
+    if (skillsHydratedFor.current === threadId) return;
+    skillsHydratedFor.current = threadId;
+    const stored = conversationSkillsOf(activeThread.capabilities);
+    setSelection((previous) => ({ ...previous, skills: stored }));
+  }, [threadId, activeThread]);
+
   const handleArenaSettle = async (verdict?: ArenaVerdict) => {
     if (viewThreadId === undefined) return;
     const result = await arenaActions.settle(viewThreadId, verdict);
@@ -928,6 +962,15 @@ function ChatSurfaceInner({
       selection.modelSelection !== 'auto'
     ) {
       modelPreference.save(undefined);
+    }
+    if (
+      threadId !== undefined &&
+      (next.skills ?? []).join(' ') !== (selection.skills ?? []).join(' ')
+    ) {
+      // The conversation's skills live on it: a new chat carries them into
+      // the thread its first message creates instead.
+      skillsHydratedFor.current = threadId;
+      conversationSkills.save(threadId, next.skills ?? []);
     }
     if (next.reasoningEffort !== selection.reasoningEffort) {
       // An explicit pick seeds future chats and persists on the conversation
@@ -1411,6 +1454,11 @@ function ChatSurfaceInner({
             ...(threadId === undefined && projectId !== undefined
               ? { projectId }
               : {}),
+            ...(threadId === undefined &&
+            selection.skills !== undefined &&
+            selection.skills.length > 0
+              ? { skills: selection.skills }
+              : {}),
             locale,
           });
           if (threadId === undefined) {
@@ -1485,6 +1533,12 @@ function ChatSurfaceInner({
           // keeps the link it was created with.
           ...(threadId === undefined && projectId !== undefined
             ? { projectId }
+            : {}),
+          // A new conversation starts with the skills chosen for it.
+          ...(threadId === undefined &&
+          selection.skills !== undefined &&
+          selection.skills.length > 0
+            ? { skills: selection.skills }
             : {}),
           locale,
         });
@@ -1906,271 +1960,328 @@ function ChatSurfaceInner({
     // The preview map's identity never changes — the provider re-renders
     // nothing; rows read the map during their own renders.
     <AttachmentPreviewProvider value={sentPreviewsRef.current}>
-      <div className="flex min-h-0 flex-1 flex-row">
-        {/* The page's skip link lands on `main`, which begins with the
+      {/* The skills the person can use: a message that chose one shows it
+          as a chip. */}
+      <ChatSkillNamesContext.Provider value={skillNames}>
+        <div className="flex min-h-0 flex-1 flex-row">
+          {/* The page's skip link lands on `main`, which begins with the
             sidebar — every chat and project row a Tab stop. This one skips
             the sidebar and lands in the message box. */}
-        <SkipLink targetId={COMPOSER_TEXTAREA_ID}>
-          {t('aria.skipToComposer')}
-        </SkipLink>
-        <Stack
-          ref={threadSwapRef}
-          gap={0}
-          className="mobile-nav-clearance mobile-nav-inset relative min-h-0 min-w-0 flex-1"
-        >
-          {/* Mobile header (<md): the Home panel and the floating header
+          <SkipLink targetId={COMPOSER_TEXTAREA_ID}>
+            {t('aria.skipToComposer')}
+          </SkipLink>
+          <Stack
+            ref={threadSwapRef}
+            gap={0}
+            className="mobile-nav-clearance mobile-nav-inset relative min-h-0 min-w-0 flex-1"
+          >
+            {/* Mobile header (<md): the Home panel and the floating header
             below are desktop-only — without this row a phone could neither
             get back to its Home list nor reach the conversation actions. */}
-          <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
-            {/* Back to the Home list — where a phone keeps every chat, task
+            <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
+              {/* Back to the Home list — where a phone keeps every chat, task
                 and conversation (the desktop panel's content). */}
-            <div className="flex w-9 justify-center">
-              <HomeBackButton organizationId={organizationId} />
-            </div>
-            <div className="min-w-0 flex-1 px-2">
-              {headerThread?.title !== undefined && (
-                <Text variant="muted" className="truncate text-center text-sm">
-                  {headerThread.title}
-                </Text>
+              <div className="flex w-9 justify-center">
+                <HomeBackButton organizationId={organizationId} />
+              </div>
+              <div className="min-w-0 flex-1 px-2">
+                {headerThread?.title !== undefined && (
+                  <Text
+                    variant="muted"
+                    className="truncate text-center text-sm"
+                  >
+                    {headerThread.title}
+                  </Text>
+                )}
+              </div>
+              {threadId !== undefined && !threadNotFound ? (
+                <DropdownMenu
+                  align="end"
+                  trigger={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t('aria.threadActions')}
+                      // This menu holds Create task where the header has no
+                      // room for its button.
+                      onPointerEnter={
+                        canCreateTask ? warmCreateTaskFromChat : undefined
+                      }
+                      onFocus={
+                        canCreateTask ? warmCreateTaskFromChat : undefined
+                      }
+                    >
+                      <Ellipsis className="text-muted-foreground size-5" />
+                    </Button>
+                  }
+                  items={headerMenuItems}
+                />
+              ) : (
+                // Keep the title centered when the menu has no seat.
+                <div aria-hidden className="size-9" />
               )}
             </div>
-            {threadId !== undefined && !threadNotFound ? (
-              <DropdownMenu
-                align="end"
-                trigger={
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t('aria.threadActions')}
-                    // This menu holds Create task where the header has no
-                    // room for its button.
-                    onPointerEnter={
-                      canCreateTask ? warmCreateTaskFromChat : undefined
-                    }
-                    onFocus={canCreateTask ? warmCreateTaskFromChat : undefined}
-                  >
-                    <Ellipsis className="text-muted-foreground size-5" />
-                  </Button>
-                }
-                items={headerMenuItems}
-              />
-            ) : (
-              // Keep the title centered when the menu has no seat.
-              <div aria-hidden className="size-9" />
-            )}
-          </div>
 
-          {/* Floating top bar: an absolute overlay on the message column, so
+            {/* Floating top bar: an absolute overlay on the message column, so
             content scrolls beneath it. A plain background gradient dissolves
             to transparent — no backdrop blur — and pointer-events pass
             through everywhere except the controls. Desktop-only: below `md`
             the panel itself is hidden. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
-            <div
-              aria-hidden
-              className={cn(
-                'absolute inset-x-0 top-0',
-                // Over the split columns the dissolve reads as haze — arena
-                // gets a solid bar with a hard edge instead.
-                pair !== null
-                  ? 'bg-background border-border h-13 border-b'
-                  : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
-              )}
-            />
-            {headerThread !== undefined && !threadNotFound ? (
-              <ThreadHeader
-                floating
-                className="pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto"
-                before={panelToggle}
-                leading={
-                  <span className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-lg">
-                    <MessageCircle aria-hidden className="size-4" />
-                  </span>
-                }
-                title={
-                  <h1 className="truncate">
-                    {headerThread.title ?? t('history.untitled')}
-                  </h1>
-                }
-                meta={
-                  activeProject !== undefined || headerThread.isShared ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
+              <div
+                aria-hidden
+                className={cn(
+                  'absolute inset-x-0 top-0',
+                  // Over the split columns the dissolve reads as haze — arena
+                  // gets a solid bar with a hard edge instead.
+                  pair !== null
+                    ? 'bg-background border-border h-13 border-b'
+                    : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
+                )}
+              />
+              {headerThread !== undefined && !threadNotFound ? (
+                <ThreadHeader
+                  floating
+                  className="pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto"
+                  before={panelToggle}
+                  leading={
+                    <span className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-lg">
+                      <MessageCircle aria-hidden className="size-4" />
+                    </span>
+                  }
+                  title={
+                    <h1 className="truncate">
+                      {headerThread.title ?? t('history.untitled')}
+                    </h1>
+                  }
+                  meta={
+                    activeProject !== undefined || headerThread.isShared ? (
+                      <>
+                        {activeProject !== undefined && (
+                          <span className="inline-flex min-w-0 items-center gap-1">
+                            <ProjectAvatar
+                              name={activeProject.name}
+                              icon={activeProject.icon}
+                              color={activeProject.color}
+                              size={16}
+                              variant="plain"
+                              className="size-3 [&_svg]:size-3"
+                            />
+                            <span className="truncate">
+                              {activeProject.name}
+                            </span>
+                          </span>
+                        )}
+                        {activeProject !== undefined &&
+                          headerThread.isShared && <ThreadHeaderSeparator />}
+                        {headerThread.isShared && (
+                          <span className="inline-flex shrink-0 items-center gap-1">
+                            <Share2 aria-hidden className="size-3" />
+                            {t('share.sharedIndicator')}
+                          </span>
+                        )}
+                      </>
+                    ) : undefined
+                  }
+                  actions={
                     <>
-                      {activeProject !== undefined && (
-                        <span className="inline-flex min-w-0 items-center gap-1">
-                          <ProjectAvatar
-                            name={activeProject.name}
-                            icon={activeProject.icon}
-                            color={activeProject.color}
-                            size={16}
-                            variant="plain"
-                            className="size-3 [&_svg]:size-3"
-                          />
-                          <span className="truncate">{activeProject.name}</span>
-                        </span>
-                      )}
-                      {activeProject !== undefined && headerThread.isShared && (
-                        <ThreadHeaderSeparator />
-                      )}
-                      {headerThread.isShared && (
-                        <span className="inline-flex shrink-0 items-center gap-1">
-                          <Share2 aria-hidden className="size-3" />
-                          {t('share.sharedIndicator')}
-                        </span>
-                      )}
-                    </>
-                  ) : undefined
-                }
-                actions={
-                  <>
-                    {canCreateTask && (
-                      // The conversation's one verb: the hand-over to a
-                      // project agent, where people look for it instead of
-                      // inside the menu. Icon-only where the header is tight.
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={ListChecks}
-                        onClick={() => setCreateTaskOpen(true)}
-                        onPointerEnter={warmCreateTaskFromChat}
-                        onFocus={warmCreateTaskFromChat}
-                        aria-label={t('createTask.headerButton')}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <span className="hidden @xl/thread-header:inline">
-                          {t('createTask.headerButton')}
-                        </span>
-                      </Button>
-                    )}
-                    <DropdownMenu
-                      align="end"
-                      trigger={
+                      {canCreateTask && (
+                        // The conversation's one verb: the hand-over to a
+                        // project agent, where people look for it instead of
+                        // inside the menu. Icon-only where the header is tight.
                         <Button
-                          size="icon"
                           variant="ghost"
-                          // Distinct from the sidebar rows' per-thread "More
-                          // actions": a screen reader (and a test locator)
-                          // must be able to tell the conversation-level menu
-                          // apart.
-                          aria-label={t('aria.threadActions')}
+                          size="sm"
+                          icon={ListChecks}
+                          onClick={() => setCreateTaskOpen(true)}
+                          onPointerEnter={warmCreateTaskFromChat}
+                          onFocus={warmCreateTaskFromChat}
+                          aria-label={t('createTask.headerButton')}
+                          className="text-muted-foreground hover:text-foreground"
                         >
-                          <Ellipsis className="text-muted-foreground size-5 p-0.25" />
+                          <span className="hidden @xl/thread-header:inline">
+                            {t('createTask.headerButton')}
+                          </span>
                         </Button>
-                      }
-                      items={desktopMenuItems}
-                    />
-                  </>
+                      )}
+                      <DropdownMenu
+                        align="end"
+                        trigger={
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            // Distinct from the sidebar rows' per-thread "More
+                            // actions": a screen reader (and a test locator)
+                            // must be able to tell the conversation-level menu
+                            // apart.
+                            aria-label={t('aria.threadActions')}
+                          >
+                            <Ellipsis className="text-muted-foreground size-5 p-0.25" />
+                          </Button>
+                        }
+                        items={desktopMenuItems}
+                      />
+                    </>
+                  }
+                />
+              ) : (
+                <div className="relative flex h-13 items-center px-4">
+                  {panelToggle}
+                </div>
+              )}
+            </div>
+            {threadNotFound ? (
+              // Deleted, foreign, or revoked-share thread: an explicit dead end
+              // with a way out — never a healthy-looking empty conversation the
+              // user types into only to be refused after the fact.
+              <EmptyState
+                icon={MessageSquareOff}
+                title={t('notFound')}
+                headingLevel={2}
+                className="min-h-0 flex-1"
+                action={
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      void navigate({
+                        to: '/dashboard/$id/chat',
+                        params: { id: organizationId },
+                        search: { new: true },
+                      })
+                    }
+                  >
+                    {t('newChat')}
+                  </Button>
                 }
               />
-            ) : (
-              <div className="relative flex h-13 items-center px-4">
-                {panelToggle}
-              </div>
-            )}
-          </div>
-          {threadNotFound ? (
-            // Deleted, foreign, or revoked-share thread: an explicit dead end
-            // with a way out — never a healthy-looking empty conversation the
-            // user types into only to be refused after the fact.
-            <EmptyState
-              icon={MessageSquareOff}
-              title={t('notFound')}
-              headingLevel={2}
-              className="min-h-0 flex-1"
-              action={
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    void navigate({
-                      to: '/dashboard/$id/chat',
-                      params: { id: organizationId },
-                      search: { new: true },
-                    })
-                  }
-                >
-                  {t('newChat')}
-                </Button>
-              }
-            />
-          ) : pair !== null && viewThreadId !== undefined ? (
-            <ArenaSplitView
-              organizationId={organizationId}
-              threadIdA={pair.threadIdA}
-              threadIdB={pair.threadIdB}
-              pairCreatedAt={pair.createdAt}
-              {...(selection.modelId !== undefined
-                ? { modelAId: selection.modelId }
-                : {})}
-              onModelAChange={(modelId, providerSlug) =>
-                // Column A IS the composer's pick — changing it here changes
-                // the one selection, so the two controls never disagree.
-                handleSelectionChange({ ...selection, modelId, providerSlug })
-              }
-              models={models}
-              modelBId={arenaModelBId}
-              onModelBChange={(id, providerSlug) =>
-                setArenaModelB({ id, providerSlug })
-              }
-              generating={
-                generationInFlight || arenaBusyB || openArenaRound !== undefined
-              }
-              round={openArenaRound}
-              voiceEnabled={voiceEnabled && speakAvailable}
-              onVerdict={(verdict) => void handleArenaSettle(verdict)}
-              onExit={() => void handleArenaSettle(undefined)}
-            />
-          ) : messagesAvailable || threadView.items.length > 0 ? (
-            <Stack gap={0} className="min-h-0 min-w-0 flex-1">
-              {!viewerIsOwner && (
-                <Text
-                  role="note"
-                  variant="muted"
-                  className="border-border bg-muted/40 mx-auto mt-2 w-fit rounded-full border px-4 py-1.5 text-xs md:mt-14"
-                >
-                  {t('readOnlyShared')}
-                </Text>
-              )}
-              <ChatMessagesErrorBoundary
+            ) : pair !== null && viewThreadId !== undefined ? (
+              <ArenaSplitView
                 organizationId={organizationId}
-                threadId={viewThreadId}
-              >
-                <ChatTranscript
+                threadIdA={pair.threadIdA}
+                threadIdB={pair.threadIdB}
+                pairCreatedAt={pair.createdAt}
+                {...(selection.modelId !== undefined
+                  ? { modelAId: selection.modelId }
+                  : {})}
+                onModelAChange={(modelId, providerSlug) =>
+                  // Column A IS the composer's pick — changing it here changes
+                  // the one selection, so the two controls never disagree.
+                  handleSelectionChange({ ...selection, modelId, providerSlug })
+                }
+                models={models}
+                modelBId={arenaModelBId}
+                onModelBChange={(id, providerSlug) =>
+                  setArenaModelB({ id, providerSlug })
+                }
+                generating={
+                  generationInFlight ||
+                  arenaBusyB ||
+                  openArenaRound !== undefined
+                }
+                round={openArenaRound}
+                voiceEnabled={voiceEnabled && speakAvailable}
+                onVerdict={(verdict) => void handleArenaSettle(verdict)}
+                onExit={() => void handleArenaSettle(undefined)}
+              />
+            ) : messagesAvailable || threadView.items.length > 0 ? (
+              <Stack gap={0} className="min-h-0 min-w-0 flex-1">
+                {!viewerIsOwner && (
+                  <Text
+                    role="note"
+                    variant="muted"
+                    className="border-border bg-muted/40 mx-auto mt-2 w-fit rounded-full border px-4 py-1.5 text-xs md:mt-14"
+                  >
+                    {t('readOnlyShared')}
+                  </Text>
+                )}
+                <ChatMessagesErrorBoundary
                   organizationId={organizationId}
                   threadId={viewThreadId}
-                  readOnly={!viewerIsOwner}
-                  threadRootId={threadId}
-                  pendingSend={pendingSend}
-                  isGenerating={generationInFlight || pendingSend !== null}
-                  scrollIntentRef={scrollIntentRef}
-                  feedback={viewerIsOwner ? feedbackByMessage : undefined}
-                  forkGroups={viewerIsOwner ? forkGroups : undefined}
-                  // An archived conversation reads; every mutating affordance
-                  // waits for the banner's Unarchive.
-                  onEditSubmit={
-                    viewerIsOwner && !threadArchived
-                      ? handleEditSubmit
-                      : undefined
-                  }
-                  // Regenerating picks the composer's current DIRECT model — a
-                  // sandbox thread's turns run elsewhere, so it has no re-run here.
-                  onRegenerate={
-                    viewerIsOwner &&
-                    !threadArchived &&
-                    activeThread?.kind !== 'sandbox'
-                      ? handleRegenerate
-                      : undefined
-                  }
-                  onFork={
-                    viewerIsOwner && !threadArchived ? handleFork : undefined
-                  }
-                  voiceEnabled={voiceEnabled && viewerIsOwner}
-                  speakAvailable={speakAvailable}
-                  // Clears the floating top bar at rest.
-                  className={viewerIsOwner ? 'md:pt-13' : undefined}
+                >
+                  <ChatTranscript
+                    organizationId={organizationId}
+                    threadId={viewThreadId}
+                    readOnly={!viewerIsOwner}
+                    threadRootId={threadId}
+                    pendingSend={pendingSend}
+                    isGenerating={generationInFlight || pendingSend !== null}
+                    scrollIntentRef={scrollIntentRef}
+                    feedback={viewerIsOwner ? feedbackByMessage : undefined}
+                    forkGroups={viewerIsOwner ? forkGroups : undefined}
+                    // An archived conversation reads; every mutating affordance
+                    // waits for the banner's Unarchive.
+                    onEditSubmit={
+                      viewerIsOwner && !threadArchived
+                        ? handleEditSubmit
+                        : undefined
+                    }
+                    // Regenerating picks the composer's current DIRECT model — a
+                    // sandbox thread's turns run elsewhere, so it has no re-run here.
+                    onRegenerate={
+                      viewerIsOwner &&
+                      !threadArchived &&
+                      activeThread?.kind !== 'sandbox'
+                        ? handleRegenerate
+                        : undefined
+                    }
+                    onFork={
+                      viewerIsOwner && !threadArchived ? handleFork : undefined
+                    }
+                    voiceEnabled={voiceEnabled && viewerIsOwner}
+                    speakAvailable={speakAvailable}
+                    // Clears the floating top bar at rest.
+                    className={viewerIsOwner ? 'md:pt-13' : undefined}
+                  />
+                </ChatMessagesErrorBoundary>
+              </Stack>
+            ) : threadId !== undefined ? (
+              threadView.status === 'unavailable' ? (
+                <EmptyState
+                  icon={PlugZap}
+                  title={t('backendUnavailable.title')}
+                  description={t('backendUnavailable.description')}
+                  headingLevel={2}
+                  className="min-h-0 flex-1"
                 />
-              </ChatMessagesErrorBoundary>
-            </Stack>
-          ) : threadId !== undefined ? (
-            threadView.status === 'unavailable' ? (
+              ) : (
+                // The open thread's messages are on their way — message-shaped
+                // masks in place, never an outage notice (or a bare spinner) for
+                // an answer that is merely in flight.
+                <ConversationSkeleton
+                  label={t('loadingConversation')}
+                  className="md:pt-13"
+                />
+              )
+            ) : needsProviderSetup ? (
+              <EmptyState
+                icon={Cpu}
+                title={t('providerSetup.title')}
+                description={t(
+                  canManageProviders
+                    ? 'providerSetup.descriptionAdmin'
+                    : 'providerSetup.descriptionMember',
+                )}
+                headingLevel={2}
+                className="min-h-0 flex-1"
+                // Only whoever can actually open the providers page gets the
+                // shortcut; pointing everyone else at a page they cannot read
+                // is a dead end.
+                {...(canManageProviders
+                  ? {
+                      action: (
+                        <Button asChild>
+                          <Link
+                            to="/dashboard/$id/settings/providers"
+                            params={{ id: organizationId }}
+                          >
+                            {t('providerSetup.action')}
+                          </Link>
+                        </Button>
+                      ),
+                    }
+                  : {})}
+              />
+            ) : threads.status === 'unavailable' ? (
               <EmptyState
                 icon={PlugZap}
                 title={t('backendUnavailable.title')}
@@ -2179,261 +2290,217 @@ function ChatSurfaceInner({
                 className="min-h-0 flex-1"
               />
             ) : (
-              // The open thread's messages are on their way — message-shaped
-              // masks in place, never an outage notice (or a bare spinner) for
-              // an answer that is merely in flight.
-              <ConversationSkeleton
-                label={t('loadingConversation')}
-                className="md:pt-13"
-              />
-            )
-          ) : needsProviderSetup ? (
-            <EmptyState
-              icon={Cpu}
-              title={t('providerSetup.title')}
-              description={t(
-                canManageProviders
-                  ? 'providerSetup.descriptionAdmin'
-                  : 'providerSetup.descriptionMember',
-              )}
-              headingLevel={2}
-              className="min-h-0 flex-1"
-              // Only whoever can actually open the providers page gets the
-              // shortcut; pointing everyone else at a page they cannot read
-              // is a dead end.
-              {...(canManageProviders
-                ? {
-                    action: (
-                      <Button asChild>
-                        <Link
-                          to="/dashboard/$id/settings/providers"
-                          params={{ id: organizationId }}
-                        >
-                          {t('providerSetup.action')}
-                        </Link>
-                      </Button>
-                    ),
-                  }
-                : {})}
-            />
-          ) : threads.status === 'unavailable' ? (
-            <EmptyState
-              icon={PlugZap}
-              title={t('backendUnavailable.title')}
-              description={t('backendUnavailable.description')}
-              headingLevel={2}
-              className="min-h-0 flex-1"
-            />
-          ) : (
-            // The index IS a conversation about to start: the restored 0.3
-            // welcome — a heading and four starters. A starter fills the
-            // composer for tailoring (the 0.3 behavior); Enter then sends it.
-            // It also holds while the model listing is still answering, so the
-            // surface never flips welcome → provider-setup → welcome across
-            // navigations.
-            <WelcomeView onSuggestionClick={handleStarterClick} />
-          )}
+              // The index IS a conversation about to start: the restored 0.3
+              // welcome — a heading and four starters. A starter fills the
+              // composer for tailoring (the 0.3 behavior); Enter then sends it.
+              // It also holds while the model listing is still answering, so the
+              // surface never flips welcome → provider-setup → welcome across
+              // navigations.
+              <WelcomeView onSuggestionClick={handleStarterClick} />
+            )}
 
-          {!threadNotFound &&
-            (threadArchived ? (
-              <ArchivedBanner
-                isUnarchiving={unarchiving}
-                onUnarchive={handleUnarchive}
-              />
-            ) : (
-              <div className="shrink-0 px-4 pb-4">
-                <BudgetBanner
-                  organizationId={organizationId}
-                  {...(spendProjectId !== undefined
-                    ? { projectId: spendProjectId }
-                    : {})}
+            {!threadNotFound &&
+              (threadArchived ? (
+                <ArchivedBanner
+                  isUnarchiving={unarchiving}
+                  onUnarchive={handleUnarchive}
                 />
-                {/* The tasks this conversation handed over, live. */}
-                {threadId !== undefined && pair === null && (
-                  <ChatTaskTray
+              ) : (
+                <div className="shrink-0 px-4 pb-4">
+                  <BudgetBanner
                     organizationId={organizationId}
-                    threadId={threadId}
+                    {...(spendProjectId !== undefined
+                      ? { projectId: spendProjectId }
+                      : {})}
                   />
-                )}
-                {/* Sends parked while their attachments still process —
+                  {/* The tasks this conversation handed over, live. */}
+                  {threadId !== undefined && pair === null && (
+                    <ChatTaskTray
+                      organizationId={organizationId}
+                      threadId={threadId}
+                    />
+                  )}
+                  {/* Sends parked while their attachments still process —
                     the watcher fires each one when it is ready. */}
-                {viewThreadId !== undefined && (
-                  <DeferredSendTray
-                    organizationId={organizationId}
-                    threadId={viewThreadId}
-                    onRestoreText={stableRestoreText}
-                  />
-                )}
-                <Composer
-                  ref={composerRef}
-                  textareaId={COMPOSER_TEXTAREA_ID}
-                  draftKey={draftKey}
-                  models={models}
-                  subscriptionProviders={subscriptionProviders}
-                  selection={selection}
-                  onSelectionChange={stableSelectionChange}
-                  onSend={stableSend}
-                  onStop={stableStop}
-                  generating={generationInFlight}
-                  stopPending={stopPending}
-                  disabled={composerDisabled}
-                  // Send waits for its prerequisites: a model, the running
-                  // turn to settle, and the reads a correct send needs (the
-                  // thread list and the open thread's messages). Typing and
-                  // the picker stay usable throughout. In arena the surface
-                  // deliberately SKIPS its own thread view (the columns each
-                  // own one), so that read can never become available — the
-                  // columns' liveness gates (arenaBusyB / generationInFlight)
-                  // stand in for it.
-                  // Processing media no longer holds Send — a send during
-                  // transcription/indexing/video ingest parks server-side
-                  // and fires on readiness. Only a FAILED video chip still
-                  // blocks: parking past it would wait forever, so the
-                  // user retries or removes it first.
-                  sendDisabled={
-                    (selection.modelId === undefined &&
-                      selection.modelSelection !== 'auto') ||
-                    generationInFlight ||
-                    arenaBusyB ||
-                    !threadsAvailable ||
-                    videoLinks.hasFailedJobs ||
-                    (threadId !== undefined &&
-                      !arenaActive &&
-                      !messagesAvailable)
-                  }
-                  // Over budget wins over a failed chip — the period cap
-                  // is the harder stop.
-                  {...(budgetExceeded
-                    ? { sendBlockedReason: t('budgetExceededDefault') }
-                    : videoLinks.hasFailedJobs
+                  {viewThreadId !== undefined && (
+                    <DeferredSendTray
+                      organizationId={organizationId}
+                      threadId={viewThreadId}
+                      onRestoreText={stableRestoreText}
+                    />
+                  )}
+                  <Composer
+                    ref={composerRef}
+                    textareaId={COMPOSER_TEXTAREA_ID}
+                    draftKey={draftKey}
+                    models={models}
+                    subscriptionProviders={subscriptionProviders}
+                    selection={selection}
+                    onSelectionChange={stableSelectionChange}
+                    skillChoices={skillChoices}
+                    onSend={stableSend}
+                    onStop={stableStop}
+                    generating={generationInFlight}
+                    stopPending={stopPending}
+                    disabled={composerDisabled}
+                    // Send waits for its prerequisites: a model, the running
+                    // turn to settle, and the reads a correct send needs (the
+                    // thread list and the open thread's messages). Typing and
+                    // the picker stay usable throughout. In arena the surface
+                    // deliberately SKIPS its own thread view (the columns each
+                    // own one), so that read can never become available — the
+                    // columns' liveness gates (arenaBusyB / generationInFlight)
+                    // stand in for it.
+                    // Processing media no longer holds Send — a send during
+                    // transcription/indexing/video ingest parks server-side
+                    // and fires on readiness. Only a FAILED video chip still
+                    // blocks: parking past it would wait forever, so the
+                    // user retries or removes it first.
+                    sendDisabled={
+                      (selection.modelId === undefined &&
+                        selection.modelSelection !== 'auto') ||
+                      generationInFlight ||
+                      arenaBusyB ||
+                      !threadsAvailable ||
+                      videoLinks.hasFailedJobs ||
+                      (threadId !== undefined &&
+                        !arenaActive &&
+                        !messagesAvailable)
+                    }
+                    // Over budget wins over a failed chip — the period cap
+                    // is the harder stop.
+                    {...(budgetExceeded
+                      ? { sendBlockedReason: t('budgetExceededDefault') }
+                      : videoLinks.hasFailedJobs
+                        ? {
+                            sendBlockedReason: t(
+                              'videoLink.chip.failedSendBlockedTooltip',
+                            ),
+                          }
+                        : {})}
+                    quotedText={quotedText}
+                    onQuotedTextChange={setQuotedText}
+                    // Attachments: hidden during a live arena pair — the
+                    // lanes compare models on identical input, and the staged
+                    // set was cleared when the pair went live.
+                    {...(pair === null
                       ? {
-                          sendBlockedReason: t(
-                            'videoLink.chip.failedSendBlockedTooltip',
-                          ),
+                          attachments: stagedAttachments,
+                          uploadingAttachments: uploadingFiles,
+                          onAttachFiles: stableAttachFiles,
+                          onRemoveAttachment: stableRemoveAttachment,
+                          onCancelAttachmentUpload: stableCancelUpload,
+                          attachAccept,
+                          transcriptionStatuses,
+                          onRetryTranscription: stableRetryTranscription,
+                          indexingStatuses,
+                          videoLinkJobs: videoLinks.jobs,
+                          onCancelVideoJob: stableCancelVideoJob,
+                          onRetryVideoJob: stableRetryVideoJob,
+                          onIngestVideoUrls: stableIngestVideoUrls,
                         }
                       : {})}
-                  quotedText={quotedText}
-                  onQuotedTextChange={setQuotedText}
-                  // Attachments: hidden during a live arena pair — the
-                  // lanes compare models on identical input, and the staged
-                  // set was cleared when the pair went live.
-                  {...(pair === null
-                    ? {
-                        attachments: stagedAttachments,
-                        uploadingAttachments: uploadingFiles,
-                        onAttachFiles: stableAttachFiles,
-                        onRemoveAttachment: stableRemoveAttachment,
-                        onCancelAttachmentUpload: stableCancelUpload,
-                        attachAccept,
-                        transcriptionStatuses,
-                        onRetryTranscription: stableRetryTranscription,
-                        indexingStatuses,
-                        videoLinkJobs: videoLinks.jobs,
-                        onCancelVideoJob: stableCancelVideoJob,
-                        onRetryVideoJob: stableRetryVideoJob,
-                        onIngestVideoUrls: stableIngestVideoUrls,
-                      }
-                    : {})}
-                  voiceOutput={voiceEnabled}
-                  onVoiceOutputChange={stableVoiceOutputChange}
-                  voiceOutputHidden={voiceVetoed}
-                  voiceOutputAvailable={voiceCapabilities.hasTts}
-                  // Browser recognition remains independent; server fallback
-                  // and uploaded media share the organization's resolver.
-                  organizationId={organizationId}
-                  transcriptionAvailable={voiceCapabilities.hasTranscription}
-                  transcriptionUnavailableReason={
-                    voiceCapabilities.transcriptionUnavailableReason
-                  }
-                  onTranscriptionUnavailable={handleTranscriptionUnavailable}
-                  {...(arenaAvailable || pair !== null
-                    ? {
-                        arenaActive: pair !== null,
-                        onArenaChange: handleArenaChange,
-                      }
-                    : {})}
-                />
-                {/* The confidentiality disclosure sits with the field it
+                    voiceOutput={voiceEnabled}
+                    onVoiceOutputChange={stableVoiceOutputChange}
+                    voiceOutputHidden={voiceVetoed}
+                    voiceOutputAvailable={voiceCapabilities.hasTts}
+                    // Browser recognition remains independent; server fallback
+                    // and uploaded media share the organization's resolver.
+                    organizationId={organizationId}
+                    transcriptionAvailable={voiceCapabilities.hasTranscription}
+                    transcriptionUnavailableReason={
+                      voiceCapabilities.transcriptionUnavailableReason
+                    }
+                    onTranscriptionUnavailable={handleTranscriptionUnavailable}
+                    {...(arenaAvailable || pair !== null
+                      ? {
+                          arenaActive: pair !== null,
+                          onArenaChange: handleArenaChange,
+                        }
+                      : {})}
+                  />
+                  {/* The confidentiality disclosure sits with the field it
                     governs — visible BEFORE the first send, not only under a
                     settled reply (gematik: the notice is pre-input). */}
-                <DataNoticeFooter
-                  organizationId={organizationId}
-                  className="pt-1 pb-1"
-                />
-              </div>
-            ))}
-        </Stack>
+                  <DataNoticeFooter
+                    organizationId={organizationId}
+                    className="pt-1 pb-1"
+                  />
+                </div>
+              ))}
+          </Stack>
 
-        <TranscriptionAvailabilityNotice
-          open={transcriptionFailure !== null}
-          onOpenChange={(open) => {
-            if (!open) setTranscriptionFailure(null);
-          }}
-          reason={transcriptionFailure ?? undefined}
-          setupAction={transcriptionSetupAction}
-          onRetry={voiceCapabilities.refresh}
-        />
-
-        {/* Mounted only while open; exports read the view thread — the sibling
-          actually on screen. */}
-        {exportOpen && viewThreadId !== undefined && (
-          <ExportChatDialog
-            open={exportOpen}
-            onOpenChange={setExportOpen}
-            organizationId={organizationId}
-            threadId={viewThreadId}
-            threadTitle={headerThread?.title}
+          <TranscriptionAvailabilityNotice
+            open={transcriptionFailure !== null}
+            onOpenChange={(open) => {
+              if (!open) setTranscriptionFailure(null);
+            }}
+            reason={transcriptionFailure ?? undefined}
+            setupAction={transcriptionSetupAction}
+            onRetry={voiceCapabilities.refresh}
           />
-        )}
 
-        {/* The header menu's Create task — the task dialog, drafted from the
+          {/* Mounted only while open; exports read the view thread — the sibling
+          actually on screen. */}
+          {exportOpen && viewThreadId !== undefined && (
+            <ExportChatDialog
+              open={exportOpen}
+              onOpenChange={setExportOpen}
+              organizationId={organizationId}
+              threadId={viewThreadId}
+              threadTitle={headerThread?.title}
+            />
+          )}
+
+          {/* The header menu's Create task — the task dialog, drafted from the
           sibling on screen, linking back to the root. */}
-        {createTaskOpen &&
-          threadId !== undefined &&
-          viewThreadId !== undefined && (
-            <CreateTaskFromChat
-              open={createTaskOpen}
-              onOpenChange={setCreateTaskOpen}
+          {createTaskOpen &&
+            threadId !== undefined &&
+            viewThreadId !== undefined && (
+              <CreateTaskFromChat
+                open={createTaskOpen}
+                onOpenChange={setCreateTaskOpen}
+                organizationId={organizationId}
+                threadId={threadId}
+                viewThreadId={viewThreadId}
+                threadTitle={headerThread?.title}
+                projectId={headerThread?.projectId}
+                viewerIsOwner={viewerIsOwner}
+              />
+            )}
+
+          {/* The header menu's Share — status, link, republish, revoke. The
+          link names the root; the snapshot is the sibling on screen. */}
+          {threadId !== undefined && viewThreadId !== undefined && (
+            <ShareChatDialog
+              open={shareOpen}
+              onOpenChange={setShareOpen}
               organizationId={organizationId}
               threadId={threadId}
               viewThreadId={viewThreadId}
-              threadTitle={headerThread?.title}
-              projectId={headerThread?.projectId}
-              viewerIsOwner={viewerIsOwner}
             />
           )}
 
-        {/* The header menu's Share — status, link, republish, revoke. The
-          link names the root; the snapshot is the sibling on screen. */}
-        {threadId !== undefined && viewThreadId !== undefined && (
-          <ShareChatDialog
-            open={shareOpen}
-            onOpenChange={setShareOpen}
-            organizationId={organizationId}
-            threadId={threadId}
-            viewThreadId={viewThreadId}
-          />
-        )}
+          {/* The header menu's Delete — same dialog as the row menu's. */}
+          {deleteOpen && activeThread !== undefined && (
+            <ThreadDeleteDialog
+              thread={activeThread}
+              organizationId={organizationId}
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+            />
+          )}
 
-        {/* The header menu's Delete — same dialog as the row menu's. */}
-        {deleteOpen && activeThread !== undefined && (
-          <ThreadDeleteDialog
-            thread={activeThread}
-            organizationId={organizationId}
-            open={deleteOpen}
-            onOpenChange={setDeleteOpen}
-          />
-        )}
-
-        {/* Select text in a reply → floating Quote → chip over the composer.
+          {/* Select text in a reply → floating Quote → chip over the composer.
           Mounted only where quoting can land somewhere (the composer). */}
-        {!threadNotFound && !threadArchived && viewerIsOwner && (
-          <SelectionQuoteButton onQuote={setQuotedText} />
-        )}
+          {!threadNotFound && !threadArchived && viewerIsOwner && (
+            <SelectionQuoteButton onQuote={setQuotedText} />
+          )}
 
-        {/* One polite live region narrating voice playback transitions. */}
-        <VoiceOutputAnnouncer />
-      </div>
+          {/* One polite live region narrating voice playback transitions. */}
+          <VoiceOutputAnnouncer />
+        </div>
+      </ChatSkillNamesContext.Provider>
     </AttachmentPreviewProvider>
   );
 }

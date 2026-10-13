@@ -406,6 +406,7 @@
     "./testing/flow": "./src/testing/flow.ts",
     "./text": "./src/components/typography/text.tsx",
     "./textarea": "./src/components/forms/textarea.tsx",
+    "./typeahead-listbox": "./src/components/forms/typeahead-listbox.tsx",
     "./theme": "./src/theme/index.ts",
     "./theme-switcher": "./src/components/site/theme-switcher.tsx",
     "./theme/assets": "./src/theme/theme-assets.tsx",

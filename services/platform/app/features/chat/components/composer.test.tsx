@@ -95,6 +95,7 @@ function renderComposer({
   onCancelVideoJob,
   onRetryVideoJob,
   onIngestVideoUrls,
+  skillChoices,
 }: {
   models?: ComposerModelOption[];
   subscriptionProviders?: readonly string[];
@@ -124,6 +125,7 @@ function renderComposer({
   onCancelVideoJob?: (jobId: string) => void;
   onRetryVideoJob?: (jobId: string) => void;
   onIngestVideoUrls?: (text: string) => void;
+  skillChoices?: ComponentProps<typeof Composer>['skillChoices'];
 } = {}) {
   const seen: ComposerSelection[] = [];
   const draftKey = `chat-draft-test-${++draftSeq}`;
@@ -172,6 +174,7 @@ function renderComposer({
         {...(onCancelVideoJob !== undefined ? { onCancelVideoJob } : {})}
         {...(onRetryVideoJob !== undefined ? { onRetryVideoJob } : {})}
         {...(onIngestVideoUrls !== undefined ? { onIngestVideoUrls } : {})}
+        {...(skillChoices !== undefined ? { skillChoices } : {})}
         voiceOutput={false}
         onVoiceOutputChange={onVoiceOutputChange}
         arenaActive={false}
@@ -193,7 +196,9 @@ async function openSection(
   name: RegExp,
 ) {
   await user.click(
-    screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    screen.getByRole('button', {
+      name: 'Choose model, reasoning effort and skills',
+    }),
   );
   await user.click(screen.getByRole('menuitem', { name }));
 }
@@ -205,7 +210,9 @@ describe('Composer model picker', () => {
     });
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('Claude Fable 5');
   });
 
@@ -224,7 +231,7 @@ describe('Composer model picker', () => {
     });
 
     const trigger = screen.getByRole('button', {
-      name: 'Choose model and reasoning effort',
+      name: 'Choose model, reasoning effort and skills',
     });
     expect(trigger).toHaveTextContent(/Claude Fable 5 Low/);
     expect(trigger).not.toHaveTextContent(/Fable 5Low/);
@@ -234,7 +241,9 @@ describe('Composer model picker', () => {
     renderComposer();
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('Select model');
   });
 
@@ -242,7 +251,9 @@ describe('Composer model picker', () => {
     renderComposer({ models: [] });
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('No models available');
   });
 
@@ -304,7 +315,9 @@ describe('Composer model picker', () => {
     });
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('Auto');
   });
 
@@ -370,7 +383,9 @@ describe('Composer model picker', () => {
     });
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).not.toHaveTextContent(/Low/);
 
     await openSection(user, /^Reasoning effort/);
@@ -381,6 +396,137 @@ describe('Composer model picker', () => {
     expect(
       screen.queryByRole('menuitemradio', { name: 'Low' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('Composer skills [CHAT-R29]', () => {
+  const SKILLS = {
+    enabled: true,
+    skills: [
+      { slug: 'docx', description: 'Word documents' },
+      { slug: 'pdf', description: 'PDF files' },
+      { slug: 'xlsx', description: 'Spreadsheets', explicitOnly: true },
+    ],
+  };
+  const field = () => screen.getByRole('textbox', { name: 'Message input' });
+
+  it('lists the skills a / at the start of the message can name', async () => {
+    const { user } = renderComposer({ skillChoices: SKILLS });
+    await user.type(field(), '/');
+
+    const listbox = screen.getByRole('listbox', { name: 'Skills' });
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual([
+      '/docxWord documents',
+      '/pdfPDF files',
+      '/xlsxSpreadsheets · Only when chosen',
+    ]);
+    // The keyboard stays in the field, which points at the list.
+    expect(field()).toHaveAttribute('aria-controls', listbox.id);
+    expect(field()).toHaveAttribute(
+      'aria-activedescendant',
+      screen.getAllByRole('option')[0]?.id,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('3 skills match');
+  });
+
+  it('completes the highlighted name with Enter, and sends nothing', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({ skillChoices: SKILLS, onSend });
+    await user.type(field(), '/x');
+    // Names that start with it first, then names that contain it.
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['/xlsxSpreadsheets · Only when chosen', '/docxWord documents']);
+    await user.keyboard('{Enter}');
+
+    expect(field()).toHaveValue('/xlsx ');
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    await user.type(field(), 'Revenue by month{Enter}');
+    expect(onSend).toHaveBeenCalledWith('/xlsx Revenue by month');
+  });
+
+  it('moves with the arrows and picks with Tab', async () => {
+    const { user } = renderComposer({ skillChoices: SKILLS });
+    await user.type(field(), '/');
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}{Tab}');
+    expect(field()).toHaveValue('/pdf ');
+  });
+
+  it('closes on Escape, and Enter then sends the words as written', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({ skillChoices: SKILLS, onSend });
+    await user.type(field(), '/do');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await user.keyboard('{Enter}');
+    expect(onSend).toHaveBeenCalledWith('/do');
+  });
+
+  it('says when no skill has the name, and sends it as written', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({ skillChoices: SKILLS, onSend });
+    await user.type(field(), '/zip');
+    expect(
+      screen.getByText(
+        'No skill is named "zip". The message is sent as written.',
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(onSend).toHaveBeenCalledWith('/zip');
+  });
+
+  it('opens nothing for a slash in the message’s own words', async () => {
+    const { user } = renderComposer({ skillChoices: SKILLS });
+    await user.type(field(), 'Use the template in /do');
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('opens the list from the + menu, for someone who does not know to type /', async () => {
+    const { user } = renderComposer({ skillChoices: SKILLS });
+    await user.type(field(), 'Summarize it');
+    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Use a skill' }));
+
+    expect(field()).toHaveValue('/ Summarize it');
+    expect(screen.getByRole('listbox', { name: 'Skills' })).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(field()).toHaveValue('/docx Summarize it');
+  });
+
+  it('offers no skill while skills are switched off', async () => {
+    const { user } = renderComposer({
+      skillChoices: { enabled: false, skills: [] },
+    });
+    await user.type(field(), '/');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
+    expect(screen.queryByRole('menuitem', { name: 'Use a skill' })).toBeNull();
+  });
+
+  it('sets the conversation’s skills in the picker, up to four', async () => {
+    const many = {
+      enabled: true,
+      skills: ['a', 'b', 'c', 'd', 'e'].map((slug) => ({ slug })),
+    };
+    const { user, selection } = renderComposer({ skillChoices: many });
+    await openSection(user, /Skills/);
+    // Plain clicks: jsdom's pointer moves would close the portaled submenu
+    // between two toggles, which a browser keeps open (checked live).
+    for (const name of ['a', 'b', 'c', 'd']) {
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name }));
+    }
+
+    expect(selection()?.skills).toEqual(['a', 'b', 'c', 'd']);
+    expect(screen.getByRole('menuitemcheckbox', { name: 'e' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'b' }));
+    expect(selection()?.skills).toEqual(['a', 'c', 'd']);
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'e' }),
+    ).not.toBeDisabled();
   });
 });
 
@@ -605,7 +751,9 @@ describe('Composer accessibility', () => {
       screen.getByRole('button', { name: 'Open chat menu' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Voice mode' }),
@@ -628,7 +776,9 @@ describe('Composer accessibility', () => {
 
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toBeEnabled();
     expect(
       screen.getByRole('textbox', { name: 'Message input' }),

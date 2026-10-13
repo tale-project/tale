@@ -559,10 +559,21 @@ effort:
   maxHint: Kann sehr viele Tokens verbrauchen und lange laufen — hebe es dir für die schwierigsten Aufgaben auf.
   toolsLockedHint: Dieses Modell kann Chat-Tools nicht mit einer Denkaufwand-Stufe kombinieren — jede Nachricht nutzt den Standardaufwand.
 picker:
-  ariaLabel: Modell und Denkaufwand wählen
+  ariaLabel: Modell, Denkaufwand und Skills wählen
   searchPlaceholder: Suchen
   searchEmpty: Keine Treffer
   sectionModel: Modell
+  sectionSkills: Skills
+  skillsDescription: Jede Antwort in diesem Chat liest die Skills, die du anhakst, bevor sie antwortet. Für eine einzelne Nachricht tippst du / an ihren Anfang.
+  skillsLimit: Höchstens {max} Skills.
+  skillsChosen: '{count, plural, one {# Skill} other {# Skills}}'
+skillPicker:
+  listLabel: Skills
+  empty: Kein Skill heißt "{query}". Die Nachricht wird so gesendet, wie sie ist.
+  count: '{count, plural, =0 {Kein Skill passt} one {# Skill passt} other {# Skills passen}}'
+  explicitOnly: Nur wenn gewählt
+skillChip:
+  label: Skill
 thinking:
   label: Denkt nach
   done: Hat {seconds}s nachgedacht

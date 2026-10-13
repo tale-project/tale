@@ -216,6 +216,8 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     useThreadBranches: vi.fn(() => ({ status: 'unavailable' as const })),
     useArenaPair: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatQueryClient: vi.fn(() => ({}) as never),
+    useComposerSkills: vi.fn(() => ({ enabled: false, skills: [] })),
+    useConversationSkills: vi.fn(() => ({ save: vi.fn() })),
   };
 });
 
@@ -268,6 +270,8 @@ import {
   useChatThread,
   useChatThreads,
   useComposerModels,
+  useComposerSkills,
+  useConversationSkills,
   useThreadBranches,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
@@ -351,6 +355,13 @@ afterEach(() => {
   vi.mocked(useThreadBranches).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
+  vi.mocked(useComposerSkills).mockImplementation(() => ({
+    enabled: false,
+    skills: [],
+  }));
+  vi.mocked(useConversationSkills).mockImplementation(() => ({
+    save: vi.fn(),
+  }));
   arenaSettle.mockReset();
   arenaSettle.mockImplementation(() =>
     Promise.resolve({ refused: 'not_found' }),
@@ -395,7 +406,9 @@ async function openSection(
   name: RegExp,
 ) {
   await user.click(
-    screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    screen.getByRole('button', {
+      name: 'Choose model, reasoning effort and skills',
+    }),
   );
   await user.click(screen.getByRole('menuitem', { name }));
 }
@@ -910,7 +923,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       screen.getByRole('textbox', { name: 'Message input' }),
     ).toBeEnabled();
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('deepseek-v4-flash');
   });
 
@@ -1089,7 +1104,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('deepseek-v4-pro');
   });
 
@@ -1127,7 +1144,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       <ChatSurface organizationId="org-1" threadId="t1" />,
     );
     const picker = screen.getByRole('button', {
-      name: 'Choose model and reasoning effort',
+      name: 'Choose model, reasoning effort and skills',
     });
     expect(picker).toHaveTextContent('deepseek-v4-flash');
     // Column B is seeded to the other listed model.
@@ -1216,7 +1233,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('deepseek-v4-pro');
   });
 
@@ -1268,7 +1287,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent('Auto');
   });
 
@@ -1288,7 +1309,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent(MODEL.label);
   });
 
@@ -1443,7 +1466,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     rerender(<ChatSurface organizationId="org-1" threadId="t-new" />);
 
     expect(
-      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
     ).toHaveTextContent(/Low/);
   });
 
@@ -2584,5 +2609,123 @@ describe('ChatSurface on a conversation shared with the project', () => {
     );
     await screen.findByTestId('message-copy-button');
     await checkAccessibility(container);
+  });
+});
+
+describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
+  const MODEL = {
+    id: 'deepseek-v4-flash',
+    label: 'deepseek-v4-flash',
+    providerSlug: 'deepseek',
+    credential: { authMethod: 'api-key' as const },
+  };
+  const READY_MODELS = {
+    status: 'ready' as const,
+    data: {
+      models: [MODEL],
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
+    },
+  };
+
+  it('shows the skills the conversation uses, and saves a change on it', async () => {
+    vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
+    vi.mocked(useComposerSkills).mockReturnValue({
+      enabled: true,
+      skills: [{ slug: 'docx' }, { slug: 'pdf' }],
+    });
+    const save = vi.fn();
+    vi.mocked(useConversationSkills).mockReturnValue({ save });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: () => Promise.reject(new Error('unavailable')),
+      defer: () => Promise.reject(new Error('unavailable')),
+      unbindVideoJobs: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+    } as never);
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    } as never);
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 't1',
+          kind: 'direct',
+          archived: false,
+          createdAt: 0,
+          updatedAt: 0,
+          generating: false,
+          viewerIsOwner: true,
+          capabilities: { skills: ['docx'], connectors: [] },
+        },
+      ],
+    });
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t1" />,
+    );
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: /Skills/ }));
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'docx' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'pdf' }));
+    expect(save).toHaveBeenCalledWith('t1', ['docx', 'pdf']);
+  });
+
+  it('starts a new chat with the skills chosen for it', async () => {
+    vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useComposerSkills).mockReturnValue({
+      enabled: true,
+      skills: [{ slug: 'xlsx' }],
+    });
+    const save = vi.fn();
+    vi.mocked(useConversationSkills).mockReturnValue({ save });
+    const start = vi.fn(() =>
+      Promise.resolve({
+        threadId: 't-new',
+        boundVideoJobIds: [],
+        outcome: new Promise<never>(() => {}),
+      }),
+    );
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start,
+      defer: () => Promise.reject(new Error('unavailable')),
+      unbindVideoJobs: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+    } as never);
+
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: /Skills/ }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'xlsx' }));
+    await user.keyboard('{Escape}{Escape}');
+    // No conversation yet: nothing to save on until the first message.
+    expect(save).not.toHaveBeenCalled();
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'Monthly revenue{Enter}',
+    );
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({ skills: ['xlsx'] }),
+      );
+    });
   });
 });
