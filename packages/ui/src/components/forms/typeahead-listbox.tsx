@@ -86,15 +86,23 @@ export function TypeaheadListbox({
         >
           {options.map((option, index) => {
             const active = index === highlight;
+            const id = optionId(index);
             return (
               <div
                 key={option.key}
-                id={optionId(index)}
+                id={id}
                 role="option"
                 // The keyboard stays in the field and moves through the
                 // options by aria-activedescendant.
                 tabIndex={-1}
                 aria-selected={active}
+                // The name alone names the option; the caption — a skill's
+                // whole description, a person's email — follows it as its
+                // description rather than being read as part of the name.
+                aria-labelledby={`${id}-name`}
+                aria-describedby={
+                  option.caption === undefined ? undefined : `${id}-caption`
+                }
                 className={cn(
                   'flex cursor-pointer items-center gap-2.5 px-3 py-1.5',
                   active && 'bg-accent text-accent-foreground',
@@ -109,12 +117,18 @@ export function TypeaheadListbox({
               >
                 {option.leading}
                 <span className="min-w-0 flex-1">
-                  <Text as="span" variant="label" className="block truncate">
+                  <Text
+                    as="span"
+                    id={`${id}-name`}
+                    variant="label"
+                    className="block truncate"
+                  >
                     {option.name}
                   </Text>
                   {option.caption !== undefined && (
                     <Text
                       as="span"
+                      id={`${id}-caption`}
                       variant="caption"
                       className="text-muted-foreground block truncate"
                     >
