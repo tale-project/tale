@@ -14,6 +14,12 @@ Un agent de code comme Claude Code, Codex ou Cursor peut se connecter lui-même 
 5. Choisis l’**Accès** et, si besoin, ce que tu veux **Autoriser aussi**. La liste « Ce que Claude Code peut faire », avec le nom de ton agent, montre ce que ton choix représente. Ton rôle s’applique toujours : l’agent ne peut jamais faire plus que toi dans cette organisation.
 6. Sélectionne **Connecter**. Tale te renvoie vers l’agent, qui se connecte seul et peut se mettre au travail.
 
+<Frame caption="La page de consentement d’une application qui s’est enregistrée elle-même : là où une application vérifiée montre son domaine, celle-ci porte l’avertissement « Application non vérifiée ».">
+
+![La page de consentement d’une application nommée Cursor : un avertissement indiquant que l’application n’est pas vérifiée, l’organisation où elle travaillera, trois niveaux d’accès et trois options supplémentaires à choisir, un résumé de ce qu’elle peut faire, ainsi que les boutons « Connecter » et « Annuler ».](/images/platform/agent-consent.webp)
+
+</Frame>
+
 La demande qui t’amène à la page de consentement expire au bout de cinq minutes. Si elle a expiré, relance la connexion depuis l’agent.
 
 ### Choisir l’accès
@@ -44,6 +50,12 @@ Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** 
 ## Consulter et déconnecter les agents
 
 Ouvre **Paramètres > API > Agents connectés**. La page existe dès que la connexion des agents est activée et que tu as le droit de connecter un agent dans cette organisation, et elle reste pour toute personne qui a encore une connexion active, afin qu’elle puisse y mettre fin. La liste montre chaque agent avec son nom, son origine (le domaine qu’il a prouvé, ou **Non vérifiée**), l’accès que tu lui as donné, le moment où il s’est connecté et celui de son dernier appel, **Jamais** avant le premier. Tale tient lui-même le compte des appels qu’il a traités avec cette connexion, et c’est de là que vient l’heure du dernier appel, jamais de ce que l’agent affirme.
+
+<Frame caption="Paramètres > API > Agents connectés — chaque agent avec son accès, le jour de sa connexion et celui de sa dernière utilisation.">
+
+![La page Agents connectés liste trois agents de code, tous marqués « Non vérifiée », avec l’accès accordé à chacun, le jour de sa connexion et celui de sa dernière utilisation.](/images/platform/settings-connected-agents.webp)
+
+</Frame>
 
 Tu vois les agents que tu as connectés. Les propriétaires et les admins peuvent passer de **Les miens** à **Tous** pour voir qui a connecté chacun, et activer **Afficher les déconnectés** pour lire quand et pourquoi une connexion a pris fin.
 
