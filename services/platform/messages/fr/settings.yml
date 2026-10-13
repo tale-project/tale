@@ -46,6 +46,9 @@ menu:
     description:
       Où vivent la base de connaissances et les fichiers téléversés de cette
       organisation, et quel modèle d'embedding les traite.
+mcpConnect:
+  title: Connecter un agent de code
+  description: Claude Code, Codex et d’autres agents de code travaillent dans cette organisation via le serveur MCP de Tale. Tu choisis ce qu’un agent peut faire quand il se connecte, et il ne peut jamais faire plus que toi.
 mcpEndpoint:
   title: Endpoint MCP
   description: Branche n'importe quel client MCP sur ce déploiement pour

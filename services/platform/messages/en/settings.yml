@@ -45,6 +45,9 @@ menu:
     description:
       Where this organization's knowledge base and uploaded files live, and
       which model embeds them.
+mcpConnect:
+  title: Connect a coding agent
+  description: Claude Code, Codex and other coding agents work in this organization through Tale's MCP server. You choose what an agent may do when it signs in, and it never does more than you can.
 mcpEndpoint:
   title: MCP endpoint
   description: Point any MCP client at this deployment to author, run and
