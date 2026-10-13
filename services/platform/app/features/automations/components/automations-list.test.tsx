@@ -46,6 +46,24 @@ vi.mock('./automation-row-actions', () => ({
   AutomationRowActions: () => <div data-testid="row-actions" />,
 }));
 
+// The dialog is covered with its own tests: here it only has to open for a
+// new automation and go away again.
+vi.mock('./coding-agent-entry', () => ({
+  CodingAgentDialog: ({
+    context,
+    onOpenChange,
+  }: {
+    context: { kind: string };
+    onOpenChange: (open: boolean) => void;
+  }) => (
+    <div role="dialog" aria-label={`coding agent: ${context.kind}`}>
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close
+      </button>
+    </div>
+  ),
+}));
+
 let automationsData:
   | Array<{
       name: string;
@@ -202,7 +220,7 @@ describe('AutomationsList presentation', () => {
 
 describe('AutomationsList create menu', () => {
   it.each([undefined, 'proj_1'])(
-    'offers a starter, blank and upload from the toolbar for project %s',
+    'offers a starter, a coding agent, blank and upload from the toolbar for project %s',
     async (projectId) => {
       automationsData = [];
       const { user } = render(
@@ -229,11 +247,13 @@ describe('AutomationsList create menu', () => {
         screen.getByRole('button', { name: 'automations.list.createButton' }),
       );
 
-      // A starter leads: the quickest way to an automation that works.
+      // A starter leads: the quickest way to an automation that works. The
+      // coding agent follows: it builds what no starter covers.
       expect(
         screen.getAllByRole('menuitem').map((item) => item.textContent),
       ).toEqual([
         'automations.createMenu.starter',
+        'automations.createMenu.withAgent',
         'automations.createMenu.blank',
         'automations.upload.trigger',
       ]);
@@ -245,6 +265,25 @@ describe('AutomationsList create menu', () => {
       ).toBeInTheDocument();
     },
   );
+
+  it('opens the coding agent for a new automation from the menu, and closes it again', async () => {
+    automationsData = [];
+    const { user } = render(<AutomationsList organizationId="org-1" />);
+
+    await user.click(
+      screen.getByRole('button', { name: 'automations.list.createButton' }),
+    );
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: 'automations.createMenu.withAgent',
+      }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'coding agent: create',
+    });
+    await user.click(screen.getByRole('button', { name: 'close' }));
+    expect(dialog).not.toBeInTheDocument();
+  });
 
   it('keeps create in the table toolbar when rows exist', () => {
     automationsData = [

@@ -15,14 +15,16 @@ import { useState } from 'react';
 
 import { CodingAgentSetup } from '@/app/features/coding-agent/components/coding-agent-setup';
 import { SetupDialogFooter } from '@/app/features/coding-agent/components/setup-dialog-footer';
+import type { PromptContext } from '@/app/features/coding-agent/lib/prompts';
 import { useAgentConnectionAccess } from '@/app/features/settings/agent-connections/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * What the dialog is about: the automation to change, or a failed run of it
- * to look into.
+ * What the dialog is about: a new automation to build, the automation to
+ * change, or a failed run of it to look into.
  */
-type CodingAgentContext =
+export type CodingAgentContext =
+  | { readonly kind: 'create' }
   | { readonly kind: 'edit'; readonly automationSlug: string }
   | {
       readonly kind: 'run';
@@ -115,7 +117,43 @@ export function FixRunButton({
   );
 }
 
-function CodingAgentDialog({
+/** What the dialog says it is for: each key is named in full, so the
+ * catalog's checks can find it. */
+function useDialogText(context: CodingAgentContext): {
+  title: string;
+  body: string;
+} {
+  const { t } = useT('automations');
+  if (context.kind === 'create') {
+    return {
+      title: t('codingAgent.createTitle'),
+      body: t('codingAgent.createBody'),
+    };
+  }
+  if (context.kind === 'run') {
+    return {
+      title: t('codingAgent.fixAction'),
+      body: t('codingAgent.fixBody'),
+    };
+  }
+  return { title: t('codingAgent.button'), body: t('codingAgent.body') };
+}
+
+/** The prompt's context for what the dialog is about. */
+function promptContextOf(context: CodingAgentContext): PromptContext {
+  if (context.kind === 'create') return { kind: 'create' };
+  if (context.kind === 'run') {
+    return {
+      kind: 'run',
+      name: context.automationSlug,
+      runId: context.runId,
+    };
+  }
+  return { kind: 'edit', name: context.automationSlug };
+}
+
+/** The guided setup in a dialog, for what the context is about. */
+export function CodingAgentDialog({
   open,
   onOpenChange,
   organizationId,
@@ -126,20 +164,12 @@ function CodingAgentDialog({
   organizationId: string;
   context: CodingAgentContext;
 }) {
-  const { t } = useT('automations');
+  const { title, body } = useDialogText(context);
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-xl">
-        <ResponsiveDialogTitle>
-          {context.kind === 'run'
-            ? t('codingAgent.fixAction')
-            : t('codingAgent.button')}
-        </ResponsiveDialogTitle>
-        <ResponsiveDialogDescription>
-          {context.kind === 'run'
-            ? t('codingAgent.fixBody')
-            : t('codingAgent.body')}
-        </ResponsiveDialogDescription>
+        <ResponsiveDialogTitle>{title}</ResponsiveDialogTitle>
+        <ResponsiveDialogDescription>{body}</ResponsiveDialogDescription>
         <CodingAgentDialogBody
           organizationId={organizationId}
           context={context}
@@ -153,7 +183,8 @@ function CodingAgentDialog({
  * What the dialog holds once it is open: the guided setup, with a prompt that
  * names this automation (and the run), while agents may sign in; where the
  * operator turned that off, the name (and the run's id) to hand an agent that
- * holds a key and the way to the MCP settings, which describe the key.
+ * holds a key — a new automation has none — and the way to the MCP settings,
+ * which describe the key.
  */
 function CodingAgentDialogBody({
   organizationId,
@@ -167,11 +198,13 @@ function CodingAgentDialogBody({
   if (access?.signInOn === false) {
     return (
       <>
-        <CopyableField
-          label={t('codingAgent.nameLabel')}
-          value={context.automationSlug}
-          mono
-        />
+        {context.kind !== 'create' && (
+          <CopyableField
+            label={t('codingAgent.nameLabel')}
+            value={context.automationSlug}
+            mono
+          />
+        )}
         {context.kind === 'run' && (
           <CopyableField
             label={t('codingAgent.runLabel')}
@@ -205,15 +238,7 @@ function CodingAgentDialogBody({
     <>
       <CodingAgentSetup
         organizationId={organizationId}
-        promptContext={
-          context.kind === 'run'
-            ? {
-                kind: 'run',
-                name: context.automationSlug,
-                runId: context.runId,
-              }
-            : { kind: 'edit', name: context.automationSlug }
-        }
+        promptContext={promptContextOf(context)}
       />
       <SetupDialogFooter />
     </>

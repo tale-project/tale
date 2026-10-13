@@ -42,6 +42,7 @@ describe('buildPrompt', () => {
       const t = translator(messages);
       for (const context of [
         { kind: 'general' },
+        { kind: 'create' },
         { kind: 'edit', name: 'weekly-report' },
         { kind: 'run', name: 'weekly-report', runId: 'run-1' },
       ] as const) {
@@ -89,6 +90,7 @@ describe('buildPrompt', () => {
     (_locale, messages) => {
       const t = translator(messages);
       expect(buildPrompt(t, { kind: 'edit', name: 'x' })).toMatch(/\[[^\]]+\]/);
+      expect(buildPrompt(t, { kind: 'create' })).toMatch(/\[[^\]]+\]/);
     },
   );
 

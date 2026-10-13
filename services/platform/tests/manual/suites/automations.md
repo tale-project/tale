@@ -192,8 +192,10 @@ output:
       (fallback `automations.list.projectBound`)
 - [ ] `AUTO-F5` · **Create menu** — **Create automation**
       (`automations.list.createButton`) on the org and project lists → A dropdown
-      with two lanes: **Blank (trigger + agent)**
-      (`automations.createMenu.blank`), and **Upload package**
+      with four lanes, in this order: **From a starter**
+      (`automations.createMenu.starter`), **With your coding agent**
+      (`automations.createMenu.withAgent`, `AUTO-F183`), **Blank (trigger +
+      agent)** (`automations.createMenu.blank`), and **Upload package**
       (`automations.upload.trigger`); absent entirely without the developer
       capability.
 - [ ] `AUTO-F6` · **~~Builder dialog~~ (retired)** → The independent goal-based
@@ -1012,6 +1014,21 @@ output:
       (`automations.codingAgent.runLabel`) to copy, **Set up MCP** and **How
       to connect a coding agent** instead. At 390 px the card's buttons wrap
       and the dialog is a bottom sheet.
+- [ ] `AUTO-F183` · **Create automation › With your coding agent**
+      (`automations.createMenu.withAgent`) → a dialog titled **Create with your
+      coding agent** (`automations.codingAgent.createTitle`) says coding agents
+      build automations through the MCP server
+      (`automations.codingAgent.createBody`); below it stands what SET-F89
+      shows — the client tabs with their commands and the line that waits for
+      an agent to sign in — and a prompt that asks the agent to create one
+      (`codingAgent.prompt.create`) with **[Describe what it should do.]**
+      marked and the hint to replace it. The item is second in the menu, after
+      **From a starter**, on the organization's list and on a project's. With
+      agent sign-in switched off (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) the dialog shows **Set
+      up MCP** and **How to connect a coding agent** and no name to copy. Give
+      the prompt to a connected agent → it saves a first version of a new
+      automation, which then appears in the list; it asks before it deploys.
 - [ ] `AUTO-F90` · **Expand a node's Code field, edit, then go back** →
       **Expand editor** (`codeEditor.expand`) opens the larger editor; **Back
       to the field** (`codeEditor.collapse`) returns with the edit in place and

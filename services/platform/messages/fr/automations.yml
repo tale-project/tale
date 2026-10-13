@@ -59,6 +59,7 @@ list:
     description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
 createMenu:
   starter: 'À partir d’un modèle'
+  withAgent: Avec ton agent de code
   blank: Vierge (trigger + agent)
 blank:
   title: Nouvelle automatisation
@@ -1395,6 +1396,8 @@ codingAgent:
   body: Les agents de code comme Claude Code, Codex et Cursor modifient les automatisations via le serveur MCP de Tale. Ils lisent cette automatisation, la modifient, la vérifient et enregistrent une nouvelle version, qui apparaît ensuite ici.
   fixAction: Corriger avec ton agent de code
   fixBody: Un agent de code connecté au serveur MCP de Tale peut lire cette exécution étape par étape, expliquer pourquoi elle a échoué et proposer une correction. Une correction qu’il enregistre apparaît dans l’éditeur comme nouvelle version.
+  createTitle: Créer avec ton agent de code
+  createBody: Les agents de code comme Claude Code, Codex et Cursor créent des automatisations via le serveur MCP de Tale. Ils lisent la référence, écrivent l’automatisation, la vérifient et la testent, puis l’enregistrent comme première version, qui apparaît ensuite dans cette liste.
   nameLabel: Nom de cette automatisation
   runLabel: Identifiant de cette exécution
   setUp: Configurer MCP

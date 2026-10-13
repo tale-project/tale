@@ -49,7 +49,11 @@ vi.mock(
   }),
 );
 
-import { CodingAgentButton, FixRunButton } from './coding-agent-entry';
+import {
+  CodingAgentButton,
+  CodingAgentDialog,
+  FixRunButton,
+} from './coding-agent-entry';
 
 beforeEach(() => {
   h.access = { signInOn: true };
@@ -229,6 +233,67 @@ describe('FixRunButton', () => {
     expect(
       within(dialog).getByRole('link', { name: 'Set up MCP' }),
     ).toHaveAttribute('href', '/dashboard/org-1/settings/api/mcp');
+    expect(
+      within(dialog).queryByText('claude mcp login tale'),
+    ).not.toBeInTheDocument();
+    await checkAccessibility(dialog);
+  });
+});
+
+/**
+ * A new automation is built the same way a changed one is: by a coding agent,
+ * so the list's Create menu opens the dialog too — with a prompt that asks
+ * the agent to create one, and no automation to name yet.
+ */
+describe('CodingAgentDialog for a new automation', () => {
+  function renderCreate() {
+    return render(
+      <CodingAgentDialog
+        open
+        onOpenChange={() => {}}
+        organizationId="org-1"
+        context={{ kind: 'create' }}
+      />,
+    );
+  }
+
+  it('asks the agent to create one, with a place for what it should do', async () => {
+    renderCreate();
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create with your coding agent',
+    });
+    expect(dialog).toHaveAccessibleDescription(
+      /^Coding agents such as Claude Code, Codex and Cursor build automations through Tale's MCP server\./,
+    );
+    // The commands that connect the agent in use.
+    expect(within(dialog).getByText('claude mcp login tale')).toBeVisible();
+    expect(within(dialog).getByText(/Create a new automation\./)).toBeVisible();
+    expect(
+      within(dialog).getByText('[Describe what it should do.]'),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText(/Replace the part in brackets/),
+    ).toBeVisible();
+    await checkAccessibility(dialog);
+  });
+
+  it('has no name to copy while agents may not sign in, only the way to the MCP settings', async () => {
+    h.access = { signInOn: false };
+    renderCreate();
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create with your coding agent',
+    });
+    expect(
+      within(dialog).queryByRole('button', { name: /Name of this automation/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('link', { name: 'Set up MCP' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/settings/api/mcp');
+    expect(
+      within(dialog).getByRole('link', {
+        name: 'How to connect a coding agent',
+      }),
+    ).toBeVisible();
     expect(
       within(dialog).queryByText('claude mcp login tale'),
     ).not.toBeInTheDocument();
