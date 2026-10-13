@@ -268,12 +268,49 @@ function logClientDocument(event: 'created' | 'refreshed', clientId: string) {
 }
 
 /**
+ * The transport with the reason a fetch failed in the log. The discovery
+ * tells the agent one sentence for every failure of the transport ("network
+ * error or redirect blocked"), so without this line an operator cannot tell
+ * a resolver that hands out a private address for the agent's host (a
+ * fake-IP VPN, a split-horizon DNS, refused as non-public) from an egress
+ * that drops the connection or a host that is down. The failure itself is
+ * passed on unchanged.
+ */
+export function loggedMetadataFetch(
+  fetchMetadataDocument: ClientMetadataResourceFetch,
+): ClientMetadataResourceFetch {
+  return async (input, init) => {
+    try {
+      return await fetchMetadataDocument(input, init);
+    } catch (error) {
+      console.warn(
+        `[agent-oauth] client metadata document fetch failed url=${requestUrl(input)}:`,
+        error instanceof Error ? error.message : error,
+      );
+      throw error;
+    }
+  };
+}
+
+/** The address as fetched: the discovery validates a client id without
+ * canonicalizing it, so the raw string may still carry what the URL parser
+ * strips (a tab, a newline), which a log line must not. */
+function requestUrl(input: Parameters<ClientMetadataResourceFetch>[0]): string {
+  const raw = input instanceof Request ? input.url : String(input);
+  try {
+    return new URL(raw).href;
+  } catch {
+    return JSON.stringify(raw);
+  }
+}
+
+/**
  * The client discovery that lets an agent identify itself by a client
  * metadata document (an HTTPS URL as its `client_id`, MCP's preferred way),
  * or null where the operator turned it off. A document is fetched through a
  * transport that resolves the host once, refuses private addresses, pins
- * the connection and never follows a redirect; Tale never fetches or shows
- * the logo a document names.
+ * the connection and never follows a redirect, and that says in the log why
+ * a fetch failed; Tale never fetches or shows the logo a document names.
  */
 export function agentClientDiscovery(input: {
   readonly options: AgentOAuthOptions;
@@ -285,8 +322,9 @@ export function agentClientDiscovery(input: {
 }): ClientDiscovery | null {
   if (!input.options.metadataDocuments) return null;
   return createCimdClientDiscovery({
-    fetchClientMetadataResource:
+    fetchClientMetadataResource: loggedMetadataFetch(
       input.fetchMetadataDocument ?? fetchClientMetadataResource,
+    ),
     metadataProfile: 'mcp-2026-07-28',
     isMetadataDocumentUrlAllowed: (url) =>
       metadataDocumentAllowed(

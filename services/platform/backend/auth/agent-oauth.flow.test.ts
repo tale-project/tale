@@ -56,6 +56,9 @@ const BASE = 'https://tale.example.com';
 const ISSUER = `${BASE}/api/auth`;
 const MCP = `${BASE}/api/v1/mcp`;
 const DOCUMENT_URL = 'https://agent.example.test/oauth/client.json';
+/** A document on a host the deployment's resolver answers with a private
+ * address for, which the transport refuses. */
+const UNREACHABLE_URL = 'https://fake-ip.example.test/oauth/client.json';
 const AGENT_REDIRECT = 'http://127.0.0.1:33418/callback';
 const APP_REDIRECT =
   'https://identity-client.example.test/api/auth/oauth2/callback/tale';
@@ -196,6 +199,11 @@ function memorySql(db: MemoryDb): Sql {
  * else answers. */
 const fetchDocument: ClientMetadataResourceFetch = (input) => {
   const url = input instanceof Request ? input.url : String(input);
+  if (url === UNREACHABLE_URL) {
+    throw new TypeError(
+      'metadata hostname must resolve only to public-routable addresses',
+    );
+  }
   if (url !== DOCUMENT_URL) {
     return new Response('not found', { status: 404 });
   }
@@ -457,6 +465,32 @@ describe('a coding agent at the sign-in server', () => {
         (entry) => entry.clientId === `${BASE}/agents/client.json`,
       ),
     ).toBe(false);
+  });
+
+  it('tells the operator why a client document could not be fetched, and the agent only that it could not', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const refused = await authorize({
+        client_id: UNREACHABLE_URL,
+        redirect_uri: AGENT_REDIRECT,
+        scope: 'tale:mcp',
+      });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toEqual({
+        error: 'invalid_client',
+        error_description:
+          'Failed to fetch metadata document (network error or redirect blocked)',
+      });
+      expect(warn).toHaveBeenCalledWith(
+        `[agent-oauth] client metadata document fetch failed url=${UNREACHABLE_URL}:`,
+        'metadata hostname must resolve only to public-routable addresses',
+      );
+      expect(
+        db.oauthClient?.some((entry) => entry.clientId === UNREACHABLE_URL),
+      ).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('keeps an organization’s own application off the MCP endpoint', async () => {

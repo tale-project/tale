@@ -14,6 +14,7 @@ import {
   agentClientDiscovery,
   authorizePrecheck,
   chargeTokenFailure,
+  loggedMetadataFetch,
   mcpResourceFor,
   mcpResourceIdentifiers,
   metadataDocumentAllowed,
@@ -401,6 +402,30 @@ describe('client metadata documents', () => {
     });
     expect(discovery?.matches('https://claude.ai/oauth/client')).toBe(true);
     expect(discovery?.matches('aRegisteredClientId')).toBe(false);
+  });
+
+  it('say in the log why the transport could not fetch one, and pass the failure on unchanged', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const refused = new TypeError(
+      'metadata hostname must resolve only to public-routable addresses',
+    );
+    const fetchRefused = loggedMetadataFetch(() => {
+      throw refused;
+    });
+    // The id as the discovery hands it on: validated, not canonicalized.
+    await expect(
+      fetchRefused('https://claude.ai/oauth/claude-code\n-client-metadata'),
+    ).rejects.toBe(refused);
+    expect(warn).toHaveBeenCalledWith(
+      '[agent-oauth] client metadata document fetch failed url=https://claude.ai/oauth/claude-code-client-metadata:',
+      'metadata hostname must resolve only to public-routable addresses',
+    );
+    const served = new Response('{}');
+    const fetchServed = loggedMetadataFetch(() => served);
+    await expect(
+      fetchServed(new Request('https://claude.ai/oauth/client')),
+    ).resolves.toBe(served);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });
 
