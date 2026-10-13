@@ -4,6 +4,7 @@ import {
   MEMBER_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '../../../lib/shared/hint-entities.ts';
+import { endAllAccessOf } from '../../auth/account-security.ts';
 import {
   findOrganizationMember,
   getUserOrganizations,
@@ -11,6 +12,7 @@ import {
   removeMembershipCascade,
 } from '../../auth/membership.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import type { AgentConnectionAuditActor } from '../agent_connections/end.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 
@@ -699,6 +701,20 @@ export async function listPasskeysForMember(
   }));
 }
 
+/** The admin as the audit row of an agent connection their act ended names
+ * them. */
+function endedBy(
+  actor: { userId: string; email?: string },
+  role: string,
+): AgentConnectionAuditActor {
+  return {
+    actorId: actor.userId,
+    actorType: 'user',
+    actorRole: role,
+    ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+  };
+}
+
 /** Admin passkey revocation: the credential must belong to the target
  * (IDOR guard), every session dies with it, and the act is audited — all in
  * the caller's transaction, so a failed audit row (or a failed session
@@ -720,7 +736,7 @@ export async function revokePasskeyForMember(
   if (!deleted[0]) {
     throw new MemberServiceError('PASSKEY_NOT_FOUND', 'Passkey not found', 404);
   }
-  await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await endAllAccessOf(tx, member.userId, endedBy(actor, member.callerRole));
   await logSuccess(tx, {
     auditCtx: {
       organizationId: member.organizationId,
@@ -763,7 +779,7 @@ export async function resetTwoFactorForMember(
   await tx`
     DELETE FROM app.two_factor_attempts WHERE user_id = ${member.userId}
   `;
-  await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await endAllAccessOf(tx, member.userId, endedBy(actor, member.callerRole));
   await logSuccess(tx, {
     auditCtx: {
       organizationId: member.organizationId,

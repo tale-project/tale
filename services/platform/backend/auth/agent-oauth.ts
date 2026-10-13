@@ -33,6 +33,11 @@ import {
   CONSENT_PATH,
 } from './agent-consent.ts';
 import { type AgentOAuthOptions, agentSignInOn } from './agent-oauth-config.ts';
+import {
+  endAgentsAfterReuse,
+  tokenRequestFields,
+  usedRefreshToken,
+} from './agent-reuse.ts';
 
 /**
  * Coding agents signing in to Tale's MCP endpoint, on the Better Auth OAuth
@@ -60,10 +65,6 @@ const AUTH_MOUNT = '/api/auth';
 const REGISTER_PATH = `${AUTH_MOUNT}/oauth2/register`;
 const AUTHORIZE_PATH = `${AUTH_MOUNT}/oauth2/authorize`;
 const TOKEN_PATH = `${AUTH_MOUNT}/oauth2/token`;
-
-/** A token request is a handful of form fields; a body past this is not one
- * this can read, and the provider's own limits apply. */
-const TOKEN_REQUEST_BYTES = 64 * 1024;
 
 /** Where a protected resource's metadata lives (RFC 9728 §3). */
 export const PROTECTED_RESOURCE_METADATA_PATH =
@@ -690,37 +691,6 @@ export async function chargeTokenFailure(
 
 // ------------------------------------------------------------ the mount
 
-/** The grant a token request names, or null when it names none or is not
- * one this can read. */
-async function grantTypeOf(request: Request): Promise<string | null> {
-  const declared = Number(request.headers.get('content-length') ?? '0');
-  if (Number.isFinite(declared) && declared > TOKEN_REQUEST_BYTES) return null;
-  const text = await request.clone().text();
-  if (text.length > TOKEN_REQUEST_BYTES) return null;
-  const media = (request.headers.get('content-type') ?? '')
-    .split(';')[0]
-    ?.trim()
-    .toLowerCase();
-  if (
-    media !== undefined &&
-    /^application\/([a-z0-9.+-]*\+)?json$/.test(media)
-  ) {
-    try {
-      const parsed: unknown = JSON.parse(text);
-      return isRecord(parsed) && typeof parsed.grant_type === 'string'
-        ? parsed.grant_type
-        : null;
-    } catch (error) {
-      console.warn(
-        '[agent-oauth] a token request whose body is not the JSON it claims to be:',
-        error instanceof Error ? error.name : 'unknown',
-      );
-      return null;
-    }
-  }
-  return new URLSearchParams(text).get('grant_type');
-}
-
 /**
  * A refresh the provider refused as an identity that is no longer eligible
  * — the person left the organization the agent was connected to, or the
@@ -730,11 +700,11 @@ async function grantTypeOf(request: Request): Promise<string | null> {
  * exchange keeps its refusal as it was; so does every other answer.
  */
 async function refreshRefusal(
-  request: Request,
+  fields: Readonly<Record<string, string>> | null,
   response: Response,
 ): Promise<Response> {
   if (response.status !== 403) return response;
-  if ((await grantTypeOf(request)) !== 'refresh_token') return response;
+  if (fields?.grant_type !== 'refresh_token') return response;
   let body: unknown;
   try {
     body = JSON.parse(await response.clone().text());
@@ -759,9 +729,10 @@ async function refreshRefusal(
  * The agent sign-in steps around the provider's handler at the auth mount:
  * registration and authorization are checked (and rewritten) before it, a
  * consent for agent access is made only for an organization the person may
- * connect an agent to, a refused refresh is answered as an invalid grant and
- * a failed token request is charged to its source after it, and every other
- * request passes through untouched.
+ * connect an agent to, a refused refresh is answered as an invalid grant, a
+ * refresh token used twice ends the connections it signed in, and a failed
+ * token request is charged to its source after it; every other request
+ * passes through untouched.
  */
 export async function withAgentOAuth(
   request: Request,
@@ -785,8 +756,20 @@ export async function withAgentOAuth(
     return agentConsentGate(request, deps, handle);
   }
   if (request.method === 'POST' && path === TOKEN_PATH) {
-    const answer = await refreshRefusal(request, await handle(request));
-    return chargeTokenFailure(deps.sql, deps.clientIp, answer);
+    const fields = await tokenRequestFields(request);
+    // Read before the provider answers: a refresh token it has already
+    // retired is gone from its table once it ends the sign-in over a reuse.
+    const used =
+      fields === null ? null : await usedRefreshToken(deps.sql, fields);
+    const answered = await handle(request);
+    if (used !== null && answered.status === 400) {
+      await endAgentsAfterReuse(deps.sql, used);
+    }
+    return chargeTokenFailure(
+      deps.sql,
+      deps.clientIp,
+      await refreshRefusal(fields, answered),
+    );
   }
   return handle(request);
 }

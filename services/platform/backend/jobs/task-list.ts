@@ -716,6 +716,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const deleted = await sweepMcpActivity(deps.sql);
       console.log(`[maintenance] mcp_activity_ttl removed ${deleted} rows`);
     },
+    'maintenance.agent_connections_gc': async () => {
+      const { gcAgentConnections } =
+        await import('../domains/agent_connections/gc.ts');
+      const removed = await gcAgentConnections(deps.sql);
+      console.log(
+        `[maintenance] agent_connections_gc removed ${removed.connections} ended connections, ${removed.apps} unused apps, ${removed.refreshTokens} refresh and ${removed.accessTokens} access tokens`,
+      );
+    },
     'rag.index_file': async (payload, context) => {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
       // A document can take longer than the job's budget (a slow embedding

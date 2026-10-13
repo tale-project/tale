@@ -78,6 +78,7 @@ import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
+import { checkAgentLifecycle } from './domains/agent_connections/agent-lifecycle.integration.ts';
 import { checkImageHoldIdentity } from './domains/agent_tools/image-billing.integration.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
@@ -65636,6 +65637,7 @@ async function main(): Promise<void> {
       ['checkAgentOAuth', () => checkAgentOAuth(sql, baseUrl, record)],
       ['checkAgentConsent', () => checkAgentConsent(sql, baseUrl, record)],
       ['checkAgentDoor', () => checkAgentDoor(sql, baseUrl, record)],
+      ['checkAgentLifecycle', () => checkAgentLifecycle(sql, baseUrl, record)],
       [
         'checkAgentConnections',
         () => checkAgentConnections(sql, baseUrl, record),

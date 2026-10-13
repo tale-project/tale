@@ -29,6 +29,7 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { endAgentConnectionsInTx } from '../agent_connections/end.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
@@ -702,7 +703,9 @@ async function scrubSubjectAuditLogs(
            OR metadata->'keyAttribution'->>'makerUserId' = ${userId}
            OR metadata->'keyAttribution'->>'subjectUserId' = ${userId}
            OR metadata->'keyAttribution'->>'eventActorId' = ${userId}
-           OR (resource_type = 'user' AND resource_id = ${userId}))
+           OR (resource_type = 'user' AND resource_id = ${userId})
+           OR (resource_type = 'agent_connection'
+               AND previous_state->>'userId' = ${userId}))
     RETURNING id
   `;
   return scrubbed.length;
@@ -1111,6 +1114,28 @@ export async function processErasure(
       RETURNING day
     `;
     return removed.length;
+  });
+
+  // The coding agents the subject connected here: the live ones end first,
+  // with their consent and tokens, and every record of them goes — a
+  // client's name and where it sends a person back are the subject's too.
+  // What the audit log says of them is scrubbed with the rest of the
+  // subject's rows below.
+  await pass('agentConnections', async () => {
+    return sql.begin(async (tx) => {
+      await endAgentConnectionsInTx(tx, {
+        organizationId,
+        userId: targetUserId,
+        reason: 'account_security',
+        revokedBy: 'system',
+      });
+      const removed = await tx<{ id: string }[]>`
+        DELETE FROM app.agent_connections
+        WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+        RETURNING id
+      `;
+      return removed.length;
+    });
   });
 
   await pass('memories', async () => {
