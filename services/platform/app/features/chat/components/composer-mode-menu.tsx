@@ -9,8 +9,9 @@
  * preference. "Read replies aloud" is the exception that proves it: its
  * state must be legible at a glance, so it lives as the dedicated toggle
  * beside the mic (`VoiceModeToggle`), not behind this menu. There is no
- * entry for choosing where a turn runs either — chat runs direct turns
- * only; work that needs a sandbox belongs to a Task.
+ * entry for choosing where a turn runs either: the assistant starts a light
+ * sandbox itself when code must run, and work that needs the full
+ * workspace belongs to a Task.
  */
 
 import { Button } from '@tale/ui/button';

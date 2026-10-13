@@ -18,7 +18,7 @@ knowledgeEntries:
   description: Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser.
 skills:
   title: Aucun skill pour l’instant
-  description: Écris un skill une fois, puis équipes-en les agents de projet ou les nœuds agent de tes automatisations.
+  description: Écris un skill une fois, puis choisis-le dans le chat ou équipes-en les agents de projet et les nœuds agent de tes automatisations.
 members:
   title: Aucun membre trouvé
   description: Invite des personnes à collaborer dans ce workspace.

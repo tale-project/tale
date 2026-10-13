@@ -106,11 +106,9 @@ const INTERPRETERS: Record<RunCodeLanguage, string> = {
 
 /**
  * What a program runs with beyond the sandbox's own environment. Matplotlib
- * would otherwise look for its configuration under a home that is read-only
- * here, fall back to a fresh temporary directory on every call and rebuild
- * its font cache each time; kept in the workspace, the cache lives as long as
- * the sandbox does, so only the first chart pays for it. A chart is drawn to
- * a file, never to a screen.
+ * keeps its configuration and font cache in the workspace, so the cache
+ * lives as long as the sandbox does and only the first chart pays for it. A
+ * chart is drawn to a file, never to a screen.
  */
 const PROGRAM_ENV = {
   MPLCONFIGDIR: `${LIGHT_SANDBOX_PATHS.workspace}/.cache/matplotlib`,

@@ -9,9 +9,10 @@
  * model catalog goes through the providers domain's aggregator ACTION (models
  * live in the config tree, which only a `'use node'` action may read) and
  * resolves on mount. The writes the surface performs — sending a turn,
- * stopping one — live here too (`useChatSend`). There is deliberately no
- * agent, harness, skill, or connector read: the chat page offers model
- * selection only (the Chat·Task·Automation boundary model).
+ * stopping one — live here too (`useChatSend`), as do the skills a person may
+ * choose (`useComposerSkills`). There is deliberately no agent, harness, or
+ * connector read: those belong to tasks and automations (the
+ * Chat·Task·Automation boundary model).
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
  * `useSyncExternalStore`) rather than the app's `useBackendQuery` wrapper. The
