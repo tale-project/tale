@@ -443,14 +443,16 @@ operator responsibilities and the egress IPv6 prerequisite.
 
 ## Recorded follow-up decisions (#4124)
 
-MEDIUM 2 remains open: a slow re-ask or a delayed platform start can still
-outlive the current waiter expiry. Simply removing expiry is unsafe: the
-crawl/render lane marks a refused create collected without cancelling its
-waiter and uses a new ID on the next continuation. Those abandoned waiters
-would permanently block admission. A slow pending re-ask can also reinsert a
-waiter after a concurrent destroy. Resolve caller cancellation and admission
-generation ownership together before replacing expiry; the partial host-memory
-and disk-relief fix does not change waiter lifecycle.
+MEDIUM 2, the waiter lifecycle, is closed without removing expiry, which would
+be unsafe: the crawl/render lane marks a refused create collected without
+cancelling its waiter and uses a new ID on the next continuation, so abandoned
+waiters must still give their places up, and a waiter that stopped asking still
+does, twice its hint and 15 s later. What changed is who owns a place. An ask
+that is running its reclaim and memory probes keeps its waiter's place however
+slow they are, and the platform renews a place with
+`POST /v1/sessions/:id/wait` (a lease of at most ten minutes). A destroy, an
+admission or a queue-cap eviction ends the place and marks every ask of that id
+still running, so a late answer cannot put the waiter back.
 
 The host-room fix deliberately leaves these LOW findings open rather than
 combining unrelated lifecycle, runtime-image and cancellation changes:
