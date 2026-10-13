@@ -23,7 +23,7 @@ Jeder Typ kann außerdem eine [feste Eingabe](#feste-eingabe) mitgeben: Werte, d
 
 Eine Automatisierung hat jeweils einen konfigurierten Trigger. Ein anderer Typ ersetzt die bisherige Bindung. Ersetzt du einen Webhook, wird seine URL sofort ungültig. Ein später angelegter Webhook stellt diese Zugangsdaten nicht wieder her.
 
-API- und MCP-Clients können auch ohne Trigger starten. API-Schlüssel und Projektberechtigungen autorisieren den Aufruf; der Client übergibt die Workflow-Eingabe direkt. Näheres steht in der [API-Referenz](/de/develop/api-reference).
+API- und MCP-Clients können auch ohne Trigger starten. API-Schlüssel (bei einem angemeldeten Agent die Verbindung) und Projektberechtigungen autorisieren den Aufruf; der Client übergibt die Workflow-Eingabe direkt. Näheres steht in der [API-Referenz](/de/develop/api-reference).
 
 ## Einen Zeitplan einrichten
 

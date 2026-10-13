@@ -5,7 +5,7 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Verbinde einen MCP-Client, wenn ein Agent Tale-Tools entdecken, Wissen abrufen oder Automatisierungen entwickeln und ausführen soll. Die Verbindung verwendet denselben API-Schlüssel und Organisationskontext wie [REST](/de/develop/api-reference). Tale ist dabei der Server: Dein externer Client ruft Tale auf.
+Verbinde einen MCP-Client, wenn ein Agent Tale-Tools entdecken, Wissen abrufen oder Automatisierungen entwickeln und ausführen soll. Eine Person verbindet den Agent, indem sie sich im Agent anmeldet, oder der Agent nutzt einen API-Schlüssel, wie ihn auch [REST](/de/develop/api-reference) annimmt; so oder so arbeitet er in einer Organisation und darf nie mehr, als die Person hinter ihm darf. Tale ist dabei der Server: Dein externer Client ruft Tale auf.
 
 Beginne mit `initialize`, prüfe `tools/list` und rufe vor dem Schreiben einer Automatisierung `get_docs` auf. Deine Installation liefert ihre unterstützte Grammatik selbst. Der Client muss Knotentypen und Konfigurationsfelder deshalb nicht erraten.
 
@@ -13,23 +13,69 @@ Beginne mit `initialize`, prüfe `tools/list` und rufe vor dem Schreiben einer A
 
 ### Die Verbindung vorbereiten
 
-Erstelle einen [API-Schlüssel](/de/platform/admin/api-keys) und hinterlege ihn in der sicheren Konfiguration deines Clients. Unter **Einstellungen > API > MCP** findest du Endpunkt, Organisations-Slug und eine kopierbare Anfrage zur Tool-Erkennung.
+Es gibt zwei Wege zum Endpunkt, und du kannst für verschiedene Clients beide nutzen:
+
+- **Im Agent anmelden.** Der Agent findet die Anmeldung von Tale selbst und öffnet deinen Browser; du wählst die Organisation und wie viel er darf. Nichts wird von Hand kopiert, und du kannst den Agent später trennen. [Im Agent anmelden](#sign-in) beschreibt den Ablauf. Dieser Weg steht zur Verfügung, solange dein Betreiber ihn nicht abgeschaltet hat.
+- **Ein API-Schlüssel.** [Erstelle einen](/de/platform/admin/api-keys) und hinterlege ihn in der sicheren Konfiguration deines Clients. Er eignet sich für Skripte und Clients, die keinen Browser öffnen können. Ein Schlüssel handelt im Namen seines Inhabers und hat keine eigenen Zugriffsstufen.
+
+Unter **Einstellungen > API > MCP** findest du Endpunkt, Organisations-Slug und eine kopierbare Anfrage zur Tool-Erkennung.
 
 | Einstellung | Wert |
 | --- | --- |
 | Endpunkt | `https://your-host.example.com/api/v1/mcp` |
 | Transport | HTTPS-POST mit JSON-RPC und normalen JSON-Antworten |
-| Authentifizierung | `Authorization: Bearer <api-key>` |
-| Organisation | `X-Organization-Slug: <slug>` |
+| Authentifizierung | `Authorization: Bearer <api-key>` oder das Zugriffstoken, das ein Agent bei der Anmeldung durch eine Person erhalten hat |
+| Organisation | `X-Organization-Slug: <slug>` bei einem Schlüssel; ein angemeldeter Agent arbeitet in der Organisation, die die Person beim Verbinden gewählt hat |
 | Protokollrevisionen | `2026-07-28`, von jeder Anfrage selbst mitgebracht; oder `2025-11-25`, `2025-06-18` bzw. `2025-03-26`, mit `initialize` eröffnet ([Protokollrevisionen](#protocol-revisions)) |
 
-Der Client muss entfernte HTTP-Endpunkte mit eigenen Headern unterstützen. Es gibt keinen SSE-Ereignisstrom, keine Sitzung zum Löschen und keinen OAuth-Anmeldeablauf. OAuth-Discovery-URLs antworten mit JSON und `404`; ein Client, der diesen Ablauf voraussetzt, braucht eine andere Authentifizierungskonfiguration. Ein reiner stdio-Client kann diese URL nicht direkt nutzen. Fertige Konfigurationen für opencode und Claude Code findest du unter [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).
+Der Client muss entfernte HTTP-Endpunkte unterstützen. Ein Client, der sich selbst anmeldet, braucht keine eigenen Header; einer, der einen Schlüssel sendet, braucht sie. Es gibt keinen SSE-Ereignisstrom und keine Sitzung zum Löschen. Ein reiner stdio-Client kann diese URL nicht direkt nutzen. Fertige Konfigurationen für Claude Code, Codex, opencode und andere findest du unter [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).
 
-Sende in wiederverwendbaren Integrationen immer den Organisations-Header. Er ist nur bei genau einer Mitgliedschaft optional. Ohne ihn führt ein Schlüsselinhaber mit mehreren Organisationen zu `400 ORG_SLUG_REQUIRED`. Ein unbekannter Slug liefert `404 ORG_SLUG_INVALID`, eine Organisation ohne Mitgliedschaft `403 ORG_FORBIDDEN`. Jede dieser Ablehnungen nennt in `data.organizations` die Slugs, die du senden kannst.
+Sende bei einem Schlüssel in wiederverwendbaren Integrationen immer den Organisations-Header. Er ist nur bei genau einer Mitgliedschaft optional. Ohne ihn führt ein Schlüsselinhaber mit mehreren Organisationen zu `400 ORG_SLUG_REQUIRED`. Ein unbekannter Slug liefert `404 ORG_SLUG_INVALID`, eine Organisation ohne Mitgliedschaft `403 ORG_FORBIDDEN`. Jede dieser Ablehnungen nennt in `data.organizations` die Slugs, die du senden kannst. Ein angemeldeter Agent arbeitet in der einen Organisation, die die Person beim Verbinden gewählt hat, und braucht keinen Header; nennt er eine andere, antwortet `403 ORG_MISMATCH` ([Im Agent anmelden](#sign-in)).
+
+### Im Agent anmelden {#sign-in}
+
+Ein Agent, der MCP-Autorisierung unterstützt, meldet sich selbst an. Die Person, die ihn verbindet, entscheidet über Organisation und Zugriff, Tale speichert die Verbindung, und der Agent besitzt nie einen Schlüssel. Dein Betreiber kann das abschalten. Solange es aus ist, antworten die unten genannten Discovery-Dokumente mit JSON und `404`, und nur ein Schlüssel öffnet den Endpunkt; [Coding-Agents anmelden lassen](/de/self-hosted/configuration/authentication#coding-agent-sign-in) sagt Betreibern, was sie prüfen sollten, bevor sie es eingeschaltet lassen.
+
+1. **Der Agent fragt ohne Zugangsdaten an.** Der Endpunkt antwortet mit `401` und einer `WWW-Authenticate: Bearer`-Challenge. Ihr `resource_metadata` nennt, wo der Endpunkt sich selbst beschreibt, und ihr `scope` führt jeden Scope auf, den der Endpunkt kennt.
+2. **Der Agent liest die Metadaten.** `/.well-known/oauth-protected-resource/api/v1/mcp` sagt, welcher Server Agents anmeldet, und `/.well-known/oauth-authorization-server/api/auth` beschreibt diesen Server: seine Endpunkte für Autorisierung, Token und Registrierung, PKCE mit `S256` und den Refresh-Grant.
+3. **Der Agent weist sich aus.** Entweder durch die HTTPS-Adresse eines Client-Metadatendokuments, das er selbst veröffentlicht, wie es Claude Code und Codex tun, oder indem er sich beim Anmeldeserver selbst registriert. Ein selbst registrierter Agent darf auf eine Loopback-Adresse oder auf eine Webadresse eines Hosts weiterleiten, den der Betreiber erlaubt.
+4. **Eine Person verbindet ihn.** Der Agent öffnet Tale im Browser. Die Person meldet sich an, wählt die Organisation, in der der Agent arbeiten soll, und den Zugriff, den sie ihm gibt, und klickt auf der Zustimmungsseite auf **Verbinden**; die Seite nennt die App und sagt, ob ihre Domain bestätigt ist. Wer in dieser Organisation keinen Agent verbinden darf, erfährt es dort.
+5. **Der Agent ruft den Endpunkt auf.** Er erhält ein Zugriffstoken, das fünf Minuten gilt, und ein Refresh-Token, das dreißig Tage ohne Nutzung gültig bleibt und bei jeder Nutzung ersetzt wird; das Zugriffstoken erneuert er selbst. Jeder Aufruf enthält `Authorization: Bearer <access token>`.
+
+Ein Agent, der mehr verlangt, als der Endpunkt vergibt, wird dafür nicht abgelehnt: Codex verlangt neben den Agent-Scopes `openid`, `profile`, `email` und `tale:organization`, und Tale lässt diese weg, weil ein Agent nie einen Identitäts-Scope erhält. Ein Agent, der nur Identitäts-Scopes verlangt, verlangt nichts, was der Endpunkt vergibt, und wird mit `invalid_scope` abgelehnt.
+
+#### Wer einen Agent verbinden darf {#who-may-connect}
+
+Inhaber, Admins und Entwickler dürfen einen Agent mit der Organisation verbinden und ihm jeden Zugriff geben. Ein Mitglied darf einen nur mit einer Kompetenz verbinden, die mit einem Schlüssel genutzt wird, und darf ihm **Lesen und testen** sowie **Einstellungen lesen** geben. Allen anderen sagt die Zustimmungsseite, dass sie in dieser Organisation keinen Agent verbinden dürfen. Alles, was über **Lesen und testen** und **Einstellungen lesen** hinausgeht, braucht eine Anmeldung aus den letzten 24 Stunden, deshalb fragt die Seite zuerst nach dem Passwort.
+
+#### Zugriffsstufen {#access-levels}
+
+Die Zustimmungsseite bietet drei Stufen an, von denen jede zur vorigen hinzukommt, und drei weitere Wahlmöglichkeiten. Was die Person erlaubt, wird zu den Scopes im Token des Agents, und der Endpunkt prüft sie bei jedem Aufruf zusätzlich zur Rolle der Person: Ein Aufruf braucht beides, und zuerst wird die Rolle geprüft. Ein Scope erweitert nie eine Rolle.
+
+Jede Wahl unten nennt ihren Scope und die Tools, die sie freischaltet:
+
+- **Lesen und testen** (`tale:mcp`): `get_docs`, `get_catalog`, `search_catalog`, `validate_automation`, `run_automation`, `test_automation`, `get_automation`, `list_automations`, `list_runs`, `get_run`, `get_run_node`, `compare_runs`, `list_versions`, `list_triggers`, `get_automation_metrics`, `list_models`, `list_harnesses`, `list_skills`, `list_connectors`, `list_agent_secrets`, `list_projects`, `list_events`, `search_capabilities`, `get_knowledge`
+- **Automatisierungen bearbeiten** (`tale:automations.write`): `save_automation`
+- **Bearbeiten und live schalten** (`tale:automations.deploy`): `deploy_automation`, `delete_automation`, `set_trigger`, `run_deployed`, `start_run`, `replay_run`, `cancel_run`, `answer_run_ask`, `set_automation_projects`, `delete_trigger`, `invoke_capability`
+- **Einstellungen lesen** (`tale:settings.read`): `get_settings`, `plan_settings`
+- **Einstellungen ändern** (`tale:settings.write`): `apply_settings`
+- **KI-Abos verbinden** (`tale:subscriptions.connect`): Noch kein Tool nutzt diese Wahl.
+
+Ein Mock-Lauf (`start_run` mit `mode: "mock"`) und der Plan eines Replays brauchen nur **Lesen und testen**; ein Live-Start und ein Live-Replay brauchen **Bearbeiten und live schalten**. `get_settings` und `plan_settings` akzeptieren statt **Einstellungen lesen** auch **Einstellungen ändern**. Eine Verbindung hat den Zugriff, den die Person beim Verbinden erlaubt hat: Erlaubt die Person dieselbe App erneut, ändert das diese Verbindung und fügt keine zweite hinzu, und eine App, die getrennt war und wieder erlaubt wird, bildet eine neue Verbindung.
+
+Ein Aufruf, den der Zugriff der Verbindung nicht abdeckt, wird abgelehnt, bevor etwas läuft. Der Endpunkt antwortet mit `403` und dem Code `INSUFFICIENT_SCOPE`: `data.requiredScopes` nennt den Zugriff, den der Agent anfragen soll, `data.grantedScopes` das, was die Verbindung hat, und eine `WWW-Authenticate`-Challenge fragt beides zusammen an, damit erneutes Anfragen nie Zugriff wegnimmt, den der Agent hatte. Eine Sammelanfrage wird als Ganzes abgelehnt, sie wird also nie halb ausgeführt. Ein Aufruf, den die Rolle der Person nie erlauben könnte, wird so nicht abgelehnt; er ist ein Tool-Fehler mit demselben Code und dem Hinweis, die Person zu informieren, weil erneutes Verbinden nichts ändern würde.
+
+#### Eine Organisation {#one-organization}
+
+Eine Verbindung arbeitet in der Organisation, für die sie gemacht wurde, egal welchen Organisationen die Person angehört. Ein Aufruf, der mit `X-Organization-Slug` eine andere Organisation nennt, wird mit `403` `ORG_MISMATCH` abgelehnt, und `data.organization` nennt die Organisation, für die die Verbindung gilt. Wer einen Agent in zwei Organisationen nutzen will, verbindet ihn mit jeder.
+
+#### Eine Verbindung beenden {#disconnect}
+
+Unter **Einstellungen > API > Verbundene Agenten** ([Verbundene Agenten](/de/platform/admin/connected-agents)) beendet eine Person ihre eigene Verbindung, und Inhaber oder Admins beenden jede. Der nächste Aufruf des Agents wird mit `401` abgelehnt, und er kann seine Anmeldung nicht erneuern. Eine Verbindung endet auch, ohne dass jemand darum bittet: wenn die Person die Organisation verlässt, gelöscht wird, ihr Passwort ändert oder durch das Zurücksetzen eines Admins einen Passkey oder die Zwei-Faktor-Authentifizierung verliert, und wenn ein Refresh-Token zweimal verwendet wird, was jede Verbindung dieser App für diese Person beendet. Bei einer Trennung, die sie nicht selbst vorgenommen hat, findet die Person einen Hinweis in ihren Benachrichtigungen.
 
 ### Initialisieren und die Referenz abrufen
 
-Die Beispiele setzen `TALE_URL`, `TALE_API_KEY` und `TALE_ORG_SLUG` in deiner Umgebung voraus. `TALE_URL` ist die Anwendungsadresse ohne `/api/v1`.
+Die Beispiele setzen `TALE_URL`, `TALE_API_KEY` und `TALE_ORG_SLUG` in deiner Umgebung voraus. `TALE_URL` ist die Anwendungsadresse ohne `/api/v1`. Ein angemeldeter Agent sendet sein Zugriffstoken im selben Header.
 
 ```bash
 curl --fail-with-body "$TALE_URL/api/v1/mcp" \
@@ -266,7 +312,7 @@ Schreibe jeden `/` in einem Automatisierungsnamen als `%2F`: `tale://automations
 
 Jedes Argument ist ein einzelnes Wort, weil Clients wie Claude Code die Argumente an Leerzeichen trennen. Ein leer gesendetes Argument gilt als weggelassen. Ein Prompt, dessen Lauf oder Automatisierung der Schlüsselinhaber nicht lesen darf, liefert `-32602` mit dem Code dieses Lesezugriffs.
 
-## Was der Schlüssel darf
+## Was ein Schlüssel oder ein verbundener Agent darf {#what-it-may-do}
 
 | Vorgang | Erforderlicher Zugriff |
 | --- | --- |
@@ -276,9 +322,9 @@ Jedes Argument ist ein einzelnes Wort, weil Clients wie Claude Code die Argument
 | Einstellungen lesen, planen und ändern (`get_settings`, `plan_settings`, `apply_settings`) | Was deine Rolle auf derselben Einstellungsseite darf; der Katalog sagt, was deine Rolle mit jeder Art tun darf |
 | Speichern, live schalten, löschen, in Projekten installieren, Trigger setzen/löschen, Lauf abbrechen oder live ausführen | Entwicklerberechtigung plus normale Zugriffsregeln der Ressource |
 
-Der Schlüssel identifiziert seinen Inhaber. Er erweitert weder dessen Rolle noch dessen Projektzugriff. Eine Automatisierung, die nur in Projekten installiert ist, die der Schlüsselinhaber nicht lesen darf, fehlt in `list_automations`, und jeder Lesezugriff auf sie antwortet `AUTOMATION_NOT_FOUND` wie bei einer, die es nicht gibt. Auch eine Live-Ausführung über `invoke_capability` durchläuft die Ausführungsprüfungen.
+Ein Schlüssel identifiziert seinen Inhaber und ein verbundener Agent die Person, die ihn angemeldet hat; keiner von beiden erweitert deren Rolle oder Projektzugriff, und ein Agent bleibt zusätzlich innerhalb des Zugriffs, den sie erlaubt hat ([Zugriffsstufen](#access-levels)). Eine Automatisierung, die nur in Projekten installiert ist, die der Schlüsselinhaber nicht lesen darf, fehlt in `list_automations`, und jeder Lesezugriff auf sie antwortet `AUTOMATION_NOT_FOUND` wie bei einer, die es nicht gibt. Auch eine Live-Ausführung über `invoke_capability` durchläuft die Ausführungsprüfungen.
 
-Jede Änderung, die ein MCP-Aufruf an einer Automatisierung vornimmt — eine gespeicherte Version, ein Live-Schalten, ein Löschen, ein gesetzter oder entfernter Trigger, eine hinzugefügte oder entfernte Installation —, steht im Audit-Log der Organisation, gekennzeichnet als über MCP gekommen, mit dem Tool und dem API-Schlüssel. In den Details des Ereignisses zeigt **Quelle** Coding-Agent, und **Client** nennt die App des Agents, wenn sie sich bei jedem Aufruf nennt, wie mit der Revision 2026-07-28; eine App mit einer 2025er-Revision nennt sich nur bei `initialize`, deshalb zeigen ihre Ereignisse keinen **Client** ([Audit-Logs](/de/platform/admin/governance/audit-logs)).
+Jede Änderung, die ein MCP-Aufruf an einer Automatisierung vornimmt — eine gespeicherte Version, ein Live-Schalten, ein Löschen, ein gesetzter oder entfernter Trigger, eine hinzugefügte oder entfernte Installation —, steht im Audit-Log der Organisation, gekennzeichnet als über MCP gekommen, mit dem Tool und dem API-Schlüssel oder der Verbindung des Agents. In den Details des Ereignisses zeigt **Quelle** Coding-Agent, und **Client** nennt die App des Agents, wenn sie sich bei jedem Aufruf nennt, wie mit der Revision 2026-07-28; eine App mit einer 2025er-Revision nennt sich nur bei `initialize`, deshalb zeigen ihre Ereignisse keinen **Client** ([Audit-Logs](/de/platform/admin/governance/audit-logs)).
 
 Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.developer` nennt die aktuelle Rollenberechtigung. `deploymentEditor` gehört dagegen zu einer separaten Freigabeliste des Betreibers und erteilt keine MCP-Bearbeitungsrechte. Tool-Fehler verwenden weiterhin das unten beschriebene MCP-Format; die REST-Berechtigungsabfrage ändert die JSON-RPC-Fehlerbehandlung nicht.
 
@@ -295,6 +341,10 @@ Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.dev
 | `validate_automation` mit `valid: false` | Normales Validierungsergebnis; `errors` und ihre Stellen auswerten ([Ein Validierungsergebnis lesen](#validation-result)), obwohl `isError` false bleibt. Warnungen machen ein Dokument nie ungültig |
 | Capability mit `status: "waiting"` in `output` | Der Lauf wartet, etwa auf eine Genehmigung, die eine Person in Tale erteilt; er ist weder fertig noch fehlgeschlagen. `get_run` abfragen und nicht erneut versuchen |
 | Capability mit `refused` | Fehlerergebnis; die genannte Ursache beheben |
+| HTTP `401` mit einer `WWW-Authenticate: Bearer`-Challenge | Keine Zugangsdaten oder solche, die der Endpunkt ablehnt. `error="invalid_token"` sagt, dass Zugangsdaten vorgelegt wurden: Ein abgelaufenes Zugriffstoken wird mit dem Refresh-Token erneuert, und bei einer getrennten Verbindung oder einer Person, die die Organisation verlassen hat, muss der Agent neu angemeldet werden. Ohne `error` die Anmeldung starten, auf die die Challenge verweist |
+| HTTP `403` `INSUFFICIENT_SCOPE` | Der Verbindung fehlt Zugriff, den ein Aufruf der Anfrage braucht und den die Person erlauben könnte; nichts aus der Anfrage ist gelaufen. `data.requiredScopes` nennt, was anzufragen ist, `data.grantedScopes`, was sie hat ([Zugriffsstufen](#access-levels)) |
+| HTTP `403` `ORG_MISMATCH` | Der Aufruf nennt eine andere Organisation als die, für die die Verbindung angelegt wurde; `data.organization` nennt diese ([Eine Organisation](#one-organization)) |
+| Tool-Ergebnis `INSUFFICIENT_SCOPE` | Der Aufruf braucht Zugriff, den die Rolle der Person nie erlauben kann; sag es der Person, denn erneutes Verbinden würde nichts ändern |
 
 Zu den Tool-Codes gehören `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `AUTOMATION_VERSION_STALE`, `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_NAME_TAKEN`, `AUTOMATION_HAS_ACTIVE_RUNS`, `AUTOMATION_NOT_INSTALLED`, `HUMAN_ASK_NOT_FOUND`, `HUMAN_ASK_NOT_PENDING`, `HUMAN_ASK_EXPIRED`, `EMPTY_ANSWER`, `INVALID_CURSOR`, `BENCH_INVALID`, `LIVE_MODE_UNAVAILABLE` und `NOT_SUPPORTED`. Letzterer bedeutet, dass der Host den Vorgang für Läufe, Versionen oder Trigger nicht unterstützt. `start_run` lehnt einen wiederverwendeten `idempotencyKey` mit anderen Argumenten als `IDEMPOTENCY_KEY_REUSED` ab; `invoke_capability` lehnt eine ID, die das Register nicht führt — eine nur gespeicherte Automatisierung steht nicht darin —, als `CAPABILITY_NOT_FOUND` ab und Eingaben, die ihr Schema zurückweist, als `CAPABILITY_INPUT_INVALID`; `get_knowledge` reicht die eigenen Codes der Wissens-Tür durch (`KNOWLEDGE_UNAVAILABLE`, wenn die Suche selbst fehlgeschlagen ist). Plattformfehler behalten ihren eigenen Code, Hinweis und gegebenenfalls Daten; fehlender Entwicklerzugriff liefert etwa `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` führt jedes Argumentproblem auf; ein Wert außerhalb einer aufgezählten Menge wird abgelehnt, und die Meldung nennt die Menge. `RATE_LIMITED` bedeutet, dass das Tool eine Ausführung oder eine Einstellungsänderung gebraucht hätte und das [Budget](/de/develop/rate-limits) des Schlüsselinhabers dafür aufgebraucht ist: Warte `data.retryAfterMs` ab. `run_automation` und `test_automation` werden genauso abgelehnt, wenn das Budget der Organisation für nie gespeicherte Läufe aufgebraucht ist. `INTERNAL_ERROR` bedeutet, dass der Aufruf unerwartet fehlgeschlagen ist; nenne dem Betreiber des Deployments die `data.requestId`. Die Einstellungs-Tools ergänzen `SETTINGS_STALE` (eine Ressource hat sich seit dem Lesen geändert; `data.currentHash` ist ihr aktueller Hash), `SECRET_ARGUMENT_REFUSED` (eine Änderung enthielt ein Secret; `data.places` sagt, wo, nie, was), `SETTINGS_KIND_UNAVAILABLE` (dieses Deployment bedient diese Art nicht über MCP), `SETTINGS_NOT_FOUND` (eine Aktion auf einer Ressource, die es nicht gibt) und `SETTINGS_DUPLICATE` (eine Ressource wurde in einem Aufruf zweimal geändert).
 
@@ -302,4 +352,4 @@ Ein unbekannter Automatisierungsname ist auch bei `list_versions`, `list_runs` u
 
 ## Wo das hingehört
 
-REST und MCP teilen Schlüssel, Organisationskontext und dauerhafte Ausführungsobjekte. Verwende REST für ausdrückliche HTTP-Routen und MCP für Clients mit Tool-Erkennung und Tool-Aufrufen. Über diesen Endpunkt registriert oder ruft Tale keine externen MCP-Server auf.
+REST und MCP teilen Schlüssel, Organisationskontext und dauerhafte Ausführungsobjekte. Verwende REST für ausdrückliche HTTP-Routen und MCP für Clients mit Tool-Erkennung und Tool-Aufrufen. Über diesen Endpunkt registriert oder ruft Tale keine externen MCP-Server auf. Die Anmeldung eines Agents gilt nur für den MCP-Endpunkt: Jede andere Route nimmt API-Schlüssel an, und ein Token dieser Form wird dort als API-Schlüssel behandelt und abgelehnt.

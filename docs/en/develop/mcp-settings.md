@@ -1,9 +1,9 @@
 ---
 title: Settings over MCP
-description: Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses.
+description: Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses or who signed it in.
 ---
 
-A coding agent connected to the [MCP endpoint](/develop/mcp-endpoint) can read your organization's settings, plan a change and make it with three tools: `get_settings`, `plan_settings` and `apply_settings`. It acts with the role of the person whose API key it uses. It can change what that person could change in the app, through the same checks, and the [audit log](/platform/admin/governance/audit-logs) records every change as that person's, made through MCP.
+A coding agent connected to the [MCP endpoint](/develop/mcp-endpoint) can read your organization's settings, plan a change and make it with three tools: `get_settings`, `plan_settings` and `apply_settings`. It acts with the role of the person whose API key it uses, or who signed it in; an agent that signed in also needs the **Read settings** or **Change settings** access the person allowed ([Access levels](/develop/mcp-endpoint#access-levels)). It can change what that person could change in the app, through the same checks, and the [audit log](/platform/admin/governance/audit-logs) records every change as that person's, made through MCP.
 
 ## What an agent can change {#kinds}
 

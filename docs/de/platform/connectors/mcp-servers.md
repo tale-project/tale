@@ -3,11 +3,11 @@ title: Einen externen Client über MCP verbinden
 description: Finde den MCP-Endpunkt von Tale und erfahre, wie externe Clients damit arbeiten.
 ---
 
-Über den MCP-Endpunkt verbindet sich ein externer Coding-Assistent oder anderer MCP-Client mit deiner Organisation in Tale. Er kann verfügbare Funktionen finden, Automationen erstellen und Läufe prüfen. Der Zugriff folgt dem Organisations-API-Schlüssel und den Berechtigungen seines Inhabers.
+Über den MCP-Endpunkt verbindet sich ein externer Coding-Assistent oder anderer MCP-Client mit deiner Organisation in Tale. Er kann verfügbare Funktionen finden, Automationen erstellen und Läufe prüfen. Der Zugriff folgt den Berechtigungen der Person hinter der Verbindung: dem Inhaber des API-Schlüssels oder der Person, die den Agent angemeldet hat.
 
 ## Den Endpunkt finden
 
-Öffne **Einstellungen > API > MCP**. Die Seite zeigt die Endpunkt-URL, den Organisations-Slug, die verfügbaren Tool-Gruppen und eine kopierbare Anfrage zum Verbindungstest. Falls du noch keinen passenden Schlüssel hast, erstelle ihn unter **Einstellungen > API**.
+Öffne **Einstellungen > API > MCP**. Die Seite zeigt die Endpunkt-URL, den Organisations-Slug, die verfügbaren Tool-Gruppen und eine kopierbare Anfrage zum Verbindungstest. Ein Coding-Agent, der es unterstützt, meldet sich selbst an, sobald du ihm diese Adresse gibst ([Verbundene Agenten](/de/platform/admin/connected-agents) zeigt und beendet diese Verbindungen); sonst erstelle einen passenden Schlüssel unter **Einstellungen > API**.
 
 <Frame caption="Die MCP-Einstellungen zeigen Endpunkt, Organisationskontext und verfügbare Tools.">
 
