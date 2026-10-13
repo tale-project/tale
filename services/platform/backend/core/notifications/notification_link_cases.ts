@@ -154,7 +154,8 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/settings/api/rest`,
   },
-  // The MCP settings, where the member connects the coding agent again.
+  // The connected agents, where the member sees which of theirs was
+  // disconnected and which still work.
   agent_connection_ended: {
     row: {
       params: {
@@ -163,7 +164,7 @@ export const PERSONAL_LINK_CASES: Record<
         agentConnections: true,
       },
     },
-    path: `/dashboard/${ORG}/settings/api/mcp`,
+    path: `/dashboard/${ORG}/settings/api/agents`,
   },
   // The page of the organization the step's message linked to. A message
   // linking to the web opens it from the bell's own action beside the row.
