@@ -2,7 +2,7 @@ import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { TwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { backendFetch } from '@/app/lib/backend/api-client';
@@ -28,7 +28,7 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
   const started = useRef(false);
   const mounted = useRef(true);
 
-  async function continueRequest(accept?: boolean) {
+  const continueRequest = useCallback(async (accept?: boolean) => {
     setBusy(true);
     setFailed(false);
     try {
@@ -47,73 +47,80 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
       setFailed(true);
       setBusy(false);
     }
-  }
+  }, []);
+
+  /** Reads who is signed in and, on the consent page, which application is
+   * asking. It runs when the page opens, and again from the start each time
+   * the person asks to try again, whichever step failed. */
+  const load = useCallback(async () => {
+    setFailed(false);
+    try {
+      const session = await authClient.getSession();
+      if (!mounted.current) return;
+      if (session.error) throw new Error('Session unavailable');
+      if (!session.data?.user) {
+        await navigate({
+          to: '/log-in',
+          search: {
+            redirectTo: window.location.pathname + window.location.search,
+          },
+          replace: true,
+        });
+        return;
+      }
+      const factor = await backendFetch<TwoFactorStatus>('/two-factor/status');
+      if (!mounted.current) return;
+      if (factor.authenticated && factor.decision === 'blocked') {
+        const base = window.__ENV__?.BASE_PATH ?? '';
+        const enroll = new URL(`${base}/2fa-enroll`, window.location.origin);
+        enroll.searchParams.set(
+          'redirectTo',
+          window.location.pathname + window.location.search,
+        );
+        window.location.replace(enroll.toString());
+        return;
+      }
+      setEmail(session.data.user.email);
+      if (consent && isAgentRequest(window.location.search)) {
+        setAgent(true);
+        return;
+      }
+      if (!consent) {
+        await continueRequest();
+        return;
+      }
+      const clientId = new URLSearchParams(window.location.search).get(
+        'client_id',
+      );
+      if (!clientId) throw new Error('Client missing');
+      const client = await authClient.oauth2.publicClient({
+        query: { client_id: clientId },
+      });
+      if (!mounted.current) return;
+      if (client.error || !client.data?.client_name)
+        throw new Error('Client unavailable');
+      setClientName(client.data.client_name);
+    } catch {
+      if (mounted.current) setFailed(true);
+    }
+  }, [consent, navigate, continueRequest]);
 
   useEffect(() => {
     mounted.current = true;
-    if (started.current)
-      return () => {
-        mounted.current = false;
-      };
-    started.current = true;
-    void (async () => {
-      try {
-        const session = await authClient.getSession();
-        if (!mounted.current) return;
-        if (session.error) throw new Error('Session unavailable');
-        if (!session.data?.user) {
-          await navigate({
-            to: '/log-in',
-            search: {
-              redirectTo: window.location.pathname + window.location.search,
-            },
-            replace: true,
-          });
-          return;
-        }
-        const factor =
-          await backendFetch<TwoFactorStatus>('/two-factor/status');
-        if (!mounted.current) return;
-        if (factor.authenticated && factor.decision === 'blocked') {
-          const base = window.__ENV__?.BASE_PATH ?? '';
-          const enroll = new URL(`${base}/2fa-enroll`, window.location.origin);
-          enroll.searchParams.set(
-            'redirectTo',
-            window.location.pathname + window.location.search,
-          );
-          window.location.replace(enroll.toString());
-          return;
-        }
-        setEmail(session.data.user.email);
-        if (consent && isAgentRequest(window.location.search)) {
-          setAgent(true);
-          return;
-        }
-        if (!consent) {
-          await continueRequest();
-          return;
-        }
-        const clientId = new URLSearchParams(window.location.search).get(
-          'client_id',
-        );
-        if (!clientId) throw new Error('Client missing');
-        const client = await authClient.oauth2.publicClient({
-          query: { client_id: clientId },
-        });
-        if (!mounted.current) return;
-        if (client.error || !client.data?.client_name)
-          throw new Error('Client unavailable');
-        setClientName(client.data.client_name);
-      } catch {
-        if (mounted.current) setFailed(true);
-      }
-    })();
+    if (!started.current) {
+      started.current = true;
+      void load();
+    }
     return () => {
       mounted.current = false;
     };
-  }, [consent, navigate]);
+  }, [load]);
 
   if (agent && email !== undefined) return <AgentConsent email={email} />;
+
+  // The application that is asking could not be read: there is nothing to
+  // allow yet, but the request can still be answered, and read again.
+  const lookupFailed = consent && failed && clientName === undefined;
 
   return (
     <AuthPageLayout>
@@ -129,16 +136,25 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
           {failed ? <Text role="alert">{t('oauth.failed')}</Text> : null}
           {consent ? (
             <>
-              <Button
-                disabled={!clientName || busy}
-                onClick={() => void continueRequest(true)}
-                fullWidth
-              >
-                {busy ? t('oauth.continuing') : t('oauth.allow')}
-              </Button>
+              {lookupFailed ? (
+                <Button disabled={busy} onClick={() => void load()} fullWidth>
+                  {t('oauth.retry')}
+                </Button>
+              ) : (
+                <Button
+                  disabled={!clientName || busy}
+                  onClick={() => void continueRequest(true)}
+                  fullWidth
+                >
+                  {busy ? t('oauth.continuing') : t('oauth.allow')}
+                </Button>
+              )}
+              {/* A denial needs no application name: it stays available
+                  whenever nothing is in flight, so the person can always
+                  answer the application that is waiting. */}
               <Button
                 variant="secondary"
-                disabled={!clientName || busy}
+                disabled={busy}
                 onClick={() => void continueRequest(false)}
                 fullWidth
               >
@@ -146,11 +162,7 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
               </Button>
             </>
           ) : failed ? (
-            <Button
-              disabled={busy}
-              onClick={() => void continueRequest()}
-              fullWidth
-            >
+            <Button disabled={busy} onClick={() => void load()} fullWidth>
               {t('oauth.retry')}
             </Button>
           ) : (

@@ -98,9 +98,14 @@ describe('native identity consent', () => {
     'submits %s once and leaves navigation to the maintained auth client',
     async (label, accept) => {
       const { user, container } = render(<OAuthAuthorization consent />);
-      const action = await screen.findByRole('button', { name: label });
-      await waitFor(() => expect(action).toBeEnabled());
+      expect(
+        await screen.findByText(
+          'Office application wants to sign you in with Tale.',
+        ),
+      ).toBeVisible();
       expect(screen.getByText('staff@example.test')).toBeVisible();
+      const action = screen.getByRole('button', { name: label });
+      expect(action).toBeEnabled();
       await checkAccessibility(container);
       await user.click(action);
       expect(auth.consent).toHaveBeenCalledExactlyOnceWith({
@@ -110,6 +115,145 @@ describe('native identity consent', () => {
       expect(navigate).not.toHaveBeenCalled();
     },
   );
+
+  describe('when the application asking cannot be read', () => {
+    it.each([
+      ['answers with an error', { error: { message: 'Unavailable' } }],
+      ['names no application', { data: {} }],
+    ])(
+      'refuses to allow and still lets the person say no when the lookup %s',
+      async (_case, answer) => {
+        auth.publicClient.mockResolvedValue(answer);
+        const { user, container } = render(<OAuthAuthorization consent />);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          'This sign-in request could not continue',
+        );
+        expect(
+          screen.queryByRole('button', { name: 'Allow and continue' }),
+        ).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+        await checkAccessibility(container);
+
+        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+        expect(auth.consent).toHaveBeenCalledExactlyOnceWith({
+          accept: false,
+          oauth_query: signedQuery,
+        });
+        expect(navigate).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does the same when the lookup cannot be reached', async () => {
+      auth.publicClient.mockRejectedValue(new Error('offline'));
+      const { user } = render(<OAuthAuthorization consent />);
+
+      await screen.findByRole('alert');
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(auth.consent).toHaveBeenCalledExactlyOnceWith({
+        accept: false,
+        oauth_query: signedQuery,
+      });
+    });
+
+    it('reads the application again on Try again and then offers to allow', async () => {
+      auth.publicClient.mockResolvedValueOnce({
+        error: { message: 'Unavailable' },
+      });
+      const { user } = render(<OAuthAuthorization consent />);
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Try again' }),
+      );
+
+      expect(
+        await screen.findByText(
+          'Office application wants to sign you in with Tale.',
+        ),
+      ).toBeVisible();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Allow and continue' }),
+      ).toBeEnabled();
+      expect(auth.publicClient).toHaveBeenCalledTimes(2);
+      expect(auth.getSession).toHaveBeenCalledTimes(2);
+      expect(auth.consent).not.toHaveBeenCalled();
+    });
+
+    it('reads the sign-in again too when that was what failed', async () => {
+      auth.getSession.mockResolvedValueOnce({ error: { message: 'offline' } });
+      const { user } = render(<OAuthAuthorization consent />);
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Try again' }),
+      );
+
+      expect(
+        await screen.findByRole('button', { name: 'Allow and continue' }),
+      ).toBeEnabled();
+      expect(screen.getByText('staff@example.test')).toBeVisible();
+    });
+
+    it('lets the person say no while the application is still being read, and never allow', async () => {
+      auth.publicClient.mockReturnValue(new Promise(() => {}));
+      const { user } = render(<OAuthAuthorization consent />);
+
+      expect(
+        await screen.findByRole('button', { name: 'Allow and continue' }),
+      ).toBeDisabled();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(auth.consent).toHaveBeenCalledExactlyOnceWith({
+        accept: false,
+        oauth_query: signedQuery,
+      });
+    });
+  });
+
+  it('keeps Allow and Cancel for a known application when sending the answer fails', async () => {
+    auth.consent.mockResolvedValue({ error: { message: 'Refused' } });
+    const { user } = render(<OAuthAuthorization consent />);
+    await screen.findByText(
+      'Office application wants to sign you in with Tale.',
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Allow and continue' }),
+    );
+
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Allow and continue' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('continues again on Try again after the provider refused to continue', async () => {
+    auth.continue.mockResolvedValueOnce({ error: { message: 'Refused' } });
+    const { user } = render(<OAuthAuthorization consent={false} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(auth.continue).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('reads the sign-in again on Try again when it could not be read before continuing', async () => {
+    auth.getSession.mockResolvedValueOnce({ error: { message: 'offline' } });
+    const { user } = render(<OAuthAuthorization consent={false} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(auth.continue).toHaveBeenCalledTimes(1));
+    expect(auth.getSession).toHaveBeenCalledTimes(2);
+  });
 
   it('leaves a coding agent’s request to the page made for it, asking the provider nothing about the app', async () => {
     search = `?client_id=agent&scope=tale%3Amcp+offline_access&sig=bytes%2B`;
