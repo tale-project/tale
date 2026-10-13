@@ -11,6 +11,7 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useT } from '@/lib/i18n/client';
 import { MCP_TOOL_GROUPS, MCP_TOOLS } from '@/lib/mcp/tools';
 import { useSiteUrl } from '@/lib/site-url-context';
@@ -25,9 +26,9 @@ const TOOL_GROUPS = MCP_TOOL_GROUPS.map((group) => ({
 
 /**
  * The INBOUND MCP surface: the platform's own MCP endpoint. An MCP client (an
- * IDE, a desktop assistant, an external agent) points at the endpoint with an
- * org API key and gets the same tools the in-platform builder drives, plus the
- * organization's capability surface. The list renders `MCP_TOOLS` — the very
+ * IDE, a desktop assistant, an external agent) signs in to the endpoint, or
+ * points at it with an org API key, and gets the same tools the in-platform
+ * builder drives, plus the organization's capability surface. The list renders `MCP_TOOLS` — the very
  * inventory the endpoint answers `tools/list` with, in the same groups
  * the endpoint docs draw — so this section can never advertise a tool the
  * server would refuse. Lives on the API settings page with the other inbound
@@ -42,6 +43,11 @@ export function McpEndpointSection({
   className?: string;
 }) {
   const { t } = useT('settings');
+
+  // A coding agent signs itself in only where the deployment lets agents
+  // sign in and this person may connect one: only then does the page say so,
+  // and send the key for scripts and clients that cannot sign in.
+  const { connectAgents } = useApiSettingsAccess(organizationId);
 
   // Canonical deployment URL (SITE_URL), not the browser origin.
   const siteOrigin = useSiteUrl();
@@ -78,7 +84,21 @@ export function McpEndpointSection({
           label={t('mcpEndpoint.title')}
           description={
             <>
-              {t('mcpEndpoint.authHelp')}{' '}
+              {connectAgents && (
+                <>
+                  {t('mcpEndpoint.signInHelp')}{' '}
+                  <Link
+                    to="/dashboard/$id/settings/api/agents"
+                    params={{ id: organizationId }}
+                    className="underline"
+                  >
+                    {t('mcpEndpoint.signInLink')}
+                  </Link>{' '}
+                </>
+              )}
+              {connectAgents
+                ? t('mcpEndpoint.authHelpScripts')
+                : t('mcpEndpoint.authHelp')}{' '}
               <Link
                 to="/dashboard/$id/settings/api/rest"
                 params={{ id: organizationId }}
