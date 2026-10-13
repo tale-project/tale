@@ -306,15 +306,38 @@ describe('run_code', () => {
       artifacts: [],
     });
 
-    // Tried again: the shown version of the conversation does not have it,
-    // so the same bytes come again — once.
+    // Tried again: the program writes the same bytes again, and the shown
+    // version of the conversation does not have them, so they come again —
+    // once.
+    sandbox.write('chart.png', 'png-bytes', 3_000);
     await expect(run(new Set())).resolves.toMatchObject({
       artifacts: [{ name: 'chart.png' }],
     });
+    sandbox.write('chart.png', 'png-bytes', 4_000);
     await expect(run(new Set(['s3:acme/out-2']))).resolves.toMatchObject({
       artifacts: [],
     });
     expect(stored.map((file) => file.text)).toEqual(['png-bytes', 'png-bytes']);
+  });
+
+  it('never attaches again a file the program left alone, whichever reply it came on [CHAT-R24]', async () => {
+    const { scope, stored } = testScope();
+    const run = () =>
+      runRunCode(
+        scope,
+        { language: 'python', code: 'print(1)' },
+        { shownFiles: new Set() },
+      );
+
+    sandbox.write('their.xlsx', 'b-bytes', 1_000);
+    await run();
+    // Another version of the chat (an edited message, the other column of
+    // a comparison) runs a program that writes only its own file.
+    sandbox.write('mine.csv', 'a,b', 2_000);
+    await expect(run()).resolves.toMatchObject({
+      artifacts: [{ name: 'mine.csv' }],
+    });
+    expect(stored.map((file) => file.text)).toEqual(['b-bytes', 'a,b']);
   });
 
   it('trusts a delivery recorded before deliveries named their file', async () => {

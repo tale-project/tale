@@ -291,10 +291,10 @@ Images asked for in the same step count together, however many calls make them.
 ### CHAT-R24 · Each version of a file the code writes is attached once
 
 A file the code writes to its output folder is attached when it is new or changed since the
-sandbox's last run. An unchanged file, or one rewritten with the same content, is not attached
-again while the conversation shows the reply that got it, and every file stays in the sandbox
-for the next run. A reply tried again, or one after an edited message, no longer shows that
-reply, so the same file is attached to it.
+sandbox's last run. A file the code leaves alone is never attached again, and every file stays
+in the sandbox for the next run. A file rewritten with the same content is attached again only
+when the conversation no longer shows the reply that got it: a reply tried again, or one after
+an edited message, gets the file its own code wrote.
 
 - **Example**: Mia's chat writes `report.csv`, then runs code that only reads it → nothing new is
   attached. A third run changes a row → the new version is attached.

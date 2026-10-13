@@ -695,13 +695,12 @@ async function harvestOutputs(
 ): Promise<{ artifacts: ToolArtifact[]; skipped: SkippedOutput[] }> {
   /** Whether a version the sandbox delivered is one the conversation still
    * shows. A delivery left on a reply that was tried again, or behind a
-   * message that was edited, is not: the version comes again, so the reply
-   * that is shown has its file. */
-  const shown = (delivered: Delivered | undefined): delivered is Delivered =>
-    delivered !== undefined &&
-    (shownFiles === undefined ||
-      delivered.ref === undefined ||
-      shownFiles.has(delivered.ref));
+   * message that was edited, is not: when the program writes the same bytes
+   * again, they come again, so the reply that is shown has its file. */
+  const shown = (delivered: Delivered): boolean =>
+    shownFiles === undefined ||
+    delivered.ref === undefined ||
+    shownFiles.has(delivered.ref);
   const artifacts: ToolArtifact[] = [];
   // Set when a Stop (or the step's time) ended the harvest between two files:
   // what it stored stays stored and is returned, but it is not recorded as
@@ -768,10 +767,12 @@ async function harvestOutputs(
     }
     const previous = before.get(entry.name);
     if (
-      shown(previous) &&
+      previous !== undefined &&
       previous.size === entry.size &&
       previous.mtimeMs === entry.mtimeMs
     ) {
+      // Untouched since it was delivered: this program did not write it,
+      // whichever reply it came on.
       after.set(entry.name, previous);
       continue;
     }
@@ -810,7 +811,11 @@ async function harvestOutputs(
       mtimeMs: entry.mtimeMs,
       sha256: createHash('sha256').update(bytes).digest('hex'),
     };
-    if (shown(previous) && previous.sha256 === version.sha256) {
+    if (
+      previous !== undefined &&
+      previous.sha256 === version.sha256 &&
+      shown(previous)
+    ) {
       // Rewritten with the same bytes: nothing new to deliver.
       after.set(
         entry.name,
