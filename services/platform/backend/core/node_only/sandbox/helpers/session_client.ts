@@ -818,7 +818,7 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
  * while a platform start is still live. A 404 means nothing waits under the
  * id (its place was given up, or it was admitted), so there is nothing to
  * renew. */
-export async function sessionWaiterLiveness(sessionId: string): Promise<void> {
+async function sessionWaiterLiveness(sessionId: string): Promise<void> {
   const response = await spawnerFetch(
     'POST',
     `/v1/sessions/${encodeURIComponent(sessionId)}/wait`,
