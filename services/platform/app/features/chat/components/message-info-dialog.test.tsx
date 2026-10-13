@@ -261,9 +261,9 @@ describe('MessageInfoDialog', () => {
   });
 
   it('never names the time a tool ran as the model waiting or thinking', async () => {
-    // #4493 review 5445512947: setup 0.3 s, a reasoning round that called
-    // a 4 s search, then the answer. The bar read "Waiting for the model"
-    // or "Thinking" across the search, and the output speed counted it.
+    // Setup 0.3 s, a reasoning round that called a 4 s search, then the
+    // answer. The bar used to read "Waiting for the model" or "Thinking"
+    // across the search, and the output speed counted it.
     const { baseElement } = render(
       <MessageInfoDialog
         message={{

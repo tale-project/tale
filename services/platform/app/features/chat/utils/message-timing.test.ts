@@ -23,9 +23,9 @@ const SEARCH: readonly MessagePart[] = [
   },
 ];
 
-/** The review's example (#4493 review 5445512947): setup 0.3 s, the tool
- * call after 1.5 s, a 4 s document search, then the answer's first token
- * 1 s into its round, and 2 s of writing. */
+/** A reply that searched documents before it answered: setup 0.3 s, the
+ * tool call after 1.5 s, a 4 s document search, then the answer's first
+ * token 1 s into its round, and 2 s of writing. */
 const SEARCH_THEN_ANSWER = {
   setupMs: 300,
   timeToFirstTokenMs: 6800,
