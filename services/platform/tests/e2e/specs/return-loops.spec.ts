@@ -1,5 +1,5 @@
-import { E2E_PASSWORD, signInViaApi } from '../helpers/auth';
-import { BASE_URL, ENTITY_ID, TIMEOUT } from '../helpers/env';
+import { E2E_PASSWORD, newPersonContext, signInViaApi } from '../helpers/auth';
+import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
@@ -207,7 +207,7 @@ test('return loop: assigning a task notifies and calls back the assignee', async
   ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 
   // ── The callback: the member, in their own session, is pulled back ────────
-  const memberContext = await browser.newContext({ baseURL: BASE_URL });
+  const memberContext = await newPersonContext(browser);
   try {
     await signInViaApi(memberContext.request, memberCreds);
     const memberPage = await memberContext.newPage();
