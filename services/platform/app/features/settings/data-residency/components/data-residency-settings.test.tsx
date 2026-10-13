@@ -512,6 +512,166 @@ describe('DataResidencySettings', () => {
     expect(testKnowledge).not.toHaveBeenCalled();
   });
 
+  describe.each([
+    {
+      name: 'knowledge',
+      heading: 'Knowledge database',
+      field: 'Host',
+      payloadField: 'host',
+      original: 'original-db.example.test',
+      edited: 'new-db.example.test',
+      probe: testKnowledge,
+      save: saveKnowledge,
+      configure: () =>
+        setKnowledgeFixture({
+          configured: true,
+          host: 'original-db.example.test',
+          database: 'synthetic_rag',
+          user: 'synthetic',
+          hasPassword: true,
+        }),
+    },
+    {
+      name: 'object storage',
+      heading: 'Object storage',
+      field: 'Bucket',
+      payloadField: 'bucket',
+      original: 'original-synthetic-bucket',
+      edited: 'new-synthetic-bucket',
+      probe: testStorage,
+      save: saveStorage,
+      configure: () =>
+        setStorageFixture({
+          configured: true,
+          region: 'eu-central-1',
+          bucket: 'original-synthetic-bucket',
+          hasCredentials: true,
+        }),
+    },
+  ])('$name probe ownership', (connection) => {
+    const success = { ok: true, hint: 'Synthetic success' };
+    const refusal = { ok: false, error: 'Synthetic refusal' };
+
+    it.each(['success', 'refusal', 'rejection'] as const)(
+      'ignores a late %s after an edit and saves the untested draft',
+      async (outcome) => {
+        connection.configure();
+        const pending = Promise.withResolvers<
+          typeof success | typeof refusal
+        >();
+        connection.probe.mockReturnValueOnce(pending.promise);
+        connection.save.mockResolvedValue(null);
+        const { user, capture } = renderWithController();
+        const section = sectionByHeading(connection.heading);
+        const field = within(section).getByRole('textbox', {
+          name: connection.field,
+        });
+        await user.click(
+          within(section).getByRole('button', { name: 'Test connection' }),
+        );
+        expect(connection.probe).toHaveBeenCalledWith(
+          expect.objectContaining({
+            [connection.payloadField]: connection.original,
+          }),
+        );
+        expect(field).toBeEnabled();
+        await user.clear(field);
+        await user.type(field, connection.edited);
+        await act(async () => {
+          if (outcome === 'rejection') {
+            pending.reject(new Error('Synthetic refusal'));
+          } else {
+            pending.resolve(outcome === 'success' ? success : refusal);
+          }
+        });
+        expect(
+          within(section).queryByText(/OK|Bucket verified|Failed/),
+        ).toBeNull();
+        expect(within(section).queryByText(/Synthetic/)).toBeNull();
+        expect(field).toHaveValue(connection.edited);
+        expect(capture.current?.isDirty).toBe(true);
+        await act(async () => {
+          await capture.current?.save();
+        });
+        expect(connection.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            [connection.payloadField]: connection.edited,
+          }),
+        );
+        expect(pageToast).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not revive a pending success after editing and reverting', async () => {
+      connection.configure();
+      const pending = Promise.withResolvers<typeof success>();
+      connection.probe.mockReturnValueOnce(pending.promise);
+      const { user } = renderWithController();
+      const section = sectionByHeading(connection.heading);
+      const field = within(section).getByRole('textbox', {
+        name: connection.field,
+      });
+      await user.click(
+        within(section).getByRole('button', { name: 'Test connection' }),
+      );
+      await user.clear(field);
+      await user.type(field, connection.original);
+      await act(async () => pending.resolve(success));
+      expect(within(section).queryByText(/OK|Bucket verified/)).toBeNull();
+    });
+
+    it('clears a completed success on the next edit', async () => {
+      connection.configure();
+      connection.probe.mockResolvedValueOnce(success);
+      const { user } = renderWithController();
+      const section = sectionByHeading(connection.heading);
+      await user.click(
+        within(section).getByRole('button', { name: 'Test connection' }),
+      );
+      expect(
+        await within(section).findByText(/OK|Bucket verified/),
+      ).toBeInTheDocument();
+      await user.type(
+        within(section).getByRole('textbox', { name: connection.field }),
+        '-edited',
+      );
+      expect(within(section).queryByText(/OK|Bucket verified/)).toBeNull();
+    });
+
+    it.each(['refusal', 'rejection'] as const)(
+      'reports a current %s while preserving the draft',
+      async (outcome) => {
+        connection.configure();
+        const pending = Promise.withResolvers<typeof refusal>();
+        connection.probe.mockReturnValueOnce(pending.promise);
+        const { user, capture } = renderWithController();
+        const section = sectionByHeading(connection.heading);
+        const field = within(section).getByRole('textbox', {
+          name: connection.field,
+        });
+        await user.clear(field);
+        await user.type(field, connection.edited);
+        await user.click(
+          within(section).getByRole('button', { name: 'Test connection' }),
+        );
+        await act(async () => {
+          if (outcome === 'rejection') {
+            pending.reject(new Error('Synthetic refusal'));
+          } else {
+            pending.resolve(refusal);
+          }
+        });
+        expect(
+          within(section).getByText('Failed — Synthetic refusal'),
+        ).toBeInTheDocument();
+        expect(field).toHaveValue(connection.edited);
+        expect(capture.current?.isDirty).toBe(true);
+        expect(connection.save).not.toHaveBeenCalled();
+        expect(pageToast).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   it('refuses a knowledge database of spaces, which the door would get trimmed to nothing', async () => {
     setKnowledgeFixture({
       configured: true,
