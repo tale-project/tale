@@ -122,6 +122,13 @@ Before it changes anything, `tale deploy` checks the running backend's release, 
 
 The new colour's first start applies every database migration since v0.5.77 before it reports healthy, and with a large knowledge base the vector copy can take longer than `HEALTH_CHECK_TIMEOUT`. If the deploy stops at any point after the old backend stopped, run `tale deploy` again with the same release: it recognizes its own handoff, including a first start that was cut off partway through its migrations, waits for the colour that is already starting instead of recreating it, and finishes the upgrade. Keep `.tale/automation-cutover.json`, and do not start the old containers by hand. After the cutover, `tale rollback` refuses to return to v0.5.77; recover forward as the next section describes.
 
+Without `tale deploy`, on your own Compose files or the [Kubernetes manifests](/self-hosted/install/kubernetes), nothing holds this barrier for you, and a rolling update starts the new backend containers while the old ones still run. Hold it by hand: pause schedules and triggers, wait until this query answers `0`, stop every v0.5.77 `backend-api` and `backend-worker`, and only then roll out the new version. With Compose, the stop is `docker compose stop backend-api backend-worker`.
+
+```bash
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
+kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+```
+
 ## Automation protocol cutover: repair forward
 
 After the database records automation writer protocol 2, use a runtime that implements protocol 2 and the matching CLI. Before changing deployment files, infrastructure or traffic, the CLI reads the installed migration ledger and verifies the selected backend image’s protocol, source revision and immutable digest. An older image, missing or unsupported protocol metadata, an unreadable or ambiguous ledger, or a changed database identity stops deployment and rollback. A pending colour must contain the same admitted image in every backend role before promotion. A stopped database is not started implicitly to obtain this evidence.

@@ -122,6 +122,13 @@ Avant de modifier quoi que ce soit, `tale deploy` vérifie la version du backend
 
 Le premier démarrage de la nouvelle couleur applique toutes les migrations de base depuis v0.5.77 avant de se déclarer opérationnel ; avec une grande base de connaissances, la copie des vecteurs peut dépasser `HEALTH_CHECK_TIMEOUT`. Si le déploiement s’interrompt après l’arrêt de l’ancien backend, relance `tale deploy` avec la même version : il reconnaît son propre relais, y compris un premier démarrage interrompu au milieu de ses migrations, attend la couleur déjà en cours de démarrage au lieu de la recréer et termine la mise à niveau. Conserve `.tale/automation-cutover.json` et ne redémarre pas les anciens conteneurs à la main. Après le changement, `tale rollback` refuse de revenir à v0.5.77 ; répare avec une version compatible, comme le décrit la section suivante.
 
+Sans `tale deploy`, avec tes propres fichiers Compose ou les [manifestes Kubernetes](/fr/self-hosted/install/kubernetes), personne ne tient cette barrière pour toi, et une mise à jour progressive démarre les nouveaux conteneurs backend pendant que les anciens tournent encore. Tiens-la à la main : mets en pause les planifications et déclencheurs, attends que cette requête réponde `0`, arrête chaque `backend-api` et `backend-worker` de v0.5.77, et ne déploie la nouvelle version qu’ensuite. Avec Compose, l’arrêt se fait avec `docker compose stop backend-api backend-worker`.
+
+```bash
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
+kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+```
+
 ## Changement de protocole des automatisations : réparer avec une version compatible
 
 Dès que la base enregistre le protocole d’écriture des automatisations 2, utilise un runtime qui implémente ce protocole et la CLI correspondante. Avant de modifier les fichiers de déploiement, l’infrastructure ou le trafic, la CLI lit le registre des migrations installé et vérifie le protocole, la révision source et le digest immuable de l’image backend choisie. Une ancienne image, des métadonnées de protocole absentes ou non prises en charge, un registre illisible ou ambigu, ou une identité de base modifiée arrêtent le déploiement et le retour en arrière. Une couleur en attente doit contenir la même image admise dans chaque rôle backend avant la bascule. Une base arrêtée n’est pas démarrée implicitement pour effectuer cette vérification.

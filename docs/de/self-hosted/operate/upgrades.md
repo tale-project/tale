@@ -122,6 +122,13 @@ Bevor `tale deploy` etwas ändert, prüft es das Release des laufenden Backends,
 
 Der erste Start der neuen Farbe wendet jede Datenbankmigration seit v0.5.77 an, bevor er sich gesund meldet; bei einer großen Wissensdatenbank kann das Kopieren der Vektoren länger dauern als `HEALTH_CHECK_TIMEOUT`. Bricht das Deployment ab, nachdem das alte Backend angehalten wurde, führe `tale deploy` mit demselben Release erneut aus: Es erkennt seine eigene Übergabe, auch einen ersten Start, der mitten in seinen Migrationen abgebrochen wurde, wartet auf die bereits startende Farbe, statt sie neu zu erstellen, und schließt das Upgrade ab. Bewahre `.tale/automation-cutover.json` auf und starte die alten Container nicht von Hand. Nach der Umstellung lehnt `tale rollback` die Rückkehr zu v0.5.77 ab; repariere mit einer kompatiblen Version, wie der nächste Abschnitt beschreibt.
 
+Ohne `tale deploy`, mit eigenen Compose-Dateien oder den [Kubernetes-Manifesten](/de/self-hosted/install/kubernetes), hält niemand diese Sperre für dich, und ein Rolling Update startet die neuen Backend-Container, während die alten noch laufen. Halte sie von Hand: Pausiere Zeitpläne und Auslöser, warte, bis diese Abfrage `0` liefert, halte jedes `backend-api` und `backend-worker` von v0.5.77 an und rolle erst dann die neue Version aus. Mit Compose hältst du sie mit `docker compose stop backend-api backend-worker` an.
+
+```bash
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
+kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+```
+
 ## Umstellung des Automations-Protokolls: mit kompatibler Version reparieren
 
 Sobald die Datenbank Automations-Schreibprotokoll 2 verzeichnet, brauchst du eine Runtime mit Protokoll 2 und die passende CLI. Bevor die CLI Deployment-Dateien, Infrastruktur oder Datenverkehr ändert, liest sie das installierte Migrationsverzeichnis und prüft Protokoll, Quellrevision und unveränderlichen Digest des ausgewählten Backend-Images. Ein älteres Image, fehlende oder nicht unterstützte Protokollmetadaten, ein unlesbares oder mehrdeutiges Verzeichnis oder eine geänderte Datenbankidentität stoppen Deployment und Rollback. Vor der Umschaltung muss eine ausstehende Farbe in jeder Backend-Rolle dasselbe zugelassene Image enthalten. Eine angehaltene Datenbank wird für diese Prüfung nicht automatisch gestartet.
