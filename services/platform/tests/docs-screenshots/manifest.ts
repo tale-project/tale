@@ -2853,6 +2853,27 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // The dialog behind Connect a coding agent: the commands for the agent in
+    // use, whether one has signed in yet, and what to say to it first. Opened
+    // from the list; nothing is copied or run. The commands print the rig's
+    // address, so `sanitize` gives them the production-shaped host.
+    name: 'settings-connect-agent',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/api/agents',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('agentConnections.list.connectAction') })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('codingAgent.dialog.title') })
+        .getByText('claude mcp login tale', { exact: true }),
+    sanitize: replaceRigNames,
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('codingAgent.dialog.title') }),
+  },
+  {
     // The page a coding agent sends the browser to when it signs in: who is
     // asking, which organization, how much it may do and what that comes to.
     // An app that registered itself is the state a capture can reach without

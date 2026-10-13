@@ -1420,6 +1420,19 @@
       "height": 1800
     },
     {
+      "file": "images/platform/settings-connect-agent.webp",
+      "shot": "settings-connect-agent",
+      "route": "/dashboard/:orgId/settings/api/agents",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1152,
+      "height": 1328,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/settings-connected-agents.webp",
       "shot": "settings-connected-agents",
       "route": "/dashboard/:orgId/settings/api/agents",
