@@ -40,6 +40,7 @@ import {
 } from '../automations/agent_host';
 import {
   buildExternalTurnExec,
+  classifyProviderExecFailure,
   classifyHarnessEnd,
   sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
@@ -1907,7 +1908,11 @@ function isResumeLaunchFailure(
   attemptedResume?: string,
 ): boolean {
   if (window.kind !== 'terminal') return false;
-  const { errored, emptyAnswer } = classifyHarnessEnd(window);
+  const classified = classifyHarnessEnd(window);
+  const execFailure = classifyProviderExecFailure(
+    window.ended === undefined ? window.execResult?.errorMessage : undefined,
+  );
+  const { errored, emptyAnswer } = classified;
   return (
     errored &&
     !emptyAnswer &&
@@ -1917,6 +1922,7 @@ function isResumeLaunchFailure(
     // A model-wide capacity refusal says nothing about the resume handle.
     // Keep it for the counted delayed retry instead of launching fresh now.
     window.ended?.providerErrorKind !== 'model_capacity' &&
+    execFailure.providerErrorKind !== 'model_capacity' &&
     window.text === '' &&
     window.timeline.length === 0 &&
     (window.agentSessionId === undefined ||
@@ -2016,11 +2022,13 @@ async function continueOrSettle(
     });
     return;
   }
-  const {
-    errored,
-    reason: classifiedReason,
-    emptyAnswer,
-  } = classifyHarnessEnd(window);
+  const classified = classifyHarnessEnd(window);
+  const execFailure = classifyProviderExecFailure(
+    window.ended === undefined ? window.execResult?.errorMessage : undefined,
+  );
+  const { errored, reason: classifiedReason, emptyAnswer } = classified;
+  const classifiedApiErrorStatus = execFailure.apiErrorStatus;
+  const classifiedProviderErrorKind = execFailure.providerErrorKind;
   // An exec the sandbox ended (a hang) is named as such, not as a crash.
   const sandboxEnd = sandboxEndOf(window);
   const endReason = sandboxEnd?.reason ?? classifiedReason;
@@ -2051,6 +2059,9 @@ async function continueOrSettle(
       console.warn('[task-agent] final progress write failed:', err),
     );
   const ended = window.ended;
+  const modelCapacity =
+    ended?.providerErrorKind === 'model_capacity' ||
+    classifiedProviderErrorKind === 'model_capacity';
   // A SUCCESSFUL end with no final text is not a settle: the model emitted
   // a bare end-of-turn mid-work (observed live: a 1-completion-token
   // response at a 42k-token prompt ended the turn between two file reads),
@@ -2117,15 +2128,18 @@ async function continueOrSettle(
                 ? ('resource_exhausted' as const)
                 : spendRefused
                   ? ('budget_exceeded' as const)
-                  : ended?.providerErrorKind === 'model_capacity'
+                  : modelCapacity
                     ? ('model_capacity' as const)
                     : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for
     // mid-stream deaths and non-claude harnesses; stamped for observability.
-    ...(errored && ended?.apiErrorStatus !== undefined
-      ? { apiErrorStatus: ended.apiErrorStatus }
+    ...(errored &&
+    (ended?.apiErrorStatus ?? classifiedApiErrorStatus) !== undefined
+      ? {
+          apiErrorStatus: ended?.apiErrorStatus ?? classifiedApiErrorStatus,
+        }
       : {}),
     ...(errored && ended?.providerErrorKind === 'subscription_access_disabled'
       ? { providerErrorKind: ended.providerErrorKind }

@@ -17,6 +17,7 @@ import {
   type AutomationAgentHost,
   classifyWorkflowStartFailure,
 } from './agent_host.ts';
+import { MODEL_CAPACITY_REKICK_DELAY_MS } from './agent_retry.ts';
 import type { AgentCursor } from './checkpoints.ts';
 import { setAutomationAgentHostFactory, stepRunImpl } from './stepper.ts';
 
@@ -298,6 +299,31 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       resumedFrom: 'conv-1',
       resumeReason: 'the agent turn failed: API Error: 429 rate limited',
     });
+  });
+
+  it('delays a provider-capacity retry when the harness exited on a 429', async () => {
+    const { ctx, kicks } = harness(
+      parkedAttempt({
+        attempt: 1,
+        result: {
+          errored: true,
+          reason:
+            'The harness stopped: exceeded retry limit, last status: 429 Too Many Requests',
+          failureCode: 'model_capacity',
+          apiErrorStatus: 429,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(
+      before + MODEL_CAPACITY_REKICK_DELAY_MS,
+    );
   });
 
   it('holds the re-kick until a cooling broker pool has an account back, resuming what the refused start was to resume', async () => {

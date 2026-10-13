@@ -311,16 +311,26 @@ export function describeTurnFailure(message: string | undefined): {
   // Codex 0.142.5 prints ordinary HTTP failures as `unexpected status NNN`;
   // a ChatGPT usage_limit_reached 429 instead becomes this exact prose prefix.
   // Recover the status from the CLI's error channel, never assistant text.
+  // Codex also wraps an exhausted HTTP retry loop in this terminal envelope
+  // (observed on 0.160.0). Preserve its 429 as capacity so the application
+  // waits instead of immediately repeating the exhausted request loop.
+  const exhaustedStatus =
+    /^exceeded retry limit, last status: ([45]\d{2})\b/i.exec(text)?.[1];
   const httpStatus = /^unexpected status ([45]\d{2})\b/i.exec(text)?.[1];
   const nativeStatus =
-    httpStatus !== undefined
-      ? Number(httpStatus)
-      : text.startsWith("You've hit your usage limit.")
-        ? 429
-        : undefined;
+    exhaustedStatus !== undefined
+      ? Number(exhaustedStatus)
+      : httpStatus !== undefined
+        ? Number(httpStatus)
+        : text.startsWith("You've hit your usage limit.")
+          ? 429
+          : undefined;
   const fallback = {
     message: text,
     ...(nativeStatus !== undefined ? { apiErrorStatus: nativeStatus } : {}),
+    ...(exhaustedStatus === '429'
+      ? { providerErrorKind: 'model_capacity' as const }
+      : {}),
   };
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -349,6 +359,9 @@ export function describeTurnFailure(message: string | undefined): {
   return {
     message: line,
     ...(status !== undefined ? { apiErrorStatus: status } : {}),
+    ...(exhaustedStatus === '429' && status === 429
+      ? { providerErrorKind: 'model_capacity' as const }
+      : {}),
   };
 }
 

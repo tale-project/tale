@@ -38,6 +38,7 @@ import type { SkillViewer } from '../../../lib/skills/visibility';
 import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
+  classifyProviderExecFailure,
   classifyHarnessEnd,
   sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
@@ -2730,6 +2731,11 @@ async function continueOrSettle(
       console.warn('[agent-host] final progress write failed:', err),
     );
   const { errored, reason: classifiedReason } = classifyHarnessEnd(window);
+  const execFailure = classifyProviderExecFailure(
+    window.ended === undefined ? window.execResult?.errorMessage : undefined,
+  );
+  const classifiedApiErrorStatus = execFailure.apiErrorStatus;
+  const classifiedProviderErrorKind = execFailure.providerErrorKind;
   // An exec the sandbox ended (a hang) is named as such, not as a crash.
   const sandboxEnd = sandboxEndOf(window);
   const reason = sandboxEnd?.reason ?? classifiedReason;
@@ -2832,11 +2838,17 @@ async function continueOrSettle(
                     ? 'resource_exhausted'
                     : spendRefused
                       ? 'budget_exceeded'
-                      : 'harness_error',
+                      : ended?.providerErrorKind === 'model_capacity' ||
+                          classifiedProviderErrorKind === 'model_capacity'
+                        ? 'model_capacity'
+                        : 'harness_error',
           }
         : {}),
-      ...(errored && ended?.apiErrorStatus !== undefined
-        ? { apiErrorStatus: ended.apiErrorStatus }
+      ...(errored &&
+      (ended?.apiErrorStatus ?? classifiedApiErrorStatus) !== undefined
+        ? {
+            apiErrorStatus: ended?.apiErrorStatus ?? classifiedApiErrorStatus,
+          }
         : {}),
       ...(errored && ended?.providerErrorKind === 'subscription_access_disabled'
         ? { providerErrorKind: ended.providerErrorKind }
