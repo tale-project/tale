@@ -7,12 +7,18 @@ A coding agent such as Claude Code, Codex or Cursor can sign itself in to Tale's
 
 ## Connect an agent
 
-1. Give the agent the endpoint's address. **Settings > API > MCP** shows it with a copy button, and [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#connect-opencode-or-claude-code) has the command or setting for each agent.
-2. Start the agent's sign-in, for example `/mcp` in Claude Code or `codex mcp login tale`. The agent opens Tale in your browser. If you are signed out, sign in first.
+1. Select **Connect a coding agent** on this page. The dialog gives the commands for Claude Code and Codex, and the address to add to any other agent; [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#connect-opencode-or-claude-code) covers the rest. **Settings > API > MCP** also shows the address, with a copy button.
+2. Run the commands for your agent, the last of them its sign-in: `claude mcp login tale` or `codex mcp login tale`. The agent opens Tale in your browser. If you are signed out, sign in first.
 3. Check who is asking on the consent page. **Verified domain** means Tale read the app's details from its own domain, which only that domain's owner can publish. **Unverified app** means the agent registered itself and chose its own name: continue only if you started this connection from your agent just now.
 4. Choose the **Organization**. The agent works in that organization only; to use another one, connect it again.
 5. Choose the **Access** and, if you want, what to **Also allow**. The list headed “What Claude Code can do”, with your agent's name, shows what the choice comes to, and your role still applies: the agent never does more than you can in that organization.
 6. Select **Connect**. Tale sends you back to the agent, which signs itself in and can start working.
+
+<Frame caption="Connect a coding agent — the commands for the agent you use, whether it has signed in yet, and what to ask it first.">
+
+![The Connect a coding agent dialog shows the Claude Code, Codex and Other tabs, the two commands that add Tale and sign in, a line that waits for the agent to sign in, and a first prompt to copy.](/images/platform/settings-connect-agent.webp)
+
+</Frame>
 
 <Frame caption="The consent page of an app that registered itself. Where a verified app shows its domain, this one carries the Unverified app warning.">
 
@@ -21,6 +27,8 @@ A coding agent such as Claude Code, Codex or Cursor can sign itself in to Tale's
 </Frame>
 
 The request that brings you to the consent page expires after five minutes. If it has, start the connection again from the agent.
+
+The dialog keeps watching while it is open. It reads **Waiting for your agent to sign in…** until the agent has signed in, then **Connected:** and its name, with a first prompt to give the agent.
 
 ### Choose the access
 
