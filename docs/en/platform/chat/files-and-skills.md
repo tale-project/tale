@@ -47,6 +47,8 @@ A skill is a tested procedure for a kind of work, such as a document format or a
 
 To use a skill for one message, type `/` at the start of the message box, or choose **Use a skill** in the composer’s **+** menu. The skills you can use appear above the box; type to narrow them, then press Enter or select one. Your message then starts with the skill’s name, such as `/docx Write the cover letter`, and shows it as a chip once sent. The reply reads the skill before it answers: its first step is **Reading the docx skill**.
 
+![A new chat with a slash typed in the message box. Above the box, a list of skills: docx, pdf, pptx, visual-aspect-analyzer and xlsx, each with the start of its description, and docx highlighted.](/images/platform/chat-skill-picker.webp)
+
 To use skills for a whole conversation, open the model picker, go to **Skills** and check up to four. Every reply in that conversation reads them before it answers, unless it already read them earlier in the conversation. A new chat starts without any.
 
 The assistant also reads a skill on its own when one fits your request, or when you name it in your words. It sees the name and description of every skill in your library; in a library of more than 40 skills, it sees the first 40 in alphabetical order, so choose any other one with `/`. A skill whose author marked it for explicit use only is meant for when you choose it: the assistant is asked not to use it otherwise.

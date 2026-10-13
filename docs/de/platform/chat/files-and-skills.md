@@ -47,6 +47,8 @@ Ein Skill ist ein erprobtes Vorgehen für eine bestimmte Arbeit, etwa ein Dokume
 
 Für eine einzelne Nachricht tippst du `/` an den Anfang des Nachrichtenfelds oder wählst im **+**-Menü des Eingabebereichs **Skill verwenden**. Über dem Feld erscheinen die Skills, die du nutzen kannst; tippe weiter, um die Liste einzugrenzen, und drück dann die Eingabetaste oder wähle einen aus. Deine Nachricht beginnt dann mit dem Namen des Skills, etwa `/docx Schreib das Anschreiben`, und zeigt ihn nach dem Senden als Chip. Die Antwort liest den Skill, bevor sie antwortet: Ihr erster Schritt ist **Liest den Skill docx**.
 
+![Ein neuer Chat mit einem Schrägstrich im Nachrichtenfeld. Über dem Feld eine Liste der Skills docx, pdf, pptx, visual-aspect-analyzer und xlsx, jeweils mit dem Anfang ihrer Beschreibung; docx ist hervorgehoben.](/images/platform/chat-skill-picker.webp)
+
 Für ein ganzes Gespräch öffnest du die Modellauswahl, gehst zu **Skills** und hakst bis zu vier an. Jede Antwort in diesem Gespräch liest sie, bevor sie antwortet, es sei denn, sie wurden im Gespräch schon gelesen. Ein neuer Chat beginnt ohne.
 
 Der Assistent liest einen Skill auch von sich aus, wenn einer zu deiner Anfrage passt oder du ihn in deinen Worten nennst. Er sieht Name und Beschreibung jedes Skills deiner Bibliothek; umfasst sie mehr als 40 Skills, sieht er die ersten 40 in alphabetischer Reihenfolge; jeden weiteren wählst du mit `/`. Einen Skill, den sein Autor nur für den ausdrücklichen Aufruf vorgesehen hat, solltest du selbst wählen: Der Assistent wird gebeten, ihn sonst nicht zu nutzen.

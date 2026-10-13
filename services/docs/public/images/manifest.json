@@ -717,6 +717,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/chat-skill-picker.webp",
+      "shot": "chat-skill-picker",
+      "route": "/dashboard/:orgId/chat?new=true",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/chat-starters-empty.webp",
       "shot": "chat-starters-empty",
       "route": "/dashboard/:orgId/chat?new=true",
