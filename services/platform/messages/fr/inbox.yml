@@ -68,7 +68,7 @@ usageCreditsRequested: Crédits d’utilisation demandés
 usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
 apiKeyCreatedForYou: Clé API créée pour toi
 apiKeyCreatedForYouBody: '{name} a créé la clé API « {keyName} » pour toi. Elle agit en ton nom dans cette organisation ; si tu n’en as pas besoin, révoque-la sous Paramètres > API > REST.'
-agentConnectionEnded: Agent de programmation déconnecté
+agentConnectionEnded: Agent de code déconnecté
 agentConnectionEndedReuseBody: '{client} a été déconnecté parce qu’une ancienne connexion a été réutilisée. Reconnecte l’agent si c’était toi.'
 agentConnectionEndedAccountBody: '{client} a été déconnecté parce que ton mot de passe ou une autre méthode de connexion a changé. Reconnecte l’agent quand tu veux qu’il reprenne le travail.'
 agentConnectionEndedAdminBody: '{name} a déconnecté {client} de cette organisation. Reconnecte l’agent si tu en as encore besoin.'

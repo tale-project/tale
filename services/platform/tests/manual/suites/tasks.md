@@ -201,12 +201,18 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   start this task** (`tasks.runFailure.title`) names the reason and the status
   is unchanged — env-gated: mark **ENVIRONMENT** without a runnable harness.
 - [ ] `TASK-F13` · **Run details & live transcript** — On a running (or
-  finished) run: **Details** (`tasks.run.details`) → the dialog
-  (`tasks.run.detailsTitle`) → The dialog streams the execution log while
-  running (tool-only activity renders as collapsed per-tool rows, not silence;
-  an empty log reads `automations.runs.agentLog.empty`); for an
-  automation-owned task the property panel's **Run** row (`tasks.run.label`)
-  shows the latest run's state badge (`automations.runs.status.*`) and its
+  finished) agent run, find its row in the conversation
+  (`tasks.timeline.runLabel`) and press **View** (`common.actions.view`) →
+  The row opens in place under itself and its button reads **Hide**
+  (`tasks.timeline.hideExecution`): the run's state, how long it took, its
+  tool actions (`tasks.timeline.toolActions`) and its cost
+  (`tasks.agentRuns.totalCost`) when it has any, then the execution log, which
+  streams while the run works (tool-only activity renders as collapsed
+  per-tool rows, not silence; an empty log reads
+  `automations.runs.agentLog.empty`); **Hide** closes it again, and the
+  property panel's **Run** row keeps only the state and its verbs, with no
+  Details; for an automation-owned task the property panel's **Run** row
+  (`tasks.run.label`) shows the latest run's state badge (`automations.runs.status.*`) and its
   **Details** in every state — after the run finished too, when the subject
   panel's own Details is gone — and the dialog shows the step timeline
   (`automations.runs.timeline.label`) with the current step marked, titled in
@@ -245,6 +251,13 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   their trigger and cost; archiving toasts `tasks.archive.success` and removes
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
   returns it — both persisted across reload.
+- [ ] `TASK-F93` · **Batch consecutive agent runs** — Open a task with several
+  agent runs started consecutively on the same day → the conversation shows
+  one expandable **N agent runs** row (`tasks.timeline.agentRuns`) with the
+  first-to-last time range instead of one row per run; open it → each run and
+  its **View** control remains available, and close it → the compact summary
+  returns. A run separated by a comment or another activity remains its own
+  row, and runs on another day stay under that day's divider.
 - [ ] `TASK-F51` · **History names what a change left** — On a task you can
   edit that has no due date, set **Due date** to 1 October 2026 and clear it
   with its ✕ (`common.datePicker.clear`); assign a member and choose
@@ -300,9 +313,9 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   **Auto-retry 1 of 3** (`tasks.agentRun.autoRetrying`), both in the task
   dialog and on the task page. Switch the language to German, then French:
   the caption is translated in both places, and where it wraps (German, on
-  the task page) its second line stays inside the field, clear of **Details**
-  (`tasks.run.details`) and **Cancel run** (`tasks.agentRun.cancel`) below
-  it — env-gated: mark **ENVIRONMENT** without a gateway account.
+  the task page) its second line stays inside the field, clear of **Cancel
+  run** (`tasks.agentRun.cancel`) below it — env-gated: mark **ENVIRONMENT**
+  without a gateway account.
 - [ ] `TASK-F36` · **A connector on the agent runs for the run's starter** —
   Give the organization an active credential for a connector with a read
   action (GlitchTip or GitHub) under **Settings > Connectors**
@@ -310,8 +323,9 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   connectors & tools** (`projects.agents.equipmentLabel`). Signed in as a
   second member with project edit access, **Start agent**
   (`tasks.agentRun.start`) on a task that asks the agent to call that read
-  action and report what came back → In **Details** (`tasks.run.details`)
-  the agent's `connectors` tool call answers `ok` with the service's data,
+  action and report what came back → In **View**
+  (`common.actions.view`) on the run's row in the conversation the agent's
+  `connectors` tool call answers `ok` with the service's data,
   never `unavailable` / `no_user_context`, and the report quotes it; on
   `/dashboard/{org}/settings/governance/logs` the **Audit logs** tab
   (`settings.logs.auditLogs`) lists the call as a **Connector** row
@@ -326,9 +340,9 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   task that asks it to list the workspace, have a subagent summarise one file,
   and report back; @mention the agent with a follow-up once it settles; repeat
   both runs with `claude-fable-5-1` → Every run settles **Completed**
-  (`tasks.agentRuns.status.completed`); **Details** (`tasks.run.details`)
-  shows the tool calls, the subagent's call and the report; the follow-up
-  continues the same conversation; no step reads a provider 400 — env-gated:
+  (`tasks.agentRuns.status.completed`); **View** (`common.actions.view`) on
+  each run's row shows the tool calls, the subagent's call and the report;
+  the follow-up continues the same conversation; no step reads a provider 400 — env-gated:
   mark **ENVIRONMENT** without a credential that serves the models.
 - [ ] `TASK-F31` · **Drop into an empty lane lands there** — On the board,
   with an empty lane (e.g. **Cancelled**) beside a lane holding cards, drag a
@@ -355,8 +369,8 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   visual-aspect-analyzer's instructions; repeat with Claude Code → Both runs
   settle **Completed** (`tasks.agentRuns.status.completed`) and each report
   names `visual-aspect-analyzer` and quotes "Run this as the FINAL review
-  step…"; **Details** (`tasks.run.details`) shows the skill read from its
-  `SKILL.md`, not a search of the workspace — env-gated: mark
+  step…"; **View** (`common.actions.view`) on the run's row shows the skill
+  read from its `SKILL.md`, not a search of the workspace — env-gated: mark
   **ENVIRONMENT** without a credential that serves both harnesses.
 - [ ] `TASK-F46` · **Document skills work with the registries blocked** —
   Set `SANDBOX_EGRESS_ALLOWLIST=^example\.invalid$` in the stack's `.env`,
@@ -368,9 +382,10 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   three-slide deck with an icon on every slide → The run settles
   **Completed** (`tasks.agentRuns.status.completed`) with a `.docx` and a
   `.pptx` under **Deliverables** (`tasks.outputs.label`) that open with the
-  memo text and the slides' icons; **Details** (`tasks.run.details`) may show
-  the skills' `npm install -g` refused by the egress proxy, and the scripts
-  that `require('docx')` and `require('pptxgenjs')` run anyway; remove the
+  memo text and the slides' icons; **View** (`common.actions.view`) on the
+  run's row may show the skills' `npm install -g` refused by the egress
+  proxy, and the scripts that `require('docx')` and `require('pptxgenjs')`
+  run anyway; remove the
   allowlist afterwards — env-gated: mark **ENVIRONMENT** without a runnable
   harness.
 - [ ] `TASK-F48` · **An agent creates an image into the task's deliverables**
@@ -378,9 +393,9 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   an OpenRouter or OpenAI credential, signed in as a second member with
   project edit access, **Start agent** (`tasks.agentRun.start`) on a task that
   asks for "a square cover image for the launch post, saved as cover.png" →
-  **Details** (`tasks.run.details`) shows the agent's `workspace_tool` call to
-  `generate_image` answering `ok` with the saved path; when the run settles,
-  **Deliverables** (`tasks.outputs.label`) lists `cover.png` (or the same name
+  **View** (`common.actions.view`) on the run's row shows the agent's
+  `workspace_tool` call to `generate_image` answering `ok` with the saved
+  path; when the run settles, **Deliverables** (`tasks.outputs.label`) lists `cover.png` (or the same name
   ending in .jpg or .webp, whichever format the model returned) and it opens
   as the image; on `/dashboard/{org}/settings/metrics/usage` the image model appears
   under **Top models** (`analytics.usage.tables.topModels.title`) with one
@@ -712,9 +727,9 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   as the member, press **Start agent** on a task of theirs → the task shows
   **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`) with
   `tasks.agentRun.failure.budget` and **Retry** (`tasks.agentRun.retry`); the
-  Run field's **Details** (`tasks.run.details`) opens the same sentence above
-  **What the run reported** (`tasks.agentRun.reported`) and the cap's own
-  reason; the member's bell holds **Agent run failed**
+  run's row in the conversation, opened with **View** (`common.actions.view`),
+  shows **What the run reported** (`tasks.agentRun.reported`) with the cap's
+  own reason; the member's bell holds **Agent run failed**
   (`inbox.agentRunFailed`) with `inbox.agentRunFailedBudgetBody`, which opens
   the task (and an email arrives when actionable email is on). Delete the rule
   and press **Retry** → the notice leaves the task and the bell row turns read
@@ -979,8 +994,9 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   is below the org's spend so far this month; then **Start agent** on a task
   of a managed-credential agent → The Run row flips to **Failed** and the task
   shows **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`)
-  with `tasks.agentRun.failure.budget`; **Details** (`tasks.run.details`)
-  names the cap (`Cost limit reached for this monthly period …`); **Retry** is
+  with `tasks.agentRun.failure.budget`; **View** (`common.actions.view`) on
+  the run's row in the conversation names the cap (`Cost limit reached for
+  this monthly period …`); **Retry** is
   offered but no automatic retry follows (the run stays failed); raising the
   rule and retrying starts the run, and the run's cost then appears under
   **Governance > Usage** for the person who started it.

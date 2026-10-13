@@ -97,7 +97,12 @@ such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
 the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
-session or answers 429 `host_memory`. While the host's CPU pressure (PSI
+session or answers 429 `host_memory`, logging the refusal. An explicit
+`SANDBOX_MAX_SESSIONS` fixes the cap and disables this adaptive memory
+admission, which leaves the count, CPU and disk guards in force; the operator
+must size it from measured peaks. An impossible memory reserve (at or above
+total host memory) fails adaptive sizing at boot when the host is readable, or
+is reported when sizing is retried later. While the host's CPU pressure (PSI
 `some avg10` of `/proc/pressure/cpu`) is at or above
 `SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), creates and warm
 acquisitions start one at a time, one every ten seconds from the front of
@@ -111,7 +116,11 @@ cap already-running writers; hard per-volume quotas require operator
 provisioning (docs/docker-in-container.md). Below either observed filesystem's
 floor every create answers 429 `host_disk`, and the build-cache upkeep
 removes the caches of organizations whose helpers are all stopped, the
-longest-stopped first. Below its critical tier (`SANDBOX_CRITICAL_FREE_DISK`,
+longest-stopped first. The upkeep samples the disk immediately before and
+after each removal, under the organization's lock; only three consecutive net
+gains below 1 MiB pause it for six hours, because concurrent writes or delayed
+accounting can hide freed space, so a pause is not a verdict that the caches
+live on another disk. Below its critical tier (`SANDBOX_CRITICAL_FREE_DISK`,
 a quarter of the floor, at least 1 GiB; never above the floor; `0`, or a
 floor of `0`, turns it off), where running
 sessions' writes are about to fail, the sweep also stops released idle
@@ -431,6 +440,50 @@ the pool requires restarting the spawner and recreating existing sessions; a
 same-Pod runner restart retains its environment and inner Docker store. The
 [Kubernetes contract](docs/kubernetes.md#inner-docker-networking) covers these
 operator responsibilities and the egress IPv6 prerequisite.
+
+## Recorded follow-up decisions (#4124)
+
+MEDIUM 2, the waiter lifecycle, is closed without removing expiry, which would
+be unsafe: the crawl/render lane marks a refused create collected without
+cancelling its waiter and uses a new ID on the next continuation, so abandoned
+waiters must still give their places up, and a waiter that stopped asking still
+does, twice its hint and 15 s later. What changed is who owns a place. An ask
+that is running its reclaim and memory probes keeps its waiter's place however
+slow they are, and the platform renews a place with
+`POST /v1/sessions/:id/wait` (a lease of at most ten minutes). A destroy, an
+admission or a queue-cap eviction ends the place and marks every ask of that id
+still running, so a late answer cannot put the waiter back.
+
+The host-room fix deliberately leaves these LOW findings open rather than
+combining unrelated lifecycle, runtime-image and cancellation changes:
+
+- A stop wedged against a re-attached exec needs incarnation-safe stop/reattach
+  arbitration and a runnerd integration regression; this change does not alter it.
+- Reclaiming a warm session for a deficit consisting only of reservations remains
+  conservative admission. Avoiding that cold start needs a separate actual-pressure
+  versus planned-pressure decision and regression; no safety guarantee is relaxed here.
+- Wall-clock-based memory reservations and disk-probe freshness remain unchanged;
+  monotonic time should be introduced consistently across lifecycle windows, not
+  just in one probe.
+- A build-helper idle check sees one instant, and an aborted idle prune may leave
+  `buildctl` running. Both need a helper-side idle lease/cancellation protocol;
+  this patch preserves the existing org lock and does not claim atomic helper idleness.
+- Queued Docker calls can outlive an abort. Cancellation ownership needs a separate
+  command-queue regression; changing the global scheduler is outside this relief fix.
+- The egress proxy may retain `MaxClients 2000` after a failed file-limit raise.
+  Changing its sizing belongs to a proxy-entrypoint regression and is deferred.
+- Disk locality is not checked for a remote `DOCKER_HOST`. Do not treat a remote
+  daemon's workspace disk as protected by the spawner's local filesystem reading;
+  explicitly disable the local guard (`SANDBOX_MIN_FREE_DISK=0`) in that topology
+  until a daemon-local disk source exists.
+- A host already below its disk floor refuses every create after an upgrade.
+  Keep this fail-closed behavior; EN/DE/FR upgrade notes now describe it and recovery.
+- Kubernetes quantities such as `10Gi` are not accepted for these Docker-style
+  size settings. Keep fail-fast configuration parsing; use `10g` or `10240m`.
+- The real Bun `node:fs` disk probe has a non-injected regression. This proves the
+  Bun executing that test, not an unbuilt deployment image. Image-runtime verification
+  remains required; if the probe is unavailable, the existing warning and fail-open
+  behavior remain unchanged.
 
 ## Container
 

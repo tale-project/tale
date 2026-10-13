@@ -568,7 +568,7 @@ testPosix(
         );
       }
       f.setPasswordOptions({
-        password: { hash: async () => 'custom', verify: async () => true },
+        password: { hash: 'custom', verify: async () => true },
       });
       await expect(f.run()).rejects.toThrow('provisioning failed');
       expect(readdirSync(f.root)).toEqual([]);

@@ -41,10 +41,14 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 
-// Whether the member may create a personal API key or call the model
-// endpoints decides the API group for a role without developer settings; the
-// rail reads both through one hook.
-const apiAccess = vi.hoisted(() => ({ apiKeys: false, modelApi: false }));
+// Whether the member may create a personal API key, call the model endpoints
+// or connect a coding agent decides the API group for a role without
+// developer settings; the rail reads all three through one hook.
+const apiAccess = vi.hoisted(() => ({
+  apiKeys: false,
+  modelApi: false,
+  agents: false,
+}));
 vi.mock(
   '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
   () => ({
@@ -52,6 +56,7 @@ vi.mock(
       developer: ability.canEverything,
       apiKeys: ability.canEverything || apiAccess.apiKeys || apiAccess.modelApi,
       modelApi: ability.canEverything || apiAccess.modelApi,
+      agents: apiAccess.agents,
       loading: false,
     }),
   }),
@@ -62,6 +67,7 @@ describe('SettingsRail', () => {
     ability.canEverything = true;
     apiAccess.apiKeys = false;
     apiAccess.modelApi = false;
+    apiAccess.agents = false;
   });
 
   describe('accessibility', () => {
@@ -118,6 +124,63 @@ describe('SettingsRail', () => {
     );
     expect(nav.queryByRole('link', { name: 'MCP' })).not.toBeInTheDocument();
     expect(nav.queryByRole('link', { name: 'WebDAV' })).not.toBeInTheDocument();
+  });
+
+  it('lists the API pages of a developer role in order, Connected agents beside MCP', async () => {
+    apiAccess.agents = true;
+    const { user } = render(<SettingsRail organizationId="org-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'API' }));
+    const hrefs = within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'))
+      .filter((href) => href?.includes('/settings/api/'));
+    expect(hrefs).toEqual([
+      '/dashboard/org-1/settings/api/rest',
+      '/dashboard/org-1/settings/api/models',
+      '/dashboard/org-1/settings/api/mcp',
+      '/dashboard/org-1/settings/api/agents',
+      '/dashboard/org-1/settings/api/webdav',
+    ]);
+    expect(
+      within(screen.getByRole('navigation')).getByRole('link', {
+        name: 'Connected agents',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves Connected agents out of a developer role’s API pages while agents may not sign in [AGCONN-R23]', async () => {
+    apiAccess.agents = false;
+    const { user } = render(<SettingsRail organizationId="org-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'API' }));
+    const hrefs = within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'))
+      .filter((href) => href?.includes('/settings/api/'));
+    expect(hrefs).toEqual([
+      '/dashboard/org-1/settings/api/rest',
+      '/dashboard/org-1/settings/api/models',
+      '/dashboard/org-1/settings/api/mcp',
+      '/dashboard/org-1/settings/api/webdav',
+    ]);
+  });
+
+  it('opens Connected agents alone to a member who may connect a coding agent or holds one [AGCONN-R23]', async () => {
+    ability.canEverything = false;
+    apiAccess.agents = true;
+
+    const { user } = render(<SettingsRail organizationId="org-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'API' }));
+    const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'Connected agents' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/settings/api/agents',
+    );
+    expect(nav.queryByRole('link', { name: 'REST' })).not.toBeInTheDocument();
+    expect(nav.queryByRole('link', { name: 'Models' })).not.toBeInTheDocument();
+    expect(nav.queryByRole('link', { name: 'MCP' })).not.toBeInTheDocument();
   });
 
   it('opens REST alone to a member granted another competence used with a key', async () => {

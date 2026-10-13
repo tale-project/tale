@@ -1743,6 +1743,99 @@ describe('sessionCreate at host capacity', () => {
       expect(error instanceof SpawnerBusyError && error.queue).toBeUndefined();
     }
   });
+
+  /** Refuse the create with a place in the line (or none) and answer a
+   * renewal of that place with `renewal`, recording every call. */
+  function refuseAndRenew(options: {
+    queue: boolean;
+    renewal: () => Response;
+  }): Array<{ method: string; path: string }> {
+    const calls: Array<{ method: string; path: string }> = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      calls.push({ method: init?.method ?? 'GET', path });
+      if (path.endsWith('/wait')) return options.renewal();
+      return new Response(
+        JSON.stringify({
+          error: 'host_memory',
+          ...(options.queue ? { queue: { position: 0, waiting: 1 } } : {}),
+        }),
+        {
+          status: 429,
+          headers: {
+            'content-type': 'application/json',
+            'retry-after': '5',
+          },
+        },
+      );
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    return calls;
+  }
+  const renewed = () =>
+    new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  test("renews the place it was given in the spawner's line before it reports the refusal", async () => {
+    const calls = refuseAndRenew({ queue: true, renewal: renewed });
+    const error = await create();
+    expect(error).toBeInstanceOf(SpawnerBusyError);
+    expect(calls).toEqual([
+      { method: 'POST', path: '/v1/sessions' },
+      { method: 'POST', path: '/v1/sessions/ses-busy/wait' },
+    ]);
+  });
+
+  test('renews nothing when the refusal names no place', async () => {
+    const calls = refuseAndRenew({ queue: false, renewal: renewed });
+    expect(await create()).toBeInstanceOf(SpawnerBusyError);
+    expect(calls).toEqual([{ method: 'POST', path: '/v1/sessions' }]);
+  });
+
+  test('a renewal the spawner does not know is no failure to report', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // An earlier test may hold this very spy with its calls.
+    warn.mockClear();
+    try {
+      refuseAndRenew({
+        queue: true,
+        renewal: () =>
+          new Response(JSON.stringify({ error: 'not_waiting' }), {
+            status: 404,
+          }),
+      });
+      expect(await create()).toBeInstanceOf(SpawnerBusyError);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a renewal that fails is logged and never hides the refusal', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warn.mockClear();
+    try {
+      refuseAndRenew({
+        queue: true,
+        renewal: () => new Response('unavailable', { status: 503 }),
+      });
+      const error = await create();
+      expect(error).toBeInstanceOf(SpawnerBusyError);
+      expect(error instanceof SpawnerBusyError && error.queue).toEqual({
+        position: 0,
+        waiting: 1,
+      });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('room line'),
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 /** The hub's answer for a session whose device is not connected. */

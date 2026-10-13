@@ -379,6 +379,30 @@ describe('app automation door — bindings name readable projects only', () => {
     });
   });
 
+  it('keeps a listed row trigger and drops it with a row only hidden projects bind [AUTO-R27]', async () => {
+    const paused = {
+      kind: 'schedule',
+      enabled: false,
+      lastSkipReason: 'paused_after_failures',
+    };
+    store.listAutomationsForApp.mockResolvedValue([
+      {
+        name: 'ops/hidden-only',
+        projectIds: [HIDDEN],
+        trigger: { kind: 'webhook', enabled: true, lastSkipReason: null },
+      },
+      { name: 'ops/sync', projectIds: [SHARED, HIDDEN], trigger: paused },
+      { name: 'ops/by-hand', projectIds: [], trigger: null },
+    ]);
+    const listing = await request('/listing?includeProjectBound=true');
+    expect(await listing.json()).toEqual({
+      automations: [
+        { name: 'ops/sync', projectIds: [SHARED], trigger: paused },
+        { name: 'ops/by-hand', projectIds: [], trigger: null },
+      ],
+    });
+  });
+
   it('saves bindings within the author view so hidden bindings survive', async () => {
     member.role = 'developer';
     const response = await post('/ops/sync/projects', { projectIds: [] });

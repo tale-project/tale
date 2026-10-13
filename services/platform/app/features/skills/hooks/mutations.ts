@@ -24,11 +24,20 @@ function useInvalidateSkills() {
  * that the caller may not publish (the `skill_sharing` policy). */
 const SKILL_PUBLISH_FORBIDDEN = 'SKILL_PUBLISH_FORBIDDEN';
 const SKILL_EXISTS = 'SKILL_EXISTS';
+/** The skill door's refusal of an edit whose document another save has
+ * replaced since it was read (`If-Match`). */
+const SKILL_STALE = 'SKILL_STALE';
 
 /** Whether a failed skill write was refused for its organization-wide
  * audience. */
 function isSkillExistsRefusal(error: unknown): boolean {
   return backendErrorCode(error) === SKILL_EXISTS;
+}
+
+/** Whether a failed skill write was refused because the skill was saved by
+ * someone else after the edit started. */
+export function isSkillStaleRefusal(error: unknown): boolean {
+  return backendErrorCode(error) === SKILL_STALE;
 }
 
 export function isSkillPublishRefusal(error: unknown): boolean {
@@ -68,16 +77,23 @@ function usePublishRefusalFeedback() {
  * the server merges over the on-disk `SKILL.md`, so a partial save never
  * blanks frontmatter the editor doesn't carry.
  *
- * The detail pane toasts a failed save itself, naming a refused audience,
- * and passes `errorToast: false`: spread last, it wins over the refusal
- * feedback's toast, while the listing refresh still runs. The create pane
- * keeps this hook's toast.
+ * The detail pane toasts a failed save itself, naming a refused audience
+ * or a skill saved since it was opened, and passes `errorToast: false`:
+ * spread last, it wins over the refusal feedback's toast, while the listing
+ * refresh still runs. The create pane keeps this hook's toast.
  */
 export function useSaveSkill(options?: { errorToast?: false }) {
   const invalidate = useInvalidateSkills();
+  const feedback = usePublishRefusalFeedback();
   return useBackendAction('skills/actions:saveSkill', {
     onSuccess: () => invalidate(),
-    ...usePublishRefusalFeedback(),
+    ...feedback,
+    onError: (error: Error) => {
+      feedback.onError(error);
+      // A document saved since the edit started refused it: read the
+      // library again, so the skill opened next is that document.
+      if (isSkillStaleRefusal(error)) void invalidate();
+    },
     ...options,
   });
 }

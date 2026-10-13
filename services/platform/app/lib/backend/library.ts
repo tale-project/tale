@@ -144,8 +144,17 @@ export const libraryWriteAdapters: Record<string, WriteAdapter> = {
               : {}),
             ...(Array.isArray(args.labels) ? { labels: args.labels } : {}),
           },
-          ...(args.createOnly === true
-            ? { headers: { 'if-none-match': '*' } }
+          // A create names that nothing is stored; an edit names the
+          // document it read, so a document saved since refuses it.
+          ...(args.createOnly === true || typeof args.etag === 'string'
+            ? {
+                headers: {
+                  ...(args.createOnly === true ? { 'if-none-match': '*' } : {}),
+                  ...(typeof args.etag === 'string'
+                    ? { 'if-match': args.etag }
+                    : {}),
+                },
+              }
             : {}),
         },
       ).then((body) => body.skill),

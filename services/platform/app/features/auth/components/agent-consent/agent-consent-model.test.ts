@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AGENT_SCOPES,
   type AgentScope,
+  EXTRA_SCOPES,
   scopeCeilingForRole,
 } from '@/lib/shared/agent-access';
 
@@ -12,7 +13,6 @@ import {
   chosenScopes,
   defaultOrganizationId,
   isChoiceOnOffer,
-  EXTRA_SCOPES,
   extraAvailability,
   initialChoice,
   levelAvailability,

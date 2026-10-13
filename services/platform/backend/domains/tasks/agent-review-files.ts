@@ -32,8 +32,8 @@ const REVIEW_FILE_MAX_BYTES = 20 * 1024 * 1024;
 const REVIEW_FILES_PAGE_SIZE = 50;
 const fileEntrySchema = z.object({
   fileId: z.string().min(1).max(4096),
-  fileName: z.string().min(1).max(240),
-  fileType: z.string().min(1).max(200),
+  fileName: z.string().min(1).max(255),
+  fileType: z.string().max(255),
   fileSize: z.number().int().nonnegative().safe(),
   runId: z.string().min(1).max(200).optional(),
 });
@@ -74,7 +74,6 @@ function unavailable(
 ): UnavailableReason | null {
   if (
     /[\x00-\x1f\x7f]/.test(entry.fileName) ||
-    Buffer.byteLength(entry.fileName) > 240 ||
     /[\x00-\x1f\x7f]/.test(entry.fileType)
   )
     return 'invalid_metadata';
@@ -247,6 +246,18 @@ function hashSegment(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function reviewFileLeaf(fileName: string): string {
+  let leaf = '';
+  let bytes = 0;
+  for (const character of safePathSegment(fileName)) {
+    const characterBytes = Buffer.byteLength(character);
+    if (bytes + characterBytes > 240) break;
+    leaf += character;
+    bytes += characterBytes;
+  }
+  return safePathSegment(leaf);
+}
+
 /** Snapshot-authorized transfer outside DB locks. A late revocation refuses
  * success but cannot erase bytes already delivered while access was valid. */
 export async function stageAgentReviewFile(
@@ -264,7 +275,7 @@ export async function stageAgentReviewFile(
     );
   const request = parsed.data;
   const before = await authorize(request);
-  const path = `${reviewInputsDir(request.taskId)}/${hashSegment(request.expected.approvalId)}/${request.expected.evidenceRevision}/${hashSegment(before.metadata.storageRef)}/${safePathSegment(before.entry.fileName)}`;
+  const path = `${reviewInputsDir(request.taskId)}/${hashSegment(request.expected.approvalId)}/${request.expected.evidenceRevision}/${hashSegment(before.metadata.storageRef)}/${reviewFileLeaf(before.entry.fileName)}`;
   const url = await stageUrlForBlobRef(
     before.metadata.storageRef,
     before.organizationId,

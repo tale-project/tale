@@ -8,7 +8,15 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import {
+  AGENT_REFRESH_TOKEN_SECONDS,
+  PROTECTED_RESOURCE_METADATA_PATH,
+} from '../../backend/auth/agent-oauth.ts';
 import type { Auth } from '../../backend/auth/auth.ts';
+import {
+  OIDC_AUTHORIZE_PATH,
+  OIDC_TOKEN_PATH,
+} from '../../backend/auth/oidc.ts';
 import type {
   SkillDocumentView,
   SkillSummaryView,
@@ -38,6 +46,10 @@ import { setCodeRunner } from '../../lib/engine/core/runner.ts';
 import type { Automation } from '../../lib/engine/core/types.ts';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
 import { memoryStore } from '../../lib/engine/selftest/memory-store.ts';
+import {
+  MCP_PATH,
+  MCP_RESOURCE_SCOPES,
+} from '../../lib/shared/agent-access.ts';
 import { contractFingerprint } from './fingerprint.ts';
 import { buildSpec, type Json } from './spec.ts';
 
@@ -1270,6 +1282,59 @@ describe('project scope in OpenAPI inputs', () => {
         ).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * A coding agent signs in to the MCP endpoint alone, on a person's behalf.
+ * The document names that way in on that operation and nowhere else, lists
+ * the scopes the endpoint grants (the list the sign-in server, the consent
+ * page and the door share), and points at the sign-in server's own
+ * endpoints and its refresh lifetime — so a generated client or the `/docs`
+ * explorer never offers a scope the server would drop or a path it does not
+ * serve.
+ */
+describe('the agent sign-in scheme', () => {
+  const scheme =
+    (spec.components as { securitySchemes: Record<string, Json> })
+      .securitySchemes.agentOAuth ?? {};
+  const flow = (scheme.flows as { authorizationCode: Json }).authorizationCode;
+
+  it('lists the scopes the endpoint grants, and no other', () => {
+    expect(Object.keys(flow.scopes as Json).sort()).toEqual(
+      [...MCP_RESOURCE_SCOPES].sort(),
+    );
+  });
+
+  it('points at the sign-in server’s authorize and token endpoints', () => {
+    expect(flow.authorizationUrl).toBe(`/api/auth${OIDC_AUTHORIZE_PATH}`);
+    expect(flow.tokenUrl).toBe(`/api/auth${OIDC_TOKEN_PATH}`);
+    expect(flow.refreshUrl).toBe(flow.tokenUrl);
+  });
+
+  it('names the endpoint’s resource document and the refresh lifetime the server issues', () => {
+    expect(scheme.description).toContain(
+      `${PROTECTED_RESOURCE_METADATA_PATH}${MCP_PATH}`,
+    );
+    expect(AGENT_REFRESH_TOKEN_SECONDS).toBe(30 * 24 * 60 * 60);
+    expect(scheme.description).toContain('thirty days');
+  });
+
+  it('is taken by the MCP operation alone, beside the API key', () => {
+    const takers = Object.entries(paths).flatMap(([path, operations]) =>
+      Object.entries(operations)
+        .filter(
+          ([method, operation]) =>
+            HTTP_METHODS.has(method) &&
+            JSON.stringify(operation.security ?? []).includes('agentOAuth'),
+        )
+        .map(([method]) => `${method.toUpperCase()} ${path}`),
+    );
+    expect(takers).toEqual([`POST ${MCP_PATH}`]);
+    expect(paths[MCP_PATH]?.post?.security).toEqual([
+      { bearerAuth: [] },
+      { agentOAuth: ['tale:mcp'] },
+    ]);
   });
 });
 

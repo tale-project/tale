@@ -61,6 +61,50 @@ consent:
     unavailable: Die Verbindung konnte gerade nicht hergestellt werden. Versuche es gleich noch einmal.
     scopedSession: Diese Anmeldung gehört zu einer einzelnen Organisation und kann deshalb keinen Coding-Agenten verbinden. Melde dich mit deinem eigenen Konto an, um fortzufahren.
     failed: Diese Verbindung konnte nicht abgeschlossen werden. Starte sie erneut in deinem Coding-Agenten.
+list:
+  description: Coding-Agenten, die sich in deinem Namen bei Tale angemeldet haben. Jeder arbeitet in dieser Organisation mit dem Zugriff, den du ihm gegeben hast.
+  adminDescription: Coding-Agenten, die Mitglieder mit dieser Organisation verbunden haben.
+  caption: Verbundene Coding-Agenten
+  entityLabelOne: Coding-Agent
+  entityLabel: Coding-Agenten
+  viewLabel: Anzuzeigende Agenten
+  mine: Meine
+  everyone: Alle
+  showDisconnected: Getrennte anzeigen
+  columns:
+    agent: Agent
+    person: Person
+    access: Zugriff
+    connected: Verbunden
+    lastUsed: Zuletzt genutzt
+    actions: Aktionen
+  never: Nie
+  unverified: Nicht bestätigt
+  you: Du
+  unknownPerson: Unbekannte Person
+  disconnectedOn: 'Getrennt am {date} · {reason}'
+  disconnectedOnly: Getrennt am {date}
+  reasons:
+    user: von der Person, die ihn verbunden hat
+    admin: von einem Admin
+    membership_ended: Mitgliedschaft beendet
+    account_security: Änderung der Kontosicherheit
+    refresh_reuse: eine alte Anmeldung wurde erneut verwendet
+    client_removed: App entfernt
+  empty:
+    title: Keine Coding-Agenten verbunden
+    description: Verbinde Claude Code, Codex, Cursor oder einen anderen Agenten, um Automatisierungen aus deinem Editor zu bearbeiten.
+  connectAction: Coding-Agent verbinden
+  actions:
+    disconnect: Trennen
+  actionsLabel: Aktionen für {client}
+disconnect:
+  title: '{client} trennen?'
+  body: '{client} verliert sofort den Zugriff auf diese Organisation. Du kannst ihn später erneut verbinden.'
+  adminBody: '{client} von {person} verliert sofort den Zugriff auf diese Organisation. {person} kann ihn erneut verbinden.'
+  confirm: Trennen
+  success: '{client} getrennt'
+  failed: '{client} konnte nicht getrennt werden. Versuche es erneut.'
 scopes:
   mcp: Lesen und testen
   automationsWrite: Automatisierungen bearbeiten

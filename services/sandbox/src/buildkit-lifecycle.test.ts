@@ -35,6 +35,7 @@ import {
   ensureBuildkitd,
   helperStamp,
   MIRROR_REGISTRIES,
+  removeOrganizationBuildkit,
   resetBuildkitObservations,
   resetDiskPressurePause,
   retainBuildkitd,
@@ -1253,15 +1254,15 @@ describe('organization build-cache lifecycle', () => {
       expect(after.volumes[buildkitdCacheVolumeName(mirrorUp)]).toBeDefined();
     });
 
-    test('a removal that frees nothing on the session disk pauses the removals for hours', async () => {
+    test('only repeated sub-threshold gains pause disk relief, without claiming another disk', async () => {
       const now = Date.now();
-      const orgs = [nextOrg(), nextOrg(), nextOrg()];
+      const orgs = Array.from({ length: 7 }, () => nextOrg());
       const initial = await stoppedOrgs(
         orgs.map((org, index) => [org, (index + 1) * DAY] as const),
         now,
       );
       // The caches live on another disk: removing them frees nothing here.
-      const elsewhere = sessionDisk(initial, 1, 0);
+      const elsewhere = sessionDisk(initial, 1, 0.0001);
       const warnings: string[] = [];
       const warn = console.warn;
       const log = console.log;
@@ -1273,7 +1274,7 @@ describe('organization build-cache lifecycle', () => {
         const first = await sweepIdleBuildkitd(cfg, now, {
           sessionDisk: elsewhere,
         });
-        expect(first.relieved).toBe(1);
+        expect(first.relieved).toBe(3);
         const second = await sweepIdleBuildkitd(cfg, now + 60_000, {
           sessionDisk: elsewhere,
         });
@@ -1282,55 +1283,213 @@ describe('organization build-cache lifecycle', () => {
         const later = await sweepIdleBuildkitd(cfg, now + 6 * 60 * 60_000 + 1, {
           sessionDisk: elsewhere,
         });
-        expect(later.relieved).toBe(1);
+        expect(later.relieved).toBe(3);
       } finally {
         console.warn = warn;
         console.log = log;
       }
       expect(
-        warnings.filter((line) => line.includes('freed no space')),
+        warnings.filter((line) => line.includes('sub-threshold')),
       ).toHaveLength(2);
+      expect(
+        warnings.some((line) => line.includes('live on another disk')),
+      ).toBe(false);
       expect(
         (await state()).volumes[buildkitdCacheVolumeName(orgs[0] ?? '')],
       ).toBeDefined();
     });
 
-    test('does not compare free bytes or pause upkeep across different filesystems', async () => {
+    test('a change of the limiting filesystem is no low gain and pauses nothing', async () => {
       const now = Date.now();
+      const sessions = async () => ({
+        filesystem: '/sessions',
+        availableBytes: GIB,
+        short: true,
+      });
       await stoppedOrgs(
         [
-          [nextOrg(), DAY],
           [nextOrg(), 2 * DAY],
+          [nextOrg(), DAY],
+        ],
+        now,
+      );
+      // Two removals that gained nothing on one filesystem: two low gains in
+      // a row, one short of the pause.
+      expect(
+        (
+          await quiet(() =>
+            sweepIdleBuildkitd(cfg, now, { sessionDisk: sessions }),
+          )
+        ).relieved,
+      ).toBe(2);
+      await stoppedOrgs(
+        [
+          [nextOrg(), 2 * DAY],
+          [nextOrg(), DAY],
         ],
         now,
       );
       let reads = 0;
-      const reading = async () => {
-        reads++;
+      const readings = [
+        { filesystem: '/etc/hostname', availableBytes: 10 * GIB, short: true },
+        { filesystem: '/etc/hostname', availableBytes: 10 * GIB, short: true },
         // The Docker floor is relieved, exposing the smaller workspace disk
         // as the next limiting filesystem. Its lower free byte count cannot
         // tell us whether removing caches on Docker's filesystem helped.
-        return reads === 1
-          ? {
-              filesystem: '/etc/hostname',
-              availableBytes: 10 * GIB,
-              short: true,
-            }
-          : {
-              filesystem: '/sessions',
-              availableBytes: (reads < 4 ? 1 : 6) * GIB,
-              short: reads < 4,
-            };
-      };
-      const first = await quiet(() =>
-        sweepIdleBuildkitd(cfg, now, { sessionDisk: reading }),
-      );
-      expect(first.relieved).toBe(1);
+        { filesystem: '/sessions', availableBytes: GIB, short: true },
+      ];
+      const switching = async () => readings[reads++] ?? (await sessions());
       const second = await quiet(() =>
-        sweepIdleBuildkitd(cfg, now + 60_000, { sessionDisk: reading }),
+        sweepIdleBuildkitd(cfg, now + 60_000, { sessionDisk: switching }),
       );
       expect(second.relieved).toBe(1);
-      expect(reads).toBe(4);
+      // The sweep stopped at the changed filesystem: the initial reading and
+      // one pair around the removal.
+      expect(reads).toBe(3);
+      // Counted as a third low gain, it would have paused relief for hours.
+      const third = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now + 120_000, { sessionDisk: sessions }),
+      );
+      expect(third.relieved).toBe(1);
+    });
+
+    test('samples the disk again after judging helpers, immediately before each removal', async () => {
+      const now = Date.now();
+      const orgs = Array.from({ length: 4 }, () => nextOrg());
+      const initial = await stoppedOrgs(
+        orgs.map((org, index) => [org, (index + 1) * DAY] as const),
+        now,
+      );
+      const volumes = Object.keys(initial.volumes).length;
+      let readings = 0;
+      const result = await quiet(() =>
+        sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: async () => {
+            readings++;
+            const current = await state();
+            const removed = volumes - Object.keys(current.volumes).length;
+            if (readings > 1 && removed === 0) {
+              expect(current.sessionReads).toBeGreaterThan(
+                initial.sessionReads,
+              );
+            }
+            return {
+              availableBytes: (readings === 1 ? 4 : 1 + removed * 0.01) * GIB,
+              short: true,
+            };
+          },
+        }),
+      );
+      expect(result.relieved).toBe(3);
+      expect(readings).toBe(7);
+    });
+
+    test('the pre-removal sample excludes a competing same-org teardown', async () => {
+      const now = Date.now();
+      const org = nextOrg();
+      await stoppedOrgs([[org, DAY]], now);
+      const entered = Promise.withResolvers<void>();
+      const gate = Promise.withResolvers<void>();
+      let readings = 0;
+      const sweep = quiet(() =>
+        sweepIdleBuildkitd(cfg, now, {
+          sessionDisk: async () => {
+            readings++;
+            if (readings === 2) {
+              entered.resolve();
+              await gate.promise;
+            }
+            return { availableBytes: GIB, short: true };
+          },
+        }),
+      );
+      await entered.promise;
+      const beforeCalls = (await calls()).length;
+      const competing = removeOrganizationBuildkit(org);
+      try {
+        await Bun.sleep(50);
+        expect((await calls()).length).toBe(beforeCalls);
+        expect(
+          (await state()).volumes[buildkitdCacheVolumeName(org)],
+        ).toBeDefined();
+      } finally {
+        gate.resolve();
+      }
+      expect((await sweep).relieved).toBe(1);
+      expect(await competing).toEqual({
+        containers: 0,
+        volumes: 0,
+        networks: 0,
+      });
+    });
+
+    test.each(['healthy', 'unknown'])(
+      'a %s reading resets the low-gain streak between pressure episodes',
+      async (recovery) => {
+        const now = Date.now();
+        await stoppedOrgs(
+          [
+            [nextOrg(), DAY],
+            [nextOrg(), DAY],
+          ],
+          now,
+        );
+        const short = async () => ({ availableBytes: GIB, short: true });
+        expect(
+          (
+            await quiet(() =>
+              sweepIdleBuildkitd(cfg, now, { sessionDisk: short }),
+            )
+          ).relieved,
+        ).toBe(2);
+        await stoppedOrgs(
+          Array.from({ length: 3 }, () => [nextOrg(), DAY] as const),
+          now,
+        );
+        await quiet(() =>
+          sweepIdleBuildkitd(cfg, now + 60_000, {
+            sessionDisk: async () =>
+              recovery === 'unknown'
+                ? null
+                : { availableBytes: 10 * GIB, short: false },
+          }),
+        );
+        expect(
+          (
+            await quiet(() =>
+              sweepIdleBuildkitd(cfg, now + 120_000, { sessionDisk: short }),
+            )
+          ).relieved,
+        ).toBe(3);
+      },
+    );
+
+    test('a gain of at least 1 MiB resets consecutive sub-threshold gains', async () => {
+      const now = Date.now();
+      const orgs = Array.from({ length: 5 }, () => nextOrg());
+      const initial = await stoppedOrgs(
+        orgs.map((org) => [org, DAY] as const),
+        now,
+      );
+      const volumes = Object.keys(initial.volumes).length;
+      const disk = async () => {
+        const removed = volumes - Object.keys((await state()).volumes).length;
+        return {
+          availableBytes: GIB + (removed >= 6 ? 2 * 1024 ** 2 : 0),
+          short: true,
+        };
+      };
+      expect(
+        (await quiet(() => sweepIdleBuildkitd(cfg, now, { sessionDisk: disk })))
+          .relieved,
+      ).toBe(3);
+      expect(
+        (
+          await quiet(() =>
+            sweepIdleBuildkitd(cfg, now + 60_000, { sessionDisk: disk }),
+          )
+        ).relieved,
+      ).toBe(2);
     });
 
     test('nothing goes while the disk is above its floor, or cannot be read', async () => {

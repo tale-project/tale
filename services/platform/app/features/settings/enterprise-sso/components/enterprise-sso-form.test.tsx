@@ -95,6 +95,18 @@ const connectedOidc: SsoConnectionView = {
   samlAcsUrl: 'https://app.example.com/api/sso/saml/acs',
   oidcCallbackUrl: 'https://app.example.com/api/sso/callback',
 };
+const connectedGenericOidc: SsoConnectionView = {
+  ...connectedOidc,
+  oidc: {
+    ...connectedOidc.oidc!,
+    providerId: 'generic-oidc',
+    claimMappings: {
+      email: 'profile.email',
+      name: 'profile.full_name',
+      groups: 'roles',
+    },
+  },
+};
 
 const samlConfig: SsoConnectionView = {
   ...connectedOidc,
@@ -256,6 +268,29 @@ describe('EnterpriseSsoForm validation + save', () => {
     });
 
     expect(upsertOidcMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves stored Generic OIDC claim mappings on an unrelated edit', async () => {
+    upsertOidcMock.mockClear();
+    // The read view omits the client id; the form reveals it on mount and the
+    // schema requires it, so seed the reveal or Save never enables.
+    revealClientIdMock.mockResolvedValueOnce('client-123');
+    const { user } = renderForm(connectedGenericOidc);
+
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
+    await user.clear(displayName);
+    await user.type(displayName, 'Renamed SSO');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() => expect(upsertOidcMock).toHaveBeenCalledTimes(1));
+    expect(upsertOidcMock.mock.calls[0][0].claimMappings).toEqual({
+      email: 'profile.email',
+      name: 'profile.full_name',
+      groups: 'roles',
+    });
   });
 
   it('saves a valid OIDC connection via upsertOidc', async () => {

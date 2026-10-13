@@ -591,7 +591,13 @@ the create reclaims a released idle session like one at capacity, then
 answers 429 `host_memory`. The decision is taken under the
 admission lock from a reading the probe refreshes every second, so a burst
 sees each create admitted before it. Unknown memory never refuses a create,
-and the check cannot stop sessions already running from growing past it.
+and the check cannot stop sessions already running from growing past it. An
+explicit `SANDBOX_MAX_SESSIONS` turns this memory admission off, warm
+acquisitions included: the operator sized the host, so only the count, CPU and
+disk guards refuse, and `SANDBOX_MIN_FREE_MEMORY` has no effect. With it unset,
+a reserve at or above the host's total memory fails the capacity sizing at
+boot (a retry on a later sweep reports it), and a create refused with
+`host_memory` is logged.
 
 Warm idle-to-active acquisitions use the same memory guard and FIFO as new
 creates. They renew the 90-second growth reservation for the actual Docker
@@ -630,10 +636,14 @@ session keeps its workspace. The spawner logs the disk going below its floor
 and coming back. Meanwhile each build-cache upkeep removes the helpers and
 caches of organizations whose helpers are all stopped and that no session or
 create may use, the longest-stopped first, at most three a run and only while
-the disk stays short; a removal that frees nothing on that disk (the caches
-live on another one) pauses the removals for six hours. If a different
-filesystem becomes the most constrained after removal, upkeep stops that pass
-and reassesses next sweep instead of comparing free bytes across disks.
+the disk stays short. The disk is read right before and right after each
+removal, under the organization's lock; three removals in a row that each
+gain less than 1 MiB pause the removals for six hours. Concurrent writes or
+delayed accounting can hide a gain, so the pause is no verdict that the caches
+live on another disk. A larger gain, a disk above its floor or an unreadable
+disk starts the count again. If a different filesystem becomes the most
+constrained after removal, upkeep stops that pass, starts the count again and
+reassesses next sweep instead of comparing free bytes across disks.
 
 The floor holds new work back; it does not stop what already runs, which
 writes until the disk is full, and with it the replay journal of every running
@@ -682,9 +692,17 @@ never fit beside its reserve holds no memory). The refusal says where the create
 60 s, so a waiter that comes back when told is first when room frees, and
 one that asks rarely no longer loses to every one that asks often. A waiter
 that stops asking (twice its hint and 15 s more without a word) gives its
-place up, a destroy of the id takes it out, and the line keeps at most
-10,000 waiters. It lives in the spawner's memory: a restart starts it
-afresh, and each Kubernetes replica keeps its own.
+place up, unless an ask of its own is still running its reclaim and memory
+probes: that ask keeps the place however slow the probes are. The platform
+renews the place a refusal gave it with `POST /v1/sessions/:id/wait`, which
+counts as an ask (`404 not_waiting` when nothing waits under the id); a place
+that no ask is running for ends, at the latest, ten minutes after its last
+renewal. A destroy of the id, an admission or an eviction takes the waiter
+out, and every ask of that id still running is then stale: its late answer
+names the place it would have had and puts nobody back in line. The line
+keeps at most 10,000 waiters, the one that asked longest ago going first. It
+lives in the spawner's memory: a restart starts it afresh, and each
+Kubernetes replica keeps its own.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
 read namespace occupancy before admitting a create. Pending, unknown and

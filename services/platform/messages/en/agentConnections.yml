@@ -61,6 +61,50 @@ consent:
     unavailable: The connection could not be made right now. Try again in a moment.
     scopedSession: This sign-in belongs to one organization, so it cannot connect a coding agent. Sign in with your own account to continue.
     failed: This connection could not be completed. Start it again from your coding agent.
+list:
+  description: Coding agents that signed in to Tale as you. Each works in this organization with the access you gave it.
+  adminDescription: Coding agents members connected to this organization.
+  caption: Connected coding agents
+  entityLabelOne: coding agent
+  entityLabel: coding agents
+  viewLabel: Agents to show
+  mine: Mine
+  everyone: Everyone
+  showDisconnected: Show disconnected
+  columns:
+    agent: Agent
+    person: Person
+    access: Access
+    connected: Connected
+    lastUsed: Last used
+    actions: Actions
+  never: Never
+  unverified: Unverified
+  you: You
+  unknownPerson: Unknown person
+  disconnectedOn: 'Disconnected {date} · {reason}'
+  disconnectedOnly: Disconnected {date}
+  reasons:
+    user: by the person who connected it
+    admin: by an Admin
+    membership_ended: membership ended
+    account_security: account security change
+    refresh_reuse: an old sign-in was reused
+    client_removed: app removed
+  empty:
+    title: No coding agents connected
+    description: Connect Claude Code, Codex, Cursor or another agent to edit automations from your editor.
+  connectAction: Connect a coding agent
+  actions:
+    disconnect: Disconnect
+  actionsLabel: Actions for {client}
+disconnect:
+  title: Disconnect {client}?
+  body: '{client} loses access to this organization at once. You can connect it again later.'
+  adminBody: '{client} of {person} loses access to this organization at once. {person} can connect it again.'
+  confirm: Disconnect
+  success: '{client} disconnected'
+  failed: '{client} could not be disconnected. Try again.'
 scopes:
   mcp: Read and test
   automationsWrite: Edit automations

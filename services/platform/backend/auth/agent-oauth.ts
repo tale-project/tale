@@ -52,7 +52,9 @@ import {
  *   redirects and the web hosts of known agents (`registerPrecheck`);
  * - an agent's authorization request is bound to the MCP endpoint even when
  *   the agent left the resource out (`authorizePrecheck`), so its token
- *   names the endpoint as its audience;
+ *   names the endpoint as its audience, and keeps only the scopes the
+ *   endpoint grants: a client that asks for everything the sign-in server
+ *   lists, identity scopes included, is not refused for it;
  * - a source that keeps failing at the token endpoint is slowed down
  *   (`chargeTokenFailure`).
  *
@@ -328,6 +330,11 @@ export type AgentOAuthStep =
   | { readonly kind: 'answer'; readonly response: Response }
   | { readonly kind: 'continue'; readonly request: Request };
 
+/** The scopes an agent's connection can hold: what the endpoint grants. */
+function isGrantable(scope: string): boolean {
+  return isAgentScope(scope) || scope === OFFLINE_ACCESS;
+}
+
 /** An RFC 6749 / RFC 7591 error answer, never cached. */
 function oauthErrorAnswer(
   status: 400 | 429 | 503,
@@ -412,7 +419,10 @@ async function chargeRegistration(
  * 1. a source registers at most ten clients an hour and the deployment 500
  *    a day; past 5,000 self-registered clients, none (503);
  * 2. a client may use the authorization-code and refresh grants only, the
- *    code response type, no signing keys of its own, and the agent scopes;
+ *    code response type and no signing keys of its own; its scope is cut to
+ *    the agent scopes (a client that registers with every scope the sign-in
+ *    server lists, identity scopes included, is registered for the agent
+ *    ones, as RFC 7591 §3.2.1 allows);
  * 3. an HTTPS redirect must go to a known agent's web host — everything
  *    else signs in through a local (loopback) or app redirect;
  * 4. a client that leaves out its application type and only names local or
@@ -537,16 +547,22 @@ export async function registerPrecheck(
       'token_endpoint_auth_method may be none, client_secret_basic or client_secret_post',
     );
   }
+  // A scope beyond the agent ones is dropped, not refused: clients register
+  // with the whole list the sign-in server publishes, and what is dropped is
+  // never granted. What is left is what the client is registered for; with
+  // nothing left the provider's own default (the agent scopes) applies.
+  let scope: string | null | undefined;
   if (body.scope !== undefined) {
-    const scopes = typeof body.scope === 'string' ? scopesOf(body.scope) : null;
-    if (
-      scopes === null ||
-      scopes.some((scope) => !isAgentScope(scope) && scope !== OFFLINE_ACCESS)
-    ) {
+    if (typeof body.scope !== 'string') {
       return refuseRegistration(
         'invalid_client_metadata',
-        `scope may name only ${MCP_RESOURCE_SCOPES.join(', ')}`,
+        `scope is a space-separated list of ${MCP_RESOURCE_SCOPES.join(', ')}`,
       );
+    }
+    const asked = scopesOf(body.scope);
+    const kept = asked.filter(isGrantable);
+    if (kept.length !== asked.length) {
+      scope = kept.length === 0 ? null : kept.join(' ');
     }
   }
   const redirects: URL[] = [];
@@ -570,14 +586,17 @@ export async function registerPrecheck(
     body.application_type === undefined &&
     redirects.length > 0 &&
     redirects.every(isNativeRedirect);
+  const rewritten: Record<string, unknown> = { ...body };
+  if (inferNative) rewritten.application_type = 'native';
+  if (scope === null) delete rewritten.scope;
+  else if (scope !== undefined) rewritten.scope = scope;
   return {
     kind: 'continue',
     request: new Request(request.url, {
       method: request.method,
       headers,
-      body: inferNative
-        ? JSON.stringify({ ...body, application_type: 'native' })
-        : text,
+      body:
+        inferNative || scope !== undefined ? JSON.stringify(rewritten) : text,
     }),
   };
 }
@@ -606,15 +625,23 @@ function isMetadataDocumentClientId(clientId: string): boolean {
 }
 
 /**
- * An agent's authorization request bound to the MCP endpoint: an agent that
- * leaves out RFC 8707's `resource` (several do) gets the endpoint's own
- * address on the origin it came to, so the code, its token and every
- * refresh name the endpoint as their audience. A request is an agent's when
- * it asks for an agent scope, names a client metadata document as its
- * client, or comes from a registered agent client (one read). Everything
- * else — single sign-on above all, and any request that already names a
- * resource or passes its parameters by reference — reaches the provider
- * exactly as it came.
+ * An agent's authorization request, made right for the MCP endpoint:
+ *
+ * - bound to it: an agent that leaves out RFC 8707's `resource` (several
+ *   do) gets the endpoint's own address on the origin it came to, so the
+ *   code, its token and every refresh name the endpoint as their audience;
+ * - cut to what the endpoint grants: a client that asks for every scope the
+ *   sign-in server lists — Codex does, identity scopes (`openid`, `profile`,
+ *   `email`, `tale:organization`) included — keeps the agent scopes and
+ *   `offline_access` and is not refused for the rest (RFC 6749 §3.3 lets a
+ *   server grant less than was asked; the consent page and the token answer
+ *   say what was granted). Identity scopes are never granted to an agent.
+ *
+ * A request is an agent's when it asks for an agent scope, names a client
+ * metadata document as its client, or comes from a registered agent client
+ * (one read). Everything else — single sign-on above all, and any request
+ * that passes its parameters by reference — reaches the provider exactly as
+ * it came; so does a request that needs neither change.
  */
 export async function authorizePrecheck(
   request: Request,
@@ -632,20 +659,27 @@ export async function authorizePrecheck(
     if (Buffer.byteLength(text) > AUTHORIZATION_FORM_BYTES) return request;
     params = new URLSearchParams(text);
   }
-  if (
-    params.has('resource') ||
-    params.has('request_uri') ||
-    params.has('request')
-  ) {
-    return request;
-  }
+  if (params.has('request_uri') || params.has('request')) return request;
   const clientId = params.get('client_id') ?? '';
+  const asked = scopesOf(params.get('scope'));
   const agent =
-    requestsAgentAccess(scopesOf(params.get('scope'))) ||
+    requestsAgentAccess(asked) ||
     (deps.options.metadataDocuments && isMetadataDocumentClientId(clientId)) ||
     (await isAgentClient(deps.sql, clientId));
   if (!agent) return request;
-  params.set('resource', mcpResourceFor(request));
+  let changed = false;
+  if (requestsAgentAccess(asked)) {
+    const kept = asked.filter(isGrantable);
+    if (kept.length !== asked.length) {
+      params.set('scope', kept.join(' '));
+      changed = true;
+    }
+  }
+  if (!params.has('resource')) {
+    params.set('resource', mcpResourceFor(request));
+    changed = true;
+  }
+  if (!changed) return request;
   if (request.method === 'POST') {
     const headers = new Headers(request.headers);
     headers.delete('content-length');

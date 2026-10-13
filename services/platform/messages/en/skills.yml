@@ -188,6 +188,9 @@ iconPicker:
 editor:
   saved: Skill saved
   saveFailed: Couldn't save skill
+  stale: This skill changed after you opened it, so nothing was saved. Your
+    edits are still here. Copy what you need, then close this skill and open
+    it again to see the latest version.
   descriptionHelp:
     One or two sentences on what the skill covers — this is what tells
     the model when to read it.

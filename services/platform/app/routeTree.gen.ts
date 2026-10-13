@@ -105,6 +105,7 @@ import { Route as DashboardIdSettingsApiRuntimesRouteImport } from './routes/das
 import { Route as DashboardIdSettingsApiRestRouteImport } from './routes/dashboard/$id/settings/api/rest';
 import { Route as DashboardIdSettingsApiModelsRouteImport } from './routes/dashboard/$id/settings/api/models';
 import { Route as DashboardIdSettingsApiMcpRouteImport } from './routes/dashboard/$id/settings/api/mcp';
+import { Route as DashboardIdSettingsApiAgentsRouteImport } from './routes/dashboard/$id/settings/api/agents';
 import { Route as DashboardIdProjectsProjectIdThreadsRouteImport } from './routes/dashboard/$id/projects/$projectId/threads';
 import { Route as DashboardIdProjectsProjectIdSettingsRouteImport } from './routes/dashboard/$id/projects/$projectId/settings';
 import { Route as DashboardIdProjectsProjectIdSecretsRouteImport } from './routes/dashboard/$id/projects/$projectId/secrets';
@@ -685,6 +686,12 @@ const DashboardIdSettingsApiMcpRoute =
     path: '/mcp',
     getParentRoute: () => DashboardIdSettingsApiRouteRoute,
   } as any);
+const DashboardIdSettingsApiAgentsRoute =
+  DashboardIdSettingsApiAgentsRouteImport.update({
+    id: '/agents',
+    path: '/agents',
+    getParentRoute: () => DashboardIdSettingsApiRouteRoute,
+  } as any);
 const DashboardIdProjectsProjectIdThreadsRoute =
   DashboardIdProjectsProjectIdThreadsRouteImport.update({
     id: '/threads',
@@ -979,6 +986,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/projects/$projectId/secrets': typeof DashboardIdProjectsProjectIdSecretsRoute;
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
+  '/dashboard/$id/settings/api/agents': typeof DashboardIdSettingsApiAgentsRoute;
   '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
   '/dashboard/$id/settings/api/models': typeof DashboardIdSettingsApiModelsRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
@@ -1095,6 +1103,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/secrets': typeof DashboardIdProjectsProjectIdSecretsRoute;
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
+  '/dashboard/$id/settings/api/agents': typeof DashboardIdSettingsApiAgentsRoute;
   '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
   '/dashboard/$id/settings/api/models': typeof DashboardIdSettingsApiModelsRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
@@ -1225,6 +1234,7 @@ export interface FileRoutesById {
   '/dashboard/$id/projects/$projectId/secrets': typeof DashboardIdProjectsProjectIdSecretsRoute;
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
+  '/dashboard/$id/settings/api/agents': typeof DashboardIdSettingsApiAgentsRoute;
   '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
   '/dashboard/$id/settings/api/models': typeof DashboardIdSettingsApiModelsRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
@@ -1355,6 +1365,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/secrets'
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
+    | '/dashboard/$id/settings/api/agents'
     | '/dashboard/$id/settings/api/mcp'
     | '/dashboard/$id/settings/api/models'
     | '/dashboard/$id/settings/api/rest'
@@ -1471,6 +1482,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/secrets'
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
+    | '/dashboard/$id/settings/api/agents'
     | '/dashboard/$id/settings/api/mcp'
     | '/dashboard/$id/settings/api/models'
     | '/dashboard/$id/settings/api/rest'
@@ -1600,6 +1612,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/secrets'
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
+    | '/dashboard/$id/settings/api/agents'
     | '/dashboard/$id/settings/api/mcp'
     | '/dashboard/$id/settings/api/models'
     | '/dashboard/$id/settings/api/rest'
@@ -2337,6 +2350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsApiMcpRouteImport;
       parentRoute: typeof DashboardIdSettingsApiRouteRoute;
     };
+    '/dashboard/$id/settings/api/agents': {
+      id: '/dashboard/$id/settings/api/agents';
+      path: '/agents';
+      fullPath: '/dashboard/$id/settings/api/agents';
+      preLoaderRoute: typeof DashboardIdSettingsApiAgentsRouteImport;
+      parentRoute: typeof DashboardIdSettingsApiRouteRoute;
+    };
     '/dashboard/$id/projects/$projectId/threads': {
       id: '/dashboard/$id/projects/$projectId/threads';
       path: '/threads';
@@ -2688,6 +2708,7 @@ const DashboardIdConversationsRouteWithChildren =
   );
 
 interface DashboardIdSettingsApiRouteRouteChildren {
+  DashboardIdSettingsApiAgentsRoute: typeof DashboardIdSettingsApiAgentsRoute;
   DashboardIdSettingsApiMcpRoute: typeof DashboardIdSettingsApiMcpRoute;
   DashboardIdSettingsApiModelsRoute: typeof DashboardIdSettingsApiModelsRoute;
   DashboardIdSettingsApiRestRoute: typeof DashboardIdSettingsApiRestRoute;
@@ -2698,6 +2719,7 @@ interface DashboardIdSettingsApiRouteRouteChildren {
 
 const DashboardIdSettingsApiRouteRouteChildren: DashboardIdSettingsApiRouteRouteChildren =
   {
+    DashboardIdSettingsApiAgentsRoute: DashboardIdSettingsApiAgentsRoute,
     DashboardIdSettingsApiMcpRoute: DashboardIdSettingsApiMcpRoute,
     DashboardIdSettingsApiModelsRoute: DashboardIdSettingsApiModelsRoute,
     DashboardIdSettingsApiRestRoute: DashboardIdSettingsApiRestRoute,

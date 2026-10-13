@@ -108,7 +108,6 @@ async function sizeSessionCapacity(): Promise<void> {
   if (capacitySized || hostMemory === null) return;
   const memory = await hostMemory.read();
   if (memory === null || capacitySized) return;
-  capacitySized = true;
   cfg.session.maxSessions = autoSessionCapacity(
     memory.totalBytes,
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
@@ -116,6 +115,7 @@ async function sizeSessionCapacity(): Promise<void> {
     cfg.dockerWorkloads,
     hostMemory.cpus(),
   );
+  capacitySized = true;
   const cpus = hostMemory.cpus();
   console.log(
     `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB${cpus === null ? '' : ` and ${cpus} CPUs`} (set SANDBOX_MAX_SESSIONS to fix it)`,
@@ -268,7 +268,7 @@ const SESSION_EXEC_STATUS_RE = new RegExp(
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
 const SESSION_ACTIVITY_RE = new RegExp(
-  `^/v1/sessions/${SESSION_ID}/(acquire|release)$`,
+  `^/v1/sessions/${SESSION_ID}/(acquire|release|wait)$`,
 );
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
@@ -374,7 +374,9 @@ async function handleSessionRoutes(
         ? 'ticket'
         : activityMatch[2] === 'acquire'
           ? 'acquire'
-          : 'release',
+          : activityMatch[2] === 'release'
+            ? 'release'
+            : 'wait',
       body,
     );
   }

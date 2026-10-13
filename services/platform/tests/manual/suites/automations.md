@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 244 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 246 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -163,6 +163,21 @@ output:
       (`automations.list.notDeployed`); deployed row: green **Live: v{n}**
       (`automations.detail.deployedVersion`) — the absence of a deployment IS the
       "drafts only" answer.
+- [ ] `AUTO-F181` · **Trigger beside the live version** — With five
+      automations on the org list — one deployed with its schedule
+      **Enabled**, one whose schedule paused itself (`AUTO-F52`), one
+      deployed with its webhook switched off, one not deployed with its
+      event trigger on, and one deployed with no trigger → **Trigger**
+      (`automations.list.columnTrigger`) reads beside an unchanged **Status**,
+      each state over its kind (`automations.list.trigger.*` over
+      `automations.trigger.kinds.*`): green **Enabled**, yellow **Paused**,
+      neutral **Off**, neutral **Not live** next to **Not deployed**, and
+      neutral **Manual** over `automations.list.trigger.manualHow`, whose
+      row still opens and runs by hand. Nothing in the column is a control.
+      With a second tab on the paused automation's General tab, turn
+      **Enabled** on and **Save** → the first tab's row reads **Enabled**
+      without a reload; leave it failing until it pauses again → **Paused**,
+      again without a reload.
 - [ ] `AUTO-F3` · **Seed packs into an org** — Run the provisioning command
       (Prerequisites) against an org missing the packs → reload
       `/dashboard/{org}/automations` → The eight org-scope packs appear, every one
@@ -1897,6 +1912,13 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       rings and accessible names; the **Create automation** menu and every panel
       action (Deploy, Save trigger, Save projects) are keyboard operable, with
       disabled reasons exposed, not silent.
+- [ ] `AUTO-A30` · **Trigger readiness in words** → With a screen reader
+      in the list's table, each **Trigger** cell is read under its column
+      header as a state and a kind in words ("Paused", "Schedule"), its
+      glyph silent; no state is shown by colour alone or only on hover,
+      every word keeps AA contrast in light and dark mode, and at 1280 px
+      in English, German and French each state and kind reads whole, never
+      cut to an ellipsis.
 - [ ] `AUTO-A4` · **Dialogs** → Blank / upload / save-version / run-live
       dialogs: labelled fields (label ↔ control), focus trapped, Escape closes —
       except while a save is in flight, when close waits exactly like Cancel.

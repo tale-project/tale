@@ -2,18 +2,27 @@
 
 import {
   taskAgentReviewReceiptSchema,
+  taskReviewerHandoffValueSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Row, Stack } from '@tale/ui/layout';
 import { mentionPlainText } from '@tale/ui/mentions/scan-mentions';
+import { Text } from '@tale/ui/text';
 import { ThreadEvent, ThreadEventActor } from '@tale/ui/thread/thread-event';
 import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
+import { Loader2 } from 'lucide-react';
 import {
   Ban,
   Bot,
   CalendarDays,
   CheckCheck,
+  ChevronRight,
   CircleDot,
   Link2,
   Paperclip,
@@ -25,11 +34,14 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 
+import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { MENTION_KINDS } from '@/lib/shared/mention-handles';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
+import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
@@ -53,6 +65,7 @@ import {
 import {
   inferWorkflowContextFromRuns,
   mergeTaskTimeline,
+  type TaskAgentRunRow,
 } from '../utils/task-timeline';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
@@ -77,6 +90,145 @@ type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
  *  line that printed them both was a wall of text — and seconds of layout on
  *  a task with a few of them. */
 const ACTIVITY_TEXT_MAX = 160;
+
+/**
+ * What a run did, read in place under its own row: where it stands, how long
+ * it took, how many tool actions and what it cost, then the agent's
+ * transcript — live while it works and preserved after it settles. Nothing is
+ * fetched until the row is opened. A failed run keeps the reason it recorded
+ * above the log unless the log already says it, so a failure the transcript
+ * does not show (a watchdog's, a refused start's) is still read here.
+ */
+function TaskAgentRunTimelineDetail({
+  organizationId,
+  run,
+}: {
+  organizationId: string;
+  run: TaskAgentRunRow;
+}) {
+  const { t } = useT('tasks');
+  const { t: tAutomations } = useT('automations');
+  const { t: tCommon } = useT('common');
+  const query = useBackendQuery('tasks/queries:getTaskAgentRunSandboxOp', {
+    organizationId,
+    runId: run.runId,
+  });
+  const op = query.data ?? null;
+  // A transcript already read stays on screen through a failed background
+  // refresh.
+  const readStatus =
+    op !== null
+      ? 'ready'
+      : query.isFetching
+        ? 'loading'
+        : query.isError
+          ? 'failed'
+          : query.data === null
+            ? 'ready'
+            : 'loading';
+  const retryFocus = useRetryFocus(readStatus, run.runId);
+  // A harness often ends its transcript on the very words the run reported
+  // (its own API error as its last text): then the log says them, and the
+  // reported block would only repeat them.
+  const reported = run.error?.trim();
+  const reportedInLog =
+    reported !== undefined &&
+    op !== null &&
+    [...(op.liveTimeline ?? []).map((part) => part.text), op.progressText].some(
+      (text) => text?.trim() === reported,
+    );
+  const reportedBlock =
+    reported !== undefined && reported !== '' && !reportedInLog ? (
+      <Stack gap={1}>
+        <Text as="h3" variant="label">
+          {t('agentRun.reported')}
+        </Text>
+        <Text
+          as="p"
+          variant="muted"
+          className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
+        >
+          {run.error}
+        </Text>
+      </Stack>
+    ) : null;
+  const toolActions =
+    op === null
+      ? 0
+      : (op.liveTimeline ?? []).filter(
+          (part) => part.toolCallId !== undefined && part.toolCallId !== '',
+        ).length;
+
+  return (
+    <Stack gap={2}>
+      {op !== null && (
+        <Row gap={1} className="text-muted-foreground flex-wrap text-xs">
+          <span>{t(`agentRuns.status.${run.status}`)}</span>
+          {run.durationMs !== undefined && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {formatDurationSeconds(Math.ceil(run.durationMs / 1000))}
+              </span>
+            </>
+          )}
+          {toolActions > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{t('timeline.toolActions', { count: toolActions })}</span>
+            </>
+          )}
+          {run.costCents > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {t('agentRuns.totalCost', {
+                  amount: formatCents(run.costCents),
+                })}
+              </span>
+            </>
+          )}
+        </Row>
+      )}
+      {reportedBlock}
+      {op !== null ? (
+        <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
+      ) : readStatus === 'failed' ? (
+        <div ref={retryFocus.ref}>
+          <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                retryFocus.arm();
+                void query.refetch();
+              }}
+            >
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </Alert>
+        </div>
+      ) : readStatus === 'ready' ? (
+        // A run that reported why it failed said enough; "no log" would only
+        // repeat that it never got to work.
+        reportedBlock === null && (
+          <Text as="p" variant="muted">
+            {tAutomations('runs.agentLog.empty')}
+          </Text>
+        )
+      ) : (
+        <Row gap={2} role="status">
+          <Loader2
+            className="text-muted-foreground size-4 animate-spin"
+            aria-hidden
+          />
+          <Text variant="muted">{tCommon('actions.loading')}</Text>
+        </Row>
+      )}
+    </Stack>
+  );
+}
 
 function quoteActivityText(value: string): string {
   return value.length > ACTIVITY_TEXT_MAX
@@ -178,6 +330,9 @@ function TaskTimelineEntryContent({
   timeFormat?: 'time' | 'relative';
 }) {
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const {
     resolveActor,
     resolveAssigneeId,
@@ -217,7 +372,32 @@ function TaskTimelineEntryContent({
           }
           time={<ThreadTime value={run.startedAt} format={timeFormat} />}
           trailing={
-            <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
+            <Row gap={2} align="center" className="shrink-0">
+              <TaskAgentRunStatusBadge
+                run={run}
+                agentName={agentPreview.name}
+              />
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-6 gap-1 px-0 text-xs"
+                aria-expanded={detailsOpen}
+                {...(detailsOpen ? { 'aria-controls': detailsId } : {})}
+                onClick={() => setDetailsOpen((open) => !open)}
+              >
+                {detailsOpen
+                  ? t('timeline.hideExecution')
+                  : tCommon('actions.view')}
+                <ChevronRight
+                  aria-hidden="true"
+                  className={cn(
+                    'size-3 shrink-0 transition-transform motion-reduce:transition-none',
+                    detailsOpen && 'rotate-90',
+                  )}
+                />
+              </Button>
+            </Row>
           }
         >
           <ThreadEventActor>
@@ -249,6 +429,14 @@ function TaskTimelineEntryContent({
             </>
           ) : null}
         </ThreadEvent>
+        {detailsOpen ? (
+          <div id={detailsId} className="text-muted-foreground pl-8 text-xs">
+            <TaskAgentRunTimelineDetail
+              organizationId={organizationId}
+              run={run}
+            />
+          </div>
+        ) : null}
         {isAgentRunWaiting(run) ? (
           // Why the run waits, under its line, in the sentence's column.
           <div className="pl-8">
@@ -320,8 +508,36 @@ function TaskTimelineEntryContent({
         } catch {
           return resolveAssigneeId(value);
         }
+        if (
+          typeof parsed !== 'object' ||
+          parsed === null ||
+          Array.isArray(parsed)
+        )
+          return value;
+        const handoff = taskReviewerHandoffValueSchema.safeParse(parsed);
+        if (handoff.success) {
+          const { reviewer: choice, pendingReview } = handoff.data;
+          const recipient = pendingReview.reviewer;
+          return t('reviewer.handoffValue', {
+            choice:
+              choice.kind === 'inherit'
+                ? t('reviewer.projectDefaultLabel')
+                : resolveActor(
+                    choice.kind,
+                    choice.kind === 'user' ? choice.userId : choice.agentId,
+                  ).name,
+            recipient: recipient
+              ? resolveActor(
+                  recipient.kind,
+                  recipient.kind === 'user'
+                    ? recipient.userId
+                    : recipient.agentId,
+                ).name
+              : t('reviewer.capturedUnavailable'),
+          });
+        }
         const reviewer = taskReviewerSchema.safeParse(parsed);
-        if (!reviewer.success) return value;
+        if (!reviewer.success) return t('reviewer.capturedUnavailable');
         if (reviewer.data.kind === 'inherit')
           return t('reviewer.projectDefaultLabel');
         return resolveActor(

@@ -48,6 +48,7 @@ export const SETTINGS_AREAS = [
   'api/rest',
   'api/models',
   'api/mcp',
+  'api/agents',
   'api/webdav',
   'enterprise-sso',
   'data-residency',

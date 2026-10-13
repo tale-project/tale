@@ -1367,6 +1367,9 @@ modelAccess:
   noTeamsFound: No teams found
   confirm: Confirm
   saved: Model access policy updated
+  targetRequired: Select a target for this rule.
+  missingTarget: Missing target
+  targetsNeedRepair: Some rules have no target and do not apply to anyone. Select a target for each rule or delete it. Changes are not saved until all rules have targets.
   saveFailed: Couldn't save model access policy
   removeDefaultConfirmTitle: Remove permission for active default model?
   removeDefaultConfirmBody:
@@ -1761,7 +1764,8 @@ standardAgent:
     harnessInvalid: The chosen agent runtime isn't available, so the standard agent can't start. Choose another agent runtime or Automatic.
     noModel: No model you can use can run the standard agent. Add a credential under AI providers, or check model access.
     pinUnavailable: The chosen model isn't available to you, so the standard agent can't start for you. Choose another model or Automatic. Tale won't switch to another model while this choice is saved.
-  invalidPolicy: The saved standard agent settings are invalid. Save them again to repair them.
+  invalidPolicy: The saved standard agent settings are invalid. Under Model, choose a model or Automatic and save to repair them.
+  invalidSelection: Invalid saved configuration
   savedUnavailable: Saved selection is not currently available
   searchHarnesses: Search agent runtimes
   noHarnessesFound: No matching agent runtime

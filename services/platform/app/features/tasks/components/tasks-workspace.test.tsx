@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
 import type { TaskDoc, TaskStatus } from '../lib/display';
+import { useTaskBoardContext } from './task-board-context';
 import type { TaskRow } from './task-card';
+import { BlockedIndicator } from './task-indicators';
 import { TasksWorkspace } from './tasks-workspace';
 
 /**
@@ -19,6 +22,7 @@ const state = vi.hoisted(() => ({
   canCreate: true,
   archived: false,
   tasks: [] as TaskDoc[],
+  blockerResolved: false,
 }));
 
 const task = (id: string, overrides: Partial<TaskDoc> = {}): TaskDoc => ({
@@ -42,8 +46,15 @@ vi.mock('../hooks/queries', () => {
     read: { kind: 'ready', updating: false },
     retry: () => {},
   };
-  const board = () => ({
-    tasks: state.tasks,
+  const board = (
+    _projectId: unknown,
+    options?: { query?: string; assigneeId?: string },
+  ) => ({
+    tasks: state.tasks.filter(
+      (row) =>
+        (!options?.query || row.title.includes(options.query)) &&
+        (!options?.assigneeId || row.assigneeId === options.assigneeId),
+    ),
     truncated: false,
     canEdit: state.canEdit,
     canCreate: state.canCreate,
@@ -60,7 +71,13 @@ vi.mock('../hooks/queries', () => {
     useTasksByProject: board,
     useTasksAcrossProjects: board,
     useProjectDependencies: () => ({
-      edges: [],
+      edges: [
+        {
+          blockerTaskId: 'blocker',
+          blockedTaskId: 'target',
+          blockerResolved: state.blockerResolved,
+        },
+      ],
       isLoading: false,
       ...answered,
     }),
@@ -106,20 +123,27 @@ vi.mock('./kanban-board', () => ({
     canWorkTask: (task: TaskRow) => boolean;
     collapsedLanes?: ReadonlySet<TaskStatus>;
     onLaneCollapsedChange?: (status: TaskStatus, collapsed: boolean) => void;
-  }) => (
-    <ul data-testid="board" data-folded={[...(collapsedLanes ?? [])].join(',')}>
-      <li>
-        <button onClick={() => onLaneCollapsedChange?.('done', true)}>
-          Fold test lane
-        </button>
-      </li>
-      {tasks.map((row) => (
-        <li key={row._id}>
-          {row.title}: {canWorkTask(row) ? 'workable' : 'read-only'}
+  }) => {
+    const { isBlocked } = useTaskBoardContext();
+    return (
+      <ul
+        data-testid="board"
+        data-folded={[...(collapsedLanes ?? [])].join(',')}
+      >
+        <li>
+          <button onClick={() => onLaneCollapsedChange?.('done', true)}>
+            Fold test lane
+          </button>
         </li>
-      ))}
-    </ul>
-  ),
+        {tasks.map((row) => (
+          <li key={row._id}>
+            {row.title}: {canWorkTask(row) ? 'workable' : 'read-only'}
+            <BlockedIndicator blocked={isBlocked(row._id)} />
+          </li>
+        ))}
+      </ul>
+    );
+  },
 }));
 vi.mock('./task-modal', () => ({ TaskModal: () => null }));
 
@@ -138,6 +162,7 @@ beforeEach(() => {
   state.canEdit = false;
   state.canCreate = true;
   state.archived = false;
+  state.blockerResolved = false;
   state.tasks = [
     task('own', { createdBy: 'u-member' }),
     task('assigned', { assigneeType: 'user', assigneeId: 'u-member' }),
@@ -233,4 +258,75 @@ describe('TasksWorkspace persisted lane handoff', () => {
       expect(window.localStorage.getItem(key)).toBe('["done"]');
     },
   );
+});
+
+describe('TasksWorkspace — filter-independent blockers', () => {
+  beforeEach(() => {
+    state.tasks = [
+      task('blocker', { title: 'Live predecessor', priority: 'p3' }),
+      task('target', {
+        title: 'Filter blocked target',
+        assigneeType: 'user',
+        assigneeId: 'u-member',
+        priority: 'p1',
+        status: 'in_review',
+        reviewerUserId: 'u-member',
+      }),
+    ];
+  });
+
+  it('keeps Blocked after search hides the live predecessor', async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+    expect(screen.getByLabelText('Blocked')).toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Search tasks' }),
+      'Filter blocked target',
+    );
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByText('Live predecessor: read-only'),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText('Blocked')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['Assignee', 'You'],
+    ['Priority', 'High'],
+    ['Review', 'Needs my review'],
+  ])(
+    'keeps Blocked when the %s filter hides the live predecessor',
+    async (filter, option) => {
+      const user = userEvent.setup();
+      renderWorkspace();
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(screen.getByRole('button', { name: filter }));
+      await user.click(
+        screen.getByRole(filter === 'Review' ? 'checkbox' : 'radio', {
+          name: option,
+        }),
+      );
+      expect(
+        screen.queryByText('Live predecessor: read-only'),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Blocked')).toBeInTheDocument();
+    },
+  );
+
+  it('removes Blocked when the server resolves a hidden predecessor', () => {
+    state.tasks = state.tasks.filter((row) => row._id === 'target');
+    const { rerender } = renderWorkspace();
+    expect(screen.getByLabelText('Blocked')).toBeInTheDocument();
+    state.blockerResolved = true;
+    rerender(
+      <TasksWorkspace
+        organizationId="org-1"
+        projectId="project-1"
+        view="board"
+        onViewChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText('Blocked')).not.toBeInTheDocument();
+  });
 });

@@ -10,9 +10,26 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 (`0155_project_usage.sql`) sums the same bookings per project, for a `project` budget rule
 (rule 9); the same writer fills it.
 
+New writes target `app.usage_ledger_provider`, which inherits `app.usage_ledger`
+(`db/migrations/0204_usage_ledger_provider.sql`). Its unique bucket key includes
+provider because wire model IDs are only unique within a provider catalog.
+Ordinary reads and deletes of the parent include both tables, so budgets,
+metrics, erasure and retention continue to use the same logical ledger. Do not
+use `ONLY app.usage_ledger` in those readers. Indexes are not inherited: future
+ledger index changes must cover both tables. `tests/guards/usage-ledger-tree.guard.test.ts`
+holds both rules.
+
+During rolling deployment the previous image can still upsert the parent using
+its original conflict target. Those writes retain the old attribution behavior
+until that image retires; new-image writes preserve each provider separately.
+Existing parent rows are left unchanged, including their recorded provider and
+totals. Previously merged rows cannot be split without original request data;
+the migration does not guess or reattribute historical spend.
+
 ## Rules
 
-1. **One ledger.** Every billable call books into `app.usage_ledger` and nowhere else. The
+1. **One ledger.** Every billable call books into `app.usage_ledger` — through its
+   `app.usage_ledger_provider` child table — and nowhere else. The
    per-turn `app.usage_events` table the chat lane used to write beside it had no reader; it is
    write-retired and goes in a later release (see _Not yet_).
 2. **`user_id` is a bare user id** — the person responsible for the spend — or the one sentinel
@@ -155,7 +172,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`, a project cap `app.project_usage`; an impersonal subject has no personal bucket; a request cap sums the requests of rows no connector names (`GOV-R15`), so a connector row booked with a request before connector calls stopped carrying one counts none |
 | Member's own view (`/my/budget-status`, Settings > Usage) | the same `usageLedgerSubjectForms(<own id>)` as the gate |
 | Erasure (`domains/erasure/service.ts`) | the subject's rows are `user_id IN (<id>, user:<id>, api-key:<id>)` — the two door forms cover rows booked before rule 2 held |
-| Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows; a project's buckets age on the same clock and name no member |
+| Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`, and are deleted by `(tableoid, ctid)` — each table of the inheritance tree numbers its tuples alone, so a bare `ctid` would take a fresh, held or other tenant's row with it; a legal hold protects a member's rows; a project's buckets age on the same clock and name no member |
 
 ## Guards
 
@@ -220,6 +237,15 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   `domains/tts/service.project-budget.test.ts`, `jobs/task-list.generate-title.test.ts` — each lane
   names the project (`GOV-R14`); `domains/governance/project-budget.integration.ts` proves the
   buckets, the holds and the refusal on the real schema.
+- `domains/governance/usage-ledger.test.ts` — the writer books `app.usage_ledger_provider` with
+  provider in its conflict key and never rewrites it on conflict; `usage-ledger.integration.ts`
+  (`verifyProviderUsageLedger`, in `checkGovernance`) proves it on the real schema: two providers'
+  calls of one wire model ID are two rows in every period, a repeated provider folds into one, an
+  unknown provider never merges with a known one, the previous image's conflict target still books
+  the parent, and deleting from the parent takes the child's rows with it;
+  `domains/retention/audit-trail.integration.ts` — a sweep over parent and child rows deletes only
+  the stale ones, leaving fresh, held and other tenants' rows in both tables, and counts exactly the
+  batch it deleted.
 - `domains/governance/usage-metrics.test.ts`, `app/features/analytics/usage/usage-metrics-page.test.tsx`
   — the sentinel is labelled and excluded from active users; a project agent shows its name; a
   key identity is its own row and no active user.

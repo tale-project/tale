@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 
@@ -9,7 +9,16 @@ import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 // instances are assignable and resolve to their names; without one no agent
 // is assignable, and an unknown/foreign agent actor reads as a deleted agent.
 
-const PROJECT_AGENTS = [
+interface AgentRow {
+  _id: string;
+  name: string;
+  harness: string;
+  skills: string[];
+  connectors: string[];
+  managed?: boolean;
+}
+
+const PROJECT_AGENTS: AgentRow[] = [
   {
     _id: 'pa_1',
     name: 'PR Reviewer',
@@ -25,6 +34,19 @@ const PROJECT_AGENTS = [
     connectors: [],
   },
 ];
+
+/** The organization's standard agent, as Tale sets it up in a project. */
+const MANAGED_AGENT: AgentRow = {
+  _id: 'pa_std',
+  name: 'Standard agent',
+  harness: 'claude-code',
+  skills: [],
+  connectors: [],
+  managed: true,
+};
+
+/** What the project's agent list answers. */
+let projectAgentRows: AgentRow[] = PROJECT_AGENTS;
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -51,7 +73,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   // Arg-sensitive like the real hook: no project id → the query skips and the
   // list is empty.
   useProjectAgents: (projectId?: string) => ({
-    agents: projectId ? PROJECT_AGENTS : [],
+    agents: projectId ? projectAgentRows : [],
     isLoading: false,
   }),
   // Skipped (undefined) without an organization, like the real read.
@@ -239,5 +261,80 @@ describe('useAssignableActors — who may add an agent', () => {
     const none = renderHook(() => useAssignableActors('org-1'));
     expect(none.result.current.projectResolved).toBe(false);
     expect(none.result.current.canAddAgents).toBe(false);
+  });
+});
+
+/**
+ * The standard agent Tale sets up in a project is one of its agents, but it
+ * takes a task only while the organization's standard agent can run for this
+ * viewer: a start would be refused. So what a person picks from leaves it out
+ * then, while the directory keeps naming it for the tasks already given to it.
+ */
+describe('useAssignableActors — the standard agent set up in the project', () => {
+  const ids = (agents: readonly { id: string }[]) =>
+    agents.map((agent) => agent.id);
+
+  beforeEach(() => {
+    accessScope = undefined;
+    projectRead = undefined;
+    standardAgent = undefined;
+    projectAgentRows = [MANAGED_AGENT];
+  });
+
+  afterEach(() => {
+    projectAgentRows = PROJECT_AGENTS;
+  });
+
+  it('offers it while the standard agent can run for the viewer', () => {
+    standardAgent = { enabled: true, available: true };
+    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(ids(result.current.assignableAgents)).toEqual(['pa_std']);
+  });
+
+  it.each([
+    ['switched off', { enabled: false, available: false }],
+    ['unavailable to the viewer', { enabled: true, available: false }],
+    ['not answered yet', undefined],
+  ])(
+    'leaves it out while the standard agent is %s, and still names it',
+    (_state, answer) => {
+      standardAgent = answer;
+      const { result } = renderHook(() =>
+        useAssignableActors('org-1', 'proj-1'),
+      );
+      expect(result.current.assignableAgents).toEqual([]);
+      // A task already given to it keeps its name on the board and timeline.
+      expect(ids(result.current.agents)).toEqual(['pa_std']);
+      expect(result.current.resolveActor('agent', 'pa_std')).toMatchObject({
+        name: 'Standard agent',
+        isAgent: true,
+      });
+    },
+  );
+
+  it('keeps the project’s own agents beside it either way', () => {
+    projectAgentRows = [...PROJECT_AGENTS.slice(0, 1), MANAGED_AGENT];
+
+    standardAgent = { enabled: false, available: false };
+    const off = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(ids(off.result.current.assignableAgents)).toEqual(['pa_1']);
+
+    standardAgent = { enabled: true, available: true };
+    const on = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(ids(on.result.current.assignableAgents)).toEqual(['pa_1', 'pa_std']);
+  });
+
+  it('hands out one list until the agents or the answer change', () => {
+    standardAgent = { enabled: false, available: false };
+    const { result, rerender } = renderHook(() =>
+      useAssignableActors('org-1', 'proj-1'),
+    );
+    const first = result.current.assignableAgents;
+    rerender();
+    expect(result.current.assignableAgents).toBe(first);
+
+    standardAgent = { enabled: true, available: true };
+    rerender();
+    expect(ids(result.current.assignableAgents)).toEqual(['pa_std']);
   });
 });

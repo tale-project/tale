@@ -147,6 +147,8 @@ Le champ **Libellés** accepte jusqu’à huit libellés séparés par des virgu
 
 Si Tale ne parvient pas à charger un skill ou l’un de ses fichiers, la boîte de dialogue l’indique et propose **Réessayer**. Si une actualisation échoue, la version déjà affichée reste en place, modifications non enregistrées comprises. Un fichier retiré est signalé comme absent du bundle, et un fichier vide comme vide.
 
+Si quelqu’un d’autre enregistre le skill après que tu l’as ouvert, Tale refuse ton enregistrement et te le signale. Rien n’est écrasé et tes modifications restent dans l’éditeur : copie ce dont tu as besoin, puis ferme le skill et rouvre-le pour voir la dernière version. Un éditeur que tu n’as pas modifié reprend tout seul la version plus récente.
+
 Si un agent ne trouve pas le skill, vérifie son équipement et la visibilité pour le projet. Tale lui montre un extrait de la description, limité à 300 caractères, pour l’aider à choisir un skill pertinent. Indique donc d’abord quand le skill s’applique. S’il ignore un skill équipé, nomme-le dans la tâche et compare le résultat avec ses instructions. [Skills des agents](/fr/platform/agents/skills) explique comment le bundle équipé est préparé et présenté à l’agent.
 
 En cas d’erreur d’import, vérifie que `SKILL.md` est à la racine, que son frontmatter est valide et que son nom est accepté. L’erreur précise les chemins ou limites de taille en cause. Pour retirer un bundle, ouvre-le et choisis **Supprimer le skill** après avoir vérifié les agents concernés.
