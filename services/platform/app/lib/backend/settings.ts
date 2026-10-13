@@ -7,6 +7,7 @@
  */
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { i18n } from '@/lib/i18n/i18n';
 import {
   API_KEY_HINT_ENTITY,
   CONNECTOR_CREDENTIAL_HINT_ENTITY,
@@ -1732,10 +1733,20 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     run: (args, ctx) =>
-      backendFetch<{ cancelled: number }>(
+      backendFetch<{ cancelled: number; refused: number }>(
         `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/stop-task`,
         { orgId: requireOrg(args, ctx), body: {} },
-      ),
+      ).then((result) => {
+        if (result.refused > 0) {
+          throw new Error(
+            i18n.t('toast.stopRefused', {
+              ns: 'sandboxes',
+              count: result.refused,
+            }),
+          );
+        }
+        return result;
+      }),
     invalidate: invalidateSandboxSessions,
   },
   'node_only/sandbox/session_admin_actions:destroySandbox': {
