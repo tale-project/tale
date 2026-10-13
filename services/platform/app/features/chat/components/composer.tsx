@@ -296,20 +296,31 @@ export const Composer = memo(
         field.selectionStart === field.selectionEnd ? field.selectionEnd : null,
       );
     };
+    /** Put `next.text` in the field and the caret at `next.caret`: once the
+     * field holds the new text, or at once when the text is already that —
+     * a name picked where it is already written changes no text, and no
+     * render would follow to move the caret. */
+    const rewrite = (next: { text: string; caret: number }) => {
+      if (next.text === text) {
+        const textarea = textareaRef.current;
+        textarea?.focus();
+        textarea?.setSelectionRange(next.caret, next.caret);
+        setCaret(next.caret);
+        return;
+      }
+      pendingCaretRef.current = next.caret;
+      setText(next.text);
+    };
     const pickSkill = (index: number) => {
       const skill = skillMatches[index];
       if (skillToken === null || skill === undefined) return;
-      const next = completeSkillToken(text, skillToken, skill.slug);
-      pendingCaretRef.current = next.caret;
       setSkillHighlight(0);
-      setText(next.text);
+      rewrite(completeSkillToken(text, skillToken, skill.slug));
     };
     const startSkillPick = () => {
-      const next = insertSkillSlash(text);
-      pendingCaretRef.current = next.caret;
       setDismissedText(null);
       setSkillHighlight(0);
-      setText(next.text);
+      rewrite(insertSkillSlash(text));
     };
 
     useImperativeHandle(

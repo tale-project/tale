@@ -449,6 +449,22 @@ describe('Composer skills [CHAT-R29]', () => {
     expect(onSend).toHaveBeenCalledWith('/xlsx Revenue by month');
   });
 
+  it('moves past a name already written when Enter picks it, and the next Enter sends', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({ skillChoices: SKILLS, onSend });
+    await user.type(field(), '/docx hello');
+    // Back into the name: the list opens on it.
+    await user.keyboard('{ArrowLeft>8/}');
+    expect(screen.getByRole('listbox', { name: 'Skills' })).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+
+    expect(field()).toHaveValue('/docx hello');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect((field() as HTMLTextAreaElement).selectionStart).toBe(6);
+    await user.keyboard('{Enter}');
+    expect(onSend).toHaveBeenCalledWith('/docx hello');
+  });
+
   it('moves with the arrows and picks with Tab', async () => {
     const { user } = renderComposer({ skillChoices: SKILLS });
     await user.type(field(), '/');
