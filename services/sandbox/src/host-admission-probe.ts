@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 import { promisify } from 'node:util';
 
-import { parseMemory } from './capacity.ts';
 import type { HostAdmissionReading } from './host-admission-model.ts';
 import type { HostAdmissionOwnerIdentity } from './host-admission-owner.ts';
+import { parseMemory } from './proc-stats.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 
 const exec = promisify(execFile);
