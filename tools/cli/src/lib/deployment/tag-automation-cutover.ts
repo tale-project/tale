@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
@@ -67,14 +64,11 @@ const UNCHANGED = ' Nothing was changed.';
 
 export const CUTOVER_BUSY = `This deploy upgrades the automation writer protocol once, and that needs every automation run in every organization to have finished. Some are still queued, running or waiting for an answer: let them finish or cancel them, and pause schedules and triggers so no new ones start, then run \`tale deploy\` again.${UNCHANGED}`;
 
-const receiptPath = (deployDir: string) =>
-  join(deployDir, '.tale', 'automation-cutover.json');
-
 /**
  * Where an existing protocol-1 host stands, assuming the target image is
  * protocol 2: `none` when nothing is crossed (an empty host, or a database
- * already at protocol 2), `resume` when an earlier deploy began the cutover,
- * `ready` when it can start. Throws, with the operator's next step, when it
+ * already at protocol 2), `resume` when an earlier deploy already stopped the
+ * old backend or created the new one, `ready` when it can start. Throws, with the operator's next step, when it
  * cannot. Reads only.
  */
 export async function assessTagAutomationCutover(
@@ -139,7 +133,8 @@ export async function assessTagAutomationCutover(
     );
   }
   requireRuntime(!busy, CUTOVER_BUSY);
-  return shape === 'continued' || existsSync(receiptPath(args.deployDir))
+  // An earlier deploy already stopped the old backend: it stays stopped.
+  return inventory.writers.every((writer) => !writer.running)
     ? 'resume'
     : 'ready';
 }

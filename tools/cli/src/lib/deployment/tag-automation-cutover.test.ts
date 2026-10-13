@@ -488,6 +488,15 @@ test('a rerun resumes after the old writers stopped, the new ones were created, 
   await barrier(host);
   // Stopped and recorded, nothing new yet: a fresh census, nothing to stop.
   expect((await barrier(host)).resume).toBe(true);
+  // Someone started an old writer again: a fresh run that stops it once more.
+  host.writers[1].State = {
+    ...host.writers[1].State,
+    Running: true,
+    Pid: 500,
+    Status: 'running',
+  };
+  expect((await plan(host))?.resume).toBe(false);
+  await barrier(host);
   // The new colour's first boot was cut before 0163, and the host rebooted.
   host.state.ledger = migrations.filter(
     (name) => Number(name.slice(0, 4)) <= 160,
@@ -501,5 +510,6 @@ test('a rerun resumes after the old writers stopped, the new ones were created, 
   expect((await barrier(host)).resume).toBe(true);
   expect(host.mutations).toEqual([
     ['stop', '--time=-1', 'c'.repeat(64), 'd'.repeat(64)],
+    ['stop', '--time=-1', 'd'.repeat(64)],
   ]);
 });
