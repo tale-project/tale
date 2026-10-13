@@ -1,9 +1,9 @@
 ---
 title: Einstellungen über MCP
-description: Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt.
+description: Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt oder die ihn angemeldet hat.
 ---
 
-Ein Coding-Agent, der mit dem [MCP-Endpunkt](/de/develop/mcp-endpoint) verbunden ist, liest die Einstellungen deiner Organisation, plant eine Änderung und nimmt sie vor — mit drei Tools: `get_settings`, `plan_settings` und `apply_settings`. Er handelt mit der Rolle der Person, deren API-Schlüssel er nutzt. Er darf ändern, was diese Person in der App ändern dürfte, und durchläuft dieselben Prüfungen. Die [Audit-Logs](/de/platform/admin/governance/audit-logs) halten jede Änderung als Änderung dieser Person fest, vorgenommen über MCP.
+Ein Coding-Agent, der mit dem [MCP-Endpunkt](/de/develop/mcp-endpoint) verbunden ist, liest die Einstellungen deiner Organisation, plant eine Änderung und nimmt sie vor — mit drei Tools: `get_settings`, `plan_settings` und `apply_settings`. Er handelt mit der Rolle der Person, deren API-Schlüssel er nutzt oder die ihn angemeldet hat; ein angemeldeter Agent braucht außerdem den Zugriff **Einstellungen lesen** oder **Einstellungen ändern**, den die Person erlaubt hat ([Zugriffsstufen](/de/develop/mcp-endpoint#access-levels)). Er darf ändern, was diese Person in der App ändern dürfte, und durchläuft dieselben Prüfungen. Die [Audit-Logs](/de/platform/admin/governance/audit-logs) halten jede Änderung als Änderung dieser Person fest, vorgenommen über MCP.
 
 ## Was ein Agent ändern kann {#kinds}
 

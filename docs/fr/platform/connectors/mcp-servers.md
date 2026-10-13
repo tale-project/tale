@@ -3,11 +3,11 @@ title: Connecter un client externe avec MCP
 description: Retrouve le point d’accès MCP de Tale et comprends comment un client externe peut l’utiliser.
 ---
 
-Le point d’accès MCP permet à un assistant de programmation externe ou à un autre client MCP de travailler avec ton organisation dans Tale. Il peut découvrir des capacités, créer des automatisations et examiner leurs exécutions. L’accès suit la clé API de l’organisation et les droits de son titulaire.
+Le point d’accès MCP permet à un assistant de programmation externe ou à un autre client MCP de travailler avec ton organisation dans Tale. Il peut découvrir des capacités, créer des automatisations et examiner leurs exécutions. L’accès suit les droits de la personne derrière la connexion : le titulaire de la clé API, ou la personne qui a connecté l’agent.
 
 ## Trouver le point d’accès
 
-Ouvre **Paramètres > API > MCP**. La page indique l’URL du déploiement, le slug de l’organisation, les groupes d’outils et une requête à copier pour vérifier la connexion. Si tu n’as pas encore de clé adaptée, crée-la sous **Paramètres > API**.
+Ouvre **Paramètres > API > MCP**. La page indique l’URL du déploiement, le slug de l’organisation, les groupes d’outils et une requête à copier pour vérifier la connexion. Un agent de code qui le prend en charge se connecte lui-même dès que tu lui donnes cette adresse ([Agents connectés](/fr/platform/admin/connected-agents) montre et termine ces connexions) ; sinon, crée une clé adaptée sous **Paramètres > API**.
 
 <Frame caption="Les paramètres MCP fournissent le point d’accès, le contexte de l’organisation et les outils disponibles.">
 

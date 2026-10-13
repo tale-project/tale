@@ -59,6 +59,16 @@ mcpEndpoint:
     member of; this one is named by the X-Organization-Slug header. Create
     and manage keys under'
   authLink: REST API keys.
+  signInHelp:
+    'A coding agent that supports it signs itself in: add this address to the
+    agent and follow its sign-in. You choose the organization and what the
+    agent may do, and you end the connection under'
+  signInLink: Connected agents.
+  authHelpScripts:
+    'Scripts and other clients authenticate with a REST API key as a bearer
+    token. A key belongs to the person who created it and works in every
+    organization they are a member of; this one is named by the
+    X-Organization-Slug header. Create and manage keys under'
   orgSlug:
     title: Organization slug
     description: A key whose holder belongs to more than one organization

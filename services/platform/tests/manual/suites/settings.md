@@ -506,7 +506,12 @@ Restore any toggled setting after the run.
   name whole and none running into another, also at 375 px; a screen reader
   names each list by its group; and
   the **Try it** example (`settings.mcpEndpoint.exampleTitle`); auth help
-  points at REST API keys (`settings.mcpEndpoint.authLink`); the
+  points at REST API keys (`settings.mcpEndpoint.authLink`) — and, where agent
+  sign-in is on and the person may connect an agent, first says a coding agent
+  signs itself in and links to **Connected agents**
+  (`settings.mcpEndpoint.signInHelp`, `settings.mcpEndpoint.signInLink`), the
+  key then being for scripts and clients that cannot sign in
+  (`settings.mcpEndpoint.authHelpScripts`); the
   **Organization slug** row (`settings.mcpEndpoint.orgSlug.title`) shows this
   org's slug with its own copy control (`settings.mcpEndpoint.orgSlug.copy`)
   and the copied example already carries `X-Organization-Slug: <that slug>`;

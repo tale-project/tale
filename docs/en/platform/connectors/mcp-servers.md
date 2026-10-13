@@ -3,11 +3,11 @@ title: Connect an external client with MCP
 description: Find Tale’s MCP endpoint and understand how external clients use it to work with Tale.
 ---
 
-Tale exposes an MCP endpoint that lets an external coding assistant or other MCP client work with your organization. Use it to discover capabilities, author automations, and inspect runs through the client’s tools. Access follows the organization API key and its holder’s permissions.
+Tale exposes an MCP endpoint that lets an external coding assistant or other MCP client work with your organization. Use it to discover capabilities, author automations, and inspect runs through the client’s tools. Access follows the permissions of the person behind the connection: the holder of the API key, or the person who signed the agent in.
 
 ## Find your endpoint
 
-Open **Settings > API > MCP**. The page shows the deployment’s endpoint URL, the organization slug, available tool groups, and a request you can copy to check connectivity. Create a suitable key under **Settings > API** if you do not already have one.
+Open **Settings > API > MCP**. The page shows the deployment’s endpoint URL, the organization slug, available tool groups, and a request you can copy to check connectivity. A coding agent that supports it signs itself in once you give it this address ([Connected agents](/platform/admin/connected-agents) shows and ends those connections); otherwise create a suitable key under **Settings > API**.
 
 <Frame caption="The MCP settings page provides the endpoint, organization context, and available tools.">
 

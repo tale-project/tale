@@ -23,7 +23,7 @@ Chaque type peut aussi ajouter une [entrée fixe](#entree-fixe) : des valeurs q
 
 Une automatisation possède un seul déclencheur configuré à la fois. Changer son type remplace la liaison précédente. Remplacer un webhook révoque immédiatement son URL ; en recréer un plus tard ne restitue pas ces identifiants.
 
-Un client API ou MCP peut aussi démarrer sans déclencheur configuré. Sa clé API et ses droits sur le projet autorisent l’appel, et il fournit directement les données du workflow. Consulte la [référence API](/fr/develop/api-reference).
+Un client API ou MCP peut aussi démarrer sans déclencheur configuré. Sa clé API (ou, pour un agent connecté, sa connexion) et ses droits sur le projet autorisent l’appel, et il fournit directement les données du workflow. Consulte la [référence API](/fr/develop/api-reference).
 
 ## Définir une planification
 

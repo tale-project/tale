@@ -96,6 +96,7 @@
     "platform/admin/api-keys",
     "platform/admin/branding",
     "platform/admin/changelog",
+    "platform/admin/connected-agents",
     "platform/admin/connectors",
     "platform/admin/data-subject-requests",
     "platform/admin/enterprise-sso",

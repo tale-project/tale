@@ -59,6 +59,14 @@ mcpEndpoint:
     gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
     Header X-Organization-Slug. Schlüssel erstellst und verwaltest du unter'
   authLink: REST-API-Schlüssel.
+  signInHelp: 'Ein Coding-Agent, der die Anmeldung unterstützt, meldet sich selbst an: Gib dem Agent diese Adresse und folge den Schritten der Anmeldung. Du wählst die
+    Organisation und was der Agent darf, und beendest die Verbindung unter'
+  signInLink: Verbundene Agenten.
+  authHelpScripts: 'Skripte und andere Clients authentifizieren sich mit einem
+    REST-API-Schlüssel als Bearer-Token. Ein Schlüssel gehört der Person, die
+    ihn erstellt hat, und gilt in jeder Organisation, der sie angehört; diese
+    Organisation nennt der Header X-Organization-Slug. Schlüssel erstellst und
+    verwaltest du unter'
   orgSlug:
     title: Organisations-Slug
     description: Gehört der Schlüsselinhaber mehreren Organisationen an,

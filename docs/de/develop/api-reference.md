@@ -195,9 +195,9 @@ Das ID-Token enthält die Standard-Claims der angeforderten Scopes mit denselben
 
 Jedes ID-Token trägt denselben Wert `acr: "0"`. Die Discovery führt `"0"` unter `acr_values_supported` und `acr` unter `claims_supported`. Er bescheinigt keinen stärkeren Authentifizierungskontext und keine abgeschlossene MFA-Prüfung; verwende ihn dafür nicht als Zugangskriterium. Die Versionen ab v0.5.45 dokumentierten `urn:mace:incommon:iap:bronze`, während das Token bereits `"0"` trug; eine Relying Party, die auf die URN festgelegt ist, muss `"0"` akzeptieren. `prompt_values_supported` nennt die unterstützten Werte `none`, `login` und `consent`; `select_account` und `create` werden nicht angeboten.
 
-Tale prüft vor der Token-Ausgabe und beim Abruf von Userinfo die aktuelle Mitgliedschaft und die native MFA-Pflicht erneut. Die Anwendung bleibt für ihre eigene Zugangsrichtlinie verantwortlich. Codes, Zugriffs- und ID-Tokens laufen nach fünf Minuten ab, und ein Code lässt sich einmal einlösen. Dynamische Registrierung, Implicit Grants und Refresh Tokens sind deaktiviert.
+Tale prüft vor der Token-Ausgabe und beim Abruf von Userinfo die aktuelle Mitgliedschaft und die native MFA-Pflicht erneut. Die Anwendung bleibt für ihre eigene Zugangsrichtlinie verantwortlich. Codes, Zugriffs- und ID-Tokens laufen nach fünf Minuten ab, und ein Code lässt sich einmal einlösen. Für Anwendungen sind dynamische Registrierung, Implicit Grants und Refresh Tokens deaktiviert; [Coding-Agents](#coding-agents) sind die Ausnahme.
 
-Zugriffstokens gelten nur für die native Userinfo-Schnittstelle; externe Ressourcenzielgruppen sind deaktiviert. Verwende für REST-Anfragen native API-Schlüssel.
+Die Zugriffstokens einer Anwendung gelten nur für die native Userinfo-Schnittstelle, und die einzige Ressourcenzielgruppe ist der MCP-Endpunkt, für Coding-Agents. Verwende für REST-Anfragen native API-Schlüssel.
 
 ### Fehler des Identitätsanbieters behandeln
 
@@ -206,6 +206,12 @@ Fehler folgen RFC 6749 und RFC 6750 — genau das, was ein gepflegter Client erw
 Token- und Autorisierungs-Endpoint antworten mit `{ "error", "error_description" }`: Ein anderer Grant als `authorization_code` ist `unsupported_grant_type`, eine fehlerhafte Anfrage — ein fehlendes `grant_type` eingeschlossen — `invalid_request`, wobei die Beschreibung den Parameter nennt (`grant_type is required`, `client_id is required`, `response_type must be one of "code"`). Ein Body des falschen Medientyps an einem reinen JSON-Endpoint (ein Formular, das an `register` gepostet wird) ergibt **400** `invalid_request` mit dem Typ, den er nimmt — ein 415 gibt es auf dieser Oberfläche nicht.
 
 Eine Autorisierungsanfrage, deren `client_id` keinen registrierten Client benennt, wird auf die eigene Fehlerseite des Ausstellers umgeleitet — nie auf die `redirect_uri`, die sie geschickt hat — mit `error=invalid_client` und einer Beschreibung, die den Client als unbekannt benennt, damit eine vertippte ID nicht für eine fehlende gehalten wird. Discovery führt `https://tale.dev/organization` unter `claims_supported`; sie nennt außerdem die Introspection-, Revocation- und End-Session-Endpoints des Providers, die der Ablauf oben nicht braucht.
+
+### Coding-Agents am MCP-Endpunkt anmelden {#coding-agents}
+
+Derselbe Server meldet Coding-Agents am [MCP-Endpunkt](/de/develop/mcp-endpoint#sign-in) an, über dieselben Autorisierungs- und Token-Endpunkte, aber mit einer anderen Art von Client. Ein Agent weist sich durch ein Client-Metadatendokument unter einer HTTPS-Adresse aus, die er selbst kontrolliert, oder er registriert sich selbst; er ist keiner der Anwendungs-Clients oben. Seine Scopes sind die Agent-Scopes (`tale:mcp`, `tale:automations.write`, `tale:automations.deploy`, `tale:settings.read`, `tale:settings.write`, `tale:subscriptions.connect`) und `offline_access`, nie `openid`, `profile`, `email` oder `tale:organization`: Ein Agent, der diese neben den Agent-Scopes verlangt, erhält nur die Agent-Scopes, und einer, der nur diese verlangt, wird mit `invalid_scope` abgelehnt. Die Autorisierungsanfrage nennt den MCP-Endpunkt als `resource`; das Zugriffstoken gilt fünf Minuten, das Refresh Token dreißig Tage ohne Nutzung und wird bei jeder Nutzung ersetzt, und es wird kein ID-Token ausgestellt.
+
+Eine Anwendung, die du wie oben beschrieben registriert hast, kann keinen Agent-Scope verlangen und den MCP-Endpunkt nicht nennen: Die Anfrage wird mit `invalid_scope` abgelehnt. Die Registrierung durch Agents ist auf 10 pro Stunde je Quelladresse und 500 pro Tag im ganzen Deployment begrenzt ([Anfragelimits berücksichtigen](/de/develop/rate-limits)). [Verbundene Agenten](/de/platform/admin/connected-agents) listet die Verbindungen, die die Anmeldung eines Agents erzeugt.
 
 ### Anwendungs-Client rotieren oder deaktivieren
 

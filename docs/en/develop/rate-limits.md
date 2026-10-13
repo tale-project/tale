@@ -18,8 +18,12 @@ A token bucket refills continuously up to its burst capacity. A short batch can 
 | Settings changes over MCP (`apply_settings`) | 30/minute | 60 | Key holder |
 | Project upload handoff and file binding | 240/minute | 300 | Key holder |
 | Failed API-key authentication | 20/minute | 40 | Source IP |
+| Self-registration of a coding agent with the sign-in server | 10/hour per source, 500/day for the deployment | None | Source IP, deployment |
+| Token requests the sign-in server refused | 20/minute | 40 | Source IP |
 | Webhook deliveries before token validation | 120/minute | 240 | Sender address |
 | Deliveries to a verified webhook trigger | 20/minute | 40 | Trigger |
+
+A coding agent that a person signed in draws on that person's budgets, the same ones their API keys share; it has no key of its own. A token that was never valid counts as a failed authentication, like a wrong key, and one that has merely run out does not: refreshing it is what an agent does next. Registration and refused token requests are charged to the source address; a token request that works costs nothing, because hosted agents share addresses.
 
 Automation HTTP steps draw from a budget of their own, per organization: 120 calls a minute across the deployment, and 10 at once on one server. See [Call an API from an automation](/platform/automations/http).
 

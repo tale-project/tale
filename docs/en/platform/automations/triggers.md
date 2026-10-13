@@ -23,7 +23,7 @@ Every type can also add a [fixed input](#fixed-input): values each run receives 
 
 An automation has one configured trigger at a time. Changing its type replaces the previous binding. Replacing a webhook revokes its URL immediately; configuring another webhook later does not recover that credential.
 
-An API or MCP client can also start work without a configured trigger. Its API key and project permissions authorize the request, and it sends the workflow’s input directly. See the [API reference](/develop/api-reference).
+An API or MCP client can also start work without a configured trigger. Its API key (or, for an agent that signed in, its connection) and project permissions authorize the request, and it sends the workflow’s input directly. See the [API reference](/develop/api-reference).
 
 ## Set a schedule
 

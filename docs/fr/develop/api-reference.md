@@ -204,9 +204,9 @@ Le jeton contient toujours `acr: "0"`. La découverte annonce `"0"` dans `acr_va
 
 La découverte annonce `none`, `login` et `consent` dans `prompt_values_supported`. `select_account` et `create` ne sont pas pris en charge. Tale vérifie l’appartenance actuelle à l’organisation et l’exigence MFA native avant d’émettre les jetons, puis à chaque appel à Userinfo. L’application applique sa propre politique d’accès.
 
-Un code d’autorisation, un jeton d’accès et un jeton d’identité expirent après cinq minutes, et un code ne peut être échangé qu’une fois. L’enregistrement dynamique, le flux implicite et les jetons de renouvellement sont désactivés.
+Un code d’autorisation, un jeton d’accès et un jeton d’identité expirent après cinq minutes, et un code ne peut être échangé qu’une fois. Pour les applications, l’enregistrement dynamique, le flux implicite et les jetons de rafraîchissement sont désactivés ; les [agents de code](#coding-agents) font exception.
 
-Les jetons d’accès servent uniquement au point de terminaison natif `userinfo` ; les audiences de ressources externes sont désactivées. Pour appeler l’API REST, utilise une clé API Tale.
+Les jetons d’accès d’une application servent uniquement au point de terminaison natif `userinfo`, et la seule audience de ressource est le point d’accès MCP, pour les agents de code. Pour appeler l’API REST, utilise une clé API Tale.
 
 ### Traiter les erreurs du fournisseur d’identité
 
@@ -223,6 +223,12 @@ Un type de contenu incorrect, par exemple un formulaire envoyé à l’endpoint 
 Si `client_id` est inconnu, Tale redirige vers sa propre page d’erreur, jamais vers la `redirect_uri` fournie. Le paramètre `error=invalid_client` et sa description distinguent un client inconnu d’un identifiant manquant.
 
 La découverte inclut `https://tale.dev/organization` dans `claims_supported`. Elle annonce également les endpoints d’introspection, de révocation et de fin de session ; le parcours décrit ici n’en a pas besoin.
+
+### Les agents de code se connectent au point d’accès MCP {#coding-agents}
+
+Le même serveur connecte les agents de code au [point d’accès MCP](/fr/develop/mcp-endpoint#sign-in), par les mêmes endpoints d’autorisation et de jeton, avec un autre type de client. Un agent se présente par un document de métadonnées client situé à une adresse HTTPS qu’il contrôle, ou s’enregistre lui-même ; ce n’est pas l’un des clients applicatifs ci-dessus. Ses portées sont les portées d’agent (`tale:mcp`, `tale:automations.write`, `tale:automations.deploy`, `tale:settings.read`, `tale:settings.write`, `tale:subscriptions.connect`) et `offline_access`, jamais `openid`, `profile`, `email` ni `tale:organization` : un agent qui les demande en plus des portées d’agent reçoit les portées d’agent seules, et un agent qui ne demande que ces portées d’identité est refusé avec `invalid_scope`. La demande d’autorisation nomme le point d’accès MCP dans son paramètre `resource` ; le jeton d’accès dure cinq minutes, le jeton de rafraîchissement trente jours sans utilisation et il est remplacé à chaque usage, et aucun jeton d’identité n’est émis.
+
+Une application enregistrée dans cette section ne peut ni demander une portée d’agent ni nommer le point d’accès MCP : la demande est refusée avec `invalid_scope`. L’enregistrement par les agents est limité à 10 enregistrements par heure et par adresse source, et à 500 par jour sur l’ensemble du déploiement ([Gérer les limites de requêtes](/fr/develop/rate-limits)). [Agents connectés](/fr/platform/admin/connected-agents) liste les connexions créées quand un agent se connecte.
 
 ### Renouveler ou désactiver un client applicatif
 
