@@ -15,16 +15,16 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
 describe('connection probe failure ownership', () => {
   it.each([
     [
-      useTestOrgKnowledgeConnection,
       'knowledge/actions:testKnowledgeConnection',
+      useTestOrgKnowledgeConnection,
     ],
     [
-      useTestOrgObjectStorageConnection,
       'object_storage/actions:testObjectStorageConnection',
+      useTestOrgObjectStorageConnection,
     ],
   ] as const)(
     'keeps inline probe failures out of the default toast (%s)',
-    (hook, action) => {
+    (action, hook) => {
       renderHook(() => hook());
       expect(useBackendAction).toHaveBeenLastCalledWith(action, {
         errorToast: false,
