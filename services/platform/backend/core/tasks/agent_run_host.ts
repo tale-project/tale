@@ -1921,6 +1921,7 @@ function isResumeLaunchFailure(
     sandboxEndOf(window) === undefined &&
     // A model-wide capacity refusal says nothing about the resume handle.
     // Keep it for the counted delayed retry instead of launching fresh now.
+    window.ended?.providerErrorKind !== 'model_capacity' &&
     execFailure.providerErrorKind !== 'model_capacity' &&
     window.text === '' &&
     window.timeline.length === 0 &&
