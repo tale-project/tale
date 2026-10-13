@@ -326,9 +326,9 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   block request URL), so A misses the hint; B deletes a credential A still
   sees → On A, that row's menu → **Disable** answers one toast
   `settings.credentials.updateFailed` naming "Credential not found." and the
-  row leaves A's table; on another such row, **Delete** → **Delete** answers
-  `settings.credentials.deleteFailed` once and the confirm closes with the
-  row. No second click can fail the same way.
+  row leaves A's table; on another such row, **Delete** → **Delete** closes
+  the confirm with no toast at all, since the credential is gone as asked, and
+  the row leaves with it. No second click can fail the same way.
 - [ ] `CONN-B12` · **Back waits out a save in flight** — With CONN-F4's
   **GitHub** row, Picker → **GitHub** → name it **GitHub** again, fill the
   token, throttle the network (DevTools → Network → Slow 4G) and submit →
