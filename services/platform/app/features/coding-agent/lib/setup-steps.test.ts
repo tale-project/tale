@@ -16,13 +16,14 @@ describe('setupSteps', () => {
     ]);
   });
 
-  it('adds Tale to Codex, then signs in', () => {
+  it('adds Tale to Codex in one command, which signs in as it adds', () => {
+    // Codex starts the OAuth sign-in as part of `mcp add`; a second command
+    // (`mcp login`) would only start another.
     expect(setupSteps('codex', ADDRESS)).toEqual([
       {
         text: 'codexAdd',
         code: 'codex mcp add tale --url https://tale.example.com/api/v1/mcp',
       },
-      { text: 'codexSignIn', code: 'codex mcp login tale' },
     ]);
   });
 

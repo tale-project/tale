@@ -80,7 +80,8 @@ describe('CodingAgentSetup', () => {
         'codex mcp add tale --url https://tale.example.com/api/v1/mcp',
       ),
     ).toBeVisible();
-    expect(screen.getByText('codex mcp login tale')).toBeVisible();
+    // One command: Codex signs in as it adds the server.
+    expect(screen.queryByText(/codex mcp login/)).not.toBeInTheDocument();
     expect(screen.queryByText(/claude mcp/)).not.toBeInTheDocument();
   });
 

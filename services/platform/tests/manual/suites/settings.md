@@ -1052,9 +1052,10 @@ Restore any toggled setting after the run.
   the page, on the **Claude Code** tab of **Claude Code**, **Codex** and
   **Other**: step 1 is `claude mcp add --transport http tale` followed by this
   deployment's MCP address, step 2 `claude mcp login tale`, each in its own
-  block with a copy button; **Codex** shows `codex mcp add tale --url` and
-  the address, then `codex mcp login tale`; **Other** shows the address alone
-  and says to choose browser sign-in. Under the steps a line reads **Waiting
+  block with a copy button; **Codex** shows the one command `codex mcp add
+  tale --url` and the address, which adds Tale and starts the sign-in (a
+  second `codex mcp login tale` would only start another); **Other** shows
+  the address alone and says to choose browser sign-in. Under the steps a line reads **Waiting
   for your agent to sign in…** (`codingAgent.status.waiting`), under **Then ask
   your agent** a prompt that names `get_docs` and `list_automations`. Copy
   each command and run it in a terminal as AUTH-F34 describes, finishing the

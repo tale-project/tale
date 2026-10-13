@@ -4,10 +4,10 @@
  * else, so there is no field a key or a token could reach one through.
  *
  * Only a client that was run against a live Tale gets commands here. Claude
- * Code 2.1.296 and the Codex CLI each signed in end to end (the consent page,
- * the redirect to the agent's own address, a list of tools answered). Every
- * other client gets the address and the guide until it has been tried the
- * same way.
+ * Code 2.1.296 and the Codex CLI 0.162.0 each signed in end to end (the
+ * consent page, the redirect to the agent's own address, the connection
+ * recorded). Every other client gets the address and the guide until it has
+ * been tried the same way.
  */
 
 export const SETUP_CLIENTS = ['claude-code', 'codex', 'other'] as const;
@@ -22,7 +22,6 @@ export type StepText =
   | 'claudeCodeAdd'
   | 'claudeCodeSignIn'
   | 'codexAdd'
-  | 'codexSignIn'
   | 'otherAddress'
   | 'otherSignIn';
 
@@ -56,12 +55,14 @@ export function setupSteps(
     ];
   }
   if (client === 'codex') {
+    // Codex finds that the server signs in by OAuth and starts the sign-in as
+    // part of adding it, finishing once the person has chosen: a second
+    // command would only start a second sign-in.
     return [
       {
         text: 'codexAdd',
         code: `codex mcp add ${MCP_SERVER_NAME} --url ${address}`,
       },
-      { text: 'codexSignIn', code: `codex mcp login ${MCP_SERVER_NAME}` },
     ];
   }
   return [{ text: 'otherAddress', code: address }, { text: 'otherSignIn' }];
