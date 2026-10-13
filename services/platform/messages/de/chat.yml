@@ -178,8 +178,11 @@ placeholder: Stell eine Frage…
 generationIncomplete: Das Modell hat keine Antwort geliefert. Versuch es erneut oder wähle ein anderes Modell.
 generationIncompleteFiltered: Der Inhaltsfilter des Modellanbieters hat diese Antwort zurückgehalten. Versuch, deine Nachricht umzuformulieren.
 generationIncompleteLength: Das Modell hat sein Limit für Ausgabe-Tokens aufgebraucht, bevor es eine Antwort geschrieben hat. Versuch es mit weniger Denkaufwand, einer kürzeren Anfrage oder einem anderen Modell.
-generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Versuch es erneut.
+generationIncompleteWithTools: Die Antwort konnte nach den Schritten oben nicht abgeschlossen werden. Versuch es erneut.
 stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.
+workToolsUnavailable:
+  setupFailed: In dieser Antwort konnten keine Dateien erstellt werden, weil die Tools dafür nicht verfügbar waren. Versuch es gleich noch einmal.
+  policyUnreadable: In dieser Antwort konnten keine Dateien erstellt werden, weil die Chat-Tools-Richtlinie deiner Organisation nicht lesbar ist. Ein Admin sieht das Problem unter Richtlinien.
 send: Nachricht senden
 stopGenerating: Generierung stoppen
 stoppingGeneration: Wird gestoppt…
@@ -586,6 +589,20 @@ thinking:
   loadingSkill: Liest den Skill {name}
   readingSkillFile: Liest {path} aus dem Skill {name}
   runningCode: Führt {language} in einer leichten Sandbox aus
+  outcome:
+    failed: Fehlgeschlagen
+    stopped: Gestoppt
+    sandboxesBusy: Alle leichten Sandboxen sind belegt
+    sandboxHostBusy: Der Sandbox-Host ist ausgelastet
+    sandboxNotReady: Die Sandbox ist noch nicht bereit
+    sandboxUnreachable: Der Sandbox-Dienst ist nicht erreichbar
+    sandboxFailed: Die Sandbox ist ausgefallen
+    programFailed: Das Programm wurde mit einem Fehler beendet
+    timedOut: Zeit abgelaufen
+    notFound: Nicht gefunden
+    invalidArgs: So nicht ausführbar
+    unavailable: Hier nicht verfügbar
+    busy: Gerade ausgelastet
 artifacts:
   label: Dateien aus dieser Antwort
   open: '{name} öffnen'

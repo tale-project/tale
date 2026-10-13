@@ -178,8 +178,11 @@ placeholder: Pose une question…
 generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
 generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.
 generationIncompleteLength: Le modèle a épuisé sa limite de tokens en sortie avant d'écrire une réponse. Essaie un effort de raisonnement plus faible, une demande plus courte ou un autre modèle.
-generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
+generationIncompleteWithTools: La réponse n'a pas pu être terminée après les étapes ci-dessus. Réessaie.
 stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
+workToolsUnavailable:
+  setupFailed: Aucun fichier n'a pu être créé dans cette réponse, car les outils nécessaires n'étaient pas disponibles. Réessaie dans un instant.
+  policyUnreadable: Aucun fichier n'a pu être créé dans cette réponse, car la politique Outils du chat de ton organisation est illisible. Un Admin peut voir le problème dans Gouvernance.
 send: Envoyer le message
 stopGenerating: Arrêter la génération
 stoppingGeneration: Arrêt en cours…
@@ -584,6 +587,20 @@ thinking:
   loadingSkill: Lecture du skill {name}
   readingSkillFile: Lecture de {path} dans le skill {name}
   runningCode: Exécution de {language} dans une sandbox légère
+  outcome:
+    failed: Échec
+    stopped: Arrêté
+    sandboxesBusy: Toutes les sandboxes légères sont occupées
+    sandboxHostBusy: L'hôte des sandboxes est saturé
+    sandboxNotReady: La sandbox n'est pas encore prête
+    sandboxUnreachable: Le service de sandbox est injoignable
+    sandboxFailed: La sandbox a cessé de fonctionner
+    programFailed: Le programme s'est terminé par une erreur
+    timedOut: Délai dépassé
+    notFound: Introuvable
+    invalidArgs: Impossible à exécuter tel quel
+    unavailable: Indisponible ici
+    busy: Occupé pour le moment
 artifacts:
   label: Fichiers de cette réponse
   open: Ouvrir {name}

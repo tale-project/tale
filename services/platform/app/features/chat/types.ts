@@ -99,6 +99,10 @@ export interface ChatMessageUsage {
   /** The tool loop spent its whole round budget and forced the final
    * answer — rendered as a notice on the message. */
   readonly stepLimitHit?: boolean;
+  /** The reply ran without the file tools its organization allows: the
+   * Chat tools policy could not be read, or setting them up failed —
+   * rendered as a notice on the message. */
+  readonly workToolsUnavailable?: 'policy_unreadable' | 'setup_failed';
   /** Why the final round stopped (`length` = the output cap cut the reply
    * short), when the provider or the platform said. */
   readonly finishReason?:

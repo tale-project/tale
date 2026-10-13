@@ -37,6 +37,9 @@ export interface TimelineRowProps {
   expanded?: boolean;
   /** The element `onToggle` reveals, for `aria-controls`. */
   controls?: string;
+  /** An element that says more about the line — a failed step's outcome on
+   * the line below — for `aria-describedby` on the row's button. */
+  describedBy?: string;
   /** Overrides the icon while a step is running or failed. */
   iconClassName?: string;
   className?: string;
@@ -49,6 +52,7 @@ export function TimelineRow({
   onToggle,
   expanded = false,
   controls,
+  describedBy,
   iconClassName,
   className,
 }: TimelineRowProps) {
@@ -103,6 +107,9 @@ export function TimelineRow({
       aria-expanded={expanded}
       {...(expanded && controls !== undefined
         ? { 'aria-controls': controls }
+        : {})}
+      {...(describedBy !== undefined
+        ? { 'aria-describedby': describedBy }
         : {})}
       className={cn(
         shared,

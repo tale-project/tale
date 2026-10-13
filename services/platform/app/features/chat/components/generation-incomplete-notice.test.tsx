@@ -114,7 +114,7 @@ describe('isGenerationIncomplete', () => {
 });
 
 describe('GenerationIncompleteNotice', () => {
-  it('names the tools the turn ran, once each', () => {
+  it('points at the steps it ran, never at their tool ids', () => {
     render(
       <GenerationIncompleteNotice
         parts={[
@@ -127,9 +127,10 @@ describe('GenerationIncompleteNotice', () => {
 
     expect(
       screen.getByText(
-        "The response couldn't be completed after running rag_search, web_fetch. Try again.",
+        "The response couldn't be completed after the steps above. Try again.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/rag_search|web_fetch/)).toBeNull();
   });
 
   it('says the model returned nothing when the reply is simply empty', () => {

@@ -1,7 +1,11 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
 
-import { ragSearchListingKind, stepActivityLabel } from './activity-label';
+import {
+  ragSearchListingKind,
+  stepActivityLabel,
+  stepOutcomeLabel,
+} from './activity-label';
 
 /** A translator that renders the key and its params, so an assertion reads
  * the exact call instead of a locale string. */
@@ -204,5 +208,39 @@ describe('stepActivityLabel — the work tools', () => {
     expect(stepActivityLabel(t, { tool: 'run_code' })).toBe(
       'thinking.runningCode {"language":"Python"}',
     );
+  });
+});
+
+describe('stepOutcomeLabel — what became of a step', () => {
+  const t = fakeT();
+
+  it('names the cause a result gives before its status', () => {
+    expect(
+      stepOutcomeLabel(t, { status: 'busy', reason: 'sandbox_host_busy' }),
+    ).toBe('thinking.outcome.sandboxHostBusy');
+    expect(
+      stepOutcomeLabel(t, {
+        status: 'unavailable',
+        reason: 'sandbox_not_ready',
+      }),
+    ).toBe('thinking.outcome.sandboxNotReady');
+  });
+
+  it('falls back to the status, then to a plain failure', () => {
+    expect(stepOutcomeLabel(t, { status: 'cancelled' })).toBe(
+      'thinking.outcome.stopped',
+    );
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'a-new-cause' }),
+    ).toBe('thinking.outcome.failed');
+    expect(stepOutcomeLabel(t, { status: 'something-else' })).toBe(
+      'thinking.outcome.failed',
+    );
+  });
+
+  it('says nothing of a step that succeeded or returned no status', () => {
+    expect(stepOutcomeLabel(t, { status: 'ok' })).toBeUndefined();
+    expect(stepOutcomeLabel(t, 'plain text')).toBeUndefined();
+    expect(stepOutcomeLabel(t, undefined)).toBeUndefined();
   });
 });

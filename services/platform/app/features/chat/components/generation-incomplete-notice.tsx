@@ -88,13 +88,6 @@ export function GenerationIncompleteNotice({
 }) {
   const { t } = useT('chat');
   const reason = incompleteReason(parts, finishReason);
-  const tools = [
-    ...new Set(
-      parts
-        .filter((part) => part.type === 'tool-call')
-        .map((part) => part.capabilityId),
-    ),
-  ];
 
   const line =
     reason === 'length'
@@ -102,7 +95,8 @@ export function GenerationIncompleteNotice({
       : reason === 'filtered'
         ? t('generationIncompleteFiltered')
         : reason === 'tools'
-          ? t('generationIncompleteWithTools', { tools: tools.join(', ') })
+          ? // The steps it ran are listed right above, in words.
+            t('generationIncompleteWithTools')
           : t('generationIncomplete');
 
   // The sentence is body text in the muted foreground: the warning hue alone

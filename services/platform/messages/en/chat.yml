@@ -178,8 +178,11 @@ placeholder: Ask a question…
 generationIncomplete: The model returned no answer. Try again, or choose another model.
 generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.
 generationIncompleteLength: The model used up its output token limit before it wrote an answer. Try a lower reasoning effort, a shorter request, or another model.
-generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
+generationIncompleteWithTools: The response couldn't be completed after the steps above. Try again.
 stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
+workToolsUnavailable:
+  setupFailed: Files couldn't be made in this reply because the tools for them weren't available. Try again in a moment.
+  policyUnreadable: Files couldn't be made in this reply because your organization's Chat tools policy can't be read. An admin can see the problem under Governance.
 send: Send message
 stopGenerating: Stop generating
 stoppingGeneration: Stopping…
@@ -578,6 +581,20 @@ thinking:
   loadingSkill: Reading the {name} skill
   readingSkillFile: Reading {path} from the {name} skill
   runningCode: Running {language} in a light sandbox
+  outcome:
+    failed: Failed
+    stopped: Stopped
+    sandboxesBusy: All light sandboxes are in use
+    sandboxHostBusy: The sandbox host is busy
+    sandboxNotReady: The sandbox isn't ready yet
+    sandboxUnreachable: The sandbox service can't be reached
+    sandboxFailed: The sandbox stopped working
+    programFailed: The program ended with an error
+    timedOut: Ran out of time
+    notFound: Not found
+    invalidArgs: Couldn't run as asked
+    unavailable: Not available here
+    busy: Busy right now
 artifacts:
   label: Files from this reply
   open: Open {name}
