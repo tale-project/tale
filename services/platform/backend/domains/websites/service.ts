@@ -289,6 +289,22 @@ async function getWebsiteCoveringDomain(
   return rows[0] ?? null;
 }
 
+/**
+ * The lock a registration takes before it looks for a duplicate. The pair of
+ * hosts the lookup compares (`siteHosts`) is one site, but `UNIQUE (org_id,
+ * domain)` guards a single spelling, so two requests for the two spellings
+ * would both find nothing and both insert. They take the same key — the
+ * pair's first spelling in a fixed order — so the second waits for the
+ * first to commit and then finds its row.
+ */
+function websiteRegistrationLockKey(
+  organizationId: string,
+  domain: string,
+): string {
+  const [site = domain] = [...siteHosts(domain)].sort();
+  return `website-registration:${organizationId}:${site}`;
+}
+
 /** Newest-first keyset listing with the 0.4 filters (status, scanInterval)
  * and the palette's substring search over domain/title/description. */
 export async function listWebsites(
@@ -1085,6 +1101,11 @@ export interface RegisterWebsiteResult {
  * independent crawl of the same site. The row write and the register job
  * commit together: a 'scanning' row whose job never landed would sit for
  * the stuck-scan window and then scan a domain the corpus never saw.
+ *
+ * Registrations of one site take turns: the transaction holds an advisory
+ * lock on the site until it commits, so two requests that arrive together —
+ * the two spellings included — find each other's row instead of both
+ * passing the lookup and both inserting.
  */
 export async function registerWebsite(
   sql: Sql,
@@ -1106,6 +1127,7 @@ export async function registerWebsite(
     ? normalizeListUrls(domain, listEntries)
     : undefined;
   return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${websiteRegistrationLockKey(args.organizationId, domain)}, 0))`;
     const existing = await getWebsiteCoveringDomain(
       tx,
       args.organizationId,

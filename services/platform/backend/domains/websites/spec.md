@@ -25,7 +25,8 @@ member (`RBAC_FORBIDDEN`). Every member can read the sources, their pages and th
 Adding a website that is already there is refused (`WEBSITE_DUPLICATE_DOMAIN`), and so is the
 `www` form of a website stored without it, or the reverse; the refusal names the spelling
 that is stored. Adding more addresses to a website that is a list extends that list instead.
-A list cannot be added on top of a source that scans the whole website.
+A list cannot be added on top of a source that scans the whole website. Two requests that add
+the same website at the same moment make one source: the second is refused.
 
 - **Example**: `example.com` is a source. Noah adds `www.example.com` → refused, with the
   message that `example.com` is already there.
