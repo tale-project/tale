@@ -16,7 +16,7 @@ import type { ChatMessageView, ChatProjectSummary } from '../types';
 
 const state = vi.hoisted(() => ({
   projects: [] as ChatProjectSummary[],
-  agentsByProject: {} as Record<string, { _id: string }[]>,
+  agentsByProject: {} as Record<string, { _id: string; managed?: boolean }[]>,
   projectsFailed: false,
   messages: [] as ChatMessageView[],
   navigate: vi.fn(),
@@ -424,5 +424,41 @@ describe('CreateTaskFromChat', () => {
     open({ projectId: WEBSITE.id });
 
     expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
+  });
+
+  it('hands the task to the standard agent set up in the project while it can run', () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.agentsByProject = {
+      [WEBSITE.id]: [{ _id: 'agent-standard', managed: true }],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toHaveTextContent('agent-standard');
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+
+  it('opens the task unassigned when the project’s only agent is the standard agent and it cannot run', () => {
+    state.standardAgent = { enabled: false, available: false };
+    state.agentsByProject = {
+      [WEBSITE.id]: [{ _id: 'agent-standard', managed: true }],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('project')).toHaveTextContent(WEBSITE.id);
+    expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+
+  it('hands the task to the project’s own agent when the standard agent that cannot run stands beside it', () => {
+    state.standardAgent = { enabled: false, available: false };
+    state.agentsByProject = {
+      [WEBSITE.id]: [
+        { _id: 'agent-standard', managed: true },
+        { _id: 'agent-own' },
+      ],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toHaveTextContent('agent-own');
   });
 });
