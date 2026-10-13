@@ -527,3 +527,14 @@ test('a stopped new colour is recreated, so the plan counts the runs again first
     ['stop', '--time=-1', 'c'.repeat(64), 'd'.repeat(64)],
   ]);
 });
+
+test('a stopped new backend outside the colour projects is refused by the plan, before anything changes', async () => {
+  const host = workspaceHost();
+  host.addNewWriters(false);
+  for (const writer of host.writers.filter((w) => w.Image === target.Id))
+    writer.Config.Labels['com.docker.compose.project'] = 'example';
+  const failure = await plan(host).catch((error: unknown) => error);
+  expect((failure as Error).message).toContain('outside its colour projects');
+  expect((failure as Error).message).toContain('Nothing was changed');
+  expect(host.mutations).toEqual([]);
+});

@@ -356,6 +356,13 @@ export async function cutoverLegacyAutomation(
     );
     return;
   }
+  if (workspace)
+    requireRuntime(
+      newWriters.every(
+        (writer) => !writer.running && targetProjects.includes(writer.project),
+      ),
+      `Automation cutover found new backend writers outside this deployment's colour projects.${notStopped}`,
+    );
   if (options.verifyOnly) return;
   // A workspace's ledger is v0.5.77's, or v0.5.77's continued by the new
   // colour's first boot that was cut before 0163 committed (the deploy's
@@ -366,13 +373,6 @@ export async function cutoverLegacyAutomation(
     requireRuntime(
       legacyLedgerShape(ledger.ids) !== 'unsupported',
       `This database is not at v0.5.77, the only release the automation writer protocol cutover starts from. ${viaLegacyRelease(workspace.release)}${notStopped}`,
-    );
-  if (workspace)
-    requireRuntime(
-      newWriters.every(
-        (writer) => !writer.running && targetProjects.includes(writer.project),
-      ),
-      `Automation cutover found new backend writers outside this deployment's colour projects.${notStopped}`,
     );
   const refusal = legacyWriterRefusal(oldWriters, writerProjects);
   if (workspace && refusal !== null)

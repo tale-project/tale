@@ -113,6 +113,14 @@ export async function assessTagAutomationCutover(
     (writer) => writer.protocol === 2,
   );
   if (newWriters.some((writer) => writer.running)) return 'resume';
+  requireRuntime(
+    newWriters.every((writer) =>
+      workspaceCutoverScope(project, '').targetProjects.includes(
+        writer.project,
+      ),
+    ),
+    `This deployment has stopped new backend containers outside its colour projects, which a deploy would not recreate. Remove them, then run \`tale deploy\` again.${UNCHANGED}`,
+  );
   const oldWriters = inventory.writers.filter(
     (writer) => writer.protocol !== 2,
   );
