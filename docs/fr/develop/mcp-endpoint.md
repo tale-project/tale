@@ -5,7 +5,7 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Connecte un client MCP lorsqu'un agent doit découvrir les outils Tale, récupérer des connaissances ou concevoir et exécuter des automatisations. La connexion utilise la même clé API et le même périmètre d'organisation que [REST](/fr/develop/api-reference). Tale joue le rôle de serveur : ton client externe appelle Tale.
+Connecte un client MCP lorsqu'un agent doit découvrir les outils Tale, récupérer des connaissances ou concevoir et exécuter des automatisations. Soit une personne connecte l’agent depuis l’agent lui-même, soit l’agent utilise une clé API comme celle qu’accepte [REST](/fr/develop/api-reference) ; dans les deux cas, il travaille dans une seule organisation et ne peut jamais faire plus que la personne qui est derrière lui. Tale joue le rôle de serveur : ton client externe appelle Tale.
 
 Commence par `initialize`, consulte `tools/list`, puis appelle `get_docs` avant d'écrire une automatisation. L'installation fournit sa propre grammaire prise en charge ; le client n'a donc pas à inventer des types de nœuds ou des champs.
 
@@ -13,23 +13,69 @@ Commence par `initialize`, consulte `tools/list`, puis appelle `get_docs` avant 
 
 ### Préparer la connexion
 
-Crée une [clé API](/fr/platform/admin/api-keys) et conserve-la dans la configuration sécurisée de ton client. La page **Paramètres > API > MCP** affiche le point d'accès, le slug d'organisation et une requête de découverte à copier.
+Deux voies ouvrent le point d’accès, et tu peux utiliser les deux, pour des clients différents :
+
+- **Se connecter depuis l’agent.** L’agent découvre lui-même comment se connecter à Tale et ouvre ton navigateur ; tu choisis l’organisation et ce qu’il peut faire. Rien n’est copié à la main, et tu peux déconnecter l’agent plus tard. [Se connecter depuis ton agent](#sign-in) décrit le déroulement. Cette voie est active tant que ton opérateur ne l’a pas désactivée.
+- **Une clé API.** [Crées-en une](/fr/platform/admin/api-keys) et conserve-la dans la configuration sécurisée de ton client. Elle convient aux scripts et aux clients qui ne peuvent pas ouvrir de navigateur. Une clé agit au nom de son titulaire et n’a pas de niveau d’accès propre.
+
+La page **Paramètres > API > MCP** affiche les commandes qui connectent Claude Code ou Codex, le point d’accès, le slug d’organisation et une requête de découverte à copier.
 
 | Paramètre | Valeur |
 | --- | --- |
 | Point d'accès | `https://your-host.example.com/api/v1/mcp` |
 | Transport | HTTPS POST avec JSON-RPC ; réponses JSON simples |
-| Autorisation | `Authorization: Bearer <api-key>` |
-| Organisation | `X-Organization-Slug: <slug>` |
+| Autorisation | `Authorization: Bearer <api-key>` ou le jeton d’accès qu’un agent a reçu quand une personne l’a connecté |
+| Organisation | `X-Organization-Slug: <slug>` avec une clé ; un agent connecté travaille dans l’organisation que la personne qui l’a connecté a choisie |
 | Révisions du protocole | `2026-07-28`, portée par chaque requête ; ou `2025-11-25`, `2025-06-18` ou `2025-03-26`, ouvertes par `initialize` ([Révisions du protocole](#protocol-revisions)) |
 
-Le client doit accepter un point d'accès HTTP distant avec des en-têtes personnalisés. Il n'y a ni flux SSE, ni session à supprimer, ni parcours d'autorisation OAuth. Les URL de découverte OAuth renvoient du JSON avec `404` ; un client qui exige ce parcours doit être configuré autrement. Un client limité aux serveurs stdio locaux ne peut pas utiliser directement cette URL. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor) fournit des configurations prêtes pour opencode et Claude Code.
+Le client doit accepter un point d’accès HTTP distant. Un client qui se connecte lui-même n’a besoin d’aucun en-tête ; un client qui envoie une clé a besoin d’en-têtes personnalisés. Il n’y a ni flux SSE ni session à supprimer. Un client limité aux serveurs stdio locaux ne peut pas utiliser directement cette URL. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor) fournit des configurations prêtes pour Claude Code, Codex, opencode et d’autres.
 
-Envoie toujours l'en-tête d'organisation dans une intégration réutilisable. Il n'est facultatif que si le titulaire de la clé appartient à une seule organisation. Avec plusieurs appartenances, son absence produit `400 ORG_SLUG_REQUIRED`. Un slug inconnu produit `404 ORG_SLUG_INVALID`, et une organisation dont le titulaire n'est pas membre produit `403 ORG_FORBIDDEN`. Chacun de ces refus liste dans `data.organizations` les slugs que tu peux envoyer.
+Avec une clé, envoie toujours l’en-tête d’organisation dans une intégration réutilisable. Il n’est facultatif que si le titulaire de la clé appartient à une seule organisation. Avec plusieurs appartenances, son absence produit `400 ORG_SLUG_REQUIRED`. Un slug inconnu produit `404 ORG_SLUG_INVALID`, et une organisation dont le titulaire n’est pas membre produit `403 ORG_FORBIDDEN`. Chacun de ces refus liste dans `data.organizations` les slugs que tu peux envoyer. Un agent connecté travaille dans l’unique organisation que la personne qui l’a connecté a choisie et n’a pas besoin d’en-tête ; s’il en nomme une autre, la réponse est `403 ORG_MISMATCH` ([Se connecter depuis ton agent](#sign-in)).
+
+### Se connecter depuis ton agent {#sign-in}
+
+Un agent qui prend en charge l’autorisation MCP se connecte lui-même. La personne qui le connecte décide de l’organisation et de l’accès, Tale enregistre la connexion, et l’agent ne détient jamais de clé. Ton opérateur peut désactiver cette voie. Tant qu’elle est désactivée, les documents de découverte ci-dessous répondent par du JSON avec `404`, et seule une clé ouvre le point d’accès ; [Laisser les agents de code se connecter](/fr/self-hosted/configuration/authentication#coding-agent-sign-in) indique aux opérateurs ce qu’il faut vérifier avant de la laisser activée.
+
+1. **L’agent envoie une requête sans identifiants.** Le point d’accès répond `401` avec un en-tête `WWW-Authenticate: Bearer`. Son paramètre `resource_metadata` indique où le point d’accès se décrit, et son paramètre `scope` énumère toutes les portées que le point d’accès accepte.
+2. **L’agent lit les métadonnées.** `/.well-known/oauth-protected-resource/api/v1/mcp` indique quel serveur connecte les agents, et `/.well-known/oauth-authorization-server/api/auth` décrit ce serveur : ses points d’accès d’autorisation, de jeton et d’enregistrement, PKCE avec `S256` et l’octroi par jeton de rafraîchissement.
+3. **L’agent se présente.** Soit par l’adresse HTTPS d’un document de métadonnées client qu’il publie lui-même, comme le font Claude Code et Codex, soit en s’enregistrant auprès du serveur de connexion. Un agent qui s’enregistre lui-même peut rediriger vers une adresse locale (loopback) ou vers l’adresse web d’un hôte que l’opérateur autorise.
+4. **Une personne le connecte.** L’agent ouvre Tale dans le navigateur. La personne se connecte, choisit l’organisation dans laquelle l’agent travaillera et l’accès à lui donner, puis sélectionne **Connecter** sur la page de consentement, qui nomme l’application et indique si elle a prouvé son domaine. Si la personne n’a pas le droit de connecter un agent dans cette organisation, la page le lui dit.
+5. **L’agent appelle le point d’accès.** Il reçoit un jeton d’accès valable cinq minutes et un jeton de rafraîchissement qui reste valable trente jours sans utilisation et qui est remplacé à chaque usage, et il renouvelle seul le jeton d’accès. Chaque appel porte `Authorization: Bearer <access token>`.
+
+Un agent qui demande plus que ce que le point d’accès accorde n’est pas refusé pour autant : Codex demande `openid`, `profile`, `email` et `tale:organization` en plus des portées d’agent, et Tale les écarte, car un agent ne reçoit jamais de portée d’identité. Un agent qui ne demande que des portées d’identité ne demande rien de ce que le point d’accès accorde et est refusé avec `invalid_scope`.
+
+#### Qui peut connecter {#who-may-connect}
+
+Un Propriétaire, un Admin ou un Développeur peut connecter un agent à l’organisation et lui donner n’importe quel accès. Un membre ne peut en connecter un qu’avec une compétence utilisée avec une clé, et ne peut lui donner que **Lire et tester** et **Lire les paramètres**. Toute autre personne voit sur la page de consentement qu’elle n’a pas le droit de connecter un agent dans cette organisation. Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** demande une connexion datant de moins d’un jour ; la page demande donc d’abord le mot de passe.
+
+#### Niveaux d’accès {#access-levels}
+
+La page de consentement propose trois niveaux, chacun s’ajoutant au précédent, et trois choix supplémentaires. Ce que la personne autorise devient les portées du jeton de l’agent, et le point d’accès les vérifie à chaque appel en plus du rôle de la personne : un appel exige les deux, et le rôle est évalué en premier. Une portée n’élargit jamais un rôle.
+
+Chaque choix ci-dessous nomme sa portée et les outils qu’il ouvre :
+
+- **Lire et tester** (`tale:mcp`) : `get_docs`, `get_catalog`, `search_catalog`, `validate_automation`, `run_automation`, `test_automation`, `get_automation`, `list_automations`, `list_runs`, `get_run`, `get_run_node`, `compare_runs`, `list_versions`, `list_triggers`, `get_automation_metrics`, `list_models`, `list_harnesses`, `list_skills`, `list_connectors`, `list_agent_secrets`, `list_projects`, `list_events`, `search_capabilities`, `get_knowledge`
+- **Modifier les automatisations** (`tale:automations.write`) : `save_automation`
+- **Modifier et mettre en service** (`tale:automations.deploy`) : `deploy_automation`, `delete_automation`, `set_trigger`, `run_deployed`, `start_run`, `replay_run`, `cancel_run`, `answer_run_ask`, `set_automation_projects`, `delete_trigger`, `invoke_capability`
+- **Lire les paramètres** (`tale:settings.read`) : `get_settings`, `plan_settings`
+- **Modifier les paramètres** (`tale:settings.write`) : `apply_settings`
+- **Connecter des abonnements IA** (`tale:subscriptions.connect`) : Aucun outil n’utilise encore ce choix.
+
+Une exécution avec les mocks (`start_run` avec `mode: "mock"`) et le plan d’une relance n’exigent que **Lire et tester** ; un démarrage en réel et une relance en réel exigent **Modifier et mettre en service**. `get_settings` et `plan_settings` acceptent aussi **Modifier les paramètres** à la place de **Lire les paramètres**. Une connexion a l’accès que la personne a autorisé en la créant : autoriser à nouveau la même application modifie cette connexion et n’en ajoute jamais une seconde, et une application déconnectée puis autorisée de nouveau crée une nouvelle connexion.
+
+Un appel que l’accès de la connexion ne couvre pas est refusé avant que quoi que ce soit s’exécute. Le point d’accès répond `403` avec le code `INSUFFICIENT_SCOPE` : `data.requiredScopes` nomme l’accès à demander et `data.grantedScopes` celui que la connexion détient, et un en-tête `WWW-Authenticate` demande les deux ensemble, de sorte que redemander ne retire jamais un accès que l’agent avait. Un lot est refusé en entier, donc jamais exécuté à moitié. Un appel que le rôle de la personne ne pourrait jamais autoriser n’est pas refusé ainsi ; c’est une erreur d’outil avec le même code et un `hint` qui demande de le dire à la personne, car reconnecter ne changerait rien.
+
+#### Une seule organisation {#one-organization}
+
+Une connexion travaille dans l’organisation pour laquelle elle a été créée, quelles que soient les organisations dont la personne qui l’a connecté est membre. Un appel qui nomme une autre organisation avec `X-Organization-Slug` est refusé par `403` `ORG_MISMATCH`, et `data.organization` nomme l’organisation de la connexion. Qui veut un agent dans deux organisations le connecte à chacune.
+
+#### Mettre fin à une connexion {#disconnect}
+
+Une personne met fin à sa propre connexion, et un Propriétaire ou un Admin met fin à n’importe laquelle, sous **Paramètres > API > Agents connectés** ([Agents connectés](/fr/platform/admin/connected-agents)). Le prochain appel de l’agent est refusé par `401`, et il ne peut plus renouveler son jeton. Une connexion prend aussi fin sans que personne le demande : quand la personne qui l’a connecté quitte l’organisation, voit ses données effacées, change son mot de passe ou perd un passkey ou son authentification à deux facteurs à la suite d’une réinitialisation par un Admin, et quand un jeton de rafraîchissement est utilisé deux fois, ce qui met fin à toutes les connexions de cette application pour cette personne. Pour une déconnexion qu’elle n’a pas faite elle-même, la personne trouve un avis dans ses notifications.
 
 ### Initialiser et récupérer la référence
 
-Les exemples supposent que `TALE_URL`, `TALE_API_KEY` et `TALE_ORG_SLUG` sont déjà définis dans ton environnement. `TALE_URL` est l'origine de l'application, sans `/api/v1`.
+Les exemples supposent que `TALE_URL`, `TALE_API_KEY` et `TALE_ORG_SLUG` sont déjà définis dans ton environnement. `TALE_URL` est l'origine de l'application, sans `/api/v1`. Un agent connecté envoie son jeton d’accès dans le même en-tête.
 
 ```bash
 curl --fail-with-body "$TALE_URL/api/v1/mcp" \
@@ -266,7 +312,7 @@ En plus des outils, le point d’accès sert des ressources, qu’un client lit 
 
 Chaque argument est un seul mot, car des clients comme Claude Code séparent les arguments aux espaces. Un argument envoyé vide compte comme omis. Un prompt dont l’exécution ou l’automatisation n’est pas lisible par le titulaire de la clé renvoie `-32602` avec le code de cette lecture.
 
-## Ce que la clé peut faire
+## Ce qu’une clé ou un agent connecté peut faire {#what-it-may-do}
 
 | Opération | Accès nécessaire |
 | --- | --- |
@@ -276,9 +322,9 @@ Chaque argument est un seul mot, car des clients comme Claude Code séparent les
 | Lire, planifier et modifier les paramètres (`get_settings`, `plan_settings`, `apply_settings`) | Ce que ton rôle permet sur la même page des paramètres ; le catalogue indique ce que ton rôle peut faire de chaque type |
 | Enregistrer, déployer, supprimer, installer dans des projets, définir/supprimer un déclencheur, annuler ou exécuter réellement | Capacité développeur, puis règles habituelles de la ressource |
 
-La clé identifie son titulaire ; elle n'élargit ni son rôle ni son accès aux projets. Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans `list_automations`, et toute lecture de celle-ci répond `AUTOMATION_NOT_FOUND`, comme pour une automatisation qui n’existe pas. Les appels réels via `invoke_capability` passent aussi par les contrôles d'exécution.
+Une clé identifie son titulaire, et un agent connecté la personne qui l’a connecté ; ni l’un ni l’autre n’élargit le rôle de cette personne ni son accès aux projets, et un agent reste en outre limité à l’accès qu’elle a autorisé ([Niveaux d’accès](#access-levels)). Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans `list_automations`, et toute lecture de celle-ci répond `AUTOMATION_NOT_FOUND`, comme pour une automatisation qui n’existe pas. Les appels réels via `invoke_capability` passent aussi par les contrôles d'exécution.
 
-Chaque modification qu’un appel MCP apporte à une automatisation — une version enregistrée, une mise en service, une suppression, un déclencheur défini ou retiré, une installation ajoutée ou retirée — figure dans le journal d’audit de l’organisation, marquée comme venue par MCP, avec l’outil et la clé API. Dans le détail de l’événement, **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle se nomme à chaque appel, comme en révision 2026-07-28 ; une application en révision 2025 ne se nomme qu’à `initialize`, et ses événements n’affichent donc pas de **Client** ([Journaux d’audit](/fr/platform/admin/governance/audit-logs)).
+Chaque modification qu’un appel MCP apporte à une automatisation — une version enregistrée, une mise en service, une suppression, un déclencheur défini ou retiré, une installation ajoutée ou retirée — figure dans le journal d’audit de l’organisation, marquée comme venue par MCP, avec l’outil et la clé API ou la connexion de l’agent. Dans le détail de l’événement, **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle se nomme à chaque appel, comme en révision 2026-07-28 ; une application en révision 2025 ne se nomme qu’à `initialize`, et ses événements n’affichent donc pas de **Client** ([Journaux d’audit](/fr/platform/admin/governance/audit-logs)).
 
 Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabilities.developer` indique le droit lié au rôle actuel. `deploymentEditor` correspond à une liste opérateur distincte et n’autorise pas la création par MCP. Les erreurs d’outils gardent le format MCP décrit ci-dessous ; la lecture d’une capacité REST ne change pas leur traitement JSON-RPC.
 
@@ -295,6 +341,10 @@ Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabiliti
 | `validate_automation` avec `valid: false` | Verdict normal de validation ; examiner `errors` et leurs emplacements ([Lire un résultat de validation](#validation-result)), même si `isError` reste false. Les avertissements ne rendent jamais un document invalide |
 | Capacité dont l’`output` porte `status: "waiting"` | L’exécution attend, par exemple une approbation qu’une personne donne dans Tale ; elle n’est ni terminée ni en échec. Interroger `get_run`, sans relancer |
 | Capacité avec `refused` | Résultat d'erreur ; corriger la cause indiquée |
+| HTTP `401` avec un en-tête `WWW-Authenticate: Bearer` | Pas d’identifiants, ou des identifiants que le point d’accès refuse. `error="invalid_token"` indique qu’un identifiant a été présenté : un jeton d’accès expiré se renouvelle avec le jeton de rafraîchissement, et si la connexion a été coupée ou si la personne a quitté l’organisation, il faut reconnecter l’agent. Sans `error`, lancer la connexion vers laquelle pointe l’en-tête |
+| HTTP `403` `INSUFFICIENT_SCOPE` | La connexion n’a pas l’accès dont un appel de la requête a besoin et que la personne qui l’a connecté pourrait autoriser ; rien dans la requête ne s’est exécuté. `data.requiredScopes` nomme ce qu’il faut demander et `data.grantedScopes` ce que la connexion détient ([Niveaux d’accès](#access-levels)) |
+| HTTP `403` `ORG_MISMATCH` | L’appel nomme une autre organisation que celle pour laquelle la connexion a été créée ; `data.organization` nomme celle-ci ([Une seule organisation](#one-organization)) |
+| Résultat d’outil `INSUFFICIENT_SCOPE` | L’appel exige un accès que le rôle de la personne ne peut jamais autoriser ; dis-le à la personne, car reconnecter ne changerait rien |
 
 Les codes de refus comprennent `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `AUTOMATION_VERSION_STALE`, `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_NAME_TAKEN`, `AUTOMATION_HAS_ACTIVE_RUNS`, `AUTOMATION_NOT_INSTALLED`, `HUMAN_ASK_NOT_FOUND`, `HUMAN_ASK_NOT_PENDING`, `HUMAN_ASK_EXPIRED`, `EMPTY_ANSWER`, `INVALID_CURSOR`, `BENCH_INVALID`, `LIVE_MODE_UNAVAILABLE` et `NOT_SUPPORTED`. Ce dernier indique que l'hôte ne prend pas en charge l'opération sur les exécutions, versions ou déclencheurs. `start_run` refuse un `idempotencyKey` réutilisé avec d’autres arguments par `IDEMPOTENCY_KEY_REUSED` ; `invoke_capability` refuse un id que le registre ne tient pas — une automatisation seulement enregistrée n’y est pas — par `CAPABILITY_NOT_FOUND` et une entrée que son schéma rejette par `CAPABILITY_INPUT_INVALID` ; `get_knowledge` transmet les codes propres de la porte des connaissances (`KNOWLEDGE_UNAVAILABLE` quand la recherche elle-même a échoué). Les erreurs de plateforme conservent leur code, leur conseil et leurs données éventuelles ; par exemple, l'absence d'accès développeur renvoie `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` liste chaque problème d’argument ; une valeur hors d’un ensemble énuméré est refusée et le message nomme l’ensemble. `RATE_LIMITED` signifie que l’outil avait besoin d’une exécution, ou d’une modification de paramètres, et que le [budget](/fr/develop/rate-limits) du détenteur de la clé pour celle-ci est épuisé : attends `data.retryAfterMs`. `run_automation` et `test_automation` sont refusés de la même façon quand le budget de l’organisation pour les exécutions jamais conservées est épuisé. `INTERNAL_ERROR` signifie que l’appel a échoué de façon inattendue ; communique son `data.requestId` à l’équipe qui exploite le déploiement. Les outils de paramètres ajoutent `SETTINGS_STALE` (une ressource a changé depuis ta lecture ; `data.currentHash` est son hash actuel), `SECRET_ARGUMENT_REFUSED` (une modification portait un secret ; `data.places` dit où, jamais quoi), `SETTINGS_KIND_UNAVAILABLE` (ce déploiement ne sert pas ce type par MCP), `SETTINGS_NOT_FOUND` (une action sur une ressource qui n’existe pas) et `SETTINGS_DUPLICATE` (une ressource modifiée deux fois dans un même appel).
 
@@ -302,4 +352,4 @@ Un nom d'automatisation inconnu est aussi une erreur pour `list_versions`, `list
 
 ## Où ça se place
 
-REST et MCP partagent les clés, le périmètre d'organisation et les objets d'exécution durables. Choisis REST pour des routes HTTP explicites, et MCP pour un client capable de découvrir et d'appeler des outils. Tale n'enregistre ni n'appelle de serveurs MCP externes par ce point d'accès.
+REST et MCP partagent les clés, le périmètre d'organisation et les objets d'exécution durables. Choisis REST pour des routes HTTP explicites, et MCP pour un client capable de découvrir et d'appeler des outils. Tale n'enregistre ni n'appelle de serveurs MCP externes par ce point d'accès. La connexion d’un agent ne vaut que pour le point d’accès MCP : toute autre route accepte des clés API, et un jeton d’agent qu’on y présente est refusé comme le serait une clé invalide.

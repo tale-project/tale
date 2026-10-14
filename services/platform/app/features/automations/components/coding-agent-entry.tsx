@@ -13,7 +13,24 @@ import { Link } from '@tanstack/react-router';
 import { BookOpen, Bot, PlugZap } from 'lucide-react';
 import { useState } from 'react';
 
+import { CodingAgentSetup } from '@/app/features/coding-agent/components/coding-agent-setup';
+import { SetupDialogFooter } from '@/app/features/coding-agent/components/setup-dialog-footer';
+import type { PromptContext } from '@/app/features/coding-agent/lib/prompts';
+import { useAgentConnectionAccess } from '@/app/features/settings/agent-connections/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+
+/**
+ * What the dialog is about: a new automation to build, the automation to
+ * change, or a failed run of it to look into.
+ */
+export type CodingAgentContext =
+  | { readonly kind: 'create' }
+  | { readonly kind: 'edit'; readonly automationSlug: string }
+  | {
+      readonly kind: 'run';
+      readonly automationSlug: string;
+      readonly runId: string;
+    };
 
 /**
  * The way to change an automation: a coding agent (Claude Code, Codex,
@@ -21,10 +38,9 @@ import { useT } from '@/lib/i18n/client';
  * saves a new version, which the editor then shows. The canvas is not where
  * an automation is built; its fields take small edits.
  *
- * `CodingAgentButton` opens `CodingAgentDialog`: the automation's name to
- * hand the agent, the way to set up MCP, and the guide to connecting one.
- * It sits last among the canvas's own verbs and is the first action of an
- * empty automation.
+ * `CodingAgentButton` opens `CodingAgentDialog`: the guided setup, with a
+ * prompt that names this automation. It sits last among the canvas's own verbs
+ * and is the first action of an empty automation.
  */
 export function CodingAgentButton({
   organizationId,
@@ -56,36 +72,146 @@ export function CodingAgentButton({
         open={open}
         onOpenChange={setOpen}
         organizationId={organizationId}
-        automationSlug={automationSlug}
+        context={{ kind: 'edit', automationSlug }}
       />
     </>
   );
 }
 
-function CodingAgentDialog({
+/**
+ * The way on from a failed run: the same guided setup, with a prompt that
+ * names the run, so the agent starts from its record — where it failed and
+ * why — and proposes the smallest fix. It sits with the failure card's other
+ * ways on.
+ */
+export function FixRunButton({
+  organizationId,
+  automationSlug,
+  runId,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  runId: string;
+}) {
+  const { t } = useT('automations');
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        icon={Bot}
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        {t('codingAgent.fixAction')}
+      </Button>
+      <CodingAgentDialog
+        open={open}
+        onOpenChange={setOpen}
+        organizationId={organizationId}
+        context={{ kind: 'run', automationSlug, runId }}
+      />
+    </>
+  );
+}
+
+/** What the dialog says it is for: each key is named in full, so the
+ * catalog's checks can find it. */
+function useDialogText(context: CodingAgentContext): {
+  title: string;
+  body: string;
+} {
+  const { t } = useT('automations');
+  if (context.kind === 'create') {
+    return {
+      title: t('codingAgent.createTitle'),
+      body: t('codingAgent.createBody'),
+    };
+  }
+  if (context.kind === 'run') {
+    return {
+      title: t('codingAgent.fixAction'),
+      body: t('codingAgent.fixBody'),
+    };
+  }
+  return { title: t('codingAgent.button'), body: t('codingAgent.body') };
+}
+
+/** The prompt's context for what the dialog is about. */
+function promptContextOf(context: CodingAgentContext): PromptContext {
+  if (context.kind === 'create') return { kind: 'create' };
+  if (context.kind === 'run') {
+    return {
+      kind: 'run',
+      name: context.automationSlug,
+      runId: context.runId,
+    };
+  }
+  return { kind: 'edit', name: context.automationSlug };
+}
+
+/** The guided setup in a dialog, for what the context is about. */
+export function CodingAgentDialog({
   open,
   onOpenChange,
   organizationId,
-  automationSlug,
+  context,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  automationSlug: string;
+  context: CodingAgentContext;
 }) {
-  const { t } = useT('automations');
+  const { title, body } = useDialogText(context);
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex flex-col gap-4">
-        <ResponsiveDialogTitle>{t('codingAgent.button')}</ResponsiveDialogTitle>
-        <ResponsiveDialogDescription>
-          {t('codingAgent.body')}
-        </ResponsiveDialogDescription>
-        <CopyableField
-          label={t('codingAgent.nameLabel')}
-          value={automationSlug}
-          mono
+      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-xl">
+        <ResponsiveDialogTitle>{title}</ResponsiveDialogTitle>
+        <ResponsiveDialogDescription>{body}</ResponsiveDialogDescription>
+        <CodingAgentDialogBody
+          organizationId={organizationId}
+          context={context}
         />
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
+  );
+}
+
+/**
+ * What the dialog holds once it is open: the guided setup, with a prompt that
+ * names this automation (and the run), while agents may sign in; where the
+ * operator turned that off, the name (and the run's id) to hand an agent that
+ * holds a key — a new automation has none — and the way to the MCP settings,
+ * which describe the key.
+ */
+function CodingAgentDialogBody({
+  organizationId,
+  context,
+}: {
+  organizationId: string;
+  context: CodingAgentContext;
+}) {
+  const { t } = useT('automations');
+  const { data: access } = useAgentConnectionAccess(organizationId);
+  if (access?.signInOn === false) {
+    return (
+      <>
+        {context.kind !== 'create' && (
+          <CopyableField
+            label={t('codingAgent.nameLabel')}
+            value={context.automationSlug}
+            mono
+          />
+        )}
+        {context.kind === 'run' && (
+          <CopyableField
+            label={t('codingAgent.runLabel')}
+            value={context.runId}
+            mono
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           <Link
             to="/dashboard/$id/settings/api/mcp"
@@ -105,7 +231,16 @@ function CodingAgentDialog({
             {t('codingAgent.learnMore')}
           </a>
         </div>
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
+      </>
+    );
+  }
+  return (
+    <>
+      <CodingAgentSetup
+        organizationId={organizationId}
+        promptContext={promptContextOf(context)}
+      />
+      <SetupDialogFooter />
+    </>
   );
 }

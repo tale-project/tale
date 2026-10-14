@@ -30,6 +30,12 @@ import {
 } from '../compose/types';
 import { requireAutomationProtocol } from '../deployment/automation-protocol';
 import {
+  assessTagAutomationCutover,
+  planTagAutomationCutover,
+  runTagAutomationCutover,
+  type TagCutoverPlan,
+} from '../deployment/tag-automation-cutover';
+import {
   admitPendingAutomationColor,
   admitTagAutomationImage,
   tagDeploymentProtocol,
@@ -57,6 +63,7 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
+  awaitRunningColorHealthy,
   colorLooksUp,
   colorPlatformVersion,
   colorProject,
@@ -227,6 +234,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
         getProjectId(),
         !isFirstDeploy,
       );
+      // A protocol-1 host crosses the automation writer protocol cutover when
+      // the admitted image is protocol 2; its messages name what runs now.
+      const legacyVersion =
+        installedProtocol === 1 && currentColor !== null
+          ? await colorPlatformVersion(currentColor)
+          : null;
+      let cutover: TagCutoverPlan | null = null;
 
       // Determine which services to deploy
       let rotatableToUpdate: RotatableService[];
@@ -361,6 +375,28 @@ export async function deploy(options: DeployOptions): Promise<void> {
             serviceConfig,
             installedProtocol,
           );
+        if (rotatableToUpdate.length > 0 && installedProtocol === 1) {
+          // The target's protocol is known only once its image is pulled.
+          // Every release since v0.5.78 is protocol 2, so say what crossing
+          // would need, and refuse nothing: a dry run only reports.
+          try {
+            const state = await assessTagAutomationCutover({
+              project: getProjectId(),
+              runningVersion: legacyVersion,
+              release: version,
+              deployDir: env.DEPLOY_DIR,
+              firstDeploy: isFirstDeploy,
+            });
+            if (state !== 'none')
+              logger.info(
+                `${prefix}${state === 'resume' ? 'Would finish' : 'Would run'} the one-time automation writer protocol cutover (a v0.5.78 or later image): stop the ${legacyVersion ?? 'old'} backend under a held census of automation runs, then start the new colour.${inPlaceUpdate ? ' It needs a full deploy: --services would be refused.' : ''}${stop ? ' It keeps the database container: --stop would be refused.' : ''}`,
+              );
+          } catch (error) {
+            logger.warn(
+              `${prefix}${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
         for (const image of imagesToPull) {
           logger.info(`${prefix}Would pull: ${image}`);
         }
@@ -406,7 +442,22 @@ export async function deploy(options: DeployOptions): Promise<void> {
           serviceConfig.platformImage = await admitTagAutomationImage(
             serviceConfig,
             installedProtocol,
+            {},
+            { legacyCutover: true },
           );
+          // Everything the cutover can refuse is asked here, read-only, before
+          // this deploy retags, snapshots or replaces anything.
+          cutover = await planTagAutomationCutover({
+            project: getProjectId(),
+            registry: env.GHCR_REGISTRY,
+            platformImage: serviceConfig.platformImage,
+            runningVersion: legacyVersion,
+            release: version,
+            deployDir: env.DEPLOY_DIR,
+            firstDeploy: isFirstDeploy,
+            stop,
+            inPlace: Boolean(inPlaceUpdate),
+          });
           const pending = await getFlipPending(env.DEPLOY_DIR);
           const promoting = pending?.promoting ?? getNextColor(currentColor);
           if (await colorLooksUp(promoting, rotatableToUpdate, replicas))
@@ -756,12 +807,38 @@ export async function deploy(options: DeployOptions): Promise<void> {
               );
             }
 
+            if (cutover !== null) {
+              logger.warn(
+                cutover.resume
+                  ? 'Resuming the automation writer protocol cutover: the old backend stays stopped while the new colour starts.'
+                  : `Automation writer protocol cutover (once): the ${legacyVersion ?? 'old'} backend stops now, before ${version} starts, so the API is unavailable until the new colour is healthy. Its first start applies every database migration since v0.5.77; if that outlasts HEALTH_CHECK_TIMEOUT (${env.HEALTH_CHECK_TIMEOUT}s), run \`tale deploy\` again to keep waiting.`,
+              );
+              await runTagAutomationCutover({
+                project: getProjectId(),
+                registry: env.GHCR_REGISTRY,
+                deployDir: env.DEPLOY_DIR,
+                plan: cutover,
+                release: version,
+              });
+            }
+
             const alreadyUp = await colorLooksUp(
               promoting,
               rotatableToUpdate,
               replicas,
             );
-            if (!alreadyUp) {
+            if (alreadyUp) {
+              // Resuming onto a colour that is already up: a deploy that
+              // timed out waiting for it may have left it still migrating.
+              // It takes traffic only once every replica is healthy.
+              await awaitRunningColorHealthy({
+                color: promoting,
+                services: rotatableToUpdate,
+                replicas,
+                healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+                streamLogs,
+              });
+            } else {
               // Registered BEFORE the bring-up, not after: the health wait is
               // the longest part of a deploy and the likeliest moment for a
               // Ctrl-C, and a colour interrupted mid-start has taken no

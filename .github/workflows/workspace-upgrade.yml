@@ -1,0 +1,102 @@
+name: Workspace upgrade
+
+# Never part of the merge gate. Upgrades a real `tale deploy` workspace to the
+# newest published release with the CLI built from this checkout
+# (tools/cli/scripts/workspace-upgrade-check.ts): the deploy must succeed,
+# accounts and organizations made on the old release must survive and still
+# sign in, and a rollback across the automation writer protocol cutover must
+# be refused. From v0.5.79 to v0.5.89 every `tale deploy` refused a v0.5.77
+# workspace at that cutover, and nothing ran the upgrade an operator runs.
+#
+# Two starting points: v0.5.77, the only release the cutover starts from, and
+# the release before the newest, the upgrade most workspaces make next.
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workspace-upgrade-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  upgrade:
+    name: Workspace upgrade (${{ matrix.leg }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [cutover, previous]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # Two releases of images (the sandbox runtime alone is several GB each)
+      # do not fit beside the hosted runner's preinstalled toolchains.
+      - name: Free disk space
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Resolve the releases
+        id: releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEG: ${{ matrix.leg }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+          latest="${latest#v}"
+          if [ "$LEG" = cutover ]; then
+            from='0.5.77'
+          else
+            from=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=20" \
+              --jq '[.[] | select(.draft | not) | select(.prerelease | not) | .tag_name] | .[1]')
+            from="${from#v}"
+          fi
+          for version in "$latest" "$from"; do
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Could not resolve the releases (latest '${latest}', from '${from}')"; exit 1
+            fi
+          done
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          echo "from=${from}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the CLI under test
+        working-directory: tools/cli
+        env:
+          VERSION: ${{ steps.releases.outputs.latest }}
+        run: |
+          set -euo pipefail
+          bun run generate
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          bun build --compile --define TALE_COMPILED=true --target=bun-linux-x64 \
+            --outfile="$RUNNER_TEMP/tale" src/index.ts
+          "$RUNNER_TEMP/tale" --version
+
+      - name: Upgrade a workspace
+        env:
+          FROM: ${{ steps.releases.outputs.from }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          bun tools/cli/scripts/workspace-upgrade-check.ts \
+            --from "$FROM" --cli "$RUNNER_TEMP/tale" --workdir "$RUNNER_TEMP/upgrade"

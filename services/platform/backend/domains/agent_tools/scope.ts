@@ -1,7 +1,10 @@
 import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
-import type { WorkToolFailureStatus } from '../../../lib/agent/work-tools.ts';
+import type {
+  WorkToolFailureReason,
+  WorkToolFailureStatus,
+} from '../../../lib/agent/work-tools.ts';
 import type { ToolArtifact } from '../../../lib/chat/tools.ts';
 import type { SkillViewer } from '../../../lib/skills/visibility.ts';
 import type { ResolvedImageModel } from '../../core/lib/providers/resolve_image_model.ts';
@@ -116,17 +119,22 @@ export function skillReachable(scope: WorkToolScope, slug: string): boolean {
 }
 
 /** A structured failure the model reads and can act on — every work tool
- * answers one instead of throwing. */
+ * answers one instead of throwing. `reason` names the cause for the person,
+ * where the status alone does not. */
 export interface WorkToolFailure {
   status: WorkToolFailureStatus;
   message: string;
+  reason?: WorkToolFailureReason;
 }
 
 export function failure(
   status: WorkToolFailure['status'],
   message: string,
+  reason?: WorkToolFailureReason,
 ): WorkToolFailure {
-  return { status, message };
+  return reason === undefined
+    ? { status, message }
+    : { status, message, reason };
 }
 
 export function isArgsRecord(value: unknown): value is Record<string, unknown> {

@@ -27,6 +27,8 @@ import {
   chatToolContextForTurn,
   streamProviderAnswer,
   streamSse,
+  workToolsSetup,
+  type TurnWorkTools,
 } from './turn_action';
 
 /**
@@ -38,6 +40,25 @@ import {
  * resolution walks the provider catalog on disk — so the invariant is pinned
  * at the seam the turn builds the executor through.
  */
+describe('workToolsSetup — what a turn learns of its work tools [CHAT-R28]', () => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the setup only hands the tools on
+  const tools = { loadout: { createFile: true } } as unknown as TurnWorkTools;
+
+  it('takes the tools a host offers as they are', () => {
+    expect(workToolsSetup(tools)).toEqual({ tools });
+    expect(workToolsSetup(undefined)).toEqual({});
+  });
+
+  it('keeps why tools are missing beside what is still offered', () => {
+    expect(workToolsSetup({ unavailable: 'policy_unreadable', tools })).toEqual(
+      { tools, unavailable: 'policy_unreadable' },
+    );
+    expect(workToolsSetup({ unavailable: 'setup_failed' })).toEqual({
+      unavailable: 'setup_failed',
+    });
+  });
+});
+
 describe('chatToolContextForTurn — the executor’s scope boundary', () => {
   const who = {
     organizationId: 'org_1',

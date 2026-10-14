@@ -1727,6 +1727,22 @@ describe('sessionCreate at host capacity', () => {
     });
   });
 
+  test("keeps the spawner's refusal code, so a host without its runtime image is told from a full one", async () => {
+    refuse(
+      JSON.stringify({ error: 'runtime_image', message: 'pulling' }),
+      '30',
+    );
+    const missingImage = await create();
+    expect(missingImage).toBeInstanceOf(SpawnerBusyError);
+    expect(
+      missingImage instanceof SpawnerBusyError && missingImage.refusal,
+    ).toBe('runtime_image');
+
+    refuse('Too Many Requests', '10');
+    const bare = await create();
+    expect(bare instanceof SpawnerBusyError && bare.refusal).toBeUndefined();
+  });
+
   test('names no place for a spawner that keeps no line', async () => {
     for (const body of [
       JSON.stringify({ error: 'session_quota', message: 'cap reached' }),

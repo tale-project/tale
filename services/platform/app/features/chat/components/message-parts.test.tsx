@@ -135,3 +135,43 @@ describe('MessageParts — local sent-image previews', () => {
     );
   });
 });
+
+describe('MessageParts — the skills a message chose [CHAT-R29]', () => {
+  const LIBRARY = new Set(['docx', 'xlsx']);
+
+  it('shows the skills a message starts with as chips before its words', () => {
+    useFileUrlsMock.mockReturnValue({ data: [] });
+    render(
+      <MessageParts
+        parts={[{ type: 'text', text: '/docx /xlsx Draft the report' }]}
+        skillNames={LIBRARY}
+      />,
+    );
+
+    expect(screen.getByText('docx')).toBeInTheDocument();
+    expect(screen.getByText('xlsx')).toBeInTheDocument();
+    // A screen reader hears what the chip is.
+    expect(screen.getByText('docx').closest('div')).toHaveTextContent(
+      'Skill docx',
+    );
+    expect(screen.getByText('Draft the report')).toBeInTheDocument();
+    expect(screen.queryByText(/\/docx/)).toBeNull();
+  });
+
+  it('leaves a /word that names no skill of the person as text', () => {
+    useFileUrlsMock.mockReturnValue({ data: [] });
+    render(
+      <MessageParts
+        parts={[{ type: 'text', text: '/etc is read-only' }]}
+        skillNames={LIBRARY}
+      />,
+    );
+    expect(screen.getByText('/etc is read-only')).toBeInTheDocument();
+  });
+
+  it('shows the words as written where no library is known', () => {
+    useFileUrlsMock.mockReturnValue({ data: [] });
+    render(<MessageParts parts={[{ type: 'text', text: '/docx Draft' }]} />);
+    expect(screen.getByText('/docx Draft')).toBeInTheDocument();
+  });
+});

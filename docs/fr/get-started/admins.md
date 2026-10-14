@@ -49,6 +49,10 @@ Ouvre **Paramètres > Membres** et sélectionne **Ajouter un membre**. Pour un n
 
 Choisis le rôle selon le travail : les Membres utilisent l’espace, les Éditeurs maintiennent les contenus partagés, les Développeurs travaillent sur les intégrations et les automatisations, et les Admins gèrent l’organisation. Consulte le tableau détaillé des autorisations lorsque les tâches se recoupent. Les équipes et le partage des projets déterminent aussi les projets accessibles.
 
+## Connecter un agent de code
+
+Les propriétaires, les admins et les développeurs créent et corrigent des automatisations avec un agent de code comme Claude Code ou Codex. La dernière étape de l’assistant de configuration propose **Connecter un agent**, et **Paramètres > API > Agents connectés** offre **Connecter un agent de code** : les deux ouvrent un dialogue avec les commandes pour ton agent et t’indiquent quand il s’est connecté. L’agent travaille comme toi, jamais au-dessus de ton rôle ; [Agents connectés](/fr/platform/admin/connected-agents) explique la page de consentement et la fin d’une connexion. Si ton opérateur a désactivé la connexion des agents, les agents utilisent plutôt une [clé API](/fr/platform/admin/api-keys).
+
 ## Vérifier le premier parcours de l’équipe
 
 Demande à un collègue de se connecter avec son propre compte, d’envoyer un message et d’ouvrir le projet nécessaire. Vérifie aussi les sources partagées avec ce compte. Tester uniquement comme Propriétaire peut masquer un manque de droits ou un accès trop large.

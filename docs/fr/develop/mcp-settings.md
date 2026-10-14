@@ -1,9 +1,9 @@
 ---
 title: Paramètres par MCP
-description: Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API.
+description: Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API ou qui l’a connecté.
 ---
 
-Un agent de code connecté au [point d’accès MCP](/fr/develop/mcp-endpoint) lit les paramètres de ton organisation, planifie une modification et l’applique avec trois outils : `get_settings`, `plan_settings` et `apply_settings`. Il agit avec le rôle de la personne dont il utilise la clé API. Il peut modifier ce que cette personne pourrait modifier dans l’application, avec les mêmes contrôles, et les [journaux d’audit](/fr/platform/admin/governance/audit-logs) enregistrent chaque modification comme faite par cette personne, par MCP.
+Un agent de code connecté au [point d’accès MCP](/fr/develop/mcp-endpoint) lit les paramètres de ton organisation, planifie une modification et l’applique avec trois outils : `get_settings`, `plan_settings` et `apply_settings`. Il agit avec le rôle de la personne dont il utilise la clé API ou qui l’a connecté ; un agent connecté a en outre besoin de l’accès **Lire les paramètres** ou **Modifier les paramètres** que la personne a autorisé ([Niveaux d’accès](/fr/develop/mcp-endpoint#access-levels)). Il peut modifier ce que cette personne pourrait modifier dans l’application, avec les mêmes contrôles, et les [journaux d’audit](/fr/platform/admin/governance/audit-logs) enregistrent chaque modification comme faite par cette personne, par MCP.
 
 ## Ce qu’un agent peut modifier {#kinds}
 

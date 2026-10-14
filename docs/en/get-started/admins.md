@@ -49,6 +49,10 @@ Open **Settings > Members** and select **Add member**. For a new account, the fo
 
 Choose the role for the job: Members use the workspace, Editors maintain shared content, Developers work on integrations and automations, and Admins manage the organization. Use the detailed permission table when the task crosses those boundaries. Teams and project sharing further determine which project work a person can access.
 
+## Connect a coding agent
+
+Owners, Admins and Developers build and fix automations with a coding agent such as Claude Code or Codex. The setup wizard’s last step offers **Connect an agent**, and **Settings > API > Connected agents** has **Connect a coding agent**: either opens a dialog with the commands for your agent and tells you when it has signed in. The agent works as you and never above your role; [Connected agents](/platform/admin/connected-agents) explains the consent page and how to end a connection. Where your operator has turned agent sign-in off, agents use an [API key](/platform/admin/api-keys) instead.
+
 ## Verify the team’s first workflow
 
 Ask a teammate to sign in with their own account, send a message, and open the project they need. Check any shared source with that account too. Testing only as Owner can hide missing permissions or access that is broader than intended.

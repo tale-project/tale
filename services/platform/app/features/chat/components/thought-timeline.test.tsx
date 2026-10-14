@@ -280,6 +280,81 @@ describe('ThoughtTimeline header', () => {
   });
 });
 
+describe('ThoughtTimeline — a failed step says what became of it [CHAT-R30]', () => {
+  const failedRun = (output: Record<string, unknown>): MessagePart[] => [
+    {
+      type: 'tool-call',
+      callId: 'c1',
+      capabilityId: 'run_code',
+      input: { language: 'python', code: 'print(1)' },
+    },
+    {
+      type: 'tool-result',
+      callId: 'c1',
+      capabilityId: 'run_code',
+      output,
+      structured: true,
+    },
+  ];
+
+  it('names the cause under the step, and the step’s button is described by it', () => {
+    render(
+      <ThoughtTimeline
+        parts={failedRun({
+          status: 'busy',
+          reason: 'sandboxes_busy',
+          message: 'All of the organization’s light sandboxes are in use.',
+        })}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+
+    const outcome = screen.getByText('All light sandboxes are in use');
+    expect(outcome).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Running Python in a light sandbox',
+      }),
+    ).toHaveAccessibleDescription('All light sandboxes are in use');
+  });
+
+  it.each([
+    [{ status: 'error', reason: 'timed_out' }, 'Ran out of time'],
+    [
+      { status: 'unavailable', reason: 'sandbox_unreachable' },
+      "The sandbox service can't be reached",
+    ],
+    [{ status: 'error', exitCode: 1 }, 'Failed'],
+    [{ status: 'cancelled' }, 'Stopped'],
+    [{ status: 'not_found' }, 'Not found'],
+  ])('reads %o as %s', (output, line) => {
+    render(
+      <ThoughtTimeline
+        parts={failedRun(output)}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+    expect(screen.getByText(line)).toBeInTheDocument();
+  });
+
+  it('adds no line to a step that succeeded', () => {
+    render(
+      <ThoughtTimeline
+        parts={failedRun({ status: 'ok', artifacts: [] })}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+    expect(
+      screen.getByRole('button', {
+        name: 'Running Python in a light sandbox',
+      }),
+    ).not.toHaveAccessibleDescription();
+  });
+});
+
 describe('ThoughtTimeline drill-down', () => {
   it('expands a step row to its full input and output', async () => {
     const { user } = render(

@@ -113,4 +113,31 @@ describe('chatAssistantFor — the persona a work loadout runs as', () => {
       chatAssistantFor({ ...ALL, runCode: false }).instructions,
     );
   });
+
+  it('is the tool-less persona when the host offers no work tool at all', () => {
+    expect(chatAssistantFor(undefined)).toBe(CHAT_ASSISTANT);
+  });
+
+  describe('when the file tools could not be set up for the reply', () => {
+    it('says files cannot be made in this reply, never that chat makes none', () => {
+      const text =
+        chatAssistantFor(undefined, { toolsUnavailable: true }).instructions ??
+        '';
+      expect(text).toMatch(/FILE TOOLS UNAVAILABLE/);
+      expect(text).toMatch(/files cannot be made in this reply/);
+      expect(text).not.toMatch(/DELIVERABLES GO TO TASKS/);
+      expect(text).not.toMatch(/MAKING THINGS/);
+    });
+
+    it('keeps the ladder of what it still offers', () => {
+      const text =
+        chatAssistantFor(
+          { ...NONE, generateImage: true },
+          { toolsUnavailable: true },
+        ).instructions ?? '';
+      expect(text).toMatch(/generate_image/);
+      expect(text).toMatch(/FILE TOOLS UNAVAILABLE/);
+      expect(text).not.toMatch(/TASK WORK/);
+    });
+  });
 });

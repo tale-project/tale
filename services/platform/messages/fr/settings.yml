@@ -46,6 +46,9 @@ menu:
     description:
       Où vivent la base de connaissances et les fichiers téléversés de cette
       organisation, et quel modèle d'embedding les traite.
+mcpConnect:
+  title: Connecter un agent de code
+  description: Claude Code, Codex et d’autres agents de code travaillent dans cette organisation via le serveur MCP de Tale. Tu choisis ce qu’un agent peut faire quand il se connecte, et il ne peut jamais faire plus que toi.
 mcpEndpoint:
   title: Endpoint MCP
   description: Branche n'importe quel client MCP sur ce déploiement pour
@@ -60,6 +63,15 @@ mcpEndpoint:
     organisation dont elle est membre ; celle-ci est nommée par l'en-tête
     X-Organization-Slug. Tu crées et gères les clés sous"
   authLink: Clés API REST.
+  signInHelp:
+    "Un agent de code compatible se connecte lui-même : ajoute cette adresse à l’agent, puis lance sa connexion. Tu choisis l’organisation et
+    ce que l’agent peut faire, et tu mets fin à la connexion sous"
+  signInLink: Agents connectés.
+  authHelpScripts:
+    "Les scripts et les autres clients s’authentifient avec une clé API REST en
+    jeton Bearer. Une clé appartient à la personne qui l’a créée et fonctionne
+    dans chaque organisation dont elle est membre ; celle-ci est nommée par
+    l’en-tête X-Organization-Slug. Tu crées et gères les clés sous"
   orgSlug:
     title: Slug de l'organisation
     description: Si le détenteur de la clé appartient à plusieurs
@@ -1141,9 +1153,9 @@ apiKeys:
     expiresOn: La clé expire le {date}.
     neverExpiresHint: La clé fonctionne jusqu'à sa révocation.
     expiryDate: Date d'expiration
-    expiryDateHint: Choisis un jour, au plus un an à l'avance.
+    expiryDateHint: Choisis une date disponible dans le calendrier.
     expiryDateRequired: Choisis une date d'expiration.
-    expiryDateRange: Choisis un jour entre demain et dans un an.
+    expiryDateRange: Choisis une date dans la période disponible.
     owner: Appartient à
     ownerOptions:
       self: Toi

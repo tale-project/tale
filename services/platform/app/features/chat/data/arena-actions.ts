@@ -43,6 +43,7 @@ export interface ArenaActions {
   readonly createThread: (
     projectId?: string,
     reasoningEffort?: ReasoningEffort,
+    skills?: readonly string[],
   ) => Promise<string | null>;
   /** Create (or return) the pair. Resolves the refusal reason on refusal. */
   readonly ensurePair: (
@@ -77,6 +78,7 @@ export function useArenaActions(organizationId: string): ArenaActions {
     async (
       projectId?: string,
       reasoningEffort?: ReasoningEffort,
+      skills?: readonly string[],
     ): Promise<string | null> => {
       try {
         return await createChatThread({
@@ -84,6 +86,7 @@ export function useArenaActions(organizationId: string): ArenaActions {
           kind: 'direct',
           ...(projectId !== undefined ? { projectId } : {}),
           ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
+          ...(skills !== undefined && skills.length > 0 ? { skills } : {}),
         });
       } catch (error) {
         console.error('[arena] could not create the conversation', error);

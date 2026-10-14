@@ -19,6 +19,7 @@ function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
     clientHost: 'claude.ai',
     scopes: ['tale:mcp'],
     createdAt: Date.UTC(2026, 9, 1, 12),
+    updatedAt: Date.UTC(2026, 9, 1, 12),
     lastUsedAt: null,
     revokedAt: null,
     revokeReason: null,
@@ -115,6 +116,104 @@ describe('AgentCell [AGCONN-R24]', () => {
           })}
         />
       </div>,
+    );
+    await checkAccessibility(container);
+  });
+});
+
+/** What a phone still has to tell, under the agent's name. */
+describe('AgentCell where the table has no column for it [AGCONN-R24]', () => {
+  const HOUR = 60 * 60 * 1000;
+
+  it('carries what the agent may do and when it last called', () => {
+    render(
+      <AgentCell
+        connection={connection({
+          scopes: ['tale:mcp', 'tale:automations.write', 'tale:settings.write'],
+          lastUsedAt: Date.now() - 3 * HOUR,
+        })}
+        carries={{ access: true }}
+      />,
+    );
+    expect(screen.getByText('Claude Code')).toBeInTheDocument();
+    expect(screen.getByText('Edit automations')).toBeInTheDocument();
+    expect(screen.getByText('Change settings')).toBeInTheDocument();
+    expect(screen.getByText('Last used 3 hours ago')).toBeInTheDocument();
+  });
+
+  it('says so when the agent has never called', () => {
+    render(
+      <AgentCell
+        connection={connection({ lastUsedAt: null })}
+        carries={{ access: true }}
+      />,
+    );
+    expect(screen.getByText('Never used')).toBeInTheDocument();
+    expect(screen.queryByText(/^Last used/)).not.toBeInTheDocument();
+  });
+
+  it('says whose agent it is when the person has no column either', () => {
+    const { unmount } = render(
+      <AgentCell
+        connection={connection()}
+        viewerUserId="olav"
+        carries={{ person: true }}
+      />,
+    );
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getByText('ada@example.test')).toBeInTheDocument();
+    // Asked for only the person, it adds nothing about access.
+    expect(screen.queryByText('Read and test')).not.toBeInTheDocument();
+    expect(screen.queryByText('Never used')).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <AgentCell
+        connection={connection()}
+        viewerUserId="ada"
+        carries={{ person: true }}
+      />,
+    );
+    expect(screen.getByText('You')).toBeInTheDocument();
+  });
+
+  it('adds nothing where the table has the columns itself', () => {
+    render(
+      <AgentCell
+        connection={connection({ lastUsedAt: Date.now() - HOUR })}
+        carries={{ person: false, access: false }}
+      />,
+    );
+    expect(screen.queryByText('Read and test')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Last used|Never used/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
+  });
+
+  it('keeps an ended connection’s ending beside what it held', () => {
+    render(
+      <AgentCell
+        connection={connection({
+          revokedAt: Date.UTC(2026, 9, 12, 12),
+          revokeReason: 'admin',
+          scopes: ['tale:mcp', 'tale:automations.write'],
+        })}
+        carries={{ access: true }}
+      />,
+    );
+    expect(screen.getByText(/^Disconnected /)).toHaveTextContent('by an Admin');
+    expect(screen.getByText('Edit automations')).toBeInTheDocument();
+  });
+
+  it('passes an accessibility audit with everything carried', async () => {
+    const { container } = render(
+      <AgentCell
+        connection={connection({
+          scopes: ['tale:mcp', 'tale:automations.write', 'tale:settings.write'],
+          lastUsedAt: Date.now() - HOUR,
+        })}
+        viewerUserId="olav"
+        carries={{ person: true, access: true }}
+      />,
     );
     await checkAccessibility(container);
   });

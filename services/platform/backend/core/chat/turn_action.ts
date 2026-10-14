@@ -9,7 +9,7 @@ import type {
 import { composeToolExecutors } from '../../../lib/agent/compose';
 import type { WorkLoadout } from '../../../lib/agent/ladder';
 import type { SkillCatalogEntry } from '../../../lib/agent/skills-block';
-import { CHAT_ASSISTANT, chatAssistantFor } from '../../../lib/chat/assistant';
+import { chatAssistantFor } from '../../../lib/chat/assistant';
 import {
   buildAudioTranscriptAppendix,
   stripAudioTranscriptAppendix,
@@ -53,6 +53,7 @@ import {
   type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
+  type WorkToolsUnavailableReason,
 } from '../../../lib/chat/types';
 import {
   explodeMessagesForWire,
@@ -71,6 +72,7 @@ import {
 } from '../../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
+import { chosenSkills } from '../../../lib/skills/slash';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import type { EmbeddingMeter } from '../knowledge/embedding';
@@ -558,6 +560,7 @@ export function createDirectModelCall(
       ...(request.tools !== undefined && request.tools.length > 0
         ? { tools: request.tools }
         : {}),
+      ...(request.toolsWithheld === true ? { toolsWithheld: true } : {}),
       ...(request.sampling.temperature !== undefined
         ? { temperature: request.sampling.temperature }
         : {}),
@@ -735,12 +738,14 @@ export interface ExecuteTurnOverrides {
   /** The host's work tools for this turn (`domains/agent_tools`), built once
    * the conversation is known: the lineage the files bind to and the project
    * the thread is filed in. Absent, or answering `undefined`, the turn
-   * offers the retrieval tools alone, exactly as before work tools existed. */
+   * offers the retrieval tools alone, exactly as before work tools existed.
+   * A host that meant to offer them and could not answers why
+   * ({@link WorkToolsUnavailable}), with whatever it can still offer. */
   readonly workTools?: (turn: {
     rootThreadId: string;
     threadIds: readonly string[];
     projectId: string | null;
-  }) => Promise<TurnWorkTools | undefined>;
+  }) => Promise<TurnWorkTools | WorkToolsUnavailable | undefined>;
   /** Who the turn speaks as, given the loadout its work tools gave it. A
    * task run speaks as its project agent; absent, the chat assistant. */
   readonly persona?: (loadout: WorkLoadout | undefined) => ResolvedAgent;
@@ -755,6 +760,32 @@ export interface ExecuteTurnOverrides {
   readonly personalContext?: boolean;
 }
 
+/** The host meant to offer work tools and could not: the organization's
+ * Chat tools policy cannot be read, or setting them up failed. `tools` is
+ * what it still offers — images, which that policy does not govern. The
+ * turn runs without the rest and its reply says so. */
+export interface WorkToolsUnavailable {
+  readonly unavailable: WorkToolsUnavailableReason;
+  readonly tools?: TurnWorkTools;
+}
+
+/** A turn's work tools as the pipeline reads them: what it offers, and why
+ * it offers less than its policy says, when it does. */
+export interface WorkToolsSetup {
+  readonly tools?: TurnWorkTools;
+  readonly unavailable?: WorkToolsUnavailableReason;
+}
+
+export function workToolsSetup(
+  answer: TurnWorkTools | WorkToolsUnavailable | undefined,
+): WorkToolsSetup {
+  if (answer === undefined) return {};
+  if (!('unavailable' in answer)) return { tools: answer };
+  return answer.tools === undefined
+    ? { unavailable: answer.unavailable }
+    : { tools: answer.tools, unavailable: answer.unavailable };
+}
+
 /** What a turn's work tools add to it: the executor, its tool docs, the
  * loadout the persona's ladder is written for, and the skill catalog. */
 export interface TurnWorkTools {
@@ -762,6 +793,10 @@ export interface TurnWorkTools {
   readonly toolDocs: readonly ToolDoc[];
   readonly loadout: WorkLoadout;
   readonly skillCatalog: readonly SkillCatalogEntry[];
+  /** The skills the conversation uses, chosen in the composer: each reply
+   * reads them before the model answers, as it does the skills a message
+   * names (`lib/skills/slash.ts`). */
+  readonly conversationSkills?: readonly string[];
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -779,22 +814,18 @@ const AUTO_REFUSAL_REASONS: Record<ChatAutoResolutionRefusal, string> = {
  * The text + attachment facts the Auto pick reads: the message being sent,
  * or — on a regenerate — the thread's trailing user message, fetched
  * narrowly here because the full history read is budgeted by the resolved
- * model's context window, which does not exist yet on the Auto path.
- * `hasDocuments` uses the attached-documents classification (non-image,
- * non-audio/video) — it floors the band, images gate vision instead.
+ * model's context window, which does not exist yet on the Auto path. The
+ * text decides the band; an image only narrows the pool to vision models.
  */
 async function autoPromptFacts(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
-): Promise<{ text: string; hasImages: boolean; hasDocuments: boolean }> {
+): Promise<{ text: string; hasImages: boolean }> {
   if (args.resend !== true) {
     const attachments = args.attachments ?? [];
     return {
       text: args.userText,
       hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
-      hasDocuments: attachments.some((attachment) =>
-        isDocument(attachment.fileType),
-      ),
     };
   }
   const { messages } = await ctx.runQuery(
@@ -808,15 +839,12 @@ async function autoPromptFacts(
   );
   const trailing = messages.at(-1);
   if (trailing === undefined || trailing.role !== 'user') {
-    return { text: args.userText, hasImages: false, hasDocuments: false };
+    return { text: args.userText, hasImages: false };
   }
   const attachments = attachmentsFromParts(trailing.parts);
   return {
     text: typedTextFromParts(trailing.parts),
     hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
-    hasDocuments: attachments.some((attachment) =>
-      isDocument(attachment.fileType),
-    ),
   };
 }
 
@@ -1136,7 +1164,6 @@ export async function executeTurn(
       userId: args.userId,
       promptText: prompt.text,
       requiresVision: prompt.hasImages,
-      hasDocumentAttachments: prompt.hasDocuments,
     });
     if (!resolution.ok) {
       return refuse(AUTO_REFUSAL_REASONS[resolution.refusal]);
@@ -1258,22 +1285,23 @@ export async function executeTurn(
   // host offers them, set up beside the reads below: built against the
   // conversation's lineage, the root every produced file binds to. A failure
   // to build them never fails the turn: it runs with the retrieval tools
-  // alone.
-  const pendingWorkTools: Promise<TurnWorkTools | undefined> =
+  // alone, and its reply says the file tools were unavailable.
+  const pendingWorkTools: Promise<WorkToolsSetup> =
     overrides.workTools === undefined
-      ? Promise.resolve(undefined)
+      ? Promise.resolve({})
       : overrides
           .workTools({
             rootThreadId: lineage.rootId,
             threadIds: lineage.threadIds,
             projectId: threadProjectId,
           })
-          .catch((error: unknown) => {
+          .then(workToolsSetup)
+          .catch((error: unknown): WorkToolsSetup => {
             console.error(
               `[chat] work tools for thread ${args.threadId} could not be set up; the turn runs without them:`,
               error,
             );
-            return undefined;
+            return { unavailable: 'setup_failed' };
           });
   const projectContext = await resolveProjectContext(ctx, {
     organizationId: args.organizationId,
@@ -1445,13 +1473,25 @@ export async function executeTurn(
     }),
   );
 
-  const workTools = await pendingWorkTools;
+  const workSetup = await pendingWorkTools;
+  const workTools = workSetup.tools;
+  // The skills the person chose — named at the start of the message, or
+  // used by the conversation — that their library holds: the turn reads
+  // them before the model answers.
+  const chosen =
+    workTools !== undefined && workTools.loadout.skills
+      ? chosenSkills(
+          userText,
+          workTools.conversationSkills ?? [],
+          new Set(workTools.skillCatalog.map((entry) => entry.slug)),
+        )
+      : [];
   const agent =
     overrides.persona !== undefined
       ? overrides.persona(workTools?.loadout)
-      : workTools !== undefined
-        ? chatAssistantFor(workTools.loadout)
-        : CHAT_ASSISTANT;
+      : chatAssistantFor(workTools?.loadout, {
+          toolsUnavailable: workSetup.unavailable !== undefined,
+        });
 
   const retrievalTools = createChatToolExecutor(
     ctx,
@@ -1522,6 +1562,7 @@ export async function executeTurn(
     ...(workTools !== undefined && workTools.skillCatalog.length > 0
       ? { skillCatalog: workTools.skillCatalog }
       : {}),
+    ...(chosen.length > 0 ? { chosenSkills: chosen } : {}),
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
     ...(args.localeFixed === true ? { localeFixed: true } : {}),
@@ -1545,6 +1586,9 @@ export async function executeTurn(
     executionMode: 'direct',
     ...(args.resend === true ? { appendUserMessage: false } : {}),
     ...(overrides.signal !== undefined ? { signal: overrides.signal } : {}),
+    ...(workSetup.unavailable !== undefined
+      ? { workToolsUnavailable: workSetup.unavailable }
+      : {}),
   };
 
   return runTurn(request, deps);

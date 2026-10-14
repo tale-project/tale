@@ -25,4 +25,7 @@ finish:
   inviteItem: Invite teammates to collaborate.
   providerCta: Connect a provider
   inviteCta: Invite teammates
+  agentItem: Connect your coding agent to build and fix automations.
+  agentCta: Connect an agent
+  agentConnected: 'Coding agent connected: {client}.'
   goToDashboard: Go to Home

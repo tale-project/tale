@@ -37,7 +37,7 @@ export async function runCreateFile(
       'invalid_args',
       extension === ''
         ? `"${name}" has no extension; add one such as .md, .csv, .json or .html.`
-        : `create_file writes text formats only, and .${extension} is not one of them (${Object.keys(TEXT_ARTIFACT_TYPES).join(', ')}). Make binary files such as DOCX, XLSX, PPTX, PDF or PNG with run_code.`,
+        : `create_file writes text formats only, and .${extension} is not one of them (${Object.keys(TEXT_ARTIFACT_TYPES).join(', ')}).${scope.loadout.runCode ? ' Make binary files such as DOCX, XLSX, PPTX, PDF or PNG with run_code.' : ''}`,
     );
   }
   if (typeof input.content !== 'string') {
@@ -50,7 +50,7 @@ export async function runCreateFile(
   if (bytes.byteLength > CREATE_FILE_MAX_BYTES) {
     return failure(
       'invalid_args',
-      `"content" is ${Math.ceil(bytes.byteLength / 1024)} KB; create_file stores at most ${CREATE_FILE_MAX_BYTES / 1024} KB. Split it, or write it with run_code.`,
+      `"content" is ${Math.ceil(bytes.byteLength / 1024)} KB; create_file stores at most ${CREATE_FILE_MAX_BYTES / 1024} KB. Split it${scope.loadout.runCode ? ', or write it with run_code' : ''}.`,
     );
   }
   const artifact = await scope.artifacts.store({ name, mediaType, bytes });

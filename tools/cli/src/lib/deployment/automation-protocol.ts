@@ -4,7 +4,12 @@ import { externalDepError, preconditionError } from '../../utils/fail';
 import { stableJson } from '../config/releases/identity';
 import { exec } from '../docker/exec';
 import { migrationReadScript } from './acceptance-migrations';
-import { AUTOMATION_FLOOR_SQL, automationFloor } from './automation-floor';
+import {
+  AUTOMATION_FLOOR_SQL,
+  type AutomationLedger,
+  automationLedger,
+  ledgerFloor,
+} from './automation-floor';
 import {
   AUTOMATION_PROTOCOL_LABEL,
   type AutomationWriterProtocol,
@@ -74,6 +79,17 @@ export async function installedAutomationProtocol(
   project: string,
   dependencies: RuntimeDependencies,
 ): Promise<AutomationWriterProtocol> {
+  return ledgerFloor(
+    await installedAutomationLedger(containerId, project, dependencies),
+  );
+}
+
+/** The installed application ledger behind that floor, read the same way. */
+export async function installedAutomationLedger(
+  containerId: string,
+  project: string,
+  dependencies: RuntimeDependencies,
+): Promise<AutomationLedger> {
   try {
     requireRuntime(
       /^[a-f0-9]{64}$/.test(containerId),
@@ -108,12 +124,12 @@ export async function installedAutomationProtocol(
       dependencies,
       migrationReadScript('db', AUTOMATION_FLOOR_SQL),
     );
-    const floor = automationFloor(raw);
+    const ledger = automationLedger(raw);
     requireRuntime(
       stableJson(before) === stableJson(await identity()),
       'Automation protocol database changed during admission.',
     );
-    return floor;
+    return ledger;
   } catch {
     throw preconditionError(
       'The installed automation writer protocol is unknown. Keep the existing runtime and repair its database readback before deployment.',

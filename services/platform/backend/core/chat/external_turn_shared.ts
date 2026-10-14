@@ -1211,6 +1211,34 @@ export function isSpendRefusal(
   return ended?.apiErrorStatus === 402;
 }
 
+/** A pinned CLI may exit before `turn-ended` when its provider retry loop
+ * gives up. Preserve only this exact boundary envelope so a 429 follows the
+ * existing delayed-capacity path; unknown exit text remains a crash. */
+function providerStatusFromExecFailure(
+  errorMessage: string | undefined,
+): number | undefined {
+  const match = /^exceeded retry limit, last status: ([45]\d{2})\b/i.exec(
+    errorMessage?.trim() ?? '',
+  );
+  return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
+/** Classification for the narrow exit envelope above. Kept separate from
+ * the legacy `classifyHarnessEnd` body so the released automation flow's
+ * byte-bound helper remains unchanged. */
+export function classifyProviderExecFailure(errorMessage: string | undefined): {
+  apiErrorStatus?: number;
+  providerErrorKind?: 'model_capacity';
+} {
+  const apiErrorStatus = providerStatusFromExecFailure(errorMessage);
+  return {
+    ...(apiErrorStatus !== undefined ? { apiErrorStatus } : {}),
+    ...(apiErrorStatus === 429
+      ? { providerErrorKind: 'model_capacity' as const }
+      : {}),
+  };
+}
+
 /** The settle reason for a spend refusal: names the cause (the harness's
  * own last words only quote the gateway's 402 line) and keeps that line as
  * the detail. */

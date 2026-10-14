@@ -73,6 +73,19 @@
       "height": 1800
     },
     {
+      "file": "images/platform/agent-consent.webp",
+      "shot": "agent-consent",
+      "route": "/oauth/consent",
+      "viewport": {
+        "width": 720,
+        "height": 1700
+      },
+      "dpr": 2,
+      "width": 1440,
+      "height": 2588,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-approval-allowances.webp",
       "shot": "automation-approval-allowances",
       "route": "/dashboard/:orgId/automations/github-review-pull-requests/general",
@@ -694,6 +707,19 @@
       "file": "images/platform/chat-shared-view.webp",
       "shot": "chat-shared-view",
       "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/chat-skill-picker.webp",
+      "shot": "chat-skill-picker",
+      "route": "/dashboard/:orgId/chat?new=true",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -1407,6 +1433,32 @@
       "height": 1800
     },
     {
+      "file": "images/platform/settings-connect-agent.webp",
+      "shot": "settings-connect-agent",
+      "route": "/dashboard/:orgId/settings/api/agents",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1152,
+      "height": 1328,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/settings-connected-agents.webp",
+      "shot": "settings-connected-agents",
+      "route": "/dashboard/:orgId/settings/api/agents",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/settings-enterprise-sso.webp",
       "shot": "settings-enterprise-sso",
       "route": "/dashboard/:orgId/settings/enterprise-sso",
@@ -1428,7 +1480,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/settings-preferences.webp",

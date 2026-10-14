@@ -18,8 +18,12 @@ Un seau de jetons se remplit en continu jusqu’à sa capacité de rafale. Une c
 | Modifications de paramètres par MCP (`apply_settings`) | 30/minute | 60 | Détenteur de la clé |
 | Autorisation de téléversement et rattachement de fichier au projet | 240/minute | 300 | Détenteur de la clé |
 | Authentification par clé API échouée | 20/minute | 40 | IP source |
+| Auto-enregistrement d’un agent de code auprès du serveur de connexion | 10/heure par source, 500/jour pour le déploiement | Aucune | IP source, déploiement |
+| Demandes de jeton refusées par le serveur de connexion | 20/minute | 40 | IP source |
 | Livraisons webhook avant validation du jeton | 120/minute | 240 | Adresse de l’expéditeur |
 | Livraisons à un déclencheur webhook vérifié | 20/minute | 40 | Déclencheur |
+
+Un agent de code qu’une personne a connecté puise dans les budgets de cette personne, les mêmes que ceux que partagent ses clés API ; il n’a pas de clé à lui. Un jeton qui n’a jamais été valide compte comme une authentification échouée, comme une mauvaise clé ; un jeton simplement expiré, non, puisque l’agent le renouvelle ensuite. L’enregistrement et les demandes de jeton refusées sont imputés à l’adresse source ; une demande de jeton qui aboutit ne coûte rien, car les agents hébergés partagent leurs adresses.
 
 Les étapes HTTP des automatisations ont leur propre budget, par organisation : 120 appels par minute sur tout le déploiement, et 10 à la fois sur un serveur. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
 

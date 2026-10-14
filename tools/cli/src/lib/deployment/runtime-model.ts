@@ -93,8 +93,12 @@ export interface RuntimeDependencies {
   sleep?: (milliseconds: number) => Promise<void>;
   /** Isolated tests must not create the production host workspace. */
   ensureSandboxWorkspace?: () => void;
-  /** Persistent, private psql transport; substituted only by isolated tests. */
-  automationSession?: (containerId: string) => Promise<RuntimeSqlSession>;
+  /** Persistent, private psql transport; substituted only by isolated tests.
+   * `retry` words the recovery step a lost session names. */
+  automationSession?: (
+    containerId: string,
+    retry?: string,
+  ) => Promise<RuntimeSqlSession>;
 }
 export interface RuntimeSqlSession {
   query: (sql: string) => Promise<string>;

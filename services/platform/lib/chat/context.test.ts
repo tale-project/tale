@@ -69,6 +69,7 @@ describe('assembleContext', () => {
         project: { name: 'Growth', instructions: 'Ship weekly.' },
         taskHandover: HANDOVER,
         skillCatalog: [{ slug: 'docx', description: 'Word documents' }],
+        chosenSkills: ['docx'],
         customInstructions: 'Reply tersely.',
       }),
     );
@@ -596,6 +597,25 @@ describe('assembleContext — the skill catalog', () => {
       '- docx: <skill-description>Word documents</skill-description>',
     );
     expect(result.system).toContain('load_skill');
+  });
+
+  it('names the skills the person chose after the catalog, per reply [CHAT-R29]', () => {
+    const result = assembleContext(
+      input({ skillCatalog: CATALOG, chosenSkills: ['docx', 'house-style'] }),
+    );
+    const ids = result.blocks.map((block) => block.id);
+    expect(ids.indexOf('chosen-skills')).toBe(
+      ids.indexOf('available-skills') + 1,
+    );
+    expect(result.stablePrefix).not.toContain('chose');
+    expect(result.volatileSuffix).toContain(
+      'The person chose these skills for this reply: docx, house-style.',
+    );
+    expect(
+      assembleContext(
+        input({ chosenSkills: ['docx'], isSubAgentTurn: true }),
+      ).blocks.map((block) => block.id),
+    ).not.toContain('chosen-skills');
   });
 
   it('renders nothing for an empty catalog or a sub-agent turn', () => {

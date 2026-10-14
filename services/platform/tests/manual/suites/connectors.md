@@ -221,7 +221,12 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   THIS row's badge — same name, same **Default** state, no row added and no
   other row changed.
 - [ ] `CONN-F17` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
-  → Section **MCP endpoint** (`settings.mcpEndpoint.title`) with a copyable
+  → Where agents may sign in and the person may connect one, the page starts
+  with **Connect a coding agent** (`settings.mcpConnect.title`) holding what
+  `SET-F89` shows — the client tabs with their commands, the line that waits
+  for an agent to sign in, a first prompt and **Setup guide**; elsewhere that
+  section is absent and the page begins with the next one. Section **MCP
+  endpoint** (`settings.mcpEndpoint.title`) with a copyable
   endpoint URL ending `/api/v1/mcp` (`settings.mcpEndpoint.copyEndpoint`),
   auth help linking to **REST API keys** (`settings.mcpEndpoint.authLink`),
   the tool inventory in three groups

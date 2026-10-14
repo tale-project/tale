@@ -28,6 +28,7 @@ import {
   setActiveOutputMode,
 } from './utils/output-mode';
 import { handleError } from './utils/run-command';
+import { routeUpdateVersionFlag } from './utils/update-version-flag';
 
 // A stray crash/rejection is routed through the same dispatch as a command
 // error, so it gets a coded, rendered failure instead of a raw stack trace.
@@ -156,7 +157,7 @@ if (process.argv.length <= 2) {
 }
 
 try {
-  await program.parseAsync();
+  await program.parseAsync(routeUpdateVersionFlag(process.argv));
 } catch (err) {
   handleError(err);
 }

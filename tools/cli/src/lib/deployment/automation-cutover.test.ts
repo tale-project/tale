@@ -19,6 +19,15 @@ import {
   LEGACY_CUTOVER_REVISION,
   requireEmptyLegacyCensus,
 } from './automation-cutover';
+import {
+  AUTOMATION_CUTOVER_CENSUS_SQL,
+  AUTOMATION_CUTOVER_ISOLATION,
+  AUTOMATION_CUTOVER_READINESS_SQL,
+  AUTOMATION_CUTOVER_SESSION_SQL,
+  emptyLegacyCutoverCensus,
+  legacyCutoverBusy,
+  legacyLedgerShape,
+} from './automation-cutover-sql';
 import { AUTOMATION_PROTOCOL_LABEL } from './automation-model';
 import { hash, type RuntimeDependencies } from './runtime-model';
 
@@ -38,10 +47,28 @@ const ledger = readdirSync(
       /^\d{4}_.*\.(sql|ts)$/.test(name) && Number(name.slice(0, 4)) <= 153,
   )
   .sort();
-const census = (unfinished = false) =>
-  JSON.stringify({ schema: 'tale', ids: ledger }) +
+const census = (unfinished = false, ids: readonly string[] = ledger) =>
+  JSON.stringify({ schema: 'tale', ids }) +
   '\n' +
   JSON.stringify({ safeTable: true, unfinished, owned: true });
+/** What a first protocol-2 boot cut before 0163 leaves: v0.5.77's ledger and
+ * some of the migrations after it. */
+const continued = [
+  ...ledger,
+  ...readdirSync(
+    new URL(
+      '../../../../../services/platform/backend/db/migrations/',
+      import.meta.url,
+    ),
+  )
+    .filter(
+      (name) =>
+        /^\d{4}_.*\.(sql|ts)$/.test(name) &&
+        Number(name.slice(0, 4)) >= 154 &&
+        Number(name.slice(0, 4)) <= 162,
+    )
+    .sort(),
+];
 const ok = (value: unknown) => ({
   success: true,
   exitCode: 0,
@@ -49,12 +76,22 @@ const ok = (value: unknown) => ({
   stderr: '',
 });
 
-function fixture() {
+function fixture(
+  shape: {
+    /** Where the legacy writers run: `example-blue` is `tale deploy`'s. */
+    writerProject?: string;
+    /** Run as `tale deploy` does, with the workspace scope. */
+    workspace?: boolean;
+    registry?: string;
+  } = {},
+) {
+  const writerProject = shape.writerProject ?? 'example';
+  const registry = shape.registry ?? 'ghcr.io/tale-project/tale';
   const stateDirectory = mkdtempSync(join(tmpdir(), 'tale-cutover-test-'));
   directories.push(stateDirectory);
   mkdirSync(join(stateDirectory, '.tale'));
-  const labels = (service: string) => ({
-    'com.docker.compose.project': 'example',
+  const labels = (service: string, project = 'example') => ({
+    'com.docker.compose.project': project,
     'com.docker.compose.service': service,
     'com.docker.compose.container-number': '1',
     'com.docker.compose.oneoff': 'False',
@@ -79,7 +116,7 @@ function fixture() {
     },
     HostConfig: { RestartPolicy: { Name: 'unless-stopped' } },
     Config: {
-      Labels: labels(service),
+      Labels: labels(service, writerProject),
       Env: [
         'DATABASE_URL=postgresql://synthetic:unused@db:5432/tale_app',
         'SECRET=must-not-escape',
@@ -87,6 +124,8 @@ function fixture() {
     },
   }));
   const events: string[] = [];
+  const sessionRetries: (string | undefined)[] = [];
+  let ledgerIds: readonly string[] = ledger;
   let healthy = true;
   let revision = LEGACY_CUTOVER_REVISION;
   let unfinished = false;
@@ -95,20 +134,25 @@ function fixture() {
   let installed = 1;
   let sourceProtocol = 1;
   const targetId = `sha256:${'7'.repeat(64)}`;
-  const targetReference = `ghcr.io/tale-project/tale/tale-platform@sha256:${'6'.repeat(64)}`;
+  const targetReference = `${registry}/tale-platform@sha256:${'6'.repeat(64)}`;
   const dependencies: RuntimeDependencies = {
     exec: async (_command, args) => {
-      if (args[0] === 'ps')
+      if (args[0] === 'ps') {
+        const project = args
+          .find((arg) => arg.startsWith('label=com.docker.compose.project='))
+          ?.slice('label=com.docker.compose.project='.length);
         return ok(
-          args.includes('label=com.docker.compose.project=example')
-            ? writers
-                .map(
-                  (w) =>
-                    `${w.Id}\t${w.Config.Labels['com.docker.compose.service']}`,
-                )
-                .join('\n')
-            : '',
+          writers
+            .filter(
+              (w) => w.Config.Labels['com.docker.compose.project'] === project,
+            )
+            .map(
+              (w) =>
+                `${w.Id}\t${w.Config.Labels['com.docker.compose.service']}`,
+            )
+            .join('\n'),
         );
+      }
       if (args[0] === 'image')
         return ok(
           args.slice(2).map((reference) => {
@@ -138,8 +182,8 @@ function fixture() {
           schema: 'tale',
           ids:
             installed === 2
-              ? [...ledger, '0163_automation_legacy_protocol.sql']
-              : ledger,
+              ? [...ledgerIds, '0163_automation_legacy_protocol.sql']
+              : ledgerIds,
         });
       if (args[0] === 'stop') {
         events.push('stop');
@@ -168,30 +212,42 @@ function fixture() {
       }
       throw new Error('Unexpected fixture command');
     },
-    automationSession: async () => ({
-      healthy: () => healthy,
-      query: async (sql) => {
-        if (!healthy) throw new Error('synthetic secret must not escape');
-        if (sql === AUTOMATION_CUTOVER_ACQUIRE_SQL) {
-          events.push('acquire');
-          onAcquire?.();
-          return census(unfinished);
-        }
-        expect(sql).toBe(AUTOMATION_CUTOVER_PROBE_SQL);
-        events.push('probe');
-        return '{"owned":true}';
-      },
-      close: async () => {
-        events.push('close');
-      },
-    }),
+    automationSession: async (_container, retry) => {
+      sessionRetries.push(retry);
+      return {
+        healthy: () => healthy,
+        query: async (sql) => {
+          if (!healthy) throw new Error('synthetic secret must not escape');
+          if (sql === AUTOMATION_CUTOVER_ACQUIRE_SQL) {
+            events.push('acquire');
+            onAcquire?.();
+            return census(unfinished, ledgerIds);
+          }
+          expect(sql).toBe(AUTOMATION_CUTOVER_PROBE_SQL);
+          events.push('probe');
+          return '{"owned":true}';
+        },
+        close: async () => {
+          events.push('close');
+        },
+      };
+    },
   };
-  const options = {
+  const options: Parameters<typeof cutoverLegacyAutomation>[0] = {
     databaseId: database.Id,
     project: 'example',
     stateDirectory,
     targetRevision: 'f'.repeat(40),
     targetBackendImages: [targetReference],
+    ...(shape.workspace
+      ? {
+          workspace: {
+            writerProjects: ['example', 'example-blue', 'example-green'],
+            targetProjects: ['example-blue', 'example-green'],
+            targetRepository: `${registry}/tale-platform`,
+          },
+        }
+      : {}),
   };
   return {
     options,
@@ -235,6 +291,53 @@ function fixture() {
         });
       });
     },
+    /** Compose created the new colour's writers on the admitted image. */
+    addTargetWriters: (project: string, running = true) => {
+      ['backend-api', 'backend-worker'].forEach((service, index) =>
+        writers.push({
+          Id: (index ? '4' : '5').repeat(64),
+          Image: targetId,
+          RestartCount: 0,
+          State: {
+            Running: running,
+            StartedAt: '2026-10-08T00:05:00Z',
+            Pid: running ? index + 3000 : 0,
+            Status: running ? 'running' : 'exited',
+            Dead: false,
+          },
+          HostConfig: { RestartPolicy: { Name: 'unless-stopped' } },
+          Config: {
+            Labels: labels(service, project),
+            Env: [
+              'DATABASE_URL=postgresql://synthetic:unused@db:5432/tale_app',
+            ],
+          },
+        }),
+      );
+    },
+    /** Someone started an old writer again. */
+    restart: (index: number) => {
+      Object.assign(writers[index].State, {
+        Running: true,
+        Pid: 4321,
+        Status: 'running',
+      });
+    },
+    /** A rollback or an older CLI created fresh v0.5.77 writers. */
+    recreateLegacyWriters: () => {
+      writers.forEach((writer, index) => {
+        writer.Id = (index ? '3' : '2').repeat(64);
+        Object.assign(writer.State, {
+          Running: true,
+          Pid: index + 5000,
+          Status: 'running',
+        });
+      });
+    },
+    setLedger: (ids: readonly string[]) => {
+      ledgerIds = ids;
+    },
+    sessionRetries,
     onStop: (hook: () => void) => {
       onStop = hook;
     },
@@ -433,4 +536,299 @@ test('partial Compose replacement resumes only with retained exact stopped legac
   f.writers[1].State.Status = 'running';
   await expect(f.run()).rejects.toThrow('stopped-writer handoff');
   expect(f.events).toEqual([]);
+});
+
+test('the readiness census reads without the lock and refuses an unreadable answer', () => {
+  expect(AUTOMATION_CUTOVER_READINESS_SQL).toContain('READ ONLY');
+  expect(AUTOMATION_CUTOVER_READINESS_SQL).not.toContain('LOCK TABLE');
+  expect(AUTOMATION_CUTOVER_READINESS_SQL.trim().endsWith('ROLLBACK;')).toBe(
+    true,
+  );
+  expect(
+    legacyCutoverBusy('{"safeTable":true,"unfinished":false,"owned":false}'),
+  ).toBe(false);
+  expect(
+    legacyCutoverBusy('{"safeTable":true,"unfinished":true,"owned":false}\n'),
+  ).toBe(true);
+  for (const raw of [
+    '',
+    'not json',
+    '{"safeTable":false,"unfinished":false,"owned":false}',
+    '{"safeTable":true,"owned":false}',
+  ])
+    expect(() => legacyCutoverBusy(raw)).toThrow();
+});
+
+test('a ledger without 0163 is v0.5.77, v0.5.77 continued by a cut first boot, or neither', () => {
+  expect(continued.length).toBeGreaterThan(ledger.length);
+  expect(legacyLedgerShape(ledger)).toBe('legacy');
+  expect(legacyLedgerShape(continued)).toBe('continued');
+  expect(legacyLedgerShape(ledger.slice(1))).toBe('unsupported');
+  expect(legacyLedgerShape(ledger.slice(0, -1))).toBe('unsupported');
+  expect(legacyLedgerShape([])).toBe('unsupported');
+});
+
+test('managed apply still refuses writers in colour projects before any lock', async () => {
+  const f = fixture({ writerProject: 'example-blue' });
+  await expect(f.run()).rejects.toThrow(
+    'blue/green writers are outside its custody',
+  );
+  expect(f.events).toEqual([]);
+  expect(f.writers.every((w) => w.State.Running)).toBe(true);
+});
+
+test('tale deploy cuts over a v0.5.77 workspace whose writers run in a colour project', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  await f.run();
+  expect(f.events[0]).toBe('acquire');
+  expect(f.events.indexOf('stop')).toBeGreaterThan(f.events.indexOf('probe'));
+  expect(f.events.at(-1)).toBe('close');
+  expect(f.writers.every((w) => !w.State.Running)).toBe(true);
+  expect(f.receipt().phase).toBe('stopped');
+  expect(
+    f.receipt().writers.map((w: { project: string }) => w.project),
+  ).toEqual(['example-blue', 'example-blue']);
+  expect(f.sessionRetries).toEqual(['run `tale deploy` again']);
+});
+
+test('a backend singleton from before the colours is in a workspace cutover too', async () => {
+  const f = fixture({ writerProject: 'example', workspace: true });
+  await f.run();
+  expect(f.writers.every((w) => !w.State.Running)).toBe(true);
+  expect(f.receipt().phase).toBe('stopped');
+});
+
+test('a workspace resumes only onto target writers in a colour project', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  await f.run();
+  f.events.length = 0;
+  f.addTargetWriters('example-green');
+  await f.run();
+  expect(f.events).toEqual([]);
+
+  const outside = fixture({ writerProject: 'example-blue', workspace: true });
+  await outside.run();
+  outside.events.length = 0;
+  outside.addTargetWriters('example');
+  await expect(outside.run()).rejects.toThrow(
+    'do not match its stopped handoff',
+  );
+  expect(outside.events).toEqual([]);
+
+  const restarted = fixture({ writerProject: 'example-blue', workspace: true });
+  await restarted.run();
+  restarted.events.length = 0;
+  restarted.addTargetWriters('example-green');
+  restarted.restart(0);
+  await expect(restarted.run()).rejects.toThrow(
+    'do not match its stopped handoff',
+  );
+});
+
+test('a first boot cut before 0163 takes a fresh held census, also after the database restarted', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  await f.run();
+  f.events.length = 0;
+  f.setLedger(continued);
+  f.database.RestartCount++;
+  f.database.State.StartedAt = '2026-10-14T00:00:00Z';
+  await f.run();
+  expect(f.events[0]).toBe('acquire');
+  expect(f.events).not.toContain('stop');
+  expect(f.receipt().phase).toBe('stopped');
+  // An old writer someone started again is stopped under the same census.
+  f.events.length = 0;
+  f.restart(1);
+  await f.run();
+  expect(f.events).toContain('stop');
+  expect(f.writers.every((w) => !w.State.Running)).toBe(true);
+
+  const busy = fixture({ writerProject: 'example-blue', workspace: true });
+  busy.setLedger(continued);
+  busy.busy();
+  await expect(busy.run()).rejects.toThrow(
+    'let the runs finish or cancel them',
+  );
+  expect(busy.events).toEqual(['acquire', 'close']);
+  expect(busy.writers.every((w) => w.State.Running)).toBe(true);
+
+  // Managed apply keeps its census, which accepts only v0.5.77's ledger.
+  const managed = fixture();
+  await managed.run();
+  managed.events.length = 0;
+  managed.setLedger(continued);
+  await expect(managed.run()).rejects.toThrow('zero unfinished');
+});
+
+test('a workspace resumes onto new writers after its database restarted; managed apply keeps the exact incarnation', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  await f.run();
+  f.events.length = 0;
+  f.addTargetWriters('example-green');
+  f.database.RestartCount++;
+  f.database.State.StartedAt = '2026-10-14T00:00:00Z';
+  await f.run();
+  expect(f.events).toEqual([]);
+
+  const managed = fixture();
+  await managed.run();
+  managed.events.length = 0;
+  managed.replaceWithTargetWriters();
+  managed.database.RestartCount++;
+  await expect(managed.run()).rejects.toThrow('stopped-writer handoff');
+});
+
+test('verify-only reads and never takes the lock or stops a writer', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  f.options.verifyOnly = true;
+  await f.run();
+  expect(f.events).toEqual([]);
+  expect(f.writers.every((w) => w.State.Running)).toBe(true);
+  f.addTargetWriters('example-green');
+  await expect(f.run()).rejects.toThrow('automation-cutover.json');
+  expect(f.events).toEqual([]);
+});
+
+test('a workspace census also accepts v0.5.77 continued by a cut first boot, never one past 0163', () => {
+  expect(emptyLegacyCutoverCensus(census(false, continued))).toBe(false);
+  expect(
+    emptyLegacyCutoverCensus(census(false, continued), 'legacy-or-continued'),
+  ).toBe(true);
+  expect(
+    emptyLegacyCutoverCensus(census(false, ledger), 'legacy-or-continued'),
+  ).toBe(true);
+  for (const raw of [
+    census(true, continued),
+    census(false, [...continued, '0163_automation_legacy_protocol.sql']),
+    census(false, ledger.slice(1)),
+    census(false, continued).replace('"owned":true', '"owned":false'),
+  ])
+    expect(emptyLegacyCutoverCensus(raw, 'legacy-or-continued')).toBe(false);
+  expect(AUTOMATION_CUTOVER_READINESS_SQL).toBe(
+    `BEGIN ${AUTOMATION_CUTOVER_ISOLATION}, READ ONLY;\n${AUTOMATION_CUTOVER_SESSION_SQL}\n${AUTOMATION_CUTOVER_CENSUS_SQL}\nROLLBACK;`,
+  );
+});
+
+test('a workspace takes a fresh census over an earlier attempt that changed nothing', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  await f.run();
+  f.events.length = 0;
+  f.recreateLegacyWriters();
+  await f.run();
+  expect(f.events[0]).toBe('acquire');
+  expect(f.events).toContain('stop');
+  expect(f.writers.every((w) => !w.State.Running)).toBe(true);
+  expect(f.receipt().writers.map((w: { id: string }) => w.id)).toEqual(
+    f.writers.map((w) => w.Id),
+  );
+
+  const managed = fixture();
+  await managed.run();
+  managed.events.length = 0;
+  managed.recreateLegacyWriters();
+  await expect(managed.run()).rejects.toThrow('recovery identities changed');
+});
+
+test('a workspace refuses what it cannot cut over, names the way forward and stops nothing', async () => {
+  for (const [kind, words] of [
+    ['source', 'tale update -v 0.5.77'],
+    ['restart', 'unless-stopped'],
+    ['ledger', 'tale update -v 0.5.77'],
+  ] as const) {
+    const f = fixture({ writerProject: 'example-blue', workspace: true });
+    if (kind === 'source') f.wrongSource();
+    if (kind === 'restart')
+      f.writers[0].HostConfig.RestartPolicy.Name = 'always';
+    if (kind === 'ledger') f.setLedger(ledger.slice(1));
+    const failure = await f.run().catch((error: unknown) => error);
+    expect((failure as Error).message).toContain(words);
+    // The barrier runs after the snapshot and the sandbox roll: it says
+    // what it did not do, never that nothing changed.
+    expect((failure as Error).message).toContain(
+      'The old backend was not stopped.',
+    );
+    expect((failure as Error).message).not.toContain('Nothing was changed');
+    expect(f.events).toEqual([]);
+    expect(f.writers.every((w) => w.State.Running)).toBe(true);
+  }
+});
+
+test('a busy workspace census stops nothing and says what to do', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  f.busy();
+  await expect(f.run()).rejects.toThrow('let the runs finish or cancel them');
+  expect(f.events).toEqual(['acquire', 'close']);
+  expect(f.writers.every((w) => w.State.Running)).toBe(true);
+  expect(
+    existsSync(join(f.options.stateDirectory, '.tale/automation-cutover.json')),
+  ).toBe(false);
+});
+
+test('a workspace stop cut short says to run tale deploy again, not a managed bundle', async () => {
+  const f = fixture({ writerProject: 'example-blue', workspace: true });
+  f.onStop(() => {
+    throw new Error('stop interrupted');
+  });
+  const failure = await f.run().catch((error: unknown) => error);
+  const message = (failure as Error).message;
+  expect(message).toContain('Automation cutover is pending');
+  expect(message).toContain('run `tale deploy` again');
+  expect(message).toContain('Do not manually restart containers');
+  expect(message).not.toContain('managed');
+  expect(message).not.toContain('bundle');
+  expect(f.receipt().phase).toBe('stopping');
+});
+
+test('a workspace resumes onto the digest of its own registry only', async () => {
+  const f = fixture({
+    writerProject: 'example-blue',
+    workspace: true,
+    registry: 'registry.example.com/mirror',
+  });
+  await f.run();
+  f.events.length = 0;
+  f.addTargetWriters('example-green');
+  await f.run();
+  expect(f.events).toEqual([]);
+  f.options.targetBackendImages = [
+    `ghcr.io/tale-project/tale/tale-platform@sha256:${'6'.repeat(64)}`,
+  ];
+  await expect(f.run()).rejects.toThrow(
+    'exact prepared backend image references',
+  );
+});
+
+test('a stopped new colour never skips the census, so a database restored under it is counted again', async () => {
+  // The cutover stopped the old writers; the new colour was created and
+  // stopped before 0163; then a snapshot with unfinished runs was restored in
+  // place (same container, new start).
+  const restored = fixture({ writerProject: 'example-blue', workspace: true });
+  await restored.run();
+  restored.events.length = 0;
+  restored.addTargetWriters('example-green', false);
+  restored.database.RestartCount++;
+  restored.database.State.StartedAt = '2026-10-14T00:00:00Z';
+  restored.busy();
+  await expect(restored.run()).rejects.toThrow(
+    'let the runs finish or cancel them',
+  );
+  expect(restored.events).toEqual(['acquire', 'close']);
+
+  // The same state once nothing is unfinished: a fresh census, and the deploy
+  // recreates the stopped colour. Nothing to stop.
+  const rebooted = fixture({ writerProject: 'example-blue', workspace: true });
+  await rebooted.run();
+  rebooted.events.length = 0;
+  rebooted.addTargetWriters('example-green', false);
+  rebooted.database.RestartCount++;
+  await rebooted.run();
+  expect(rebooted.events[0]).toBe('acquire');
+  expect(rebooted.events).not.toContain('stop');
+  expect(rebooted.receipt().phase).toBe('stopped');
+
+  // A stopped new writer outside the colour projects is not this deploy's.
+  const stray = fixture({ writerProject: 'example-blue', workspace: true });
+  stray.addTargetWriters('example', false);
+  await expect(stray.run()).rejects.toThrow('outside this deployment');
+  expect(stray.events).toEqual([]);
 });

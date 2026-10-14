@@ -46,9 +46,10 @@ export class ChatThreadError extends Error {
   }
 }
 
-/** The 0.4 per-conversation loadout. Read-only in 0.5 — the column is kept
- * for rows that carry one (branches copy it, summaries project it); no
- * door writes it, chat runs the fixed loadout. */
+/** A conversation's loadout, kept on its root: the skills it uses — each
+ * reply reads them before the model answers ({@link setConversationSkills},
+ * `lib/skills/slash.ts`) — and the 0.4 era's connectors, which no 0.5 door
+ * writes. Branches and an arena's second column copy it. */
 export interface ThreadCapabilities {
   skills: string[];
   connectors: string[];
@@ -387,6 +388,8 @@ export interface CreateThreadArgs {
   agentSlug?: string;
   projectId?: string;
   reasoningEffort?: string;
+  /** The skills the conversation uses from its first reply on. */
+  skills?: readonly string[];
   /** REST creates only inside an active, freshly readable URL project. */
   requireActiveProject?: boolean;
 }
@@ -455,18 +458,22 @@ export async function createThread(
     `;
     const id = rows[0]?.id;
     if (!id) throw new Error('thread insert failed');
-    // `harness` / `capabilities` are 0.4-era columns no 0.5 writer sets:
-    // chat runs a fixed loadout (`lib/chat/tools.ts`), so a thread is
-    // created without either. The columns stay (deprecated, not dropped):
-    // branches copy them and the summaries still project them.
+    // `harness` is a 0.4-era column no 0.5 writer sets; `capabilities`
+    // carries the skills a conversation is started with, when it has any.
+    const capabilities: ThreadCapabilities | null =
+      args.skills !== undefined && args.skills.length > 0
+        ? { skills: [...args.skills], connectors: [] }
+        : null;
     await tx`
       INSERT INTO app.thread_metadata (
         thread_id, org_id, user_id, chat_type, status, project_id,
-        agent_slug, reasoning_effort, created_at_ms
+        agent_slug, reasoning_effort, capabilities, created_at_ms
       ) VALUES (
         ${id}, ${args.organizationId}, ${args.userId}, ${args.kind},
         'active', ${args.projectId ?? null}, ${args.agentSlug ?? null},
-        ${args.reasoningEffort ?? null}, ${now}
+        ${args.reasoningEffort ?? null},
+        ${capabilities === null ? null : tx.json(toJson(capabilities))},
+        ${now}
       )
     `;
     return id;
@@ -474,6 +481,58 @@ export async function createThread(
   return args.requireActiveProject
     ? transactSerializable(sql, create)
     : sql.begin(create);
+}
+
+/**
+ * Set the skills a conversation uses: each of its replies reads them before
+ * the model answers. Kept on the conversation's root, where every version of
+ * it — a reply tried again, an edited message — reads them; the connectors
+ * the row may carry from 0.4 stay as they are. Only the owner may change
+ * them. Names are checked against the library when a reply runs, not here: a
+ * skill shared with a team the person later leaves is skipped then.
+ */
+export async function setConversationSkills(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  threadId: string,
+  skills: readonly string[],
+): Promise<boolean> {
+  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
+  if (!thread) return false;
+  const rootId = thread.branchRootId ?? thread.id;
+  const root =
+    rootId === thread.id
+      ? thread
+      : await loadOwnedThread(sql, organizationId, userId, rootId);
+  if (!root) return false;
+  const current = readCapabilities(root.capabilities);
+  const next: ThreadCapabilities = {
+    skills: [...skills],
+    connectors: current?.connectors ?? [],
+  };
+  await sql`
+    UPDATE app.thread_metadata SET capabilities = ${sql.json(toJson(next))}
+    WHERE thread_id = ${root.id}
+  `;
+  return true;
+}
+
+/** The skills a conversation uses, read from its root; none when it uses
+ * none or the root is not the organization's. */
+export async function readConversationSkills(
+  sql: Sql,
+  organizationId: string,
+  rootThreadId: string,
+): Promise<string[]> {
+  const rows = await sql<{ capabilities: unknown }[]>`
+    SELECT tm.capabilities
+    FROM app.thread_metadata tm
+    JOIN app.threads t ON t.id = tm.thread_id
+    WHERE tm.thread_id = ${rootThreadId} AND t.org_id = ${organizationId}
+    LIMIT 1
+  `;
+  return readCapabilities(rows[0]?.capabilities ?? null)?.skills ?? [];
 }
 
 /** Remember the conversation's reasoning-effort pick; absent clears it. */

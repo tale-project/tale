@@ -68,6 +68,33 @@ describe('work tools', () => {
     );
   });
 
+  it('never points a description at a tool the turn is not offered', () => {
+    const neither = { createFile: false, runCode: false };
+    for (const name of WORK_TOOL_NAMES.filter(
+      (tool) => tool !== 'use_workspace' && tool !== 'run_code',
+    )) {
+      const description = workWireTool(name, neither).description;
+      expect(description).not.toMatch(/run_code|create_file/);
+      expect(description).not.toMatch(/[{}]/);
+    }
+    expect(
+      workWireTool('generate_image', { createFile: true, runCode: false })
+        .description,
+    ).toMatch(
+      /Not for charts, diagrams or documents — write an SVG with create_file\./,
+    );
+    expect(
+      workWireTool('load_skill', { createFile: true, runCode: false })
+        .description,
+    ).toMatch(/scripts cannot run here/);
+  });
+
+  it('fills every slot of a description', () => {
+    for (const name of WORK_TOOL_NAMES) {
+      expect(workWireTool(name).description).not.toMatch(/[{}]/);
+    }
+  });
+
   it('bounds run_code by language and timeout', () => {
     const schema = schemaOf('run_code');
     const properties = schema.properties;

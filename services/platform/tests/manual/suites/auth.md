@@ -80,6 +80,20 @@ compute codes from the enrollment secret.
   (`common.actions.next`) → **Go to Home**
   (`onboarding.finish.goToDashboard`) → URL becomes `/dashboard/{org}` (a 16+
   char id); the new org's chat loads.
+- [ ] `AUTH-F37` · **Connect a coding agent from the wizard's last step** —
+  Reach **Step 2 of 2: Finish** (`AUTH-F5` or `AUTH-F6`) as an owner on a
+  deployment where agents may sign in → under **Connect a provider** and
+  **Invite teammates** a third row reads `onboarding.finish.agentItem` with
+  **Connect an agent** (`onboarding.finish.agentCta`); a deployment that
+  switched agent sign-in off, or a person who may not connect one, shows no
+  such row. **Connect an agent** opens **Connect a coding agent** over the
+  wizard (`SET-F89`) and does not mark onboarding complete. Run the commands
+  for Claude Code or Codex and sign in → the dialog reads **Connected:**
+  *agent*; **Done** → the row is a check with
+  `onboarding.finish.agentConnected` naming the agent, focus rests on it, and
+  **Go to Home** still lands on `/dashboard/{org}`. At 320 px in Deutsch and
+  Français every row keeps its sentence over its button, none of them
+  clipped.
 - [ ] `AUTH-F7` · **Change password** — `/dashboard/{org}/settings/account` →
   **Change password** (`auth.changePassword.title`); fill **Current password**
   (`auth.changePassword.currentPassword`), **New password**
@@ -581,6 +595,31 @@ compute codes from the enrollment secret.
   unavailable and **Cancel** works; with a session that belongs to one
   organization (an organization's own single sign-on) → it says the sign-in
   belongs to one organization and cannot connect a coding agent.
+
+- [ ] `AUTH-B21` · **The consent page cannot read the application** — Start an
+  authorization from a registered test application and, before **Continue with
+  Tale** (`auth.oauth.title`) loads, block the browser's request to
+  `/api/auth/oauth2/public-client` (developer tools → network request
+  blocking) → the page says the request could not continue
+  (`auth.oauth.failed`) and offers **Try again** (`auth.oauth.retry`) and
+  **Cancel** (`auth.oauth.cancel`), both enabled, with no **Allow and
+  continue**; **Cancel** returns once to the application with an access-denied
+  answer. Repeat, lift the block and choose **Try again** → the notice goes,
+  the application's name and your email appear, and **Allow and continue**
+  works. While the request is still pending (a throttled network) **Cancel**
+  is already enabled and **Allow and continue** is not.
+- [ ] `AUTH-B22` · **The coding agent's consent page cannot read the app** —
+  Start a coding agent's connection as AUTH-F34 describes with a proxy rule or
+  local override that answers `/api/app/agent-connections/consent-context` with
+  `503` (blocking the request instead opens the app's own **Can't reach Tale**
+  screen) → after a few seconds the page says Tale could not read the app's
+  details (`agentConnections.consent.errors.clientUnavailable`) and offers **Try
+  again** (`auth.oauth.retry`) and **Cancel** (`agentConnections.consent.cancel`)
+  with no **Connect**; **Cancel** returns once to the agent with an
+  access-denied answer. Repeat, lift the rule and choose **Try again** → the
+  organization and access choices, and **Connect** works. Answer it with `404`
+  instead → the same notice with **Connect** unavailable and **Cancel** alone,
+  since asking again would not change the answer.
 
 ## Accessibility (WCAG 2.1 AA)
 

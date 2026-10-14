@@ -45,6 +45,9 @@ menu:
     description:
       Where this organization's knowledge base and uploaded files live, and
       which model embeds them.
+mcpConnect:
+  title: Connect a coding agent
+  description: Claude Code, Codex and other coding agents work in this organization through Tale's MCP server. You choose what an agent may do when it signs in, and it never does more than you can.
 mcpEndpoint:
   title: MCP endpoint
   description: Point any MCP client at this deployment to author, run and
@@ -59,6 +62,16 @@ mcpEndpoint:
     member of; this one is named by the X-Organization-Slug header. Create
     and manage keys under'
   authLink: REST API keys.
+  signInHelp:
+    'A coding agent that supports it signs itself in: add this address to the
+    agent and follow its sign-in. You choose the organization and what the
+    agent may do, and you end the connection under'
+  signInLink: Connected agents.
+  authHelpScripts:
+    'Scripts and other clients authenticate with a REST API key as a bearer
+    token. A key belongs to the person who created it and works in every
+    organization they are a member of; this one is named by the
+    X-Organization-Slug header. Create and manage keys under'
   orgSlug:
     title: Organization slug
     description: A key whose holder belongs to more than one organization
@@ -1055,9 +1068,9 @@ apiKeys:
     expiresOn: The key expires on {date}.
     neverExpiresHint: The key works until it is revoked.
     expiryDate: Expiration date
-    expiryDateHint: Pick a day up to one year from today.
+    expiryDateHint: Pick an available date in the calendar.
     expiryDateRequired: Pick an expiration date.
-    expiryDateRange: Pick a day between tomorrow and one year from today.
+    expiryDateRange: Pick a date within the available range.
     owner: Belongs to
     ownerOptions:
       self: You

@@ -35,6 +35,7 @@ import {
 import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { seedDevUser } from './domains/provisioning/dev-seed.ts';
+import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
 import { loadEnv } from './env.ts';
 import {
   flushErrorReporting,
@@ -138,6 +139,9 @@ async function main(): Promise<void> {
   });
   await alignQueuePolicies(sql);
   setEnqueueBoss(boss);
+  // A member's removal hands the reviews that wait on them on, in the same
+  // transaction (`auth/membership.ts` cannot import the tasks domain itself).
+  installReviewHandoverHook();
 
   // Per-org BYO corpora bootstrap on first use inside the pool router; the
   // hook verifies (and repairs) their BM25 indexes in that same single flight.

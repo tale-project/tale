@@ -478,6 +478,27 @@ describe('the last-member rule', () => {
     });
   });
 
+  it('hands the reviews that wait on the removed member on, once the team row is gone [TASK-R39]', async () => {
+    const { sql, statements } = fakeSql(membership(2));
+    const res = await mount(sql).request('/members/by-id/tm1', {
+      method: 'DELETE',
+    });
+    expect(res.status).toBe(200);
+    const removedAt = statements.findIndex((s) =>
+      s.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    // The hand-over reads what the member still holds in this organization,
+    // after the delete so its access check sees the team already gone.
+    const readAt = statements.findIndex((s) =>
+      s.text.startsWith('SELECT id, project_id AS "projectId" FROM app.tasks'),
+    );
+    expect(removedAt).toBeGreaterThan(-1);
+    expect(readAt).toBeGreaterThan(removedAt);
+    expect(statements[readAt]?.values).toEqual(
+      expect.arrayContaining(['o1', 'u2']),
+    );
+  });
+
   it('is an admin door [TEAM-R3]', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(membership(2));

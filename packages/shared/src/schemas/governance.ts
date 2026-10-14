@@ -486,9 +486,8 @@ export type TranscriptionModelConfig = z.infer<
 >;
 
 /**
- * Image generation for agents — the `generate_image` workspace tool a
- * project agent working a task, or an automation's agent step, can call.
- * Chat never generates images.
+ * Image generation — the `generate_image` tool a chat reply, a project agent
+ * working a task, or an automation's agent step can call.
  *
  * Opt-in: a missing file and `enabled: false` both mean OFF, and the tool is
  * then absent from every agent turn. When on, both pin fields absent ⇒

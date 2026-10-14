@@ -198,6 +198,7 @@
             "platform/admin/connectors",
             "platform/admin/enterprise-sso",
             "platform/admin/api-keys",
+            "platform/admin/connected-agents",
             "platform/admin/branding",
             "platform/admin/sandboxes",
             "platform/admin/sandbox-devices",

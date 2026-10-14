@@ -213,6 +213,15 @@ records (at most 100 per list). Each receipt archive is limited to 1 MiB compres
 regular `release-candidate.json` member of at most 64 KiB, including the actual decompressed
 read. Extra or duplicate files, directories, links and malformed archives are refused.
 
+Before tagging, also check that the newest **Workspace upgrade** run on `main` passed
+(`gh run list --workflow workspace-upgrade.yml --branch main --limit 1`), or dispatch one with
+`gh workflow run workspace-upgrade.yml --ref main`. It upgrades real `tale deploy` workspaces
+from v0.5.77 and from the previous release with `main`'s CLI, and a red run means the release
+could strand existing workspaces, as v0.5.79–v0.5.89 stranded every v0.5.77 workspace at the
+automation writer protocol cutover. It runs against the newest published images, so a
+candidate's own images are first upgraded to by the nightly run after publication. It is not
+a candidate receipt, and the gate does not read it.
+
 ## 4. Tag the candidate
 
 Only after the gate answers `eligible`:
@@ -260,14 +269,12 @@ OCI index. `docker manifest inspect` lists the index but hides its annotations;
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 
-Release has no per-day limit: a version goes out whenever it is needed, a second one on
-the same UTC day included. How often to release is the release lane's decision, never the
-workflow's, and Prepare reads no release history. Every tag shares one workflow
-concurrency group, so admission waits for an earlier run to finish publishing. Running
-cohorts are never cancelled by a newer tag. GitHub keeps only one pending run; if a
-pending tag is superseded, dispatch its immutable tag again when it is eligible. Recovery
-of a published tag remains allowed. A `sites_only` dispatch keeps its existing
-publication scope.
+Release admits at most one new full cohort per UTC calendar day. Every tag shares one
+workflow concurrency group, so admission waits for an earlier run to finish publishing.
+Running cohorts are never cancelled by a newer tag. GitHub keeps only one pending run;
+if a pending tag is superseded, dispatch its immutable tag again when it is eligible.
+Recovery of the latest published tag remains allowed, and unreadable release history
+refuses a full release. A `sites_only` dispatch keeps its existing publication scope.
 
 To retry or backfill a version's package tags, dispatch Publish packages the same way, on
 `main`, with the tag and the full commit SHA it names:
@@ -313,10 +320,11 @@ A published version is not a deployment. Deployments follow their own procedure.
 
 ## A release that has to go out
 
-No rule limits how often a version goes out, so a release that cannot wait does not
-wait for a day to pass. What can stop it is `main`: a candidate validates the whole
-graph, and every job that already fails on `main` fails the candidate. Work in this
-order.
+The daily admission rule means a new full cohort waits for the next UTC day after a
+different release has published. Same-tag recovery remains available, and `sites_only`
+content builds remain outside the full-cohort limit. What can stop a release is also
+`main`: a candidate validates the whole graph, and every job that already fails on `main`
+fails the candidate. Work in this order.
 
 1. **Read `main`'s red before choosing the candidate.** Open the newest completed run
    of each workflow on `main`, push and scheduled, and read its failed jobs:

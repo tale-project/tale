@@ -68,7 +68,6 @@ export {
   assessPromptBand,
   type ModelBand,
   type PromptBandAssessment,
-  type PromptBandFacts,
 } from './model-band';
 export {
   chooseChatModel,

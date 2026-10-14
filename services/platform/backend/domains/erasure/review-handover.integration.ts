@@ -8,7 +8,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { updateTask, updateTaskStatus } from '../tasks/service.ts';
 import { processErasure } from './service.ts';
 
-function signal() {
+export function signal() {
   let release = () => {};
   const promise = new Promise<void>((resolve) => {
     release = resolve;
@@ -18,8 +18,14 @@ function signal() {
 
 /** Keep every read/write real. Only the first routing write pauses, after
  * the task and pending review were read but before the competing commit.
- * A serialization retry must run freely against its fresh snapshot. */
-function pauseFirstHandover(sql: Sql, pause: () => Promise<void>): Sql {
+ * A serialization retry must run freely against its fresh snapshot.
+ * `statement` names the statement to pause before: the routing write by
+ * default; another lane pauses ahead of the lock its own hand-over takes. */
+export function pauseFirstHandover(
+  sql: Sql,
+  pause: () => Promise<void>,
+  statement = /UPDATE app\.approvals SET\s+metadata = coalesce/,
+): Sql {
   let paused = false;
   const wrap = (tx: TransactionSql): TransactionSql =>
     new Proxy(tx, {
@@ -28,9 +34,7 @@ function pauseFirstHandover(sql: Sql, pause: () => Promise<void>): Sql {
         if (
           !paused &&
           Array.isArray(strings) &&
-          /UPDATE app\.approvals SET\s+metadata = coalesce/.test(
-            strings.join(''),
-          )
+          statement.test(strings.join(''))
         ) {
           paused = true;
           return pause().then(() => Reflect.apply(target, thisArg, args));

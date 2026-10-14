@@ -186,6 +186,8 @@ export interface CreateChatThreadArgs {
   agentSlug?: string;
   projectId?: string;
   reasoningEffort?: string;
+  /** The skills the conversation uses from its first reply on. */
+  skills?: readonly string[];
 }
 
 export async function createChatThread(
@@ -271,6 +273,48 @@ export function setChatThreadReasoningEffort(
     'reasoning-effort',
     reasoningEffort !== undefined ? { reasoningEffort } : {},
   );
+}
+
+/** Set the skills the conversation uses — every reply reads them before the
+ * model answers; an empty list stops them. The server keeps them on the
+ * conversation's root. */
+export function setChatThreadSkills(
+  organizationId: string,
+  threadId: string,
+  skills: readonly string[],
+): Promise<boolean> {
+  return threadVerb(organizationId, threadId, 'skills', { skills });
+}
+
+/** A skill the composer offers to choose: its name, the description its
+ * author wrote, and whether it is meant to be used only when chosen. */
+export interface ComposerSkillChoice {
+  readonly slug: string;
+  readonly description?: string;
+  readonly explicitOnly?: boolean;
+}
+
+/** What the composer offers to choose, and whether it may offer anything:
+ * off while the Chat tools policy's Skills switch is. */
+export interface ComposerSkillChoices {
+  readonly enabled: boolean;
+  readonly skills: readonly ComposerSkillChoice[];
+}
+
+/** The skills the person may choose in chat. Stale on mount, like the model
+ * catalog: the library and the policy hint nothing here, so a remount reads
+ * them again behind the cached answer. */
+export function chatComposerSkillsQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_composer', 'skills'),
+    queryFn: ({ signal }) =>
+      backendFetch<ComposerSkillChoices>('/chat/composer/skills', {
+        orgId: organizationId,
+        signal,
+      }),
+    staleTime: 0,
+    retry: false,
+  });
 }
 
 export function setChatThreadSharedWithProject(

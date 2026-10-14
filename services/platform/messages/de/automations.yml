@@ -59,6 +59,7 @@ list:
     description: Wähle „Automatisierung erstellen“, um mit einem Trigger und einem Agenten zu beginnen oder ein Paket hochzuladen.
 createMenu:
   starter: 'Aus einer Vorlage'
+  withAgent: Mit deinem Coding-Agent
   blank: Leer (Trigger + Agent)
 blank:
   title: Neue Automatisierung
@@ -1391,7 +1392,12 @@ source:
 codingAgent:
   button: Mit deinem Coding-Agent bearbeiten
   body: Coding-Agents wie Claude Code, Codex und Cursor ändern Automatisierungen über den MCP-Server von Tale. Sie lesen diese Automatisierung, ändern und prüfen sie und speichern eine neue Version, die dann hier erscheint.
+  fixAction: Mit deinem Coding-Agent beheben
+  fixBody: Ein Coding-Agent, der mit dem MCP-Server von Tale verbunden ist, kann diesen Lauf Schritt für Schritt lesen, erklären, warum er fehlgeschlagen ist, und eine Korrektur vorschlagen. Eine Korrektur, die er speichert, erscheint im Editor als neue Version.
+  createTitle: Mit deinem Coding-Agent erstellen
+  createBody: Coding-Agents wie Claude Code, Codex und Cursor bauen Automatisierungen über den MCP-Server von Tale. Sie lesen die Referenz, schreiben die Automatisierung, prüfen und testen sie und speichern sie als erste Version, die dann in dieser Liste erscheint.
   nameLabel: Name dieser Automatisierung
+  runLabel: ID dieses Laufs
   setUp: MCP einrichten
   learnMore: So verbindest du einen Coding-Agent
 try:

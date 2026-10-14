@@ -10,6 +10,7 @@ import {
   buildHarnessTable,
   type CredentialAuth,
 } from '../shared/providers/resolve_execution';
+import { isRecord } from '../utils/type-utils';
 import type { GuardrailFilter } from './guardrails';
 import {
   MAX_TOOL_CALLS_PER_ROUND,
@@ -21,6 +22,7 @@ import {
   attachArtifact,
   CAP_CUT_CALL_OUTPUT,
   CAP_WITHHELD_CALL_OUTPUT,
+  chosenSkillCallId,
   estimateCostCents,
   fixedLocaleNotice,
   LAST_TOOL_ROUND_NOTICE,
@@ -358,6 +360,23 @@ describe('runTurn — the happy path', () => {
         totalTokens: expect.any(Number),
       },
     ]);
+  });
+
+  it('says on the reply that its file tools could not be set up [CHAT-R28]', async () => {
+    const d = deps();
+    const outcome = await runTurn(
+      request({ workToolsUnavailable: 'policy_unreadable' }),
+      d.deps,
+    );
+
+    expect(
+      outcome.status === 'completed' && outcome.usage.workToolsUnavailable,
+    ).toBe('policy_unreadable');
+    const plain = deps();
+    const normal = await runTurn(request(), plain.deps);
+    expect(normal.status === 'completed' && normal.usage).not.toHaveProperty(
+      'workToolsUnavailable',
+    );
   });
 
   it('books the usage against the API key that authenticated the turn', async () => {
@@ -1264,7 +1283,11 @@ describe('runTurn — the tool loop', () => {
     const requests: ModelCallRequest[] = [];
     const alwaysCalling: ModelCall = async function* stream(req) {
       requests.push(req);
-      if (req.tools !== undefined && req.tools.length > 0) {
+      if (
+        req.tools !== undefined &&
+        req.tools.length > 0 &&
+        req.toolsWithheld !== true
+      ) {
         yield {
           text: '',
           toolCalls: [
@@ -1290,12 +1313,17 @@ describe('runTurn — the tool loop', () => {
     });
     expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
     expect(requests).toHaveLength(MAX_TOOL_ROUNDS + 1);
-    expect(requests.at(-1)?.tools).toBeUndefined();
+    // The forced round lists the tools for a wire that refuses a transcript
+    // of tool calls without their definitions, and forbids calling them.
+    expect(requests.at(-1)?.toolsWithheld).toBe(true);
+    expect(requests.at(-1)?.tools?.length).toBeGreaterThan(0);
+    expect(
+      requests.slice(0, -1).every((req) => req.toolsWithheld === undefined),
+    ).toBe(true);
     // The budget is steered, not silent. The last offered round tells the
     // model to spend its remaining calls in parallel; the forced round
-    // tells it the budget is gone — withheld tools are invisible on the
-    // wire, and an uninformed model narrates its next lookup instead of
-    // answering.
+    // tells it the budget is gone — a model that cannot call tools any more
+    // and is not told why narrates its next lookup instead of answering.
     const lastOffered = requests[MAX_TOOL_ROUNDS - 1];
     expect(lastOffered?.tools).toBeDefined();
     expect(lastOffered?.messages.at(-1)).toEqual({
@@ -1329,6 +1357,32 @@ describe('runTurn — the tool loop', () => {
     expect(d.store.finalized[0]).toMatchObject({
       usage: expect.objectContaining({ stepLimitHit: true }),
     });
+  });
+
+  it('runs no call a model makes after the budget is spent', async () => {
+    const ignoring: ModelCall = async function* stream(req) {
+      yield {
+        text: req.toolsWithheld === true ? 'Here is what I found.' : '',
+        toolCalls: [
+          { id: 'call_x', name: 'rag_search', input: { query: 'more' } },
+        ],
+      };
+    };
+    const { executor, executed } = fakeExecutor();
+    const d = deps({ model: ignoring, tools: executor });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Here is what I found.',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('after the tool budget was spent were not run'),
+    );
+    warn.mockRestore();
   });
 
   // The two Stop paths #2962 named. Both break AFTER the round settles its
@@ -1906,6 +1960,222 @@ describe('runTurn — the tool loop', () => {
     ]);
     expect(calls.streamed[1]?.text).toBe('partial');
   }, 10_000);
+});
+
+describe('runTurn — the skills the person chose [CHAT-R29]', () => {
+  function skillExecutor(): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          { name: 'load_skill', description: 'Load.', parameters: {} },
+        ],
+        execute(call) {
+          executed.push(call);
+          const name = isRecord(call.input) ? call.input.name : undefined;
+          return Promise.resolve({
+            status: 'ok',
+            name,
+            instructions: `How to make ${String(name)} files.`,
+          });
+        },
+      },
+    };
+  }
+
+  function recordingModel(): {
+    model: ModelCall;
+    requests: ModelCallRequest[];
+  } {
+    const requests: ModelCallRequest[] = [];
+    return {
+      requests,
+      model: async function* stream(req) {
+        requests.push(req);
+        yield { text: 'Here is the letter.' };
+      },
+    };
+  }
+
+  it('reads each chosen skill before the model answers, as the reply’s first step', async () => {
+    const { executor, executed } = skillExecutor();
+    const { model, requests } = recordingModel();
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(
+      request({ userText: '/docx Write the letter', chosenSkills: ['docx'] }),
+      d.deps,
+    );
+
+    expect(outcome.status).toBe('completed');
+    expect(executed).toEqual([
+      {
+        id: expect.stringMatching(/^[a-zA-Z0-9]{9}$/),
+        name: 'load_skill',
+        input: { name: 'docx' },
+      },
+    ]);
+    // The first round already reads the skill, and the choice is named.
+    const first = requests[0];
+    expect(first?.messages.at(-1)?.parts.map((part) => part.type)).toEqual([
+      'tool-call',
+      'tool-result',
+    ]);
+    expect(first?.system).toContain(
+      'The person chose this skill for this reply: docx.',
+    );
+    // The step is on the reply, before the answer.
+    const parts = d.store.finalized.at(-1)?.parts as MessagePart[];
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-call',
+      'tool-result',
+      'text',
+    ]);
+    // Reading costs no round of the model's: no step limit was hit.
+    expect(outcome.status === 'completed' && outcome.usage.stepLimitHit).toBe(
+      undefined,
+    );
+  });
+
+  it('reads a chosen skill again although the conversation shows an earlier read', async () => {
+    // The history keeps only a short copy of a tool result, so an earlier
+    // read is no read to work from.
+    const { executor, executed } = skillExecutor();
+    const { model, requests } = recordingModel();
+    const d = deps({ model, tools: executor });
+
+    await runTurn(
+      request({
+        chosenSkills: ['docx', 'xlsx'],
+        history: [
+          { role: 'user', parts: [{ type: 'text', text: '/docx A letter' }] },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-call',
+                callId: 'sk0000010',
+                capabilityId: 'load_skill',
+                input: { name: 'docx' },
+              },
+              {
+                type: 'tool-result',
+                callId: 'sk0000010',
+                capabilityId: 'load_skill',
+                output: { status: 'ok', name: 'docx', instructions: 'x' },
+                structured: true,
+              },
+              { type: 'text', text: 'Done.' },
+            ],
+          },
+        ],
+      }),
+      d.deps,
+    );
+
+    expect(executed.map((call) => call.input)).toEqual([
+      { name: 'docx' },
+      { name: 'xlsx' },
+    ]);
+    expect(requests[0]?.system).toContain(
+      'The person chose these skills for this reply: docx, xlsx.',
+    );
+  });
+
+  it('makes room for the chosen skills in the history and holds them in the first round', async () => {
+    const instructions = 'Keep to the house style. '.repeat(1_300);
+    const executor: ChatToolExecutor = {
+      wireTools: [{ name: 'load_skill', description: 'Load.', parameters: {} }],
+      execute: () =>
+        Promise.resolve({ status: 'ok', name: 'docx', instructions }),
+    };
+    const history: ChatMessage[] = Array.from({ length: 10 }, (_, index) => ({
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      parts: [{ type: 'text', text: `Turn ${index}. ${'word '.repeat(800)}` }],
+    }));
+    const open = async (chosenSkills: string[], maxTokens: number) => {
+      const { store } = fakeStore();
+      const setups: Parameters<TurnDeps['store']['beginTurn']>[0][] = [];
+      const d = deps({
+        tools: executor,
+        store: {
+          ...store,
+          beginTurn(setup) {
+            setups.push(setup);
+            return store.beginTurn(setup);
+          },
+        },
+      });
+      await runTurn(
+        request({
+          chosenSkills,
+          history,
+          budget: { maxTokens, reserveOutputTokens: 1_000 },
+        }),
+        d.deps,
+      );
+      return setups[0];
+    };
+
+    // Without the skill the whole history fits; with it, the oldest turns
+    // make way.
+    expect((await open([], 20_000))?.truncation).toBeUndefined();
+    expect(
+      (await open(['docx'], 20_000))?.truncation?.droppedMessages,
+    ).toBeGreaterThan(0);
+    // With room for both, the first round's hold carries the read too.
+    const roomy = (await open([], 128_000))?.spend?.tokens ?? 0;
+    const roomyWithSkill = (await open(['docx'], 128_000))?.spend?.tokens ?? 0;
+    expect(roomyWithSkill - roomy).toBeGreaterThanOrEqual(
+      estimateTokens(instructions),
+    );
+  });
+
+  it('names the conversation from the words after the skills the message chose', async () => {
+    const titles = async (userText: string, chosenSkills: string[]) => {
+      const { store } = fakeStore();
+      const setups: Parameters<TurnDeps['store']['beginTurn']>[0][] = [];
+      const d = deps({
+        tools: skillExecutor().executor,
+        store: {
+          ...store,
+          beginTurn(setup) {
+            setups.push(setup);
+            return store.beginTurn(setup);
+          },
+        },
+      });
+      await runTurn(request({ userText, chosenSkills }), d.deps);
+      return setups[0]?.titleText;
+    };
+
+    expect(await titles('/xlsx Make a table', ['xlsx'])).toBe('Make a table');
+    // A name that chose nothing is the message's own words.
+    expect(await titles('/api returns 500 on login', [])).toBeUndefined();
+  });
+
+  it('reads nothing without a skill tool to read with', async () => {
+    const { model, requests } = recordingModel();
+    const d = deps({ model });
+
+    await runTurn(request({ chosenSkills: ['docx'] }), d.deps);
+
+    expect(requests[0]?.messages.at(-1)?.role).toBe('user');
+  });
+});
+
+describe('chosenSkillCallId', () => {
+  it('spells nine letters and digits, distinct per reply and per skill', () => {
+    const first = chosenSkillCallId('018f2c1e-7b3a-7c9d-a1b2-c3d4e5f60718', 0);
+    const second = chosenSkillCallId('018f2c1e-7b3a-7c9d-a1b2-c3d4e5f60718', 1);
+    const other = chosenSkillCallId('018f2c1e-7b3a-7c9d-a1b2-c3d4e5f6ffff', 0);
+    expect(first).toMatch(/^[a-zA-Z0-9]{9}$/);
+    expect(new Set([first, second, other]).size).toBe(3);
+  });
 });
 
 describe('runTurn — image attachments', () => {
@@ -2917,6 +3187,79 @@ describe('runTurn — the files a tool made', () => {
     mediaType: XLSX,
     sizeBytes: 4935,
   };
+
+  it('tells the tools which files the conversation shows: its history’s and this reply’s [CHAT-R24]', async () => {
+    const seen: (ReadonlySet<string> | undefined)[] = [];
+    let round = 0;
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        { name: 'run_code', description: 'Run code.', parameters: {} },
+      ],
+      execute(_call, options) {
+        seen.push(options?.shownFiles);
+        return Promise.resolve({ status: 'ok', artifacts: [ARTIFACT] });
+      },
+    };
+    const twice: ModelCall = async function* stream() {
+      round += 1;
+      if (round <= 2) {
+        yield {
+          text: '',
+          toolCalls: [{ id: `call_${round}`, name: 'run_code', input: {} }],
+        };
+        return;
+      }
+      yield { text: 'Done.' };
+    };
+    const d = deps({ model: twice, tools: executor });
+
+    await runTurn(
+      request({
+        history: [
+          { role: 'user', parts: [{ type: 'text', text: 'a chart' }] },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'artifact',
+                fileId: 's3:org/earlier',
+                name: 'chart.png',
+                mediaType: 'image/png',
+                sizeBytes: 10,
+              },
+            ],
+          },
+        ],
+      }),
+      d.deps,
+    );
+
+    expect(seen.map((files) => [...(files ?? [])].sort())).toEqual([
+      ['s3:org/earlier'],
+      ['s3:org/earlier', 's3:org/sheet'],
+    ]);
+  });
+
+  it('tells the tools nothing about shown files when the history was trimmed [CHAT-R24]', async () => {
+    const seen: (ReadonlySet<string> | undefined)[] = [];
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        { name: 'run_code', description: 'Run code.', parameters: {} },
+      ],
+      execute(_call, options) {
+        seen.push(options?.shownFiles);
+        return Promise.resolve({ status: 'ok', artifacts: [ARTIFACT] });
+      },
+    };
+    const d = deps({
+      model: workModel([{ id: 'call_1', name: 'run_code', input: {} }]),
+      tools: executor,
+    });
+
+    await runTurn(request({ historyOmittedCount: 40 }), d.deps);
+
+    expect(seen).toEqual([undefined]);
+  });
 
   it('lifts each produced file onto the reply, after the result that names it', async () => {
     const { executor } = workExecutor({ status: 'ok', artifacts: [ARTIFACT] });

@@ -8,6 +8,7 @@ import {
   sessionDestroyIfIdle,
   sessionIsAlive,
   SpawnerBusyError,
+  SpawnerUnreachableError,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   getSessionBySessionId,
@@ -76,14 +77,84 @@ export function lightSessionId(
 }
 
 /** No light sandbox could be had right now: the organization's light
- * budget is full of sandboxes in use, or the sandbox host is busy. */
+ * budget is full of sandboxes in use (`budget`), or the sandbox host is at
+ * its capacity (`host`). Either frees by itself. */
 export class LightSandboxBusyError extends Error {
   readonly retryAfterMs: number | undefined;
-  constructor(message: string, retryAfterMs?: number) {
+  readonly kind: 'budget' | 'host';
+  constructor(
+    message: string,
+    retryAfterMs?: number,
+    kind: 'budget' | 'host' = 'budget',
+  ) {
     super(message);
     this.name = 'LightSandboxBusyError';
     this.retryAfterMs = retryAfterMs;
+    this.kind = kind;
   }
+}
+
+/** Why a light sandbox could not start other than for room: the host has
+ * no runtime image to start one from yet (`not_ready`), the sandbox service
+ * did not answer (`unreachable`), or the start failed (`failed`). The
+ * spawner's own error is the `cause`, for the log; the message is for the
+ * reader of the call. */
+export class LightSandboxUnavailableError extends Error {
+  readonly kind: 'not_ready' | 'unreachable' | 'failed';
+  /** When the host asked to be asked again — a host preparing its image
+   * says when it expects to be ready. */
+  readonly retryAfterMs: number | undefined;
+  constructor(
+    kind: LightSandboxUnavailableError['kind'],
+    message: string,
+    options?: { cause?: unknown; retryAfterMs?: number },
+  ) {
+    super(
+      message,
+      options?.cause === undefined ? undefined : { cause: options.cause },
+    );
+    this.name = 'LightSandboxUnavailableError';
+    this.kind = kind;
+    this.retryAfterMs = options?.retryAfterMs;
+  }
+}
+
+/** The reader-facing words for each way a light sandbox failed to start. */
+const UNAVAILABLE_MESSAGES: Record<
+  LightSandboxUnavailableError['kind'],
+  string
+> = {
+  not_ready:
+    'The sandbox host has no runtime image ready yet, so no sandbox can start.',
+  unreachable: 'The sandbox service cannot be reached right now.',
+  failed: 'The light sandbox could not start.',
+};
+
+/** A spawner failure on the way to a running sandbox, as the reader of the
+ * call should hear it. Room that frees by itself is {@link
+ * LightSandboxBusyError}; a host without its runtime image, a service that
+ * does not answer and a start that failed are {@link
+ * LightSandboxUnavailableError}. */
+function lightSandboxStartError(error: unknown): Error {
+  if (error instanceof SpawnerBusyError) {
+    if (error.refusal === 'runtime_image') {
+      return new LightSandboxUnavailableError(
+        'not_ready',
+        UNAVAILABLE_MESSAGES.not_ready,
+        { cause: error, retryAfterMs: error.retryAfterMs },
+      );
+    }
+    return new LightSandboxBusyError(
+      'The sandbox host is busy right now.',
+      error.retryAfterMs,
+      'host',
+    );
+  }
+  const kind =
+    error instanceof SpawnerUnreachableError ? 'unreachable' : 'failed';
+  return new LightSandboxUnavailableError(kind, UNAVAILABLE_MESSAGES[kind], {
+    cause: error,
+  });
 }
 
 /** The spawner verbs a light sandbox uses — injectable for tests. */
@@ -123,7 +194,8 @@ const acquiring = new Map<string, Promise<LightSessionLease>>();
 
 /**
  * The owner's light sandbox, running: the live one, or a new one. Throws
- * {@link LightSandboxBusyError} when no room can be made now.
+ * {@link LightSandboxBusyError} when no room can be made now, and {@link
+ * LightSandboxUnavailableError} when the sandbox host cannot start one.
  */
 export function acquireLightSession(
   sql: Sql,
@@ -152,7 +224,14 @@ async function acquireNow(
     sessionId,
   );
   if (existing?.status === 'active') {
-    if (await spawner.isAlive(sessionId)) {
+    let alive: boolean;
+    try {
+      alive = await spawner.isAlive(sessionId);
+    } catch (error) {
+      if (!(error instanceof SpawnerUnreachableError)) throw error;
+      throw lightSandboxStartError(error);
+    }
+    if (alive) {
       await touchLightSession(sql, owner.organizationId, sessionId);
       return { sessionId, created: false };
     }
@@ -206,13 +285,7 @@ async function acquireNow(
         cleanup,
       );
     });
-    if (error instanceof SpawnerBusyError) {
-      throw new LightSandboxBusyError(
-        'The sandbox host is busy right now.',
-        error.retryAfterMs,
-      );
-    }
-    throw error;
+    throw lightSandboxStartError(error);
   }
   await setSessionStatus(sql, {
     organizationId: owner.organizationId,

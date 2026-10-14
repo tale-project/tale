@@ -8,6 +8,7 @@ const NATIVE_LABELS = [
   'chat.aria.chatInput',
   'chat.aria.messageHistory',
   'chat.picker.ariaLabel',
+  'chat.skillPicker.listLabel',
   'chat.send',
   'home.views.inbox',
   'conversations.messagePlaceholder',

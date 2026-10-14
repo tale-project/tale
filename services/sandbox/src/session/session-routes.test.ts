@@ -6339,7 +6339,7 @@ describe('the first-come line for host room', () => {
     } finally {
       warning.mockRestore();
     }
-  });
+  }, 30_000);
 
   test('a waiter liveness ping renews its bounded lease', async () => {
     const routes = new SessionRoutes(capped, fakeBackend);

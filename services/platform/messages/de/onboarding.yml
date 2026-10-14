@@ -24,4 +24,7 @@ finish:
   inviteItem: Lade Teammitglieder zur Zusammenarbeit ein.
   providerCta: Anbieter verbinden
   inviteCta: Teammitglieder einladen
+  agentItem: Verbinde deinen Coding-Agent, damit er Automatisierungen erstellt und korrigiert.
+  agentCta: Agent verbinden
+  agentConnected: 'Coding-Agent verbunden: {client}.'
   goToDashboard: Zu Start

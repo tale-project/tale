@@ -110,7 +110,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einstellungen über MCP",
-      "description": "Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt."
+      "description": "Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt oder die ihn angemeldet hat."
     }
   },
   "de:develop/overview": {
@@ -250,6 +250,14 @@
     "frontmatter": {
       "title": "Neuigkeiten",
       "description": "Lies Plattform-Änderungen nach und finde die für dein Team relevanten Neuerungen."
+    }
+  },
+  "de:platform/admin/connected-agents": {
+    "slug": "platform/admin/connected-agents",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Verbundene Agenten",
+      "description": "Verbinde einen Coding-Agent mit Tale, indem du dich im Agent anmeldest; lege fest, was er darf, und sieh dir die mit einer Organisation verbundenen Agents an oder trenne sie."
     }
   },
   "de:platform/admin/connectors": {
@@ -1334,7 +1342,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Settings over MCP",
-      "description": "Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses."
+      "description": "Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses or who signed it in."
     }
   },
   "en:develop/overview": {
@@ -1474,6 +1482,14 @@
     "frontmatter": {
       "title": "What’s new",
       "description": "Read platform release notes and find changes relevant to your team."
+    }
+  },
+  "en:platform/admin/connected-agents": {
+    "slug": "platform/admin/connected-agents",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Connected agents",
+      "description": "Connect a coding agent to Tale by signing in from it, choose what it may do, and see and disconnect the agents connected to an organization."
     }
   },
   "en:platform/admin/connectors": {
@@ -2558,7 +2574,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Paramètres par MCP",
-      "description": "Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API."
+      "description": "Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API ou qui l’a connecté."
     }
   },
   "fr:develop/overview": {
@@ -2698,6 +2714,14 @@
     "frontmatter": {
       "title": "Nouveautés",
       "description": "Consulte les notes de version et repère les changements qui concernent ton équipe."
+    }
+  },
+  "fr:platform/admin/connected-agents": {
+    "slug": "platform/admin/connected-agents",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Agents connectés",
+      "description": "Connecte un agent de code à Tale depuis l’agent, choisis ce qu’il peut faire, puis consulte et déconnecte les agents connectés à une organisation."
     }
   },
   "fr:platform/admin/connectors": {

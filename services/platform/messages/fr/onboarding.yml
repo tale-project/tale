@@ -25,4 +25,7 @@ finish:
   inviteItem: Invite des coéquipiers à collaborer.
   providerCta: Connecter un fournisseur
   inviteCta: Inviter des coéquipiers
+  agentItem: Connecte ton agent de code pour créer et corriger des automatisations.
+  agentCta: Connecter un agent
+  agentConnected: 'Agent de code connecté : {client}.'
   goToDashboard: Aller à l’Accueil

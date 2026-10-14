@@ -11,14 +11,14 @@ Tale reaches your development work in four ways. They differ in which language m
 | --- | --- | --- | --- |
 | Your organization's models as the model provider of opencode, Claude Code, or an SDK script | [The model endpoints](#model-endpoints) | An organization model you name by its id in each request | Each model call: model access, input guardrails, budgets, usage under your name and key; not the answers |
 | Ask the workspace assistant from a script | [The REST chat API](#script-the-rest-chat-api) | An organization model you name in each request | The whole turn: model access, budgets, usage under your name |
-| Tale's knowledge and automation tools inside opencode or Claude Code | [The MCP endpoint](#connect-opencode-or-claude-code) | The model configured in your editor | Only the tool calls; the editor's model calls stay outside Tale |
+| Tale's knowledge and automation tools inside your coding agent, such as Claude Code, Codex or opencode | [The MCP endpoint](#connect-opencode-or-claude-code) | The model configured in your agent | Only the tool calls; the agent's model calls stay outside Tale |
 | Have a script edited on your organization's models | [A project agent on a task](#let-a-project-agent-edit-scripts) | An organization model the agent is configured with | The whole run: sandbox, budgets, usage, review |
 
 An editor can use two of them with the same key: the model endpoints as its model provider and the MCP endpoint for Tale's knowledge. [The last section](#where-the-openai-compatible-endpoint-went) explains how the model endpoints differ from the OpenAI-compatible layer of Tale 0.3.
 
 ## Create an API key
 
-Every path from outside the app starts with a personal API key. Owners, Admins, and Developers create one under **Settings > API > REST** with **Create API key**, choosing a name and an expiration, and so can a member an Admin granted a competence that is used with a key, such as **Call models over the API**. The secret is shown once; copy it into your secret store or a private shell environment before closing the dialog. [API keys](/platform/admin/api-keys) covers creation, rotation, and revocation.
+Every path from outside the app starts with a personal API key, except that a coding agent can sign itself in to the MCP endpoint ([Bring Tale's tools into your coding agent](#connect-opencode-or-claude-code)). Owners, Admins, and Developers create one under **Settings > API > REST** with **Create API key**, choosing a name and an expiration, and so can a member an Admin granted a competence that is used with a key, such as **Call models over the API**. The secret is shown once; copy it into your secret store or a private shell environment before closing the dialog. [API keys](/platform/admin/api-keys) covers creation, rotation, and revocation.
 
 A key acts as you. It carries your current role and project access, and the usage it causes is booked under your name. Chat turns, model calls, and automation runs you start with the key also record the key, so API-key limits apply to them as well; a project-agent run is booked to you alone. An Admin can cap what you spend with a personal, team, or role budget under [Policies and limits](/platform/admin/governance/policies-and-limits); a request over a cap is refused with `429 BUDGET_EXCEEDED`.
 
@@ -288,17 +288,93 @@ While the send waits for a worker, `GET .../messages/$MESSAGE_ID` can still answ
 
 When a script needs the matching passages rather than an answer, `POST /api/v1/knowledge/search` returns them without the assistant; see [Search a project's files](/develop/api-reference#search-a-projects-files). [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) builds the same conversation in Python with error handling, and [Send a message, then poll the turn](/develop/api-reference#send-a-message-then-poll-the-turn) covers retries, token limits, and failures.
 
-## Bring Tale's tools into opencode or Claude Code {#connect-opencode-or-claude-code}
+## Bring Tale's tools into your coding agent {#connect-opencode-or-claude-code}
 
-Tale's [MCP endpoint](/develop/mcp-endpoint), `/api/v1/mcp`, gives an editor agent Tale's tools. The most useful for script work is `get_knowledge`, which retrieves passages from your organization's documents and crawled web pages. The endpoint also exposes the automation tools: validate, test, save, deploy, and run automations, and read their runs. Saving, deploying, setting or deleting a trigger, cancelling a run, and live runs require the Developer capability. The endpoint has no chat tool and no skills tool; to copy your organization's skills into a local skills folder, read them with `GET /api/v1/skills` as described in [Save and synchronize skill bundles](/develop/api-reference#save-and-synchronize-skill-bundles).
+Tale's [MCP endpoint](/develop/mcp-endpoint), `/api/v1/mcp`, gives an editor agent Tale's tools. The most useful for script work is `get_knowledge`, which retrieves passages from your organization's documents and crawled web pages. The endpoint also exposes the automation tools: validate, test, save, deploy, and run automations, and read their runs. Saving, deploying, setting or deleting a trigger, cancelling a run, and live runs require the Developer capability, and an agent that signed in also needs the matching access, which the person chooses when connecting it ([Access levels](/develop/mcp-endpoint#access-levels)). The endpoint has no chat tool and no skills tool; to copy your organization's skills into a local skills folder, read them with `GET /api/v1/skills` as described in [Save and synchronize skill bundles](/develop/api-reference#save-and-synchronize-skill-bundles).
 
 The language model on this path is the one configured in your editor. Tale authenticates the tool calls and applies your permissions to them, but the prompts, your code, and every passage a Tale tool returns travel to that editor's model provider. When that provider is another service, Tale's budgets, usage records, and model-access rules do not apply to its model calls; check that your organization allows its knowledge to reach that provider before you connect. When the editor uses [the model endpoints](#model-endpoints) as its provider, the passages go only to models your organization approved, and each model call is governed as described there.
 
-The endpoint authenticates with the API key in a header and has no OAuth sign-in. Turn off a client's OAuth detection where it offers the switch.
+### Sign in or use a key {#sign-in-or-key}
+
+The endpoint takes two kinds of credential. **Signing in from the agent** is the shorter path for the agents below that support it: you give the agent the endpoint's address, it opens your browser, and you choose the organization and what the agent may do. No key is created or stored by hand, and you end the connection under **Settings > API > Connected agents** ([Connected agents](/platform/admin/connected-agents)). An **API key** in a header suits scripts and agents that cannot open a browser; [Create an API key](#create-an-api-key) covers it.
+
+Signing in is on unless your operator turned it off. When it is off, an agent that needs it stays at "needs authentication", and a key works as before. [Sign in from your agent](/develop/mcp-endpoint#sign-in) describes what happens between the agent and Tale. Tale was checked with Claude Code and the Codex CLI. The other agents below follow the same standard: if signing in does not work in one of them, use a key.
+
+### Claude Code {#claude-code}
+
+Add the endpoint as an HTTP server, then sign in:
+
+```bash
+claude mcp add --transport http tale "$TALE_URL/api/v1/mcp"
+claude mcp login tale
+```
+
+`claude mcp list` shows `tale` as needing authentication until you sign in. `claude mcp login tale` opens your browser; on a machine without one, add `--no-browser`: it prints the address to open, and you paste the address your browser ended on. In Claude Code itself, `/mcp` offers the same sign-in. When the browser steps are done, `claude mcp list` reports the server as connected, and `claude mcp logout tale` forgets the sign-in.
+
+To use a key instead, send it as a header. The command below stores the expanded key in your private Claude Code configuration for the current project:
+
+```bash
+claude mcp add --transport http tale "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG"
+```
+
+To share the server with a team through a committed `.mcp.json`, leave the credential out, so each person signs in, or reference a key as an environment variable so each person supplies their own:
+
+```json
+{
+  "mcpServers": {
+    "tale": {
+      "type": "http",
+      "url": "https://your-host.example.com/api/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TALE_API_KEY}",
+        "X-Organization-Slug": "your-org-slug"
+      }
+    }
+  }
+}
+```
+
+`claude mcp list` reports whether Claude Code can reach the server.
+
+### Codex {#codex}
+
+Add the endpoint. Codex finds that it signs in by OAuth and starts the sign-in at once:
+
+```bash
+codex mcp add tale --url "$TALE_URL/api/v1/mcp"
+```
+
+Codex opens your browser, and the command finishes once you have chosen the organization and what the agent may do. To sign in again later, run `codex mcp login tale`. On a machine without a browser, stop the sign-in that `add` starts (the server stays added) and run `codex mcp login tale --no-browser`: Codex prints the address to open and asks you to paste the address your browser ended on. Codex identifies itself by a client metadata document that OpenAI publishes and the Tale server fetches over HTTPS, so the deployment needs outbound access to `chatgpt.com` for it. `codex mcp list` shows the configured servers.
+
+To use a key instead, name the environment variable that holds it and the organization in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.tale]
+url = "https://your-host.example.com/api/v1/mcp"
+bearer_token_env_var = "TALE_API_KEY"
+http_headers = { "X-Organization-Slug" = "your-org-slug" }
+```
 
 ### opencode
 
-Add a remote server to your global opencode configuration, `~/.config/opencode/opencode.json`, or to an `opencode.json` in the project. `{env:TALE_API_KEY}` makes opencode read the key from your environment, so the file never holds the secret. Replace the host and the slug with your own.
+opencode signs itself in to a server that answers `401`. Add the server without `oauth` or `headers`, then run `opencode mcp auth tale` and follow the browser steps. `opencode mcp list` shows whether the server is signed in, and `opencode mcp logout tale` removes the sign-in.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "tale": {
+      "type": "remote",
+      "url": "https://your-host.example.com/api/v1/mcp",
+      "timeout": 60000
+    }
+  }
+}
+```
+
+To use a key instead, switch the sign-in off for the server and send the key as a header. Add a remote server to your global opencode configuration, `~/.config/opencode/opencode.json`, or to an `opencode.json` in the project. `{env:TALE_API_KEY}` makes opencode read the key from your environment, so the file never holds the secret. Replace the host and the slug with your own.
 
 ```json
 {
@@ -318,42 +394,33 @@ Add a remote server to your global opencode configuration, `~/.config/opencode/o
 }
 ```
 
-`timeout` raises opencode's five-second default for MCP requests, which a knowledge search under load or a `run_deployed` call that waits up to 30 seconds can exceed. Start opencode from a shell where `TALE_API_KEY` is set. `opencode mcp list` shows whether the server is configured; opencode prefixes the tools with the server name, as in `tale_get_knowledge`.
+`timeout` raises opencode's five-second default for MCP requests, which a knowledge search under load or a `run_deployed` call that waits up to 30 seconds can exceed. Start opencode from a shell where `TALE_API_KEY` is set when you use a key. `opencode mcp list` shows whether the server is configured; opencode prefixes the tools with the server name, as in `tale_get_knowledge`.
 
-### Claude Code
+### Cursor {#cursor}
 
-Register the endpoint as an HTTP server. The command below stores the expanded key in your private Claude Code configuration for the current project:
-
-```bash
-claude mcp add --transport http tale "$TALE_URL/api/v1/mcp" \
-  --header "Authorization: Bearer $TALE_API_KEY" \
-  --header "X-Organization-Slug: $TALE_ORG_SLUG"
-```
-
-To share the server with a team through a committed `.mcp.json`, reference the key as an environment variable so each person supplies their own:
+Add the server to `~/.cursor/mcp.json`, or to `.cursor/mcp.json` in the project, with its address and nothing else. Cursor then offers to sign in to it, and registers itself with Tale.
 
 ```json
 {
   "mcpServers": {
     "tale": {
-      "type": "http",
-      "url": "https://your-host.example.com/api/v1/mcp",
-      "headers": {
-        "Authorization": "Bearer ${TALE_API_KEY}",
-        "X-Organization-Slug": "your-org-slug"
-      }
+      "url": "https://your-host.example.com/api/v1/mcp"
     }
   }
 }
 ```
 
-`claude mcp list` reports whether Claude Code can reach the server.
+To use a key instead, add a `headers` object with `Authorization: Bearer ${env:TALE_API_KEY}` and `X-Organization-Slug`. Cursor's desktop app signs in through a local address (`http://localhost:8787/callback`), which Tale accepts. Cursor's cloud agents use a web address on `cursor.com` that Tale refuses unless your operator allows that host ([Coding-agent sign-in](/self-hosted/configuration/authentication#coding-agent-sign-in)).
+
+### Claude on the web and in the apps {#claude-ai}
+
+Claude connects to a remote server from Anthropic's own network, so the endpoint must be reachable from the internet, and your operator may need to allow Anthropic's published addresses ([Coding-agent sign-in](/self-hosted/configuration/authentication#coding-agent-sign-in)). In Claude, open **Customize > Connectors**, select **Add**, then **Add custom connector**, enter a name and the endpoint's address, and continue. Under **Authentication** choose **Sign in now**; under **OAuth client**, **Use Claude's published identity** or **Register automatically** both work with Tale. Select **Connect** to open Tale's consent page. On Team and Enterprise plans an owner adds the connector under Organization settings, and each person then connects to it themselves. These labels are Anthropic's and may change; their help article on custom connectors has the current steps.
 
 ### Prompts and resources in Claude Code {#prompts-and-resources}
 
 With the server registered as `tale`, type `/` in Claude Code to find Tale's prompts: `/tale:edit_automation`, `/tale:debug_failed_run` and `/tale:add_trigger`. Put the arguments after the command, separated by spaces, for example `/tale:debug_failed_run <run-id>`. Each prompt attaches what it is about and tells the agent to ask you before anything is deployed.
 
-Type `@` to mention a Tale resource, for example `@tale:tale://runs/<run-id>` for a run or `@tale:tale://docs/triggers` for the triggers reference. Claude Code reads it with your key and attaches it to your message. [Resources and prompts](/develop/mcp-endpoint#resources-and-prompts) lists every address and prompt.
+Type `@` to mention a Tale resource, for example `@tale:tale://runs/<run-id>` for a run or `@tale:tale://docs/triggers` for the triggers reference. Claude Code reads it with your sign-in or your key and attaches it to your message. [Resources and prompts](/develop/mcp-endpoint#resources-and-prompts) lists every address and prompt.
 
 ### Install the Tale skill {#tale-skill}
 

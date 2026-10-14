@@ -43,6 +43,17 @@ vi.mock('@/app/features/organization/hooks/queries', () => ({
   useOrganization: () => organizationQuery,
 }));
 
+// Whether a coding agent may sign in and this person may connect one is the
+// access hook's answer; the page says so only then.
+const agentAccess = { connectAgents: false };
+
+vi.mock(
+  '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
+  () => ({
+    useApiSettingsAccess: () => ({ connectAgents: agentAccess.connectAgents }),
+  }),
+);
+
 const t = i18n.getFixedT('en', 'settings');
 
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
@@ -60,6 +71,51 @@ describe('McpEndpointSection', () => {
     expect(
       screen.getByText('https://tale.example.com/api/v1/mcp'),
     ).toBeInTheDocument();
+  });
+
+  it('sends everyone to a REST API key while coding agents may not sign in', () => {
+    agentAccess.connectAgents = false;
+
+    render(<McpEndpointSection organizationId="org-1" />);
+
+    expect(
+      screen.getByText(/Authenticate with a REST API key as a bearer token/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'REST API keys.' }),
+    ).toHaveAttribute('href', '/dashboard/$id/settings/api/rest');
+    expect(screen.queryByText(/signs itself in/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Connected agents.' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says a coding agent signs itself in, and where to end it, once agents may sign in', () => {
+    agentAccess.connectAgents = true;
+
+    render(<McpEndpointSection organizationId="org-1" />);
+
+    // The agent's own sign-in comes first, with its page; the key is for
+    // scripts and the clients that cannot sign in.
+    expect(
+      screen.getByText(/A coding agent that supports it signs itself in/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Connected agents.' }),
+    ).toHaveAttribute('href', '/dashboard/$id/settings/api/agents');
+    expect(
+      screen.getByText(
+        /Scripts and other clients authenticate with a REST API key/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/^Authenticate with a REST API key/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'REST API keys.' }),
+    ).toHaveAttribute('href', '/dashboard/$id/settings/api/rest');
+
+    agentAccess.connectAgents = false;
   });
 
   it('shows the organization slug and bakes it into the example request', () => {

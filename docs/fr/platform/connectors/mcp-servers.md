@@ -3,15 +3,15 @@ title: Connecter un client externe avec MCP
 description: Retrouve le point d’accès MCP de Tale et comprends comment un client externe peut l’utiliser.
 ---
 
-Le point d’accès MCP permet à un assistant de programmation externe ou à un autre client MCP de travailler avec ton organisation dans Tale. Il peut découvrir des capacités, créer des automatisations et examiner leurs exécutions. L’accès suit la clé API de l’organisation et les droits de son titulaire.
+Le point d’accès MCP permet à un assistant de programmation externe ou à un autre client MCP de travailler avec ton organisation dans Tale. Il peut découvrir des capacités, créer des automatisations et examiner leurs exécutions. L’accès suit les droits de la personne derrière la connexion : le titulaire de la clé API, ou la personne qui a connecté l’agent.
 
 ## Trouver le point d’accès
 
-Ouvre **Paramètres > API > MCP**. La page indique l’URL du déploiement, le slug de l’organisation, les groupes d’outils et une requête à copier pour vérifier la connexion. Si tu n’as pas encore de clé adaptée, crée-la sous **Paramètres > API**.
+Ouvre **Paramètres > API > MCP**. Là où les agents peuvent se connecter, la page commence par **Connecter un agent de code** : les commandes pour Claude Code et Codex, une ligne qui indique quand ton agent s’est connecté et un premier prompt à lui donner. En dessous, elle indique l’URL du déploiement, le slug de l’organisation, les groupes d’outils et une requête à copier pour vérifier la connexion. Un agent de code se connecte lui-même dès qu’il a cette adresse ([Agents connectés](/fr/platform/admin/connected-agents) montre et termine ces connexions) ; sinon, crée une clé adaptée sous **Paramètres > API**.
 
-<Frame caption="Les paramètres MCP fournissent le point d’accès, le contexte de l’organisation et les outils disponibles.">
+<Frame caption="Les paramètres MCP connectent un agent de code et fournissent le point d’accès, le contexte de l’organisation et les outils disponibles.">
 
-![La page MCP affiche une URL se terminant par /api/v1/mcp, un slug d’organisation, des groupes d’outils et une requête de test.](/images/platform/settings-mcp-endpoint.webp)
+![La page MCP commence par Connect a coding agent : les onglets Claude Code, Codex et Other, les deux commandes qui ajoutent Tale et connectent l’agent, une ligne qui attend la connexion de l’agent et un premier prompt à copier. En dessous, la section MCP endpoint affiche une URL se terminant par /api/v1/mcp.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

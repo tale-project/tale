@@ -54,12 +54,27 @@ export function checkedAutomationLedgerQuery(value: unknown): string {
   return command;
 }
 
-export function automationFloor(raw: string): AutomationWriterProtocol {
-  const observed = z
+/** The one application ledger the floor read found, names in `C` order. */
+export interface AutomationLedger {
+  schema: string;
+  ids: string[];
+}
+
+export function automationLedger(raw: string): AutomationLedger {
+  return z
     .strictObject({
       schema: z.string().min(1).max(63),
       ids: applicationLedgerSchema.shape.ids,
     })
     .parse(JSON.parse(raw));
-  return observed.ids.includes(AUTOMATION_PROTOCOL_MIGRATION) ? 2 : 1;
+}
+
+export function ledgerFloor(
+  ledger: AutomationLedger,
+): AutomationWriterProtocol {
+  return ledger.ids.includes(AUTOMATION_PROTOCOL_MIGRATION) ? 2 : 1;
+}
+
+export function automationFloor(raw: string): AutomationWriterProtocol {
+  return ledgerFloor(automationLedger(raw));
 }

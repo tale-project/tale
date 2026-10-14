@@ -29,6 +29,9 @@ const {
   bulkUpdateThreads,
   loadProjectSharedThread,
   projectSharedViewLeaf,
+  setConversationSkills,
+  createThread,
+  listChatSkillChoices,
 } = vi.hoisted(() => ({
   trashThread: vi.fn(),
   listArchivedThreads: vi.fn(),
@@ -47,6 +50,9 @@ const {
   bulkUpdateThreads: vi.fn(),
   loadProjectSharedThread: vi.fn(),
   projectSharedViewLeaf: vi.fn(),
+  setConversationSkills: vi.fn(),
+  createThread: vi.fn(),
+  listChatSkillChoices: vi.fn(),
 }));
 
 vi.mock('./bulk.ts', () => ({ bulkUpdateThreads }));
@@ -61,6 +67,12 @@ vi.mock('./threads.ts', async (importOriginal) => ({
   setBranchSelection,
   loadProjectSharedThread,
   projectSharedViewLeaf,
+  setConversationSkills,
+  createThread,
+}));
+vi.mock('./work-tools.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./work-tools.ts')>()),
+  listChatSkillChoices,
 }));
 vi.mock('./budget-admission.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./budget-admission.ts')>()),
@@ -523,6 +535,73 @@ describe('a refused send body names its field', () => {
     });
     expect(branchForEdit).not.toHaveBeenCalled();
     expect(branchForRegenerate).not.toHaveBeenCalled();
+  });
+});
+
+describe('the skills a conversation uses [CHAT-R29]', () => {
+  const post = (route: string, body: unknown) =>
+    makeApp().request(`${route}?orgId=o1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('sets them by name, once each, for the owner', async () => {
+    setConversationSkills.mockResolvedValueOnce(true);
+    const res = await post('/threads/t1/skills', {
+      skills: ['docx', 'brand-voice', 'docx'],
+    });
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true });
+    expect(setConversationSkills).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      't1',
+      ['docx', 'brand-voice'],
+    );
+  });
+
+  it.each([
+    [{ skills: ['Not A Name'] }],
+    [{ skills: ['a', 'b', 'c', 'd', 'e'] }],
+    [{ skills: 'docx' }],
+  ])('refuses %o before the domain sees it', async (body) => {
+    setConversationSkills.mockClear();
+    const res = await post('/threads/t1/skills', body);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      error: 'invalid body',
+      message: expect.stringMatching(/^skills/),
+    });
+    expect(setConversationSkills).not.toHaveBeenCalled();
+  });
+
+  it('starts a conversation with them', async () => {
+    createThread.mockResolvedValueOnce('t9');
+    const res = await post('/threads', { kind: 'direct', skills: ['xlsx'] });
+    expect(res.status).toBe(201);
+    expect(createThread).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ skills: ['xlsx'] }),
+    );
+  });
+
+  it('lists what the composer may offer to choose', async () => {
+    listChatSkillChoices.mockResolvedValueOnce({
+      enabled: true,
+      skills: [{ slug: 'docx', description: 'Word documents' }],
+    });
+    const res = await makeApp().request('/composer/skills?orgId=o1');
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      enabled: true,
+      skills: [{ slug: 'docx', description: 'Word documents' }],
+    });
+    expect(listChatSkillChoices).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      userId: 'u1',
+    });
   });
 });
 

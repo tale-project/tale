@@ -7,7 +7,7 @@ The model picker shows what your organization can currently use, not every model
 
 ## Choose automatic or explicit selection
 
-In Chat, **Auto** selects a model for each message using the message’s characteristics, such as length, code and attached documents. It uses a lightweight heuristic, not a second AI request. Inspect a reply’s details to see which model actually answered.
+In Chat, **Auto** selects a model for each message from its text, for example how long it is, whether it contains code and whether it touches legal, medical or financial matters. Attachments do not change the choice, except that an attached image needs a model that can read images. Auto uses a lightweight heuristic, not a second AI request. Inspect a reply’s details to see which model actually answered.
 
 Choose a specific model in the composer when you need to compare results, control the choice or use a model suited to a known task. That selection remains until you change it or return to Auto. [Arena](/platform/chat/arena-mode) lets you compare two available models with the same prompt.
 

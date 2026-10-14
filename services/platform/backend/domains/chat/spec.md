@@ -223,7 +223,7 @@ reply id, the poll answering queued meanwhile.
 
 Besides answering, the assistant can write a file, generate an image, read a skill and run code
 in a light sandbox. Which of these it is offered, the organization decides; which one it uses,
-the model decides.
+the model decides, except a skill the person chose, which the reply reads first.
 
 | Tool | Offered when |
 | --- | --- |
@@ -291,11 +291,15 @@ Images asked for in the same step count together, however many calls make them.
 ### CHAT-R24 · Each version of a file the code writes is attached once
 
 A file the code writes to its output folder is attached when it is new or changed since the
-sandbox's last run. An unchanged file, or one rewritten with the same content, is not attached
-again, and every file stays in the sandbox for the next run.
+sandbox's last run. A file the code leaves alone is never attached again, and every file stays
+in the sandbox for the next run. A file rewritten with the same content is attached again only
+when the conversation no longer shows the reply that got it: a reply tried again, or one after
+an edited message, gets the file its own code wrote.
 
 - **Example**: Mia's chat writes `report.csv`, then runs code that only reads it → nothing new is
   attached. A third run changes a row → the new version is attached.
+- **Example**: Mia tries again a reply that attached `chart.png`, and the new reply's code draws
+  the same chart → `chart.png` is attached to the new reply.
 
 ### CHAT-R25 · A step's tools are bounded, and Stop reaches them
 
@@ -329,6 +333,46 @@ is out of view.
 
 - **Example**: Mia's code writes 3,000 files to its output folder → the reply attaches ten,
   names twenty of the others and says how many more there are.
+
+### CHAT-R28 · A reply whose file tools could not be set up says so
+
+When the Chat tools policy cannot be read, or setting the tools up for a reply fails, the reply
+runs without them and says under it that files could not be made in this reply. The assistant
+is told the same, not that chat makes no files. A tool an admin switched off is no such failure:
+that reply says nothing about it.
+
+- **Example**: Ada broke the Chat tools policy file by hand. Mia asks her chat for an Excel file
+  → the reply has no file, and under it reads that files could not be made because the policy
+  cannot be read.
+
+### CHAT-R29 · A skill the person chooses is read before the reply
+
+A message that starts with `/` and a skill's name chooses that skill; so does checking it under
+**Skills** in the composer, for every reply of the conversation. Each reply reads every chosen
+skill again before the model answers, as a step of its own that costs the model none of its steps,
+and what it reads counts against the reply's window: older turns give way to it. Only skills the
+person can see count, at most four a reply; any other name stays text. A conversation's skills are
+kept with it, every version of it reads them, and only its owner changes them. A conversation is
+named from what its first message says after the skills it chose; a name that chose nothing stays
+in the title.
+
+- **Example**: Mia sends "/docx Write the cover letter" → the reply's first step reads the docx
+  skill, then the model answers.
+- **Example**: Mia checks `docx` and `xlsx` under **Skills** in a chat → every later reply in it
+  reads both before it answers.
+- **Example**: Mia is not in the Finance team and sends "/finance-review Check this" → nothing is
+  read, and the message is sent as written.
+
+### CHAT-R30 · A failed step says why it failed
+
+A step that could not do its work says so under it, in the person's language: every light
+sandbox is in use, the sandbox host is busy or not ready, the sandbox service cannot be reached,
+the sandbox stopped working, the program ended with an error or ran out of time, or it was
+stopped. The model reads the same cause, and whether trying again can help.
+
+- **Example**: All of the organization's light sandboxes are running code when Mia's chat runs
+  code → the step reads that all light sandboxes are in use, and the reply tells her to try again
+  in a minute.
 
 ## Not yet
 

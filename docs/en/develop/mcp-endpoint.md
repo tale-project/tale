@@ -5,7 +5,7 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Connect an MCP client when an agent needs to discover Tale's tools, retrieve knowledge, or build and run automations. The connection uses the same API key and organization scope as [REST](/develop/api-reference). Tale is the server in this connection: your external client calls Tale.
+Connect an MCP client when an agent needs to discover Tale's tools, retrieve knowledge, or build and run automations. A person signs the agent in from the agent itself, or the agent holds an API key like the one [REST](/develop/api-reference) takes; either way it works in one organization and never does more than the person behind it may. Tale is the server in this connection: your external client calls Tale.
 
 Start with `initialize`, inspect `tools/list`, then call `get_docs` before writing an automation. The deployment supplies its own supported grammar, so the client does not need to invent node types or configuration fields.
 
@@ -13,23 +13,69 @@ Start with `initialize`, inspect `tools/list`, then call `get_docs` before writi
 
 ### Prepare the connection
 
-Create an [API key](/platform/admin/api-keys) and keep it in your client's secret configuration. The app's **Settings > API > MCP** page shows the endpoint, organization slug, and a copyable discovery request.
+Two ways in open the endpoint, and you can use both, for different clients:
+
+- **Sign in from the agent.** The agent finds Tale's sign-in by itself and opens your browser; you choose the organization and how much it may do. Nothing is copied by hand, and you can disconnect the agent later. [Sign in from your agent](#sign-in) describes it. It is on unless your operator switched it off.
+- **An API key.** [Create one](/platform/admin/api-keys) and keep it in your client's secret configuration. It suits scripts and clients that cannot open a browser. A key acts as its holder and carries no access levels of its own.
+
+The app's **Settings > API > MCP** page shows the commands that connect Claude Code or Codex, the endpoint, the organization slug, and a copyable discovery request.
 
 | Setting | Value |
 | --- | --- |
 | Endpoint | `https://your-host.example.com/api/v1/mcp` |
 | Transport | HTTPS POST with JSON-RPC; plain JSON responses |
-| Authorization | `Authorization: Bearer <api-key>` |
-| Organization | `X-Organization-Slug: <slug>` |
+| Authorization | `Authorization: Bearer <api-key>`, or the access token an agent received when a person signed it in |
+| Organization | `X-Organization-Slug: <slug>` with a key; a signed-in agent works in the organization the person who connected it chose |
 | Protocol revisions | `2026-07-28`, carried by every request; or `2025-11-25`, `2025-06-18` or `2025-03-26`, opened with `initialize` ([Protocol revisions](#protocol-revisions)) |
 
-Use a client that supports a remote HTTP endpoint with custom headers. There is no SSE event stream, session deletion, or OAuth authorization flow. OAuth discovery URLs return JSON `404`; a client requiring that flow needs a different authentication configuration. A client that only launches local stdio servers cannot use this URL directly. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) has ready configurations for opencode and Claude Code.
+Use a client that supports a remote HTTP endpoint. A client that signs in by itself needs no headers of its own; one that sends a key does. There is no SSE event stream or session deletion. A client that only launches local stdio servers cannot use this URL directly. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) has ready configurations for Claude Code, Codex, opencode and others.
 
-Always send the organization header in reusable integrations. It is optional only when the key holder has one organization. With several memberships, omitting it returns `400 ORG_SLUG_REQUIRED`; an unknown slug returns `404 ORG_SLUG_INVALID`, and a non-member organization returns `403 ORG_FORBIDDEN`. Each of these refusals lists the slugs you can send in `data.organizations`.
+With a key, always send the organization header in reusable integrations. It is optional only when the key holder has one organization. With several memberships, omitting it returns `400 ORG_SLUG_REQUIRED`; an unknown slug returns `404 ORG_SLUG_INVALID`, and a non-member organization returns `403 ORG_FORBIDDEN`. Each of these refusals lists the slugs you can send in `data.organizations`. A signed-in agent works in the one organization the person who connected it chose and needs no header; naming another one returns `403 ORG_MISMATCH` ([Sign in from your agent](#sign-in)).
+
+### Sign in from your agent {#sign-in}
+
+An agent that supports MCP authorization signs itself in. The person who connects it decides the organization and the access, Tale records the connection, and the agent never holds a key. Your operator can turn this off. While it is off, the sign-in documents below answer JSON `404` and only a key opens the endpoint; [Coding-agent sign-in](/self-hosted/configuration/authentication#coding-agent-sign-in) tells operators what to check before leaving it on.
+
+1. **The agent asks without credentials.** The endpoint answers `401` with a `WWW-Authenticate: Bearer` challenge. Its `resource_metadata` names where the endpoint describes itself, and its `scope` lists every scope the endpoint takes.
+2. **The agent reads the metadata.** `/.well-known/oauth-protected-resource/api/v1/mcp` says which server signs agents in, and `/.well-known/oauth-authorization-server/api/auth` describes that server: its authorization, token and registration endpoints, PKCE with `S256`, and the refresh grant.
+3. **The agent identifies itself.** Either by the HTTPS address of a client metadata document it publishes, as Claude Code and Codex do, or by registering itself with the sign-in server. A self-registered agent may redirect to a loopback address, or to a web address on a host the operator allows.
+4. **A person connects it.** The agent opens Tale in the browser. The person signs in, chooses the organization the agent will work in and the access to give, and selects **Connect** on the consent page, which names the app and says whether it proved its domain. A person who may not connect an agent in that organization is told so there.
+5. **The agent calls the endpoint.** It receives an access token that lasts five minutes and a refresh token that stays valid for thirty days without use and is replaced each time it is used, and it renews the access token by itself. Every call carries `Authorization: Bearer <access token>`.
+
+An agent that asks for more than the endpoint grants is not refused for it: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes, and Tale leaves those out, because an agent is never granted an identity scope. An agent that asks for identity scopes alone asks for nothing the endpoint grants and is refused with `invalid_scope`.
+
+#### Who may connect {#who-may-connect}
+
+An Owner, Admin or Developer may connect an agent to the organization and give it any access. A member may connect one only with a competence that is used with a key, and may give it **Read and test** and **Read settings**. Anyone else is told on the consent page that they may not connect an agent in that organization. Anything beyond **Read and test** and **Read settings** needs a sign-in from the last day, so the page asks for the password first.
+
+#### Access levels {#access-levels}
+
+The consent page offers three levels, each adding to the one before, and three further choices. What the person allows becomes the scopes in the agent's token, and the endpoint checks them on every call beside the person's role: a call needs both, and the role is judged first. A scope never widens a role.
+
+Each choice below names its scope and the tools it opens:
+
+- **Read and test** (`tale:mcp`): `get_docs`, `get_catalog`, `search_catalog`, `validate_automation`, `run_automation`, `test_automation`, `get_automation`, `list_automations`, `list_runs`, `get_run`, `get_run_node`, `compare_runs`, `list_versions`, `list_triggers`, `get_automation_metrics`, `list_models`, `list_harnesses`, `list_skills`, `list_connectors`, `list_agent_secrets`, `list_projects`, `list_events`, `search_capabilities`, `get_knowledge`
+- **Edit automations** (`tale:automations.write`): `save_automation`
+- **Edit and deploy** (`tale:automations.deploy`): `deploy_automation`, `delete_automation`, `set_trigger`, `run_deployed`, `start_run`, `replay_run`, `cancel_run`, `answer_run_ask`, `set_automation_projects`, `delete_trigger`, `invoke_capability`
+- **Read settings** (`tale:settings.read`): `get_settings`, `plan_settings`
+- **Change settings** (`tale:settings.write`): `apply_settings`
+- **Connect AI subscriptions** (`tale:subscriptions.connect`): No tool takes it yet.
+
+A mock run (`start_run` with `mode: "mock"`) and the plan of a replay need only **Read and test**; a live start and a live replay need **Edit and deploy**. `get_settings` and `plan_settings` also accept **Change settings** in place of **Read settings**. What a connection holds is what its person allowed when they connected it: allowing the same app again changes that connection and never adds a second one, and an app that was disconnected and is allowed again makes a new connection.
+
+A call that the connection's access does not cover is refused before anything runs. The request answers `403` with the code `INSUFFICIENT_SCOPE`: `data.requiredScopes` names the access to ask for and `data.grantedScopes` what the connection holds, and a `WWW-Authenticate` challenge asks for both together, so asking again never drops access the agent had. A batch is refused as a whole, so it is never half done. A call that the person's role could never allow is not refused this way; it is a tool error with the same code and a hint to tell the person, because connecting again would change nothing.
+
+#### One organization {#one-organization}
+
+A connection works in the organization it was made for, whichever organizations the person belongs to. A call that names another organization with `X-Organization-Slug` is refused with `403` `ORG_MISMATCH`, and `data.organization` names the organization the connection is for. A person who wants an agent in two organizations connects it to each.
+
+#### End a connection {#disconnect}
+
+A person ends their own connection, and an Owner or Admin ends anyone's, under **Settings > API > Connected agents** ([Connected agents](/platform/admin/connected-agents)). The agent's next call is refused with `401` and it cannot refresh. A connection also ends without anyone asking when its person leaves the organization, is erased, changes their password, or loses a passkey or a two-factor sign-in to an Admin's reset, and when a refresh token is used twice, which ends every connection of that app for that person. The person finds a notice in their notifications for a disconnect they did not make.
 
 ### Initialize and retrieve the authoring reference
 
-The examples assume `TALE_URL`, `TALE_API_KEY`, and `TALE_ORG_SLUG` are already set in your environment. `TALE_URL` is the application origin, without `/api/v1`.
+The examples assume `TALE_URL`, `TALE_API_KEY`, and `TALE_ORG_SLUG` are already set in your environment. `TALE_URL` is the application origin, without `/api/v1`. A signed-in agent sends its access token in the same header.
 
 ```bash
 curl --fail-with-body "$TALE_URL/api/v1/mcp" \
@@ -266,7 +312,7 @@ Write each `/` in an automation name as `%2F`: `tale://automations/billing%2Fdun
 
 Each argument is a single word, because clients such as Claude Code split arguments at spaces. An argument sent empty counts as left out. A prompt whose run or automation the key holder cannot read returns `-32602` with that read's code.
 
-## What the key may do
+## What a key or a connected agent may do {#what-it-may-do}
 
 | Operation | Required access |
 | --- | --- |
@@ -276,9 +322,9 @@ Each argument is a single word, because clients such as Claude Code split argume
 | Read, plan and change settings (`get_settings`, `plan_settings`, `apply_settings`) | What your role allows on the same Settings page; the catalog says what your role may do with each kind |
 | Save, deploy, delete, install in projects, set/delete a trigger, cancel a run, or execute live | Developer capability, plus the resource's normal access rules |
 
-The key identifies its holder; it does not expand that person's role or project access. An automation installed only in projects the key holder cannot read is left out of `list_automations`, and every read of it answers `AUTOMATION_NOT_FOUND`, as for one that does not exist. Live `invoke_capability` calls also pass through the execution checks.
+A key identifies its holder, and a connected agent the person who signed it in; neither expands that person's role or project access, and an agent also stays within the access they allowed ([Access levels](#access-levels)). An automation installed only in projects the key holder cannot read is left out of `list_automations`, and every read of it answers `AUTOMATION_NOT_FOUND`, as for one that does not exist. Live `invoke_capability` calls also pass through the execution checks.
 
-Every change an MCP call makes to an automation — a version saved, a deploy, a delete, a trigger set or removed, an installation added or removed — is in the organization's audit log, marked as coming through MCP with the tool and the API key. In the event's details, **Source** reads Coding agent, and **Client** names the agent's app when it names itself on every call, as on revision 2026-07-28; an app on a 2025 revision names itself only on `initialize`, so its events show no **Client** ([Audit logs](/platform/admin/governance/audit-logs)).
+Every change an MCP call makes to an automation — a version saved, a deploy, a delete, a trigger set or removed, an installation added or removed — is in the organization's audit log, marked as coming through MCP with the tool and the API key or the agent's connection. In the event's details, **Source** reads Coding agent, and **Client** names the agent's app when it names itself on every call, as on revision 2026-07-28; an app on a 2025 revision names itself only on `initialize`, so its events show no **Client** ([Audit logs](/platform/admin/governance/audit-logs)).
 
 Read `GET /api/v1/me` before configuring privileged tools: `capabilities.developer` reports the current role gate, while `deploymentEditor` is a separate operator allowlist and does not authorize MCP authoring. The MCP tool-error envelope below still applies; a REST capability check does not change JSON-RPC error handling.
 
@@ -295,6 +341,10 @@ Read `GET /api/v1/me` before configuring privileged tools: `capabilities.develop
 | `validate_automation` with `valid: false` | Normal validation result; inspect `errors` and where each one is ([Read a validation result](#validation-result)), even though `isError` remains false. Warnings never make a document invalid |
 | Capability `output` with `status: "waiting"` | The run waits, for example for an approval a person gives in Tale; it has neither finished nor failed. Poll `get_run` and do not retry it |
 | Capability result `refused` | Error result; correct the stated cause |
+| HTTP `401` with a `WWW-Authenticate: Bearer` challenge | No credential, or one the endpoint refuses. `error="invalid_token"` says a credential was presented: an access token that ran out is renewed with the refresh token, and a connection that was disconnected, or whose person left the organization, needs the agent signed in again. Without `error`, start the sign-in the challenge points to |
+| HTTP `403` `INSUFFICIENT_SCOPE` | The connection lacks access some call in the request needs and the person who connected it could allow; nothing in the request ran. `data.requiredScopes` names what to ask for and `data.grantedScopes` what it holds ([Access levels](#access-levels)) |
+| HTTP `403` `ORG_MISMATCH` | The call names another organization than the one the connection was made for; `data.organization` names that one ([One organization](#one-organization)) |
+| Tool result `INSUFFICIENT_SCOPE` | The call needs access the person's role can never allow; tell the person, because connecting again would change nothing |
 
 Tool refusal codes include `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `AUTOMATION_VERSION_STALE`, `AUTOMATION_DEPLOYMENT_STALE`, `AUTOMATION_NAME_TAKEN`, `AUTOMATION_HAS_ACTIVE_RUNS`, `AUTOMATION_NOT_INSTALLED`, `HUMAN_ASK_NOT_FOUND`, `HUMAN_ASK_NOT_PENDING`, `HUMAN_ASK_EXPIRED`, `EMPTY_ANSWER`, `INVALID_CURSOR`, `BENCH_INVALID`, `LIVE_MODE_UNAVAILABLE`, and `NOT_SUPPORTED`. The latter means the host does not support that run/version/trigger operation. `start_run` refuses a reused `idempotencyKey` with different arguments as `IDEMPOTENCY_KEY_REUSED`; `invoke_capability` refuses an id the registry does not hold — a saved-only automation is not in it — as `CAPABILITY_NOT_FOUND` and input its schema rejects as `CAPABILITY_INPUT_INVALID`; `get_knowledge` lifts the knowledge endpoint's own codes through (`KNOWLEDGE_UNAVAILABLE` when the search itself failed). Platform errors retain their own code, hint, and optional data; for example, missing developer access returns `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` lists every argument problem; a value outside an enumerated set is refused with the set named. `RATE_LIMITED` means the tool needed an execution, or a settings change, and the key holder's [budget](/develop/rate-limits) for it is spent: wait `data.retryAfterMs`. `run_automation` and `test_automation` are refused the same way when the organization's budget for runs that are never stored is spent. `INTERNAL_ERROR` means the call failed unexpectedly; its `data.requestId` is the id to quote to whoever runs the deployment. The settings tools add `SETTINGS_STALE` (a resource changed since you read it; `data.currentHash` is its hash now), `SECRET_ARGUMENT_REFUSED` (a change carried a secret; `data.places` says where, never what), `SETTINGS_KIND_UNAVAILABLE` (this deployment does not serve that kind over MCP), `SETTINGS_NOT_FOUND` (an action on a resource that does not exist) and `SETTINGS_DUPLICATE` (one resource changed twice in one call).
 
@@ -302,4 +352,4 @@ An unknown automation name is an error even for `list_versions`, `list_runs`, an
 
 ## Where this fits
 
-REST and MCP share keys, organization scoping, and durable run objects. Use REST when you want explicit HTTP routes; use MCP when your client understands tool discovery and calls. Tale does not register or call external MCP servers through this endpoint.
+REST and MCP share keys, organization scoping, and durable run objects. Use REST when you want explicit HTTP routes; use MCP when your client understands tool discovery and calls. Tale does not register or call external MCP servers through this endpoint. An agent's sign-in works on the MCP endpoint only: every other route takes API keys, and a token of that shape presented there is refused as the key it can only be.

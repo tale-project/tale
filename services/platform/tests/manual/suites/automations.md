@@ -192,8 +192,10 @@ output:
       (fallback `automations.list.projectBound`)
 - [ ] `AUTO-F5` · **Create menu** — **Create automation**
       (`automations.list.createButton`) on the org and project lists → A dropdown
-      with two lanes: **Blank (trigger + agent)**
-      (`automations.createMenu.blank`), and **Upload package**
+      with four lanes, in this order: **From a starter**
+      (`automations.createMenu.starter`), **With your coding agent**
+      (`automations.createMenu.withAgent`, `AUTO-F183`), **Blank (trigger +
+      agent)** (`automations.createMenu.blank`), and **Upload package**
       (`automations.upload.trigger`); absent entirely without the developer
       capability.
 - [ ] `AUTO-F6` · **~~Builder dialog~~ (retired)** → The independent goal-based
@@ -972,8 +974,16 @@ output:
       (`automations.codingAgent.button`) → it is the last button at the
       canvas's top right in Canvas, List and Source, and the primary action of
       a version with no nodes (`automations.canvas.empty.title`); its dialog
-      shows **Name of this automation** (`automations.codingAgent.nameLabel`)
-      to copy, **Set up MCP** (`automations.codingAgent.setUp`) opening
+      shows what SET-F89 shows — the **Claude Code**, **Codex** and **Other**
+      tabs with their commands, the line that waits for an agent to sign in and
+      then names it, and a prompt that names this automation
+      (`codingAgent.prompt.edit`) with **[Describe the change you want.]**
+      marked — and **Setup guide** (`codingAgent.dialog.guide`) opening the
+      guide in a new tab. With the agent sign-in switched off
+      (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) it shows **Name of
+      this automation** (`automations.codingAgent.nameLabel`) to copy, **Set up
+      MCP** (`automations.codingAgent.setUp`) opening
       `/dashboard/{org}/settings/api/mcp`, and **How to connect a coding
       agent** (`automations.codingAgent.learnMore`) opening the MCP endpoint
       guide in a new tab.
@@ -985,6 +995,40 @@ output:
       it stands out while other nodes step back; End says
       `automations.canvas.end.failedAt`; selecting a node opens its inspector
       on **Last run** (`automations.editor.inspector.tabs.run`).
+- [ ] `AUTO-F182` · **Open a failed run and select Fix with your coding agent**
+      (`automations.codingAgent.fixAction`) → as an Owner, Admin or Developer
+      the button stands after **Show step** and **Retry from this step** on
+      the failure card, and is its only button when the run names no step; a
+      reader without the developer capability sees the card without it. Its
+      dialog is titled **Fix with your coding agent** and says a coding agent
+      can read this run step by step (`automations.codingAgent.fixBody`);
+      below it stands what SET-F89 shows — the client tabs with their
+      commands and the line that waits for an agent to sign in — and a prompt
+      that names the run's ID and its automation (`codingAgent.prompt.run`)
+      with no part in brackets, so no hint to replace one. Give the prompt to
+      a connected agent → it reads the run with `get_run`, explains why it
+      failed and proposes a fix, and asks before it saves one. With agent
+      sign-in switched off (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) the dialog shows
+      **Name of this automation** and **ID of this run**
+      (`automations.codingAgent.runLabel`) to copy, **Set up MCP** and **How
+      to connect a coding agent** instead. At 390 px the card's buttons wrap
+      and the dialog is a bottom sheet.
+- [ ] `AUTO-F183` · **Create automation › With your coding agent**
+      (`automations.createMenu.withAgent`) → a dialog titled **Create with your
+      coding agent** (`automations.codingAgent.createTitle`) says coding agents
+      build automations through the MCP server
+      (`automations.codingAgent.createBody`); below it stands what SET-F89
+      shows — the client tabs with their commands and the line that waits for
+      an agent to sign in — and a prompt that asks the agent to create one
+      (`codingAgent.prompt.create`) with **[Describe what it should do.]**
+      marked and the hint to replace it. The item is second in the menu, after
+      **From a starter**, on the organization's list and on a project's. With
+      agent sign-in switched off (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) the dialog shows **Set
+      up MCP** and **How to connect a coding agent** and no name to copy. Give
+      the prompt to a connected agent → it saves a first version of a new
+      automation, which then appears in the list; it asks before it deploys.
 - [ ] `AUTO-F90` · **Expand a node's Code field, edit, then go back** →
       **Expand editor** (`codeEditor.expand`) opens the larger editor; **Back
       to the field** (`codeEditor.collapse`) returns with the edit in place and

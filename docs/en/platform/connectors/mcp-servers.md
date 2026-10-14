@@ -3,15 +3,15 @@ title: Connect an external client with MCP
 description: Find Tale’s MCP endpoint and understand how external clients use it to work with Tale.
 ---
 
-Tale exposes an MCP endpoint that lets an external coding assistant or other MCP client work with your organization. Use it to discover capabilities, author automations, and inspect runs through the client’s tools. Access follows the organization API key and its holder’s permissions.
+Tale exposes an MCP endpoint that lets an external coding assistant or other MCP client work with your organization. Use it to discover capabilities, author automations, and inspect runs through the client’s tools. Access follows the permissions of the person behind the connection: the holder of the API key, or the person who signed the agent in.
 
 ## Find your endpoint
 
-Open **Settings > API > MCP**. The page shows the deployment’s endpoint URL, the organization slug, available tool groups, and a request you can copy to check connectivity. Create a suitable key under **Settings > API** if you do not already have one.
+Open **Settings > API > MCP**. Where agents may sign in, the page starts with **Connect a coding agent**: the commands for Claude Code and Codex, a line that says when your agent has signed in, and a first prompt to give it. Below, it shows the deployment’s endpoint URL, the organization slug, available tool groups, and a request you can copy to check connectivity. A coding agent signs itself in once it has this address ([Connected agents](/platform/admin/connected-agents) shows and ends those connections); otherwise create a suitable key under **Settings > API**.
 
-<Frame caption="The MCP settings page provides the endpoint, organization context, and available tools.">
+<Frame caption="The MCP settings page connects a coding agent and provides the endpoint, organization context, and available tools.">
 
-![The MCP settings page shows an endpoint URL ending in /api/v1/mcp, an organization slug, tool groups, and a sample connectivity request.](/images/platform/settings-mcp-endpoint.webp)
+![The MCP settings page starts with Connect a coding agent: the Claude Code, Codex and Other tabs, the two commands that add Tale and sign in, a line that waits for the agent to sign in, and a first prompt to copy. Below it, the MCP endpoint section shows an endpoint URL ending in /api/v1/mcp.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

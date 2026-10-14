@@ -43,6 +43,12 @@ vi.mock('@/app/features/organization/hooks/queries', () => ({
     refetch: vi.fn(),
   }),
 }));
+// The page says a coding agent signs itself in when agents may: render the
+// longer wording, which is the one a narrow column has to fit.
+vi.mock(
+  '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
+  () => ({ useApiSettingsAccess: () => ({ connectAgents: true }) }),
+);
 
 afterEach(() => {
   cleanup();

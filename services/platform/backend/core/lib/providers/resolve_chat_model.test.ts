@@ -86,7 +86,6 @@ const BASE_ARGS = {
   organizationId: 'org-1',
   userId: 'user-1',
   requiresVision: false,
-  hasDocumentAttachments: false,
 };
 
 afterEach(() => {
@@ -123,12 +122,11 @@ describe('resolveChatModel — sources in order', () => {
         source: 'preferred',
         band: 'standard',
         highStakes: false,
-        documentWork: false,
       },
     });
   });
 
-  it('floors a short prompt with a document attachment to standard', async () => {
+  it('routes a short ask about a document by its text alone', async () => {
     mockedWalk.mockResolvedValue(
       [
         entry({
@@ -145,22 +143,17 @@ describe('resolveChatModel — sources in order', () => {
     );
     const result = await resolveChatModel(
       fakeCtx([{ providerSlug: 'anthropic', authMethod: 'api-key' }]),
-      {
-        ...BASE_ARGS,
-        // Bandless on its own: without the attachment this lands on draft.
-        promptText: 'Fasse mir das Dokument zusammen',
-        hasDocumentAttachments: true,
-      },
+      // An attached document does not move the band: the text does.
+      { ...BASE_ARGS, promptText: 'Fasse mir das Dokument zusammen' },
     );
     expect(result).toEqual({
       ok: true,
       pick: {
         providerSlug: 'anthropic',
-        modelId: 'claude-sonnet-5',
+        modelId: 'claude-haiku-4-5',
         source: 'preferred',
-        band: 'standard',
+        band: 'draft',
         highStakes: false,
-        documentWork: true,
       },
     });
   });

@@ -41,12 +41,15 @@ vi.mock('../../auth/membership.ts', () => ({
 import {
   branchForEdit,
   branchForRegenerate,
+  createThread,
   getSharedThread,
   listThreadBranches,
   loadProjectSharedThread,
   moveThreadToProject,
   projectSharedViewLeaf,
+  readConversationSkills,
   searchChats,
+  setConversationSkills,
   setThreadArchived,
   setThreadSharedWithProject,
   shareThread,
@@ -652,6 +655,78 @@ describe('branchForEdit / branchForRegenerate hang a fork off the turn it versio
       'b1',
       2,
     ]);
+  });
+});
+
+describe('the skills a conversation uses [CHAT-R29]', () => {
+  it('keeps them on the root, for every version of the conversation', async () => {
+    const branch = { ...OWNED_ROW, id: 'thread_b', branchRootId: 'thread_1' };
+    const root = {
+      ...OWNED_ROW,
+      capabilities: { skills: ['pdf'], connectors: ['crm'] },
+    };
+    const { sql, statements } = fakeSql((statement) =>
+      statement.text.includes('SELECT')
+        ? [statement.values[0] === 'thread_b' ? branch : root]
+        : undefined,
+    );
+
+    await expect(
+      setConversationSkills(sql, 'org_1', 'user_1', 'thread_b', ['docx']),
+    ).resolves.toBe(true);
+
+    const write = statements.find((statement) =>
+      statement.text.includes('UPDATE app.thread_metadata SET capabilities'),
+    );
+    expect(write?.values).toEqual([
+      { json: { skills: ['docx'], connectors: ['crm'] } },
+      'thread_1',
+    ]);
+  });
+
+  it('changes nothing for a thread the caller does not own [CHAT-R1]', async () => {
+    const { sql, statements } = fakeSql(() => []);
+    await expect(
+      setConversationSkills(sql, 'org_1', 'user_2', 'thread_1', ['docx']),
+    ).resolves.toBe(false);
+    expect(
+      statements.some((statement) => statement.text.includes('UPDATE')),
+    ).toBe(false);
+  });
+
+  it('reads them from the root of the organization only', async () => {
+    const { sql, statements } = fakeSql(() => [
+      { capabilities: { skills: ['docx', 'xlsx'], connectors: [] } },
+    ]);
+    await expect(
+      readConversationSkills(sql, 'org_1', 'thread_1'),
+    ).resolves.toEqual(['docx', 'xlsx']);
+    expect(statements[0]?.values).toEqual(['thread_1', 'org_1']);
+
+    const none = fakeSql(() => []);
+    await expect(
+      readConversationSkills(none.sql, 'org_1', 'thread_x'),
+    ).resolves.toEqual([]);
+  });
+
+  it('starts a conversation with them', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      statement.text.includes('INSERT INTO app.threads')
+        ? [{ id: 'thread_new' }]
+        : undefined,
+    );
+    await createThread(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      kind: 'direct',
+      skills: ['xlsx'],
+    });
+    const metadata = statements.find((statement) =>
+      statement.text.includes('INSERT INTO app.thread_metadata'),
+    );
+    expect(metadata?.values).toContainEqual({
+      json: { skills: ['xlsx'], connectors: [] },
+    });
   });
 });
 

@@ -177,6 +177,35 @@ describe('codex-jsonl parser', () => {
     },
   );
 
+  it('preserves the status of the exhausted HTTP retry envelope', () => {
+    const message =
+      'exceeded retry limit, last status: 429 Too Many Requests, request id: req-1';
+    expect(describeTurnFailure(message)).toEqual({
+      message,
+      apiErrorStatus: 429,
+      providerErrorKind: 'model_capacity',
+    });
+    const events = collectEvents(
+      createParser('codex'),
+      `${JSON.stringify({ type: 'turn.failed', error: { message } })}\n`,
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-ended',
+      isError: true,
+      apiErrorStatus: 429,
+      providerErrorKind: 'model_capacity',
+    });
+    for (const other of [
+      `Tool said: ${message}`,
+      message.replace('429', '4290'),
+      'exceeded retry limit, last status: 502 Bad Gateway',
+    ]) {
+      expect(describeTurnFailure(other)).not.toHaveProperty(
+        'providerErrorKind',
+      );
+    }
+  });
+
   it('classifies only the pinned terminal model-capacity sentence without inventing HTTP429', () => {
     const message =
       'Selected model is at capacity. Please try a different model.';

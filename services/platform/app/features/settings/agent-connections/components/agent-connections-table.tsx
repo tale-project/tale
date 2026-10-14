@@ -3,7 +3,7 @@
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { useListPage } from '@tale/ui/use-list-page';
 import { Bot, Plus } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -17,9 +17,11 @@ interface AgentConnectionsTableProps {
   viewerUserId: string | undefined;
   /** Whether everyone's agents are listed, not only the person's own. */
   everyone: boolean;
-  /** Where "Connect a coding agent" leads; none for a person it does not
-   * lead anywhere for. */
-  connectHref: string | undefined;
+  /** What "Connect a coding agent" does; none for a person who may not
+   * connect one. */
+  onConnect: (() => void) | undefined;
+  /** The button that opens it, so focus can come back to it. */
+  connectTriggerRef?: RefObject<HTMLButtonElement | null>;
   /** What an owner or admin chooses the list by, beside the table's own
    * controls. */
   filters?: ReactNode;
@@ -32,7 +34,8 @@ export function AgentConnectionsTable({
   organizationId,
   viewerUserId,
   everyone,
-  connectHref,
+  onConnect,
+  connectTriggerRef,
   filters,
   error,
   onRetry,
@@ -71,12 +74,15 @@ export function AgentConnectionsTable({
       // in the empty state while there are none. Wait for the first answer so
       // a focused opener is never taken away by an empty read.
       addAction={
-        connections === undefined || connectHref === undefined
+        connections === undefined || onConnect === undefined
           ? undefined
           : {
               label: t('list.connectAction'),
               icon: Plus,
-              href: connectHref,
+              onClick: onConnect,
+              ...(connectTriggerRef === undefined
+                ? {}
+                : { triggerRef: connectTriggerRef }),
             }
       }
       filtersContent={filters}

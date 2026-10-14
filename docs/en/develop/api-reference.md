@@ -191,9 +191,9 @@ Use a maintained OIDC client with authorization code flow, S256 PKCE, one-use st
 
 The ID token carries the standard claims of the scopes you request, with the values userinfo returns, so you can read them without a userinfo request. `email` adds `email` and `email_verified`. `profile` adds `name`, split into `given_name` (every word but the last) and `family_name` (the last word) when the name has two or more words, and `picture` when the account has one.
 
-Tale rechecks current membership and native MFA enforcement before issuing tokens and when reading userinfo; the application remains responsible for its own account access policy. Codes, access tokens and ID tokens expire after five minutes, and a code can be redeemed once. Dynamic registration, implicit grants and refresh tokens are disabled.
+Tale rechecks current membership and native MFA enforcement before issuing tokens and when reading userinfo; the application remains responsible for its own account access policy. Codes, access tokens and ID tokens expire after five minutes, and a code can be redeemed once. For applications, dynamic registration, implicit grants and refresh tokens are disabled; [coding agents](#coding-agents) are the exception.
 
-Access tokens serve only native userinfo; external resource audiences are disabled. Use native API keys for REST requests.
+An application's access tokens serve only native userinfo, and the one resource audience is the MCP endpoint, for coding agents. Use native API keys for REST requests.
 
 ### Handle identity-provider errors
 
@@ -202,6 +202,12 @@ Errors follow RFC 6749 and RFC 6750 — what a maintained client expects. `useri
 The token and authorization endpoints answer `{ "error", "error_description" }`: a grant other than `authorization_code` is `unsupported_grant_type`, a malformed request — a missing `grant_type` included — `invalid_request`, with the description naming the parameter (`grant_type is required`, `client_id is required`, `response_type must be one of "code"`). A body of the wrong media type on a JSON-only endpoint (a form posted to `register`) returns **400** `invalid_request` naming the type it takes — there is no 415 on this surface.
 
 An authorization request whose `client_id` names no registered client is redirected to the issuer's own error page — never to the `redirect_uri` it sent — with `error=invalid_client` and a description that says the client is unknown, so a mistyped id is not mistaken for a missing one. Discovery lists `https://tale.dev/organization` under `claims_supported`; it also advertises the provider's introspection, revocation and end-session endpoints, which the flow above does not need.
+
+### Coding agents sign in to the MCP endpoint {#coding-agents}
+
+The same server signs coding agents in to the [MCP endpoint](/develop/mcp-endpoint#sign-in), through the same authorization and token endpoints, with a different kind of client. An agent identifies itself by a client metadata document at an HTTPS address it controls, or registers itself; it is not one of the application clients above. Its scopes are the agent scopes (`tale:mcp`, `tale:automations.write`, `tale:automations.deploy`, `tale:settings.read`, `tale:settings.write`, `tale:subscriptions.connect`) and `offline_access`, never `openid`, `profile`, `email` or `tale:organization`: an agent that asks for those beside the agent scopes is given the agent scopes alone, and one that asks only for those is refused with `invalid_scope`. The authorization request names the MCP endpoint as its `resource`; the access token lasts five minutes, the refresh token thirty days without use and is replaced each time it is used, and no ID token is issued.
+
+An application registered under this section cannot ask for an agent scope or name the MCP endpoint: the request is refused with `invalid_scope`. Registration by agents is limited to 10 an hour per source address and 500 a day across the deployment ([Rate limits](/develop/rate-limits)). [Connected agents](/platform/admin/connected-agents) lists the connections an agent's sign-in creates.
 
 ### Rotate or disable an application client
 
@@ -924,7 +930,9 @@ An optional `Idempotency-Key` must contain 1–255 printable ASCII characters af
 
 ### Understand assistant behavior and token limits
 
-A turn is the complete handling of one accepted message, including model rounds and tool calls. REST chat uses the built-in workspace assistant with its instructions, safety rules, and three retrieval tools. These add roughly 3,000 prompt tokens per model round, included in `usage.inputTokens`. A tool-using turn can take up to five rounds, each billing its full prompt. Requests for deliverables such as documents or reports are directed to Tasks.
+A turn is the complete handling of one accepted message, including model rounds and tool calls. REST chat uses the built-in workspace assistant with its instructions, safety rules, and tools: three retrieval tools, and the work tools your organization’s Chat tools policy allows, with which it makes the files it is asked for and returns them as `artifact` parts. These add roughly 3,000 prompt tokens per model round, more with the work tools, included in `usage.inputTokens`. A tool-using turn can take up to five rounds, thirteen with the work tools, each billing its full prompt.
+
+To choose skills for a message, start `content` with `/` and a skill’s name, such as `"content": "/docx Write the cover letter"`: the turn reads the skill before the model answers, and the reply’s parts begin with that `load_skill` call and its result. Up to four names may lead the content (`/xlsx /brand-voice …`). Only skills the key holder can use count, and `GET /api/v1/skills` lists them; any other name, and a `/` later in the text, is part of the message as written. Skills a conversation uses for every reply are chosen in the app, and a thread continued here reads them too.
 
 Project threads can retrieve that project's files and the organization's knowledge hub, but not another project's files. Threads without a project can retrieve the hub only. The assistant chooses whether to search based on the question; naming a file or explicitly asking it to search helps express your intent, but no request field forces a retrieval call.
 

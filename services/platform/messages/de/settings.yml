@@ -46,6 +46,9 @@ menu:
   dataResidency:
     description: Wo die Wissensdatenbank und die hochgeladenen Dateien dieser
       Organisation liegen und welches Embedding-Modell sie verarbeitet.
+mcpConnect:
+  title: Coding-Agent verbinden
+  description: Claude Code, Codex und andere Coding-Agents arbeiten über den MCP-Server von Tale in dieser Organisation. Du wählst bei der Anmeldung, was ein Agent darf, und er darf nie mehr als du.
 mcpEndpoint:
   title: MCP-Endpunkt
   description: Verbinde einen MCP-Client mit diesem Deployment, um
@@ -59,6 +62,14 @@ mcpEndpoint:
     gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
     Header X-Organization-Slug. Schlüssel erstellst und verwaltest du unter'
   authLink: REST-API-Schlüssel.
+  signInHelp: 'Ein Coding-Agent, der die Anmeldung unterstützt, meldet sich selbst an: Gib dem Agent diese Adresse und folge den Schritten der Anmeldung. Du wählst die
+    Organisation und was der Agent darf, und beendest die Verbindung unter'
+  signInLink: Verbundene Agenten.
+  authHelpScripts: 'Skripte und andere Clients authentifizieren sich mit einem
+    REST-API-Schlüssel als Bearer-Token. Ein Schlüssel gehört der Person, die
+    ihn erstellt hat, und gilt in jeder Organisation, der sie angehört; diese
+    Organisation nennt der Header X-Organization-Slug. Schlüssel erstellst und
+    verwaltest du unter'
   orgSlug:
     title: Organisations-Slug
     description: Gehört der Schlüsselinhaber mehreren Organisationen an,
@@ -1109,9 +1120,9 @@ apiKeys:
     expiresOn: Der Schlüssel läuft am {date} ab.
     neverExpiresHint: Der Schlüssel funktioniert, bis er widerrufen wird.
     expiryDate: Ablaufdatum
-    expiryDateHint: Wähle einen Tag, höchstens ein Jahr im Voraus.
+    expiryDateHint: Wähle einen verfügbaren Tag im Kalender.
     expiryDateRequired: Wähle ein Ablaufdatum.
-    expiryDateRange: Wähle einen Tag zwischen morgen und einem Jahr ab heute.
+    expiryDateRange: Wähle ein Datum im verfügbaren Zeitraum.
     owner: Gehört zu
     ownerOptions:
       self: Dir

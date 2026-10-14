@@ -38,43 +38,59 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
     <a href="/fixture-owner">{children}</a>
   ),
 }));
-vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (name: string) => ({
-    data: name.endsWith(':listSandboxesForOrg')
-      ? {
-          sessions: [
-            {
-              sessionId: 'owned',
-              ownerType: 'project_agent',
-              ownerId: 'agent-alice',
-              ownerLabel: 'Alice',
-              worker: { number: 1, scope: 'agent' },
-              createdBy: 'system:task-agent',
-              status: 'active',
-              createdAt: 1_750_000_000_000,
-              pinned: false,
-              busy: true,
-              totalSpentCents: 0,
-              currentOp: null,
-              runningOps: [],
-            },
-          ],
-          waitingRuns: { total: 0, byReason: {} },
-        }
-      : name.endsWith(':getSandboxDeploymentLimits')
-        ? { status: 'available', maxSessions: 16 }
-        : name.endsWith(':getSandboxQuotaUsage')
-          ? []
-          : name === 'sandbox_devices/queries:list'
-            ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
-            : name === 'governance/queries:getPolicy'
-              ? null
-              : { status: 'unavailable', reason: 'not_configured' },
+// Each read keeps one identity across renders, as the cache's own data does: a
+// fresh object per call would change the table's column definitions on every
+// render, and a changed definition remounts every cell under an open row menu.
+const reads = vi.hoisted(() => {
+  const refetch = vi.fn();
+  const read = (data: unknown) => ({
+    data,
     isLoading: false,
     isFetching: false,
     isError: false,
-    refetch: vi.fn(),
-  }),
+    refetch,
+  });
+  return {
+    sessions: read({
+      sessions: [
+        {
+          sessionId: 'owned',
+          ownerType: 'project_agent',
+          ownerId: 'agent-alice',
+          ownerLabel: 'Alice',
+          worker: { number: 1, scope: 'agent' },
+          createdBy: 'system:task-agent',
+          status: 'active',
+          createdAt: 1_750_000_000_000,
+          pinned: false,
+          busy: true,
+          totalSpentCents: 0,
+          currentOp: null,
+          runningOps: [],
+        },
+      ],
+      waitingRuns: { total: 0, byReason: {} },
+    }),
+    limits: read({ status: 'available', maxSessions: 16 }),
+    usage: read([]),
+    devices: read({ devices: [], hub: 'available', serverVersion: '0.5.60' }),
+    policy: read(null),
+    other: read({ status: 'unavailable', reason: 'not_configured' }),
+  };
+});
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (name: string) =>
+    name.endsWith(':listSandboxesForOrg')
+      ? reads.sessions
+      : name.endsWith(':getSandboxDeploymentLimits')
+        ? reads.limits
+        : name.endsWith(':getSandboxQuotaUsage')
+          ? reads.usage
+          : name === 'sandbox_devices/queries:list'
+            ? reads.devices
+            : name === 'governance/queries:getPolicy'
+              ? reads.policy
+              : reads.other,
 }));
 
 const refusalCopy = {

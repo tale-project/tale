@@ -27,8 +27,6 @@ vi.mock('../hooks/mutations', () => ({
   useDisconnectAgent: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-const MCP = '/dashboard/org-1/settings/api/mcp';
-
 function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
   return {
     id: 'conn-1',
@@ -38,6 +36,7 @@ function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
     clientHost: 'claude.ai',
     scopes: ['tale:mcp', 'tale:automations.write'],
     createdAt: Date.UTC(2026, 9, 1, 12),
+    updatedAt: Date.UTC(2026, 9, 1, 12),
     lastUsedAt: null,
     revokedAt: null,
     revokeReason: null,
@@ -54,7 +53,7 @@ function table(props: Partial<Parameters<typeof AgentConnectionsTable>[0]>) {
       organizationId="org-1"
       viewerUserId="ada"
       everyone={false}
-      connectHref={MCP}
+      onConnect={() => {}}
       {...props}
     />
   );
@@ -152,25 +151,27 @@ describe('AgentConnectionsTable [AGCONN-R24]', () => {
       screen.getByText(/^Connect Claude Code, Codex, Cursor or another agent/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: 'Connect a coding agent' }),
-    ).toHaveAttribute('href', MCP);
+      screen.getByRole('button', { name: 'Connect a coding agent' }),
+    ).toBeInTheDocument();
   });
 
-  it('offers no way to connect to someone it leads nowhere for', () => {
-    render(table({ connections: [], connectHref: undefined }));
+  it('offers no way to connect to someone who may not connect one', () => {
+    render(table({ connections: [], onConnect: undefined }));
     expect(
       screen.getByRole('heading', { name: 'No coding agents connected' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Connect a coding agent' }),
+      screen.queryByRole('button', { name: 'Connect a coding agent' }),
     ).not.toBeInTheDocument();
   });
 
-  it('keeps the way to connect in the toolbar once there are agents', () => {
-    render(table({}));
-    expect(
-      screen.getByRole('link', { name: 'Connect a coding agent' }),
-    ).toHaveAttribute('href', MCP);
+  it('keeps the way to connect in the toolbar once there are agents, and it connects', async () => {
+    const onConnect = vi.fn();
+    const { user } = render(table({ onConnect }));
+    await user.click(
+      screen.getByRole('button', { name: 'Connect a coding agent' }),
+    );
+    expect(onConnect).toHaveBeenCalledOnce();
   });
 
   it('shows neither the empty state nor the way to connect while the list loads', () => {
@@ -179,7 +180,7 @@ describe('AgentConnectionsTable [AGCONN-R24]', () => {
       screen.queryByRole('heading', { name: 'No coding agents connected' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Connect a coding agent' }),
+      screen.queryByRole('button', { name: 'Connect a coding agent' }),
     ).not.toBeInTheDocument();
   });
 

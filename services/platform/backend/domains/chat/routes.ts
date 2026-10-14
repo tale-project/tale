@@ -11,6 +11,7 @@ import {
 } from '../../../lib/shared/chat-errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { localeTagSchema } from '../../../lib/shared/utils/locale-tag.ts';
+import { CHOSEN_SKILLS_MAX, isSkillName } from '../../../lib/skills/slash.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -56,6 +57,7 @@ import { getOrgChatHealth } from './health.ts';
 import { listMessageViews } from './message-views.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
+import { listChatSkillChoices } from './work-tools.ts';
 
 /** The pre-turn refusals of the serving layer: the model is not available to
  * the org, or the credential its provider resolves to cannot serve. Every
@@ -103,6 +105,7 @@ import {
   restoreThread,
   searchChats,
   setBranchSelection,
+  setConversationSkills,
   setThreadArchived,
   setThreadPinned,
   setThreadReasoningEffort,
@@ -124,12 +127,21 @@ import {
  * turns interleave on one thread.
  */
 
+/** The skills a conversation uses, by name: each spelled as a skill's
+ * folder, at most as many as one reply reads. Whether the library holds them
+ * is the reply's to check, when it runs. */
+const conversationSkillsSchema = z
+  .array(z.string().max(64).refine(isSkillName, 'not a skill name'))
+  .max(CHOSEN_SKILLS_MAX)
+  .transform((names) => [...new Set(names)]);
+
 const createThreadSchema = z.object({
   title: z.string().max(200).optional(),
   projectId: z.string().max(128).optional(),
   kind: z.string().max(50).optional(),
   agentSlug: z.string().max(200).optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
+  skills: conversationSkillsSchema.optional(),
 });
 
 // Query strings are a boundary too: `Number('abc')` is NaN, which postgres
@@ -370,6 +382,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ...(body.data.reasoningEffort !== undefined
           ? { reasoningEffort: body.data.reasoningEffort }
           : {}),
+        ...(body.data.skills !== undefined ? { skills: body.data.skills } : {}),
       });
       await hintThread(c, threadId);
       return c.json({ id: threadId }, 201);
@@ -467,6 +480,25 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
       c.req.param('threadId'),
       body.data.reasoningEffort,
+    );
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
+  });
+
+  // The skills the conversation uses: its replies read them before the
+  // model answers. The owner's alone; an empty list stops them.
+  app.post('/threads/:threadId/skills', async (c) => {
+    const body = z
+      .object({ skills: conversationSkillsSchema })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const { organizationId, userId } = caller(c);
+    const ok = await setConversationSkills(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.skills,
     );
     if (ok) await hintThread(c, c.req.param('threadId'));
     return c.json({ ok });
@@ -843,6 +875,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const { organizationId, userId } = caller(c);
     return c.json(
       await listComposerModels(deps.sql, { organizationId, userId }),
+    );
+  });
+
+  // The skills the person may choose in the composer, and whether they may
+  // choose any: the Chat tools policy's Skills switch decides.
+  app.get('/composer/skills', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json(
+      await listChatSkillChoices(deps.sql, { organizationId, userId }),
     );
   });
 

@@ -40,11 +40,13 @@ Ein fehlgeschlagener Lauf öffnet sich mit einer Karte, die sagt, wo und warum e
 
 Unter der Karte stehen der Schritt und sein Feld, etwa **Greet › input.email**, neben **Im Editor zeigen**: Das öffnet den Editor mit der Version, die der Lauf ausführte, und wählt den Schritt aus. **Schritt zeigen** wählt ihn im Canvas des Laufs aus, und **Ab diesem Schritt wiederholen** bereitet die Wiederholung vor, die [Ab einem Schritt wiederholen](#retry-from-step) beschreibt.
 
+**Mit deinem Coding-Agent beheben**, das Inhaber, Admins und Entwickler neben diesen Schaltflächen sehen, öffnet die Einrichtung, die [Verbundene Agenten](/de/platform/admin/connected-agents) beschreibt, mit einem Prompt, der diesen Lauf und seine Automatisierung nennt. Dein Agent liest die Aufzeichnung des Laufs, erklärt, warum er fehlgeschlagen ist, und schlägt die kleinste Korrektur vor; der Prompt sagt ihm, dass er vor dem Speichern einer Korrektur nachfragen soll und noch einmal vor dem Live-Schalten. Eine gespeicherte Korrektur erscheint im Editor als neue Version. Hat dein Betreiber die Anmeldung von Agents abgeschaltet, zeigt der Dialog den Namen der Automatisierung und die ID des Laufs, die du einem Agent mit deinem API-Schlüssel gibst.
+
 Im Canvas ist die fehlgeschlagene Node rot umrahmt, und ihre unterste Zeile wiederholt den Titel des Fehlers; die Nodes, über die der Lauf zu ihr kam, treten hervor, während die übrigen zurücktreten; und Ende sagt, wo der Lauf fehlschlug, etwa **Fehlgeschlagen bei Propose**. Die Liste **Läufe** nennt die Ursache eines fehlgeschlagenen Laufs mit demselben Titel.
 
 <Frame caption="Ein fehlgeschlagener Lauf öffnet sich mit dem Wo und Warum; im Canvas tritt der Weg zur fehlgeschlagenen Node hervor.">
 
-![Die Seite eines fehlgeschlagenen Testlaufs von Invoice digest: die Karte The run failed at Totals mit dem Titel Its code threw an error, der Ursache, How to fix, Technical details, Totals › Code mit Show in editor, Show step und Retry from this step; im Canvas darunter sind Start und Invoices erfolgreich, Totals ist rot umrahmt mit Its code threw an error, und Digest, das nicht lief, ist gestrichelt.](/images/platform/automation-run-failed.webp)
+![Die Seite eines fehlgeschlagenen Testlaufs von Invoice digest: die Karte The run failed at Totals mit dem Titel Its code threw an error, der Ursache, How to fix, Technical details, Totals › Code mit Show in editor, Show step, Retry from this step und Fix with your coding agent; im Canvas darunter sind Start und Invoices erfolgreich, Totals ist rot umrahmt mit Its code threw an error, und Digest, das nicht lief, ist gestrichelt.](/images/platform/automation-run-failed.webp)
 
 </Frame>
 

@@ -27,6 +27,9 @@ export interface ChatThreadSummary {
   /** The owner's explicit reasoning-effort pick for the conversation — the
    * composer re-hydrates its effort control from this. */
   readonly reasoningEffort?: ReasoningEffort;
+  /** The conversation's loadout as the row stores it; `skills` are the ones
+   * its replies read. Read structurally — older rows carry 0.4 shapes. */
+  readonly capabilities?: unknown;
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
   /** Owner's opt-in: readable by everyone with access to its project. */
@@ -99,6 +102,10 @@ export interface ChatMessageUsage {
   /** The tool loop spent its whole round budget and forced the final
    * answer — rendered as a notice on the message. */
   readonly stepLimitHit?: boolean;
+  /** The reply ran without the file tools its organization allows: the
+   * Chat tools policy could not be read, or setting them up failed —
+   * rendered as a notice on the message. */
+  readonly workToolsUnavailable?: 'policy_unreadable' | 'setup_failed';
   /** Why the final round stopped (`length` = the output cap cut the reply
    * short), when the provider or the platform said. */
   readonly finishReason?:
@@ -218,9 +225,10 @@ export interface ChatModelPick {
 }
 
 /**
- * What the composer sends. Model selection only — the chat page offers no
- * agent, skill, or sandbox pick (the Chat·Task·Automation boundary); the
- * reasoning effort is a property of the picked model.
+ * What the composer sends: the model, its reasoning effort, and the skills
+ * the conversation uses. There is no agent or sandbox pick (the
+ * Chat·Task·Automation boundary); the reasoning effort is a property of the
+ * picked model.
  */
 export interface ComposerSelection {
   /** The chosen model; absent while `modelSelection` is `'auto'` (and,
@@ -241,4 +249,8 @@ export interface ComposerSelection {
   /** The reasoning-effort pick riding the next turn; absent samples the
    * default (and a pick is silently ignored by non-reasoning models). */
   readonly reasoningEffort?: ReasoningEffort;
+  /** The skills the conversation uses: every reply reads them before the
+   * model answers. Kept on the conversation — a new chat carries them into
+   * the thread its first message creates. */
+  readonly skills?: readonly string[];
 }

@@ -10,7 +10,7 @@ Verwaltete Bereitstellungen verwenden feste Quellrevisionen und vorbereitete Bun
 ## Upgrade vorbereiten
 
 1. Führe `tale status` im vorgesehenen Workspace aus. Halte laufende Version, Workspace-Version und aktuellen Bereitstellungszustand fest.
-2. Lies die Release Notes der Zielversion zu Kompatibilität, erforderlicher Konfiguration und bekannten Einschränkungen. Für Instanzen vor 0.5 gilt der getrennte Umstieg weiter unten.
+2. Lies die Release Notes der Zielversion zu Kompatibilität, erforderlicher Konfiguration und bekannten Einschränkungen. Für Instanzen vor 0.5 gilt der getrennte Umstieg weiter unten, und ein Workspace mit v0.5.77 oder älter durchläuft einmal die Umstellung des Automations-Schreibprotokolls, die ebenfalls weiter unten beschrieben ist.
 3. Prüfe eine wiederherstellbare Sicherung außerhalb des Hosts, passende Schlüssel und den Sicherungsumfang externer Datenbanken und Buckets. [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) beschreibt die benötigten Bestandteile.
 4. Plane Kapazität für alte und neue Anwendungsreplikate gleichzeitig. Vereinbare ein Wartungsfenster, wenn Snapshots, Sandbox-Austausch oder zustandsbehaftete Dienste benötigte Arbeit unterbrechen können.
 5. Prüfe die Vorschau von Update und Bereitstellung. Ein erfolgreicher Probelauf beweist nicht, dass eine echte Migration gelingt; lies alle Warnungen.
@@ -90,6 +90,45 @@ tale rollback
 `--yes` überspringt die Bestätigung für einen bereits genehmigten unbeaufsichtigten Lauf. Die Prüfung derselben Versionslinie ist eine Schranke, kein eigenständiger Nachweis der Kompatibilität aller externen Integrationen und lokalen Anpassungen. Eine ältere Migrationsliste als Präfix der neuen macht ein Downgrade allein nicht sicher.
 
 `tale rollback` tauscht nur die Anwendungs-Images von `platform`, `backend-api` und `backend-worker` aus. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein gewöhnlicher Deploy (ohne `--services`) an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
+
+## Upgrade von v0.5.77 oder älter
+
+Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
+
+1. Läuft der Workspace auf einem Release vor v0.5.77, bringe ihn zuerst auf v0.5.77. Die Umstellung beginnt nur bei diesem Release:
+
+   ```bash
+   tale update -v 0.5.77
+   tale deploy
+   ```
+
+   Diese Schritte verwenden `-v`: CLIs aus der Zeit vor der Korrektur verstehen `tale update --version` als Frage nach ihrer eigenen Version und ändern nichts.
+
+2. Lass jeden Automations-Lauf in jeder Organisation zu Ende laufen oder brich ihn ab, und pausiere Zeitpläne und Auslöser, die neue Läufe starten würden, bis das Upgrade abgeschlossen ist.
+3. Prüfe deine Sicherung außerhalb des Hosts, aktualisiere dann und sieh dir die Vorschau an. Sie nennt alles, was die Umstellung noch blockiert:
+
+   ```bash
+   tale update -v <target-version>
+   tale deploy --dry-run
+   ```
+
+4. Stelle bereit, ohne `--stop` oder `--services`. Brauchen db, object-store oder proxy ein Update, führe danach `tale deploy --stop` aus:
+
+   ```bash
+   tale deploy
+   ```
+
+Bevor `tale deploy` etwas ändert, prüft es das Release des laufenden Backends, die Migrationshistorie der Datenbank und die Automations-Läufe. Ist etwas davon nicht bereit, hält es mit dem nächsten Schritt an und lässt den Workspace unverändert weiterlaufen. Andernfalls erstellt es wie gewohnt seinen Snapshot und ersetzt die Sandbox-Dienste. Unmittelbar bevor die neue Farbe startet, sperrt es neue Automations-Läufe, bestätigt, dass keiner mehr offen ist, hält die alten Container `backend-api` und `backend-worker` geordnet an und verzeichnet sie in `.tale/automation-cutover.json`. Ab diesem Anhalten ist die API nicht erreichbar, bis die neue Farbe gesund ist.
+
+Der erste Start der neuen Farbe wendet jede Datenbankmigration seit v0.5.77 an, bevor er sich gesund meldet; bei einer großen Wissensdatenbank kann das Kopieren der Vektoren länger dauern als `HEALTH_CHECK_TIMEOUT`. Bricht das Deployment ab, nachdem das alte Backend angehalten wurde, führe `tale deploy` mit demselben Release erneut aus: Es erkennt seine eigene Übergabe, auch einen ersten Start, der mitten in seinen Migrationen abgebrochen wurde, wartet auf die bereits startende Farbe, statt sie neu zu erstellen, und schließt das Upgrade ab. Bewahre `.tale/automation-cutover.json` auf und starte die alten Container nicht von Hand. Sobald die Umstellung begonnen hat, lehnt `tale rollback` die Rückkehr zu v0.5.77 ab; repariere mit einer kompatiblen Version, wie der nächste Abschnitt beschreibt.
+
+Ohne `tale deploy`, mit eigenen Compose-Dateien oder den [Kubernetes-Manifesten](/de/self-hosted/install/kubernetes), hält niemand diese Sperre für dich, und ein Rolling Update startet die neuen Backend-Container, während die alten noch laufen. Halte sie von Hand, in dieser Reihenfolge: Pausiere Zeitpläne und Auslöser und lass die Läufe zu Ende laufen; halte jedes `backend-api` und `backend-worker` von v0.5.77 an und stelle sicher, dass keines mehr läuft; prüfe, dass die Abfrage unten `0` liefert; und rolle erst dann die neue Version aus. Liefert sie mehr, starte das alte Backend wieder, lass diese Läufe zu Ende laufen und halte es erneut an. Mit Compose hält `docker compose stop backend-api backend-worker` beide an und kehrt zurück, sobald sie beendet sind.
+
+```bash
+kubectl -n tale scale --replicas=0 deployment/backend-api deployment/backend-worker
+kubectl -n tale get pods -l 'app in (backend-api, backend-worker)'
+psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
+```
 
 ## Umstellung des Automations-Protokolls: mit kompatibler Version reparieren
 

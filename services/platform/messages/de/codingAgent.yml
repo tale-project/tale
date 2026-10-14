@@ -1,0 +1,30 @@
+dialog:
+  title: Coding-Agent verbinden
+  description: Dein Agent meldet sich mit deinem Tale-Konto an. Du wählst die Organisation und was er darf.
+  guide: Anleitung
+  done: Fertig
+clients:
+  label: Coding-Agent
+  other: Andere
+steps:
+  claudeCodeAdd: Füge Tale zu Claude Code hinzu. Führe das in deinem Terminal aus.
+  claudeCodeSignIn: Melde dich an. Dein Browser öffnet Tale; wähle die Organisation und was der Agent darf.
+  codexAdd: Füge Tale zu Codex hinzu und melde dich an. Führe das in deinem Terminal aus; dein Browser öffnet Tale, wähle dort die Organisation und was der Agent darf.
+  otherAddress: Trage diese Adresse in deinem Client als Remote-MCP-Server ein.
+  otherSignIn: Wähle die Anmeldung im Browser (OAuth), wenn der Client fragt, wie er sich authentifizieren soll. Die Anleitung enthält die Schritte für Cursor, opencode und Claude im Web.
+copy:
+  command: Befehl kopieren
+  address: Adresse kopieren
+  prompt: Prompt kopieren
+  copied: Kopiert
+status:
+  waiting: Warte darauf, dass sich dein Agent anmeldet…
+  connected: 'Verbunden: {client}'
+prompt:
+  label: Frag dann deinen Agent
+  labelConnected: Probiere zuerst das
+  replace: Ersetze den Teil in Klammern, bevor du den Prompt abschickst.
+  general: Nutze den MCP-Server tale. Rufe zuerst get_docs auf, liste dann meine Automatisierungen mit list_automations auf und sag mir, was du in diesem Arbeitsbereich tun kannst. Frag mich, bevor du etwas live schaltest oder eine Einstellung änderst.
+  edit: Nutze den MCP-Server tale. Rufe get_docs auf und öffne dann die Automatisierung {name} mit get_automation. [Beschreibe die gewünschte Änderung.] Prüfe sie mit validate_automation und teste sie mit test_automation, bevor du sie mit save_automation als neue Version speicherst. Frag mich, bevor du sie live schaltest.
+  run: Nutze den MCP-Server tale. Der Lauf {runId} der Automatisierung {name} ist fehlgeschlagen. Rufe zuerst get_docs auf und lies den Lauf dann mit get_run samt seiner Aufzeichnung; failure.reason des fehlgeschlagenen Schritts sagt, warum. Lies die Automatisierung mit get_automation, erkläre mir in einfachen Worten, was schiefgelaufen ist, und schlage die kleinste Korrektur vor. Reproduziere den Fehler mit run_automation, bevor du etwas änderst. Liegt die Ursache nicht in der Automatisierung selbst, etwa bei einem Connector, einem Secret oder einem Modell, das nicht eingerichtet ist, sag mir, wo in Tale ich das einrichte, und bitte mich nie, ein Secret einzufügen. Speichere eine Korrektur erst mit save_automation, wenn ich zustimme, und frag mich, bevor du sie live schaltest.
+  create: Nutze den MCP-Server tale. Rufe zuerst get_docs auf und liste dann meine Automatisierungen mit list_automations auf, damit du keine doppelt anlegst. Erstelle eine neue Automatisierung. [Beschreibe, was sie tun soll.] Wähle einen Namen, den list_automations noch nicht zeigt, prüfe die Automatisierung mit validate_automation und teste sie mit test_automation. Speichere sie dann mit save_automation und create auf true. Frag mich, bevor du sie live schaltest.
