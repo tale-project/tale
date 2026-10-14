@@ -16,6 +16,7 @@ export const DISPATCH_PASS_TRIGGERS = [
   'config',
   'recheck',
   'manual',
+  'gate',
 ] as const;
 
 export type DispatchPassTrigger = (typeof DISPATCH_PASS_TRIGGERS)[number];

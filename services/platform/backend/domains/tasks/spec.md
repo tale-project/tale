@@ -454,7 +454,8 @@ Before each start of ready work, dispatch asks the sandbox host whether it admit
 deployment's thresholds or, with the conservative preset, by stricter ones for load and CPU,
 memory and I/O pressure. A hold ends the pass, and dispatch asks again after its recheck delays
 (60, 120, then 240 seconds by default, then the last). Its starts are at least the spacing it
-names apart (30 seconds by default).
+names apart (30 seconds by default). The host's readings a start was admitted on are kept with
+the pass and with the record of the run it started.
 
 - **Example**: The host's memory pressure is high when "Changelog" is next → nothing starts, and
   dispatch asks again a minute later, then after two minutes, then every four.
@@ -508,6 +509,22 @@ dispatch switched off drops out; a read that fails reports zero for every projec
 
 - **Example**: The job workers stop at 14:00 → the Fleet project's last pass stays at 13:59, and
   an alert on its age fires at 14:15.
+
+### TASK-R51 · A gate holds the ready work it governs while a signal from outside says so
+
+A dispatch may declare gates: signals from outside the platform, such as a CI system whose runner
+queue is full. Something outside reports on a gate — a state, or a value the gate judges: at or
+above its hold value it holds, and once held it opens only below its recover value (half the
+hold value unless declared). A held gate leaves the ready work it governs — the tasks with one of
+its labels, or all ready work when it names none — and dispatch starts the rest; standing roles
+are never held by a gate. A gate nobody reports on for its stale window (ten minutes unless
+declared) opens, or holds when it declares so. A gate with start spacing lets one start of its
+work through, then the next only after the spacing. A report that opens a gate asks for a pass
+at once. Who may edit the project reports through the API; who may administer it, in the app.
+
+- **Example**: The CI watcher reports 23 queued jobs on the gate `ci` (hold at 20) → "Changelog",
+  labelled `ci`, waits and "Press kit" starts. It reports 14 → `ci` still holds; 9 → it opens, and
+  "Changelog" starts within the minute.
 
 ## What a run is handed
 

@@ -791,6 +791,10 @@
  * without one reads as null; a change may create it. A start the dispatch
  * makes answers to the project (`startedBy` `dispatch:<projectId>`) and runs
  * with trigger `dispatch`. A run waiting for its model reads `waitingReason`
- * `model_capacity`. No REST operation changes.
+ * `model_capacity`. A dispatch may declare `gates`, signals from outside that
+ * hold the ready work they govern: `POST /api/v1/projects/{id}/dispatch/gates/{key}`
+ * reports a state or a value (`DISPATCH_GATE_UNKNOWN`,
+ * `DISPATCH_GATE_VALUE_UNJUDGED`), and `GET /api/v1/projects/{id}/dispatch`
+ * reads what the dispatch does and why each agent of its pool is idle.
  */
 export const API_CONTRACT_VERSION = '3.45.0';

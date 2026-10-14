@@ -48,6 +48,13 @@ export const DISPATCH_POOL_MAX = 50;
 export const DISPATCH_STANDING_ROLES_MAX = 20;
 export const DISPATCH_ROLE_BRIEF_MAX = 4_000;
 export const DISPATCH_LABELS_MAX = 20;
+export const DISPATCH_GATES_MAX = 10;
+export const DISPATCH_GATE_REASON_MAX = 500;
+
+/** What a gate does while nobody has reported on it for its
+ * `staleAfterSeconds`: let its work go, or hold it. */
+export const DISPATCH_GATE_WHEN_STALE = ['open', 'hold'] as const;
+export type DispatchGateWhenStale = (typeof DISPATCH_GATE_WHEN_STALE)[number];
 
 /** What readers assume for a field the dispatch leaves out. */
 export const DISPATCH_DEFAULTS = {
@@ -55,6 +62,8 @@ export const DISPATCH_DEFAULTS = {
   rebalance: false,
   startSpacingSeconds: 30,
   recheckSeconds: [60, 120, 240],
+  gateStaleAfterSeconds: 600,
+  gateWhenStale: 'open',
 } as const;
 
 const unique = (values: readonly string[]) =>
@@ -72,6 +81,35 @@ export const dispatchRoleKeySchema = z
   );
 
 /**
+ * A standing role's time zone: any zone `timeZoneSchema` takes (an IANA name
+ * in any case, or a fixed offset), kept as the document spells it, trimmed.
+ * It is not rewritten into `Intl`'s spelling the way a trigger's zone is,
+ * because the engines that parse a dispatch disagree on that spelling: Node
+ * stores `Etc/UTC` as `UTC` and `Europe/Kyiv` as `Europe/Kiev`, where Bun,
+ * which runs the CLI, keeps both. A rewritten zone would never match the
+ * declaration a CLI planned, so the dispatch would never read as applied; a
+ * managed schedule keeps its zone as spelled for the same reason.
+ */
+const roleTimeZoneSchema = z
+  .string()
+  .trim()
+  .max(100)
+  .superRefine((zone, ctx) => {
+    const checked = timeZoneSchema.safeParse(zone);
+    if (checked.success) return;
+    for (const issue of checked.error.issues) {
+      // A zone that is too long is refused once, by the `max` above.
+      if (issue.code !== 'custom') continue;
+      ctx.addIssue({
+        code: 'custom',
+        message: issue.message,
+        path: issue.path,
+        ...(issue.params !== undefined ? { params: issue.params } : {}),
+      });
+    }
+  });
+
+/**
  * A standing role: an agent started on its own task on a schedule. Each
  * occurrence moves the task to In progress and hands the agent its brief,
  * labelled with the occurrence in the schedule's time zone. An occurrence
@@ -83,7 +121,7 @@ export const projectDispatchRoleSchema = z.strictObject({
   agentId: identity,
   /** A five-field cron expression, read in `timezone`. */
   cron: z.string().trim().min(1).max(200),
-  timezone: timeZoneSchema,
+  timezone: roleTimeZoneSchema,
   /** A short name for what this schedule's runs do, such as `full` or
    * `light`: given to the agent with every occurrence. */
   mode: z.string().trim().min(1).max(40).optional(),
@@ -91,6 +129,65 @@ export const projectDispatchRoleSchema = z.strictObject({
   brief: z.string().trim().min(1).max(DISPATCH_ROLE_BRIEF_MAX).optional(),
 });
 export type ProjectDispatchRole = z.infer<typeof projectDispatchRoleSchema>;
+
+/**
+ * A gate: a signal from outside the platform that holds the ready work it
+ * governs — a CI system whose runner queue is full, a deploy freeze, a
+ * vendor's outage. Something outside reports on it (`POST
+ * .../dispatch/by-project/:projectId/gates/:key`), either a state or a value
+ * the gate judges with hysteresis: at or above `holdAt` it holds, and once
+ * held it opens again only below `recoverBelow` (half of `holdAt` unless
+ * said), so a signal hovering at the threshold does not flap. A gate governs
+ * the ready work carrying one of its `labels`, or all ready work without
+ * them; standing roles are never held by a gate. A report older than
+ * `staleAfterSeconds` is stale: the gate then does what `whenStale` says.
+ * With `startSpacingSeconds`, two starts of the work it governs are at least
+ * that far apart.
+ */
+export const projectDispatchGateSchema = z
+  .strictObject({
+    key: dispatchRoleKeySchema,
+    labels: z.array(labelName).min(1).max(DISPATCH_LABELS_MAX).optional(),
+    holdAt: z.number().finite().optional(),
+    recoverBelow: z.number().finite().optional(),
+    staleAfterSeconds: z.number().int().min(60).max(86_400).optional(),
+    whenStale: z.enum(DISPATCH_GATE_WHEN_STALE).optional(),
+    startSpacingSeconds: z.number().int().min(0).max(86_400).optional(),
+  })
+  .superRefine((gate, ctx) => {
+    if (gate.recoverBelow !== undefined && gate.holdAt === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['recoverBelow'],
+        message: 'A gate recovers below a value only when it holds at one.',
+      });
+    }
+    if (
+      gate.recoverBelow !== undefined &&
+      gate.holdAt !== undefined &&
+      gate.recoverBelow > gate.holdAt
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['recoverBelow'],
+        message: 'A gate recovers below its hold value, not above it.',
+      });
+    }
+  });
+export type ProjectDispatchGate = z.infer<typeof projectDispatchGateSchema>;
+
+/** A report on a gate: its state, or a value the gate judges by `holdAt`. */
+export const dispatchGateReportSchema = z.union([
+  z.strictObject({
+    state: z.enum(['open', 'hold']),
+    reason: z.string().trim().min(1).max(DISPATCH_GATE_REASON_MAX).optional(),
+  }),
+  z.strictObject({
+    value: z.number().finite(),
+    reason: z.string().trim().min(1).max(DISPATCH_GATE_REASON_MAX).optional(),
+  }),
+]);
+export type DispatchGateReport = z.infer<typeof dispatchGateReportSchema>;
 
 export const projectDispatchAdmissionSchema = z.strictObject({
   preset: z.enum(DISPATCH_ADMISSION_PRESETS),
@@ -140,6 +237,11 @@ export const projectDispatchSchema = z
       .array(projectDispatchRoleSchema)
       .max(DISPATCH_STANDING_ROLES_MAX)
       .optional(),
+    /** Signals from outside that hold the ready work they govern. */
+    gates: z
+      .array(projectDispatchGateSchema)
+      .max(DISPATCH_GATES_MAX)
+      .optional(),
   })
   .superRefine((value, ctx) => {
     const keys = new Set<string>();
@@ -152,6 +254,17 @@ export const projectDispatchSchema = z
         });
       }
       keys.add(role.key);
+    }
+    const gates = new Set<string>();
+    for (const [index, gate] of (value.gates ?? []).entries()) {
+      if (gates.has(gate.key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['gates', index, 'key'],
+          message: `The gate key "${gate.key}" is used twice.`,
+        });
+      }
+      gates.add(gate.key);
     }
   });
 export type ProjectDispatch = z.infer<typeof projectDispatchSchema>;
@@ -172,3 +285,141 @@ export function dispatchAdmission(dispatch: ProjectDispatch): {
       dispatch.admission?.recheckSeconds ?? DISPATCH_DEFAULTS.recheckSeconds,
   };
 }
+
+/** Why an agent of the pool works on nothing now: ready work waits only for
+ * agents whose model is at capacity, the sandbox host held the last start,
+ * the organization's agent workers are all in use, the last pass started a
+ * run and waits before the next, the ready work waits for a gate, nothing is
+ * ready, dispatch (or the organization's task automation) is off, or no pass
+ * has run since the agent joined the pool. */
+export const DISPATCH_IDLE_REASONS = [
+  'model_capacity',
+  'host_pressure',
+  'org_limit',
+  'pacing',
+  'gated',
+  'no_ready_work',
+  'disabled',
+  'unknown',
+] as const;
+export type DispatchIdleReason = (typeof DISPATCH_IDLE_REASONS)[number];
+
+/**
+ * What a project's dispatch is doing, as the app's Dispatch page, the REST
+ * door (`GET /api/v1/projects/{id}/dispatch`) and an operator's watcher
+ * read it: every agent of the pool with what it works on or why it is idle,
+ * the standing roles with their next and last occurrence, the models it
+ * waits on, its gates, the organization's agent workers against the pool,
+ * and its recent passes.
+ */
+export const projectDispatchStatusSchema = z.object({
+  configured: z.boolean(),
+  config: projectDispatchSchema.nullable(),
+  /** The managed configuration hash of the stored document. */
+  hash: z.string().nullable(),
+  /** The reader may change the dispatch. */
+  canEdit: z.boolean(),
+  state: z
+    .object({
+      lastPassAt: z.number().nullable(),
+      lastStartAt: z.number().nullable(),
+      nextPassAt: z.number().nullable(),
+      lastStopReason: z.string().nullable(),
+    })
+    .nullable(),
+  pool: z.array(
+    z.object({
+      agentId: z.string(),
+      name: z.string(),
+      model: z.string(),
+      modelProvider: z.string().nullable(),
+      runs: z.array(
+        z.object({
+          runId: z.string(),
+          taskId: z.string(),
+          taskNumber: z.number().nullable(),
+          taskTitle: z.string(),
+          status: z.enum(['queued', 'running']),
+          /** Why the run waits instead of working, while it does. */
+          waitingReason: z.string().nullable(),
+        }),
+      ),
+      /** Runs it may hold at once. */
+      capacity: z.number(),
+      /** Its model is at capacity until then. */
+      modelHeldUntil: z.number().nullable(),
+      idle: z.enum(DISPATCH_IDLE_REASONS).nullable(),
+    }),
+  ),
+  standingRoles: z.array(
+    z.object({
+      key: z.string(),
+      agentId: z.string(),
+      taskId: z.string(),
+      taskTitle: z.string().nullable(),
+      mode: z.string().nullable(),
+      cron: z.string(),
+      timezone: z.string(),
+      nextAt: z.number().nullable(),
+      last: z
+        .object({
+          label: z.string(),
+          outcome: z.string(),
+          runId: z.string().nullable(),
+          reason: z.string().nullable(),
+          at: z.number(),
+        })
+        .nullable(),
+    }),
+  ),
+  holds: z.array(
+    z.object({
+      modelProvider: z.string(),
+      model: z.string(),
+      heldUntil: z.number(),
+      consecutive: z.number(),
+      firstRefusedAt: z.number(),
+    }),
+  ),
+  gates: z.array(
+    z.object({
+      key: z.string(),
+      labels: z.array(z.string()).nullable(),
+      held: z.boolean(),
+      /** No report within its stale window, or none yet. */
+      stale: z.boolean(),
+      holdAt: z.number().nullable(),
+      recoverBelow: z.number().nullable(),
+      whenStale: z.enum(DISPATCH_GATE_WHEN_STALE),
+      value: z.number().nullable(),
+      reason: z.string().nullable(),
+      reportedAt: z.number().nullable(),
+      reportedBy: z.string().nullable(),
+      /** Starts of the work it governs wait until then for its spacing. */
+      spacedUntil: z.number().nullable(),
+    }),
+  ),
+  workers: z.object({ limit: z.number(), inUse: z.number() }),
+  /** The pool can hold more runs at once than the organization has agent
+   * workers: the rest of its runs would wait for one. */
+  poolExceedsWorkers: z.boolean(),
+  passes: z.array(
+    z.object({
+      id: z.string(),
+      trigger: z.string(),
+      startedAt: z.number(),
+      stopReason: z.string(),
+      started: z.number(),
+      held: z.number(),
+      nextPassAt: z.number().nullable(),
+    }),
+  ),
+});
+export type ProjectDispatchStatus = z.infer<typeof projectDispatchStatusSchema>;
+
+/** What a report on a gate answers: the state it left the gate in, and
+ * whether that changed. */
+export const dispatchGateReportResultSchema = z.object({
+  held: z.boolean(),
+  changed: z.boolean(),
+});

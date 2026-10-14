@@ -35,6 +35,8 @@ export interface DispatchCandidate {
   /** The task has had a run of any agent: a rebalance never moves it, so
    * the conversation and files of its earlier work stay with its agent. */
   hasRuns: boolean;
+  /** The task's labels, by id: which of the dispatch's gates govern it. */
+  labelIds: string[];
 }
 
 export interface DispatchAgent {

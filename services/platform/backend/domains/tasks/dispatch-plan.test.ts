@@ -31,6 +31,7 @@ function task(
     createdAt: 1_000,
     assigneeAgentId: null,
     hasRuns: false,
+    labelIds: [],
     ...fields,
   };
 }

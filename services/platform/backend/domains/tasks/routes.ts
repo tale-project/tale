@@ -10,6 +10,7 @@ import {
   managedTaskReviewContextSchema,
   managedTaskReviewContextProvisionSchema,
 } from '@tale/shared/schemas/managed-configuration';
+import { dispatchGateReportSchema } from '@tale/shared/schemas/project-dispatch';
 import { externalStatusRequestBodySchema } from '@tale/shared/schemas/task-external-status';
 import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import { Hono, type Context } from 'hono';
@@ -74,6 +75,7 @@ import {
   readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
+import { reportDispatchGate } from './dispatch-gates.ts';
 import { readProjectDispatchStatus } from './dispatch-readback.ts';
 import { requestDispatchPassInTx } from './dispatch-requests.ts';
 import {
@@ -724,6 +726,28 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         }),
       );
       return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // A report on one of the dispatch's gates, from a person who administers
+  // the project (an external system reports through the REST door).
+  app.post('/dispatch/by-project/:projectId/gates/:key', async (c) => {
+    const body = dispatchGateReportSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        reportDispatchGate(tx, auth, {
+          projectId: c.req.param('projectId'),
+          key: c.req.param('key'),
+          report: body.data,
+          reporter: `user:${auth.userId}`,
+          access: 'administer',
+        }),
+      );
+      return c.json({ ok: true, ...result });
     } catch (error) {
       return handleError(c, error);
     }

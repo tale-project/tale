@@ -1,7 +1,4 @@
-import {
-  projectDispatchSchema,
-  type ProjectDispatch,
-} from '@tale/shared/schemas/project-dispatch';
+import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { scheduleOfTrigger } from '../../../lib/automations/schedule/occurrences.ts';
@@ -19,6 +16,11 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { requestDispatchPassInTx } from './dispatch-requests.ts';
+import {
+  dispatchConfigurationValue,
+  readStoredDispatch,
+  type ProjectDispatchConfigurationValue,
+} from './dispatch-store.ts';
 import { TaskError } from './errors.ts';
 
 /**
@@ -33,57 +35,6 @@ import { TaskError } from './errors.ts';
  * starts the project's agents for nobody in particular, and what those runs
  * spend is the automation subject's, like a schedule's.
  */
-
-export interface StoredProjectDispatch {
-  config: ProjectDispatch;
-  updatedAt: number;
-  updatedBy: string | null;
-}
-
-/** The dispatch as stored, or null when the project has none. A stored
- * document a newer image wrote in a shape this one cannot read reads as
- * none: this image starts nothing on a dispatch it does not understand. */
-export async function readStoredDispatch(
-  sql: Sql | TransactionSql,
-  organizationId: string,
-  projectId: string,
-): Promise<StoredProjectDispatch | null> {
-  const rows = await sql<
-    { config: unknown; updatedAt: number; updatedBy: string | null }[]
-  >`
-    SELECT config, updated_at_ms::float8 AS "updatedAt",
-           updated_by AS "updatedBy"
-    FROM app.project_dispatch
-    WHERE project_id = ${projectId} AND org_id = ${organizationId}
-  `;
-  const row = rows[0];
-  if (row === undefined) return null;
-  const parsed = projectDispatchSchema.safeParse(row.config);
-  if (!parsed.success) {
-    console.warn(
-      `[dispatch] project ${projectId}: its stored dispatch does not parse here and is ignored`,
-    );
-    return null;
-  }
-  return {
-    config: parsed.data,
-    updatedAt: row.updatedAt,
-    updatedBy: row.updatedBy,
-  };
-}
-
-/** The value managed configuration reads and writes: the project's id and
- * its dispatch document, flat. */
-export type ProjectDispatchConfigurationValue = {
-  projectId: string;
-} & ProjectDispatch;
-
-export function dispatchConfigurationValue(
-  projectId: string,
-  config: ProjectDispatch,
-): ProjectDispatchConfigurationValue {
-  return { projectId, ...config };
-}
 
 /** The dispatch as managed configuration reads it: the value and its
  * hash, both null when the project has none. */
@@ -187,6 +138,40 @@ export async function checkProjectDispatch(
         path: `standingRoles.${index}.cron`,
         message: `The schedule does not read: ${schedule.issue}.`,
       });
+    }
+  }
+  // A label filter or a gate naming a label the project lacks would match
+  // nothing, silently: name it instead.
+  const labelRefs = [
+    ...(args.dispatch.labels?.include ?? []).map((name, index) => ({
+      name,
+      path: `labels.include.${index}`,
+    })),
+    ...(args.dispatch.labels?.exclude ?? []).map((name, index) => ({
+      name,
+      path: `labels.exclude.${index}`,
+    })),
+    ...(args.dispatch.gates ?? []).flatMap((gate, gateIndex) =>
+      (gate.labels ?? []).map((name, index) => ({
+        name,
+        path: `gates.${gateIndex}.labels.${index}`,
+      })),
+    ),
+  ];
+  if (labelRefs.length > 0) {
+    const labels = await sql<{ name: string }[]>`
+      SELECT lower(name) AS name FROM app.task_labels
+      WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+        AND lower(name) = ANY(${labelRefs.map((ref) => ref.name.toLowerCase())})
+    `;
+    const knownLabels = new Set(labels.map((label) => label.name));
+    for (const ref of labelRefs) {
+      if (!knownLabels.has(ref.name.toLowerCase())) {
+        issues.push({
+          path: ref.path,
+          message: `No label named "${ref.name}" is in this project.`,
+        });
+      }
     }
   }
   return issues;

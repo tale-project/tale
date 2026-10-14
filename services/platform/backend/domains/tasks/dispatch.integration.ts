@@ -10,7 +10,7 @@
  * (`holdAgentJobs`), so the harness's worker launches nothing and every pass
  * is the lane's own.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { DEFAULT_SANDBOX_QUOTA } from '@tale/shared/schemas/governance';
@@ -33,6 +33,7 @@ import { admitAutomatedStart } from './delegated-start.ts';
 import { saveProjectDispatch } from './dispatch-config.ts';
 import { runDispatchPass, type HostVerdict } from './dispatch-pass.ts';
 import { readProjectDispatchStatus } from './dispatch-readback.ts';
+import { snapshotRunInstructions } from './run-instructions.ts';
 
 const ADMIT: HostVerdict = {
   admitted: true,
@@ -302,11 +303,47 @@ export async function checkFleetDispatch(
       error: 'Selected model is at capacity. Please try a different model.',
       failureCode: 'model_capacity',
     });
+    // Sitemap's turn starts (as the turn host does it) and finishes: its
+    // record names the instructions it was handed and the host's verdict
+    // the pass started it on.
+    const projectInstructions = 'Ship small, reviewed changes.';
+    await sql`
+      UPDATE app.projects SET instructions = ${projectInstructions}
+      WHERE id = ${projectId}
+    `;
+    await snapshotRunInstructions(sql, {
+      organizationId: orgId,
+      runId: sitemapRun.id,
+      taskId: tasks.t3,
+      execId: sitemapRun.execId,
+      agentInstructions: 'You map sites.',
+    });
     await settleAgentRun(sql, {
       runId: sitemapRun.id,
       execId: sitemapRun.execId,
       resultText: 'Done.',
     });
+    const ledger = await sql<{ metadata: Record<string, unknown> }[]>`
+      SELECT metadata FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_id = ${sitemapRun.id}
+        AND action = 'agent.run_settled'
+    `;
+    const sha = (text: string) =>
+      createHash('sha256').update(text, 'utf8').digest('hex');
+    const recorded = ledger[0]?.metadata;
+    record(
+      "fleet dispatch: a run's record names the instructions its turn was handed and the host's verdict it started on [TASK-R49]",
+      ledger.length === 1 &&
+        JSON.stringify(recorded?.admission) ===
+          JSON.stringify(ADMIT.evidence) &&
+        typeof recorded?.instructions === 'object' &&
+        recorded.instructions !== null &&
+        'project' in recorded.instructions &&
+        recorded.instructions.project === sha(projectInstructions) &&
+        'agent' in recorded.instructions &&
+        recorded.instructions.agent === sha('You map sites.'),
+      `ledger=${JSON.stringify(ledger)}`,
+    );
     const third = await pass(ADMIT);
     const pressKit = await runOf(tasks.t4);
     record(

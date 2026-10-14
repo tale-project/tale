@@ -1,6 +1,7 @@
 import {
   DISPATCH_DEFAULTS,
-  type ProjectDispatch,
+  type DispatchIdleReason,
+  type ProjectDispatchStatus,
 } from '@tale/shared/schemas/project-dispatch';
 import type { Sql } from 'postgres';
 
@@ -14,10 +15,16 @@ import {
 } from '../projects/service.ts';
 import { projectSessionRoom } from '../sandbox/sessions.ts';
 import {
+  gateRecoverBelow,
+  judgeGate,
+  readGateStates,
+  type GateState,
+} from './dispatch-gates.ts';
+import { nextRoleOccurrence } from './dispatch-roles.ts';
+import {
   dispatchConfigurationValue,
   readStoredDispatch,
-} from './dispatch-config.ts';
-import { nextRoleOccurrence } from './dispatch-roles.ts';
+} from './dispatch-store.ts';
 import { listModelCapacityHolds } from './model-capacity-holds.ts';
 
 /**
@@ -30,96 +37,10 @@ import { listModelCapacityHolds } from './model-capacity-holds.ts';
  */
 
 /** Why an agent of the pool works on nothing now. */
-export type DispatchAgentIdleReason =
-  /** Ready work waits only for agents whose model is at capacity. */
-  | 'model_capacity'
-  /** The sandbox host held the last start. */
-  | 'host_pressure'
-  /** The organization's agent workers are all in use. */
-  | 'org_limit'
-  /** The last pass started a run and waits before the next. */
-  | 'pacing'
-  /** No task is ready for it. */
-  | 'no_ready_work'
-  /** Dispatch is switched off, or task automation for the organization. */
-  | 'disabled'
-  /** No pass has run since it joined the pool. */
-  | 'unknown';
-
-export interface DispatchAgentRun {
-  runId: string;
-  taskId: string;
-  taskNumber: number | null;
-  taskTitle: string;
-  status: 'queued' | 'running';
-  /** Why the run waits instead of working, while it does. */
-  waitingReason: string | null;
-}
-
-export interface DispatchPoolAgent {
-  agentId: string;
-  name: string;
-  model: string;
-  modelProvider: string | null;
-  runs: DispatchAgentRun[];
-  /** Runs it may hold at once. */
-  capacity: number;
-  /** Its model is at capacity until then. */
-  modelHeldUntil: number | null;
-  idle: DispatchAgentIdleReason | null;
-}
-
-export interface ProjectDispatchStatus {
-  configured: boolean;
-  config: ProjectDispatch | null;
-  /** The managed configuration hash of the stored document. */
-  hash: string | null;
-  canEdit: boolean;
-  state: {
-    lastPassAt: number | null;
-    lastStartAt: number | null;
-    nextPassAt: number | null;
-    lastStopReason: string | null;
-  } | null;
-  pool: DispatchPoolAgent[];
-  standingRoles: Array<{
-    key: string;
-    agentId: string;
-    taskId: string;
-    taskTitle: string | null;
-    mode: string | null;
-    cron: string;
-    timezone: string;
-    nextAt: number | null;
-    last: {
-      label: string;
-      outcome: string;
-      runId: string | null;
-      reason: string | null;
-      at: number;
-    } | null;
-  }>;
-  holds: Array<{
-    modelProvider: string;
-    model: string;
-    heldUntil: number;
-    consecutive: number;
-    firstRefusedAt: number;
-  }>;
-  workers: { limit: number; inUse: number };
-  /** The pool can hold more runs at once than the organization has agent
-   * workers: the rest of its runs would wait for one. */
-  poolExceedsWorkers: boolean;
-  passes: Array<{
-    id: string;
-    trigger: string;
-    startedAt: number;
-    stopReason: string;
-    started: number;
-    held: number;
-    nextPassAt: number | null;
-  }>;
-}
+export type DispatchAgentIdleReason = DispatchIdleReason;
+export type DispatchPoolAgent = ProjectDispatchStatus['pool'][number];
+export type DispatchAgentRun = DispatchPoolAgent['runs'][number];
+export type { ProjectDispatchStatus };
 
 const PASSES_SHOWN = 20;
 
@@ -147,6 +68,7 @@ export async function readProjectDispatchStatus(
       pool: [],
       standingRoles: [],
       holds: activeHolds.map(holdView),
+      gates: [],
       workers: { limit: cap, inUse: inFlight },
       poolExceedsWorkers: false,
       passes: [],
@@ -315,6 +237,28 @@ export async function readProjectDispatchStatus(
     ORDER BY started_at_ms DESC
     LIMIT ${PASSES_SHOWN}
   `;
+  const gateStates =
+    (config.gates ?? []).length === 0
+      ? new Map<string, GateState>()
+      : await readGateStates(sql, projectId);
+  const gates = (config.gates ?? []).map((gate) => {
+    const gateState = gateStates.get(gate.key);
+    const verdict = judgeGate(gate, gateState, now);
+    return {
+      key: gate.key,
+      labels: gate.labels ?? null,
+      held: verdict.held,
+      stale: verdict.stale,
+      holdAt: gate.holdAt ?? null,
+      recoverBelow: gateRecoverBelow(gate),
+      whenStale: gate.whenStale ?? DISPATCH_DEFAULTS.gateWhenStale,
+      value: gateState?.value ?? null,
+      reason: gateState?.reason ?? null,
+      reportedAt: gateState?.reportedAt ?? null,
+      reportedBy: gateState?.reportedBy ?? null,
+      spacedUntil: verdict.spacedUntil,
+    };
+  });
   const configValue = dispatchConfigurationValue(projectId, config);
   return {
     configured: true,
@@ -347,6 +291,7 @@ export async function readProjectDispatchStatus(
       };
     }),
     holds: activeHolds.map(holdView),
+    gates,
     workers: { limit: cap, inUse: inFlight },
     poolExceedsWorkers:
       config.enabled &&
@@ -387,6 +332,8 @@ export function idleReason(args: {
       return 'org_limit';
     case 'pacing':
       return 'pacing';
+    case 'gated':
+      return 'gated';
     case 'automation_disabled':
     case 'disabled':
       return 'disabled';
