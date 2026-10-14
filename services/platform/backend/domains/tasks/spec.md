@@ -418,9 +418,9 @@ of its pool, as the sandbox host allows.
 
 ### TASK-R41 · Dispatch starts ready work on idle agents of its pool, up to its limits
 
-Ready work is a task in one of the dispatch's columns that no run works on, that nothing open
-blocks, and that is assigned to an agent of the pool. It is taken by column, then priority, then
-board order, then age. An agent of the pool holds one run at a time (or as many as the dispatch
+Ready work is a task in one of the dispatch's columns that no run works on, whose last run is not
+about to retry on its own, that nothing open blocks, and that is assigned to an agent of the pool.
+It is taken by column, then priority, then board order, then age. An agent of the pool holds one run at a time (or as many as the dispatch
 allows), and the pool as many as its limit, counting every run of its agents whoever started it.
 Nothing starts while the organization's agent workers are all in use. Each start is an ordinary
 automated start: the task's hourly limit and its dependencies apply (`TASK-R12`).
@@ -466,7 +466,8 @@ An occurrence fires on time, within ten minutes, never as a burst of what an out
 moves the task to In progress and hands the agent the occurrence, read in the schedule's time zone
 with its UTC instant, the role's mode and its brief. An occurrence that finds the task still being
 worked on is coalesced into that run. Each occurrence is decided once, whichever passes decide it
-again.
+again. A role starts even when the pool holds as many runs as it may; a run of a role whose agent
+is in the pool counts toward the pool.
 
 - **Example**: The manager role runs at :00 and :30 in Zurich. At 14:00 its agent starts with
   "Scheduled occurrence: manager 2026-10-14 14:00 Europe/Zurich (2026-10-14T12:00:00.000Z)". At

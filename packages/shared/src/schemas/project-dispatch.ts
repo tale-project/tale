@@ -210,7 +210,8 @@ export const projectDispatchSchema = z
       .array(identity)
       .max(DISPATCH_POOL_MAX)
       .refine(unique, 'An agent appears in the pool once.'),
-    /** The most runs the pool holds at once, its standing roles included. */
+    /** The most runs the pool's agents hold at once, whoever started them;
+     * a standing role still starts on its schedule when the pool is full. */
     maxConcurrentRuns: z.number().int().min(1).max(100),
     /** The most runs one agent of the pool holds at once (default 1). */
     perAgentConcurrency: z.number().int().min(1).max(5).optional(),

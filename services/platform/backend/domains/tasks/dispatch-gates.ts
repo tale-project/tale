@@ -105,6 +105,83 @@ export function gateGoverns(
   return taskLabelIds.some((id) => gateLabelIds.includes(id));
 }
 
+/**
+ * Which ready tasks take part in a pass, by the gates: a task a held gate
+ * governs waits (`gate:<key>`); a gate with start spacing lets one start of
+ * its work through per spacing — while its spacing runs none of its tasks
+ * takes part, otherwise only the best-ranked one does (`gate_spacing` for the
+ * rest). Deciding it before the plan keeps a gated task at the top of the
+ * queue from taking the place of work no gate holds. `candidates` come
+ * best-ranked first.
+ */
+export function gateCandidates<
+  C extends {
+    taskId: string;
+    assigneeAgentId: string | null;
+    labelIds: string[];
+  },
+>(args: {
+  gates: readonly ProjectDispatchGate[];
+  states: ReadonlyMap<string, GateState>;
+  gateLabelIds: ReadonlyMap<string, readonly string[]>;
+  candidates: readonly C[];
+  now: number;
+}): {
+  open: C[];
+  held: Array<{ taskId: string; agentId: string | null; reason: string }>;
+} {
+  const held = new Set(
+    args.gates
+      .filter(
+        (gate) => judgeGate(gate, args.states.get(gate.key), args.now).held,
+      )
+      .map((gate) => gate.key),
+  );
+  // Spaced gates whose spacing has passed and whose one start this pass is
+  // still free.
+  const spacingOpen = new Set(
+    args.gates
+      .filter(
+        (gate) =>
+          (gate.startSpacingSeconds ?? 0) > 0 &&
+          judgeGate(gate, args.states.get(gate.key), args.now).spacedUntil ===
+            null,
+      )
+      .map((gate) => gate.key),
+  );
+  const open: C[] = [];
+  const holds: Array<{
+    taskId: string;
+    agentId: string | null;
+    reason: string;
+  }> = [];
+  for (const candidate of args.candidates) {
+    const governing = args.gates.filter((gate) =>
+      gateGoverns(
+        gate,
+        args.gateLabelIds.get(gate.key) ?? [],
+        candidate.labelIds,
+      ),
+    );
+    const holding = governing.find((gate) => held.has(gate.key));
+    const spaced = governing.find(
+      (gate) =>
+        (gate.startSpacingSeconds ?? 0) > 0 && !spacingOpen.has(gate.key),
+    );
+    if (holding === undefined && spaced === undefined) {
+      for (const gate of governing) spacingOpen.delete(gate.key);
+      open.push(candidate);
+      continue;
+    }
+    holds.push({
+      taskId: candidate.taskId,
+      agentId: candidate.assigneeAgentId,
+      reason: holding !== undefined ? `gate:${holding.key}` : 'gate_spacing',
+    });
+  }
+  return { open, held: holds };
+}
+
 export async function readGateStates(
   sql: Sql | TransactionSql,
   projectId: string,

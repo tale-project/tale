@@ -15,7 +15,7 @@ Ouvre le projet, choisis **Répartition du travail**, puis **Modifier**.
 | --- | --- |
 | **Répartition activée** | Si la répartition lance quoi que ce soit. Désactivée, elle ne lance rien ; les exécutions en cours continuent. |
 | **Agents du pool** | Les agents du projet que la répartition lance. Une tâche assignée à un agent hors du pool n’est jamais lancée par la répartition. |
-| **Exécutions simultanées** | Le nombre maximal d’exécutions que le pool tient en même temps, rôles permanents compris. Les exécutions lancées par des personnes et des automatisations sur les agents du pool comptent aussi. |
+| **Exécutions simultanées** | Le nombre maximal d’exécutions que le pool tient en même temps. Les exécutions que des personnes, des automatisations et des rôles permanents lancent sur les agents du pool comptent aussi ; un rôle permanent démarre tout de même à son horaire quand le pool est plein. |
 | **Exécutions par agent** | Le nombre maximal d’exécutions qu’un agent du pool tient à la fois, 1 par défaut. Chaque exécution travaille dans son propre [worker d’agent](/fr/platform/projects/project-agents#run-one-agent-on-several-tasks). |
 | **Prendre le travail prêt dans** | Les colonnes d’où vient le travail prêt, **À faire**, **Backlog** ou les deux, dans l’ordre où tu les indiques. |
 | **Tâches non assignées** | **Les laisser**, ou **Les confier au pool** : une tâche non assignée est alors assignée à l’agent libre qui a le plus de place. |

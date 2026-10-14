@@ -18,8 +18,8 @@ import { toJson } from '../../db/sql.ts';
 import { projectSessionRoom } from '../sandbox/sessions.ts';
 import { startDelegatedAgentRun } from './delegated-start.ts';
 import {
+  gateCandidates,
   gateGoverns,
-  judgeGate,
   noteGatedStart,
   readGateStates,
   type GateState,
@@ -265,6 +265,18 @@ async function readDispatchFacts(
             AND NOT EXISTS (
               SELECT 1 FROM app.project_agent_runs r
               WHERE r.task_id = t.id AND r.status IN ('queued', 'running')
+            )
+            -- A failed run whose automatic retry is armed starts again on
+            -- its own, after the wait its failure called for.
+            AND NOT EXISTS (
+              SELECT 1 FROM app.project_agent_runs r
+              WHERE r.task_id = t.id AND r.status = 'failed'
+                AND r.auto_retry_armed_at_ms IS NOT NULL
+                AND r.auto_retry_refused_at_ms IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM app.project_agent_runs later
+                  WHERE later.task_id = r.task_id AND later.seq > r.seq
+                )
             )
             AND NOT EXISTS (
               SELECT 1 FROM app.task_dependencies d
@@ -752,37 +764,16 @@ export async function runDispatchPass(
       gates.filter((gate) =>
         gateGoverns(gate, gateLabelIds.get(gate.key) ?? [], labelIds),
       );
-    const gateNow = Date.now();
-    const heldGates = new Set(
-      gates
-        .filter(
-          (gate) => judgeGate(gate, gateStates.get(gate.key), gateNow).held,
-        )
-        .map((gate) => gate.key),
-    );
-    const gateLastStart = new Map(
-      gates.map((gate) => [
-        gate.key,
-        gateStates.get(gate.key)?.lastStartAt ?? null,
-      ]),
-    );
-    const open: DispatchCandidate[] = [];
-    let gatedCount = 0;
-    for (const candidate of facts.candidates) {
-      const holding = governing(candidate.labelIds).find((gate) =>
-        heldGates.has(gate.key),
-      );
-      if (holding === undefined) {
-        open.push(candidate);
-        continue;
-      }
-      gatedCount += 1;
-      held.push({
-        taskId: candidate.taskId,
-        agentId: candidate.assigneeAgentId,
-        reason: `gate:${holding.key}`,
-      });
-    }
+    const gated = gateCandidates({
+      gates,
+      states: gateStates,
+      gateLabelIds,
+      candidates: facts.candidates,
+      now: Date.now(),
+    });
+    const open = gated.open;
+    const gatedCount = gated.held.length;
+    held.push(...gated.held);
     const labelsOf = new Map(
       facts.candidates.map((candidate) => [
         candidate.taskId,
@@ -819,32 +810,6 @@ export async function runDispatchPass(
         nextPassAt = pacedUntil;
         break;
       }
-      // A gate with start spacing lets one start of its work through, then
-      // holds the next until its spacing has passed.
-      const pickGates = governing(labelsOf.get(pick.taskId) ?? []);
-      const spacedUntil = Math.max(
-        0,
-        ...pickGates.flatMap((gate) => {
-          const last = gateLastStart.get(gate.key) ?? null;
-          const gateSpacingMs = (gate.startSpacingSeconds ?? 0) * 1000;
-          return gateSpacingMs > 0 &&
-            last !== null &&
-            now < last + gateSpacingMs
-            ? [last + gateSpacingMs]
-            : [];
-        }),
-      );
-      // Other work goes on; the minute scan comes back for this one, so the
-      // spacing never holds the whole dispatch until it ends.
-      if (spacedUntil > 0) {
-        held.push({
-          taskId: pick.taskId,
-          agentId: pick.agentId,
-          reason: 'gate_spacing',
-          retryAfter: spacedUntil,
-        });
-        continue;
-      }
       const host = await ask(input.organizationId, admission.preset);
       hostEvidence = host.evidence;
       if (!host.admitted) {
@@ -878,10 +843,9 @@ export async function runDispatchPass(
         continue;
       }
       lastStartAt = Date.now();
-      const spacedGates = pickGates
+      const spacedGates = governing(labelsOf.get(pick.taskId) ?? [])
         .filter((gate) => (gate.startSpacingSeconds ?? 0) > 0)
         .map((gate) => gate.key);
-      for (const key of spacedGates) gateLastStart.set(key, lastStartAt);
       await noteGatedStart(sql, {
         organizationId: input.organizationId,
         projectId: input.projectId,

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyGateReport,
+  gateCandidates,
   gateGoverns,
   gateRecoverBelow,
   judgeGate,
@@ -132,5 +133,66 @@ describe('a gate holds the ready work it governs while an outside signal says so
     expect(
       projectDispatchSchema.safeParse({ ...dispatch, gates: [ci] }).success,
     ).toBe(true);
+  });
+
+  it('leaves the work a held gate governs out of the pass and lets the rest take part', () => {
+    const candidate = (taskId: string, labelIds: string[]) => ({
+      taskId,
+      assigneeAgentId: null,
+      labelIds,
+    });
+    const result = gateCandidates({
+      gates: [ci],
+      states: new Map([['ci', state({ held: true, reportedAt: 0 })]]),
+      gateLabelIds: new Map([['ci', ['label-ci']]]),
+      candidates: [
+        candidate('release-build', ['label-ci']),
+        candidate('faq', []),
+      ],
+      now: 60_000,
+    });
+    expect(result.open.map((task) => task.taskId)).toEqual(['faq']);
+    expect(result.held).toEqual([
+      { taskId: 'release-build', agentId: null, reason: 'gate:ci' },
+    ]);
+  });
+
+  it('lets one start of a spaced gate’s work through per spacing, the best-ranked first, without holding the rest', () => {
+    const spaced: ProjectDispatchGate = {
+      key: 'ci',
+      labels: ['ci'],
+      startSpacingSeconds: 1_800,
+    };
+    const candidate = (taskId: string, labelIds: string[]) => ({
+      taskId,
+      assigneeAgentId: null,
+      labelIds,
+    });
+    const candidates = [
+      candidate('build-1', ['label-ci']),
+      candidate('build-2', ['label-ci']),
+      candidate('faq', []),
+    ];
+    const gateLabelIds = new Map([['ci', ['label-ci']]]);
+    const free = gateCandidates({
+      gates: [spaced],
+      states: new Map([['ci', state({ lastStartAt: 0 })]]),
+      gateLabelIds,
+      candidates,
+      now: 1_800_000,
+    });
+    expect(free.open.map((task) => task.taskId)).toEqual(['build-1', 'faq']);
+    expect(free.held).toEqual([
+      { taskId: 'build-2', agentId: null, reason: 'gate_spacing' },
+    ]);
+    // Within the spacing, none of its work takes part; the rest still does.
+    const spacing = gateCandidates({
+      gates: [spaced],
+      states: new Map([['ci', state({ lastStartAt: 1_000_000 })]]),
+      gateLabelIds,
+      candidates,
+      now: 1_800_000,
+    });
+    expect(spacing.open.map((task) => task.taskId)).toEqual(['faq']);
   });
 });
