@@ -30,7 +30,7 @@ function run(startedAt: number, fields: Partial<Run> = {}): Run {
   };
 }
 
-async function admit(history: Run[]) {
+async function admit(history: Run[], options: { startAfterMs?: number } = {}) {
   vi.spyOn(Date, 'now').mockReturnValue(NOW);
   const query = (strings: TemplateStringsArray): Promise<unknown[]> => {
     const text = strings.join('?');
@@ -46,6 +46,7 @@ async function admit(history: Run[]) {
   return admitAutomatedStart(query as unknown as TransactionSql, {
     task,
     agentId: 'agent-1',
+    ...options,
   });
 }
 
@@ -155,6 +156,81 @@ describe('automated start budget after a broker cooldown [TASK-R12]', () => {
       ]),
     ).resolves.toEqual({ admitted: false, retryAfter: NOW - 3_000 + HOUR_MS });
   });
+
+  it('keeps provider-capacity refusals out of the restart circuit', async () => {
+    await expect(
+      admit([
+        run(NOW - 61_000, { failureCode: 'model_capacity' }),
+        run(NOW - 62_000, { failureCode: 'model_capacity' }),
+        run(NOW - 63_000, { failureCode: 'model_capacity' }),
+      ]),
+    ).resolves.toEqual({ admitted: true });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it('still counts real automated starts around a capacity refusal', async () => {
+    await expect(
+      admit([
+        run(NOW - 61_000, { failureCode: 'model_capacity' }),
+        run(NOW - 2_000),
+        run(NOW - 3_000),
+        run(NOW - 4_000),
+      ]),
+    ).resolves.toEqual({ admitted: false, retryAfter: NOW - 4_000 + HOUR_MS });
+  });
+
+  it('holds a fresh delegated start for a minute after the latest capacity refusal', async () => {
+    await expect(
+      admit([
+        run(NOW - 2_000, {
+          failureCode: 'model_capacity',
+          settledAt: NOW - 1_000,
+        }),
+      ]),
+    ).resolves.toEqual({
+      admitted: false,
+      retryAfter: NOW + 59_000,
+      reason: 'model_capacity',
+    });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it('admits the automatic retry queued to start at the provider floor', async () => {
+    const history = [
+      run(NOW - 2_000, {
+        failureCode: 'model_capacity',
+        settledAt: NOW - 1_000,
+      }),
+    ];
+    await expect(
+      admit(history, { startAfterMs: NOW + 59_000 }),
+    ).resolves.toEqual({
+      admitted: true,
+    });
+    await expect(
+      admit(history, { startAfterMs: NOW + 58_999 }),
+    ).resolves.toEqual({
+      admitted: false,
+      retryAfter: NOW + 59_000,
+      reason: 'model_capacity',
+    });
+  });
+
+  it.each(['queued', 'running', 'settled', 'cancelled'] as const)(
+    'counts a %s run even with stale capacity metadata',
+    async (status) => {
+      await expect(
+        admit([
+          run(NOW - 1_000, { status, failureCode: 'model_capacity' }),
+          run(NOW - 2_000),
+          run(NOW - 3_000),
+        ]),
+      ).resolves.toEqual({
+        admitted: false,
+        retryAfter: NOW - 3_000 + HOUR_MS,
+      });
+    },
+  );
 });
 
 describe('the circuit window the wake scan reads (#4540) [TASK-R12]', () => {

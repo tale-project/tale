@@ -440,6 +440,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             projectId: task.projectId,
           },
           agentId: input.agentId,
+          ...(input.startAfterMs !== undefined
+            ? { startAfterMs: input.startAfterMs }
+            : {}),
         });
         if (!admitted.admitted) {
           await retire(true);

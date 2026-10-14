@@ -198,11 +198,15 @@ export async function checkModelCapacityRetry(
       admitAutomatedStart(tx, {
         task: { id: taskId, organizationId: orgId, projectId },
         agentId,
+        // The automatic retry already carries the provider's one-minute
+        // floor. Once that queued retry is due, capacity refusals must not
+        // close the hourly circuit.
+        startAfterMs: Date.now() + 60_000,
       }),
     );
     record(
-      'model capacity: three actual automated starts still close the hourly circuit [TASK-R12]',
-      !admission.admitted,
+      'model capacity: three refusals do not close the hourly circuit [TASK-R12]',
+      admission.admitted,
       `admission=${JSON.stringify(admission)}`,
     );
   } finally {
