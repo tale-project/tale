@@ -496,8 +496,8 @@ fails without running.
 ### TASK-R48 · Only who may administer the project changes its dispatch
 
 Owners and admins of the organization, and the project's own administrators, change it on an
-active project. Every agent and task it names must be the project's, and its schedules must read
-(`DISPATCH_INVALID`). Anyone who can read the project reads it.
+active project. Every agent, task and label it names must be the project's, and its schedules must
+read (`DISPATCH_INVALID`). Anyone who can read the project reads it.
 
 - **Example**: Mia, a member, tries to switch the project's dispatch on → refused. An admin adds a
   standing role on a task of another project → refused, naming the task.

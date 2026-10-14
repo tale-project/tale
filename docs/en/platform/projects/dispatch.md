@@ -80,4 +80,4 @@ An external system reports on the gate through the [REST API](/develop/api-refer
 
 ## Manage dispatch as configuration
 
-A deployment that keeps its configuration in a repository declares a project's dispatch as the managed resource `project-dispatch`, applied with the Tale CLI like other [managed settings](/develop/mcp-settings). What it declares is what **Edit** shows; a change in the app is overwritten at the next apply.
+A deployment that keeps its configuration in a repository declares a project's dispatch as the managed resource `project-dispatch`, applied with the [Tale CLI](/self-hosted/install/cli-install#configure-the-platform) like other [managed settings](/develop/mcp-settings). What it declares is what **Edit** shows; a change in the app is overwritten at the next apply.

@@ -65,7 +65,7 @@ export async function readProjectDispatchConfiguration(
  * static, so it reaches every door as it is; the issues, field by field,
  * ride in its data. */
 export const DISPATCH_INVALID_SENTENCE =
-  'The dispatch names an agent, a task or a schedule this project cannot use; the issues say which.';
+  'The dispatch names an agent, a task, a label or a schedule this project cannot use; the issues say which.';
 
 /** One refusal of a dispatch document, by the field it concerns. */
 export interface DispatchIssue {

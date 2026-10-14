@@ -80,4 +80,4 @@ Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/dev
 
 ## Die Arbeitsverteilung als Konfiguration verwalten
 
-Eine Bereitstellung, die ihre Konfiguration in einem Repository führt, deklariert die Arbeitsverteilung eines Projekts als verwaltete Ressource `project-dispatch` und wendet sie wie andere [verwaltete Einstellungen](/de/develop/mcp-settings) mit der Tale-CLI an. Was sie deklariert, zeigt **Bearbeiten**; eine Änderung in der App wird beim nächsten Anwenden überschrieben.
+Eine Bereitstellung, die ihre Konfiguration in einem Repository führt, deklariert die Arbeitsverteilung eines Projekts als verwaltete Ressource `project-dispatch` und wendet sie wie andere [verwaltete Einstellungen](/de/develop/mcp-settings) mit der [Tale-CLI](/de/self-hosted/install/cli-install#plattform-konfigurieren) an. Was sie deklariert, zeigt **Bearbeiten**; eine Änderung in der App wird beim nächsten Anwenden überschrieben.

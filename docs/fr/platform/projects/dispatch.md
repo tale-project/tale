@@ -80,4 +80,4 @@ Un système externe signale l’état de la barrière par l’[API REST](/fr/dev
 
 ## Gérer la répartition comme configuration
 
-Un déploiement qui tient sa configuration dans un dépôt déclare la répartition d’un projet comme ressource gérée `project-dispatch`, appliquée avec la CLI Tale comme les autres [réglages gérés](/fr/develop/mcp-settings). Ce qu’il déclare est ce qu’affiche **Modifier** ; une modification faite dans l’app est écrasée à la prochaine application.
+Un déploiement qui tient sa configuration dans un dépôt déclare la répartition d’un projet comme ressource gérée `project-dispatch`, appliquée avec la [CLI Tale](/fr/self-hosted/install/cli-install#configurer-la-plateforme) comme les autres [réglages gérés](/fr/develop/mcp-settings). Ce qu’il déclare est ce qu’affiche **Modifier** ; une modification faite dans l’app est écrasée à la prochaine application.
