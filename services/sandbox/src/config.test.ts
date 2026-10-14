@@ -46,6 +46,14 @@ const KEYS = [
   'SANDBOX_MIN_FREE_DISK',
   'SANDBOX_CRITICAL_FREE_DISK',
   'SANDBOX_CPU_PRESSURE_PERCENT',
+  'SANDBOX_ADMISSION_PRESET',
+  'SANDBOX_ADMISSION_LOAD_PER_CPU',
+  'SANDBOX_ADMISSION_CPU_PSI',
+  'SANDBOX_ADMISSION_MEMORY_PSI',
+  'SANDBOX_ADMISSION_IO_PSI',
+  'SANDBOX_ADMISSION_RECOVER',
+  'SANDBOX_HEAVY_LEASES_MAX',
+  'SANDBOX_HEAVY_MIN_FREE_DISK',
   'SANDBOX_EXEC_STALL_MINUTES',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
@@ -370,6 +378,104 @@ test('the CPU pressure admission waits from is 60 % unless set, and 0 turns it o
     process.env.SANDBOX_CPU_PRESSURE_PERCENT = refused;
     expect(() => loadConfig()).toThrow(/SANDBOX_CPU_PRESSURE_PERCENT/);
   }
+});
+
+describe('host admission', () => {
+  test('unset, the default preset judges CPU pressure alone at SANDBOX_CPU_PRESSURE_PERCENT', () => {
+    expect(loadConfig().admission).toEqual({
+      preset: 'default',
+      thresholds: {
+        loadPerCpu: null,
+        cpuPsi: 60,
+        memoryPsi: null,
+        ioPsi: null,
+        recover: 0.5,
+      },
+      heavyLeasesMax: 2,
+      heavyMinFreeDiskBytes: 20 * 1024 ** 3,
+    });
+    process.env.SANDBOX_CPU_PRESSURE_PERCENT = '35';
+    expect(loadConfig().admission?.thresholds.cpuPsi).toBe(35);
+    // 0 turns the CPU off for the default preset, as for session admission.
+    process.env.SANDBOX_CPU_PRESSURE_PERCENT = '0';
+    expect(loadConfig().admission?.thresholds.cpuPsi).toBeNull();
+  });
+
+  test('the conservative preset watches load, CPU, memory and I/O', () => {
+    process.env.SANDBOX_ADMISSION_PRESET = ' Conservative ';
+    // SANDBOX_CPU_PRESSURE_PERCENT shapes only the default preset.
+    process.env.SANDBOX_CPU_PRESSURE_PERCENT = '0';
+    expect(loadConfig().admission).toMatchObject({
+      preset: 'conservative',
+      thresholds: {
+        loadPerCpu: 1,
+        cpuPsi: 20,
+        memoryPsi: 1,
+        ioPsi: 10,
+        recover: 0.5,
+      },
+    });
+  });
+
+  test('an unknown preset stops the spawner at start', () => {
+    process.env.SANDBOX_ADMISSION_PRESET = 'strict';
+    expect(() => loadConfig()).toThrow(/SANDBOX_ADMISSION_PRESET/);
+  });
+
+  test("each threshold overrides the preset's, and 0 switches its signal off", () => {
+    process.env.SANDBOX_ADMISSION_LOAD_PER_CPU = '1.5';
+    process.env.SANDBOX_ADMISSION_CPU_PSI = '45';
+    process.env.SANDBOX_ADMISSION_MEMORY_PSI = '2';
+    process.env.SANDBOX_ADMISSION_IO_PSI = '15';
+    process.env.SANDBOX_ADMISSION_RECOVER = '0.3';
+    expect(loadConfig().admission?.thresholds).toEqual({
+      loadPerCpu: 1.5,
+      cpuPsi: 45,
+      memoryPsi: 2,
+      ioPsi: 15,
+      recover: 0.3,
+    });
+    process.env.SANDBOX_ADMISSION_PRESET = 'conservative';
+    process.env.SANDBOX_ADMISSION_LOAD_PER_CPU = '0';
+    process.env.SANDBOX_ADMISSION_IO_PSI = '0';
+    delete process.env.SANDBOX_ADMISSION_CPU_PSI;
+    delete process.env.SANDBOX_ADMISSION_MEMORY_PSI;
+    delete process.env.SANDBOX_ADMISSION_RECOVER;
+    expect(loadConfig().admission?.thresholds).toEqual({
+      loadPerCpu: null,
+      cpuPsi: 20,
+      memoryPsi: 1,
+      ioPsi: null,
+      recover: 0.5,
+    });
+  });
+
+  test.each([
+    ['SANDBOX_ADMISSION_LOAD_PER_CPU', ['-1', '65', 'high']],
+    ['SANDBOX_ADMISSION_CPU_PSI', ['-1', '101', 'busy']],
+    ['SANDBOX_ADMISSION_MEMORY_PSI', ['-0.5', '100.5', 'x']],
+    ['SANDBOX_ADMISSION_IO_PSI', ['-3', '200', 'io']],
+    ['SANDBOX_ADMISSION_RECOVER', ['0', '1', '-0.2', '1.5', 'half']],
+    ['SANDBOX_HEAVY_LEASES_MAX', ['0', '33', '1.5', 'two']],
+    ['SANDBOX_HEAVY_MIN_FREE_DISK', ['plenty', '-1g', '2t']],
+  ])('%s refuses a value outside its range at start', (name, refused) => {
+    for (const value of refused) {
+      process.env[name] = value;
+      expect(() => loadConfig()).toThrow(new RegExp(name));
+    }
+  });
+
+  test('the heavy-phase limits are configurable', () => {
+    process.env.SANDBOX_HEAVY_LEASES_MAX = '4';
+    process.env.SANDBOX_HEAVY_MIN_FREE_DISK = '50g';
+    expect(loadConfig().admission).toMatchObject({
+      heavyLeasesMax: 4,
+      heavyMinFreeDiskBytes: 50 * 1024 ** 3,
+    });
+    // 0 keeps only the session disk floor.
+    process.env.SANDBOX_HEAVY_MIN_FREE_DISK = '0';
+    expect(loadConfig().admission?.heavyMinFreeDiskBytes).toBe(0);
+  });
 });
 
 test('the critical tier of the session disk is optional and validated', () => {

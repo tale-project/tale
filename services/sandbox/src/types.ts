@@ -2,6 +2,10 @@
 // wire shapes moved out with the retired one-shot execution path; every sandbox
 // run is a session now.)
 
+import type {
+  AdmissionPresetName,
+  PressureThresholds,
+} from './host-pressure-assessment.ts';
 import type { RuntimeTier } from './runtime-tier.ts';
 
 /** Where a deployment's session compute runs (env SANDBOX_BACKEND). */
@@ -175,6 +179,28 @@ export interface SpawnerConfig {
   // session routes + session backends only — the one-shot /v1/execute path
   // never reads these.
   session: SessionConfig;
+  // Host admission (env SANDBOX_ADMISSION_* and SANDBOX_HEAVY_*): the
+  // pressure thresholds session admission paces starts at, the admission
+  // answer judges with, and the heavy-phase lease limits. Always populated by
+  // loadConfig; absent, the `default` preset and the lease defaults apply
+  // (host-admission.ts admissionConfigOf).
+  admission?: AdmissionConfig;
+}
+
+export interface AdmissionConfig {
+  /** SANDBOX_ADMISSION_PRESET: `default` paces session starts on CPU
+   * pressure alone; `conservative` adds load, memory and I/O pressure. */
+  preset: AdmissionPresetName;
+  /** The preset's thresholds with the operator's overrides
+   * (SANDBOX_ADMISSION_LOAD_PER_CPU, _CPU_PSI, _MEMORY_PSI, _IO_PSI,
+   * _RECOVER). */
+  thresholds: PressureThresholds;
+  /** SANDBOX_HEAVY_LEASES_MAX: heavy phases the host runs at once. */
+  heavyLeasesMax: number;
+  /** SANDBOX_HEAVY_MIN_FREE_DISK: free space a heavy phase must leave on
+   * each watched filesystem beside every phase still running; 0 keeps only
+   * the session disk floor. */
+  heavyMinFreeDiskBytes: number;
 }
 
 /**

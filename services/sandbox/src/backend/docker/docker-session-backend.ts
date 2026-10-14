@@ -80,6 +80,7 @@ import {
 } from '../../session/workspace-trash.ts';
 import {
   largestWorkspaces,
+  measureWorkspaces,
   type LargestWorkspaces,
 } from '../../session/workspace-usage.ts';
 import {
@@ -1472,6 +1473,13 @@ export class DockerSessionBackend implements SessionBackend {
    * session root (workspace-usage.ts). */
   largestWorkspaces(limit: number): Promise<LargestWorkspaces> {
     return largestWorkspaces(this.cfg.hostSessionRoot, { limit });
+  }
+
+  /** The same `du` over the named sessions' workspace dirs. */
+  workspaceSizes(
+    sessionIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number | null>> {
+    return measureWorkspaces(this.cfg.hostSessionRoot, sessionIds);
   }
 
   /** Every workspace dir under the host session root, joined with the

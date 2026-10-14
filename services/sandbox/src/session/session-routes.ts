@@ -12,20 +12,27 @@ import {
   type WorkspaceDeletion,
 } from '../backend/types.ts';
 import { reportSandboxError } from '../error-reporting.ts';
+import { parseHeavyLeaseRequest } from '../heavy-leases.ts';
+import {
+  HostAdmission,
+  type AdmissionKind,
+  type StartRoom,
+} from '../host-admission.ts';
 import {
   belowDiskCritical,
   belowDiskFloor,
   diskCriticalBytes,
+  diskReserveBytes,
   type HostDisk,
   type HostDiskSource,
   type SessionDiskState,
 } from '../host-disk.ts';
 import {
-  DEFAULT_CPU_PRESSURE_PERCENT,
   memoryReserveBytes,
   sessionWorkingSetBytes,
   type HostMemory,
 } from '../host-memory.ts';
+import type { AdmissionPresetName } from '../host-pressure-assessment.ts';
 import { jsonResponse } from '../http-util.ts';
 import {
   operationSignal,
@@ -69,12 +76,16 @@ import {
   type RunnerdHealth,
 } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
+import { sessionDockerCapability } from './session-profile.ts';
 import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
   validateCreateSession,
   validateExecSession,
 } from './validate-session.ts';
-import type { LargestWorkspaces } from './workspace-usage.ts';
+import {
+  WorkspaceUsageCache,
+  type LargestWorkspaces,
+} from './workspace-usage.ts';
 
 function b64decode(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
@@ -199,12 +210,14 @@ const GIB = 1024 ** 3;
  * linearly to nothing over this window. */
 const YOUNG_SESSION_RESERVE_MS = 90_000;
 
-/** While the Docker host's CPU is under pressure, at most one session starts
- * (a create or an idle session's activation) in this long: each start's own
- * load (a container, its runtime, an agent CLI booting) shows in the
- * ten-second pressure average before the next is let in, and the line still
- * moves when the load is not the sessions'. */
-const CPU_PRESSURED_START_SPACING_MS = 10_000;
+/** While the Docker host is under pressure (its CPU under the `default`
+ * preset; its load, memory or I/O as well where the deployment's thresholds
+ * watch them), at most one session starts (a create or an idle session's
+ * activation) in this long: each start's own load (a container, its runtime,
+ * an agent CLI booting) shows in the ten-second pressure averages before the
+ * next is let in, and the line still moves when the load is not the
+ * sessions'. */
+const PRESSURED_START_SPACING_MS = 10_000;
 
 /** The first-come line for host room. A create refused for want of room
  * waits its turn: the room that frees next goes to the oldest waiter still
@@ -236,10 +249,10 @@ interface RoomWaiter {
   workingSetBytes: number;
   /** A warm activation already holds a runtime slot; only creates need one. */
   needsSlot: boolean;
-  /** Its last refusal was for the host's CPU: only such waiters hold a start
-   * under CPU pressure back. One waiting for a slot or memory that will not
-   * free must not stop a start it would never take anyway. */
-  waitsForCpu: boolean;
+  /** Its last refusal was for the host's pressure: only such waiters hold a
+   * start under pressure back. One waiting for a slot or memory that will
+   * not free must not stop a start it would never take anyway. */
+  waitsForPressure: boolean;
   /** The bounded lease, renewed by a re-ask or liveness ping. */
   leaseUntilMs: number;
 }
@@ -253,9 +266,10 @@ interface RoomAsk {
   stale: boolean;
 }
 
-/** How many of `ahead` wait for the host's CPU (RoomWaiter.waitsForCpu). */
-function cpuWaiters(ahead: readonly RoomWaiter[]): number {
-  return ahead.filter((waiter) => waiter.waitsForCpu).length;
+/** How many of `ahead` wait for the host's pressure to ease
+ * (RoomWaiter.waitsForPressure). */
+function pressureWaiters(ahead: readonly RoomWaiter[]): number {
+  return ahead.filter((waiter) => waiter.waitsForPressure).length;
 }
 
 /** A sweep's idle decision, checked again atomically by runnerd before it
@@ -302,12 +316,10 @@ const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
  * inside the 30 s the platform gives a destroy, and enough for most. */
 const DESTROY_AWAITS_DELETION_MS = 10_000;
 
-/** Where admission reads the host's memory, and its CPU pressure, from. */
+/** Where admission reads the host's memory from. */
 export interface HostMemorySource {
   latest(): HostMemory | null;
   read(fresh?: boolean): Promise<HostMemory | null>;
-  /** The host's CPU pressure in percent (PSI `some avg10`), null unknown. */
-  cpuPressure?(): number | null;
 }
 
 const NO_HOST_MEMORY: HostMemorySource = {
@@ -382,8 +394,8 @@ export class SessionRoutes {
   // The asks for host room that are running their slow probes, by session
   // id; nothing here outlives its ask.
   private readonly roomAsks = new Map<string, Set<RoomAsk>>();
-  // When the last session was let in while the host's CPU was under
-  // pressure (CPU_PRESSURED_START_SPACING_MS).
+  // When the last session was let in while the host was under pressure
+  // (PRESSURED_START_SPACING_MS).
   private pressuredStartAtMs = Number.NEGATIVE_INFINITY;
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
@@ -443,6 +455,13 @@ export class SessionRoutes {
   };
   private workspaceUsageAtMs = Number.NEGATIVE_INFINITY;
   private workspaceUsage: Promise<void> | null = null;
+  // Each workspace's size as last measured for the platform's reclaim
+  // (GET /v1/workspaces/usage).
+  private readonly workspaceSizes = new WorkspaceUsageCache((sessionIds) =>
+    this.backend.workspaceSizes === undefined
+      ? Promise.resolve(new Map<string, number | null>())
+      : this.backend.workspaceSizes(sessionIds),
+  );
   // Settles when the destroy of that id is done (success or failure):
   // destroys of one id run one after another, and a create of the id waits
   // for the one under way instead of racing its workspace removal.
@@ -536,6 +555,14 @@ export class SessionRoutes {
      * afresh. Null where it cannot be read (Kubernetes, whose workspaces
      * are volumes of a fixed size): admission then ignores disk. */
     private readonly hostDisk: HostDiskSource = NO_HOST_DISK,
+    /** The host admission service: the pressure the deployment's thresholds
+     * pace starts at, when the last start was let in, and the heavy-phase
+     * leases, which end with their session. Without a pressure source the
+     * host reads as unjudged, which paces nothing. */
+    private readonly hostAdmission: HostAdmission = new HostAdmission(cfg, {
+      memory: hostMemory,
+      disk: hostDisk,
+    }),
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
@@ -557,9 +584,33 @@ export class SessionRoutes {
   inventory(
     organizationId: string,
   ): Array<{ sessionId: string; state: 'running' | 'starting' }> {
+    return [...this.sessionStates(organizationId)]
+      .map(([sessionId, state]) => ({ sessionId, state }))
+      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+  }
+
+  /** The sessions admission counts across organizations, from memory alone,
+   * as {@link inventory} counts one organization's. */
+  occupancy(): StartRoom['sessions'] {
+    let running = 0;
+    let starting = 0;
+    for (const state of this.sessionStates().values()) {
+      if (state === 'running') running += 1;
+      else starting += 1;
+    }
+    return { running, starting };
+  }
+
+  private sessionStates(
+    organizationId?: string,
+  ): Map<string, 'running' | 'starting'> {
     const states = new Map<string, 'running' | 'starting'>();
     for (const [sessionId, session] of this.unregistered) {
-      if (session.organizationId !== organizationId) continue;
+      if (
+        organizationId !== undefined &&
+        session.organizationId !== organizationId
+      )
+        continue;
       states.set(
         sessionId,
         session.state === 'degraded' ? 'starting' : 'running',
@@ -572,11 +623,10 @@ export class SessionRoutes {
       );
     }
     for (const [sessionId, org] of this.creating) {
-      if (org === organizationId) states.set(sessionId, 'starting');
+      if (organizationId === undefined || org === organizationId)
+        states.set(sessionId, 'starting');
     }
-    return [...states]
-      .map(([sessionId, state]) => ({ sessionId, state }))
-      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+    return states;
   }
 
   /** Does this spawner hold the session right now (live, or mid-create)? */
@@ -766,16 +816,18 @@ export class SessionRoutes {
   /** The admission decision for one create: a duplicate id → 409, a disk
    * the workspaces live on below its floor → `'disk'`, a full host →
    * `'full'`, a host whose memory would drop below its reserve with every
-   * create in flight at its planned working set → `'short'`, a host whose
-   * CPU is under pressure while another start had its turn → `'cpu'`, else
-   * the id is reserved in `creating`. Synchronous, under the admission lock:
-   * each create sees exactly the ones admitted before it. */
+   * create in flight at its planned working set → `'short'`, a host under
+   * pressure while another start had its turn → `'cpu'` where its CPU
+   * presses it most, `'pressure'` where its load, memory or I/O does, else
+   * the id is reserved in `creating` and the start noted. Synchronous, under
+   * the admission lock: each create sees exactly the ones admitted before
+   * it. */
   private admit(
     sessionId: string,
     organizationId: string,
     workingSetBytes: number,
     occupancy: BackendOccupancy | null,
-  ): Response | 'disk' | 'full' | 'short' | 'cpu' | null {
+  ): Response | 'disk' | 'full' | 'short' | 'cpu' | 'pressure' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
         {
@@ -833,12 +885,14 @@ export class SessionRoutes {
     }
     if (occupied >= this.cfg.session.maxSessions) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
-    if (this.cpuPressured() && !this.takePressuredStart(cpuWaiters(ahead)))
-      return 'cpu';
+    const pressed = this.hostPressed();
+    if (pressed !== null && !this.takePressuredStart(pressureWaiters(ahead)))
+      return pressed;
     this.invalidateWaiter(sessionId);
     this.creating.set(sessionId, organizationId);
     this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
+    this.hostAdmission.noteStart();
     return null;
   }
 
@@ -859,31 +913,26 @@ export class SessionRoutes {
     );
   }
 
-  /** Is the Docker host's CPU at or above SANDBOX_CPU_PRESSURE_PERCENT (the
-   * probe's last reading)? Unknown pressure never refuses. */
-  private cpuPressured(): boolean {
-    const threshold =
-      this.cfg.session.cpuPressurePercent ?? DEFAULT_CPU_PRESSURE_PERCENT;
-    if (threshold <= 0) return false;
-    let pressure: number | null;
-    try {
-      pressure = this.hostMemory.cpuPressure?.() ?? null;
-    } catch (error) {
-      console.warn('[sandbox.session] host CPU pressure unreadable:', error);
-      return false;
-    }
-    return pressure !== null && pressure >= threshold;
+  /** Is the Docker host under pressure by the deployment's thresholds (the
+   * sampler's last readings, with hysteresis: SANDBOX_CPU_PRESSURE_PERCENT
+   * under the `default` preset)? `'cpu'` where its CPU presses it most,
+   * `'pressure'` where its load, memory or I/O does; null when it is not, or
+   * cannot be judged: unknown pressure never refuses. */
+  private hostPressed(): 'cpu' | 'pressure' | null {
+    const gate = this.hostAdmission.startPressure();
+    if (!gate.pressured) return null;
+    return gate.signal === null || gate.signal === 'cpu' ? 'cpu' : 'pressure';
   }
 
-  /** Under CPU pressure, let one start in: the front of the CPU line (no
-   * waiter ahead that waits for the CPU), once
-   * {@link CPU_PRESSURED_START_SPACING_MS} has passed since the last start let
-   * in under pressure. */
-  private takePressuredStart(cpuWaitersAhead: number): boolean {
+  /** Under pressure, let one start in: the front of the pressure line (no
+   * waiter ahead that waits for the pressure to ease), once
+   * {@link PRESSURED_START_SPACING_MS} has passed since the last start let in
+   * under pressure. */
+  private takePressuredStart(pressureWaitersAhead: number): boolean {
     const now = Date.now();
     if (
-      cpuWaitersAhead > 0 ||
-      now - this.pressuredStartAtMs < CPU_PRESSURED_START_SPACING_MS
+      pressureWaitersAhead > 0 ||
+      now - this.pressuredStartAtMs < PRESSURED_START_SPACING_MS
     )
       return false;
     this.pressuredStartAtMs = now;
@@ -1142,27 +1191,35 @@ export class SessionRoutes {
       decision === 'full' ||
       decision === 'short' ||
       decision === 'disk' ||
-      decision === 'cpu'
+      decision === 'cpu' ||
+      decision === 'pressure'
     ) {
       const place = this.waitInLine(
         sessionId,
         workingSet,
         Date.now(),
         true,
-        decision === 'cpu',
+        decision === 'cpu' || decision === 'pressure',
         ask,
       );
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
-      if (decision === 'cpu') {
-        // An idle session uses no CPU: stopping one frees none.
+      if (decision === 'cpu' || decision === 'pressure') {
+        // An idle session presses nothing: stopping one eases no pressure.
         return jsonResponse(
-          {
-            error: 'host_cpu',
-            message:
-              'the sandbox host is short of CPU; the session starts once its load eases',
-            queue,
-          },
+          decision === 'cpu'
+            ? {
+                error: 'host_cpu',
+                message:
+                  'the sandbox host is short of CPU; the session starts once its load eases',
+                queue,
+              }
+            : {
+                error: 'host_pressure',
+                message:
+                  'the sandbox host is under pressure (load, memory or I/O); the session starts once it eases',
+                queue,
+              },
           429,
           { 'retry-after': retryAfter },
         );
@@ -1242,7 +1299,7 @@ export class SessionRoutes {
     workingSetBytes: number,
     now: number,
     needsSlot = true,
-    waitsForCpu = false,
+    waitsForPressure = false,
     ask?: RoomAsk,
   ): { position: number; waiting: number; hintMs: number } {
     const position = this.waitersAhead(sessionId, now).length;
@@ -1258,7 +1315,7 @@ export class SessionRoutes {
       known.hintMs = hintMs;
       known.workingSetBytes = workingSetBytes;
       known.needsSlot = needsSlot;
-      known.waitsForCpu = waitsForCpu;
+      known.waitsForPressure = waitsForPressure;
       known.leaseUntilMs = now + QUEUE_LEASE_MS;
     } else {
       if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
@@ -1267,7 +1324,7 @@ export class SessionRoutes {
         hintMs,
         workingSetBytes,
         needsSlot,
-        waitsForCpu,
+        waitsForPressure,
         leaseUntilMs: now + QUEUE_LEASE_MS,
       });
     }
@@ -1544,7 +1601,12 @@ export class SessionRoutes {
     this.forgetReclaimMarks(session.sessionId);
   }
 
+  /** Everything kept about an incarnation that is gone or going: called on
+   * every path that drops a session from the registry (a stop by the sweep,
+   * a reclaim or the linger reap, an eviction of a container that died or
+   * was replaced, a destroy), so its heavy-phase leases end with it too. */
   private forgetReclaimMarks(sessionId: string): void {
+    this.hostAdmission.leases.releaseSession(sessionId);
     this.reclaimClaims.delete(sessionId);
     this.probeFailedAtMs.delete(sessionId);
     this.reclaimSeen.delete(sessionId);
@@ -1960,6 +2022,7 @@ export class SessionRoutes {
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
+    this.hostAdmission.leases.sweep();
     const critical = this.diskCritical();
     if (critical.workspace) this.logLargestWorkspaces();
     const egressAddress = await this.currentEgressAddress();
@@ -2704,6 +2767,206 @@ export class SessionRoutes {
   }
 
   /**
+   * GET /v1/workspaces/usage?organizationId= — how much each of the
+   * organization's workspaces holds, for the platform's reclaim of the
+   * largest idle ones while the session disk runs short, beside where that
+   * disk stands. Each workspace is measured at most every ten minutes and at
+   * most fifty a call, the longest unmeasured first, by the bounded
+   * lowest-priority `du` of the critical-disk log; one it could not measure
+   * in time reads null. Where the spawner does not hold the workspaces' disk
+   * (Kubernetes, Incus) the list is empty and the disk null. An inventory
+   * that cannot be read is a 503, never an empty answer.
+   */
+  async handleWorkspaceUsage(organizationId: string): Promise<Response> {
+    let sessionIds: string[] = [];
+    if (this.backend.workspaceSizes !== undefined) {
+      try {
+        sessionIds = (await this.backend.listWorkspaces())
+          .filter((workspace) => workspace.organizationId === organizationId)
+          .map((workspace) => workspace.sessionId);
+      } catch (error) {
+        console.warn('[sandbox.session] workspace inventory failed:', error);
+        return jsonResponse({ error: 'inventory_unavailable' }, 503, {
+          'cache-control': 'no-store',
+        });
+      }
+    }
+    const workspaces = await this.workspaceSizes.usage(sessionIds);
+    return jsonResponse(
+      { measuredAtMs: Date.now(), disk: this.workspaceDisk(), workspaces },
+      200,
+      { 'cache-control': 'no-store' },
+    );
+  }
+
+  /** The workspaces' own filesystem against its floor and critical tier, as
+   * last read; null while it is not read. */
+  private workspaceDisk(): {
+    freeBytes: number;
+    floorBytes: number;
+    criticalBytes: number;
+    short: boolean;
+    critical: boolean;
+  } | null {
+    let disk: HostDisk | null;
+    try {
+      const apart = this.hostDisk.byFilesystem?.();
+      disk = apart === undefined ? this.hostDisk.latest() : apart.workspace;
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return null;
+    }
+    if (disk === null || disk.unavailable === true) return null;
+    const { minFreeDiskBytes, criticalFreeDiskBytes } = this.cfg.session;
+    return {
+      freeBytes: disk.availableBytes,
+      floorBytes: diskReserveBytes(disk.totalBytes, minFreeDiskBytes),
+      criticalBytes: diskCriticalBytes(
+        disk.totalBytes,
+        minFreeDiskBytes,
+        criticalFreeDiskBytes,
+      ),
+      short: belowDiskFloor(disk, minFreeDiskBytes),
+      critical: belowDiskCritical(
+        disk,
+        minFreeDiskBytes,
+        criticalFreeDiskBytes,
+      ),
+    };
+  }
+
+  /**
+   * GET /v1/admission — whether the host takes more work now (`start`), or
+   * what a heavy-phase lease of the default size would be told (`heavy`).
+   * Always a 200; a hold carries a `retry-after` in seconds. See
+   * host-admission.ts for the decision.
+   */
+  handleAdmission(
+    kind: AdmissionKind,
+    preset: AdmissionPresetName | undefined,
+  ): Response {
+    const answer = this.hostAdmission.answer(kind, preset, this.startRoom());
+    return jsonResponse(answer, 200, {
+      'cache-control': 'no-store',
+      ...(answer.verdict === 'hold' && answer.retryAfterMs !== null
+        ? { 'retry-after': String(Math.ceil(answer.retryAfterMs / 1000)) }
+        : {}),
+    });
+  }
+
+  /** What session admission would say of a project agent's start now,
+   * beside the host's pressure: its memory and disk gates, and the sessions
+   * it counts. */
+  private startRoom(): StartRoom {
+    return {
+      memoryShort: this.memoryShort(
+        sessionWorkingSetBytes(
+          'agent',
+          sessionDockerCapability(this.cfg, 'agent', 'project'),
+        ),
+      ),
+      diskShort: this.diskShort(),
+      sessions: this.occupancy(),
+    };
+  }
+
+  /** POST /v1/sessions/:id/leases — a heavy-phase lease for a live session
+   * of the organization: 201 with the lease, or 429 `lease_refused` naming
+   * why and when to ask again (host-admission.ts). A session that is not
+   * the organization's reads as not found; one stopping, frozen for a
+   * reclaim or being destroyed is no longer live (409). */
+  async handleLeaseAcquire(sessionId: string, body: string): Promise<Response> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch (err) {
+      return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
+    }
+    const request = parseHeavyLeaseRequest(parsed);
+    if (!request.ok) {
+      return jsonResponse(
+        { error: 'bad_request', message: request.error },
+        400,
+      );
+    }
+    const session = await this.ensureRegistered(sessionId);
+    if (session instanceof Response) return session;
+    if (
+      session === undefined ||
+      session.organizationId !== request.value.organizationId
+    ) {
+      return jsonResponse({ error: 'not_found' }, 404);
+    }
+    // Checked and granted with no await in between: whatever drops the
+    // session from here on ends the lease with it (forgetReclaimMarks).
+    if (!this.holdsLive(session)) {
+      return jsonResponse(
+        {
+          error: 'session_not_live',
+          message: `session ${sessionId} is stopping or being destroyed`,
+        },
+        409,
+      );
+    }
+    const decision = this.hostAdmission.acquireLease(
+      sessionId,
+      request.value,
+      this.occupancy(),
+    );
+    if (decision.granted) {
+      return jsonResponse({ lease: decision.lease }, 201);
+    }
+    return jsonResponse(
+      {
+        error: 'lease_refused',
+        reason: decision.reason,
+        retryAfterMs: decision.retryAfterMs,
+        evidence: decision.evidence,
+      },
+      429,
+      { 'retry-after': String(Math.ceil(decision.retryAfterMs / 1000)) },
+    );
+  }
+
+  /** Is this the registered incarnation, ready, and neither being stopped,
+   * frozen for a reclaim, nor being destroyed? */
+  private holdsLive(session: RegistrySession): boolean {
+    const { sessionId } = session;
+    return (
+      this.registry.get(sessionId) === session &&
+      session.state === 'ready' &&
+      !this.stopping.has(sessionId) &&
+      !this.reclaimClaims.has(sessionId) &&
+      !this.destroySettled.has(sessionId)
+    );
+  }
+
+  /** DELETE /v1/sessions/:id/leases/:leaseId?organizationId= — 204, or
+   * 404 `lease_not_found` for a lease that is not the session's and the
+   * organization's, or not active (expired, released, ended with its
+   * session). */
+  handleLeaseRelease(
+    sessionId: string,
+    leaseId: string,
+    organizationId: string,
+  ): Response {
+    return this.hostAdmission.leases.release(sessionId, leaseId, organizationId)
+      ? new Response(null, { status: 204 })
+      : jsonResponse({ error: 'lease_not_found' }, 404);
+  }
+
+  /** GET /v1/leases?organizationId= and GET /v1/sessions/:id/leases
+   * ?organizationId= — the organization's active leases, of one session
+   * when named. */
+  handleLeaseList(organizationId: string, sessionId?: string): Response {
+    return jsonResponse(
+      { leases: this.hostAdmission.leases.list(organizationId, sessionId) },
+      200,
+      { 'cache-control': 'no-store' },
+    );
+  }
+
+  /**
    * DELETE /v1/organizations/:id — tear down an organization that no longer
    * exists: destroy every session the backend still holds for it (running or
    * stopped containers/Pods, workspaces with them), then its resources beyond
@@ -3082,13 +3345,17 @@ export class SessionRoutes {
         0,
       );
       if (this.memoryShort(workingSet + held, sessionId)) return false;
+      const pressed = this.hostPressed();
       if (
-        this.cpuPressured() &&
-        !this.takePressuredStart(cpuWaiters(this.waitersAhead(sessionId, now)))
+        pressed !== null &&
+        !this.takePressuredStart(
+          pressureWaiters(this.waitersAhead(sessionId, now)),
+        )
       )
-        return 'cpu';
+        return pressed;
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
       this.invalidateWaiter(sessionId);
+      this.hostAdmission.noteStart(now);
       return true;
     };
     let admitted = await this.withAdmission(admit);
@@ -3100,21 +3367,29 @@ export class SessionRoutes {
     if (admitted === 'replaced')
       return jsonResponse({ error: 'not_found' }, 404);
     if (admitted === true) return null;
+    const pressed = admitted === 'cpu' || admitted === 'pressure';
     const place = this.waitInLine(
       sessionId,
       workingSet,
       Date.now(),
       false,
-      admitted === 'cpu',
+      pressed,
     );
-    if (admitted === 'cpu') {
+    if (pressed) {
       return jsonResponse(
-        {
-          error: 'host_cpu',
-          message:
-            'the sandbox host is short of CPU; work resumes once its load eases',
-          queue: { position: place.position, waiting: place.waiting },
-        },
+        admitted === 'cpu'
+          ? {
+              error: 'host_cpu',
+              message:
+                'the sandbox host is short of CPU; work resumes once its load eases',
+              queue: { position: place.position, waiting: place.waiting },
+            }
+          : {
+              error: 'host_pressure',
+              message:
+                'the sandbox host is under pressure (load, memory or I/O); work resumes once it eases',
+              queue: { position: place.position, waiting: place.waiting },
+            },
         429,
         { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
       );

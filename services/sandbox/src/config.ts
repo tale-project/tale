@@ -9,6 +9,11 @@ import { parse as parseYaml } from 'yaml';
 import { readIncusConfig } from './backend/incus/incus-config.ts';
 import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
 import { DEFAULT_CPU_PRESSURE_PERCENT } from './host-memory.ts';
+import {
+  ADMISSION_PRESETS,
+  presetThresholds,
+  type AdmissionPresetName,
+} from './host-pressure-assessment.ts';
 import { parseDindInnerPool } from './network-address.ts';
 import {
   dindDefaultEnabled,
@@ -22,6 +27,7 @@ import {
 } from './runtime-tier.ts';
 import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
 import type {
+  AdmissionConfig,
   HubConfig,
   K8sToleration,
   SandboxBackendKind,
@@ -454,6 +460,79 @@ function userEnv(
   return { user: `${uid}:${gid}`, uid, gid };
 }
 
+/** SANDBOX_ADMISSION_PRESET: the thresholds the host's pressure is judged
+ * by, `default` unless set. */
+function admissionPresetEnv(): AdmissionPresetName {
+  const raw = process.env.SANDBOX_ADMISSION_PRESET;
+  const value = raw?.trim().toLowerCase();
+  if (value === undefined || value === '') return 'default';
+  const preset = ADMISSION_PRESETS.find((name) => name === value);
+  if (preset === undefined) {
+    throw new Error(
+      `SANDBOX_ADMISSION_PRESET must be one of ${ADMISSION_PRESETS.join(', ')}; got: ${JSON.stringify(raw)}`,
+    );
+  }
+  return preset;
+}
+
+/** A pressure threshold that overrides the preset's: undefined when unset,
+ * null for 0 (the signal switched off), refused at boot outside 0–max. */
+function pressureThresholdEnv(
+  name: string,
+  max: number,
+): number | null | undefined {
+  if ((process.env[name] ?? '').trim() === '') return undefined;
+  const value = numEnv(name, 0, { min: 0, max });
+  return value === 0 ? null : value;
+}
+
+/** SANDBOX_ADMISSION_RECOVER: the share of its thresholds a pressed host
+ * must fall below before it admits again; strictly between 0 and 1. */
+function recoverEnv(): number | undefined {
+  const raw = process.env.SANDBOX_ADMISSION_RECOVER;
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0 || value >= 1) {
+    throw new Error(
+      `Env var SANDBOX_ADMISSION_RECOVER must be above 0 and below 1; got: ${JSON.stringify(raw)}`,
+    );
+  }
+  return value;
+}
+
+/** The host admission settings: the preset's thresholds with the
+ * operator's overrides, and the heavy-phase lease limits. */
+function admissionConfigEnv(cpuPressurePercent: number): AdmissionConfig {
+  const preset = admissionPresetEnv();
+  const base = presetThresholds(preset, cpuPressurePercent);
+  const loadPerCpu = pressureThresholdEnv('SANDBOX_ADMISSION_LOAD_PER_CPU', 64);
+  const cpuPsi = pressureThresholdEnv('SANDBOX_ADMISSION_CPU_PSI', 100);
+  const memoryPsi = pressureThresholdEnv('SANDBOX_ADMISSION_MEMORY_PSI', 100);
+  const ioPsi = pressureThresholdEnv('SANDBOX_ADMISSION_IO_PSI', 100);
+  const heavyLeasesMax = numEnv('SANDBOX_HEAVY_LEASES_MAX', 2, {
+    min: 1,
+    max: 32,
+  });
+  if (!Number.isInteger(heavyLeasesMax)) {
+    throw new Error(
+      `Env var SANDBOX_HEAVY_LEASES_MAX must be a whole number; got: ${heavyLeasesMax}`,
+    );
+  }
+  return {
+    preset,
+    thresholds: {
+      loadPerCpu: loadPerCpu === undefined ? base.loadPerCpu : loadPerCpu,
+      cpuPsi: cpuPsi === undefined ? base.cpuPsi : cpuPsi,
+      memoryPsi: memoryPsi === undefined ? base.memoryPsi : memoryPsi,
+      ioPsi: ioPsi === undefined ? base.ioPsi : ioPsi,
+      recover: recoverEnv() ?? base.recover,
+    },
+    heavyLeasesMax,
+    heavyMinFreeDiskBytes:
+      sizeEnv('SANDBOX_HEAVY_MIN_FREE_DISK') ?? 20 * 1024 ** 3,
+  };
+}
+
 /** A workload allowlist, with an explicit `none` for a lightweight fleet. */
 function dockerWorkloadsEnv(): readonly ('project' | 'workflow')[] | undefined {
   const raw = process.env.SANDBOX_DOCKER_WORKLOADS?.trim();
@@ -593,6 +672,12 @@ export function loadConfig(): SpawnerConfig {
   );
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
   const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
+  const cpuPressurePercent = numEnv(
+    'SANDBOX_CPU_PRESSURE_PERCENT',
+    DEFAULT_CPU_PRESSURE_PERCENT,
+    { max: 100 },
+  );
+  const admission = admissionConfigEnv(cpuPressurePercent);
   const criticalFreeDiskBytes = sizeEnv('SANDBOX_CRITICAL_FREE_DISK');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
   const buildkitdIdleCacheBytes = sizeEnv('SANDBOX_BUILDKITD_IDLE_CACHE');
@@ -986,6 +1071,7 @@ export function loadConfig(): SpawnerConfig {
       min: 1024,
     }),
     maxRequestBodyBytes,
+    admission,
     session: {
       // Runtime admission ceiling across organizations: Docker host or K8s
       // namespace inventory. Separate from the platform's project/workflow/
@@ -994,11 +1080,7 @@ export function loadConfig(): SpawnerConfig {
       maxSessions,
       autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
       ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
-      cpuPressurePercent: numEnv(
-        'SANDBOX_CPU_PRESSURE_PERCENT',
-        DEFAULT_CPU_PRESSURE_PERCENT,
-        { max: 100 },
-      ),
+      cpuPressurePercent,
       ...(minFreeDiskBytes !== undefined ? { minFreeDiskBytes } : {}),
       ...(criticalFreeDiskBytes !== undefined ? { criticalFreeDiskBytes } : {}),
       maxLifetimeMs: numEnv(

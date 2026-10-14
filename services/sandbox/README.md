@@ -104,15 +104,19 @@ working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
 session or answers 429 `host_memory`, logging the refusal. An explicit
 `SANDBOX_MAX_SESSIONS` fixes the cap and disables this adaptive memory
-admission, which leaves the count, CPU and disk guards in force; the operator
-must size it from measured peaks. An impossible memory reserve (at or above
+admission, which leaves the count, pressure and disk guards in force; the
+operator must size it from measured peaks. An impossible memory reserve (at or above
 total host memory) fails adaptive sizing at boot when the host is readable, or
-is reported when sizing is retried later. While the host's CPU pressure (PSI
-`some avg10` of `/proc/pressure/cpu`) is at or above
-`SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), creates and warm
-acquisitions start one at a time, one every ten seconds from the front of
-the line, and the rest answer 429 `host_cpu`; a kernel without PSI leaves CPU
-out, logged once. Admission also keeps
+is reported when sizing is retried later. While the host is under pressure by
+the deployment's admission preset — under `default` its CPU pressure (PSI
+`some avg10` of `/proc/pressure/cpu`) at or above
+`SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), under `conservative`
+also its load per CPU and its memory and I/O pressure (see
+[Host admission](#host-admission)) — creates and warm acquisitions start one
+at a time, one every ten seconds from the front of the line, and the rest
+answer 429 `host_cpu`, or `host_pressure` where load, memory or I/O presses
+the host most; pressure that cannot be read leaves admission alone, each
+unreadable file logged once. Admission also keeps
 `SANDBOX_MIN_FREE_DISK` free on the workspace filesystem and, where the
 spawner's Docker hostname bind can be verified, Docker's metadata filesystem
 (a twentieth of each, at least 2 GiB, at most 20 GiB; `0` turns it off). This
@@ -231,6 +235,44 @@ sessions stay protected; stopping compute preserves the workspace. See the
 [session lifecycle contract](docs/sessions.md#capacity-and-idle-reclamation)
 for release ordering and failure handling.
 
+## Host admission
+
+Where the spawner can read the Docker host's memory, it also samples the
+host's pressure every five seconds into a ring of the last two minutes: the
+one-minute load average per online CPU and the kernel's CPU, memory and I/O
+pressure stall shares (`src/host-pressure.ts`, the only reader of
+`/proc/pressure`). One admission service judges those readings for every
+question (`src/host-admission.ts`; the verdict itself is the pure
+`src/host-pressure-assessment.ts`): two readings at least ten seconds apart,
+the newer at most thirty seconds old, pressed at a threshold and released
+only below half of it. `SANDBOX_ADMISSION_PRESET` picks the deployment's
+thresholds — `default`, the CPU alone at `SANDBOX_CPU_PRESSURE_PERCENT`, or
+`conservative`, a load of 1 per CPU and 20 % CPU, 1 % memory and 10 % I/O
+pressure — and `SANDBOX_ADMISSION_LOAD_PER_CPU`, `SANDBOX_ADMISSION_CPU_PSI`,
+`SANDBOX_ADMISSION_MEMORY_PSI`, `SANDBOX_ADMISSION_IO_PSI` and
+`SANDBOX_ADMISSION_RECOVER` override them.
+
+`GET /v1/admission?organizationId=&kind=start|heavy&preset=` tells the
+platform, always with a 200, whether the host takes more work now: the
+verdict, why, when to ask again (also as `retry-after` on a hold) and the
+evidence it judged. A caller may ask for the stricter `conservative` preset,
+never a looser one. Before a heavy phase (an install, a build, a test suite)
+an agent's session takes a lease: `POST /v1/sessions/:id/leases`, ended with
+`DELETE /v1/sessions/:id/leases/:leaseId`, listed with `GET /v1/leases`. A
+lease is granted only while the host is not pressed by the conservative
+thresholds, fewer than `SANDBOX_HEAVY_LEASES_MAX` (2) heavy phases run, every
+watched filesystem keeps `SANDBOX_HEAVY_MIN_FREE_DISK` (20 GiB, or its floor
+if larger) beside what the running phases announced they would write, and
+memory keeps its reserve beside what they announced they would hold. A lease
+ends with its session, and lives in the spawner's memory: a restart drops
+every lease, which their expiry (at most two hours) and the pressure the next
+phase is judged by bound. Where the spawner cannot read the host (Kubernetes,
+Incus, a remote Docker daemon), every lease is refused as `unavailable`, and
+the admission answer admits under `default` and holds under `conservative`.
+`GET /v1/capacity` reports the leases as `leases: { active, max }`. The
+contract, with every shape:
+[host admission and heavy-phase leases](docs/sessions.md#host-admission-and-heavy-phase-leases).
+
 ## Workspace cleanup
 
 Stopping keeps a workspace; the platform decides when one goes — its owner
@@ -240,8 +282,11 @@ and enforces: `GET /v1/workspaces` lists every workspace it holds (stopped
 sessions' data included) and the organizations holding build helpers or
 package caches, `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` deletes a
 workspace only while no compute runs under it, and `DELETE /v1/organizations/:id`
-removes what is left of a deleted organization. All three use the same HMAC
-authentication as the session routes. See the
+removes what is left of a deleted organization. `GET /v1/workspaces/usage?organizationId=`
+says what each of an organization's workspaces holds, measured by the
+critical-disk log's bounded `du` at most every ten minutes and at most fifty
+a call, so the platform can reclaim the largest idle ones while the disk runs
+short. All four use the same HMAC authentication as the session routes. See the
 [workspace cleanup contract](docs/sessions.md#workspace-cleanup).
 
 On Docker a destroy moves the workspace into the session root's `.trash/` and
@@ -542,8 +587,8 @@ runtime image. A volume whose mode could not be set is removed again, and the
 next create makes it afresh.
 
 Reactivating a released session reserves its expected memory growth and checks
-disk headroom and CPU pressure. Both create and acquire can return 429
-`host_memory`, `host_cpu` or `host_disk`.
+disk headroom and host pressure. Both create and acquire can return 429
+`host_memory`, `host_cpu`, `host_pressure` or `host_disk`.
 Docker's metadata filesystem is observed through its existing `/etc/hostname`
 bind when that mount can be verified against the selected daemon. Otherwise,
 workspace admission remains active and Docker disk pressure is unavailable.

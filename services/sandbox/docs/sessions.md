@@ -615,19 +615,29 @@ hold memory in the line, but consume no additional session slot. These checks
 apply only where the Docker host's memory can be verified, and do not impose a
 hard aggregate memory limit on already-running work.
 
-The same reading carries the host's CPU pressure: `some avg10` of
-`/proc/pressure/cpu`, the share of the last ten seconds in which some
-runnable task waited for a CPU. While it is at or above
-`SANDBOX_CPU_PRESSURE_PERCENT` (60 by default; `0` turns the check off), a
-create or a warm acquisition is let in only from the front of the line and
-only once ten seconds have passed since the last start let in under
-pressure, so each start's own load shows in the average before the next; the
-others answer 429 `host_cpu` with their queue place and `retry-after`.
-Stopping an idle session frees no CPU, so none is reclaimed for it. Work
-already running is never slowed, and the line keeps moving when the load is
-not the sessions'. A kernel without pressure stall information (built
-without it, or booted with `psi=0`) leaves CPU out of admission, which the
-spawner logs once.
+Where that memory reading is trusted, the spawner also samples the host's
+pressure every five seconds into a ring of the last two minutes
+(`host-pressure.ts`): the one-minute load average with the CPUs online
+(`/proc/loadavg`, `/sys/devices/system/cpu/online`) and the kernel's pressure
+stall shares, `some avg10` of `/proc/pressure/cpu`, `memory` and `io` — the
+share of the last ten seconds in which some task waited for a CPU, for
+memory, or for I/O. It is the only reader of those files. Admission judges
+them by the deployment's preset (`SANDBOX_ADMISSION_PRESET`, see
+[host admission](#host-admission-and-heavy-phase-leases)): `default` watches
+the CPU alone, at `SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns the check
+off), and `conservative` adds load per CPU, memory and I/O. While the host is
+under pressure, a create or a warm acquisition is let in only from the front
+of the line and only once ten seconds have passed since the last start let
+in under pressure, so each start's own load shows in the averages before the
+next; the others answer 429 `host_cpu` where the CPU presses the host most,
+or `host_pressure` where load, memory or I/O does, with their queue place
+and `retry-after`. Stopping an idle session eases no pressure, so none is
+reclaimed for it. Work already running is never slowed, and the line keeps
+moving when the load is not the sessions'. Pressure that cannot be judged —
+a kernel without pressure stall information (built without it, or booted
+with `psi=0`), readings that stopped, a host whose `/proc` is not the Docker
+host's — never refuses a start; each file that cannot be read is logged
+once.
 
 On the Docker backend, admission also keeps a floor of free space on the
 workspace filesystem and Docker's metadata filesystem where it can be verified.
@@ -685,7 +695,7 @@ admission of new work, not disk writes by existing work. Hard per-session
 quotas still require [operator-provisioned storage](docker-in-container.md#storage--lifecycle).
 
 **Room goes first come, first served.** A create refused for room (429
-`session_quota`, `host_memory`, `host_cpu` or `host_disk`) waits in a line, by session id, in the
+`session_quota`, `host_memory`, `host_cpu`, `host_pressure` or `host_disk`) waits in a line, by session id, in the
 order of its first refusal; asking again keeps its place. Room that frees
 next is the oldest waiters': a create gets in ahead of them only where there
 is a free slot for each of them as well, and memory for their planned
@@ -716,6 +726,117 @@ confirmed terminal Pods do not. A failed inventory refuses the create with
 inventory is being read, count once. Simultaneous creates on different
 replicas still have no distributed reservation: use ResourceQuota for hard
 namespace resource bounds.
+
+### Host admission and heavy-phase leases
+
+One admission service (`host-admission.ts`) judges the host for every
+question asked of it: session admission's pacing above, the platform's
+question whether to start more work at all, and the leases of heavy phases.
+Its verdict on the pressure (`host-pressure-assessment.ts`, pure) rests on
+two readings at least ten and at most sixty seconds apart, the newer one at
+most thirty seconds old. The score is the worst ratio of a reading to its
+threshold across both readings and every signal the thresholds switch on: a
+score of 1 presses the host, and a pressed host stays pressed until the score
+falls below the recover share of the thresholds (half unless
+`SANDBOX_ADMISSION_RECOVER` says otherwise). The hysteresis of each set of
+thresholds follows every new reading, not the moments someone asks. Too few
+or too old readings are `stale`; no readings, or a signal switched on that a
+reading lacks, are `unavailable`.
+
+| Preset         | Load per CPU | CPU                                 | Memory | I/O  | Recover |
+| -------------- | ------------ | ----------------------------------- | ------ | ---- | ------- |
+| `default`      | off          | `SANDBOX_CPU_PRESSURE_PERCENT` (60) | off    | off  | 0.5     |
+| `conservative` | 1            | 20 %                                | 1 %    | 10 % | 0.5     |
+
+`SANDBOX_ADMISSION_PRESET` picks the deployment's preset (`default` unless
+set); `SANDBOX_ADMISSION_LOAD_PER_CPU`, `SANDBOX_ADMISSION_CPU_PSI`,
+`SANDBOX_ADMISSION_MEMORY_PSI` and `SANDBOX_ADMISSION_IO_PSI` override its
+thresholds (`0` switches a signal off), and `SANDBOX_ADMISSION_RECOVER` its
+recover share (strictly between 0 and 1). A value outside its range stops the
+spawner at start. A caller may ask for `conservative`: each threshold is then
+the stricter of the deployment's and the preset's, never looser than the
+deployment's; asking for `default` judges by the deployment's own. Pressure
+that cannot be judged admits under `default`, as session admission always
+has, and holds under `conservative`.
+
+`GET /v1/admission?organizationId=<id>&kind=start|heavy&preset=default|conservative`,
+signed like the session routes, always answers 200 (a malformed question is a
+400):
+
+```text
+{ verdict: 'admit' | 'hold',
+  reason: null | 'pressure' | 'pacing' | 'stale' | 'unavailable'
+        | 'memory' | 'disk' | 'limit',
+  retryAfterMs: number | null,
+  preset: 'default' | 'conservative',          // the preset judged by
+  observedAtMs: number,                        // when the spawner decided
+  evidence: {
+    pressure: { first, last, score, pressured, thresholds },
+    memory: { availableBytes, reserveBytes, totalBytes } | null,
+    disk: { freeBytes, floorBytes, short } | null,
+    sessions: { running, starting, limit },
+    leases: { active, max } } }
+```
+
+A hold carries a `retry-after` header in whole seconds, rounded up. `first`
+and `last` are the readings judged (`{ atMs, load1, cpus, cpuPsi, memoryPsi,
+ioPsi }`, every value null when it could not be read), `thresholds` the
+effective ones. `kind=start`, the default, asks whether to start more work:
+it holds for `disk` or `memory` where session admission would refuse an agent
+session's create now (asking again after 60 s and 15 s), for `pressure`
+(15 s), and for `pacing` until the last session start the spawner let in — a
+create or a warm acquisition of any organization, the host being shared — is
+followed by a fresh pair of readings, the first taken after it. Under
+`default`, `stale` and `unavailable` admit with that reason; under
+`conservative` they hold (5 s and 60 s). `kind=heavy` answers what a lease of
+the default size would be told now, without taking one. The answer does not
+wait for boot adoption: only its session counts read low while it runs.
+
+A heavy phase — a dependency install, an image build, a full test suite —
+asks for a lease of its session before it starts:
+
+- `POST /v1/sessions/:id/leases` with `{ organizationId, class: 'heavy',
+  label?, predictedGrowthBytes?, memoryBytes?, ttlMs? }`: a label of at most
+  120 characters, the disk the phase will write (2 GiB unless said) and the
+  memory it will hold (1 GiB) in whole bytes from 0, and a lifetime of
+  60,000 to 7,200,000 ms (30 minutes). The session must be registered, the
+  organization's and ready (404 `not_found` otherwise), and neither stopping,
+  frozen for a reclaim nor being destroyed (409 `session_not_live`). A grant
+  answers 201 `{ lease: { id, sessionId, organizationId, class, label,
+  predictedGrowthBytes, memoryBytes, acquiredAtMs, expiresAtMs } }` (`label`
+  null when none was given); a refusal 429 `{ error: 'lease_refused', reason:
+  'pressure' | 'stale' | 'unavailable' | 'limit' | 'disk' | 'memory',
+  retryAfterMs, evidence }`, the evidence as above, with a `retry-after`.
+- `DELETE /v1/sessions/:id/leases/:leaseId?organizationId=` ends one: 204, or
+  404 `lease_not_found` for a lease that is not the session's and the
+  organization's, or no longer active.
+- `GET /v1/sessions/:id/leases?organizationId=` and
+  `GET /v1/leases?organizationId=` answer `{ leases }`: the organization's
+  active leases, of the one session or of all.
+
+A lease is granted only while all of these hold: the host is not pressed
+under the conservative thresholds (tightened by the deployment's where those
+are stricter; no pacing); fewer heavy phases run than
+`SANDBOX_HEAVY_LEASES_MAX` (2); every watched filesystem — the workspaces',
+and Docker's data root where it is watched apart — keeps at least the larger
+of its floor and `SANDBOX_HEAVY_MIN_FREE_DISK` (20 GiB; `0` keeps only the
+floor) once every active lease and this one wrote what they announced; and
+MemAvailable, less what every active lease and this one announced to hold,
+keeps the memory reserve. A disk or memory that cannot be read refuses as
+`unavailable`, so where the spawner cannot see the host (Kubernetes, Incus, a
+remote Docker daemon) every lease is refused.
+
+A lease ends on its release, at its expiry (an expired lease is dropped on
+every read and by the session sweep each minute), or with its session: every
+path that drops a session from the registry ends its leases — an idle,
+lifetime or wedged stop, a reclaim, the linger reap, a destroy (one that then
+fails included), the eviction of a container that died or was replaced. The
+table lives in the spawner's memory, so a restart drops every lease; that is
+bounded by their expiry and by the pressure the next phase is judged by, and
+no running work depends on its lease. The lease routes of a session placed on
+a connected device are served by the device, against its own host;
+`GET /v1/leases` lists the leases of this spawner. `GET /v1/capacity` also
+carries them, as `leases: { active, max }`.
 
 ### Stop vs destroy — the data-preservation contract
 
@@ -890,6 +1011,19 @@ The spawner's part:
   device hub leaves the placement of a session whose device kept the workspace
   as it was. A spawner or device older than the flag destroys instead, and its
   answer carries no `workspaceKept`.
+- `GET /v1/workspaces/usage?organizationId=<id>` — what the organization's
+  workspaces hold, for a reclaim of the largest idle ones while the session
+  disk runs short: `{ measuredAtMs, disk: { freeBytes, floorBytes,
+  criticalBytes, short, critical } | null, workspaces: [{ sessionId, bytes,
+  measuredAtMs }] }`. The workspaces are the ones `GET /v1/workspaces`
+  attributes to the organization; the disk is the workspaces' own filesystem
+  as last read (null while unread). Each workspace is measured by the
+  bounded, lowest-priority `du` of the critical-disk log, at most every ten
+  minutes and at most fifty a call, the longest unmeasured first; one not
+  measured yet, or whose `du` failed or ran out of its 30 seconds, reads
+  `bytes: null` (`measuredAtMs: null` while never measured). Kubernetes and
+  Incus answer an empty list and a null disk. A workspace list that cannot be
+  read is a 503.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its
