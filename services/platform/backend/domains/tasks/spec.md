@@ -148,11 +148,14 @@ and noted on the task's timeline. A start by a person, and its retries, are neve
 never refused.
 
 One wait is free: when a run hits the model provider's rate limit (HTTP 429) and waits before
-trying again, that wait is not counted as a start. A second wait in a row is.
+trying again, that wait is not counted as a start. A second wait in a row is. A provider
+model-capacity refusal is also excluded from this hourly circuit: it reports temporary provider
+availability, not a task restart loop. Its normal automatic-retry budget still applies.
 
 A Codex model-capacity failure schedules an automatic retry one minute later. Its
-attempt still counts; it does not qualify for the free account-cooldown wait and does not
-exclude the account.
+attempt still counts toward the retry budget, but it does not consume the hourly automated-start
+circuit, qualify as a free account-cooldown wait, or exclude the account. A new automated start
+requested before that minute waits for the same floor instead of sending another provider request.
 
 - **Example**: A schedule has started the agent on a task three times since 14:00. At 14:40
   another agent starts it again → refused as `paused`, with the time after which it may retry.
@@ -456,7 +459,8 @@ organization refuses leaves the run working. Stop on the task ends it at once.
 
 ### TASK-R34 · A run without a workspace that fails or is lost fails as any run does
 
-A provider's rate limit fails the run as model capacity and is retried after a minute. A run
+A provider's rate limit fails the run as model capacity and is retried after a minute. That
+capacity refusal does not consume the task's hourly automated-start circuit. A run
 whose turn is gone fails as interrupted and is retried: it never opened its transcript, its
 turn ended without settling, or it has been silent for ten minutes. A run that outlasts its
 time limit, one the organization's content policy refuses, one a spent limit refuses, and one

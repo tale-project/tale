@@ -12,6 +12,7 @@ import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waitin
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import {
+  MODEL_CAPACITY_RETRY_DELAY_MS,
   freeCooldownWaits,
   freeCredentialRotations,
   type AutoRetryRunFacts,
@@ -112,10 +113,11 @@ import {
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
  *   automations and agents per task in any rolling hour, their automatic
- *   retries included (a broker cooldown after its own 429 and the first two
- *   consecutive broker credential rotations spend no second start), so two
- *   agents (or an agent and a schedule) cannot restart one task in a loop, and
- *   failing retries cannot stretch the budget. The refusal
+ *   retries included (a broker cooldown after its own 429, the first two
+ *   consecutive broker credential rotations, and provider model-capacity
+ *   refusals spend no second start), so two agents (or an agent and a
+ *   schedule) cannot restart one task in a loop, and failing retries cannot
+ *   stretch the budget. The refusal
  *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
  *   never counted or refused by it.
  *
@@ -146,8 +148,9 @@ export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
 
 /** Starts by automations and agents one task takes in any rolling hour —
  * their automatic retries included, except the existing free cooldown wait
- * after the run's own 429 and the first two consecutive credential rotations
- * — before the circuit breaker refuses the next. */
+ * after the run's own 429, the first two consecutive credential rotations,
+ * and provider model-capacity refusals — before the circuit breaker refuses
+ * the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -161,7 +164,9 @@ const HOUR_MS = 60 * 60 * 1000;
  * {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in the last hour —
  * every run row carrying `started_via`, whatever its trigger, except the
  * broker wait its retry budget already counts as part of the preceding 429
- * ({@link freeCooldownWaits}) — and records a refusal on the task's timeline
+ * ({@link freeCooldownWaits}), or a provider model-capacity refusal, which is
+ * an availability signal rather than a task restart loop — and records a
+ * refusal on the task's timeline
  * as the refused agent (`agent_run.refused`,
  * `task_circuit_breaker`: "<agent> could not start: agent runs are paused on
  * this task"). Runs a person started carry no `started_via`, so neither they
@@ -176,6 +181,8 @@ export async function admitAutomatedStart(
   args: {
     task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
     agentId: string;
+    /** An automatic retry queued now whose turn will start at this floor. */
+    startAfterMs?: number;
   },
 ): Promise<AutomatedStartWindow> {
   await tx`
@@ -183,15 +190,17 @@ export async function admitAutomatedStart(
     WHERE id = ${args.task.id} AND org_id = ${args.task.organizationId}
     FOR UPDATE
   `;
-  const window = await automatedStartWindow(tx, args.task);
+  const window = await automatedStartWindow(tx, args.task, args);
   if (window.admitted) return window;
-  await recordActivity(tx, {
-    task: args.task,
-    actorType: 'agent',
-    actorId: args.agentId,
-    action: 'agent_run.refused',
-    toValue: 'task_circuit_breaker',
-  });
+  if (window.reason !== 'model_capacity') {
+    await recordActivity(tx, {
+      task: args.task,
+      actorType: 'agent',
+      actorId: args.agentId,
+      action: 'agent_run.refused',
+      toValue: 'task_circuit_breaker',
+    });
+  }
   return window;
 }
 
@@ -199,7 +208,11 @@ export async function admitAutomatedStart(
  * exactly when it may. */
 type AutomatedStartWindow =
   | { admitted: true }
-  | { admitted: false; retryAfter: number };
+  | {
+      admitted: false;
+      retryAfter: number;
+      reason?: 'model_capacity';
+    };
 
 /**
  * The circuit's count alone ({@link admitAutomatedStart} without the task
@@ -210,6 +223,7 @@ type AutomatedStartWindow =
 export async function automatedStartWindow(
   tx: Sql | TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId'>,
+  options: { startAfterMs?: number } = {},
 ): Promise<AutomatedStartWindow> {
   const now = Date.now();
   const since = now - HOUR_MS;
@@ -262,12 +276,28 @@ export async function automatedStartWindow(
   }));
   const waits = freeCooldownWaits(facts);
   const rotations = freeCredentialRotations(facts);
+  // Fresh scheduled/delegated starts respect the same provider retry floor
+  // as automatic retries. Excluding an overload from the hourly circuit
+  // must not allow a caller to spin new starts into the same refusal.
+  const newest = history[0];
+  const capacityRetryAfter =
+    newest?.status === 'failed' && newest.failureCode === 'model_capacity'
+      ? (newest.settledAt ?? newest.startedAt) + MODEL_CAPACITY_RETRY_DELAY_MS
+      : 0;
+  if (capacityRetryAfter > Math.max(now, options.startAfterMs ?? now)) {
+    return {
+      admitted: false,
+      retryAfter: capacityRetryAfter,
+      reason: 'model_capacity',
+    };
+  }
   const recent = history.filter(
     (run, index) =>
       run.automated &&
       run.startedAt > since &&
       !waits[index] &&
-      !rotations[index],
+      !rotations[index] &&
+      !(run.status === 'failed' && run.failureCode === 'model_capacity'),
   );
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
