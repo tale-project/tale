@@ -254,7 +254,7 @@ Die verwaltete Organisation selbst bleibt unberührt: Das Deployment erstellt si
 
 #### Bundle vorbereiten, prüfen und anwenden
 
-Setze `TALE_DEPLOY_SPEC` auf die JSON-Datei, `TALE_DEPLOY_BUNDLE` auf ein neues absolutes Ausgabeverzeichnis und `TALE_CLI_COMMIT` auf den vollständigen Commit des Binaries. `DEPLOYMENT_COMMIT` ist ein optionaler Herkunftsvermerk für die Orchestrierung; lass die zugehörigen Flags bei Nichtgebrauch weg. Bereite vor und prüfe, übertrage das vollständige Verzeichnis und führe Vorschau und Deployment auf dem Ziel mit derselben festgelegten CLI aus.
+Setze `TALE_DEPLOY_SPEC` auf diese Datei, `TALE_DEPLOY_BUNDLE` auf ein neues absolutes Ausgabeverzeichnis und `TALE_CLI_COMMIT` auf den vollständigen Commit des Binaries. `DEPLOYMENT_COMMIT` ist ein optionaler Herkunftsvermerk für die Orchestrierung; lass die zugehörigen Flags bei Nichtgebrauch weg. Die Spezifikation ist JSON oder dieselbe Deklaration als YAML in einer Datei, deren Name auf `.yml` oder `.yaml` endet: YAML wird als Version 1.2 gelesen, verweigert einen doppelt geschriebenen Schlüssel und jeden Alias und bedeutet genau das, was das JSON derselben Deklaration bedeutet; dasselbe gilt für eine `configurationSource`-Datei. Bereite vor und prüfe, übertrage das vollständige Verzeichnis und führe Vorschau und Deployment auf dem Ziel mit derselben festgelegten CLI aus.
 
 ```bash
 tale --json deploy prepare \

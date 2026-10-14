@@ -90,7 +90,10 @@ export function createObserveCommand(): Command {
     .description(
       'Observe an existing deployment without applying configuration or accepting a release',
     )
-    .requiredOption('--spec <file>', 'Reviewed deployment specification JSON')
+    .requiredOption(
+      '--spec <file>',
+      'Reviewed deployment specification (JSON, or YAML in a .yml or .yaml file)',
+    )
     .option('--cli-ref <sha>', 'Expected full CLI source commit')
     .option('--deployment-ref <sha>', 'Expected full orchestrator commit')
     .requiredOption(

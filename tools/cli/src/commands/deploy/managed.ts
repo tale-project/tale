@@ -46,7 +46,7 @@ export function createPrepareCommand(): Command {
     )
     .requiredOption(
       '--spec <file>',
-      'Declarative Tale destination and source pins',
+      'Declarative Tale destination and source pins (JSON, or YAML in a .yml or .yaml file)',
     )
     .requiredOption('--output <directory>', 'New deployment bundle directory')
     .option(

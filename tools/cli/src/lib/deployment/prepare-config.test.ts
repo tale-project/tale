@@ -3,6 +3,8 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { stringify } from 'yaml';
+
 import { verifyArtifactBytes } from '../config/releases/artifacts';
 import { repoPath } from '../config/releases/identity';
 import { fixture as clientFixture } from '../config/releases/tests/fixture';
@@ -24,9 +26,15 @@ const describePosix = describe.skipIf(process.platform === 'win32');
 /** Real committed client source/compiler/capsule bytes. Runtime metadata and
  * source acquisition are explicit fakes; their separate integration owns Docker/Git transport. */
 describePosix('managed preparation native-owner binding', () => {
-  test.each(['operator', 'existing_owner'])(
-    'prepares and verifies the exact %s source binding through the managed entry point',
-    async (owner) => {
+  // The same spec is read from JSON and from YAML: the format is the file's
+  // extension, and what is prepared from either is the same bundle.
+  test.each([
+    ['operator', 'spec.json'],
+    ['existing_owner', 'spec.json'],
+    ['operator', 'spec.yml'],
+  ] as const)(
+    'prepares and verifies the exact %s source binding through the managed entry point (%s)',
+    async (owner, specName) => {
       const client = clientFixture();
       const root = await mkdtemp(join(tmpdir(), 'tale-prepare-owner-'));
       roots.push(root);
@@ -75,8 +83,11 @@ describePosix('managed preparation native-owner binding', () => {
           },
         ],
       };
-      const specPath = join(root, 'spec.json');
-      await writeFile(specPath, JSON.stringify(spec));
+      const specPath = join(root, specName);
+      await writeFile(
+        specPath,
+        specName.endsWith('.yml') ? stringify(spec) : JSON.stringify(spec),
+      );
       const output = join(root, 'prepared');
       const result = await prepareDeployment(
         { spec: specPath, output, deploymentRef: 'd'.repeat(40) },
