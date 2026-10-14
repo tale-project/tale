@@ -197,7 +197,7 @@ async function taskRunConfinement(
   )
     return 'ended';
   if (
-    parseRunStarter(run.startedBy).kind === 'trigger' &&
+    ['trigger', 'dispatch'].includes(parseRunStarter(run.startedBy).kind) &&
     !(await runStarterMayEditProject(sql, {
       organizationId: args.organizationId,
       projectId: run.projectId,

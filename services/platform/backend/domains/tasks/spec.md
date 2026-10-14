@@ -409,6 +409,97 @@ waited too long.
   reads "Waiting for model capacity" and takes no worker. At 10:01 the retry of "Changelog"
   starts first; at 10:03 it is still working → "Press kit" starts.
 
+## Dispatch
+
+A project's dispatch starts its ready work on its idle agents without anyone starting each run.
+People and their manager agents decide what is ready and in what order: the column a task waits
+in, its priority, its place on the board, its assignee. Dispatch decides when, and on which agent
+of its pool, as the sandbox host allows.
+
+### TASK-R41 · Dispatch starts ready work on idle agents of its pool, up to its limits
+
+Ready work is a task in one of the dispatch's columns that no run works on, that nothing open
+blocks, and that is assigned to an agent of the pool. It is taken by column, then priority, then
+board order, then age. An agent of the pool holds one run at a time (or as many as the dispatch
+allows), and the pool as many as its limit, counting every run of its agents whoever started it.
+Nothing starts while the organization's agent workers are all in use. Each start is an ordinary
+automated start: the task's hourly limit and its dependencies apply (`TASK-R12`).
+
+- **Example**: The pool is Scribe and Lector, with two runs at most. Scribe works on "Changelog".
+  "Release notes" (To do, p1) is Lector's, "Press kit" (To do, p2) is Scribe's → Lector starts on
+  "Release notes"; "Press kit" waits for Scribe.
+
+### TASK-R42 · Dispatch hands unassigned work to its pool only when told to
+
+With pool assignment, a ready task nobody is assigned to goes to the idle agent of the pool with
+the most room, and is assigned to it. With rebalance, a ready task that never ran moves from its
+busy agent to such an agent. A task that already ran stays with its agent, so its conversation
+and files stay where they are.
+
+- **Example**: The dispatch hands work to its pool. "Sitemap" is assigned to nobody, Scribe is
+  busy and Lector idle → Lector is assigned "Sitemap" and starts on it.
+
+### TASK-R43 · An agent whose model is at capacity takes no work from dispatch
+
+While the provider holds its model at capacity (`TASK-R40`), the agent's ready work waits, and
+unassigned work goes to an agent whose model answers. When the model answers again, dispatch
+looks for work at once.
+
+- **Example**: Scribe's model is at capacity; Lector's is not. "Sitemap" is assigned to nobody →
+  Lector takes it, and Scribe's own ready work waits.
+
+### TASK-R44 · Dispatch asks the sandbox host before each start and spaces its starts
+
+Before each start of ready work, dispatch asks the sandbox host whether it admits another, by the
+deployment's thresholds or, with the conservative preset, by stricter ones for load and CPU,
+memory and I/O pressure. A hold ends the pass, and dispatch asks again after its recheck delays
+(60, 120, then 240 seconds by default, then the last). Its starts are at least the spacing it
+names apart (30 seconds by default).
+
+- **Example**: The host's memory pressure is high when "Changelog" is next → nothing starts, and
+  dispatch asks again a minute later, then after two minutes, then every four.
+
+### TASK-R45 · A standing role starts its agent on its task at each occurrence of its schedule
+
+An occurrence fires on time, within ten minutes, never as a burst of what an outage missed. It
+moves the task to In progress and hands the agent the occurrence, read in the schedule's time zone
+with its UTC instant, the role's mode and its brief. An occurrence that finds the task still being
+worked on is coalesced into that run. Each occurrence is decided once, whichever passes decide it
+again.
+
+- **Example**: The manager role runs at :00 and :30 in Zurich. At 14:00 its agent starts with
+  "Scheduled occurrence: manager 2026-10-14 14:00 Europe/Zurich (2026-10-14T12:00:00.000Z)". At
+  14:30 the 14:00 run still works → nothing new starts, and the occurrence reads as coalesced.
+
+### TASK-R46 · The dispatch readback says what each agent of the pool does, or why it is idle
+
+For every agent of the pool it names the runs it holds, and for an idle one why: dispatch is off,
+its model is at capacity, the host held the last start, the agent workers are all in use, the
+last start was spaced, or no work is ready for it. It reads the run ledger and the passes, never
+where cards stand on the board.
+
+- **Example**: Scribe has no run and the last pass stopped because the host was under pressure →
+  the readback says Scribe is idle because the host held the last start.
+
+### TASK-R47 · A run dispatch starts answers to the project, never to a person
+
+It names the project's dispatch as its starter and spends under the automation subject, as a
+schedule's run does. It acts with the agent's full equipment while the project's dispatch is
+switched on and the project is active; a run that has not launched when dispatch is switched off
+fails without running.
+
+- **Example**: Dispatch starts Scribe on "Changelog" → the run's starter reads `dispatch:` and the
+  project, and no member's budget pays for it.
+
+### TASK-R48 · Only who may administer the project changes its dispatch
+
+Owners and admins of the organization, and the project's own administrators, change it on an
+active project. Every agent and task it names must be the project's, and its schedules must read
+(`DISPATCH_INVALID`). Anyone who can read the project reads it.
+
+- **Example**: Mia, a member, tries to switch the project's dispatch on → refused. An admin adds a
+  standing role on a task of another project → refused, naming the task.
+
 ## Runs that need no workspace
 
 The organization's standard agent works a task with what a chat reply has: the model, the
@@ -563,7 +654,7 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
 
 ## Not yet
 
-- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27` and `TASK-R30`–`TASK-R38`, and how a run moves the card between statuses (`agent-runs.ts`,
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38` and `TASK-R40`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29` and `TASK-R39`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`). `TASK-R39` hands reviews on from the members door

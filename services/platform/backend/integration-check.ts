@@ -184,6 +184,7 @@ import {
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDependencyResolution } from './domains/tasks/dependencies.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
+import { checkFleetDispatch } from './domains/tasks/dispatch.integration.ts';
 import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
@@ -65553,6 +65554,7 @@ async function main(): Promise<void> {
         'checkModelCapacityRetry',
         () => checkModelCapacityRetry(sql, boss, authCtx, record),
       ],
+      ['checkFleetDispatch', () => checkFleetDispatch(sql, authCtx, record)],
       [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),

@@ -60,10 +60,11 @@ import {
 /**
  * A project agent put to work by something other than a person's own Start:
  * an automation's `task.start_agent` step (a schedule's occurrence, or a run
- * a person started), or another project agent's run through the granted
- * `task_start_agent` tool. One admission for both doors, over the same kick
- * a person's Start uses (`kickAgentRun`), so the run is an ordinary run of
- * the agent with its provenance on the row (migration 0139).
+ * a person started), another project agent's run through the granted
+ * `task_start_agent` tool, or the project's dispatch (`dispatch-pass.ts`).
+ * One admission for every door, over the same kick a person's Start uses
+ * (`kickAgentRun`), so the run is an ordinary run of the agent with its
+ * provenance on the row (migrations 0139, 0206).
  *
  * Who it answers to. The started run inherits the door the requesting run
  * answers to — `startedBy`: the person who started it (a bare id), or the
@@ -145,6 +146,11 @@ import {
  * paused, removed or unbound between the kick and the turn's start. */
 export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
   'The schedule that started this run was paused or removed, or its automation is no longer bound to the project, before the run launched — nothing ran.';
+
+/** Why a run the project's dispatch started failed without launching: the
+ * dispatch was switched off, or the project archived, before its start. */
+export const DISPATCH_REVOKED_BEFORE_LAUNCH =
+  "The project's dispatch that started this run was switched off, or the project archived, before the run launched — nothing ran.";
 
 /** Starts by automations and agents one task takes in any rolling hour —
  * their automatic retries included, except the free cooldown wait after the
@@ -319,6 +325,9 @@ export async function inPlaceStartRefusal(
 /** The actor an automation's writes are recorded as on the task timeline —
  * the engine's task natives use the same sentinel. */
 const WORKFLOW_ACTOR_ID = 'workflow';
+
+/** The actor the project's dispatch is recorded as on the task timeline. */
+export const DISPATCH_ACTOR_ID = 'dispatch';
 
 export interface DelegatedAgentStartArgs {
   organizationId: string;
@@ -510,10 +519,12 @@ async function assertDelegatingRun(
   }
 }
 
-/** The activity actor of the requester: the asking agent, or the workflow
- * sentinel for an automation step. */
+/** The activity actor of the requester: the asking agent, the dispatch
+ * sentinel for the project's dispatch, or the workflow sentinel for an
+ * automation step. */
 function actorOf(via: StartedVia): string {
-  return via.kind === 'agent' ? via.agentId : WORKFLOW_ACTOR_ID;
+  if (via.kind === 'agent') return via.agentId;
+  return via.kind === 'dispatch' ? DISPATCH_ACTOR_ID : WORKFLOW_ACTOR_ID;
 }
 
 /** The agent of one of the task's runs; null when the run is not the
@@ -632,7 +643,12 @@ export async function startDelegatedAgentRun(
       403,
     );
   }
-  const trigger = args.via.kind === 'agent' ? 'delegated' : 'automation';
+  const trigger =
+    args.via.kind === 'agent'
+      ? 'delegated'
+      : args.via.kind === 'dispatch'
+        ? 'dispatch'
+        : 'automation';
   let task = await loadTaskOrThrow(tx, args.taskId, args.organizationId).catch(
     (error: unknown) => {
       if (error instanceof TaskError && error.code === 'TASK_NOT_FOUND') {
@@ -698,7 +714,9 @@ export async function startDelegatedAgentRun(
       'AGENT_START_FORBIDDEN',
       parseRunStarter(args.startedBy).kind === 'trigger'
         ? 'The schedule this work began with may not start agents in this project any more: it is paused, removed, or its automation is no longer bound to the project'
-        : 'The person this work answers to may no longer edit this project, so no agent can be started for them',
+        : parseRunStarter(args.startedBy).kind === 'dispatch'
+          ? "The project's dispatch may not start agents any more: it is switched off, or the project is archived"
+          : 'The person this work answers to may no longer edit this project, so no agent can be started for them',
       403,
     );
   }

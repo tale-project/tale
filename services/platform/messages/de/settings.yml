@@ -1492,6 +1492,7 @@ logs:
       project.instructions.changed: Projektanweisungen geändert
       project.knowledge_mode.changed: Wissensmodus des Projekts geändert
       project.agents.changed: Projektagenten geändert
+      project.dispatch.changed: Arbeitsverteilung des Projekts geändert
       project.models.changed: Projektmodelle geändert
       project.connectors.changed: Projekt-Connectors geändert
       project.file.attached: Datei an Projekt angehängt

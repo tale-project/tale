@@ -5,6 +5,7 @@ import { isValidAutomationName } from '../automation-name';
 import { TASK_DESCRIPTION_MAX } from '../task-limits';
 import { isoDateSchema, staticInputSchema } from './automation-trigger';
 import { configurationHashSchema } from './configuration';
+import { projectDispatchSchema } from './project-dispatch';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
   PROJECT_AGENT_BINDINGS_MAX,
@@ -168,6 +169,17 @@ export const managedAutomationScheduleSchema = z.union([
   }),
 ]);
 
+/** A project's dispatch (`./project-dispatch`): its pool, how many runs it
+ * holds, which columns count as ready, how starts are admitted, and its
+ * standing roles. Managed configuration may create it; the platform checks
+ * that every agent and task it names is the project's. */
+export const managedProjectDispatchSchema = projectDispatchSchema.safeExtend({
+  ...project,
+});
+export type ManagedProjectDispatch = z.infer<
+  typeof managedProjectDispatchSchema
+>;
+
 export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('project-instructions'),
@@ -203,6 +215,10 @@ export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('automation-schedule'),
     config: managedAutomationScheduleSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('project-dispatch'),
+    config: managedProjectDispatchSchema,
   }),
 ]);
 export type ManagedPlatformResource = z.infer<

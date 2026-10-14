@@ -5,6 +5,7 @@ import {
   lockProjectWork,
   queueOnProjectWork,
 } from '../../lib/project-work-lock.ts';
+import { requestDispatchPassForRunInTx } from './dispatch-requests.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 /**
@@ -336,6 +337,19 @@ export async function recordRunTerminalInTx(
     runId: entry.runId,
     organizationId: entry.organizationId,
   });
+  // The run that ended freed room in its project's dispatch pool: the next
+  // ready task starts without waiting for the minute scan.
+  const runs = await tx<{ projectId: string }[]>`
+    SELECT project_id AS "projectId" FROM app.project_agent_runs
+    WHERE id = ${entry.runId} AND org_id = ${entry.organizationId}
+  `;
+  const projectId = runs[0]?.projectId;
+  if (projectId !== undefined) {
+    await requestDispatchPassForRunInTx(tx, {
+      organizationId: entry.organizationId,
+      projectId,
+    });
+  }
 }
 
 /**

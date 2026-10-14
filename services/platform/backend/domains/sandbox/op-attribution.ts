@@ -86,8 +86,9 @@ export async function resolveSessionOpAttribution(
       }
       // A run a schedule began (an automation's start step, or an agent
       // that run delegated to) names no person: like every run a trigger
-      // starts, it books under the automation subject.
-      if (starter.kind === 'trigger') {
+      // starts, it books under the automation subject. So does a run the
+      // project's dispatch started.
+      if (starter.kind === 'trigger' || starter.kind === 'dispatch') {
         return {
           userId: AUTOMATION_SUBJECT_ID,
           agentSlug: row.agentId,
@@ -197,6 +198,7 @@ function automationRunAttribution(
         ...projects,
       };
     case 'trigger':
+    case 'dispatch':
       return {
         userId: AUTOMATION_SUBJECT_ID,
         agentSlug: row.name,

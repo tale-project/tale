@@ -130,6 +130,19 @@ describe('the shared helpers', () => {
       /why\n\nIts brief for you:\n\nwhat/,
     );
   });
+
+  it("names the project's dispatch, and the standing role it started a run for [TASK-R47]", () => {
+    expect(requesterStartLine({ kind: 'dispatch', name: '' })).toBe(
+      "This run was started by the project's dispatch, which starts ready work on idle agents, rather than by a person.",
+    );
+    const role = { kind: 'dispatch' as const, name: 'manager-light' };
+    expect(requesterStartLine(role)).toBe(
+      'This run was started by the project\'s dispatch, for the standing role "manager-light", rather than by a person.',
+    );
+    expect(requesterFeedbackSection(role, 'Go.')).toMatch(
+      /It comes from the project's dispatch, not from a person/,
+    );
+  });
 });
 
 describe('nativeInputsBlock', () => {

@@ -343,6 +343,25 @@ terms:
       (`automations.title`). DE feminine (die Automatisierung); never the
       standalone German 'Automation'. Its inner multi-step definition is the
       workflow (`feature_workflow`), a code/file-level term today.
+  - key: feature_dispatch
+    category: feature
+    en: Dispatch
+    de: Arbeitsverteilung
+    fr: Répartition du travail
+    _note: A project's dispatch — the platform starts the board's ready work
+      on the idle agents of its pool, and each standing role on its schedule
+      (`projects.dispatch.title`). DE feminine (die Arbeitsverteilung), FR
+      feminine (la répartition du travail); never the English word in DE/FR
+      prose. Technical identifiers such as `project-dispatch` and the run
+      starter `dispatch:<project>` remain unchanged. de-CH inherits de.
+  - key: feature_standingRole
+    category: feature
+    en: Standing role
+    de: Ständige Rolle
+    fr: Rôle permanent
+    _note: A job a project's dispatch gives one agent on a schedule, on its
+      own task (a manager's routing pass, a nightly QA sweep). Plurals —
+      Standing roles, Ständige Rollen, Rôles permanents. de-CH inherits de.
   - key: feature_automations
     category: feature
     en: Automations

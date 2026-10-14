@@ -80,6 +80,7 @@ import {
 } from '../domains/tasks/agent-workers.ts';
 import {
   admitAutomatedStart,
+  DISPATCH_REVOKED_BEFORE_LAUNCH,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
 import { TaskError } from '../domains/tasks/errors.ts';
@@ -629,6 +630,26 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const { createDueRepeatCopies } =
         await import('../domains/tasks/repeat-on-due.ts');
       await createDueRepeatCopies(deps.sql, { signal: context?.signal });
+    },
+    'tasks.dispatch_scan': async () => {
+      const { scanProjectDispatches } =
+        await import('../domains/tasks/dispatch-pass.ts');
+      await scanProjectDispatches(deps.sql);
+    },
+    'tasks.dispatch_project': async (payload) => {
+      const [{ runDispatchPass }, { DISPATCH_PASS_TRIGGERS }] =
+        await Promise.all([
+          import('../domains/tasks/dispatch-pass.ts'),
+          import('../domains/tasks/dispatch-requests.ts'),
+        ]);
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          projectId: z.string().min(1),
+          trigger: z.enum(DISPATCH_PASS_TRIGGERS),
+        })
+        .parse(payload);
+      await runDispatchPass(deps.sql, input);
     },
     'maintenance.rate_limit_gc': async () => {
       // Any row idle for 7 days is past every window/refill horizon.
@@ -1393,6 +1414,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           startedVia: string | null;
           viaAutomation: string | null;
           viaAgentName: string | null;
+          viaRunId: string | null;
           projectId: string;
           startedBy: string;
           handoff: { reason: string; brief: string } | null;
@@ -1410,6 +1432,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
                r.launched_at_ms::float8 AS "launchedAt", r.status,
                r.exec_id AS "execId", r.started_via AS "startedVia",
                r.started_via_automation AS "viaAutomation",
+               r.started_via_run_id AS "viaRunId",
                via_agent.name AS "viaAgentName"
         FROM app.project_agent_runs r
         LEFT JOIN app.project_agents via_agent
@@ -1436,23 +1459,27 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // A run a schedule began launches only while that schedule may still
       // act in the project: one paused, removed or unbound after the kick
       // leaves nothing to run for, so the run fails here, saying why,
-      // rather than working confined for nobody.
+      // rather than working confined for nobody. The same holds for a run
+      // the project's dispatch started, once dispatch is switched off.
       if (
-        parseRunStarter(run.startedBy).kind === 'trigger' &&
+        ['trigger', 'dispatch'].includes(parseRunStarter(run.startedBy).kind) &&
         !(await runStarterMayEditProject(deps.sql, {
           organizationId: input.organizationId,
           projectId: run.projectId,
           startedBy: run.startedBy,
         }))
       ) {
+        const byDispatch = parseRunStarter(run.startedBy).kind === 'dispatch';
         await failAgentRun(deps.sql, {
           organizationId: input.organizationId,
           runId: input.runId,
           execId: input.execId,
-          error: SCHEDULE_REVOKED_BEFORE_LAUNCH,
+          error: byDispatch
+            ? DISPATCH_REVOKED_BEFORE_LAUNCH
+            : SCHEDULE_REVOKED_BEFORE_LAUNCH,
         });
         console.warn(
-          `[task-agent] turn job for ${input.execId} refused: its schedule may no longer act in the project`,
+          `[task-agent] turn job for ${input.execId} refused: its ${byDispatch ? 'dispatch' : 'schedule'} may no longer act in the project`,
         );
         return;
       }
@@ -1570,7 +1597,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
                     name: run.viaAgentName ?? 'a deleted agent',
                   },
                 }
-              : {}),
+              : run.startedVia === 'dispatch'
+                ? {
+                    requester: {
+                      kind: 'dispatch' as const,
+                      // A standing role's occurrence is `<role>@<instant>`;
+                      // a pass over ready work is an opaque id.
+                      name: run.viaRunId?.includes('@')
+                        ? (run.viaRunId.split('@')[0] ?? '')
+                        : '',
+                    },
+                  }
+                : {}),
           ...plan,
         },
         context !== undefined ? { signal: context.signal } : undefined,

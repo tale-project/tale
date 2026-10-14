@@ -286,6 +286,19 @@ export const SETTINGS_KINDS = [
       "The writes to outside systems one automation may make without a person approving each run, named by step type (<connector>.<action>). id is the automation's name. The config is read only: allowed lists the step types allowed, used the writes the latest version makes, requiredByPolicy those a rule of the organization's approval policy still requires a person for whatever is allowed, and grants who allowed each and when. It changes through the acts grant and revoke, each taking args {types: [...]} of 1 to 50 step types; only a write to an outside system can be allowed. Owners and admins change it; developers read it.",
   },
   {
+    kind: 'project-dispatch',
+    scope: 'project',
+    areas: [],
+    cli: true,
+    ops: ['set'],
+    acts: [],
+    secretPaths: [],
+    baseRisk: 'high',
+    order: 67,
+    description:
+      "A project's dispatch, which starts its ready work on its idle agents without anyone starting each run: enabled; agents, the pool of the project's agent ids; maxConcurrentRuns and perAgentConcurrency (default 1); statuses, the columns ready work is taken from (todo, backlog); assignment (assigned: only tasks assigned to an agent of the pool; pool: unassigned tasks go to the idle agent with the most room); rebalance (move a task that never started from a busy agent to an idle one); labels {include, exclude} by label name; admission {preset: default or conservative, the stricter host thresholds; startSpacingSeconds, default 30; recheckSeconds, default [60, 120, 240]}; and standingRoles, each {key, taskId, agentId, cron, timezone, mode, brief}, an agent started on its own task on a schedule. Only who may administer the project changes it. A project without one reads as null. id is <projectId>.",
+  },
+  {
     kind: 'deployment',
     scope: 'instance',
     areas: [],

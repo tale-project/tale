@@ -375,6 +375,22 @@ export function assertProjectAdministrable(
   }
 }
 
+/** Whether the caller holds the project-level administer right
+ * ({@link assertProjectAdministrable}) — for a read that says what the
+ * caller may change. */
+export function checkProjectAdministrable(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): boolean {
+  if (
+    project.organizationId !== auth.organizationId ||
+    (auth.projectScope !== undefined && project.id !== auth.projectScope)
+  )
+    return false;
+  return checkProjectAccess(accessInput(project), auth.teamIds, auth.role)
+    .canAdminister;
+}
+
 export function assertCanCreateProjects(auth: ProjectAuthContext): void {
   if (!EDITOR_ROLES.has(auth.role)) {
     throw new ProjectError('RBAC_FORBIDDEN', 'Editor role required', 403);
@@ -645,7 +661,7 @@ function diff(
   return changed;
 }
 
-function projectAudit(
+export function projectAudit(
   auth: ProjectAuthContext,
   project: { id: string; name: string },
   action: string,

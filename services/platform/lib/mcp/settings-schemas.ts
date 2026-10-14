@@ -9,6 +9,7 @@ import {
   managedAgentInstructionsSchema,
   managedAgentModelSchema,
   managedAgentToolsSchema,
+  managedProjectDispatchSchema,
   managedProjectInstructionsSchema,
   managedTaskInstructionsSchema,
   managedTaskReviewContextSchema,
@@ -44,6 +45,7 @@ export const SETTINGS_CONFIG_SCHEMAS: Readonly<
   'agent-model': managedAgentModelSchema,
   'task-instructions': managedTaskInstructionsSchema,
   'task-review-context': managedTaskReviewContextSchema,
+  'project-dispatch': managedProjectDispatchSchema,
   'automation-approval': automationApprovalConfigSchema,
   deployment: deploymentConfigSchema,
 };

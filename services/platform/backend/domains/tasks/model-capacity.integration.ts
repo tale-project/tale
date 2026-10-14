@@ -196,14 +196,14 @@ export async function checkModelCapacityRetry(
         Math.abs(park.wakeAt.getTime() - hold.heldUntilMs) < 5_000,
       `claim=${JSON.stringify(claim)} park=${JSON.stringify(park)} heldUntil=${hold.heldUntilMs}`,
     );
-    const skipped = await sql<{ skipped: boolean }[]>`
-      SELECT ${sql.unsafe(PARKED_ON_HELD_MODEL_SQL)} AS skipped
+    const leftAlone = await sql<{ onHeldModel: boolean }[]>`
+      SELECT ${sql.unsafe(PARKED_ON_HELD_MODEL_SQL)} AS "onHeldModel"
       FROM app.project_agent_runs r WHERE r.id = ${kicked.runId}
     `;
     record(
       'model capacity: the generic wakes leave a run parked on a held model alone [TASK-R40]',
-      skipped[0] !== undefined && skipped[0].skipped,
-      `skipped=${JSON.stringify(skipped)}`,
+      leftAlone[0] !== undefined && leftAlone[0].onHeldModel,
+      `leftAlone=${JSON.stringify(leftAlone)}`,
     );
 
     // Runs that were already working when the model saturated fail in a

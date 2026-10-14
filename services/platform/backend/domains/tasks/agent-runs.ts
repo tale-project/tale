@@ -230,19 +230,22 @@ export function agentRunWorkerNumber(run: {
     : undefined;
 }
 
-/** How a run was kicked — the `trigger` column (migrations 0021, 0139). */
+/** How a run was kicked — the `trigger` column (migrations 0021, 0139,
+ * 0206). */
 export type TaskAgentRunTrigger =
   | 'manual'
   | 'mention'
   | 'auto_retry'
   | 'automation'
-  | 'delegated';
+  | 'delegated'
+  | 'dispatch';
 
 /**
  * Who put a project agent to work when no person pressed Start (0139): an
- * automation run's `task.start_agent` step, or another project agent's run
- * through the `task_start_agent` tool. Kept on the run and on its
- * auto-retries, never on a person's own later kick.
+ * automation run's `task.start_agent` step, another project agent's run
+ * through the `task_start_agent` tool, or the project's dispatch (0206): a
+ * pass that started ready work, or a standing role's occurrence. Kept on
+ * the run and on its auto-retries, never on a person's own later kick.
  */
 export type StartedVia =
   | {
@@ -260,6 +263,12 @@ export type StartedVia =
       runId: string;
       /** The delegating project agent. */
       agentId: string;
+    }
+  | {
+      kind: 'dispatch';
+      /** The dispatch pass that started it, or the standing role's
+       * occurrence (`<roleKey>@<occurrence epoch ms>`). */
+      runId: string;
     };
 
 export interface KickAgentRunArgs {
@@ -567,6 +576,9 @@ export async function startedViaOfRun(
   if (row.kind === 'agent' && row.agentId !== null) {
     return { kind: 'agent', runId: row.runId, agentId: row.agentId };
   }
+  if (row.kind === 'dispatch') {
+    return { kind: 'dispatch', runId: row.runId };
+  }
   return undefined;
 }
 
@@ -829,16 +841,18 @@ export async function failAgentRunFromTurn(
     // own, and its runs claim no worker to wait at.
     let retrying = armRetry;
     if (args.failureCode === 'model_capacity' && run.engine === 'harness') {
+      // Sampled after the terminal write won: a lock wait before it must not
+      // eat into the hold.
       const hold = await recordModelCapacityRefusalInTx(tx, {
         organizationId: run.organizationId,
         modelProvider: run.modelProvider,
         model: run.model,
         runId: args.runId,
-        now,
+        now: Date.now(),
       });
       if (
         retrying &&
-        now - hold.firstRefusedAtMs >= MODEL_CAPACITY_MAX_WAIT_MS
+        Date.now() - hold.firstRefusedAtMs >= MODEL_CAPACITY_MAX_WAIT_MS
       ) {
         retrying = false;
         await tx`

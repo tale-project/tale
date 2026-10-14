@@ -49,6 +49,7 @@ export function usageLedgerSubject(userId: string): string {
     case 'api-key':
       return starter.userId;
     case 'trigger':
+    case 'dispatch':
       return AUTOMATION_SUBJECT_ID;
     case 'unknown':
       return userId;

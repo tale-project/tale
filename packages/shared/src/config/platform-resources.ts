@@ -103,6 +103,8 @@ export function resourceId(resource: PlatformResource): string {
     case 'automation-deployment':
     case 'automation-schedule':
       return `${resource.kind}/${resource.config.projectId}/${resource.config.name}`;
+    case 'project-dispatch':
+      return `project-dispatch/${resource.config.projectId}`;
     case 'governance':
       return `governance/${resource.key}`;
     case 'provider':

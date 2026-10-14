@@ -52,6 +52,16 @@ export interface TaskPayloads {
   'tasks.enforce_dates': Record<string, never>;
   /** Continue repeating tasks whose due day began (every five minutes). */
   'tasks.repeat_on_due': Record<string, never>;
+  /** Ask every switched-on project dispatch that is due for a pass, and drop
+   * pass records older than a week (every minute). */
+  'tasks.dispatch_scan': Record<string, never>;
+  /** One pass of a project's dispatch: its standing roles that are due, then
+   * its ready work on its idle agents, one start at a time. */
+  'tasks.dispatch_project': {
+    organizationId: string;
+    projectId: string;
+    trigger: string;
+  };
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
   /** Start a task's owning automation (the comment-@mention trigger). */
@@ -509,6 +519,15 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // task's lock, so a retry that overlaps the attempt it replaces creates
   // nothing twice; the scan stops on the job's signal at its expiry.
   'tasks.repeat_on_due': { retryLimit: 1, expireInSeconds: 300 },
+  'tasks.dispatch_scan': { retryLimit: 0, expireInSeconds: 120 },
+  // One waiting pass per project (`singletonKey` dispatch:<project>): a
+  // burst of ended runs asks once. A pass holds its project's lease, so a
+  // retry that overlaps it stands down; the scan is the backstop.
+  'tasks.dispatch_project': {
+    policy: 'short',
+    retryLimit: 1,
+    expireInSeconds: 600,
+  },
   'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
   // The steer owns its OWN retry ladder (it re-enqueues itself with an
   // attempt counter, tight then coarse), so pg-boss must not add a second

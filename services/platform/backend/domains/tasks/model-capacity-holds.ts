@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { requestOrganizationDispatchPassesInTx } from './dispatch-requests.ts';
 
 /**
  * Model capacity holds (migration 0205): when a provider answers a run "the
@@ -294,6 +295,11 @@ export async function clearModelCapacityHoldInTx(
           },
     );
   }
+  // Dispatch held ready work for agents on this model: it may start it now.
+  await requestOrganizationDispatchPassesInTx(tx, {
+    organizationId: args.organizationId,
+    trigger: 'capacity_cleared',
+  });
   return parked.length;
 }
 

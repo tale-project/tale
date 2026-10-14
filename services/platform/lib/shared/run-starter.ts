@@ -11,6 +11,9 @@
  *   `trigger:<triggerId>` a schedule, a webhook or an event firing — and a
  *                         project-agent run a schedule began, directly or
  *                         through a delegation (`domains/tasks/delegated-start.ts`)
+ *   `dispatch:<projectId>` a project-agent run the project's dispatch started
+ *                         on ready work or for a standing role
+ *                         (`domains/tasks/dispatch-pass.ts`)
  *   `<userId>`            a bare id: every project-agent run a person's door
  *                         started, and automation runs the builder recorded
  *                         before it prefixed them
@@ -27,6 +30,8 @@ export type RunStarter =
   | { kind: 'user'; userId: string }
   | { kind: 'api-key'; userId: string }
   | { kind: 'trigger'; triggerId: string }
+  /** The project's dispatch: it answers to the project, never a person. */
+  | { kind: 'dispatch'; projectId: string }
   /** A starter that names nobody usable: an empty value, an empty id behind
    * a prefix, or a form this parser does not know. */
   | { kind: 'unknown'; raw: string };
@@ -34,6 +39,12 @@ export type RunStarter =
 const USER_PREFIX = 'user:';
 const API_KEY_PREFIX = 'api-key:';
 const TRIGGER_PREFIX = 'trigger:';
+const DISPATCH_PREFIX = 'dispatch:';
+
+/** The starter a run the project's dispatch started records. */
+export function dispatchRunStarter(projectId: string): string {
+  return `${DISPATCH_PREFIX}${projectId}`;
+}
 
 export function parseRunStarter(startedBy: string): RunStarter {
   const unknown: RunStarter = { kind: 'unknown', raw: startedBy };
@@ -49,13 +60,18 @@ export function parseRunStarter(startedBy: string): RunStarter {
     const triggerId = startedBy.slice(TRIGGER_PREFIX.length);
     return triggerId === '' ? unknown : { kind: 'trigger', triggerId };
   }
+  if (startedBy.startsWith(DISPATCH_PREFIX)) {
+    const projectId = startedBy.slice(DISPATCH_PREFIX.length);
+    return projectId === '' ? unknown : { kind: 'dispatch', projectId };
+  }
   // A bare id names a person directly; a value carrying a separator is a
   // door this parser does not know, never a user id.
   if (startedBy === '' || startedBy.includes(':')) return unknown;
   return { kind: 'user', userId: startedBy };
 }
 
-/** The person a starter names — `null` for a trigger or an unusable value. */
+/** The person a starter names — `null` for a trigger, the project's
+ * dispatch or an unusable value. */
 export function runStarterUserId(startedBy: string): string | null {
   const starter = parseRunStarter(startedBy);
   return starter.kind === 'user' || starter.kind === 'api-key'

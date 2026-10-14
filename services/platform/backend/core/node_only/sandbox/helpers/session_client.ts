@@ -738,6 +738,38 @@ export async function sandboxDeploymentLimits(organizationId: string): Promise<{
   return sandboxDeploymentLimitsSchema.parse(await response.json());
 }
 
+/** The sandbox host's answer to "may another start begin now?"
+ * (`GET /v1/admission`): its verdict, why, when to ask again, and the
+ * readings it judged — kept on the dispatch pass that asked. */
+const sandboxAdmissionSchema = z.object({
+  verdict: z.enum(['admit', 'hold']),
+  reason: z.string().nullable(),
+  retryAfterMs: z.number().nullable(),
+  preset: z.string(),
+  observedAtMs: z.number(),
+  evidence: z.record(z.string(), z.unknown()),
+});
+export type SandboxAdmission = z.infer<typeof sandboxAdmissionSchema>;
+
+/**
+ * Ask the sandbox host whether another start may begin now, judged with the
+ * deployment's thresholds or a stricter preset. A spawner too old to answer
+ * (404) yields null: the caller decides what an unknown host means.
+ */
+export async function sandboxAdmission(
+  organizationId: string,
+  args: { kind: 'start' | 'heavy'; preset: 'default' | 'conservative' },
+): Promise<SandboxAdmission | null> {
+  const path = `/v1/admission?organizationId=${encodeURIComponent(organizationId)}&kind=${args.kind}&preset=${args.preset}`;
+  const response = await spawnerFetch('GET', path, {
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(`Sandbox admission unavailable (${response.status})`);
+  return sandboxAdmissionSchema.parse(await response.json());
+}
+
 const acquisitionSchema = z.object({ generation: z.string().min(1) });
 
 /** The organization's connected devices, as the spawner's hub sees them. An

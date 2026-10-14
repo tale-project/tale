@@ -54,6 +54,7 @@
     "./schemas/schedule-rule": "./src/schemas/schedule-rule.ts",
     "./schemas/automation-replay": "./src/schemas/automation-replay.ts",
     "./schemas/automation-trigger": "./src/schemas/automation-trigger.ts",
+    "./schemas/project-dispatch": "./src/schemas/project-dispatch.ts",
     "./monitoring/privacy": "./src/monitoring/privacy.ts"
   },
   "scripts": {

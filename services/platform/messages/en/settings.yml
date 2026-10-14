@@ -1437,6 +1437,7 @@ logs:
       project.instructions.changed: Project instructions changed
       project.knowledge_mode.changed: Project knowledge mode changed
       project.agents.changed: Project agents changed
+      project.dispatch.changed: Project dispatch changed
       project.models.changed: Project models changed
       project.connectors.changed: Project connectors changed
       project.file.attached: File attached to project

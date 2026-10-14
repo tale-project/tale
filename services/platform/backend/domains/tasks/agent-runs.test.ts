@@ -24,6 +24,7 @@ import {
   wakeParkedAgentRuns,
   withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
+import { recordModelCapacityRefusalInTx } from './model-capacity-holds.ts';
 import {
   announceAgentRunFailed,
   withdrawAgentRunFailedNotices,
@@ -41,6 +42,11 @@ vi.mock('./run-failure-notice.ts', () => ({
 }));
 vi.mock('../sandbox/gateway-keys.ts', () => ({
   revokeSessionGatewayKeys: vi.fn(async () => {}),
+}));
+vi.mock('./model-capacity-holds.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./model-capacity-holds.ts')>()),
+  recordModelCapacityRefusalInTx: vi.fn(),
+  clearModelCapacityHoldInTx: vi.fn(),
 }));
 
 type Row = Record<string, unknown>;
@@ -349,6 +355,8 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
       ).sql;
     beforeEach(() => {
       vi.mocked(addJobInTx).mockReset();
+      vi.mocked(recordModelCapacityRefusalInTx).mockReset();
+      vi.mocked(announceAgentRunFailed).mockClear();
       vi.useFakeTimers({ toFake: ['Date'] });
       vi.setSystemTime(NOW);
     });
@@ -356,13 +364,48 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
       vi.useRealTimers();
     });
 
-    it('holds a counted model-capacity retry for one minute after settlement without a broker timestamp', async () => {
-      await failAgentRunFromTurn(failed(), {
+    const refusedOnModel = () =>
+      fakeSql((text) =>
+        text.startsWith('UPDATE app.project_agent_runs')
+          ? [
+              {
+                organizationId: 'org-1',
+                taskId: 'task-1',
+                agentId: 'agent-1',
+                model: 'sol',
+                modelProvider: 'openai',
+                engine: 'harness',
+              },
+            ]
+          : [],
+      ).sql;
+
+    it('arms a free retry at once and holds the model, so the retry parks on it [TASK-R40]', async () => {
+      vi.mocked(recordModelCapacityRefusalInTx).mockResolvedValueOnce({
+        heldUntilMs: NOW + 60_000,
+        consecutive: 1,
+        firstRefusedAtMs: NOW,
+        lastRefusedAtMs: NOW,
+        lastRunId: 'run-1',
+        probeRunId: null,
+        probeClaimedAtMs: null,
+      });
+      await failAgentRunFromTurn(refusedOnModel(), {
         runId: 'run-1',
         execId: 'exec-1',
         error: 'Selected model is at capacity. Please try a different model.',
         failureCode: 'model_capacity',
       });
+      expect(recordModelCapacityRefusalInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        {
+          organizationId: 'org-1',
+          modelProvider: 'openai',
+          model: 'sol',
+          runId: 'run-1',
+          now: NOW,
+        },
+      );
       expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
         expect.anything(),
         'task.agent_retry',
@@ -371,9 +414,53 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
           taskId: 'task-1',
           agentId: 'agent-1',
           expectedRunId: 'run-1',
-          startAfterMs: NOW + 60_000,
         },
       );
+    });
+
+    it('ends the run without a retry once the model has been at capacity for twelve hours [TASK-R40]', async () => {
+      vi.mocked(recordModelCapacityRefusalInTx).mockResolvedValueOnce({
+        heldUntilMs: NOW + 900_000,
+        consecutive: 9,
+        firstRefusedAtMs: NOW - 12 * 60 * 60_000,
+        lastRefusedAtMs: NOW,
+        lastRunId: 'run-1',
+        probeRunId: null,
+        probeClaimedAtMs: null,
+      });
+      await failAgentRunFromTurn(refusedOnModel(), {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'Selected model is at capacity. Please try a different model.',
+        failureCode: 'model_capacity',
+      });
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(announceAgentRunFailed).toHaveBeenCalledTimes(1);
+    });
+
+    it('holds nothing for a run of the native engine, whose rate limits are its gateway’s [TASK-R40]', async () => {
+      const { sql } = fakeSql((text) =>
+        text.startsWith('UPDATE app.project_agent_runs')
+          ? [
+              {
+                organizationId: 'org-1',
+                taskId: 'task-1',
+                agentId: 'agent-1',
+                model: 'sol',
+                modelProvider: 'openai',
+                engine: 'native',
+              },
+            ]
+          : [],
+      );
+      await failAgentRunFromTurn(sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'rate limited',
+        failureCode: 'model_capacity',
+      });
+      expect(recordModelCapacityRefusalInTx).not.toHaveBeenCalled();
+      expect(addJobInTx).toHaveBeenCalledTimes(1);
     });
 
     it.each([
@@ -418,12 +505,28 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
       },
     );
 
-    it('starts the model-capacity floor after a terminal-update lock wait, not before it', async () => {
+    it('starts the model’s hold after a terminal-update lock wait, not before it [TASK-R40]', async () => {
+      vi.mocked(recordModelCapacityRefusalInTx).mockResolvedValueOnce({
+        heldUntilMs: NOW + 150_000,
+        consecutive: 1,
+        firstRefusedAtMs: NOW + 90_000,
+        lastRefusedAtMs: NOW + 90_000,
+        lastRunId: 'run-1',
+        probeRunId: null,
+        probeClaimedAtMs: null,
+      });
       const { sql } = fakeSql((text) => {
         if (!text.startsWith('UPDATE app.project_agent_runs')) return [];
         vi.setSystemTime(NOW + 90_000);
         return [
-          { organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' },
+          {
+            organizationId: 'org-1',
+            taskId: 'task-1',
+            agentId: 'agent-1',
+            model: 'sol',
+            modelProvider: null,
+            engine: 'harness',
+          },
         ];
       });
       await failAgentRunFromTurn(sql, {
@@ -432,10 +535,9 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
         error: 'model capacity',
         failureCode: 'model_capacity',
       });
-      expect(addJobInTx).toHaveBeenCalledWith(
+      expect(recordModelCapacityRefusalInTx).toHaveBeenCalledWith(
         expect.anything(),
-        'task.agent_retry',
-        expect.objectContaining({ startAfterMs: NOW + 150_000 }),
+        expect.objectContaining({ now: NOW + 90_000 }),
       );
     });
 
@@ -1545,7 +1647,7 @@ describe('what every read shows of a waiting run [TASK-R25]', () => {
 describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own family [SBX-R19]', () => {
   const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
   const CANDIDATES =
-    'SELECT id, session_id AS "sessionId" FROM app.project_agent_runs';
+    'SELECT r.id, r.session_id AS "sessionId" FROM app.project_agent_runs r';
   const LOCK = 'SELECT id, org_id AS "organizationId"';
 
   beforeEach(() => {
@@ -1583,7 +1685,9 @@ describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own famil
       }),
     ).resolves.toBe(1);
     const candidates = calls.find((call) => call.text.startsWith(CANDIDATES));
-    expect(candidates?.text).toContain('ORDER BY waiting_for_capacity_at_ms');
+    expect(candidates?.text).toContain('ORDER BY r.waiting_for_capacity_at_ms');
+    // A run parked on a model still at capacity is the hold's to wake.
+    expect(candidates?.values.join(' ')).toContain('model_capacity_holds');
     // Worker 2's family is the agent's own: Mia's run is passed over.
     const locks = calls.filter((call) => call.text.startsWith(LOCK));
     expect(locks.map((call) => call.values[0])).toEqual(['run-5']);

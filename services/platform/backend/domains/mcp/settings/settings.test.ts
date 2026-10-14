@@ -207,6 +207,7 @@ describe('get_settings', () => {
       'task-instructions',
       'task-review-context',
       'automation-approval',
+      'project-dispatch',
       'deployment',
     ]);
     expect(kinds.find((entry) => entry.kind === 'governance')).toMatchObject({

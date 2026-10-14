@@ -1,5 +1,6 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import {
+  managedProjectDispatchSchema,
   managedTaskInstructionsSchema,
   managedTaskReviewContextSchema,
 } from '@tale/shared/schemas/managed-configuration';
@@ -19,12 +20,21 @@ import type {
   SettingsKindHandler,
   SettingsResource,
 } from '../mcp/settings/registry.ts';
-import { loadProjectOrThrow } from '../projects/service.ts';
+import {
+  checkProjectAdministrable,
+  loadProjectOrThrow,
+} from '../projects/service.ts';
 import {
   idParts,
   managedResource,
   projectAuthOf,
 } from '../projects/settings-resource.ts';
+import {
+  checkProjectDispatch,
+  DISPATCH_INVALID_SENTENCE,
+  readProjectDispatchConfiguration,
+  saveProjectDispatch,
+} from './dispatch-config.ts';
 import { TaskError } from './errors.ts';
 import {
   assertTaskReviewContextChange,
@@ -264,5 +274,106 @@ export const taskReviewContextSettings: SettingsKindHandler = {
       updateTaskReviewContextConfiguration(tx, auth, config, expectedHash),
     );
     return { hash: (await readReviewContext(ctx, id)).hash };
+  },
+};
+
+/**
+ * A project's dispatch as a settings kind over MCP (`project-dispatch`):
+ * read by whoever reads the project, changed by whoever may administer it,
+ * through the writer the app's Dispatch page and a declaration applied by
+ * the CLI go through (`dispatch-config.ts`). A project without one reads as
+ * null, and a change may create it.
+ */
+async function readDispatch(
+  ctx: SettingsContext,
+  id: string,
+): Promise<SettingsResource> {
+  const [projectId = ''] = idParts('project-dispatch', id, 1, '<projectId>');
+  return managedResource(
+    id,
+    await readProjectDispatchConfiguration(
+      ctx.sql,
+      await projectAuthOf(ctx),
+      projectId,
+    ),
+  );
+}
+
+function dispatchIdOf(change: SettingsChange): string {
+  const config =
+    change.op === 'set' && isRecord(change.config) ? change.config : null;
+  const carried =
+    typeof config?.projectId === 'string' ? config.projectId : undefined;
+  return identityOf('project-dispatch', change.id, carried, '<projectId>');
+}
+
+export const projectDispatchSettings: SettingsKindHandler = {
+  kind: 'project-dispatch',
+  access: async ({ caller }) => {
+    // Whoever reads a project reads its dispatch; the project's own rules
+    // decide who changes it.
+    const allowed = defineAbilityFor(caller.role).can('read', 'projects');
+    return { read: allowed, write: allowed };
+  },
+  identify: (change) => dispatchIdOf(change),
+  list: async (ctx, query) => {
+    if (query.ids === undefined) {
+      throw new SettingsRefusalError(
+        'SETTINGS_IDS_REQUIRED',
+        'project-dispatch reads the projects a call names, not every project',
+        { hint: 'name each project by its id in ids' },
+      );
+    }
+    const items: SettingsResource[] = [];
+    for (const id of query.ids) items.push(await readDispatch(ctx, id));
+    return { items, nextCursor: null };
+  },
+  read: async (ctx, id) => (id === null ? null : readDispatch(ctx, id)),
+  plan: async (ctx, change, current) => {
+    const id = dispatchIdOf(change);
+    const after = parseSettingsConfig(
+      managedProjectDispatchSchema,
+      change.config,
+      "the project's dispatch",
+    );
+    const auth = await projectAuthOf(ctx);
+    const project = await loadProjectOrThrow(ctx.sql, id);
+    if (!checkProjectAdministrable(project, auth)) {
+      throw new TaskError(
+        'PROJECT_FORBIDDEN',
+        'Only who may administer the project changes its dispatch',
+        403,
+      );
+    }
+    const { projectId: _projectId, ...dispatch } = after;
+    const issues = await checkProjectDispatch(ctx.sql, {
+      organizationId: auth.organizationId,
+      projectId: id,
+      dispatch,
+    });
+    if (issues.length > 0) {
+      throw new TaskError('DISPATCH_INVALID', DISPATCH_INVALID_SENTENCE, 400, {
+        issues,
+      });
+    }
+    const unchanged =
+      current !== null &&
+      current.config !== null &&
+      configurationHash(after) === configurationHash(current.config);
+    return { after, unchanged };
+  },
+  apply: async (ctx, change, expectedHash) => {
+    const id = dispatchIdOf(change);
+    const auth = await projectAuthOf(ctx);
+    const { projectId: _projectId, ...dispatch } =
+      managedProjectDispatchSchema.parse(change.config);
+    await transactSerializable(ctx.sql, (tx) =>
+      saveProjectDispatch(tx, auth, {
+        projectId: id,
+        dispatch,
+        expectedHash,
+      }),
+    );
+    return { hash: (await readDispatch(ctx, id)).hash };
   },
 };

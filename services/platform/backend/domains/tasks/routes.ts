@@ -5,6 +5,7 @@ import {
 } from '@tale/shared/schemas/configuration';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import {
+  managedProjectDispatchSchema,
   managedTaskInstructionsSchema,
   managedTaskReviewContextSchema,
   managedTaskReviewContextProvisionSchema,
@@ -46,6 +47,7 @@ import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
+  checkProjectAdministrable,
   getProjectAuthContext,
   listProjects,
   loadProjectOrThrow,
@@ -68,6 +70,12 @@ import {
   TASK_COMMENT_PAGE_MAX,
   taskCommentCursorSchema,
 } from './comments.ts';
+import {
+  readProjectDispatchConfiguration,
+  saveProjectDispatch,
+} from './dispatch-config.ts';
+import { readProjectDispatchStatus } from './dispatch-readback.ts';
+import { requestDispatchPassInTx } from './dispatch-requests.ts';
 import {
   findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
@@ -626,6 +634,96 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json(
         await listTasksForAccessibleProjects(deps.sql, auth, boardFilters(c)),
       );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // A project's dispatch: what it does and why each agent of its pool is
+  // idle, its document for the Dispatch page and managed configuration, and
+  // a pass asked for now. Fixed paths, before `/:taskId`.
+  app.get('/dispatch/by-project/:projectId', async (c) => {
+    try {
+      return c.json(
+        await readProjectDispatchStatus(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('projectId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/dispatch/by-project/:projectId/configuration', async (c) => {
+    try {
+      return c.json(
+        await readProjectDispatchConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('projectId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/dispatch/by-project/:projectId/configuration', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedProjectDispatchSchema,
+        expectedHash: expectedConfigurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const projectId = c.req.param('projectId');
+    if (body.data.config.projectId !== projectId)
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config.projectId',
+          message: 'must name the project in the request path',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      const { projectId: _projectId, ...dispatch } = body.data.config;
+      const saved = await transactSerializable(deps.sql, (tx) =>
+        saveProjectDispatch(tx, auth, {
+          projectId,
+          dispatch,
+          expectedHash: body.data.expectedHash,
+        }),
+      );
+      return c.json({ ok: true, changed: saved.changed, hash: saved.hash });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/dispatch/by-project/:projectId/pass', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const projectId = c.req.param('projectId');
+      const project = await loadProjectOrThrow(deps.sql, projectId);
+      if (!checkProjectAdministrable(project, auth)) {
+        return c.json(
+          {
+            error: 'PROJECT_FORBIDDEN',
+            message: 'Only who may administer the project asks for a pass',
+          },
+          403,
+        );
+      }
+      await deps.sql.begin((tx) =>
+        requestDispatchPassInTx(tx, {
+          organizationId: auth.organizationId,
+          projectId,
+          trigger: 'manual',
+        }),
+      );
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }

@@ -172,26 +172,36 @@ export async function holdAgentJobs(
   sql: Sql,
   suffix: string,
   projectIds: readonly string[],
-  options: { keepDelay?: boolean } = {},
+  options: {
+    keepDelay?: boolean;
+    /** More queues to hold, matched by the run, the task or the project
+     * their payload names (a dispatch pass, a park wake). */
+    extraQueues?: readonly string[];
+  } = {},
 ): Promise<() => Promise<void>> {
   for (const id of projectIds) {
     if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`itest: bad id ${id}`);
   }
+  const queues = [...HELD_QUEUES, ...(options.extraQueues ?? [])];
+  for (const name of queues) {
+    if (!/^[a-z0-9_.]+$/.test(name))
+      throw new Error(`itest: bad queue ${name}`);
+  }
   const tables = await sql<{ tableName: string }[]>`
     SELECT DISTINCT table_name AS "tableName" FROM pgboss.queue
-    WHERE name IN ${sql(HELD_QUEUES)}
+    WHERE name IN ${sql(queues)}
   `;
   const fn = `app.itest_hold_agent_jobs_${suffix}`;
   const list = projectIds.map((id) => `'${id}'`).join(', ');
   await sql.unsafe(`
     CREATE OR REPLACE FUNCTION ${fn}() RETURNS trigger AS $$
     BEGIN
-      IF NEW.name IN (${HELD_QUEUES.map((name) => `'${name}'`).join(', ')}) AND (
+      IF NEW.name IN (${queues.map((name) => `'${name}'`).join(', ')}) AND (
         NEW.data ->> 'runId' IN (
           SELECT id FROM app.project_agent_runs WHERE project_id IN (${list})
         ) OR NEW.data ->> 'taskId' IN (
           SELECT id FROM app.tasks WHERE project_id IN (${list})
-        )
+        ) OR NEW.data ->> 'projectId' IN (${list})
       ) THEN
         NEW.start_after := ${options.keepDelay === true ? 'greatest(NEW.start_after, now())' : 'now()'} + interval '1 day';
       END IF;
@@ -217,11 +227,12 @@ export async function holdAgentJobs(
     await sql.unsafe(`DROP FUNCTION IF EXISTS ${fn}()`);
     await sql`
       DELETE FROM pgboss.job
-      WHERE name IN ${sql(HELD_QUEUES)}
+      WHERE name IN ${sql(queues)}
         AND (data ->> 'runId' IN (SELECT id FROM app.project_agent_runs
                                   WHERE project_id = ANY(${[...projectIds]}))
              OR data ->> 'taskId' IN (SELECT id FROM app.tasks
-                                      WHERE project_id = ANY(${[...projectIds]})))
+                                      WHERE project_id = ANY(${[...projectIds]}))
+             OR data ->> 'projectId' = ANY(${[...projectIds]}))
     `;
   };
 }

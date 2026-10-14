@@ -21,6 +21,7 @@ import {
 import { providerCredentialSettings } from '../../provider_credentials/settings-resource.ts';
 import { providerSettings } from '../../providers/settings-resource.ts';
 import {
+  projectDispatchSettings,
   taskInstructionsSettings,
   taskReviewContextSettings,
 } from '../../tasks/settings-resource.ts';
@@ -40,6 +41,7 @@ export const SETTINGS_HANDLERS: Readonly<
   'agent-model': agentModelSettings,
   'task-instructions': taskInstructionsSettings,
   'task-review-context': taskReviewContextSettings,
+  'project-dispatch': projectDispatchSettings,
   'automation-approval': automationApprovalSettings,
   deployment: deploymentSettings,
 };

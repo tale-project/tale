@@ -281,6 +281,11 @@ const ADMITTED = [
   // REST intake cannot word it apart again.
   "domains/automations/store.ts 'AUTOMATION_PROJECT_FORBIDDEN' AUTOMATION_NOT_BOUND_SENTENCE",
   "rest/v1-tasks.ts 'AUTOMATION_PROJECT_FORBIDDEN' AUTOMATION_NOT_BOUND_SENTENCE",
+  // The one static sentence a dispatch that names what its project cannot
+  // use is refused with (`domains/tasks/dispatch-config.ts`): the issues,
+  // field by field, ride in its data.
+  "domains/tasks/dispatch-config.ts 'DISPATCH_INVALID' DISPATCH_INVALID_SENTENCE",
+  "domains/tasks/settings-resource.ts 'DISPATCH_INVALID' DISPATCH_INVALID_SENTENCE",
   // The task's own status (`TaskStatus`, a fixed vocabulary), told to the
   // caller deciding its review: the state it is in, never a value it sent.
   "rest/v1-tasks.ts 'TASK_NOT_IN_REVIEW' task.status",

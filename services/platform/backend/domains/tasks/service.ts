@@ -126,7 +126,10 @@ import {
   reviewerEligibility,
   type TaskReviewTrigger,
 } from './reviews.ts';
-import { scheduleMayActInProject } from './run-authority.ts';
+import {
+  dispatchMayActInProject,
+  scheduleMayActInProject,
+} from './run-authority.ts';
 import { lockTaskRunStart, mentionAutomationEnabled } from './run-start.ts';
 import { assertTaskSourceThreadReadable } from './source-thread.ts';
 
@@ -5060,6 +5063,15 @@ export async function deferredAgentKickRefusal(
       organizationId: args.organizationId,
       projectId: args.projectId,
       triggerId: starter.triggerId,
+    }))
+      ? null
+      : 'not_permitted';
+  }
+  if (starter.kind === 'dispatch') {
+    return (await dispatchMayActInProject(tx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      dispatchProjectId: starter.projectId,
     }))
       ? null
       : 'not_permitted';

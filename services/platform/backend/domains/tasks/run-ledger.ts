@@ -219,10 +219,14 @@ export async function recordTaskAgentRunLedgerEntry(
     // failed predecessor's starter — the retry continues THAT person's
     // kick; `metadata.trigger` tells the two apart. A run a schedule began
     // names no person: its door (`trigger:<id>`) is the system's act, and
-    // `metadata.startedVia` names the automation or agent that asked.
+    // `metadata.startedVia` names the automation or agent that asked. So is
+    // a run the project's dispatch started (`dispatch:<projectId>`).
     actorId: run.startedBy,
-    actorType:
-      parseRunStarter(run.startedBy).kind === 'trigger' ? 'system' : 'user',
+    actorType: ['trigger', 'dispatch'].includes(
+      parseRunStarter(run.startedBy).kind,
+    )
+      ? 'system'
+      : 'user',
     action: AGENT_RUN_LEDGER_ACTION,
     category: 'agent',
     resourceType: AGENT_RUN_LEDGER_RESOURCE_TYPE,
