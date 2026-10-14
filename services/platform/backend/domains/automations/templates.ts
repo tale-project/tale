@@ -1,9 +1,16 @@
-import type { AutomationTrigger } from '@tale/shared/schemas/automation-pack';
+import type {
+  AutomationCategory,
+  AutomationTrigger,
+} from '@tale/shared/schemas/automation-pack';
+import { automationSettingsSchema } from '@tale/shared/schemas/automation-settings';
 import type {
   TemplateAnswers,
   TemplateField,
+  TemplateOutcome,
+  TemplateStep,
 } from '@tale/shared/schemas/automation-template';
 import type { ScheduleRule } from '@tale/shared/schemas/schedule-rule';
+import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import type { Sql } from 'postgres';
 
 import {
@@ -17,43 +24,92 @@ import {
   loadAutomationTemplates,
   templateAnswerIssues,
   type AutomationTemplate,
+  type LoadTemplatesOptions,
   type TemplateAnswerIssue,
 } from '../../../lib/automations/templates.ts';
 import { findConnector } from '../../../lib/connectors/catalog.ts';
+import type { TestReport } from '../../../lib/engine/api/tests.ts';
 import type { Automation } from '../../../lib/engine/core/types.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
 import {
-  listActiveCredentials,
-  listConnectedConnectorSlugs,
-} from '../connector_credentials/service.ts';
+  automationPresentationSchema,
+  type AutomationPresentation,
+} from '../../../lib/shared/schemas/automation_presentation.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
+import { resolveBuiltinCatalogRoot } from '../../core/lib/config_store/builtin_catalog.ts';
+import type { WriteOrigin } from '../../lib/write-origin.ts';
+import { listCredentialsInService } from '../connector_credentials/service.ts';
 import { resolveModelReplacements } from './model-defaults.ts';
-import { AutomationError, assertTriggerValid } from './store.ts';
+import { automationVisible } from './project-visibility.ts';
+import {
+  answerTriggerWrite,
+  assertTriggerValid,
+  AutomationError,
+  deployInTx,
+  saveVersionInTx,
+  setTriggerInTx,
+  triggerWriteAnswer,
+  type SetTriggerResult,
+  type TriggerWritten,
+} from './store.ts';
 
 /**
- * Creating an automation from a shipped starter
- * (`configs/platform/system/automation-templates/`): the gallery's listing,
- * and the checks and the document a create needs. The answers are checked
- * twice over — on their own (`templateAnswerIssues`) and against the
- * organization: a project the creator can open, a member of the
- * organization, a credential in service — and nothing is written while one
- * fails. The models the starter names get the organization's served ones,
- * as a seeded pack's do, and the version says so.
+ * Using a template of the catalog (`lib/automations/templates.ts`): the
+ * catalog's cards and a template's preview, resolved against the
+ * organization — which connectors it has, which credentials, which
+ * automations already came from a template — and the create.
+ *
+ * The answers are checked twice over — on their own
+ * (`templateAnswerIssues`) and against the organization: a project the
+ * creator can open, a member of the organization, a credential in service —
+ * and nothing is written while one fails. The models a template names get
+ * the organization's served ones, and the version says so. The create
+ * writes version 1, its deployment when it starts the automation, and its
+ * trigger in ONE transaction: a create that fails anywhere leaves nothing.
  */
+
+/** The catalog the backend reads: the system root its resolver finds, and
+ * the builtin root a deployment bakes (`TALE_CONFIG_BUILTIN_DIR`). */
+function catalogRoots(): LoadTemplatesOptions {
+  return { packsRoot: resolveBuiltinCatalogRoot() };
+}
+
+function loadCatalog(): AutomationTemplate[] {
+  return loadAutomationTemplates(catalogRoots());
+}
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never;
 
-/** A question as the gallery shows it: where its answer goes stays on the
+/** A question as the catalog shows it: where its answer goes stays on the
  * server. */
 export type TemplateFieldView = DistributiveOmit<TemplateField, 'writes'>;
 
-/** One starter as the gallery lists it. */
+/** What starts a template's automation — a schedule names its rule, the
+ * setup's start. */
+export type TemplateTriggerView =
+  | { kind: 'event'; event: string | null }
+  | { kind: 'webhook' }
+  | {
+      kind: 'schedule';
+      repeat: ScheduleRule | null;
+      cron: string | null;
+      timezone: string | null;
+    }
+  | null;
+
+/** One template as the catalog lists it. */
 export interface AutomationTemplateCard {
+  /** Its directory below its catalog root: `task-digest`,
+   * `gmail/sync-emails`. */
   slug: string;
   name: string;
   description?: string;
+  /** A lucide name, or `brand:<slug>` for a product's logo. */
   icon?: string;
+  category: AutomationCategory;
+  /** Proper-noun chips (Gmail, GitHub), never translated. */
+  labels: string[];
   details: string;
   /** The display words per locale; absent locales read the English ones. */
   i18n: Record<
@@ -62,22 +118,30 @@ export interface AutomationTemplateCard {
   >;
   /** `project`: the automation is created in a project and serves it. */
   scope: 'org' | 'project';
+  /** How it works, in order, each worded per locale. */
+  steps: TemplateStep[];
+  /** What it creates, changes or sends, and what it never does. */
+  outcomes: TemplateOutcome[];
+  /** The templates it works with, by slug. */
+  worksWith: string[];
   fields: TemplateFieldView[];
   /** What must be connected for it to run, and whether it is. A connector
-   * of the platform's own surface always is. */
-  connectors: { slug: string; connected: boolean }[];
-  /** What starts it — a schedule names its rule, the picker's start. */
-  trigger:
-    | { kind: 'event'; event: string | null }
-    | { kind: 'webhook' }
-    | {
-        kind: 'schedule';
-        repeat: ScheduleRule | null;
-        timezone: string | null;
-      }
-    | null;
-  /** Its steps, in order, for the gallery's "how it works". */
-  steps: { id: string; type: string }[];
+   * of the platform's own surface (`platform`) always is. */
+  connectors: { slug: string; connected: boolean; platform: boolean }[];
+  /** What starts it. */
+  trigger: TemplateTriggerView;
+  /** How many of the organization's automations came from it. */
+  inUse: number;
+}
+
+/** One template as its preview shows it: the card, the document it
+ * creates — the read-only flow — and the credentials its questions can
+ * name. */
+export interface AutomationTemplateDetail extends AutomationTemplateCard {
+  document: Automation;
+  /** The credentials in service, by connector, of every connector a
+   * question asks a credential of: names only. */
+  credentials: Record<string, { name: string }[]>;
 }
 
 function fieldView(field: TemplateField): TemplateFieldView {
@@ -88,7 +152,7 @@ function fieldView(field: TemplateField): TemplateFieldView {
 
 function triggerView(
   trigger: AutomationTrigger | undefined,
-): AutomationTemplateCard['trigger'] {
+): TemplateTriggerView {
   if (trigger === undefined) return null;
   if (trigger.kind === 'event') {
     return { kind: 'event', event: trigger.event ?? null };
@@ -97,6 +161,7 @@ function triggerView(
   return {
     kind: 'schedule',
     repeat: trigger.repeat ?? null,
+    cron: trigger.cron ?? null,
     timezone: trigger.timezone ?? null,
   };
 }
@@ -108,11 +173,57 @@ function isPlatformConnector(slug: string): boolean {
   );
 }
 
-/** One starter as the gallery lists it; `connected` holds the connectors
+/**
+ * How many of the organization's automations came from each template, of
+ * those the reader sees (`automationVisible`, the listing's own rule): the
+ * template a version of the automation was made from, or — for a pack an
+ * earlier release installed in every organization, before templates — the
+ * pack's own automation name.
+ */
+async function templateUsage(
+  sql: Sql,
+  organizationId: string,
+  catalog: readonly AutomationTemplate[],
+  readableProjectIds: readonly string[],
+): Promise<Map<string, number>> {
+  const rows = await sql<
+    { name: string; template: string | null; bindings: string[] }[]
+  >`
+    SELECT a.name,
+           (array_agg(a.template_slug ORDER BY a.version DESC)
+              FILTER (WHERE a.template_slug IS NOT NULL))[1] AS template,
+           COALESCE(
+             (SELECT array_agg(b.project_id)
+              FROM app.automation_project_bindings b
+              WHERE b.org_id = a.org_id AND b.automation_name = a.name),
+             '{}'
+           ) AS bindings
+    FROM app.automations a
+    WHERE a.org_id = ${organizationId}
+    GROUP BY a.org_id, a.name
+  `;
+  const readable = new Set(readableProjectIds);
+  const byPackName = new Map(
+    catalog
+      .filter((template) => template.source === 'pack')
+      .map((template) => [template.automation.name, template.slug]),
+  );
+  const usage = new Map<string, number>();
+  for (const row of rows) {
+    if (!automationVisible(row.bindings, readable)) continue;
+    const slug = row.template ?? byPackName.get(row.name);
+    if (slug === undefined) continue;
+    usage.set(slug, (usage.get(slug) ?? 0) + 1);
+  }
+  return usage;
+}
+
+/** One template as the catalog lists it; `connected` holds the connectors
  * the organization has a credential in service for. */
 function templateCard(
   template: AutomationTemplate,
   connected: ReadonlySet<string>,
+  inUse: number,
 ): AutomationTemplateCard {
   const { manifest } = template;
   const i18n: AutomationTemplateCard['i18n'] = {};
@@ -132,33 +243,86 @@ function templateCard(
       description: manifest.description,
     }),
     ...(manifest.icon !== undefined && { icon: manifest.icon }),
+    category: manifest.category,
+    labels: manifest.labels ?? [],
     details: manifest.template.details,
     i18n,
     scope: manifest.scope ?? 'org',
+    steps: manifest.template.steps,
+    outcomes: manifest.template.outcomes,
+    worksWith: manifest.template.worksWith ?? [],
     fields: manifest.template.fields.map(fieldView),
-    connectors: (manifest.requires?.connectors ?? []).map((slug) => ({
-      slug,
-      connected: isPlatformConnector(slug) || connected.has(slug),
-    })),
+    connectors: (manifest.requires?.connectors ?? []).map((slug) => {
+      const platform = isPlatformConnector(slug);
+      return { slug, connected: platform || connected.has(slug), platform };
+    }),
     trigger: triggerView(manifest.triggers?.[0]),
-    steps: template.automation.nodes.map((node) => ({
-      id: node.id,
-      type: node.type,
-    })),
+    inUse,
   };
 }
 
-/** The starters, as the gallery of `organizationId` lists them. */
+/** The catalog, as a reader of the organization `organizationId` sees it:
+ * what is in use counts the automations they can see. */
 export async function listTemplateCards(
   sql: Sql,
   organizationId: string,
+  readableProjectIds: readonly string[],
 ): Promise<AutomationTemplateCard[]> {
-  const connected = new Set(
-    await listConnectedConnectorSlugs(sql, organizationId),
+  const catalog = loadCatalog();
+  const credentials = await listCredentialsInService(sql, organizationId);
+  const usage = await templateUsage(
+    sql,
+    organizationId,
+    catalog,
+    readableProjectIds,
   );
-  return loadAutomationTemplates().map((template) =>
-    templateCard(template, connected),
+  const connected = new Set(credentials.keys());
+  return catalog.map((template) =>
+    templateCard(template, connected, usage.get(template.slug) ?? 0),
   );
+}
+
+/** One template's preview, as a reader of the organization
+ * `organizationId` sees it; refuses a slug the catalog does not hold
+ * (`TEMPLATE_NOT_FOUND`). */
+export async function readTemplateDetail(
+  sql: Sql,
+  organizationId: string,
+  slug: string,
+  readableProjectIds: readonly string[],
+): Promise<AutomationTemplateDetail> {
+  const catalog = loadCatalog();
+  const template = catalog.find((candidate) => candidate.slug === slug);
+  if (template === undefined) {
+    throw new AutomationError(
+      'TEMPLATE_NOT_FOUND',
+      'There is no template by that name.',
+      404,
+    );
+  }
+  const inService = await listCredentialsInService(sql, organizationId);
+  const usage = await templateUsage(
+    sql,
+    organizationId,
+    catalog,
+    readableProjectIds,
+  );
+  const credentials: AutomationTemplateDetail['credentials'] = {};
+  for (const field of template.manifest.template.fields) {
+    if (field.kind !== 'credential') continue;
+    credentials[field.connector] = (inService.get(field.connector) ?? []).map(
+      (credential) => ({ name: credential.name }),
+    );
+  }
+  return {
+    ...templateCard(
+      template,
+      new Set(inService.keys()),
+      usage.get(template.slug) ?? 0,
+    ),
+    document: template.automation,
+    credentials,
+  };
 }
 
 /** What the organization says about the answers: a project the creator
@@ -173,6 +337,7 @@ async function referenceIssues(
   },
 ): Promise<TemplateAnswerIssue[]> {
   const issues: TemplateAnswerIssue[] = [];
+  let inService: Map<string, { id: string; name: string }[]> | undefined;
   for (const field of template.manifest.template.fields) {
     const answer = args.answers[field.id];
     if (typeof answer !== 'string' || answer.trim() === '') continue;
@@ -196,42 +361,67 @@ async function referenceIssues(
         message: 'There is no such member of the organization.',
       });
     }
-    if (
-      field.kind === 'credential' &&
-      !(
-        await listActiveCredentials(sql, args.organizationId, field.connector)
-      ).some((credential) => credential.name === value)
-    ) {
-      issues.push({
-        field: field.id,
-        code: 'unknown',
-        message: `There is no ${field.connector} credential of that name in service.`,
-      });
+    if (field.kind === 'credential') {
+      inService ??= await listCredentialsInService(sql, args.organizationId);
+      if (
+        !(inService.get(field.connector) ?? []).some(
+          (credential) => credential.name === value,
+        )
+      ) {
+        issues.push({
+          field: field.id,
+          code: 'unknown',
+          message: `There is no ${field.connector} credential of that name in service.`,
+        });
+      }
     }
   }
   return issues;
 }
 
-/** What a create from a starter saves: the document, its first version's
- * words and presentation, the project it is installed in and its trigger. */
+/** What a create from a template saves: the document, its first version's
+ * words and package data, the project it is installed in and its
+ * trigger. */
 export interface PreparedTemplateInstance {
   document: Automation;
   message: string;
-  presentation: {
-    name: string;
-    description?: string;
-    icon?: string;
-    requiredConnectors?: string[];
-  };
+  presentation: AutomationPresentation;
+  /** The template it is made from, kept beside the presentation. */
+  templateSlug: string;
+  /** The connectors it needs that the organization has no credential in
+   * service for, its own platform's left out: it cannot start yet. */
+  missingConnectors: string[];
+  taskContract?: unknown;
+  settings?: unknown;
   projectId?: string;
   trigger?: AutomationTrigger;
 }
 
+/** A manifest half the version keeps, in the shape its schema reads, or a
+ * packaging defect the catalog suite would have caught. */
+function packageHalf<T>(
+  value: unknown,
+  schema: { safeParse: (v: unknown) => { success: boolean; data?: T } },
+  what: string,
+  slug: string,
+): T | undefined {
+  if (value === undefined) return undefined;
+  const parsed = schema.safeParse(value);
+  if (!parsed.success || parsed.data === undefined) {
+    throw new Error(
+      `[automations] template "${slug}" has an unreadable ${what}`,
+    );
+  }
+  return parsed.data;
+}
+
 /**
- * Check the answers and build what a create from the starter `slug` saves,
- * named `name` and shown as `displayName`. Refuses a starter that does not
- * exist (`TEMPLATE_NOT_FOUND`) and answers it cannot use
- * (`TEMPLATE_ANSWERS_INVALID`, each named in `data.fields`); writes nothing.
+ * Check the answers and build what a create from the template `slug`
+ * saves, named `name` and shown as `displayName`. Refuses a template that
+ * does not exist (`TEMPLATE_NOT_FOUND`) and answers it cannot use
+ * (`TEMPLATE_ANSWERS_INVALID`, each named in `data.fields`); writes
+ * nothing. `timezone` is the creator's: a schedule the answers leave alone
+ * runs in it.
  */
 export async function prepareTemplateInstance(
   sql: Sql,
@@ -241,16 +431,18 @@ export async function prepareTemplateInstance(
     name: string;
     displayName: string;
     answers: TemplateAnswers;
-    /** The creator's language, for the defaults the starter words in it. */
+    /** The creator's language, for the defaults the template words in it. */
     locale?: string;
+    /** The creator's time zone. */
+    timezone?: string;
     visibleProjectIds: readonly string[];
   },
 ): Promise<PreparedTemplateInstance> {
-  const template = findAutomationTemplate(args.slug);
+  const template = findAutomationTemplate(args.slug, catalogRoots());
   if (template === null) {
     throw new AutomationError(
       'TEMPLATE_NOT_FOUND',
-      'There is no starter by that name.',
+      'There is no template by that name.',
       404,
     );
   }
@@ -270,6 +462,7 @@ export async function prepareTemplateInstance(
     name: args.name,
     answers: args.answers,
     ...(args.locale !== undefined && { locale: args.locale }),
+    ...(args.timezone !== undefined && { timezone: args.timezone }),
   });
   // The trigger is checked as its save will check it, before anything is
   // written: a schedule that could never start a run is the schedule
@@ -314,24 +507,203 @@ export async function prepareTemplateInstance(
   const { manifest } = template;
   const base = args.locale?.split('-')[0];
   const description =
+    (args.locale === undefined
+      ? undefined
+      : manifest.i18n?.[args.locale]?.description) ??
     (base === undefined ? undefined : manifest.i18n?.[base]?.description) ??
     manifest.description;
+  // The person names it; what the template declares about how it shows
+  // and what it opens comes with it. Where it came from is kept beside the
+  // presentation (`template_slug`): the presentation stays the shape an
+  // older image reads.
+  const presentation = automationPresentationSchema.parse({
+    name: args.displayName,
+    ...(description !== undefined && { description }),
+    ...(manifest.icon !== undefined && { icon: manifest.icon }),
+    ...(manifest.labels !== undefined && { labels: manifest.labels }),
+    ...(manifest.builtinViews !== undefined && {
+      builtinViews: manifest.builtinViews,
+    }),
+    ...(manifest.requires?.connectors !== undefined && {
+      requiredConnectors: manifest.requires.connectors,
+    }),
+  });
+  const inService = await listCredentialsInService(sql, args.organizationId);
+  const missingConnectors = (manifest.requires?.connectors ?? []).filter(
+    (slug) => !isPlatformConnector(slug) && !inService.has(slug),
+  );
+  const taskContract = packageHalf(
+    manifest.subjects?.task,
+    taskSubjectContractSchema,
+    'subjects.task',
+    template.slug,
+  );
+  const settings = packageHalf(
+    manifest.settings,
+    automationSettingsSchema,
+    'settings',
+    template.slug,
+  );
   return {
     document: seeded.document,
     message:
-      `Created from the starter "${manifest.name}".` +
+      // The version's message is the system's, in English like the rest.
+      `Created from the template "${manifest.name}".` +
       (seeded.changes.length === 0
         ? ''
         : ` ${modelDefaultsMessage(seeded.changes)}`),
-    presentation: {
-      name: args.displayName,
-      ...(description !== undefined && { description }),
-      ...(manifest.icon !== undefined && { icon: manifest.icon }),
-      ...(manifest.requires?.connectors !== undefined && {
-        requiredConnectors: manifest.requires.connectors,
-      }),
-    },
+    presentation,
+    templateSlug: template.slug,
+    missingConnectors,
+    ...(taskContract !== undefined && { taskContract }),
+    ...(settings !== undefined && { settings }),
     ...(instance.projectId !== undefined && { projectId: instance.projectId }),
     ...(instance.trigger !== undefined && { trigger: instance.trigger }),
+  };
+}
+
+/** What the engine's checks said of the document a create saves: the
+ * version's message and its tests' verdict. */
+export interface CheckedTemplateSave {
+  message?: string;
+  testsPassed?: boolean;
+  testReport?: TestReport;
+}
+
+/** What a create from a template made. */
+export interface CreatedFromTemplate {
+  name: string;
+  version: number;
+  /** Version 1 is live: the create started the automation. */
+  deployed: boolean;
+  /** The template's trigger as it was set — on when the create started the
+   * automation — with a webhook's token, minted now and shown once. */
+  trigger?: SetTriggerResult & { enabled: boolean };
+}
+
+/**
+ * What the trigger write of a committed create answers. The create has
+ * happened by then: a failure to read the warnings (what the deployed
+ * version would make of what the trigger sends) must not answer it as a
+ * failure, nor lose the webhook token it minted — the token is shown once.
+ */
+async function answerAfterCommit(
+  sql: Sql,
+  args: { organizationId: string; name: string },
+  written: TriggerWritten,
+): Promise<SetTriggerResult> {
+  try {
+    return await answerTriggerWrite(sql, args, written);
+  } catch (error) {
+    console.warn(
+      `[automations] ${args.organizationId}/${args.name}: the trigger's warnings could not be read after the create`,
+      error instanceof Error ? error.message : error,
+    );
+    return triggerWriteAnswer(written);
+  }
+}
+
+/**
+ * Write what a create from a template made, after the engine checked the
+ * document and ran its tests: version 1 (installed in its project), with
+ * `start` its deployment, and its trigger — on with `start`, off without —
+ * in ONE transaction, so a refusal anywhere (a name already taken, a
+ * deploy gate, a trigger the store refuses) leaves no automation behind,
+ * and certainly none half started.
+ */
+export async function commitTemplateInstance(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    name: string;
+    origin: WriteOrigin;
+    prepared: PreparedTemplateInstance;
+    checked: CheckedTemplateSave;
+    start: boolean;
+  },
+): Promise<CreatedFromTemplate> {
+  const { organizationId, name, origin, prepared, checked } = args;
+  if (args.start && checked.testsPassed === false) {
+    throw new AutomationError(
+      'AUTOMATION_DEPLOY_REJECTED',
+      'The automation cannot start: its own tests fail.',
+      409,
+    );
+  }
+  // Started, it would run against a service nobody connected: every run
+  // would fail. The app never asks; a direct call is refused the same way.
+  if (args.start && prepared.missingConnectors.length > 0) {
+    throw new AutomationError(
+      'TEMPLATE_CONNECTION_MISSING',
+      `Connect ${prepared.missingConnectors.join(', ')} before it can start; it can be created as a draft now.`,
+      409,
+      { connectors: prepared.missingConnectors },
+    );
+  }
+  const written = await sql.begin(async (tx) => {
+    const saved = await saveVersionInTx(tx, {
+      organizationId,
+      name,
+      document: prepared.document,
+      origin,
+      create: true,
+      message: checked.message ?? prepared.message,
+      presentation: prepared.presentation,
+      templateSlug: prepared.templateSlug,
+      ...(checked.testsPassed !== undefined && {
+        testsPassed: checked.testsPassed,
+      }),
+      ...(checked.testReport !== undefined && {
+        testReport: checked.testReport,
+      }),
+      ...(prepared.taskContract !== undefined && {
+        taskContract: prepared.taskContract,
+      }),
+      ...(prepared.settings !== undefined && { settings: prepared.settings }),
+      ...(prepared.projectId !== undefined && {
+        projectId: prepared.projectId,
+      }),
+    });
+    if (args.start) {
+      await deployInTx(tx, {
+        organizationId,
+        name,
+        version: saved.version,
+        origin,
+        ...(checked.testsPassed !== undefined && {
+          testsPassed: checked.testsPassed,
+        }),
+        ...(checked.testReport !== undefined && {
+          testReport: checked.testReport,
+        }),
+      });
+    }
+    const trigger =
+      prepared.trigger === undefined
+        ? undefined
+        : await setTriggerInTx(tx, {
+            organizationId,
+            name,
+            trigger: { ...prepared.trigger, enabled: args.start },
+            origin,
+          });
+    return { version: saved.version, trigger };
+  });
+  const trigger =
+    written.trigger === undefined
+      ? undefined
+      : {
+          ...(await answerAfterCommit(
+            sql,
+            { organizationId, name },
+            written.trigger,
+          )),
+          enabled: args.start,
+        };
+  return {
+    name,
+    version: written.version,
+    deployed: args.start,
+    ...(trigger !== undefined && { trigger }),
   };
 }

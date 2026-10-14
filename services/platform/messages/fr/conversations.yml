@@ -225,7 +225,7 @@ activate:
     IMAP) pour commencer à lire et à répondre aux conversations ici.
   composeNotice: Pour écrire à {name}, installe d'abord une automatisation e-mail.
   composeNoticeReader: Tu pourras écrire à {name} dès qu’une automatisation e-mail sera en service.
-  browseAutomations: Parcourir les automatisations
+  browseTemplates: Parcourir les modèles e-mail
   noAutomationReaderDescription:
     Dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur met
     en service une automatisation e-mail (Gmail, Outlook ou IMAP), tu peux

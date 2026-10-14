@@ -64,6 +64,22 @@ vi.mock('./coding-agent-entry', () => ({
   ),
 }));
 
+// The catalog is covered with its own tests: here it only has to open, on
+// the tab it was asked for.
+vi.mock('./template-catalog-dialog', () => ({
+  TemplateCatalogDialog: ({
+    initialCategory,
+  }: {
+    initialCategory?: string;
+  }) => (
+    <div
+      role="dialog"
+      aria-label="template catalog"
+      data-tab={initialCategory ?? 'all'}
+    />
+  ),
+}));
+
 let automationsData:
   | Array<{
       name: string;
@@ -196,6 +212,28 @@ describe('AutomationsList presentation', () => {
     expect(container.querySelector('svg.lucide-sparkles')).toBeNull();
   });
 
+  it('draws a product’s own logo for an automation a template made', () => {
+    automationsData = [
+      {
+        name: 'support-mailbox',
+        latest: 1,
+        projectIds: [],
+        presentation: {
+          name: 'Support mailbox',
+          icon: 'brand:gmail',
+        },
+      },
+    ];
+    const { container } = render(<AutomationsList organizationId="org-1" />);
+
+    expect(screen.getByText('Support mailbox')).toBeInTheDocument();
+    // The Gmail logo, not a lucide glyph and not the neutral fallback.
+    expect(container.querySelector('svg.iconify--lucide')).toBeNull();
+    expect(container.querySelector('svg.lucide-sparkles')).toBeNull();
+    expect(container.querySelector('svg.lucide-puzzle')).toBeNull();
+    expect(container.querySelector('svg [fill="#EA4335"]')).not.toBeNull();
+  });
+
   it('renders the name as a link the keyboard can reach and open', () => {
     automationsData = [{ name: 'weekly-report', latest: 1, projectIds: [] }];
     render(<AutomationsList organizationId="org-1" />);
@@ -220,7 +258,7 @@ describe('AutomationsList presentation', () => {
 
 describe('AutomationsList create menu', () => {
   it.each([undefined, 'proj_1'])(
-    'offers a starter, a coding agent, blank and upload from the toolbar for project %s',
+    'offers a template, a coding agent, blank and upload from the toolbar for project %s',
     async (projectId) => {
       automationsData = [];
       const { user } = render(
@@ -247,12 +285,12 @@ describe('AutomationsList create menu', () => {
         screen.getByRole('button', { name: 'automations.list.createButton' }),
       );
 
-      // A starter leads: the quickest way to an automation that works. The
-      // coding agent follows: it builds what no starter covers.
+      // A template leads: the quickest way to an automation that works.
+      // The coding agent follows: it builds what no template covers.
       expect(
         screen.getAllByRole('menuitem').map((item) => item.textContent),
       ).toEqual([
-        'automations.createMenu.starter',
+        'automations.createMenu.template',
         'automations.createMenu.withAgent',
         'automations.createMenu.blank',
         'automations.upload.trigger',
@@ -265,6 +303,28 @@ describe('AutomationsList create menu', () => {
       ).toBeInTheDocument();
     },
   );
+
+  it('invites an empty list to the template catalog [AUTO-R57]', async () => {
+    automationsData = [];
+    const { user } = render(<AutomationsList organizationId="org-1" />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'automations.list.empty.browseTemplates',
+      }),
+    );
+    expect(
+      await screen.findByRole('dialog', { name: 'template catalog' }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens the template catalog on the tab a link asks for', async () => {
+    automationsData = [];
+    render(<AutomationsList organizationId="org-1" openTemplates="inbox" />);
+    expect(
+      await screen.findByRole('dialog', { name: 'template catalog' }),
+    ).toHaveAttribute('data-tab', 'inbox');
+  });
 
   it('opens the coding agent for a new automation from the menu, and closes it again', async () => {
     automationsData = [];

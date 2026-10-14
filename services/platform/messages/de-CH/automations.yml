@@ -26,8 +26,13 @@ blank:
   deployFailed: 'Die Automatisierung wurde angelegt, aber v1 liess sich nicht live schalten: {error}. Schalte sie im Editor live.'
   triggerFailed: "Die Automatisierung wurde angelegt, aber ihr Trigger liess sich
     nicht setzen: {error}. Setze ihn über die Trigger-Karte."
-starters:
+templates:
   loadFailed: 'Die Vorlagen liessen sich nicht laden: {error}'
+  loadTemplateFailed: 'Die Vorlage liess sich nicht laden: {error}'
+  numberOutOfRange: '«{label}» braucht eine ganze Zahl von {min} bis {max}.'
+  preview:
+    needsPartner: 'Hier ist nichts zu verbinden: Sie arbeitet mit dem, was eine der Vorlagen unter «Passt zu» hereinholt.'
+  createFailed: 'Die Automatisierung liess sich nicht anlegen: {error}'
 tests:
   fromRun:
     simulate:

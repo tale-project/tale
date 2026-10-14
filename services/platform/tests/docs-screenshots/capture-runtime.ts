@@ -62,17 +62,18 @@ export function captureRuntime(options: {
   /**
    * Block until the demo org has finished scaffolding. The e2e helper's
    * waitForSeededOrg waits for the E2E fixture agent, which this stack never
-   * seeds. The "scaffold complete" marker is the seeded automation packs on the
-   * Automations page — provisioning writes them at org creation, so a listed
-   * pack row means the org's catalog scaffold ran. Navigate-and-retry so a page
-   * that loaded before provisioning finished gets a fresh read.
+   * seeds. The "scaffold complete" marker is the starter project the
+   * `org.scaffold` job writes right after the org's catalog scaffold — a new
+   * organization starts with no automation, so the Automations page has
+   * nothing to wait for. Navigate-and-retry so a page that loaded before
+   * provisioning finished gets a fresh read.
    */
   async function waitForDemoScaffold(
     page: Page,
     organizationId: string,
   ): Promise<void> {
-    const packRow = page
-      .getByText('gmail-triage-inbox', { exact: true })
+    const starterProject = page
+      .getByText('Getting started', { exact: true })
       .first();
     const ATTEMPTS = 8;
     for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
@@ -80,13 +81,13 @@ export function captureRuntime(options: {
         // The navigation belongs INSIDE the retry: a cold Vite re-optimizes
         // dependencies on the first visits and reloads the page mid-load, which
         // surfaces as net::ERR_ABORTED on the goto itself.
-        await page.goto(`/dashboard/${organizationId}/automations`);
-        await expect(packRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+        await page.goto(`/dashboard/${organizationId}/projects`);
+        await expect(starterProject).toBeVisible({ timeout: TIMEOUT.VISIBLE });
         return;
       } catch (err) {
         if (attempt === ATTEMPTS) {
           throw new Error(
-            `The seeded automation packs never appeared for org ${organizationId} at ${BASE_URL}. ` +
+            `The starter project never appeared for org ${organizationId} at ${BASE_URL}. ` +
               `The stack must run with TALE_CONFIG_BUILTIN_DIR pointing at tests/e2e/fixtures/config/docs-demo ` +
               `(see tests/docs-screenshots/README.md).`,
             { cause: err },

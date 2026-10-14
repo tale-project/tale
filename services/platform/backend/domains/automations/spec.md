@@ -3,7 +3,7 @@
 > **Prefix** `AUTO-` · **Suite** [`automations`](../../../tests/manual/suites/automations.md) · **Docs** [`automations/concepts`](../../../../../docs/en/platform/automations/concepts.md)
 
 The rules an automation is held to between the editor and a finished run: who can change one
-and run it live, what a saved version and a deployment guarantee, what creating from a starter does, what a check for problems
+and run it live, what a saved version and a deployment guarantee, what using a template does, what a check for problems
 reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
 to another and what a resumed run never repeats, what a step that runs once per item does with
@@ -221,34 +221,91 @@ key whose holder may not deploy is refused (`ROLE_FORBIDDEN`) and nothing is sav
   version 10 is saved, restored from 7, and the live version is untouched. Ada had saved version
   10 first → refused, naming 10.
 
-## Creating from a starter
+## Using a template
 
-A starter is a working automation the platform ships with a few questions: the project it
-serves, whom it tells, when it runs. Creating from one answers them; the answers replace values
-in the starter's document, so what is saved is the starter's checked document with the answers
-in it.
+Every automation Tale ships is a template in one catalog: the starters and the packs, each with
+its product's icon, its category, the steps it takes, what it changes and what it needs. A new
+organization has no automation (`PROVN-R9`): a person picks a template, previews it and answers
+its few questions — the project it serves, whom it tells, when it runs. The answers replace values
+in the template's document or in what its trigger sends, so what is saved is the template's
+checked document with the answers in it.
 
-### AUTO-R44 · A starter creates version 1, installed where the answers say, its trigger off
+### AUTO-R57 · Every automation Tale ships is in the template catalog
 
-Creating from a starter saves version 1 under the name the person gives, through the same
+The catalog holds each starter and each pack Tale ships, unless a pack is hidden because a newer
+template replaced it; an organization that has a hidden pack keeps its copy.
+
+- **Example**: Ada opens the catalog → "Sync Gmail emails", "Triage the Gmail inbox" and "Daily
+  task digest" are there side by side, each with its steps, what it changes and what it needs.
+
+### AUTO-R44 · A template creates version 1, installed where the answers say, its trigger off
+
+Creating from a template saves version 1 under the name the person gives, through the same
 checks as any save: the document is checked and its tests run. The automation is installed in
 the project the answers name, a model the organization does not serve is replaced by one it
-does (the version says which), and the starter's trigger is set, switched off until a deploy
-turns it on. A name another automation has is refused (`AUTOMATION_NAME_TAKEN`) and adds no
-version to it.
+does (the version says which), and the template's trigger is set, switched off unless the create
+starts the automation (`AUTO-R61`). A name another automation has is refused
+(`AUTOMATION_NAME_TAKEN`) and adds no version to it.
 
 - **Example**: Ada creates "Tell the reviewer" for the project Website, naming Ben as the
-  reviewer → version 1 tells Ben, it is installed in Website, and its trigger on a task's
-  status change is off until Ada deploys it.
+  reviewer, without starting it → version 1 tells Ben, it is installed in Website, and its
+  trigger on a task's status change is off until Ada deploys it.
 
-### AUTO-R45 · An answer the organization cannot take refuses the whole create
+### AUTO-R45 · An answer the template or the organization cannot take refuses the whole create
 
 A project the person cannot open, someone who is not a member of the organization, a credential
-not in service, a value the question does not offer, or a required question left blank refuses
-the create (`TEMPLATE_ANSWERS_INVALID`), naming each question and why; nothing is written.
+not in service, a value the question does not offer, a number outside its bounds, a text without
+the form the question asks for, a list longer than it takes, or a required question left blank
+refuses the create (`TEMPLATE_ANSWERS_INVALID`), naming each question and why; nothing is
+written.
 
 - **Example**: Noah names a former colleague as the reviewer → refused, the reviewer question
   says there is no such member, and no automation is created.
+
+### AUTO-R58 · An automation made from a template keeps what the template says about it
+
+It is named as the person named it and keeps the template's icon, its labels, the connectors it
+needs, the product surfaces it opens (the Inbox, for a mail sync), its task contract, its
+settings forms, and the template it came from. That template is kept beside the rest, on every
+version, never inside it: a release that knows no templates still reads the name, the icon and
+the Inbox after a rollback.
+
+- **Example**: Ada creates "Sync Gmail emails" as "Support mailbox" and deploys it → the
+  automations list shows "Support mailbox" with the Gmail logo, and Home gains the Inbox.
+
+### AUTO-R59 · An answer can set what every run of the trigger receives
+
+A question may write its answer into the trigger's fixed input instead of into a step: every run
+that trigger starts then receives it.
+
+- **Example**: Ada uses a template that asks for a repository and answers `tale-project/tale` →
+  every run its schedule starts receives the owner `tale-project` and the repository `tale`.
+
+### AUTO-R60 · A schedule runs in the time zone of the person who uses the template
+
+The schedule question starts in the person's own time zone, and a schedule the template asks
+nothing about runs in that zone too — never in the zone the template was written in.
+
+- **Example**: Ada, in Zurich, creates "Daily task digest" and keeps 09:00 → it runs at 09:00
+  Europe/Zurich time.
+
+### AUTO-R61 · Creating and starting is one step: deployed and on, or nothing
+
+A create that starts the automation saves version 1, deploys it and turns its trigger on in one
+transaction. When any part is refused — the name, a test that fails, the trigger — nothing is
+kept: no version, no deployment, no trigger.
+
+- **Example**: Ada creates and starts "Daily task digest" → version 1 is live and its schedule
+  is on. Ben does the same under a name that is taken → refused, and nothing of his is saved.
+
+### AUTO-R62 · The catalog counts the automations each template made
+
+A template's count includes every automation made from it and, for a pack an earlier release
+installed in every organization, that installed copy.
+
+- **Example**: Ada's organization made two automations from "Tell the reviewer" and still has
+  the Gmail sync an earlier release installed → the catalog shows "Tell the reviewer" in use
+  twice and "Sync Gmail emails" once.
 
 ## Checking a version for problems
 

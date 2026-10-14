@@ -2,7 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { ConfigIcon } from '@tale/ui/catalog/config-icon';
+import { Button } from '@tale/ui/button';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import {
@@ -44,10 +44,12 @@ import {
   automationListTarget,
   automationVersionsTarget,
 } from '../lib/list-target';
+import type { TemplateCategory } from '../lib/templates';
+import { AutomationIcon } from './automation-icon';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
 import { CodingAgentDialog } from './coding-agent-entry';
-import { StarterGalleryDialog } from './starter-gallery-dialog';
+import { TemplateCatalogDialog } from './template-catalog-dialog';
 import {
   type TriggerReadiness,
   TriggerReadinessBadge,
@@ -88,10 +90,15 @@ interface AutomationListRow {
 export function AutomationsList({
   organizationId,
   projectId,
+  openTemplates,
 }: {
   organizationId: string;
   /** Render one project's automations (links stay inside the project shell). */
   projectId?: string;
+  /** Open the template catalog as the list opens, on this tab (`all` for
+   * every template) — what a link to the catalog asks for, such as the
+   * Inbox's setup notice. */
+  openTemplates?: TemplateCategory | 'all';
 }) {
   const { t } = useT('automations');
   const { locale } = useLocale();
@@ -99,8 +106,11 @@ export function AutomationsList({
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
   const [createDialog, setCreateDialog] = useState<
-    'starter' | 'agent' | 'blank' | 'upload' | null
-  >(null);
+    'templates' | 'agent' | 'blank' | 'upload' | null
+  >(openTemplates === undefined ? null : 'templates');
+  // The tab a link opened the catalog on; the catalog opened from the list
+  // itself starts on All.
+  const [catalogTab, setCatalogTab] = useState(openTemplates);
   const automationsQuery = useAutomations(
     organizationId,
     projectId,
@@ -161,7 +171,7 @@ export function AutomationsList({
           <TableIconCell
             // The pack's declared glyph in the tile every entity list leads
             // with; a canvas-authored automation gets the neutral fallback.
-            icon={<ConfigIcon icon={row.original.icon} />}
+            icon={<AutomationIcon icon={row.original.icon} />}
             // The name is the row's real link: `onRowClick` is a pointer
             // convenience a `<tr>` cannot offer the keyboard. The link stops
             // its click at itself so the row does not navigate a second time.
@@ -372,9 +382,9 @@ export function AutomationsList({
   const createMenuItems = canAuthor
     ? [
         {
-          label: t('createMenu.starter'),
+          label: t('createMenu.template'),
           icon: LayoutTemplate,
-          onClick: () => setCreateDialog('starter'),
+          onClick: () => setCreateDialog('templates'),
         },
         {
           label: t('createMenu.withAgent'),
@@ -396,13 +406,17 @@ export function AutomationsList({
 
   return (
     <>
-      {createDialog === 'starter' && (
-        <StarterGalleryDialog
+      {createDialog === 'templates' && (
+        <TemplateCatalogDialog
           organizationId={organizationId}
           {...(projectId !== undefined && { projectId })}
+          {...(catalogTab !== undefined &&
+            catalogTab !== 'all' && { initialCategory: catalogTab })}
           open
           onOpenChange={(next) => {
-            if (!next) setCreateDialog(null);
+            if (next) return;
+            setCreateDialog(null);
+            setCatalogTab(undefined);
           }}
         />
       )}
@@ -470,6 +484,19 @@ export function AutomationsList({
             title: t('list.empty.title'),
             description: t('list.empty.description'),
             headingLevel: 2,
+            // A new organization has no automation: the templates are where
+            // most start.
+            ...(canAuthor && {
+              action: (
+                <Button
+                  type="button"
+                  icon={LayoutTemplate}
+                  onClick={() => setCreateDialog('templates')}
+                >
+                  {t('list.empty.browseTemplates')}
+                </Button>
+              ),
+            }),
           }}
           {...list.tableProps}
         />

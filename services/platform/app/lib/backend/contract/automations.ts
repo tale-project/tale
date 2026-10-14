@@ -14,7 +14,11 @@ import type {
 } from '@tale/shared/schemas/automation-trigger';
 import type { z } from 'zod';
 
-import type { AutomationTemplateCard } from '@/backend/domains/automations/templates';
+import type {
+  AutomationTemplateCard,
+  AutomationTemplateDetail,
+  CreatedFromTemplate,
+} from '@/backend/domains/automations/templates';
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 import type { Issue } from '@/lib/engine/core/types';
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
@@ -365,9 +369,11 @@ export interface AutomationsContract {
   };
   'automations/mutations:createAutomationFromTemplate': {
     kind: 'mutation';
-    /** Create an automation from the starter `slug`, with the answers to
-     * its questions; `locale` words the defaults the starter offers in the
-     * creator's language. */
+    /** Create an automation from the template `slug`, with the answers to
+     * its questions; `locale` words the defaults the template offers in the
+     * creator's language, and a schedule the answers leave alone runs in
+     * `timezone`. `start` deploys version 1 and turns the trigger on in the
+     * same step; without it the automation is a draft, its trigger off. */
     args: {
       organizationId: string;
       slug: string;
@@ -375,16 +381,12 @@ export interface AutomationsContract {
       displayName: string;
       answers: TemplateAnswers;
       locale?: string;
-      /** Set the starter's trigger on; off when left out. */
-      enableTrigger?: boolean;
+      timezone?: string;
+      start?: boolean;
     };
-    returns: {
-      name: string;
-      version: number;
+    returns: CreatedFromTemplate & {
+      testsPassed?: boolean;
       warnings?: unknown[];
-      /** The starter's trigger as it was set: a webhook's token, minted
-       * now and shown once. */
-      trigger?: { token?: string; nextRunAt?: number | null };
     };
   };
   'automations/mutations:setAutomationProjects': {
@@ -621,6 +623,13 @@ export interface AutomationsContract {
     kind: 'query';
     args: { organizationId: string };
     returns: { templates: AutomationTemplateCard[] };
+  };
+  'automations/queries:getAutomationTemplate': {
+    kind: 'query';
+    /** One template's preview: the card, the document it creates and the
+     * credentials its questions can name. */
+    args: { organizationId: string; slug: string };
+    returns: AutomationTemplateDetail;
   };
   'automations/queries:listAutomationProjects': {
     kind: 'query';

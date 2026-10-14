@@ -190,7 +190,8 @@ describe('saveVersion', () => {
     // checker (0200), the three version fields, the key and client of a
     // save from the app, which names neither (0181), and the version it
     // was based on or restored from, none (0198).
-    expect(bare?.values.filter((value) => value === null).length).toBe(13);
+    // … and no template the automation was made from.
+    expect(bare?.values.filter((value) => value === null).length).toBe(14);
   });
 
   it('keeps the report its verdict came from, the act and who [AUTO-R50]', async () => {
@@ -599,11 +600,12 @@ describe('saveVersion lineage and what a version changed [AUTO-R47]', () => {
     return { sql: sql as unknown as Sql, statements };
   }
   /** based_on_version, restored_from_version, change_summary: the INSERT's
-   * bound values before its WHERE's organization and name. */
+   * bound values before the template slug (with the organization and name
+   * its carry reads) and its WHERE's organization and name. */
   const lineage = (statements: Statement[]) =>
     statements
       .find((s) => s.text.includes('INSERT INTO app.automations'))
-      ?.values.slice(-5, -2);
+      ?.values.slice(-8, -5);
   const document = (nodes: unknown[]) => ({
     version: 1,
     name: 'ops/greet',

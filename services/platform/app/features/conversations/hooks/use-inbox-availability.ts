@@ -3,7 +3,7 @@
  * installed inbox automations feed it.
  *
  * Signal: at least one **deployed** automation declares the `inbox` builtin
- * view on its presentation (seeded from the pack manifest's `builtinViews`).
+ * view on its presentation (copied from the pack manifest's `builtinViews`).
  * Compose and the channel filter then use each pack's `requiredConnectors`
  * (mail provider first) merged with active credentials.
  */

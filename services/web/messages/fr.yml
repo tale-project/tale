@@ -1170,8 +1170,8 @@ platformAutomations:
       path: /platform/automations/triggers
     - label: Journaux d’exécution
       path: /platform/automations/execution-logs
-    - label: Automatisations intégrées
-      path: /platform/automations/builtin
+    - label: Modèles d’automatisation
+      path: /platform/automations/templates
   tour:
     heading: Comment les automatisations tournent dans Tale
     description:

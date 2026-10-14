@@ -1,7 +1,10 @@
 import { REPLAY_KINDS } from '@tale/shared/automation-replay';
 import { appReplayRequestSchema } from '@tale/shared/schemas/automation-replay';
 import { templateAnswersSchema } from '@tale/shared/schemas/automation-template';
-import { triggerWriteSchema } from '@tale/shared/schemas/automation-trigger';
+import {
+  timeZoneSchema,
+  triggerWriteSchema,
+} from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -115,7 +118,13 @@ import {
   type DeployResult,
   type SavedVersion,
 } from './store.ts';
-import { listTemplateCards, prepareTemplateInstance } from './templates.ts';
+import {
+  commitTemplateInstance,
+  listTemplateCards,
+  prepareTemplateInstance,
+  readTemplateDetail,
+  type CheckedTemplateSave,
+} from './templates.ts';
 import { uploadAutomationPg } from './upload.ts';
 import {
   listVersionHistory,
@@ -2097,8 +2106,9 @@ export function createAutomationRoutes(deps: {
   return app;
 }
 
-/** A create from a starter: the automation's name and shown name, the
- * answers to the starter's questions, and the creator's language. */
+/** A create from a template: the automation's name and shown name, the
+ * answers to the template's questions, the creator's language and time
+ * zone, and whether to start it at once. */
 const instantiateSchema = z.object({
   name: z.string().min(1).max(200),
   displayName: z.string().trim().min(1).max(200),
@@ -2107,18 +2117,28 @@ const instantiateSchema = z.object({
     .string()
     .regex(/^[a-z]{2}(-[A-Z]{2})?$/)
     .optional(),
-  /** Set the starter's trigger on; it starts runs once a version is
-   * deployed. Off when left out. */
+  /** The creator's time zone: a schedule the answers leave alone runs in
+   * it. */
+  timezone: timeZoneSchema.optional(),
+  /** Deploy version 1 and turn the template's trigger on, in the same
+   * transaction as the create. Created as a draft, its trigger off, when
+   * left out. */
+  start: z.boolean().optional(),
+  /** The name a tab the previous release served still sends for `start`:
+   * it asked to start too. Taken for one release, so that tab's create is
+   * not left deployed with its trigger off. */
   enableTrigger: z.boolean().optional(),
 });
 
 /**
- * The starters a person creates an automation from (`templates.ts`), at
- * `/api/app/automation-templates` — beside the automations' own routes, so
- * no automation name is taken from authors. Authors list them and create
- * from one: the first version is saved through the editor's save — checked,
- * its tests run — installed in the project the answers name, and the
- * starter's trigger is set: on when the create asks, off otherwise.
+ * The template catalog (`templates.ts`), at `/api/app/automation-templates`
+ * — beside the automations' own routes, so no automation name is taken from
+ * authors. Authors list it, read one template's preview (its slug may hold
+ * a `/`, as `gmail/sync-emails` does, and travels as the path does), and
+ * create from one: the engine checks the document and runs its tests as any
+ * save does, then version 1 — installed in the project the answers name —,
+ * its deployment when the create starts it, and the template's trigger are
+ * written in one transaction.
  */
 export function createAutomationTemplateRoutes(deps: {
   sql: Sql;
@@ -2132,15 +2152,31 @@ export function createAutomationTemplateRoutes(deps: {
       ? null
       : c.json({ error: 'admin or developer role required' }, 403);
 
+  /** The projects the reader can open: what is in use counts only the
+   * automations they see, and a project question takes only these. */
+  const readableOf = async (c: Context<OrgEnv>): Promise<string[]> =>
+    readableProjectIds(
+      deps.sql,
+      await getProjectAuthContext(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+        role: c.get('orgMember').role,
+      }),
+    );
+
   app.get('/', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
     return c.json({
-      templates: await listTemplateCards(deps.sql, c.get('orgId')),
+      templates: await listTemplateCards(
+        deps.sql,
+        c.get('orgId'),
+        await readableOf(c),
+      ),
     });
   });
 
-  app.post('/:slug/instantiate', async (c) => {
+  app.post('/:slug{.+}/instantiate', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
     const body = instantiateSchema.safeParse(await c.req.json());
@@ -2155,72 +2191,81 @@ export function createAutomationTemplateRoutes(deps: {
         displayName: body.data.displayName,
         answers: body.data.answers,
         ...(body.data.locale !== undefined && { locale: body.data.locale }),
-        visibleProjectIds: await readableProjectIds(
-          deps.sql,
-          await getProjectAuthContext(deps.sql, {
-            organizationId,
-            userId: actor,
-            role: c.get('orgMember').role,
-          }),
-        ),
+        ...(body.data.timezone !== undefined && {
+          timezone: body.data.timezone,
+        }),
+        visibleProjectIds: await readableOf(c),
       });
       assembleAutomationAuthoringHost();
       const scope = { organizationId, origin: appOrigin(actor) };
       const store = pgAutomationStore(deps.sql, scope);
-      let storeError: unknown;
+      // The engine's save checks the document and runs its own tests; this
+      // door keeps what the save would have written and writes it below,
+      // with the deployment and the trigger, once the checks pass — so a
+      // refused document writes nothing, and an accepted one all or none.
+      let checked: CheckedTemplateSave | undefined;
       const result = await dispatch(
         'save_automation',
         { automation: prepared.document, message: prepared.message },
         {
           store: {
             ...store,
-            save: (automation, message, options) =>
-              saveVersion(deps.sql, {
-                ...scope,
-                name: body.data.name,
-                document: automation,
-                create: true,
-                presentation: prepared.presentation,
-                ...(message !== undefined ? { message } : {}),
-                ...(options?.testsPassed !== undefined
-                  ? { testsPassed: options.testsPassed }
-                  : {}),
-                ...(options?.testReport !== undefined
-                  ? { testReport: options.testReport }
-                  : {}),
-                ...(prepared.projectId !== undefined
-                  ? { projectId: prepared.projectId }
-                  : {}),
-              }).catch((error: unknown) => {
-                storeError = error;
-                throw error;
-              }),
+            save: (_automation, message, options) => {
+              checked = {
+                ...(message !== undefined && { message }),
+                ...(options?.testsPassed !== undefined && {
+                  testsPassed: options.testsPassed,
+                }),
+                ...(options?.testReport !== undefined && {
+                  testReport: options.testReport,
+                }),
+              };
+              return Promise.resolve({ name: body.data.name, version: 1 });
+            },
           },
         },
       );
-      if (storeError !== undefined) throw storeError;
       const refused = authoringRefusal(c, result);
       if (refused !== null) return refused;
-      // A webhook's address is minted by this bind and shown once: the
-      // answer carries it, as the trigger route's does.
-      const trigger =
-        prepared.trigger === undefined
-          ? undefined
-          : await setTrigger(deps.sql, {
-              organizationId,
-              name: body.data.name,
-              trigger: {
-                ...prepared.trigger,
-                enabled: body.data.enableTrigger === true,
-              },
-              origin: scope.origin,
-            });
+      if (checked === undefined) {
+        throw new Error('the create passed its checks but saved nothing');
+      }
+      const created = await commitTemplateInstance(deps.sql, {
+        organizationId,
+        name: body.data.name,
+        origin: scope.origin,
+        prepared,
+        checked,
+        start: body.data.start === true || body.data.enableTrigger === true,
+      });
       return c.json(
         {
-          ...(isRecord(result) ? result : {}),
-          ...(trigger !== undefined && { trigger }),
+          ...created,
+          ...(isRecord(result) && typeof result.testsPassed === 'boolean'
+            ? { testsPassed: result.testsPassed }
+            : {}),
+          ...(isRecord(result) && Array.isArray(result.warnings)
+            ? { warnings: result.warnings }
+            : {}),
         },
         201,
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:slug{.+}', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    try {
+      return c.json(
+        await readTemplateDetail(
+          deps.sql,
+          c.get('orgId'),
+          c.req.param('slug'),
+          await readableOf(c),
+        ),
       );
     } catch (error) {
       return handleError(c, error);

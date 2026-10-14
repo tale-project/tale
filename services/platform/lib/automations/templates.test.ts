@@ -1,7 +1,11 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { icons as lucideIcons } from '@iconify-json/lucide';
+import { brandOfIcon } from '@tale/shared/schemas/automation-pack';
 import type { TemplateAnswers } from '@tale/shared/schemas/automation-template';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { loadConnectors } from '../connectors/registry';
 import { runAutomationTests } from '../engine/api/tests';
@@ -16,8 +20,9 @@ import {
   type AutomationTemplate,
   instantiateTemplate,
   loadAutomationTemplates,
+  packsWithoutTemplate,
   templateAnswerIssues,
-  templateWritePointers,
+  templateWriteTargets,
 } from './templates';
 import { triggerInputSample } from './trigger-input';
 
@@ -26,12 +31,19 @@ const REPO = path.join(
   '../../../..',
 );
 const SYSTEM = path.join(REPO, 'configs/platform/system');
+const CUSTOM = path.join(REPO, 'configs/platform/custom');
 
-// The engine is assembled at module scope, as the pack suite does: a starter
-// naming an unregistered action must fail as a validation error.
+// The engine is assembled at module scope, as the pack suite does: a
+// template naming an unregistered action must fail as a validation error.
 setCodeRunner(nodeVmRunner());
 const { connectors } = loadConnectors(SYSTEM);
-const templates = loadAutomationTemplates({ root: SYSTEM });
+const catalog = loadAutomationTemplates({
+  root: SYSTEM,
+  packsRoot: CUSTOM,
+  // The shipped tree is held strict: a slug both roots ship fails here.
+  strict: true,
+});
+const starters = catalog.filter((template) => template.source === 'starter');
 const connectorNames = new Set(connectors.map((connector) => connector.name));
 
 /** The connectors a document calls, from its node types. */
@@ -57,30 +69,100 @@ function issueText(issue: {
 function exampleAnswers(template: AutomationTemplate): TemplateAnswers {
   const answers: TemplateAnswers = {};
   for (const field of template.manifest.template.fields) {
-    if (field.kind === 'project') answers[field.id] = 'prj_example';
-    if (field.kind === 'member') answers[field.id] = 'usr_example';
-    if (field.kind === 'credential') answers[field.id] = 'Example credential';
-    if (field.kind === 'choice') {
-      answers[field.id] = field.options.at(-1)?.value ?? '';
-    }
-    if (field.kind === 'schedule') {
-      answers[field.id] = {
-        repeat: {
-          frequency: 'weekly',
-          interval: 1,
-          weekdays: [1, 3, 5],
-          times: ['09:30'],
-        },
-        timezone: 'Europe/Zurich',
-      };
+    switch (field.kind) {
+      case 'project':
+        answers[field.id] = 'prj_example';
+        break;
+      case 'member':
+        answers[field.id] = 'usr_example';
+        break;
+      case 'credential':
+        answers[field.id] = 'Example credential';
+        break;
+      case 'choice':
+        answers[field.id] = field.options.at(-1)?.value ?? '';
+        break;
+      case 'text':
+        // A text answers with what the template offers: its default, else
+        // the example its input shows, which fits the form it asks for.
+        answers[field.id] = field.default ?? field.placeholder ?? 'example';
+        break;
+      case 'number':
+        answers[field.id] = field.max;
+        break;
+      case 'toggle':
+        answers[field.id] = field.default !== true;
+        break;
+      case 'list':
+        answers[field.id] = ['first', 'second'];
+        break;
+      case 'schedule':
+        answers[field.id] = {
+          repeat: {
+            frequency: 'weekly',
+            interval: 1,
+            weekdays: [1, 3, 5],
+            times: ['09:30'],
+          },
+          timezone: 'Europe/Zurich',
+        };
+        break;
+      default: {
+        const exhaustive: never = field;
+        throw new Error(`unhandled question ${String(exhaustive)}`);
+      }
     }
   }
   return answers;
 }
 
-describe('the shipped starters', () => {
-  it('are all discovered, each with a manifest and a document', () => {
-    expect(templates.map((template) => template.slug)).toEqual([
+/** Every display text a template shows, by where it sits, with the
+ * locale's own words or undefined. A choice's option labels are left out:
+ * they are mostly product names (Gmail, Outlook), which read the same in
+ * every language and fall back to the English. */
+function wordedIn(
+  template: AutomationTemplate,
+  locale: string,
+): [string, string | undefined][] {
+  const { manifest } = template;
+  const words: [string, string | undefined][] = [
+    ['name', manifest.i18n?.[locale]?.name],
+    ['description', manifest.i18n?.[locale]?.description],
+    ['details', manifest.template.i18n?.[locale]?.details],
+  ];
+  for (const [at, step] of manifest.template.steps.entries()) {
+    words.push([`steps[${at}].title`, step.i18n?.[locale]?.title]);
+    if (step.detail !== undefined) {
+      words.push([`steps[${at}].detail`, step.i18n?.[locale]?.detail]);
+    }
+  }
+  for (const [at, outcome] of manifest.template.outcomes.entries()) {
+    words.push([`outcomes[${at}]`, outcome.i18n?.[locale]?.text]);
+  }
+  for (const field of manifest.template.fields) {
+    const own = field.i18n?.[locale];
+    words.push([`${field.id}.label`, own?.label]);
+    if (field.description !== undefined) {
+      words.push([`${field.id}.description`, own?.description]);
+    }
+    if (field.kind === 'text' && field.default !== undefined) {
+      words.push([`${field.id}.default`, own?.default]);
+    }
+    if (
+      (field.kind === 'text' ||
+        field.kind === 'list' ||
+        field.kind === 'credential') &&
+      field.placeholder !== undefined
+    ) {
+      words.push([`${field.id}.placeholder`, own?.placeholder]);
+    }
+  }
+  return words;
+}
+
+describe('the template catalog', () => {
+  it('holds the six starters', () => {
+    expect(starters.map((template) => template.slug)).toEqual([
       'answer-questions',
       'inbox-summary',
       'notify-reviewer',
@@ -90,8 +172,119 @@ describe('the shipped starters', () => {
     ]);
   });
 
-  for (const template of templates) {
+  it('holds every shipped pack that is not hidden [AUTO-R57]', () => {
+    // A pack is in the catalog through its template block; one without it
+    // is offered nowhere, so a new organization could never have it.
+    expect(packsWithoutTemplate({ packsRoot: CUSTOM })).toEqual([]);
+  });
+
+  it('says each template works only with templates it holds', () => {
+    const slugs = new Set(catalog.map((template) => template.slug));
+    for (const template of catalog) {
+      for (const other of template.manifest.template.worksWith ?? []) {
+        expect(slugs.has(other), `${template.slug} → ${other}`).toBe(true);
+        expect(other).not.toBe(template.slug);
+      }
+    }
+  });
+
+  for (const template of catalog) {
     describe(template.slug, () => {
+      it('shows a category, an icon the app draws, its steps and what it changes', () => {
+        const { icon, category, template: block } = template.manifest;
+        expect(category).toBeDefined();
+        expect(icon, 'an icon').toBeDefined();
+        if (icon === undefined) return;
+        if (icon.startsWith('brand:')) {
+          expect(brandOfIcon(icon)).not.toBeNull();
+        } else {
+          expect(
+            lucideIcons.icons[icon] ?? lucideIcons.aliases?.[icon],
+            `lucide has "${icon}"`,
+          ).toBeDefined();
+        }
+        expect(block.steps.length).toBeGreaterThan(0);
+        expect(block.outcomes.length).toBeGreaterThan(0);
+      });
+
+      it('words everything it shows in German and French', () => {
+        for (const locale of ['de', 'fr']) {
+          const missing = wordedIn(template, locale)
+            .filter(([, words]) => words === undefined || words.trim() === '')
+            .map(([where]) => where);
+          expect(missing, locale).toEqual([]);
+        }
+      });
+
+      it('writes every answer where its document or trigger holds a value', () => {
+        for (const field of template.manifest.template.fields) {
+          for (const write of templateWriteTargets(
+            template.automation,
+            field,
+          )) {
+            expect(write.pointer, `${field.id} names a step`).not.toBeNull();
+          }
+        }
+        expect(() =>
+          instantiateTemplate(template, {
+            name: 'example',
+            answers: exampleAnswers(template),
+          }),
+        ).not.toThrow();
+      });
+
+      it('makes, from any answers, an automation that validates and passes its tests', async () => {
+        const answers = exampleAnswers(template);
+        expect(templateAnswerIssues(template, answers)).toEqual([]);
+        const instance = instantiateTemplate(template, {
+          name: 'example',
+          answers,
+        });
+        const { errors } = await validate(instance.document);
+        expect(errors.map(issueText)).toEqual([]);
+        const report = await runAutomationTests(instance.document);
+        expect(report, JSON.stringify(report)).toMatchObject({ failed: 0 });
+      });
+
+      it('has a trigger whose runs its inputs take', () => {
+        const { trigger } = instantiateTemplate(template, {
+          name: 'example',
+          answers: exampleAnswers(template),
+        });
+        if (trigger === undefined) return;
+        // Off until the create that starts the automation turns it on.
+        expect(trigger.enabled).toBe(false);
+        const sample = triggerInputSample(trigger, Date.parse('2026-10-09'));
+        expect(sample).not.toBeNull();
+        if (sample === null) return;
+        const inputs = template.automation.inputs;
+        const check = inputs === undefined ? null : compileSchema(inputs);
+        expect(triggerInputWarnings(check, sample)).toEqual([]);
+      });
+
+      it('names what the empty choice of an optional credential question means', () => {
+        // "The default GitHub connection", "Every connected Gmail mailbox":
+        // what empty means differs per template, so the template says it.
+        for (const field of template.manifest.template.fields) {
+          if (field.kind !== 'credential' || field.required !== false) continue;
+          expect(field.placeholder, field.id).toBeDefined();
+        }
+      });
+
+      it('asks when it runs, when a schedule starts it', () => {
+        if (template.manifest.triggers?.[0]?.kind !== 'schedule') return;
+        expect(
+          template.manifest.template.fields.some(
+            (field) => field.kind === 'schedule',
+          ),
+        ).toBe(true);
+      });
+    });
+  }
+
+  // The packs' own suite holds a pack's document; a starter's is held here.
+  for (const template of starters) {
+    describe(`the starter ${template.slug}`, () => {
       it('validates clean', async () => {
         const { errors } = await validate(template.automation);
         expect(errors.map(issueText)).toEqual([]);
@@ -121,78 +314,99 @@ describe('the shipped starters', () => {
       it('is addressed by its directory', () => {
         expect(template.automation.name).toBe(template.slug);
       });
-
-      it('writes every answer where its document holds a value', () => {
-        for (const field of template.manifest.template.fields) {
-          for (const pointer of templateWritePointers(
-            template.automation,
-            field,
-          )) {
-            expect(pointer, `${field.id} names a step`).not.toBeNull();
-          }
-        }
-        expect(() =>
-          instantiateTemplate(template, {
-            name: 'example',
-            answers: exampleAnswers(template),
-          }),
-        ).not.toThrow();
-      });
-
-      it('words every question in German and French', () => {
-        for (const locale of ['de', 'fr']) {
-          for (const field of template.manifest.template.fields) {
-            expect(
-              field.i18n?.[locale]?.label,
-              `${field.id} ${locale}`,
-            ).toBeDefined();
-          }
-          expect(template.manifest.i18n?.[locale]?.name).toBeDefined();
-          expect(template.manifest.i18n?.[locale]?.description).toBeDefined();
-          expect(
-            template.manifest.template.i18n?.[locale]?.details,
-          ).toBeDefined();
-        }
-      });
-
-      it('makes, from any answers, an automation that validates and passes its tests', async () => {
-        const answers = exampleAnswers(template);
-        expect(templateAnswerIssues(template, answers)).toEqual([]);
-        const instance = instantiateTemplate(template, {
-          name: 'example',
-          answers,
-        });
-        const { errors } = await validate(instance.document);
-        expect(errors.map(issueText)).toEqual([]);
-        const report = await runAutomationTests(instance.document);
-        expect(report, JSON.stringify(report)).toMatchObject({ failed: 0 });
-      });
-
-      it('has a trigger whose runs its inputs take', () => {
-        const { trigger } = instantiateTemplate(template, {
-          name: 'example',
-          answers: exampleAnswers(template),
-        });
-        if (trigger === undefined) return;
-        // Off until the person who deploys it turns it on.
-        expect(trigger.enabled).toBe(false);
-        const sample = triggerInputSample(trigger, Date.parse('2026-10-09'));
-        expect(sample).not.toBeNull();
-        if (sample === null) return;
-        const inputs = template.automation.inputs;
-        const check = inputs === undefined ? null : compileSchema(inputs);
-        expect(triggerInputWarnings(check, sample)).toEqual([]);
-      });
     });
   }
 });
 
-describe('creating from a starter', () => {
-  const reviewer = templates.find(
+describe('a catalog read from both roots', () => {
+  const scratch = mkdtempSync(path.join(tmpdir(), 'tale-template-catalog-'));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+  const document = [
+    'version: 1',
+    'name: same',
+    'nodes:',
+    '  - id: note',
+    '    type: transform',
+    '    code: return {};',
+    '',
+  ].join('\n');
+  const manifest = (extra: string) =>
+    [
+      'name: Same',
+      'category: tasks',
+      'template:',
+      '  details: Does one thing.',
+      '  steps:',
+      '    - title: Does it',
+      '  outcomes:',
+      '    - kind: creates',
+      '      text: One thing.',
+      '  fields: []',
+      extra,
+      '',
+    ].join('\n');
+  const plant = (dir: string, extra = '') => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'automation.yml'), manifest(extra));
+    writeFileSync(path.join(dir, 'workflow.yml'), document);
+  };
+
+  it('refuses a slug both roots ship in the shipped tree, and keeps the starter at runtime', () => {
+    plant(path.join(scratch, 'twice/system/automation-templates/same'));
+    plant(path.join(scratch, 'twice/custom/automations/same'));
+    const roots = {
+      root: path.join(scratch, 'twice/system'),
+      packsRoot: path.join(scratch, 'twice/custom'),
+    };
+    expect(() => loadAutomationTemplates({ ...roots, strict: true })).toThrow(
+      /ships twice/,
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(
+        loadAutomationTemplates(roots).map((template) => [
+          template.slug,
+          template.source,
+        ]),
+      ).toEqual([['same', 'starter']]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('ships twice'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('leaves out a hidden pack and one without a template block', () => {
+    plant(path.join(scratch, 'apart/system/automation-templates/starter'));
+    plant(path.join(scratch, 'apart/custom/automations/shown/one'));
+    plant(
+      path.join(scratch, 'apart/custom/automations/hidden/one'),
+      'hidden: true',
+    );
+    const bare = path.join(scratch, 'apart/custom/automations/bare/one');
+    mkdirSync(bare, { recursive: true });
+    writeFileSync(path.join(bare, 'automation.yml'), 'name: Bare\n');
+    writeFileSync(path.join(bare, 'workflow.yml'), document);
+    const read = loadAutomationTemplates({
+      root: path.join(scratch, 'apart/system'),
+      packsRoot: path.join(scratch, 'apart/custom'),
+    });
+    expect(read.map((template) => [template.slug, template.source])).toEqual([
+      ['shown/one', 'pack'],
+      ['starter', 'starter'],
+    ]);
+    expect(
+      packsWithoutTemplate({ packsRoot: path.join(scratch, 'apart/custom') }),
+    ).toEqual(['bare/one']);
+  });
+});
+
+describe('using a starter', () => {
+  const reviewer = starters.find(
     (template) => template.slug === 'notify-reviewer',
   );
-  const inbox = templates.find((template) => template.slug === 'inbox-summary');
-  const webhook = templates.find(
+  const inbox = starters.find((template) => template.slug === 'inbox-summary');
+  const webhook = starters.find(
     (template) => template.slug === 'webhook-create-task',
   );
   if (reviewer === undefined || inbox === undefined || webhook === undefined) {
@@ -227,6 +441,7 @@ describe('creating from a starter', () => {
   it('takes a blank text in the creator’s language', () => {
     for (const [locale, words] of [
       ['de', 'Diese Aufgabe ist bereit für deine Prüfung.'],
+      ['de-CH', 'Diese Aufgabe ist bereit für deine Prüfung.'],
       ['fr', 'Cette tâche est prête pour ta relecture.'],
       ['it', 'This task is ready for your review.'],
       [undefined, 'This task is ready for your review.'],
@@ -246,7 +461,9 @@ describe('creating from a starter', () => {
       answers: { project: 'prj_ops' },
     });
     expect(projectId).toBe('prj_ops');
-    expect(document.nodes[0]?.input).toMatchObject({ projectId: 'prj_ops' });
+    expect(
+      document.nodes.find((node) => node.id === 'upsert')?.input,
+    ).toMatchObject({ projectId: 'prj_ops' });
   });
 
   it('sets the schedule it was given, and leaves the trigger off', () => {
@@ -262,6 +479,8 @@ describe('creating from a starter', () => {
         recipient: 'usr_ada',
         schedule: { repeat, timezone: 'Europe/Zurich' },
       },
+      // The answer's own zone wins over the creator's.
+      timezone: 'America/New_York',
     });
     expect(trigger).toEqual({
       kind: 'schedule',
@@ -272,13 +491,33 @@ describe('creating from a starter', () => {
     expect(
       document.nodes.find((node) => node.id === 'inbox')?.input,
     ).toMatchObject({ connectorSlug: 'outlook' });
-    // Unanswered, the starter's own schedule stands.
+  });
+
+  it('runs a schedule nobody answered in the creator’s time zone [AUTO-R60]', () => {
+    const answers = { mailbox: 'gmail', recipient: 'usr_ada' };
     expect(
       instantiateTemplate(inbox, {
         name: 'inbox',
-        answers: { mailbox: 'gmail', recipient: 'usr_ada' },
+        answers,
+        timezone: 'Europe/Zurich',
       }).trigger,
-    ).toMatchObject({ kind: 'schedule', timezone: 'UTC', enabled: false });
+    ).toMatchObject({
+      kind: 'schedule',
+      repeat: { frequency: 'weekly', times: ['08:00'] },
+      timezone: 'Europe/Zurich',
+      enabled: false,
+    });
+    // A zone that does not exist leaves the shipped one.
+    expect(
+      instantiateTemplate(inbox, {
+        name: 'inbox',
+        answers,
+        timezone: 'Mars/Olympus',
+      }).trigger,
+    ).toMatchObject({ timezone: 'UTC' });
+    expect(
+      instantiateTemplate(inbox, { name: 'inbox', answers }).trigger,
+    ).toMatchObject({ timezone: 'UTC' });
   });
 
   it('takes a cron expression and the missed-runs choice the schedule field writes', () => {
@@ -304,6 +543,7 @@ describe('creating from a starter', () => {
     });
     expect(
       templateAnswerIssues(inbox, {
+        mailbox: 'gmail',
         recipient: 'usr_ada',
         schedule: {
           repeat: { frequency: 'daily', interval: 1, times: ['17:00'] },
@@ -334,16 +574,214 @@ describe('creating from a starter', () => {
     ]);
   });
 
+  it('asks which mailbox to summarize, guessing none', () => {
+    expect(
+      templateAnswerIssues(inbox, { mailbox: '', recipient: 'usr_ada' }).map(
+        (issue) => [issue.field, issue.code],
+      ),
+    ).toEqual([['mailbox', 'required']]);
+  });
+});
+
+/** A template held only by this suite: one of each kind of question,
+ * writing into a step and into the trigger's fixed input. */
+function syncTemplate(): AutomationTemplate {
+  const automation: Automation = {
+    version: 1,
+    name: 'sync',
+    nodes: [
+      {
+        id: 'sync',
+        type: 'transform',
+        input: {
+          labels: [],
+          query: '',
+          limit: 10,
+          includeClosed: false,
+          credential: 'name',
+        },
+        code: 'return input;',
+      },
+    ],
+  };
+  return {
+    slug: 'example/sync',
+    dir: '/nowhere',
+    source: 'pack',
+    automation,
+    manifest: {
+      name: 'Sync',
+      category: 'issues',
+      triggers: [
+        {
+          kind: 'schedule',
+          repeat: { frequency: 'hourly', interval: 1, minute: 0 },
+          timezone: 'UTC',
+          input: { owner: 'your-organization', repo: 'your-repository' },
+        },
+      ],
+      template: {
+        details: 'Syncs.',
+        steps: [{ title: 'Syncs' }],
+        outcomes: [{ kind: 'creates', text: 'Tasks.' }],
+        fields: [
+          {
+            id: 'owner',
+            kind: 'text',
+            label: 'Owner',
+            pattern: '[A-Za-z0-9-]+',
+            writes: [{ trigger: true, pointer: '/input/owner' }],
+          },
+          {
+            id: 'repo',
+            kind: 'text',
+            label: 'Repository',
+            writes: [{ trigger: true, pointer: '/input/repo' }],
+          },
+          {
+            id: 'limit',
+            kind: 'number',
+            label: 'Issues per run',
+            min: 1,
+            max: 50,
+            default: 25,
+            writes: [{ node: 'sync', pointer: '/input/limit' }],
+          },
+          {
+            id: 'closed',
+            kind: 'toggle',
+            label: 'Closed issues too',
+            writes: [{ node: 'sync', pointer: '/input/includeClosed' }],
+          },
+          {
+            id: 'labels',
+            kind: 'list',
+            label: 'Labels',
+            maxItems: 3,
+            itemMaxLength: 10,
+            writes: [
+              { node: 'sync', pointer: '/input/labels' },
+              { node: 'sync', pointer: '/input/query' },
+            ],
+          },
+          {
+            id: 'account',
+            kind: 'credential',
+            label: 'Account',
+            connector: 'github',
+            required: false,
+            writes: [{ node: 'sync', pointer: '/input/credential' }],
+          },
+        ],
+      },
+    },
+  };
+}
+
+describe('using a template with every kind of question', () => {
+  const template = syncTemplate();
+  const syncInput = (document: Automation) =>
+    document.nodes.find((node) => node.id === 'sync')?.input;
+
   it('takes the default of a choice left blank', () => {
-    expect(
-      templateAnswerIssues(inbox, { mailbox: '', recipient: 'usr_ada' }),
-    ).toEqual([]);
-    const { document } = instantiateTemplate(inbox, {
-      name: 'inbox',
-      answers: { recipient: 'usr_ada' },
+    const withChoice = syncTemplate();
+    const step = withChoice.automation.nodes.find((node) => node.id === 'sync');
+    if (step?.input === undefined) throw new Error('the sync step is missing');
+    step.input.state = 'open';
+    withChoice.manifest.template.fields.push({
+      id: 'state',
+      kind: 'choice',
+      label: 'Issues',
+      default: 'all',
+      options: [
+        { value: 'open', label: 'Open ones' },
+        { value: 'all', label: 'All of them' },
+      ],
+      writes: [{ node: 'sync', pointer: '/input/state' }],
     });
+    const answers = { owner: 'tale-project', repo: 'tale', state: '' };
+    expect(templateAnswerIssues(withChoice, answers)).toEqual([]);
     expect(
-      document.nodes.find((node) => node.id === 'inbox')?.input,
-    ).toMatchObject({ connectorSlug: 'gmail' });
+      syncInput(
+        instantiateTemplate(withChoice, { name: 'sync-tale', answers })
+          .document,
+      ),
+    ).toMatchObject({ state: 'all' });
+  });
+
+  it('writes answers into the trigger’s fixed input, every run receiving them [AUTO-R59]', () => {
+    const { trigger, document } = instantiateTemplate(template, {
+      name: 'sync-tale',
+      answers: { owner: 'tale-project', repo: 'tale' },
+    });
+    expect(trigger).toMatchObject({
+      kind: 'schedule',
+      input: { owner: 'tale-project', repo: 'tale' },
+      enabled: false,
+    });
+    // The manifest's trigger stays as shipped.
+    expect(template.manifest.triggers?.[0]).toMatchObject({
+      input: { owner: 'your-organization' },
+    });
+    // Defaults where nothing was answered: the number's, the toggle off,
+    // no labels, and an optional credential left as shipped.
+    expect(syncInput(document)).toEqual({
+      labels: [],
+      query: '',
+      limit: 25,
+      includeClosed: false,
+      credential: 'name',
+    });
+  });
+
+  it('writes a number, a toggle and a list in the shape their places take', () => {
+    const { document } = instantiateTemplate(template, {
+      name: 'sync-tale',
+      answers: {
+        owner: 'tale-project',
+        repo: 'tale',
+        limit: 50,
+        closed: true,
+        labels: [' bug ', '', 'ui', 'bug'],
+        account: 'Work account',
+      },
+    });
+    expect(syncInput(document)).toEqual({
+      // A list place takes the list; a text place takes its items joined.
+      labels: ['bug', 'ui'],
+      query: 'bug, ui',
+      limit: 50,
+      includeClosed: true,
+      credential: 'Work account',
+    });
+  });
+
+  it('refuses a number outside its bounds, a text off its form and a list too long [AUTO-R45]', () => {
+    expect(
+      templateAnswerIssues(template, {
+        owner: 'tale project',
+        repo: '',
+        limit: 51,
+        closed: 'yes' as unknown as boolean,
+        labels: ['a', 'b', 'c', 'd'],
+      }).map((issue) => [issue.field, issue.code]),
+    ).toEqual([
+      ['owner', 'invalid'],
+      ['repo', 'required'],
+      ['limit', 'invalid'],
+      ['closed', 'invalid'],
+      ['labels', 'too_long'],
+    ]);
+    expect(
+      templateAnswerIssues(template, {
+        owner: 'tale',
+        repo: 'tale',
+        limit: 2.5,
+        labels: ['far-too-long-a-label'],
+      }).map((issue) => [issue.field, issue.code]),
+    ).toEqual([
+      ['limit', 'invalid'],
+      ['labels', 'too_long'],
+    ]);
   });
 });

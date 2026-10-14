@@ -4,19 +4,35 @@ import {
 } from '@tale/ui/adaptive-header';
 import { ContentArea } from '@tale/ui/content-area';
 import { PageLayout } from '@tale/ui/page-layout';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
 
 import { AutomationsList } from '@/app/features/automations/components/automations-list';
 import { canUseAutomations } from '@/app/features/automations/lib/access';
+import {
+  type TemplateCategory,
+  templateCategoryOf,
+} from '@/app/features/automations/lib/templates';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { cachedAbility } from '@/app/lib/loader-preload';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
+const searchSchema = z.object({
+  /**
+   * Opens the template catalog as the page opens, on this category's tab
+   * (any other value: every template) — `?templates=inbox` is where the
+   * Inbox's setup notice sends an Owner, Admin or Developer.
+   */
+  templates: z.string().optional(),
+});
+
 export const Route = createFileRoute('/dashboard/$id/automations/')({
   head: () => ({
     meta: seo('automations'),
   }),
+  validateSearch: searchSchema,
   loader: ({ context, params }) => {
     // Warm the listing so the table paints without a skeleton on first nav.
     // The args MUST match what `AutomationsList` subscribes with on the org
@@ -41,7 +57,23 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
  */
 function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
+  const { templates } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
   const { t } = useT('automations');
+  // The link opens the catalog once: the address drops the request, so a
+  // reload or the way back from an automation does not open it again.
+  const [openTemplates] = useState<TemplateCategory | 'all' | undefined>(() =>
+    templates === undefined
+      ? undefined
+      : (templateCategoryOf(templates) ?? 'all'),
+  );
+  useEffect(() => {
+    if (templates === undefined) return;
+    void navigate({
+      search: (previous) => ({ ...previous, templates: undefined }),
+      replace: true,
+    });
+  }, [templates, navigate]);
   return (
     <PageLayout
       organizationId={organizationId}
@@ -52,7 +84,10 @@ function AutomationsPage() {
       }
     >
       <ContentArea variant="list">
-        <AutomationsList organizationId={organizationId} />
+        <AutomationsList
+          organizationId={organizationId}
+          {...(openTemplates !== undefined && { openTemplates })}
+        />
       </ContentArea>
     </PageLayout>
   );

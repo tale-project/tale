@@ -112,13 +112,6 @@ export function restOrigin(caller: {
   };
 }
 
-/** The platform installing the default packs every organization starts
- * with. */
-export const PROVISIONING_ORIGIN: WriteOrigin = Object.freeze({
-  actor: 'system:provisioning',
-  via: 'system',
-});
-
 /**
  * The door of a version saved before doors were recorded, read from who
  * saved it: the platform for a `system:` writer; MCP for an API key, the

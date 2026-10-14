@@ -30,6 +30,7 @@ import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_API_KEYS,
   DEMO_APPROVAL_ALLOWANCE,
+  DEMO_GITHUB,
   DEMO_CHAT_PROMPTS,
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
@@ -63,6 +64,7 @@ import {
   DEMO_SKILLS,
   DEMO_TEAMS,
   DEMO_TEST_RUN,
+  DEMO_TEMPLATE_AUTOMATIONS,
   DEMO_TRIGGER_SKIP,
   DEMO_VERSIONS,
   DEMO_WEBDAV_LABELS,
@@ -2189,6 +2191,138 @@ async function ensureLiveRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/** The demo owner's user id, as the organization's members list says it. */
+async function demoOwnerId(page: Page, orgId: string): Promise<string> {
+  const members = await appApiOk(page, orgId, '/members');
+  const owner =
+    typeof members === 'object' &&
+    members !== null &&
+    'members' in members &&
+    Array.isArray(members.members)
+      ? (members.members as { userId?: unknown; email?: unknown }[]).find(
+          (member) => member.email === DEMO_OWNER.email,
+        )
+      : undefined;
+  if (typeof owner?.userId !== 'string') {
+    throw new Error('The demo owner is not a member of the organization');
+  }
+  return owner.userId;
+}
+
+/** A template's questions, as its preview read answers them. */
+interface TemplateQuestion {
+  id: string;
+  kind: string;
+  connector?: string;
+}
+
+function templateQuestions(detail: unknown): TemplateQuestion[] {
+  const fields =
+    typeof detail === 'object' &&
+    detail !== null &&
+    'fields' in detail &&
+    Array.isArray(detail.fields)
+      ? (detail.fields as unknown[])
+      : [];
+  return fields.flatMap((field) =>
+    typeof field === 'object' &&
+    field !== null &&
+    'id' in field &&
+    typeof field.id === 'string' &&
+    'kind' in field &&
+    typeof field.kind === 'string'
+      ? [
+          {
+            id: field.id,
+            kind: field.kind,
+            ...('connector' in field && typeof field.connector === 'string'
+              ? { connector: field.connector }
+              : {}),
+          },
+        ]
+      : [],
+  );
+}
+
+/**
+ * The automations the docs' automation pages read that come from the
+ * shipped pack templates (`DEMO_TEMPLATE_AUTOMATIONS`): a new organization
+ * has none, so each is made the way a person makes it — from the template
+ * catalog, answering its questions — as a draft. A GitHub credential comes
+ * first, since the GitHub templates ask which one they use. Idempotent: a
+ * name an earlier seed created answers 409 and is left as it is.
+ */
+async function ensureTemplateAutomations(
+  page: Page,
+  orgId: string,
+  projects: ReadonlyMap<string, string>,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/automations`);
+  const credentials = await appApiOk(
+    page,
+    orgId,
+    '/connector-credentials?connector=github',
+  );
+  const held =
+    typeof credentials === 'object' &&
+    credentials !== null &&
+    'credentials' in credentials &&
+    Array.isArray(credentials.credentials) &&
+    (credentials.credentials as { name?: unknown }[]).some(
+      (credential) => credential.name === DEMO_GITHUB.credential,
+    );
+  if (!held) {
+    await appApiOk(page, orgId, '/connector-credentials', {
+      connectorSlug: 'github',
+      authMethod: 'bearer',
+      name: DEMO_GITHUB.credential,
+      secret: { token: DEMO_GITHUB.token },
+    });
+  }
+  const owner = await demoOwnerId(page, orgId);
+  const projectId = projects.get(DEMO_PROJECTS[0].name);
+  for (const demo of DEMO_TEMPLATE_AUTOMATIONS) {
+    const detail = await appApiOk(
+      page,
+      orgId,
+      `/automation-templates/${demo.slug}`,
+    );
+    const answers: Record<string, string> = {};
+    for (const question of templateQuestions(detail)) {
+      if (question.kind === 'credential' && question.connector === 'github') {
+        answers[question.id] = DEMO_GITHUB.credential;
+      } else if (question.kind === 'member') {
+        answers[question.id] = owner;
+      } else if (question.kind === 'project' && projectId !== undefined) {
+        answers[question.id] = projectId;
+      } else if (question.kind === 'text' && question.id === 'owner') {
+        answers[question.id] = DEMO_GITHUB.owner;
+      } else if (question.kind === 'text' && question.id === 'repo') {
+        answers[question.id] = DEMO_GITHUB.repo;
+      }
+      // Every other question keeps the template's own default.
+    }
+    const created = await appApi(
+      page,
+      orgId,
+      `/automation-templates/${demo.slug}/instantiate`,
+      {
+        name: demo.name,
+        displayName: demo.displayName,
+        answers,
+        locale: 'en',
+        timezone: 'UTC',
+      },
+    );
+    // 201 is the new automation; 409: an earlier seed created it already.
+    if (created.status !== 201 && created.status !== 409) {
+      throw new Error(
+        `Creating ${demo.name} from ${demo.slug} answered ${created.status}: ${JSON.stringify(created.body)}`,
+      );
+    }
+  }
+}
+
 /**
  * A demo created from a starter as a reader creates one — the gallery's own
  * door, answering its project and telling the owner — then deployed and run
@@ -2221,19 +2355,7 @@ async function ensureStarterRun(
   if (projectId === undefined) {
     throw new Error(`The project ${demo.project} was not seeded`);
   }
-  const members = await appApiOk(page, orgId, '/members');
-  const owner =
-    typeof members === 'object' &&
-    members !== null &&
-    'members' in members &&
-    Array.isArray(members.members)
-      ? (members.members as { userId?: unknown; email?: unknown }[]).find(
-          (member) => member.email === DEMO_OWNER.email,
-        )
-      : undefined;
-  if (typeof owner?.userId !== 'string') {
-    throw new Error('The demo owner is not a member of the organization');
-  }
+  const owner = await demoOwnerId(page, orgId);
   const created = await appApi(
     page,
     orgId,
@@ -2241,7 +2363,7 @@ async function ensureStarterRun(
     {
       name: demo.automation,
       displayName: demo.name,
-      answers: { project: projectId, recipient: owner.userId },
+      answers: { project: projectId, recipient: owner },
       locale: 'en',
     },
   );
@@ -2702,6 +2824,9 @@ export async function seedDemoOrg(
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('HTTP credential', () => ensureHttpCredential(page, orgId));
+  await step('automations from templates', () =>
+    ensureTemplateAutomations(page, orgId, projects),
+  );
   await step('automation test run', () => ensureAutomationTestRun(page, orgId));
   await step('trigger skip notice', () => ensureTriggerSkipNotice(page, orgId));
   await step('webhook deliveries', () =>

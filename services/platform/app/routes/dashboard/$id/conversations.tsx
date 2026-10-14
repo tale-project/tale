@@ -219,11 +219,14 @@ function ConversationsLayout() {
               action={
                 canAuthor ? (
                   <Button asChild>
+                    {/* The template catalog on its Inbox tab: a new
+                        organization's Automations list is empty. */}
                     <Link
                       to="/dashboard/$id/automations"
                       params={{ id: organizationId }}
+                      search={{ templates: 'inbox' }}
                     >
-                      {t('activate.browseAutomations')}
+                      {t('activate.browseTemplates')}
                     </Link>
                   </Button>
                 ) : undefined

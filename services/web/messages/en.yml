@@ -1352,8 +1352,8 @@ platformAutomations:
       path: /platform/automations/triggers
     - label: Execution logs
       path: /platform/automations/execution-logs
-    - label: Built-in automations
-      path: /platform/automations/builtin
+    - label: Automation templates
+      path: /platform/automations/templates
   tour:
     heading: How automations run in Tale
     description:
