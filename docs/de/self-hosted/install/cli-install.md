@@ -584,7 +584,7 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 - `-f, --force` — Re-Sync erzwingen und lokal geänderte Projektdateien überschreiben.
 - `--dry-run` — anzeigen, was sich ändern würde, ohne etwas zu ändern.
 
-`tale migrate` — die mitgelieferten Defaults für jede Organisation auf dem laufenden Deployment neu provisionieren — derselbe idempotente Schritt, den jeder Deploy ausführt, nur auf Zuruf. Schema-Migrationen sind kein Command: Das Backend wendet sie beim Start an, ein deployter Container ist also immer auf seinem eigenen Schema.
+`tale migrate` — die mitgelieferten Defaults für jede Organisation auf dem laufenden Deployment neu provisionieren, ein idempotenter Schritt: Führe ihn nach dem Deploy eines Releases aus, dessen neue mitgelieferte Automatisierungen bestehende Organisationen brauchen, denn ein Deploy führt ihn nicht aus. Schema-Migrationen sind kein Command: Das Backend wendet sie beim Start an, ein deployter Container ist also immer auf seinem eigenen Schema.
 
 - `--dry-run` — zeigen, was laufen würde, ohne es auszuführen.
 

@@ -584,7 +584,7 @@ Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `f
 - `-f, --force` — forcer la re-synchronisation et écraser les fichiers projet modifiés localement.
 - `--dry-run` — montrer ce qui changerait sans rien modifier.
 
-`tale migrate` — reprovisionner les valeurs par défaut intégrées pour chaque organisation sur le déploiement en cours — la même étape idempotente que chaque déploiement exécute, à la demande. Les migrations de schéma ne sont pas une commande : le backend les applique au démarrage, donc un conteneur déployé est toujours sur son propre schéma.
+`tale migrate` — reprovisionner les valeurs par défaut intégrées pour chaque organisation sur le déploiement en cours, une étape idempotente : lance-la après le déploiement d’une version dont les nouvelles automatisations intégrées doivent atteindre les organisations existantes, car un déploiement ne l’exécute pas. Les migrations de schéma ne sont pas une commande : le backend les applique au démarrage, donc un conteneur déployé est toujours sur son propre schéma.
 
 - `--dry-run` — montrer ce qui serait exécuté sans l'exécuter.
 

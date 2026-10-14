@@ -3,8 +3,9 @@
 > **Prefix** `PROVN-`
 
 A new organization is given the automations that ship with the product and a starter project
-with a few example tasks. The same step runs again at every deploy, so that new shipped
-automations reach existing organizations. These rules say what provisioning adds and what it
+with a few example tasks. The same step runs again for every organization when an operator
+runs `tale migrate`, so that new shipped automations reach existing organizations; a deploy
+alone does not run it. These rules say what provisioning adds and what it
 leaves alone. The configuration files an organization is seeded with are not covered; see Not
 yet.
 
