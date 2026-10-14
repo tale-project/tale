@@ -23,7 +23,7 @@ import {
 import { nextRoleOccurrence } from './dispatch-roles.ts';
 import {
   dispatchConfigurationValue,
-  readStoredDispatch,
+  readDispatchRow,
 } from './dispatch-store.ts';
 import { listModelCapacityHolds } from './model-capacity-holds.ts';
 
@@ -53,14 +53,20 @@ export async function readProjectDispatchStatus(
   assertReadable(project, auth);
   const organizationId = auth.organizationId;
   const canEdit = checkProjectAdministrable(project, auth);
-  const stored = await readStoredDispatch(sql, organizationId, projectId);
+  // A dispatch a newer version stored in a shape this one cannot read is
+  // there, starts nothing and is kept: the readback says so instead of
+  // offering to set one up over it.
+  const storedRow = await readDispatchRow(sql, organizationId, projectId);
+  const unreadable = storedRow === 'unreadable';
+  const stored = unreadable ? null : storedRow;
   const { cap, inFlight } = await projectSessionRoom(sql, organizationId);
   const holds = await listModelCapacityHolds(sql, organizationId);
   const now = Date.now();
   const activeHolds = holds.filter((hold) => hold.heldUntilMs > now);
   if (stored === null) {
     return {
-      configured: false,
+      configured: unreadable,
+      unreadable,
       config: null,
       hash: null,
       canEdit,
@@ -262,6 +268,7 @@ export async function readProjectDispatchStatus(
   const configValue = dispatchConfigurationValue(projectId, config);
   return {
     configured: true,
+    unreadable: false,
     config,
     hash: managedConfigurationHash(configValue),
     canEdit,

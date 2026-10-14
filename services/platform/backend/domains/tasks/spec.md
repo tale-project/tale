@@ -507,7 +507,7 @@ read (`DISPATCH_INVALID`). Anyone who can read the project reads it.
 A dispatch stored in a shape this version of Tale cannot read, such as one a newer version wrote,
 starts nothing. Managed configuration does not read it as missing, and a save is refused
 (`CONFIG_UNREADABLE`) instead of replacing it with a document that drops what this version does
-not know.
+not know. The readback says the project has one this version cannot read.
 
 - **Example**: A newer version stored the Fleet project's dispatch with a field this one lacks,
   and the deployment rolls back. A declaration that names the Fleet dispatch → refused when it is

@@ -653,6 +653,28 @@ export async function checkFleetDispatch(
         ciGate.value === 25,
       `gate=${JSON.stringify(ciGate)}`,
     );
+
+    // 10. A dispatch a newer version stored, in a shape this one cannot
+    // read: no pass acts on it, and the readback says it is there.
+    await sql`
+      UPDATE app.project_dispatch
+      SET config = config || ${sql.json({ futureField: true })}
+      WHERE project_id = ${projectId}
+    `;
+    const unreadablePass = await pass(ADMIT);
+    const unreadableStatus = await readProjectDispatchStatus(
+      sql,
+      auth,
+      projectId,
+    );
+    record(
+      'fleet dispatch: a dispatch this version cannot read starts nothing, and the readback says it is there [TASK-R52]',
+      unreadablePass === null &&
+        unreadableStatus.configured &&
+        unreadableStatus.unreadable &&
+        unreadableStatus.config === null,
+      `pass=${JSON.stringify(unreadablePass)} status=${JSON.stringify({ configured: unreadableStatus.configured, unreadable: unreadableStatus.unreadable })}`,
+    );
   } finally {
     await sql`
       UPDATE app.project_dispatch SET enabled = false WHERE project_id = ${projectId}

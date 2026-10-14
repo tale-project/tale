@@ -315,6 +315,9 @@ export type DispatchIdleReason = (typeof DISPATCH_IDLE_REASONS)[number];
  */
 export const projectDispatchStatusSchema = z.object({
   configured: z.boolean(),
+  /** A dispatch is stored, in a shape this version cannot read (a newer
+   * version wrote it): it starts nothing, and is kept as it is. */
+  unreadable: z.boolean(),
   config: projectDispatchSchema.nullable(),
   /** The managed configuration hash of the stored document. */
   hash: z.string().nullable(),

@@ -19,7 +19,7 @@ export interface StoredProjectDispatch {
   updatedBy: string | null;
 }
 
-async function readDispatchRow(
+export async function readDispatchRow(
   sql: Sql | TransactionSql,
   organizationId: string,
   projectId: string,
