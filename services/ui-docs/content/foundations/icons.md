@@ -47,6 +47,12 @@ For a stateful action, name the next action or communicate the current state cle
 
 `VendorIcon` from `@tale/ui/vendor-icon` shows the icon a connector or an AI provider ships, from its `iconUrl`, at `size-5` unless you pass a `className`. With no icon, or one that fails to load, it shows Lucide's plug instead. The icon is decoration: its image has an empty alternative text, so put the vendor's name next to it.
 
+## Show a product's logo
+
+<Demo name="foundations/brand-icon" />
+
+`BrandIcon` from `@tale/ui/brand-icon` draws a product's logo from its slug, such as `gmail` for an automation template whose icon is `brand:gmail`, at `size-5` unless you pass a `className`. The logo is decoration, hidden from assistive technology, so put the product's name next to it. For a slug it has no logo for, it shows Lucide's puzzle piece in the muted colour, or the Lucide icon you pass as `fallback`. `BRAND_ICON_SLUGS` lists the slugs it has a logo for, and `isBrandIconSlug` checks one.
+
 ## Reuse custom brand marks
 
 ```tsx
@@ -65,7 +71,7 @@ export function SourceLink() {
 }
 ```
 
-The package exposes GitHub, Claude, Google, Microsoft, Gmail, Google Drive, OneDrive, Outlook, SharePoint, Shopify, website, enter-key, and locale-flag marks through its exported icon paths. Check `packages/ui/package.json` for the exact subpath; names such as `github` and `google-drive-icon` are not uniform enough to guess safely.
+The package exposes GitHub, GlitchTip, Claude, OpenAI, Google, Microsoft, Gmail, Google Drive, OneDrive, Outlook, SharePoint, Shopify, Slack, mail-server, website, enter-key, and locale-flag marks through its exported icon paths. Check `packages/ui/package.json` for the exact subpath; names such as `github` and `google-drive-icon` are not uniform enough to guess safely.
 
 Before drawing a new mark, search the package and Lucide. A new shared icon should match the existing prop/ref convention, carry no embedded screen-specific label, and be tested at its intended sizes.
 
