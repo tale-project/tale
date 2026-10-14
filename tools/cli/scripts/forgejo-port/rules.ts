@@ -11,7 +11,7 @@ import { Scalar, YAMLMap, isMap, isScalar, isSeq } from 'yaml';
 import type { Document } from 'yaml';
 
 import { CHECKS_MERGE_QUEUE_ONLY } from '../ci-ready';
-import type { PortContext, Rule } from './context';
+import { jobKnowledge, type PortContext, type Rule } from './context';
 import {
   allOf,
   conjuncts,
@@ -361,26 +361,22 @@ export function matrixSize(job: YAMLMap): number | undefined {
 export const matrixTotals: Rule = (doc, context) => {
   for (const id of jobIds(doc)) {
     const job = jobOf(doc, id);
-    if (!job) continue;
-    const size = matrixSize(job);
-    const known = context.knowledge.jobValues.get(id) ?? new Map();
-    if (size !== undefined) known.set('strategy.job-total', size);
-    context.knowledge.jobValues.set(id, known);
+    const size = job && matrixSize(job);
+    if (size !== undefined)
+      jobKnowledge(context.knowledge, id).values.set(
+        'strategy.job-total',
+        size,
+      );
   }
 };
 
 // --- what has no meaning on Forgejo ------------------------------------------
 
-/** GitHub's code-scanning upload: there is no code scanning to receive it. */
-const SARIF_UPLOAD = 'github/codeql-action/upload-sarif@';
-
-/** Deployment environments do not exist on Forgejo and the server drops the key; SARIF goes nowhere. */
-export const dropWhatForgejoIgnores: Rule = (doc, context) => {
+/** Deployment environments do not exist on Forgejo and the server drops the key. */
+export const dropEnvironments: Rule = (doc, context) => {
   const { file, report } = context;
   for (const id of jobIds(doc)) {
-    const job = jobOf(doc, id);
-    if (!job) continue;
-    if (job.delete('environment'))
+    if (jobOf(doc, id)?.delete('environment'))
       report.changes.push({
         file,
         at: `jobs.${id}`,
@@ -388,20 +384,6 @@ export const dropWhatForgejoIgnores: Rule = (doc, context) => {
         detail:
           'removed `environment:` (the server ignores it and Forgejo has no deployment environments)',
       });
-    const steps = stepsOf(job);
-    if (!steps) continue;
-    for (let index = steps.items.length - 1; index >= 0; index -= 1) {
-      if (usesOf(steps.items[index])?.startsWith(SARIF_UPLOAD)) {
-        steps.items.splice(index, 1);
-        report.changes.push({
-          file,
-          at: `jobs.${id}.steps[${index}]`,
-          rule: 'sarif',
-          detail:
-            'removed the SARIF upload: it feeds GitHub code scanning, which Forgejo does not have',
-        });
-      }
-    }
   }
 };
 
@@ -440,5 +422,5 @@ export const DEFAULT_RULES: readonly Rule[] = [
   queueOnlyJobs,
   servicesToDockerRun,
   matrixTotals,
-  dropWhatForgejoIgnores,
+  dropEnvironments,
 ];

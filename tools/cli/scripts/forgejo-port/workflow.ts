@@ -283,6 +283,18 @@ export function foldWorkflow(doc: Document, context: FoldContext): string[] {
   return dead;
 }
 
+/** Fold a composite action the way a workflow is: its steps, and the strings around them. */
+export function foldAction(doc: Document, context: FoldContext): void {
+  const root = rootOf(doc);
+  const runs = root.get('runs');
+  if (isMap(runs)) {
+    const steps = runs.get('steps');
+    if (isSeq(steps)) foldSteps(steps, 'runs', context);
+    foldMapValues(runs, 'runs', context, new Set(['steps']));
+  }
+  foldMapValues(root, '', context, new Set(['runs']));
+}
+
 function foldSteps(steps: YAMLSeq, jobAt: string, context: FoldContext): void {
   for (let index = steps.items.length - 1; index >= 0; index -= 1) {
     const step = steps.items[index];
@@ -518,4 +530,40 @@ export function editCondition(
 /** The text of a step's or job's `if:`, as written. */
 export function conditionOf(owner: YAMLMap): string | undefined {
   return stringOf(owner.get('if'));
+}
+
+/** Every list of steps a document has: one per job of a workflow, or the steps of a composite action. */
+export function stepLists(doc: Document): { at: string; steps: YAMLSeq }[] {
+  const root = rootOf(doc);
+  const lists: { at: string; steps: YAMLSeq }[] = [];
+  const runs = root.get('runs');
+  if (isMap(runs)) {
+    const steps = runs.get('steps');
+    if (isSeq(steps)) lists.push({ at: 'runs', steps });
+  }
+  const jobs = root.get('jobs');
+  if (isMap(jobs)) {
+    for (const pair of jobs.items) {
+      const id = stringOf(pair.key);
+      const job = isMap(pair.value) ? pair.value : undefined;
+      const steps = job && stepsOf(job);
+      if (id !== undefined && steps) lists.push({ at: `jobs.${id}`, steps });
+    }
+  }
+  return lists;
+}
+
+/** A step's `uses:`, split into what it names and the ref after the `@`. */
+export function parseUses(
+  uses: string,
+):
+  | { kind: 'remote'; name: string; ref: string }
+  | { kind: 'local'; path: string }
+  | { kind: 'docker' } {
+  if (uses.startsWith('./')) return { kind: 'local', path: uses };
+  if (uses.startsWith('docker://')) return { kind: 'docker' };
+  const at = uses.lastIndexOf('@');
+  return at === -1
+    ? { kind: 'remote', name: uses, ref: '' }
+    : { kind: 'remote', name: uses.slice(0, at), ref: uses.slice(at + 1) };
 }
