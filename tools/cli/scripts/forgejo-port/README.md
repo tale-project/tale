@@ -31,8 +31,8 @@ bun tools/cli/scripts/forgejo-port.ts github [--write]     # the edits GitHub's 
 | Release candidate | the `candidate-source` and `candidate-gate` jobs, `run-name`, and every condition on them | the candidate runs are GitHub's dispatch, which only the release lane on GitHub receives |
 | Conditions | folded by what the port knows (the events the workflow has, the jobs it lost, the size of a matrix); a job or step that can never run is removed | Forgejo evaluates `if` on the runner, so a skipped job still takes a runner |
 | Merge group | `github.event_name == 'merge_group'` reads `push` | a batch is a push, and the only pushes a ported workflow has are batches |
-| Scope | the `ci-scope` step is replaced by what it answers: a pull request owes the fast lanes, a batch owes everything, Security runs on every pull request | the answer is a function of the event, and the files a pull request touches need GitHub's API |
-| Readiness | each `CI ready (…)` job runs `forgejo-port/ready.ts`, which hands the needs to Tale's own policy (`../ci-ready.ts`) as a pull request or as a merge group | the check the merge train reads is the one the merge queue read |
+| Scope | the `ci-scope` step is replaced by what it answers for the tier (below); Security runs on every pull request | the answer is a function of the event, and the files a pull request touches need GitHub's API |
+| Readiness | each `CI ready (…)` job runs `forgejo-port/ready.ts`, which hands the needs to Tale's own policy (`../ci-ready.ts`) as a pull request or as a merge group, by the tier | the check the merge train reads is the one the merge queue read |
 | Services | `services:` become `docker run` steps on the loopback address | a runner in host mode never starts them |
 | Matrix | `strategy.job-total` is written as the number; rows whose runner the pool does not serve are removed | the runner leaves `job-total` empty, and a label it does not serve falls back to a Docker image instead of waiting |
 | Actions | each external action is kept, replaced, dropped or refused from one table (`actions.ts`) | the node mirrors every action a workflow pins; the artifact actions have Forgejo forks; the runner cache is per instance |
@@ -46,15 +46,28 @@ one place that names a workflow, a label, a secret or a file.
 
 ## Tiers
 
-| Run | Event | Owes |
-| --- | --- | --- |
-| Pull request | `pull_request` | Checks' fast lanes, Commitlint, SAST and Security; Build, E2E, CLI and the backend integration check read as skipped |
-| Batch | `push` to `mq/**` | every job of every workflow |
-| Nightly, weekly, manual | `schedule`, `workflow_dispatch` | as on GitHub |
+A batch of the merge train, a push to `mq/**`, owes every job of every workflow. What a pull
+request owes is the tier, set for all workflows by `tier` in `manifest.ts` and for one by the
+`tier` of its plan; `--tier` replaces it for one run of the command.
 
-A pull request costs about 28 runner-minutes and a batch about 141. At the measured volume
-(about 108 pull request pushes and 40 batches a day) that is about 145 runner-hours a day, six
-runners busy on average.
+| Tier | A pull request owes | Why |
+| --- | --- | --- |
+| `full` (the manifest's) | what a batch owes | a failure shows on the pull request, where its author is, and not in the train, where it costs a rebuild of the batch |
+| `fast` | Checks' fast lanes, Commitlint, SAST and Security; Build, E2E, CLI and the backend integration check read as skipped | GitHub's pull request tier, which CI.md describes |
+
+Both tiers hand each `CI ready (…)` job to Tale's own policy; `full` as a merge group, `fast` as
+a pull request.
+
+| Per day | `full` | `fast` |
+| --- | --- | --- |
+| Pull request pushes (about 108, 28 or 141 runner-minutes each) | 254 runner-hours | 50 runner-hours |
+| Batches (about 40, 141 runner-minutes each) | 94 runner-hours | 94 runner-hours |
+| Runners busy on average | 14.5 | 6 |
+
+The minutes are medians of GitHub's runs, which hit a Turbo cache that a runner on the node
+does not have (the cache is per instance), so a job there can take longer. A node of 48
+threads runs 12 four-CPU runners at full speed. Measure on the soak before the tier is chosen
+for the repository, and move a workflow to `fast` with its own `tier` when the pool saturates.
 
 ## What stays on GitHub
 

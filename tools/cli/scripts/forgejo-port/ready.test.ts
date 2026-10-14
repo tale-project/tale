@@ -126,6 +126,7 @@ function onPullRequest(
   return {
     workflow,
     needs: greenPullRequest(workflow),
+    tier: 'fast',
     removed: removedFor(workflow),
     event: 'pull_request',
     payload: pullRequest(),
@@ -141,6 +142,7 @@ function onBatch(
   return {
     workflow,
     needs: greenBatch(workflow),
+    tier: 'fast',
     removed: removedFor(workflow),
     event: 'push',
     payload: { before: '0'.repeat(40), after: B },
@@ -198,6 +200,44 @@ describe('judgeReadiness', () => {
       expect(judgeReadiness(onBatch(workflow, { needs })).passed).toBe(false);
     });
   }
+
+  for (const workflow of WORKFLOWS) {
+    test(`${workflow}: a pull request of the full tier owes what a batch owes`, () => {
+      const verdict = judgeReadiness(
+        onPullRequest(workflow, { tier: 'full', needs: greenBatch(workflow) }),
+      );
+      expect(verdict.reasons).toEqual([]);
+      expect(verdict.passed).toBe(true);
+    });
+
+    test(`${workflow}: a pull request of the full tier is held for a job a batch would not skip`, () => {
+      for (const id of Object.keys(greenBatch(workflow))) {
+        const needs = greenBatch(workflow);
+        const job = needs[id];
+        if (!job || job.result === 'skipped') continue;
+        job.result = 'skipped';
+        expect(
+          judgeReadiness(onPullRequest(workflow, { tier: 'full', needs }))
+            .passed,
+          `${id}`,
+        ).toBe(false);
+      }
+    });
+  }
+
+  test('a pull request of the fast tier is held for a suite it ran, and one of the full tier for a suite it skipped', () => {
+    const fast = judgeReadiness(
+      onPullRequest('checks', { needs: greenBatch('checks') }),
+    );
+    expect(fast.passed).toBe(false);
+    const full = judgeReadiness(
+      onPullRequest('checks', {
+        tier: 'full',
+        needs: greenPullRequest('checks'),
+      }),
+    );
+    expect(full.passed).toBe(false);
+  });
 
   test('a pull request that ran a suite held for the batch is held', () => {
     const needs = greenPullRequest('checks');
@@ -317,6 +357,7 @@ describe('parseRemoved', () => {
 describe('readInput', () => {
   const env = {
     CI_WORKFLOW: 'sast',
+    CI_TIER: 'fast',
     CI_NEEDS: '{"sast":{"result":"success","outputs":{}}}',
     CI_PORT_REMOVED: '{}',
     GITHUB_EVENT_NAME: 'push',
@@ -329,12 +370,22 @@ describe('readInput', () => {
       path === '/tmp/event.json' ? '{"before":"x","after":"y"}' : '';
     expect(readInput(env, read)).toEqual({
       workflow: 'sast',
+      tier: 'fast',
       needs: { sast: { result: 'success', outputs: {} } },
       removed: {},
       event: 'push',
       payload: { before: 'x', after: 'y' },
       sha: B,
     });
+  });
+
+  test('refuses a tier it does not know', () => {
+    expect(() => readInput({ ...env, CI_TIER: 'half' }, () => '{}')).toThrow(
+      'CI_TIER is neither fast nor full',
+    );
+    expect(() => readInput({ ...env, CI_TIER: undefined }, () => '{}')).toThrow(
+      'CI_TIER is not set',
+    );
   });
 
   test('names what is missing', () => {

@@ -3,9 +3,10 @@
  *
  * On GitHub that job evaluates the workflow's `needs` with Tale's own policy
  * (`../ci-ready.ts`) in a `github-script` step, against a pull request or a merge
- * group. On Forgejo there is neither the API nor the merge group: a pull request is
- * a pull request, and a batch of the merge train, which is a push to `mq/**`, is
- * what the policy calls a merge group. The policy itself is not copied or changed:
+ * group. On Forgejo there is neither the API nor the merge group: a batch of the merge
+ * train, which is a push to `mq/**`, is what the policy calls a merge group, and so is a
+ * pull request that owes what a batch owes (the `full` tier). A pull request of the
+ * `fast` tier is a pull request. The policy itself is not copied or changed:
  * this describes the Forgejo run in the words it knows, and hands it the jobs the
  * port left out as what they would have reported, which the generator recorded.
  *
@@ -19,6 +20,13 @@ import { CI_JOBS, evaluateReadiness } from '../ci-ready';
 
 const ZEROS = '0'.repeat(40);
 const SHA = /^[a-f0-9]{40}$/;
+
+/**
+ * What a pull request owes. `fast` is GitHub's pull request tier: the fast lanes, with the
+ * heavy suites held for the batch. `full` is the batch's own scope, so that a failure shows
+ * on the pull request and not in the train.
+ */
+export type Tier = 'fast' | 'full';
 
 /** What a job reports to the jobs that need it. */
 export interface JobResult {
@@ -37,6 +45,8 @@ export interface ReadyInput {
   readonly workflow: string;
   /** `toJSON(needs)` of the ready job. */
   readonly needs: unknown;
+  /** What a pull request owes of this workflow. */
+  readonly tier: Tier;
   /** The jobs of the GitHub workflow the port left out, by id. */
   readonly removed: Readonly<Record<string, RemovedJob>>;
   /** `github.event_name`. */
@@ -126,15 +136,18 @@ export function judgeReadiness(input: ReadyInput): Verdict {
   const known: readonly string[] = Object.hasOwn(CI_JOBS, input.workflow)
     ? CI_JOBS[input.workflow as keyof typeof CI_JOBS]
     : [];
+  // A pull request that owes what a batch owes is judged as the merge group the policy knows.
+  const batch = what.kind === 'push' || input.tier === 'full';
   const filled: Record<string, unknown> = { ...needs };
   for (const [id, removed] of Object.entries(input.removed)) {
-    if (known.includes(id) && !(id in filled)) filled[id] = removed[what.kind];
+    if (known.includes(id) && !(id in filled))
+      filled[id] = removed[batch ? 'push' : 'pull_request'];
   }
   // A work in progress is held by the merge train, not here: Forgejo raises no event when
   // one is marked ready, so a hold would stay on a pull request that is ready.
   return evaluateReadiness({
     workflow: input.workflow,
-    ...(what.kind === 'push'
+    ...(batch
       ? {
           event: 'merge_group',
           payload: {
@@ -147,7 +160,7 @@ export function judgeReadiness(input: ReadyInput): Verdict {
             pull_request: {
               base: { sha: what.base },
               head: { sha: what.head, repo: { fork: false } },
-              changed_files: what.changed,
+              changed_files: what.kind === 'pull_request' ? what.changed : 0,
               draft: false,
             },
           },
@@ -208,8 +221,12 @@ export function readInput(
       throw new Error(`${name} is not set`);
     return value;
   };
+  const tier = required('CI_TIER');
+  if (tier !== 'fast' && tier !== 'full')
+    throw new Error('CI_TIER is neither fast nor full');
   return {
     workflow: required('CI_WORKFLOW'),
+    tier,
     needs: JSON.parse(required('CI_NEEDS')) as unknown,
     removed: parseRemoved((env.CI_PORT_REMOVED ?? '').trim()),
     event: required('GITHUB_EVENT_NAME'),

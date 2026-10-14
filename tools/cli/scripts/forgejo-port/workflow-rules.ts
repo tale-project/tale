@@ -19,6 +19,7 @@ import {
   type EventResults,
   type PortContext,
   type Rule,
+  type Tier,
 } from './context';
 import { flowSequence } from './triggers';
 import {
@@ -49,69 +50,72 @@ const READY_STEP = 'Evaluate native workflow';
  * whatever their result and judges them with Tale's own policy (see ready.ts): a
  * checkout of the policy and one command, where GitHub's version needs its API.
  */
-export const readyJob: Rule = (doc, context) => {
-  const job = jobOf(doc, 'ci-ready');
-  const name = job && stringOf(job.get('name'));
-  if (!job || name === undefined || !name.startsWith('CI ready (')) return;
-  const checkout = stepsOf(job)?.items.find(
-    (step) =>
-      isMap(step) &&
-      stringOf(step.get('uses'))?.startsWith('actions/checkout@'),
-  );
-  const pinned = isMap(checkout) ? checkout.get('uses', true) : undefined;
-  if (!(pinned instanceof Scalar)) {
-    context.report.warnings.push({
+export function readyJob(tier: Tier): Rule {
+  return (doc, context) => {
+    const job = jobOf(doc, 'ci-ready');
+    const name = job && stringOf(job.get('name'));
+    if (!job || name === undefined || !name.startsWith('CI ready (')) return;
+    const checkout = stepsOf(job)?.items.find(
+      (step) =>
+        isMap(step) &&
+        stringOf(step.get('uses'))?.startsWith('actions/checkout@'),
+    );
+    const pinned = isMap(checkout) ? checkout.get('uses', true) : undefined;
+    if (!(pinned instanceof Scalar)) {
+      context.report.warnings.push({
+        file: context.file,
+        at: 'jobs.ci-ready',
+        rule: 'ready',
+        detail: 'has no pinned checkout to copy: left as it is',
+      });
+      return;
+    }
+    const stem = context.file.replace(/\.ya?ml$/, '');
+    const verdict = new YAMLMap();
+    verdict.set('name', 'Checkout verdict policy');
+    verdict.set('uses', pinned.clone());
+    const withInputs = new YAMLMap();
+    withInputs.set('persist-credentials', false);
+    withInputs.set(
+      'sparse-checkout',
+      literal(
+        '/tools/cli/scripts/ci-ready.ts\n/tools/cli/scripts/forgejo-port/ready.ts\n',
+      ),
+    );
+    withInputs.set('sparse-checkout-cone-mode', false);
+    verdict.set('with', withInputs);
+
+    const evaluate = new YAMLMap();
+    evaluate.set('name', READY_STEP);
+    const env = new YAMLMap();
+    env.set('CI_WORKFLOW', stem);
+    env.set('CI_NEEDS', '${{ toJSON(needs) }}');
+    env.set('CI_TIER', tier);
+    env.set('CI_PORT_REMOVED', '');
+    evaluate.set('env', env);
+    evaluate.set('run', 'bun tools/cli/scripts/forgejo-port/ready.ts');
+
+    const others = jobIds(doc).filter((id) => id !== 'ci-ready');
+    const ready = new YAMLMap();
+    ready.set('name', name);
+    ready.set('needs', flowSequence(others));
+    ready.set('if', READY_CONDITION);
+    ready.set('runs-on', job.get('runs-on') ?? 'ubuntu-latest');
+    ready.set('timeout-minutes', job.get('timeout-minutes') ?? 3);
+    const steps = new YAMLSeq();
+    steps.add(verdict);
+    steps.add(evaluate);
+    ready.set('steps', steps);
+    jobsOf(doc).set('ci-ready', ready);
+    context.report.changes.push({
       file: context.file,
       at: 'jobs.ci-ready',
       rule: 'ready',
-      detail: 'has no pinned checkout to copy: left as it is',
+      detail:
+        "rewritten: one command judges the needs with Tale's readiness policy, for a pull request and for a batch alike",
     });
-    return;
-  }
-  const stem = context.file.replace(/\.ya?ml$/, '');
-  const verdict = new YAMLMap();
-  verdict.set('name', 'Checkout verdict policy');
-  verdict.set('uses', pinned.clone());
-  const withInputs = new YAMLMap();
-  withInputs.set('persist-credentials', false);
-  withInputs.set(
-    'sparse-checkout',
-    literal(
-      '/tools/cli/scripts/ci-ready.ts\n/tools/cli/scripts/forgejo-port/ready.ts\n',
-    ),
-  );
-  withInputs.set('sparse-checkout-cone-mode', false);
-  verdict.set('with', withInputs);
-
-  const evaluate = new YAMLMap();
-  evaluate.set('name', READY_STEP);
-  const env = new YAMLMap();
-  env.set('CI_WORKFLOW', stem);
-  env.set('CI_NEEDS', '${{ toJSON(needs) }}');
-  env.set('CI_PORT_REMOVED', '');
-  evaluate.set('env', env);
-  evaluate.set('run', 'bun tools/cli/scripts/forgejo-port/ready.ts');
-
-  const others = jobIds(doc).filter((id) => id !== 'ci-ready');
-  const ready = new YAMLMap();
-  ready.set('name', name);
-  ready.set('needs', flowSequence(others));
-  ready.set('if', READY_CONDITION);
-  ready.set('runs-on', job.get('runs-on') ?? 'ubuntu-latest');
-  ready.set('timeout-minutes', job.get('timeout-minutes') ?? 3);
-  const steps = new YAMLSeq();
-  steps.add(verdict);
-  steps.add(evaluate);
-  ready.set('steps', steps);
-  jobsOf(doc).set('ci-ready', ready);
-  context.report.changes.push({
-    file: context.file,
-    at: 'jobs.ci-ready',
-    rule: 'ready',
-    detail:
-      "rewritten: one command judges the needs with Tale's readiness policy, for a pull request and for a batch alike",
-  });
-};
+  };
+}
 
 /**
  * After folding: say which jobs of the GitHub workflow are gone and what each would have

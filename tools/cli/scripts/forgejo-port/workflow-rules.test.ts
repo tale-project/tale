@@ -71,7 +71,7 @@ jobs:
 `;
 
   test("judges the needs with Tale's policy, for a pull request and for a batch", () => {
-    const { text, jobs } = run(SOURCE, [readyJob], 'checks.yml', [
+    const { text, jobs } = run(SOURCE, [readyJob('fast')], 'checks.yml', [
       recordRemoved,
     ]);
     expect(jobs).toEqual(['lint', 'ci-ready']);
@@ -80,6 +80,7 @@ jobs:
     );
     expect(text).toContain('needs: [lint]');
     expect(text).toContain('CI_WORKFLOW: checks');
+    expect(text).toContain('CI_TIER: fast');
     expect(text).toContain('CI_NEEDS: ${{ toJSON(needs) }}');
     expect(text).toContain('run: bun tools/cli/scripts/forgejo-port/ready.ts');
     expect(text).toContain(`uses: actions/checkout@${SHA} # v6`);
@@ -88,7 +89,9 @@ jobs:
   });
 
   test('says which jobs of the GitHub workflow are gone, and what each would have reported', () => {
-    const { text } = run(SOURCE, [readyJob], 'checks.yml', [recordRemoved]);
+    const { text } = run(SOURCE, [readyJob('fast')], 'checks.yml', [
+      recordRemoved,
+    ]);
     const recorded = /CI_PORT_REMOVED: \|\n([\s\S]*?)\n\s*run:/.exec(text);
     expect(JSON.parse(recorded?.[1] ?? 'null')).toEqual({
       'candidate-source': {
@@ -109,13 +112,13 @@ jobs:
     steps:
       - run: echo
 `;
-    expect(run(odd, [readyJob]).text).toContain('Something else');
+    expect(run(odd, [readyJob('fast')]).text).toContain('Something else');
     const noCheckout = SOURCE.replace(
       / {6}- name: Checkout verdict policy[\s\S]*?cone-mode: false\n/,
       '',
     );
     expect(
-      run(noCheckout, [readyJob], 'checks.yml').report.warnings.map(
+      run(noCheckout, [readyJob('fast')], 'checks.yml').report.warnings.map(
         (w) => w.rule,
       ),
     ).toEqual(['ready']);
