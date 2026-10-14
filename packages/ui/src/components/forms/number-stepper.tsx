@@ -27,18 +27,34 @@ export interface NumberStepperProps {
   'aria-label'?: string;
   'aria-labelledby'?: string;
   'aria-describedby'?: string;
+  /** Marks the field invalid — `Field` passes it with an error. */
+  'aria-invalid'?: boolean;
   /** Name of the − button. @default "Decrease" */
   decrementLabel?: string;
   /** Name of the + button. @default "Increase" */
   incrementLabel?: string;
   /** Enter in the field, after the typed number is clamped and committed. */
   onEnter?: () => void;
+  /**
+   * For a host that shows an out-of-range number instead of quietly
+   * correcting it: the number typed while it is outside `min`–`max`, then
+   * `null` once the field holds a number in range again. With it, a typed
+   * number out of range stays in the field on blur and on Enter — never
+   * clamped — and the host says what is wrong; without it, the field clamps
+   * it when it settles.
+   */
+  onOutOfRange?: (typed: number | null) => void;
   disabled?: boolean;
   className?: string;
 }
 
 const BUTTON_CLASSES =
   'text-muted-foreground hover:bg-accent hover:text-foreground flex w-8 shrink-0 cursor-pointer items-center justify-center transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent';
+
+/** The digits the longest number between `min` and `max` takes. */
+function digitsOf(min: number, max: number): number {
+  return Math.max(String(min).length, String(max).length);
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -52,8 +68,10 @@ function clamp(value: number, min: number, max: number): number {
  * when a wheel scrolls over it. Arrow keys step, Page Up/Down take bigger
  * steps, Home/End jump to the bounds. Typing keeps digits only; a number in
  * range is committed as it is typed, anything else is clamped on blur or
- * Enter, and an emptied field returns to the last value. The buttons stay out
- * of the tab order (the arrow keys do their job) and keep focus in the field.
+ * Enter (kept as typed and reported instead, for a host that passes
+ * `onOutOfRange`), and an emptied field returns to the last value. The field
+ * is as wide as the longest number it takes. The buttons stay out of the tab
+ * order (the arrow keys do their job) and keep focus in the field.
  */
 export function NumberStepper({
   value,
@@ -66,9 +84,11 @@ export function NumberStepper({
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   decrementLabel,
   incrementLabel,
   onEnter,
+  onOutOfRange,
   disabled,
   className,
 }: NumberStepperProps) {
@@ -84,6 +104,7 @@ export function NumberStepper({
 
   const commit = (next: number) => {
     setTyped(null);
+    onOutOfRange?.(null);
     const clamped = clamp(next, min, max);
     if (clamped !== value) onValueChange(clamped);
   };
@@ -92,9 +113,13 @@ export function NumberStepper({
     if (typed === null) return;
     if (typed === '') {
       setTyped(null);
+      onOutOfRange?.(null);
       return;
     }
-    commit(Number(typed));
+    const next = Number(typed);
+    // A host that shows the number keeps it as typed.
+    if (onOutOfRange !== undefined && (next < min || next > max)) return;
+    commit(next);
   };
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -106,10 +131,12 @@ export function NumberStepper({
     const next = Number(digits);
     if (next >= min && next <= max) {
       setTyped(digits === String(next) ? null : digits);
+      onOutOfRange?.(null);
       if (next !== value) onValueChange(next);
       return;
     }
     setTyped(digits);
+    onOutOfRange?.(next);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -185,12 +212,15 @@ export function NumberStepper({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         disabled={disabled}
         value={typed ?? String(value)}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onBlur={settle}
-        className="w-10 min-w-0 bg-transparent text-center text-base tabular-nums outline-none disabled:cursor-not-allowed md:text-sm"
+        // As wide as the longest number it takes, so 30000 is not cut off.
+        style={{ width: `calc(${digitsOf(min, max)}ch + 1rem)` }}
+        className="min-w-10 bg-transparent text-center text-base tabular-nums outline-none disabled:cursor-not-allowed md:text-sm"
       />
       <button
         type="button"

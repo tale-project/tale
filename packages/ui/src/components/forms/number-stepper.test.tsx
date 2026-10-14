@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
+import { Field } from './field';
 import { NumberStepper } from './number-stepper';
 
 function Harness({
@@ -13,12 +14,14 @@ function Harness({
   max = 31,
   onValueChange,
   onEnter,
+  onOutOfRange,
 }: {
   initial?: number;
   min?: number;
   max?: number;
   onValueChange?: (value: number) => void;
   onEnter?: () => void;
+  onOutOfRange?: (typed: number | null) => void;
 }) {
   const [value, setValue] = useState(initial);
   return (
@@ -28,6 +31,7 @@ function Harness({
       min={min}
       max={max}
       onEnter={onEnter}
+      {...(onOutOfRange !== undefined && { onOutOfRange })}
       onValueChange={(next) => {
         setValue(next);
         onValueChange?.(next);
@@ -98,6 +102,54 @@ describe('NumberStepper', () => {
     await user.tab();
     expect(field).toHaveValue('31');
     expect(onValueChange).toHaveBeenLastCalledWith(31);
+  });
+
+  it('keeps a number out of range as typed and says so, for a host that shows it', async () => {
+    const onOutOfRange = vi.fn();
+    const onValueChange = vi.fn();
+    const { user } = render(
+      <Harness
+        max={100}
+        onOutOfRange={onOutOfRange}
+        onValueChange={onValueChange}
+      />,
+    );
+    const field = screen.getByRole('spinbutton', { name: 'Day' });
+    await user.clear(field);
+    await user.type(field, '150');
+    expect(onOutOfRange).toHaveBeenLastCalledWith(150);
+    fireEvent.blur(field);
+    // Never corrected behind the reader's back.
+    expect(field).toHaveValue('150');
+    expect(onValueChange).not.toHaveBeenCalledWith(100);
+    await user.clear(field);
+    await user.type(field, '40');
+    expect(onOutOfRange).toHaveBeenLastCalledWith(null);
+    expect(onValueChange).toHaveBeenLastCalledWith(40);
+  });
+
+  it('is marked invalid when the field around it shows an error', () => {
+    render(
+      <Field label="Day" htmlFor="day" error="Give a day from 1 to 31.">
+        <NumberStepper
+          id="day"
+          value={5}
+          min={1}
+          max={31}
+          onValueChange={vi.fn()}
+        />
+      </Field>,
+    );
+    const field = screen.getByRole('spinbutton', { name: 'Day' });
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveAccessibleDescription('Give a day from 1 to 31.');
+  });
+
+  it('is as wide as the longest number it takes', () => {
+    render(<Harness initial={30000} min={1000} max={100000} />);
+    expect(screen.getByRole('spinbutton', { name: 'Day' })).toHaveStyle({
+      width: 'calc(6ch + 1rem)',
+    });
   });
 
   it('clamps on Enter, then calls onEnter', async () => {
