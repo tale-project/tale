@@ -1,7 +1,9 @@
-/** Real PostgreSQL custody of a counted model-capacity retry. Tasks stay
- * To do so normal retry workers refuse them. The direct kick, queue readback
- * and native cancellation share one transaction: no worker can observe an
- * executable fixture start, even if a database statement stalls. */
+/** Real PostgreSQL custody of a model at capacity: the run the provider
+ * refused fails once, opens the model's hold and arms a free retry; a run on
+ * the held model parks instead of starting; a run that settles on the model
+ * clears the hold and wakes it; the hourly circuit counts none of it. Tasks
+ * stay To do so normal retry workers refuse them, and every start the lane
+ * kicks waits an hour in the queue, so no worker can launch a fixture. */
 import { randomUUID } from 'node:crypto';
 
 import type { PgBoss } from 'pg-boss';
@@ -10,12 +12,18 @@ import type { Sql } from 'postgres';
 import { resolveAutoRetryBudget } from '../../core/tasks/task_auto_retry.ts';
 import { bossDbInTx } from '../../jobs/enqueue.ts';
 import {
-  cancelAgentRunInTx,
   failAgentRunFromTurn,
   kickAgentRun,
+  settleAgentRun,
 } from './agent-runs.ts';
+import { claimAgentWorker } from './agent-workers.ts';
 import { admitAutomatedStart } from './delegated-start.ts';
 import { loadTaskRetryHistory, resolveTaskKickStartArgs } from './kick-plan.ts';
+import {
+  MODEL_CAPACITY_MAX_WAIT_MS,
+  PARKED_ON_HELD_MODEL_SQL,
+  readModelCapacityHold,
+} from './model-capacity-holds.ts';
 
 export async function checkModelCapacityRetry(
   sql: Sql,
@@ -27,6 +35,10 @@ export async function checkModelCapacityRetry(
   const projectId = randomUUID();
   const agentId = randomUUID();
   const taskId = randomUUID();
+  const otherTaskId = randomUUID();
+  // A model of this lane's own: a hold is the organization's, by model.
+  const model = `itest-capacity-${randomUUID().slice(0, 8)}`;
+  const key = { organizationId: orgId, modelProvider: null, model };
   const sessionId = `pa-${agentId}`;
   const now = Date.now();
   await sql`
@@ -37,15 +49,20 @@ export async function checkModelCapacityRetry(
     INSERT INTO app.project_agents (id, org_id, project_id, name, harness, model,
       created_by, created_at_ms, updated_at_ms)
     VALUES (${agentId}, ${orgId}, ${projectId}, 'Capacity agent', 'codex',
-      'itest-model', ${userId}, ${now}, ${now})
+      ${model}, ${userId}, ${now}, ${now})
   `;
-  await sql`
-    INSERT INTO app.tasks (id, org_id, project_id, title, status, assignee_type,
-      assignee_id, rank, created_by, created_by_type, created_at_ms, updated_at_ms)
-    VALUES (${taskId}, ${orgId}, ${projectId}, 'Capacity retry', 'todo',
-      'agent', ${agentId}, 'a0', ${userId}, 'user', ${now}, ${now})
-  `;
-  const addRun = async () => {
+  for (const [id, title] of [
+    [taskId, 'Capacity retry'],
+    [otherTaskId, 'Capacity neighbour'],
+  ] as const) {
+    await sql`
+      INSERT INTO app.tasks (id, org_id, project_id, title, status, assignee_type,
+        assignee_id, rank, created_by, created_by_type, created_at_ms, updated_at_ms)
+      VALUES (${id}, ${orgId}, ${projectId}, ${title}, 'todo',
+        'agent', ${agentId}, 'a0', ${userId}, 'user', ${now}, ${now})
+    `;
+  }
+  const addRun = async (task = taskId) => {
     const at = Date.now();
     const execId = randomUUID();
     const rows = await sql<{ id: string }[]>`
@@ -55,8 +72,8 @@ export async function checkModelCapacityRetry(
         started_via, started_via_run_id, started_via_agent_id,
         started_at_ms, launched_at_ms, deadline_at_ms, updated_at_ms
       ) VALUES (
-        ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${execId}, ${sessionId},
-        'running', 'codex', 'itest-model', ${userId}, 'healthy-account', 'delegated',
+        ${orgId}, ${projectId}, ${task}, ${agentId}, ${execId}, ${sessionId},
+        'running', 'codex', ${model}, ${userId}, 'healthy-account', 'delegated',
         'agent', 'itest-manager-run', ${agentId},
         ${at - 2_000}, ${at - 1_000}, ${at + 3_600_000}, ${at}
       ) RETURNING id
@@ -81,13 +98,12 @@ export async function checkModelCapacityRetry(
       {
         failureCode: string;
         status: string;
-        apiErrorStatus: number | null;
         settledAt: number;
         startAfter: string | null;
       }[]
     >`
       SELECT r.failure_code AS "failureCode", r.status,
-        r.api_error_status AS "apiErrorStatus", r.settled_at_ms::float8 AS "settledAt",
+        r.settled_at_ms::float8 AS "settledAt",
         j.data ->> 'startAfterMs' AS "startAfter"
       FROM app.project_agent_runs r
       JOIN pgboss.job j ON j.name = 'task.agent_retry'
@@ -95,21 +111,25 @@ export async function checkModelCapacityRetry(
       WHERE r.id = ${first.runId}
     `;
     const row = rows[0];
-    const floor = Number(row?.startAfter ?? 0);
+    const hold = await readModelCapacityHold(sql, key);
     record(
-      'model capacity: one exec-fenced failure durably holds its retry for 60s',
+      'model capacity: one exec-fenced refusal arms one retry and holds the model for about a minute [TASK-R40]',
       !stale &&
         won &&
         !duplicate &&
         rows.length === 1 &&
         row?.failureCode === 'model_capacity' &&
         row.status === 'failed' &&
-        row.apiErrorStatus === null &&
-        floor >= row.settledAt + 60_000,
-      `stale=${stale} won=${won} duplicate=${duplicate} rows=${JSON.stringify(rows)}`,
+        row.startAfter === null &&
+        hold !== null &&
+        hold.consecutive === 1 &&
+        hold.heldUntilMs >= row.settledAt + 54_000 &&
+        hold.heldUntilMs <= row.settledAt + 66_000,
+      `stale=${stale} won=${won} duplicate=${duplicate} rows=${JSON.stringify(rows)} hold=${JSON.stringify(hold)}`,
     );
-    if (row === undefined || floor === 0)
-      throw new Error('itest: capacity retry missing');
+    if (row === undefined || hold === null)
+      throw new Error('itest: capacity hold missing');
+
     const history = await loadTaskRetryHistory(sql, taskId);
     const budget = resolveAutoRetryBudget(history);
     const plan = await resolveTaskKickStartArgs(sql, {
@@ -120,96 +140,155 @@ export async function checkModelCapacityRetry(
       harness: 'codex',
     });
     record(
-      'model capacity: the retry counts and keeps its account eligible',
+      'model capacity: the retry spends no attempt and keeps its account eligible [TASK-R40]',
       budget.retry &&
-        budget.attempt === 1 &&
+        budget.attempt === 0 &&
         plan.excludeBrokerTokenHashes === undefined,
-      `budget=${JSON.stringify(budget)} excluded=${JSON.stringify(plan.excludeBrokerTokenHashes)} resume=${plan.resume}`,
+      `budget=${JSON.stringify(budget)} excluded=${JSON.stringify(plan.excludeBrokerTokenHashes)}`,
     );
-    await sql.begin(async (tx) => {
-      const kicked = await kickAgentRun(tx, {
+
+    // The retry's start: kicked with its turn job an hour out, so no worker
+    // takes it, then claimed here the way its turn job claims it.
+    const kicked = await sql.begin((tx) =>
+      kickAgentRun(tx, {
         organizationId: orgId,
         projectId,
         taskId,
         agentId,
         harness: 'codex',
-        model: 'itest-model',
+        model,
         startedBy: userId,
         trigger: 'auto_retry',
-        autoRetryAttempt: 1,
-        startAfterMs: floor,
-      });
-      const jobs = await tx<
-        { status: string; startAfter: Date; state: string }[]
-      >`
-        SELECT r.status, j.start_after AS "startAfter", j.state
-        FROM app.project_agent_runs r
-        JOIN pgboss.job j ON j.name = 'task.agent_turn' AND j.data ->> 'runId' = r.id
-        WHERE r.id = ${kicked.runId}
-      `;
-      const job = jobs[0];
-      record(
-        'model capacity: pg-boss holds the queued start until the recorded floor',
-        !kicked.reused &&
-          jobs.length === 1 &&
-          job?.status === 'queued' &&
-          job.state === 'created' &&
-          job.startAfter.getTime() === floor,
-        `jobs=${JSON.stringify(jobs)} floor=${floor}`,
-      );
-      const cancelled = await cancelAgentRunInTx(tx, {
-        organizationId: orgId,
-        taskId,
-        runId: kicked.runId,
-      });
-      // Native cancellation enqueues an orphan-drive cleanup. Cancel both
-      // owned jobs before commit; this fixture has no sandbox exec to reap.
-      for (const queue of ['task.agent_turn', 'task.agent_drive']) {
-        const owned = await tx<{ id: string }[]>`
-          SELECT id FROM pgboss.job
-          WHERE name = ${queue} AND data ->> 'runId' = ${kicked.runId}
-        `;
-        if (owned.length !== 1)
-          throw new Error('itest: capacity fixture job ownership mismatch');
-        await boss.cancel(
-          queue,
-          owned.map(({ id }) => id),
-          {
-            db: bossDbInTx(tx),
-          },
-        );
-      }
-      const remaining = await tx<{ id: string }[]>`
-        SELECT id FROM pgboss.job
-        WHERE name IN ('task.agent_turn', 'task.agent_drive')
-          AND data ->> 'runId' = ${kicked.runId} AND state != 'cancelled'
-      `;
-      if (!cancelled || remaining.length !== 0)
-        throw new Error('itest: capacity fixture cancellation failed');
-      record(
-        'model capacity: start and cleanup jobs are cancelled before visibility',
-        true,
-        'native run and pg-boss cancellation committed with the queue readback',
-      );
+        autoRetryAttempt: 0,
+        startAfterMs: Date.now() + 3_600_000,
+      }),
+    );
+    const execOf = await sql<{ execId: string }[]>`
+      SELECT exec_id AS "execId" FROM app.project_agent_runs WHERE id = ${kicked.runId}
+    `;
+    const retryExec = execOf[0]?.execId ?? kicked.execId;
+    const claim = await claimAgentWorker(sql, {
+      organizationId: orgId,
+      runId: kicked.runId,
+      execId: retryExec,
     });
-    await fail(await addRun());
-    await fail(await addRun());
+    const parked = await sql<
+      { reason: string | null; parked: boolean; wakeAt: Date | null }[]
+    >`
+      SELECT r.waiting_reason AS reason,
+             r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+             (SELECT j.start_after FROM pgboss.job j
+              WHERE j.name = 'task.agent_park_wake'
+                AND j.data ->> 'runId' = r.id
+              ORDER BY j.created_on DESC LIMIT 1) AS "wakeAt"
+      FROM app.project_agent_runs r WHERE r.id = ${kicked.runId}
+    `;
+    const park = parked[0];
+    record(
+      'model capacity: a run on the held model parks with its reason until the hold runs out [TASK-R40]',
+      claim !== null &&
+        'parked' in claim &&
+        claim.parked === 'model_capacity' &&
+        park !== undefined &&
+        park.parked &&
+        park.reason === 'model_capacity' &&
+        park.wakeAt !== null &&
+        Math.abs(park.wakeAt.getTime() - hold.heldUntilMs) < 5_000,
+      `claim=${JSON.stringify(claim)} park=${JSON.stringify(park)} heldUntil=${hold.heldUntilMs}`,
+    );
+    const skipped = await sql<{ skipped: boolean }[]>`
+      SELECT ${sql.unsafe(PARKED_ON_HELD_MODEL_SQL)} AS skipped
+      FROM app.project_agent_runs r WHERE r.id = ${kicked.runId}
+    `;
+    record(
+      'model capacity: the generic wakes leave a run parked on a held model alone [TASK-R40]',
+      skipped[0] !== undefined && skipped[0].skipped,
+      `skipped=${JSON.stringify(skipped)}`,
+    );
+
+    // Runs that were already working when the model saturated fail in a
+    // burst: the hold stays as it is. Three refusals close no circuit.
+    await fail(await addRun(otherTaskId));
+    await fail(await addRun(otherTaskId));
+    const burst = await readModelCapacityHold(sql, key);
     const admission = await sql.begin((tx) =>
       admitAutomatedStart(tx, {
-        task: { id: taskId, organizationId: orgId, projectId },
+        task: { id: otherTaskId, organizationId: orgId, projectId },
         agentId,
       }),
     );
     record(
-      'model capacity: three actual automated starts still close the hourly circuit [TASK-R12]',
-      !admission.admitted,
-      `admission=${JSON.stringify(admission)}`,
+      'model capacity: refusals in a burst keep the hold and close no hourly circuit [TASK-R12]',
+      burst !== null &&
+        burst.consecutive === 1 &&
+        burst.heldUntilMs === hold.heldUntilMs &&
+        admission.admitted,
+      `burst=${JSON.stringify(burst)} admission=${JSON.stringify(admission)}`,
+    );
+
+    // A run on the model that settles proves it answers: the hold goes and
+    // the parked retry is woken.
+    const answered = await addRun(otherTaskId);
+    const settled = await settleAgentRun(sql, {
+      runId: answered.runId,
+      execId: answered.execId,
+      resultText: 'done',
+    });
+    const cleared = await readModelCapacityHold(sql, key);
+    const wakes = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pgboss.job
+      WHERE name = 'task.agent_park_wake' AND data ->> 'runId' = ${kicked.runId}
+    `;
+    record(
+      'model capacity: a run that settles on the model clears its hold and wakes the runs parked on it [TASK-R40]',
+      settled && cleared === null && (wakes[0]?.n ?? 0) >= 2,
+      `settled=${settled} cleared=${JSON.stringify(cleared)} wakes=${wakes[0]?.n}`,
+    );
+
+    // A model at capacity for twelve hours is no longer waited for.
+    await fail(await addRun(otherTaskId));
+    await sql`
+      UPDATE app.model_capacity_holds
+      SET first_refused_at_ms = ${Date.now() - MODEL_CAPACITY_MAX_WAIT_MS - 1_000}
+      WHERE org_id = ${orgId} AND model = ${model}
+    `;
+    const longRefused = await addRun(otherTaskId);
+    await fail(longRefused);
+    const ended = await sql<{ armed: boolean }[]>`
+      SELECT auto_retry_armed_at_ms IS NOT NULL AS armed
+      FROM app.project_agent_runs WHERE id = ${longRefused.runId}
+    `;
+    record(
+      'model capacity: after twelve hours at capacity the refused run ends without a retry [TASK-R40]',
+      ended[0] !== undefined && !ended[0].armed,
+      `ended=${JSON.stringify(ended)}`,
     );
   } finally {
-    await sql`
-      UPDATE app.project_agent_runs SET status = 'cancelled',
-        settled_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
-      WHERE project_id = ${projectId} AND status IN ('queued', 'running')
-    `;
+    await sql.begin(async (tx) => {
+      const owned = await tx<{ id: string; name: string }[]>`
+        SELECT j.id, j.name FROM pgboss.job j
+        JOIN app.project_agent_runs r ON r.id = j.data ->> 'runId'
+        WHERE r.project_id = ${projectId}
+          AND j.name IN ('task.agent_turn', 'task.agent_park_wake')
+          AND j.state IN ('created', 'retry')
+      `;
+      for (const queue of ['task.agent_turn', 'task.agent_park_wake']) {
+        const ids = owned
+          .filter((job) => job.name === queue)
+          .map((job) => job.id);
+        if (ids.length > 0) {
+          await boss.cancel(queue, ids, { db: bossDbInTx(tx) });
+        }
+      }
+      await tx`
+        UPDATE app.project_agent_runs SET status = 'cancelled',
+          settled_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
+        WHERE project_id = ${projectId} AND status IN ('queued', 'running')
+      `;
+      await tx`
+        DELETE FROM app.model_capacity_holds
+        WHERE org_id = ${orgId} AND model = ${model}
+      `;
+    });
   }
 }

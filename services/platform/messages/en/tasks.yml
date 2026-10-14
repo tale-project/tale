@@ -92,6 +92,7 @@ agentRun:
     host: Waiting for room
     destroy_pending: Waiting for a workspace
     exec_limit: Waiting for its sandbox
+    model_capacity: Waiting for model capacity
     unknown: Waiting for a worker
   # What the short state means, said under it while the run waits.
   waitingWhy:
@@ -99,6 +100,7 @@ agentRun:
     host: The sandbox host is full or short of memory or disk. The run starts on its own once there is room.
     destroy_pending: An admin is deleting the workspace this run would use. The run starts in a fresh one once that is done.
     exec_limit: Its sandbox is still finishing an earlier process. The run starts on its own in a moment.
+    model_capacity: The AI model this agent uses is at capacity. The run starts on its own once the model answers again; no retry is used while it waits.
     unknown: The run starts on its own as soon as there is room for it.
   # Shown to Owners and Admins beside "All … agent workers are busy".
   manageWorkers: Manage agent workers
@@ -122,6 +124,7 @@ agentRun:
     input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
     time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
     capacity: The run waited too long for a free worker. Start the agent again when fewer agents are busy.
+    model_capacity: The AI model stayed at capacity for twelve hours, so the run stopped waiting. Start the agent again later — if the model stays unavailable, ask an Admin to check the AI provider.
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
     start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
     interrupted: The run was interrupted before the agent finished. Start the agent again.

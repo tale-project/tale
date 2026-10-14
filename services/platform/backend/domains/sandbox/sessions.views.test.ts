@@ -264,6 +264,7 @@ describe('agent workers on the Sandboxes page', () => {
         host: 2,
         destroy_pending: 0,
         exec_limit: 0,
+        model_capacity: 0,
         unknown: 1,
       },
     });

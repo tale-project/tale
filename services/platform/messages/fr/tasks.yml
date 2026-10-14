@@ -90,6 +90,7 @@ agentRun:
     host: En attente de place
     destroy_pending: En attente d’un espace de travail
     exec_limit: En attente de sa sandbox
+    model_capacity: En attente du modèle
     unknown: En attente d’un worker
   # Ce que l'état court veut dire, affiché dessous pendant l'attente.
   waitingWhy:
@@ -97,6 +98,7 @@ agentRun:
     host: L’hôte des sandboxes est plein ou manque de mémoire ou d’espace disque. L’exécution démarre d’elle-même dès qu’il y a de la place.
     destroy_pending: Un admin supprime l’espace de travail que cette exécution utiliserait. Elle démarre dans un nouvel espace une fois la suppression terminée.
     exec_limit: Sa sandbox termine encore un processus précédent. L’exécution démarre d’elle-même dans un instant.
+    model_capacity: Le modèle d’IA de cet agent est saturé. L’exécution démarre d’elle-même dès que le modèle répond de nouveau ; l’attente ne consomme aucune tentative.
     unknown: L’exécution démarre d’elle-même dès qu’il y a de la place pour elle.
   # Pour les owners et les admins, à côté de « Tous les workers d’agent … ».
   manageWorkers: Gérer les workers d’agent
@@ -121,6 +123,7 @@ agentRun:
     input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
     time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
     capacity: L’exécution a attendu trop longtemps un worker libre. Relance l’agent quand moins d’agents seront occupés.
+    model_capacity: Le modèle d’IA est resté saturé pendant douze heures, l’exécution a donc cessé d’attendre. Relance l’agent plus tard — si le modèle reste indisponible, demande à un admin de vérifier le fournisseur d’IA.
     model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
     start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
     interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.

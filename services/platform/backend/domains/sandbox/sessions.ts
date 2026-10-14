@@ -1068,6 +1068,7 @@ export async function countWaitingAgentRuns(
     host: 0,
     destroy_pending: 0,
     exec_limit: 0,
+    model_capacity: 0,
     unknown: 0,
   };
   let total = 0;

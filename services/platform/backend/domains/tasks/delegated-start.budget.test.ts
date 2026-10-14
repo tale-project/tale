@@ -157,6 +157,30 @@ describe('automated start budget after a broker cooldown [TASK-R12]', () => {
   });
 });
 
+describe('automated start budget around a model at capacity [TASK-R12]', () => {
+  it('keeps capacity refusals out of the restart circuit', async () => {
+    await expect(
+      admit([
+        run(NOW - 1_000, { failureCode: 'model_capacity' }),
+        run(NOW - 2_000, { failureCode: 'model_capacity' }),
+        run(NOW - 3_000, { failureCode: 'model_capacity' }),
+      ]),
+    ).resolves.toEqual({ admitted: true });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it('still counts real automated starts around a capacity refusal', async () => {
+    await expect(
+      admit([
+        run(NOW - 1_000, { failureCode: 'model_capacity' }),
+        run(NOW - 2_000),
+        run(NOW - 3_000),
+        run(NOW - 4_000),
+      ]),
+    ).resolves.toEqual({ admitted: false, retryAfter: NOW - 4_000 + HOUR_MS });
+  });
+});
+
 describe('the circuit window the wake scan reads (#4540) [TASK-R12]', () => {
   it('answers the admission’s own refusal and retryAfter, without the row lock or a refusal row', async () => {
     const history = [run(NOW - 1_000), run(NOW - 2_000), run(NOW - 3_000)];

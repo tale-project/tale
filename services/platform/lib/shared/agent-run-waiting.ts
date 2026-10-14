@@ -10,6 +10,9 @@
  *   would use; it starts in a fresh one once that is done.
  * - `exec_limit` — its sandbox still runs as many processes as it may (an
  *   earlier process is ending).
+ * - `model_capacity` — the provider answered that the run's model is at
+ *   capacity; every run of the organization on that model waits until it
+ *   answers again (`domains/tasks/model-capacity-holds.ts`, migration 0205).
  *
  * A park written before the column, or one whose cause has no wording of
  * its own, has none: the reader shows the generic waiting state.
@@ -21,6 +24,7 @@ export const AGENT_RUN_WAITING_REASONS = [
   'host',
   'destroy_pending',
   'exec_limit',
+  'model_capacity',
 ] as const;
 
 export type AgentRunWaitingReason = (typeof AGENT_RUN_WAITING_REASONS)[number];

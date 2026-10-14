@@ -21,7 +21,6 @@ import {
 } from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
-  MODEL_CAPACITY_RETRY_DELAY_MS,
   resourceExhaustedRetryDelayMs,
   isAutoRetryableFailure,
   resolveAutoRetryBudget,
@@ -39,6 +38,12 @@ import {
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
 import { loadTaskRetryHistory } from './kick-plan.ts';
+import {
+  clearModelCapacityHoldInTx,
+  MODEL_CAPACITY_MAX_WAIT_MS,
+  PARKED_ON_HELD_MODEL_SQL,
+  recordModelCapacityRefusalInTx,
+} from './model-capacity-holds.ts';
 import { readReviewBatch, reviewBatchFeedback } from './review-batch-store.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
 import {
@@ -697,7 +702,14 @@ export async function settleAgentRunInTx(
   args: SettleAgentRunArgs,
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await tx<{ organizationId: string; taskId: string }[]>`
+  const rows = await tx<
+    {
+      organizationId: string;
+      taskId: string;
+      model: string;
+      modelProvider: string | null;
+    }[]
+  >`
       UPDATE app.project_agent_runs SET
         status = 'settled', result_text = ${args.resultText},
         result_message_id = ${args.resultMessageId ?? null},
@@ -708,7 +720,8 @@ export async function settleAgentRunInTx(
         AND status NOT IN ('settled', 'failed', 'cancelled')
         AND (${args.execId ?? null}::text IS NULL
              OR exec_id = ${args.execId ?? null})
-      RETURNING org_id AS "organizationId", task_id AS "taskId"
+      RETURNING org_id AS "organizationId", task_id AS "taskId",
+                model, model_provider AS "modelProvider"
     `;
   const run = rows[0];
   if (run === undefined) return false;
@@ -718,7 +731,18 @@ export async function settleAgentRunInTx(
     finalStatus: 'settled',
     settledAt: now,
   });
-  await emitTaskRunHint(tx, run);
+  // A run that settled was answered by its model: a capacity hold on it is
+  // over, and the runs parked on it start again.
+  await clearModelCapacityHoldInTx(tx, {
+    organizationId: run.organizationId,
+    modelProvider: run.modelProvider,
+    model: run.model,
+    now,
+  });
+  await emitTaskRunHint(tx, {
+    organizationId: run.organizationId,
+    taskId: run.taskId,
+  });
   return true;
 }
 
@@ -766,6 +790,9 @@ export async function failAgentRunFromTurn(
         taskId: string;
         agentId: string;
         autoRetryAttempt: number | null;
+        model: string;
+        modelProvider: string | null;
+        engine: AgentRunEngine;
       }[]
     >`
       UPDATE app.project_agent_runs SET
@@ -781,7 +808,8 @@ export async function failAgentRunFromTurn(
         AND (${args.execId ?? null}::text IS NULL
              OR exec_id = ${args.execId ?? null})
       RETURNING org_id AS "organizationId", task_id AS "taskId",
-                agent_id AS "agentId", auto_retry_attempt AS "autoRetryAttempt"
+                agent_id AS "agentId", auto_retry_attempt AS "autoRetryAttempt",
+                model, model_provider AS "modelProvider", engine
     `;
     const run = flipped[0];
     if (run === undefined) return false;
@@ -792,18 +820,43 @@ export async function failAgentRunFromTurn(
       settledAt: now,
       error,
     });
-    if (armRetry) {
-      // Both finite waits stay inside the stranded-queued-run sweep. Sample
-      // model capacity AFTER winning the terminal write and recording the
-      // ledger, so a lock wait cannot consume its floor. Commit/enqueue
-      // latency is not a promise of 60s after commit. This still counts;
-      // it is not a broker 429/free cooldown.
+    // The provider called the model at capacity: every run of the
+    // organization on it waits now, this run's retry with them — its claim
+    // parks it until the hold runs out (`model-capacity-holds.ts`). A model
+    // at capacity for twelve hours is no longer waited for: the run ends.
+    // Only a harness run's refusal holds the model: the native engine is
+    // served through the organization's gateway, whose rate limits are its
+    // own, and its runs claim no worker to wait at.
+    let retrying = armRetry;
+    if (args.failureCode === 'model_capacity' && run.engine === 'harness') {
+      const hold = await recordModelCapacityRefusalInTx(tx, {
+        organizationId: run.organizationId,
+        modelProvider: run.modelProvider,
+        model: run.model,
+        runId: args.runId,
+        now,
+      });
+      if (
+        retrying &&
+        now - hold.firstRefusedAtMs >= MODEL_CAPACITY_MAX_WAIT_MS
+      ) {
+        retrying = false;
+        await tx`
+          UPDATE app.project_agent_runs SET auto_retry_armed_at_ms = NULL
+          WHERE id = ${args.runId}
+        `;
+      }
+    }
+    if (retrying) {
+      // The broker's cooldown stays inside the stranded-queued-run sweep: the
+      // retry is queued at once and its start job waits. A model at capacity
+      // needs no delay here: the retry's claim parks it on the model's hold.
       const startAfterMs =
-        args.failureCode === 'model_capacity'
-          ? Date.now() + MODEL_CAPACITY_RETRY_DELAY_MS
-          : args.retryAtMs !== undefined && args.retryAtMs > now
-            ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
-            : undefined;
+        args.failureCode !== 'model_capacity' &&
+        args.retryAtMs !== undefined &&
+        args.retryAtMs > now
+          ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+          : undefined;
       // A run its sandbox's memory limit ended waits 2, 10, then 30
       // minutes — longer than the stranded-queued-run sweep lets a queued
       // run wait, so the retry DECISION is held instead: no queued run
@@ -1068,6 +1121,7 @@ async function wakeOldestParkedAgentRun(
         AND r.status = 'queued'
         AND r.waiting_for_capacity_at_ms IS NOT NULL
         AND r.deadline_at_ms > ${Date.now()}
+        AND NOT ${tx.unsafe(PARKED_ON_HELD_MODEL_SQL)}
       ORDER BY (
           SELECT count(*) FROM app.project_agent_runs working
           WHERE working.org_id = r.org_id AND working.agent_id = r.agent_id
@@ -1181,14 +1235,15 @@ export async function wakeAgentParkedAgentRun(
   const family = workerFamilyBase(args.agentId, args.sessionId);
   const now = Date.now();
   const candidates = await sql<{ id: string; sessionId: string }[]>`
-    SELECT id, session_id AS "sessionId"
-    FROM app.project_agent_runs
-    WHERE org_id = ${args.organizationId}
-      AND agent_id = ${args.agentId}
-      AND status = 'queued'
-      AND waiting_for_capacity_at_ms IS NOT NULL
-      AND deadline_at_ms > ${now}
-    ORDER BY waiting_for_capacity_at_ms
+    SELECT r.id, r.session_id AS "sessionId"
+    FROM app.project_agent_runs r
+    WHERE r.org_id = ${args.organizationId}
+      AND r.agent_id = ${args.agentId}
+      AND r.status = 'queued'
+      AND r.waiting_for_capacity_at_ms IS NOT NULL
+      AND r.deadline_at_ms > ${now}
+      AND NOT ${sql.unsafe(PARKED_ON_HELD_MODEL_SQL)}
+    ORDER BY r.waiting_for_capacity_at_ms
   `;
   for (const candidate of candidates) {
     if (workerFamilyBase(args.agentId, candidate.sessionId) !== family) {
@@ -1275,12 +1330,13 @@ export async function listParkedAgentRunOrganizations(
   limit = PARKED_ORGANIZATIONS_PER_TICK,
 ): Promise<Array<{ organizationId: string }>> {
   return sql<{ organizationId: string }[]>`
-    SELECT org_id AS "organizationId"
-    FROM app.project_agent_runs
-    WHERE status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL
-      AND deadline_at_ms > ${Date.now()}
-    GROUP BY org_id
-    ORDER BY min(waiting_for_capacity_at_ms), org_id
+    SELECT r.org_id AS "organizationId"
+    FROM app.project_agent_runs r
+    WHERE r.status = 'queued' AND r.waiting_for_capacity_at_ms IS NOT NULL
+      AND r.deadline_at_ms > ${Date.now()}
+      AND NOT ${sql.unsafe(PARKED_ON_HELD_MODEL_SQL)}
+    GROUP BY r.org_id
+    ORDER BY min(r.waiting_for_capacity_at_ms), r.org_id
     LIMIT ${limit}
   `;
 }

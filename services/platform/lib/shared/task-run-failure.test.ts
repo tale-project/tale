@@ -18,7 +18,7 @@ describe('taskRunFailureClass', () => {
     ['deadline', 'time_limit'],
     ['park_deadline', 'capacity'],
     ['harness_error', 'model'],
-    ['model_capacity', 'model'],
+    ['model_capacity', 'model_capacity'],
     ['empty_turn', 'model'],
     ['credential_rotated', 'model'],
     ['credential_cooldown', 'model'],

@@ -150,12 +150,14 @@ never refused.
 One wait is free: when a run hits the model provider's rate limit (HTTP 429) and waits before
 trying again, that wait is not counted as a start. A second wait in a row is.
 
-A Codex model-capacity failure schedules an automatic retry one minute later. Its
-attempt still counts; it does not qualify for the free account-cooldown wait and does not
-exclude the account.
+A run the provider refused because its model is at capacity is not counted either: its retry
+waits on the model (`TASK-R40`), which spaces the attempts out and ends them, so it cannot
+restart the task in a loop.
 
 - **Example**: A schedule has started the agent on a task three times since 14:00. At 14:40
   another agent starts it again → refused as `paused`, with the time after which it may retry.
+- **Example**: Since 14:00 the provider has refused three runs on the task because the model
+  was at capacity. At 14:40 a schedule starts the agent → it is started.
 
 ## Deleting a task
 
@@ -390,6 +392,22 @@ new one can open.
   Scribe on "Changelog" and, a moment later, asks for changes on "Release notes" → "Release
   notes" continues in worker 1, and "Changelog" takes another worker: a run that has not
   started yet holds no worker.
+
+### TASK-R40 · A model at capacity makes every run on it wait instead of failing
+
+When the provider answers a run that its model is at capacity, the organization's runs on that
+model wait for it: the run that was refused fails once and its automatic retry, which uses no
+attempt, waits; a run started meanwhile waits before it takes a worker, reading "Waiting for
+model capacity". The wait lasts 1 minute, then 2, 4, 8 and 15 minutes as the refusals go on.
+When it ends one run goes first; the others follow once that run has worked for two minutes,
+or as soon as any run on the model finishes. A model at capacity for twelve hours is no longer
+waited for: its next refusal ends the run, and a run that waited that long fails as having
+waited too long.
+
+- **Example**: The provider refuses Scribe's run on "Changelog" at 10:00 because its model is
+  at capacity. At 10:00:30 a schedule starts Lector, on the same model, on "Press kit" → it
+  reads "Waiting for model capacity" and takes no worker. At 10:01 the retry of "Changelog"
+  starts first; at 10:03 it is still working → "Press kit" starts.
 
 ## Runs that need no workspace
 
