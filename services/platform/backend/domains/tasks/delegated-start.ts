@@ -327,7 +327,7 @@ export async function inPlaceStartRefusal(
 const WORKFLOW_ACTOR_ID = 'workflow';
 
 /** The actor the project's dispatch is recorded as on the task timeline. */
-export const DISPATCH_ACTOR_ID = 'dispatch';
+const DISPATCH_ACTOR_ID = 'dispatch';
 
 export interface DelegatedAgentStartArgs {
   organizationId: string;

@@ -141,7 +141,7 @@ export async function measureWorkspaces(
 /** How long a workspace's measured size stands for the reclaim's reads. */
 export const WORKSPACE_SIZE_TTL_MS = 10 * 60_000;
 /** The most workspaces one read measures. */
-export const WORKSPACE_SIZES_PER_READ = 50;
+const WORKSPACE_SIZES_PER_READ = 50;
 /** A size nobody asked about for this long is forgotten. */
 const WORKSPACE_SIZE_FORGET_MS = 24 * 60 * 60_000;
 

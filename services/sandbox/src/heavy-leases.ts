@@ -23,9 +23,9 @@ export const DEFAULT_PREDICTED_GROWTH_BYTES = 2 * GIB;
 /** What a phase is expected to hold in memory beyond its session's own. */
 export const DEFAULT_LEASE_MEMORY_BYTES = GIB;
 export const DEFAULT_LEASE_TTL_MS = 30 * 60_000;
-export const MIN_LEASE_TTL_MS = 60_000;
-export const MAX_LEASE_TTL_MS = 2 * 60 * 60_000;
-export const MAX_LEASE_LABEL_LENGTH = 120;
+const MIN_LEASE_TTL_MS = 60_000;
+const MAX_LEASE_TTL_MS = 2 * 60 * 60_000;
+const MAX_LEASE_LABEL_LENGTH = 120;
 
 export interface HeavyLease {
   id: string;

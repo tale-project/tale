@@ -53,7 +53,7 @@ export type PressureSignal = 'load' | 'cpu' | 'memory' | 'io';
  * was before the other signals existed. */
 const SIGNALS: readonly PressureSignal[] = ['cpu', 'memory', 'io', 'load'];
 
-export const DEFAULT_RECOVER = 0.5;
+const DEFAULT_RECOVER = 0.5;
 
 /** The thresholds an operations team ran its fleet with: a load of one per
  * CPU, a fifth of the time waiting for a CPU, any measurable memory stall,
@@ -67,16 +67,16 @@ export const CONSERVATIVE_THRESHOLDS: PressureThresholds = {
 };
 
 /** The two readings of a verdict lie at least this far apart… */
-export const MIN_SPAN_MS = 10_000;
+const MIN_SPAN_MS = 10_000;
 /** …and at most this far, and the newer is at most this old. */
-export const MAX_SPAN_MS = 60_000;
-export const FRESH_MS = 30_000;
+const MAX_SPAN_MS = 60_000;
+const FRESH_MS = 30_000;
 
 /** When to ask again after each kind of hold: a pressed host eases over
  * tens of seconds, a missing pair of readings fills within a sample or two,
  * and a host whose readings cannot be had rarely gains them. */
 export const PRESSURE_RETRY_MS = 15_000;
-export const STALE_RETRY_MS = 5_000;
+const STALE_RETRY_MS = 5_000;
 export const UNAVAILABLE_RETRY_MS = 60_000;
 const MIN_RETRY_MS = 1_000;
 
@@ -153,7 +153,7 @@ const PSI_FIELD = {
   keyof HostPressureReading
 >;
 
-export function signalThreshold(
+function signalThreshold(
   thresholds: PressureThresholds,
   signal: PressureSignal,
 ): number | null {
