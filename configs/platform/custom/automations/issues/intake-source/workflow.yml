@@ -1,0 +1,196 @@
+version: 1
+name: issues-intake-source
+description: Import the next batch of one GitHub repository or GlitchTip project into a project, from where the source's last saved batch stopped, and save where this batch stopped. An import that fails saves nothing, so the next run imports the same batch again. The output is the receipt.
+inputs:
+  type: object
+  additionalProperties: false
+  required: [projectId, source]
+  properties:
+    projectId: { type: string, minLength: 1 }
+    source:
+      description: One issue source. Its position is kept under owner/repo or organization/project, so every automation that names the same source continues one pass.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, owner, repo]
+          properties:
+            kind: { type: string, enum: [github] }
+            owner: { type: string, minLength: 1, maxLength: 99 }
+            repo: { type: string, minLength: 1, maxLength: 100 }
+            labels: { type: string, maxLength: 1000 }
+            limit: { type: integer, minimum: 1, maximum: 500 }
+        - type: object
+          additionalProperties: false
+          required: [kind, organization, project]
+          properties:
+            kind: { type: string, enum: [glitchtip] }
+            organization: { type: string, minLength: 1, maxLength: 100 }
+            project: { type: string, minLength: 1, maxLength: 99 }
+            query: { type: string, maxLength: 2000 }
+            limit: { type: integer, minimum: 1, maximum: 500 }
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md). A declared schema must
+    # describe that wrapper, or a schedule that runs the intake is refused
+    # at start and the trigger records `start_refused`.
+    trigger:
+      type: string
+      description: Which trigger started the run; a schedule sends "schedule".
+    firedAt:
+      type: number
+      description: Epoch-ms occurrence the schedule fired for.
+nodes:
+  - id: listing
+    type: transform
+    input:
+      source: '{{ input.source }}'
+    code: |
+      const source = input.source;
+      return source.kind === 'github'
+        ? { externalSystem: 'github', source: source.owner + '/' + source.repo }
+        : { externalSystem: 'glitchtip', source: source.organization + '/' + source.project };
+  - id: position
+    type: task.get_import_cursor
+    input:
+      projectId: '{{ input.projectId }}'
+      externalSystem: '{{ nodes.listing.output.externalSystem }}'
+      source: '{{ nodes.listing.output.source }}'
+  # Each importer runs over the source when it is of its kind and over no
+  # item otherwise. A step over no items is not skipped, so the steps below
+  # read whichever importer ran; a failed import is tolerated and skips the
+  # save, which keeps the position for the next run.
+  - id: github
+    type: subautomation
+    automation: github-import-issues
+    forEach: "{{ input.source.kind === 'github' ? [input.source] : [] }}"
+    onError: continue
+    input:
+      projectId: '{{ input.projectId }}'
+      owner: '{{ item.owner }}'
+      repo: '{{ item.repo }}'
+      labels: '{{ item.labels ?? "" }}'
+      limit: '{{ item.limit ?? 100 }}'
+      cursor: '{{ nodes.position.output.cursor }}'
+  - id: glitchtip
+    type: subautomation
+    automation: glitchtip-import-issues
+    forEach: "{{ input.source.kind === 'glitchtip' ? [input.source] : [] }}"
+    onError: continue
+    input:
+      projectId: '{{ input.projectId }}'
+      organization: '{{ item.organization }}'
+      project: '{{ item.project }}'
+      query: '{{ item.query ?? "" }}'
+      limit: '{{ item.limit ?? 100 }}'
+      cursor: '{{ nodes.position.output.cursor }}'
+  - id: progress
+    type: task.save_import_cursor
+    input:
+      projectId: '{{ input.projectId }}'
+      externalSystem: '{{ nodes.listing.output.externalSystem }}'
+      source: '{{ nodes.listing.output.source }}'
+      revision: '{{ nodes.position.output.revision }}'
+      next: '{{ [...nodes.github.output, ...nodes.glitchtip.output][0]?.nextCursor ?? "" }}'
+  - id: receipt
+    type: transform
+    input:
+      kind: '{{ input.source.kind }}'
+      listing: '{{ nodes.listing.output }}'
+      position: '{{ nodes.position.output }}'
+      imported: '{{ [...nodes.github.output, ...nodes.glitchtip.output][0] }}'
+      progress: '{{ nodes.progress.output }}'
+    code: |
+      return {
+        kind: input.kind,
+        source: input.listing.source,
+        ok: true,
+        batch: input.position.batch,
+        resumed: input.position.resumed,
+        restarted: input.position.restarted,
+        saved: input.progress.saved,
+        conflict: input.progress.conflict,
+        drained: input.progress.drained,
+        imported: input.imported.imported,
+        created: input.imported.created,
+        updated: input.imported.updated,
+        skipped: input.imported.skipped,
+        truncated: input.imported.truncated,
+        nextCursor: input.imported.nextCursor,
+        refreshHasMore: input.imported.refreshHasMore,
+      };
+# Without a receipt the import failed: nothing was saved, and the next run
+# imports the same batch again.
+output: >-
+  {{ nodes.receipt.output ?? { kind: input.source.kind, source:
+  nodes.listing.output.source, ok: false, error: 'import_failed', batch:
+  nodes.position.output.batch, resumed: nodes.position.output.resumed,
+  restarted: nodes.position.output.restarted, saved: false, conflict: false,
+  drained: false } }}
+tests:
+  - name: resumes a GitHub repository where its last saved batch stopped and saves where this one stopped
+    input:
+      projectId: proj_mock
+      source: { kind: github, owner: example, repo: web, limit: 500 }
+    mocks:
+      position: { cursor: page-2, revision: '41', batch: 2, resumed: true, restarted: false, passStartedAt: 1790000000000, lastDrainedAt: null }
+      github:
+        - { imported: 2, created: 1, updated: 1, skipped: 0, truncated: true, nextCursor: page-3, refreshHasMore: false, tasks: [] }
+      progress: { saved: true, drained: false, batch: 2, conflict: false, revision: '42' }
+    expect:
+      nodes: { github: ran, progress: ran, receipt: ran }
+      effects:
+        - connector: task.save_import_cursor
+          input: { projectId: proj_mock, externalSystem: github, source: example/web, revision: '41', next: page-3 }
+      output:
+        kind: github
+        source: example/web
+        ok: true
+        batch: 2
+        resumed: true
+        restarted: false
+        saved: true
+        conflict: false
+        drained: false
+        imported: 2
+        created: 1
+        updated: 1
+        skipped: 0
+        truncated: true
+        nextCursor: page-3
+        refreshHasMore: false
+  - name: the last batch of a GlitchTip project drains the pass
+    input:
+      projectId: proj_mock
+      source: { kind: glitchtip, organization: example, project: web }
+    mocks:
+      position: { cursor: page-3, revision: '42', batch: 3, resumed: true, restarted: false, passStartedAt: 1790000000000, lastDrainedAt: null }
+      glitchtip:
+        - { imported: 1, created: 1, updated: 0, skipped: 0, truncated: false, nextCursor: null, refreshHasMore: false, tasks: [] }
+    expect:
+      effects:
+        - connector: task.save_import_cursor
+          input: { projectId: proj_mock, externalSystem: glitchtip, source: example/web, revision: '42', next: '' }
+      outputIncludes: { kind: glitchtip, source: example/web, ok: true, batch: 3, saved: true, drained: true, nextCursor: null }
+  - name: a save from a position another run moved is refused, and the receipt says the position was not saved
+    input:
+      projectId: proj_mock
+      source: { kind: github, owner: example, repo: web }
+    mocks:
+      position: { cursor: page-2, revision: '41', batch: 2, resumed: true, restarted: false, passStartedAt: 1790000000000, lastDrainedAt: null }
+      github:
+        - { imported: 2, created: 0, updated: 2, skipped: 0, truncated: true, nextCursor: page-3, refreshHasMore: false, tasks: [] }
+      progress: { saved: false, drained: false, batch: 3, conflict: true, revision: '43' }
+    expect:
+      outputIncludes: { ok: true, batch: 2, saved: false, conflict: true, drained: false }
+  - name: a failed import saves nothing, so the next run imports the same batch again
+    input:
+      projectId: proj_mock
+      source: { kind: github, owner: example, repo: web }
+    mocks:
+      position: { cursor: page-2, revision: '41', batch: 2, resumed: true, restarted: false, passStartedAt: 1790000000000, lastDrainedAt: null }
+    failures:
+      github: GitHub answered 502
+    expect:
+      nodes: { github: failed, progress: skipped, receipt: skipped }
+      effects:
+        - { connector: task.save_import_cursor, absent: true }
+      output: { kind: github, source: example/web, ok: false, error: import_failed, batch: 2, resumed: true, restarted: false, saved: false, conflict: false, drained: false }

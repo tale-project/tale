@@ -271,36 +271,24 @@ Ein Zeitplan, der die Dauerrolle eines Projekts ausführt, etwa einen Manager, d
 
 ### Jedes Issue nach Zeitplan importieren
 
-Ein Issue-Import liest pro Lauf höchstens einen Stapel mit bis zu 500 Issues und meldet, wo der nächste Stapel beginnt. Eine Person setzt ihn mit **Import fortsetzen** fort; ein Zeitplan merkt sich die Position stattdessen zwischen seinen Terminen. So importiert jeder Termin einen Stapel ab der Stelle, an der der vorherige aufgehört hat, bis alle offenen Issues gelesen sind, und der Termin danach beginnt den nächsten Durchgang. Lies die Position mit `task.get_import_cursor`, gib sie an den Import weiter und speichere dessen `nextCursor` mit `task.save_import_cursor`:
+Ein Issue-Import liest pro Lauf höchstens einen Stapel mit bis zu 500 Issues und meldet, wo der nächste Stapel beginnt. Eine Person setzt ihn mit **Import fortsetzen** fort; ein Zeitplan merkt sich die Position stattdessen zwischen seinen Terminen. So importiert jeder Termin einen Stapel ab der Stelle, an der der vorherige aufgehört hat, bis alle offenen Issues gelesen sind, und der Termin danach beginnt den nächsten Durchgang. Das mitgelieferte Paket [Issues aus mehreren Quellen importieren](/de/platform/automations/builtin#importe-automatisch-fortsetzen) tut das für eine Liste von Quellen: Plane es mit den Quellen als fester Eingabe ein, oder rufe es als Schritt deiner eigenen Automatisierung auf:
 
 ```yaml
 nodes:
-  - id: position
-    type: task.get_import_cursor
-    onError: continue
-    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
-  - id: issues
+  - id: intake
     type: subautomation
-    automation: github-import-issues
+    automation: issues-intake
     onError: continue
     input:
       projectId: <the project's ID>
-      owner: owner
-      repo: repo
-      limit: 500
-      cursor: '{{ nodes.position.output.cursor }}'
-  - id: progress
-    type: task.save_import_cursor
-    onError: continue
-    input:
-      projectId: <the project's ID>
-      externalSystem: github
-      source: owner/repo
-      revision: '{{ nodes.position.output.revision }}'
-      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+      sources:
+        - { kind: github, owner: owner, repo: repo, limit: 500 }
+        - { kind: glitchtip, organization: organization, project: project }
 ```
 
-`source` ist dein Name für die Liste; Automatisierungen, die dieselbe Quelle nennen, teilen sich einen Durchgang. Das Lesen liefert außerdem `revision`, das Vergleichsmerkmal der Position, und das Speichern gibt es zurück: Die Position rückt nur vor, solange sie noch auf dieser Revision steht. Jeder gespeicherte Stapel, jeder Abschluss eines Durchgangs und jeder Neubeginn setzt eine neue Revision, und keine Revision wiederholt sich, auch wenn der Cursor-Text es tut. Ein fehlgeschlagener Import speichert nichts, also wiederholt der nächste Termin denselben Stapel. Ein Speichern mit einer früheren Revision wird abgelehnt (`conflict`) und schreibt nichts, ob es von einem überlappenden Lauf stammt, von einem Lauf, der sich über das Ende seines Durchgangs hinaus verspätet hat, oder von einem Lauf, der noch eine Position von vor einem Neubeginn hält. Nach drei Lesevorgängen einer Position ohne Speichern beginnt der nächste den Durchgang neu (`restarted`), statt eine Position zu wiederholen, die die Quelle immer wieder ablehnt, etwa nach der Umbenennung des Repositorys. Das Speichern meldet `batch` und `drained`, die ein Beleg angeben kann. Jeder Lauf aktualisiert außerdem bis zu 500 früher importierte Issues, die am längsten ungeprüften zuerst, sodass eine große Sammlung über mehrere Termine aktualisiert wird.
+Die Ausgabe des Schritts ist der Beleg, ein Eintrag pro Quelle. Ein Kommentar-Schritt, der festhält, was ein Termin importiert hat, ist also nicht nötig. Das Paket nutzt selbst zwei Ebenen verschachtelter Automatisierungen; rufe es deshalb aus einem Schritt deiner Automatisierung auf, nicht aus einer anderen `subautomation` heraus.
+
+Um dasselbe selbst zu bauen, lies die Position mit `task.get_import_cursor`, gib ihren `cursor` an den Import weiter und speichere dessen `nextCursor` mit `task.save_import_cursor`, jeweils mit `onError: continue`. `source` ist dein Name für die Liste; Automatisierungen, die dieselbe Quelle nennen, teilen sich einen Durchgang, und das Paket benennt eine Quelle als `owner/repo` oder `organization/project`. Das Lesen liefert außerdem `revision`, das Vergleichsmerkmal der Position, und das Speichern gibt es zurück: Die Position rückt nur vor, solange sie noch auf dieser Revision steht. Jeder gespeicherte Stapel, jeder Abschluss eines Durchgangs und jeder Neubeginn setzt eine neue Revision, und keine Revision wiederholt sich, auch wenn der Cursor-Text es tut. Ein fehlgeschlagener Import speichert nichts, also wiederholt der nächste Termin denselben Stapel. Ein Speichern mit einer früheren Revision wird abgelehnt (`conflict`) und schreibt nichts, ob es von einem überlappenden Lauf stammt, von einem Lauf, der sich über das Ende seines Durchgangs hinaus verspätet hat, oder von einem Lauf, der noch eine Position von vor einem Neubeginn hält. Nach drei Lesevorgängen einer Position ohne Speichern beginnt der nächste den Durchgang neu (`restarted`), statt eine Position zu wiederholen, die die Quelle immer wieder ablehnt, etwa nach der Umbenennung des Repositorys. Das Speichern meldet `batch` und `drained`, die ein Beleg angeben kann. Jeder Lauf aktualisiert außerdem bis zu 500 früher importierte Issues, die am längsten ungeprüften zuerst, sodass eine große Sammlung über mehrere Termine aktualisiert wird.
 
 ## Einen ausgebliebenen Start untersuchen
 

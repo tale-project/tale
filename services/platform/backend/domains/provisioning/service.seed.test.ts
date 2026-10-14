@@ -8,6 +8,8 @@
  * has no project yet.
  */
 
+import { fileURLToPath } from 'node:url';
+
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -94,6 +96,11 @@ function organizationSql(organization: Organization): {
 }
 
 const pack = (name: string) => ({ document: { name } });
+
+/** The catalog this repository ships, read by the real pack loader. */
+const SHIPPED_CATALOG = fileURLToPath(
+  new URL('../../../../../configs/platform/custom', import.meta.url),
+);
 
 describe('seedDefaultAutomationPacks', () => {
   beforeEach(() => {
@@ -183,6 +190,45 @@ describe('seedDefaultAutomationPacks', () => {
         trigger: { kind: 'webhook', enabled: true },
         origin: PROVISIONING_ORIGIN,
       },
+    ]);
+  });
+});
+
+describe('an organization created before the issue intake shipped', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.resolveModelReplacements.mockResolvedValue(new Map());
+  });
+
+  it('is given the intake packs and no version of the importers it has [PROVN-R1] [PROVN-R2]', async () => {
+    const actual = await vi.importActual<
+      typeof import('../../core/provisioning/provision_default_automations.ts')
+    >('../../core/provisioning/provision_default_automations.ts');
+    const shipped = actual.loadSeedablePacks({ root: SHIPPED_CATALOG }) ?? [];
+    h.loadSeedablePacks.mockReturnValue(shipped);
+    const before = shipped
+      .map((candidate) => candidate.document.name ?? '')
+      .filter((name) => !name.startsWith('issues-intake'));
+    expect(before).toEqual(
+      expect.arrayContaining([
+        'github-import-issues',
+        'glitchtip-import-issues',
+      ]),
+    );
+    const { sql } = organizationSql({ automations: before });
+    expect(await seedDefaultAutomationPacks(sql, 'org-1')).toEqual({
+      provisioned: ['issues-intake', 'issues-intake-source'],
+      skipped: before,
+    });
+    expect(h.saveVersion.mock.calls.map((call) => call[1])).toEqual([
+      expect.objectContaining({
+        name: 'issues-intake',
+        origin: PROVISIONING_ORIGIN,
+      }),
+      expect.objectContaining({
+        name: 'issues-intake-source',
+        origin: PROVISIONING_ORIGIN,
+      }),
     ]);
   });
 });

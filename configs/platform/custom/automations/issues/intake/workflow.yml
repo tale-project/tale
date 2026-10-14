@@ -1,0 +1,88 @@
+version: 1
+name: issues-intake
+description: Import the next batch of every listed GitHub repository and GlitchTip project into a project, each from where its last saved batch stopped. Each source is imported on its own; one whose import fails saves nothing and is tried again next run, and the others carry on. The output lists one receipt per source, in the order listed.
+inputs:
+  type: object
+  additionalProperties: false
+  required: [projectId, sources]
+  properties:
+    projectId: { type: string, minLength: 1 }
+    sources:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items:
+        oneOf:
+          - type: object
+            additionalProperties: false
+            required: [kind, owner, repo]
+            properties:
+              kind: { type: string, enum: [github] }
+              owner: { type: string, minLength: 1, maxLength: 99 }
+              repo: { type: string, minLength: 1, maxLength: 100 }
+              labels: { type: string, maxLength: 1000 }
+              limit: { type: integer, minimum: 1, maximum: 500 }
+          - type: object
+            additionalProperties: false
+            required: [kind, organization, project]
+            properties:
+              kind: { type: string, enum: [glitchtip] }
+              organization: { type: string, minLength: 1, maxLength: 100 }
+              project: { type: string, minLength: 1, maxLength: 99 }
+              query: { type: string, maxLength: 2000 }
+              limit: { type: integer, minimum: 1, maximum: 500 }
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md). A declared schema must
+    # describe that wrapper, or a schedule that runs the intake is refused
+    # at start and the trigger records `start_refused`.
+    trigger:
+      type: string
+      description: Which trigger started the run; a schedule sends "schedule".
+    firedAt:
+      type: number
+      description: Epoch-ms occurrence the schedule fired for.
+nodes:
+  - id: sources
+    type: subautomation
+    automation: issues-intake-source
+    forEach: '{{ input.sources }}'
+    input:
+      projectId: '{{ input.projectId }}'
+      source: '{{ item }}'
+output:
+  sources: '{{ nodes.sources.output }}'
+tests:
+  - name: imports every source in the order listed and reports one receipt each
+    input:
+      projectId: proj_mock
+      sources:
+        - { kind: github, owner: example, repo: web, limit: 500 }
+        - { kind: glitchtip, organization: example, project: web }
+    mocks:
+      sources:
+        - { kind: github, source: example/web, ok: true, batch: 2, resumed: true, restarted: false, saved: true, conflict: false, drained: false, imported: 2, created: 1, updated: 1, skipped: 0, truncated: true, nextCursor: page-3, refreshHasMore: false }
+        - { kind: glitchtip, source: example/web, ok: true, batch: 1, resumed: false, restarted: false, saved: true, conflict: false, drained: true, imported: 1, created: 1, updated: 0, skipped: 0, truncated: false, nextCursor: null, refreshHasMore: false }
+    expect:
+      output:
+        sources:
+          - { kind: github, source: example/web, ok: true, batch: 2, resumed: true, restarted: false, saved: true, conflict: false, drained: false, imported: 2, created: 1, updated: 1, skipped: 0, truncated: true, nextCursor: page-3, refreshHasMore: false }
+          - { kind: glitchtip, source: example/web, ok: true, batch: 1, resumed: false, restarted: false, saved: true, conflict: false, drained: true, imported: 1, created: 1, updated: 0, skipped: 0, truncated: false, nextCursor: null, refreshHasMore: false }
+  - name: a source whose import failed does not stop the sources after it
+    input:
+      projectId: proj_mock
+      sources:
+        - { kind: github, owner: example, repo: web }
+        - { kind: github, owner: example, repo: gone }
+        - { kind: glitchtip, organization: example, project: web }
+    mocks:
+      sources:
+        - { kind: github, source: example/web, ok: true, batch: 1, resumed: false, restarted: false, saved: true, conflict: false, drained: true, imported: 1, created: 1, updated: 0, skipped: 0, truncated: false, nextCursor: null, refreshHasMore: false }
+        - { kind: github, source: example/gone, ok: false, error: import_failed, batch: 3, resumed: true, restarted: false, saved: false, conflict: false, drained: false }
+        - { kind: glitchtip, source: example/web, ok: true, batch: 1, resumed: false, restarted: false, saved: true, conflict: false, drained: true, imported: 1, created: 1, updated: 0, skipped: 0, truncated: false, nextCursor: null, refreshHasMore: false }
+    expect:
+      nodes: { sources: ran }
+      outputIncludes:
+        sources:
+          - { source: example/web, ok: true, saved: true }
+          - { source: example/gone, ok: false, error: import_failed, saved: false }
+          - { kind: glitchtip, ok: true, saved: true }

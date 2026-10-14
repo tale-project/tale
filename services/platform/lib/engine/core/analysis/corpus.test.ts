@@ -267,7 +267,7 @@ async function renderWarnings(): Promise<Record<string, Rendered[]>> {
 describe('the shipped automation corpus', () => {
   it('holds every kind of shipped document', async () => {
     const labels = documents.map(([label]) => label);
-    expect(labels.filter((l) => l.startsWith('pack ')).length).toBe(10);
+    expect(labels.filter((l) => l.startsWith('pack ')).length).toBe(12);
     // Every pack's triggers are installed, so their input is checked.
     const installed = (await store.listTriggers()).map((t) => t.name);
     expect(installed.length).toBeGreaterThan(0);

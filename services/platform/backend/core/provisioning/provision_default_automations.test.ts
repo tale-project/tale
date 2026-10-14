@@ -70,6 +70,29 @@ describe('loadSeedablePacks', () => {
     },
   );
 
+  it.each([
+    ['issues-intake', 'Import issues from several sources'],
+    ['issues-intake-source', 'Import the next batch of an issue source'],
+  ])(
+    'seeds %s without a trigger and names it in every locale',
+    (name, english) => {
+      const pack = loadSeedablePacks({ root: REPO_CATALOG })?.find(
+        (candidate) => candidate.document.name === name,
+      );
+      expect(pack).toBeDefined();
+      expect(pack?.trigger).toBeUndefined();
+      expect(parseAutomationPresentation(pack?.presentation)).not.toBeNull();
+      expect(automationDisplayName(pack?.presentation, name, 'en')).toBe(
+        english,
+      );
+      for (const locale of ['de', 'de-CH', 'fr']) {
+        expect(
+          automationDisplayName(pack?.presentation, name, locale),
+        ).not.toBe(english);
+      }
+    },
+  );
+
   it('treats a root without an automations/ dir as an empty batch', () => {
     const packs = loadSeedablePacks({
       root: path.join(REPO_CATALOG, 'automations', 'gmail', 'triage-inbox'),

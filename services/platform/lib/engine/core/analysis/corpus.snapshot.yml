@@ -13,6 +13,23 @@ pack gmail/sync-emails: []
 pack gmail/triage-inbox: []
 pack imap-smtp/sync-emails: []
 pack imap-smtp/triage-inbox: []
+pack issues/intake:
+  - code: SUBAUTOMATION_HAS_WRITE
+    nodeId: sources
+    pointer: /nodes/0/automation
+pack issues/intake-source:
+  - code: SUBAUTOMATION_HAS_WRITE
+    nodeId: github
+    pointer: /nodes/2/automation
+  - code: SUBAUTOMATION_HAS_WRITE
+    nodeId: github
+    pointer: /nodes/2/automation
+  - code: SUBAUTOMATION_HAS_WRITE
+    nodeId: glitchtip
+    pointer: /nodes/3/automation
+  - code: SUBAUTOMATION_HAS_WRITE
+    nodeId: glitchtip
+    pointer: /nodes/3/automation
 pack outlook/sync-emails: []
 pack outlook/triage-inbox: []
 get_docs example: []

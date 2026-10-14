@@ -55,6 +55,8 @@ describe('the shipped automation packs', () => {
       'gmail/triage-inbox',
       'imap-smtp/sync-emails',
       'imap-smtp/triage-inbox',
+      'issues/intake',
+      'issues/intake-source',
       'outlook/sync-emails',
       'outlook/triage-inbox',
     ]);
@@ -353,6 +355,58 @@ describe('a pack trigger starts runs its inputs take, or ships off', () => {
         kind: 'schedule',
         missing: ['owner', 'repo'],
       });
+    }
+  });
+});
+
+// ------------------------------------------------- the issue intake pair
+
+/** The value a path of keys reaches in a JSON Schema, or undefined. */
+function schemaAt(schema: unknown, ...keys: string[]): unknown {
+  let at = schema;
+  for (const key of keys) {
+    if (typeof at !== 'object' || at === null) return undefined;
+    at = Reflect.get(at, key);
+  }
+  return at;
+}
+
+/**
+ * The intake of a list hands each listed source unchanged to the intake of
+ * one source, so the two must take the same sources: a list the first
+ * accepted would otherwise fail item by item in the second.
+ */
+describe('the issue intake of a list takes the sources of a single intake', () => {
+  it('declares one source shape in both packs', () => {
+    const listed = schemaAt(
+      packBySlug('issues/intake').automation.inputs,
+      'properties',
+      'sources',
+      'items',
+      'oneOf',
+    );
+    const single = schemaAt(
+      packBySlug('issues/intake-source').automation.inputs,
+      'properties',
+      'source',
+      'oneOf',
+    );
+    expect(Array.isArray(single)).toBe(true);
+    expect(listed).toEqual(single);
+  });
+
+  it('takes the input a schedule starts each of them with', () => {
+    const wrapper = { trigger: 'schedule', firedAt: Date.parse('2026-10-14') };
+    const source = { kind: 'github', owner: 'example', repo: 'web' };
+    for (const [slug, input] of [
+      ['issues/intake', { projectId: 'proj_1', sources: [source] }],
+      ['issues/intake-source', { projectId: 'proj_1', source }],
+    ] as const) {
+      const inputs = packBySlug(slug).automation.inputs;
+      expect(inputs).toBeDefined();
+      if (inputs === undefined) return;
+      const check = compileSchema(inputs);
+      expect(check({ ...input, ...wrapper })).toBe(true);
     }
   });
 });

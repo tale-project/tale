@@ -271,36 +271,24 @@ Une planification qui exécute le rôle permanent d’un projet, comme un respon
 
 ### Importer chaque issue selon une planification
 
-Un import d’issues lit au plus un lot par exécution, jusqu’à 500 issues, et indique où commence le lot suivant. Une personne le poursuit avec **Poursuivre l'import** ; une planification conserve plutôt la position entre ses occurrences, si bien que chaque occurrence importe un lot à partir de l’endroit où la précédente s’est arrêtée, jusqu’à ce que toutes les issues ouvertes aient été lues, et l’occurrence suivante commence la passe d’après. Lis la position avec `task.get_import_cursor`, transmets-la à l’import et enregistre son `nextCursor` avec `task.save_import_cursor` :
+Un import d’issues lit au plus un lot par exécution, jusqu’à 500 issues, et indique où commence le lot suivant. Une personne le poursuit avec **Poursuivre l'import** ; une planification conserve plutôt la position entre ses occurrences, si bien que chaque occurrence importe un lot à partir de l’endroit où la précédente s’est arrêtée, jusqu’à ce que toutes les issues ouvertes aient été lues, et l’occurrence suivante commence la passe d’après. Le paquet fourni [Importer les issues de plusieurs sources](/fr/platform/automations/builtin#poursuivre-les-imports-automatiquement) le fait pour une liste de sources : planifie-le avec les sources comme entrée fixe, ou appelle-le comme étape de ta propre automatisation :
 
 ```yaml
 nodes:
-  - id: position
-    type: task.get_import_cursor
-    onError: continue
-    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
-  - id: issues
+  - id: intake
     type: subautomation
-    automation: github-import-issues
+    automation: issues-intake
     onError: continue
     input:
       projectId: <the project's ID>
-      owner: owner
-      repo: repo
-      limit: 500
-      cursor: '{{ nodes.position.output.cursor }}'
-  - id: progress
-    type: task.save_import_cursor
-    onError: continue
-    input:
-      projectId: <the project's ID>
-      externalSystem: github
-      source: owner/repo
-      revision: '{{ nodes.position.output.revision }}'
-      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+      sources:
+        - { kind: github, owner: owner, repo: repo, limit: 500 }
+        - { kind: glitchtip, organization: organization, project: project }
 ```
 
-`source` est le nom que tu donnes à la liste ; les automatisations qui nomment la même source partagent une même passe. La lecture indique aussi `revision`, le jeton de comparaison de la position, et l’enregistrement le renvoie : la position n’avance que tant qu’elle en est encore à cette révision. Chaque lot enregistré, chaque fin de passe et chaque redémarrage fait passer à une nouvelle révision, et aucune révision ne se répète, même quand le texte du curseur se répète. Un import qui échoue n’enregistre rien, si bien que l’occurrence suivante reprend le même lot. Un enregistrement fait avec une révision antérieure est refusé (`conflict`) et n’écrit rien, qu’il vienne d’une exécution qui se chevauche, d’une exécution retardée au-delà de la fin de sa passe ou d’une exécution qui détient encore une position antérieure à un redémarrage. Après trois lectures d’une même position sans enregistrement, la lecture suivante recommence la passe (`restarted`) au lieu de réessayer une position que la source refuse sans cesse, par exemple après le renommage du dépôt. L’enregistrement indique `batch` et `drained`, qu’un reçu peut rapporter. Chaque exécution rafraîchit aussi jusqu’à 500 issues importées auparavant, en commençant par celles vérifiées le moins récemment, si bien qu’une grande collection est rafraîchie sur plusieurs occurrences.
+La sortie de l’étape en est le reçu, avec une entrée par source : aucune étape de commentaire n’est nécessaire pour consigner ce qu’une occurrence a importé. Le paquet utilise lui-même deux niveaux d’automatisations imbriquées ; appelle-le donc depuis une étape de ton automatisation, pas depuis une autre `subautomation`.
+
+Pour construire la même chose toi-même, lis la position avec `task.get_import_cursor`, transmets son `cursor` à l’import et enregistre son `nextCursor` avec `task.save_import_cursor`, chacun avec `onError: continue`. `source` est le nom que tu donnes à la liste ; les automatisations qui nomment la même source partagent une même passe, et le paquet nomme une source `owner/repo` ou `organization/project`. La lecture indique aussi `revision`, le jeton de comparaison de la position, et l’enregistrement le renvoie : la position n’avance que tant qu’elle en est encore à cette révision. Chaque lot enregistré, chaque fin de passe et chaque redémarrage fait passer à une nouvelle révision, et aucune révision ne se répète, même quand le texte du curseur se répète. Un import qui échoue n’enregistre rien, si bien que l’occurrence suivante reprend le même lot. Un enregistrement fait avec une révision antérieure est refusé (`conflict`) et n’écrit rien, qu’il vienne d’une exécution qui se chevauche, d’une exécution retardée au-delà de la fin de sa passe ou d’une exécution qui détient encore une position antérieure à un redémarrage. Après trois lectures d’une même position sans enregistrement, la lecture suivante recommence la passe (`restarted`) au lieu de réessayer une position que la source refuse sans cesse, par exemple après le renommage du dépôt. L’enregistrement indique `batch` et `drained`, qu’un reçu peut rapporter. Chaque exécution rafraîchit aussi jusqu’à 500 issues importées auparavant, en commençant par celles vérifiées le moins récemment, si bien qu’une grande collection est rafraîchie sur plusieurs occurrences.
 
 ## Comprendre l’absence de démarrage
 

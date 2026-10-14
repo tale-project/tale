@@ -125,6 +125,36 @@ pack imap-smtp/triage-inbox:
   tests: '{"nodes":{"added":0,"removed":0,"changed":0},"tests":true}'
   ui only: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
   node order: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
+pack issues/intake:
+  template: n/a
+  code: n/a
+  condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  add node: '{"nodes":{"added":1,"removed":0,"changed":0}}'
+  remove node: '{"nodes":{"added":0,"removed":1,"changed":0}}'
+  rename node: '{"nodes":{"added":0,"removed":0,"changed":0,"renamed":1}}'
+  retype node: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  inputs: '{"nodes":{"added":0,"removed":0,"changed":0},"inputs":true}'
+  output: '{"nodes":{"added":0,"removed":0,"changed":0},"output":true}'
+  description: '{"nodes":{"added":0,"removed":0,"changed":0},"description":true}'
+  tests: '{"nodes":{"added":0,"removed":0,"changed":0},"tests":true}'
+  ui only: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
+  node order: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
+pack issues/intake-source:
+  template: n/a
+  code: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  add node: '{"nodes":{"added":1,"removed":0,"changed":0}}'
+  remove node: '{"nodes":{"added":0,"removed":1,"changed":0}}'
+  rename node: '{"nodes":{"added":0,"removed":0,"changed":0,"renamed":1}}'
+  retype node: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  inputs: '{"nodes":{"added":0,"removed":0,"changed":0},"inputs":true}'
+  output: '{"nodes":{"added":0,"removed":0,"changed":0},"output":true}'
+  description: '{"nodes":{"added":0,"removed":0,"changed":0},"description":true}'
+  tests: '{"nodes":{"added":0,"removed":0,"changed":0},"tests":true}'
+  ui only: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
+  node order: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
 pack outlook/sync-emails:
   template: n/a
   code: n/a
