@@ -60,10 +60,23 @@ export function portWorkflow(
   const doc: Workflow = readWorkflow(source, file);
   const knowledge = newKnowledge();
   const removed = new Map<string, string>();
-  const context: PortContext = { file, report, knowledge, removed };
+  const context: PortContext = {
+    file,
+    report,
+    knowledge,
+    removed,
+    results: new Map(),
+  };
 
   const triggers = rewriteTriggers(doc, { file, ...options.triggers }, report);
   knowledge.oneOf.set('github.event_name', [...triggers.events]);
+  // A batch of the merge train is a push here: what GitHub asks of a merge group, a run asks
+  // of its push, and the only pushes the workflow has are the batches.
+  if (triggers.validatedInQueue)
+    knowledge.aliases.set(
+      'github.event_name',
+      new Map([['merge_group', 'push']]),
+    );
   // Forgejo has no draft to skip for and no event when one is marked ready, so a pull
   // request runs whatever its title says; the merge train itself refuses a work in progress.
   knowledge.values.set('github.event.pull_request.draft', false);
@@ -122,7 +135,13 @@ export function portAction(
 ): string {
   const doc = readWorkflow(source, file);
   const knowledge = newKnowledge();
-  const context: PortContext = { file, report, knowledge, removed: new Map() };
+  const context: PortContext = {
+    file,
+    report,
+    knowledge,
+    removed: new Map(),
+    results: new Map(),
+  };
   for (const rule of rules) rule(doc, context);
   foldAction(doc, { file, facts: factsOf(knowledge), report });
   return writeWorkflow(doc);

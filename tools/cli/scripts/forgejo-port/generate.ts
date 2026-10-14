@@ -24,6 +24,7 @@ import {
   type Report,
 } from './workflow';
 import {
+  batchEvent,
   commitlintBatch,
   dropForeignRows,
   dropJobs,
@@ -96,6 +97,7 @@ function rulesFor(
     }),
     movePaths(moves),
     runUrls,
+    batchEvent,
     commitlintBatch,
     publishRemote,
     githubApiToken(manifest.githubApiTokenSecret),

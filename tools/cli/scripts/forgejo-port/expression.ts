@@ -372,6 +372,24 @@ export interface Facts {
    * either, so a comparison with `merge_group` is decided.
    */
   readonly oneOf?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Paths whose value depends on a condition that only holds, or not, when the run
+   * starts: a scope output is `'false'` for a pull request and `''` for a batch.
+   */
+  readonly conditional?: ReadonlyMap<string, Conditional>;
+  /**
+   * Strings that mean another string when a path is compared with them, lowercase:
+   * a batch of the merge train is a push here, so `github.event_name == 'merge_group'`
+   * asks whether this run is one.
+   */
+  readonly aliases?: ReadonlyMap<string, ReadonlyMap<string, string>>;
+}
+
+/** A value that is `ifTrue` when `when` holds and `ifFalse` when it does not. */
+export interface Conditional {
+  readonly when: Expr;
+  readonly ifTrue: Scalar;
+  readonly ifFalse: Scalar;
 }
 
 /** Where the result is read: a condition only needs a truthiness, a value is kept as it is. */
@@ -434,6 +452,8 @@ export function simplify(node: Expr, facts: Facts, mode: Mode = 'value'): Expr {
     case 'index': {
       const resolved = lookup(node, facts);
       if (resolved.found) return { kind: 'literal', value: resolved.value };
+      const conditional = conditionalAt(node, facts);
+      if (conditional) return conditionalNode(conditional, facts, mode);
       if (node.kind === 'ident') return node;
       return {
         ...node,
@@ -462,6 +482,125 @@ export function simplify(node: Expr, facts: Facts, mode: Mode = 'value'): Expr {
     case 'binary':
       return simplifyBinary(node, facts, mode);
   }
+}
+
+function literalOf(value: Scalar): Expr {
+  return { kind: 'literal', value };
+}
+
+/** Whether an expression is a boolean whatever its operands are. */
+function isBoolean(node: Expr): boolean {
+  switch (node.kind) {
+    case 'literal':
+      return typeof node.value === 'boolean';
+    case 'not':
+      return true;
+    case 'binary':
+      return node.op === '&&' || node.op === '||'
+        ? isBoolean(node.left) && isBoolean(node.right)
+        : true;
+    case 'call':
+      return ['contains', 'startswith', 'endswith'].includes(
+        node.name.toLowerCase(),
+      );
+    default:
+      return false;
+  }
+}
+
+/** `!node`, written the shortest way: `!(a == b)` is `a != b`. */
+function notOf(node: Expr): Expr {
+  if (isLiteral(node)) return literalOf(!truthy(node.value));
+  if (node.kind === 'not' && isBoolean(node.operand)) return node.operand;
+  if (node.kind === 'binary' && (node.op === '==' || node.op === '!='))
+    return { ...node, op: node.op === '==' ? '!=' : '==' };
+  return { kind: 'not', operand: node };
+}
+
+function conditionalAt(node: Expr, facts: Facts): Conditional | undefined {
+  const path = contextPath(node);
+  return path === undefined ? undefined : facts.conditional?.get(path);
+}
+
+/** A conditional path read as a value (`when && ifTrue || ifFalse`) or as a truthiness. */
+function conditionalNode(
+  conditional: Conditional,
+  facts: Facts,
+  mode: Mode,
+): Expr {
+  const { ifTrue, ifFalse } = conditional;
+  const when = simplify(conditional.when, facts, 'condition');
+  if (isLiteral(when)) return literalOf(truthy(when.value) ? ifTrue : ifFalse);
+  if (ifTrue === ifFalse) return literalOf(ifTrue);
+  if (mode === 'condition') {
+    const [yes, no] = [truthy(ifTrue), truthy(ifFalse)];
+    if (yes && no) return literalOf(true);
+    if (!yes && !no) return literalOf(false);
+    return yes ? when : notOf(when);
+  }
+  if (truthy(ifTrue))
+    return {
+      kind: 'binary',
+      op: '||',
+      left: { kind: 'binary', op: '&&', left: when, right: literalOf(ifTrue) },
+      right: literalOf(ifFalse),
+    };
+  if (truthy(ifFalse))
+    return {
+      kind: 'binary',
+      op: '||',
+      left: {
+        kind: 'binary',
+        op: '&&',
+        left: notOf(when),
+        right: literalOf(ifFalse),
+      },
+      right: literalOf(ifTrue),
+    };
+  throw new ExpressionError(
+    'A conditional value needs one branch that is not false, null, 0 or empty',
+    printExpression(conditional.when),
+    0,
+  );
+}
+
+/** A comparison of a conditional path with a literal: what the condition says about it. */
+function compareConditional(
+  node: Extract<Expr, { kind: 'binary' }>,
+  facts: Facts,
+): Expr | undefined {
+  const decide = (pathSide: Expr, otherSide: Expr): Expr | undefined => {
+    if (lookup(pathSide, facts).found) return undefined;
+    const conditional = conditionalAt(pathSide, facts);
+    if (!conditional) return undefined;
+    const other = simplify(otherSide, facts, 'value');
+    if (!isLiteral(other)) return undefined;
+    const when = simplify(conditional.when, facts, 'condition');
+    const [yes, no] = [
+      looseEquals(conditional.ifTrue, other.value),
+      looseEquals(conditional.ifFalse, other.value),
+    ];
+    let equal: Expr;
+    if (isLiteral(when)) equal = literalOf(truthy(when.value) ? yes : no);
+    else if (yes === no) equal = literalOf(yes);
+    else equal = yes ? when : notOf(when);
+    return node.op === '==' ? equal : notOf(equal);
+  };
+  return decide(node.left, node.right) ?? decide(node.right, node.left);
+}
+
+/** The literal a path is compared with, in the words this run uses for it. */
+function aliasLiteral(pathSide: Expr, literalSide: Expr, facts: Facts): Expr {
+  const path = contextPath(pathSide);
+  const table = path === undefined ? undefined : facts.aliases?.get(path);
+  if (
+    !table ||
+    !isLiteral(literalSide) ||
+    typeof literalSide.value !== 'string'
+  )
+    return literalSide;
+  const renamed = table.get(literalSide.value.toLowerCase());
+  return renamed === undefined ? literalSide : literalOf(renamed);
 }
 
 /** What a comparison of a path with a string is, when the path can only be one of a few strings. */
@@ -510,11 +649,26 @@ function simplifyBinary(
         return decided ? left : { kind: 'literal', value: false };
       return decided ? { kind: 'literal', value: true } : left;
     }
+    // `p && p` and `p || p` are `p`; `p || !p` always holds and `p && !p` never does.
+    if (sameExpression(left, right)) return left;
+    if (
+      isBoolean(left) &&
+      isBoolean(right) &&
+      sameExpression(notOf(left), right)
+    )
+      return literalOf(op === '||');
     return { kind: 'binary', op, left, right };
   }
-  const left = simplify(node.left, facts, 'value');
-  const right = simplify(node.right, facts, 'value');
   if (op === '==' || op === '!=') {
+    const conditional = compareConditional(node, facts);
+    if (conditional) return conditional;
+  }
+  let left = simplify(node.left, facts, 'value');
+  let right = simplify(node.right, facts, 'value');
+  if (op === '==' || op === '!=') {
+    const [leftPath, rightPath] = [left, right];
+    left = aliasLiteral(rightPath, left, facts);
+    right = aliasLiteral(leftPath, right, facts);
     if (isLiteral(left) && isLiteral(right)) {
       const equal = looseEquals(left.value, right.value);
       return { kind: 'literal', value: op === '==' ? equal : !equal };

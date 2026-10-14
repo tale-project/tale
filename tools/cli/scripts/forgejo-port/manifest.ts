@@ -98,13 +98,21 @@ export const MANIFEST: Manifest = {
       kind: 'github',
       why: 'a manual load test of the whole stack, which GitHub-hosted runners serve as they are',
     },
+    'workspace-upgrade.yml': {
+      kind: 'github',
+      why: "it upgrades a workspace from the published releases, which it resolves through GitHub's release API and pulls from GHCR",
+    },
+    'sandbox-incus-e2e.yml': {
+      kind: 'later',
+      why: 'it builds an Incus node with a ZFS pool on the runner, which needs a runner that is a virtual machine; the pool serves system containers',
+    },
     'issue-labeler.yml': {
       kind: 'later',
       why: "it labels issues with github-script and GitHub's REST API; Forgejo's labels API takes ids, not names",
     },
     'cleanup-pr-images.yml': {
       kind: 'later',
-      why: "it deletes a closed pull request's image tags through GHCR's API; Forgejo's registry needs its own cleanup (an owner-level cleanup rule, or the package API with a token)",
+      why: "it deletes a closed pull request's image tags through GHCR's API; Forgejo's registry needs its own cleanup (a package cleanup rule of the organization, or the package API with a token)",
     },
   },
 };

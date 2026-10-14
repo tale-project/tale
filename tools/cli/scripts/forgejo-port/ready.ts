@@ -3,12 +3,11 @@
  *
  * On GitHub that job evaluates the workflow's `needs` with Tale's own policy
  * (`../ci-ready.ts`) in a `github-script` step, against a pull request or a merge
- * group. On Forgejo there is neither the API nor the merge group: a pull request
- * and a batch of the merge train both run the full suite, so both are judged as
- * what the policy calls a merge group, which is "everything ran at full scope".
- * The policy itself is not copied or changed: this only describes the Forgejo run
- * in the words it knows, and hands it the jobs the port left out as skipped, which
- * is what they are.
+ * group. On Forgejo there is neither the API nor the merge group: a pull request is
+ * a pull request, and a batch of the merge train, which is a push to `mq/**`, is
+ * what the policy calls a merge group. The policy itself is not copied or changed:
+ * this describes the Forgejo run in the words it knows, and hands it the jobs the
+ * port left out as what they would have reported, which the generator recorded.
  *
  * Run as a script it reads the job's environment and the runner's event file, so
  * the generated job is a checkout and one command.
@@ -21,13 +20,25 @@ import { CI_JOBS, evaluateReadiness } from '../ci-ready';
 const ZEROS = '0'.repeat(40);
 const SHA = /^[a-f0-9]{40}$/;
 
+/** What a job reports to the jobs that need it. */
+export interface JobResult {
+  readonly result: 'success' | 'skipped';
+  readonly outputs: Readonly<Record<string, string>>;
+}
+
+/** What a job the port left out would have reported, by the kind of run. */
+export interface RemovedJob {
+  readonly pull_request: JobResult;
+  readonly push: JobResult;
+}
+
 export interface ReadyInput {
   /** The workflow's stem: `checks`. */
   readonly workflow: string;
   /** `toJSON(needs)` of the ready job. */
   readonly needs: unknown;
-  /** The jobs of the GitHub workflow the port left out: they did not run and cannot have. */
-  readonly removed: readonly string[];
+  /** The jobs of the GitHub workflow the port left out, by id. */
+  readonly removed: Readonly<Record<string, RemovedJob>>;
   /** `github.event_name`. */
   readonly event: string;
   /** The runner's event payload. */
@@ -52,12 +63,25 @@ function held(reason: string): Verdict {
   return { passed: false, reasons: [reason], jobs: [] };
 }
 
-/** What a pull request or a batch is, in the policy's words: a base, a head and the commit checked out. */
+type Described =
+  | {
+      readonly kind: 'pull_request';
+      readonly base: string;
+      readonly head: string;
+      readonly changed: number;
+    }
+  | {
+      readonly kind: 'push';
+      readonly base: string;
+      readonly head: string;
+    };
+
+/** What the run is, in the policy's words: a pull request, or a batch with a base and a head. */
 function describe(
   event: string,
   payload: unknown,
   sha: string,
-): { base: string; head: string; source: string } | Verdict {
+): Described | Verdict {
   const body = record(payload);
   if (event === 'pull_request') {
     const pull = record(body?.pull_request);
@@ -71,15 +95,24 @@ function describe(
     const baseSha = base?.sha;
     if (typeof headSha !== 'string' || typeof baseSha !== 'string')
       return held('The pull request event names no base and head commit');
-    return { base: baseSha, head: headSha, source: headSha };
+    const changed = pull?.changed_files;
+    return {
+      kind: 'pull_request',
+      base: baseSha,
+      head: headSha,
+      changed:
+        typeof changed === 'number' && Number.isSafeInteger(changed)
+          ? changed
+          : 0,
+    };
   }
   if (event === 'push') {
     const after = typeof body?.after === 'string' ? body.after : sha;
     const before = typeof body?.before === 'string' ? body.before : ZEROS;
     return {
+      kind: 'push',
       base: SHA.test(before) ? before : ZEROS,
       head: after,
-      source: sha,
     };
   }
   return held('Readiness is only defined for pull_request and push');
@@ -94,17 +127,74 @@ export function judgeReadiness(input: ReadyInput): Verdict {
     ? CI_JOBS[input.workflow as keyof typeof CI_JOBS]
     : [];
   const filled: Record<string, unknown> = { ...needs };
-  for (const id of input.removed) {
-    if (known.includes(id) && !(id in filled))
-      filled[id] = { result: 'skipped', outputs: {} };
+  for (const [id, removed] of Object.entries(input.removed)) {
+    if (known.includes(id) && !(id in filled)) filled[id] = removed[what.kind];
   }
+  // A work in progress is held by the merge train, not here: Forgejo raises no event when
+  // one is marked ready, so a hold would stay on a pull request that is ready.
   return evaluateReadiness({
     workflow: input.workflow,
-    event: 'merge_group',
-    payload: { merge_group: { base_sha: what.base, head_sha: what.head } },
+    ...(what.kind === 'push'
+      ? {
+          event: 'merge_group',
+          payload: {
+            merge_group: { base_sha: what.base, head_sha: what.head },
+          },
+        }
+      : {
+          event: 'pull_request',
+          payload: {
+            pull_request: {
+              base: { sha: what.base },
+              head: { sha: what.head, repo: { fork: false } },
+              changed_files: what.changed,
+              draft: false,
+            },
+          },
+        }),
     needs: filled,
-    source: what.source,
+    source: input.sha,
   });
+}
+
+function jobResult(value: unknown, where: string): JobResult {
+  const job = record(value);
+  const outputs = record(job?.outputs);
+  if (
+    !job ||
+    !outputs ||
+    (job.result !== 'success' && job.result !== 'skipped') ||
+    Object.values(outputs).some((output) => typeof output !== 'string')
+  )
+    throw new Error(`${where} is not a job result`);
+  return {
+    result: job.result,
+    outputs: Object.fromEntries(
+      Object.entries(outputs).map(([name, output]) => [name, String(output)]),
+    ),
+  };
+}
+
+/** `CI_PORT_REMOVED`: the jobs the port left out, as the generator recorded them. */
+export function parseRemoved(text: string): Record<string, RemovedJob> {
+  const parsed: unknown = text === '' ? {} : JSON.parse(text);
+  const jobs = record(parsed);
+  if (!jobs) throw new Error('CI_PORT_REMOVED is not an object');
+  return Object.fromEntries(
+    Object.entries(jobs).map(([id, value]) => {
+      const kinds = record(value);
+      return [
+        id,
+        {
+          pull_request: jobResult(
+            kinds?.pull_request,
+            `CI_PORT_REMOVED.${id}.pull_request`,
+          ),
+          push: jobResult(kinds?.push, `CI_PORT_REMOVED.${id}.push`),
+        },
+      ];
+    }),
+  );
 }
 
 /** The job's environment and the runner's files, as `judgeReadiness` wants them. */
@@ -118,13 +208,10 @@ export function readInput(
       throw new Error(`${name} is not set`);
     return value;
   };
-  const removed = (env.CI_PORT_REMOVED ?? '')
-    .split(',')
-    .filter((id) => id !== '');
   return {
     workflow: required('CI_WORKFLOW'),
     needs: JSON.parse(required('CI_NEEDS')) as unknown,
-    removed,
+    removed: parseRemoved((env.CI_PORT_REMOVED ?? '').trim()),
     event: required('GITHUB_EVENT_NAME'),
     payload: JSON.parse(read(required('GITHUB_EVENT_PATH'))) as unknown,
     sha: required('GITHUB_SHA'),

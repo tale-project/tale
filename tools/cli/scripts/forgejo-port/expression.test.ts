@@ -247,6 +247,142 @@ describe('simplify', () => {
   });
 });
 
+describe('conditional values', () => {
+  const pullRequest = parseExpression("github.event_name == 'pull_request'");
+  const scoped: Facts = {
+    oneOf: new Map([['github.event_name', ['pull_request', 'push']]]),
+    conditional: new Map([
+      // A queue-only scope: 'false' for a pull request, 'true' for a batch.
+      [
+        'needs.scope.outputs.run',
+        { when: pullRequest, ifTrue: 'false', ifFalse: 'true' },
+      ],
+      // An output a pull request leaves unset.
+      [
+        'needs.scope.outputs.changes',
+        { when: pullRequest, ifTrue: '', ifFalse: '["web"]' },
+      ],
+    ]),
+  };
+  const read = (source: string, mode: 'condition' | 'value' = 'condition') =>
+    printExpression(simplify(parseExpression(source), scoped, mode));
+
+  test('a comparison says what the condition says', () => {
+    expect(read("needs.scope.outputs.run == 'true'")).toBe(
+      "github.event_name != 'pull_request'",
+    );
+    expect(read("needs.scope.outputs.run != 'true'")).toBe(
+      "github.event_name == 'pull_request'",
+    );
+    expect(read("'false' == needs.scope.outputs.run")).toBe(
+      "github.event_name == 'pull_request'",
+    );
+    expect(read("needs.scope.outputs.run == 'TRUE'")).toBe(
+      "github.event_name != 'pull_request'",
+    );
+    expect(read("needs.scope.outputs.run == 'maybe'")).toBe('false');
+    expect(read("needs.scope.outputs.changes == ''")).toBe(
+      "github.event_name == 'pull_request'",
+    );
+  });
+
+  test('a value is read as the condition picks it', () => {
+    expect(read('needs.scope.outputs.run', 'value')).toBe(
+      "github.event_name == 'pull_request' && 'false' || 'true'",
+    );
+    expect(read('needs.scope.outputs.changes', 'value')).toBe(
+      "github.event_name != 'pull_request' && '[\"web\"]' || ''",
+    );
+  });
+
+  test('a truthiness needs only the branches that are not empty', () => {
+    expect(read('needs.scope.outputs.run')).toBe('true');
+    expect(read('needs.scope.outputs.changes')).toBe(
+      "github.event_name != 'pull_request'",
+    );
+  });
+
+  test('a run of one kind decides it', () => {
+    const batch: Facts = {
+      ...scoped,
+      oneOf: new Map([['github.event_name', ['push']]]),
+    };
+    const foldBatch = (source: string) =>
+      printExpression(simplify(parseExpression(source), batch));
+    expect(foldBatch("needs.scope.outputs.run == 'true'")).toBe('true');
+    expect(foldBatch('needs.scope.outputs.changes')).toBe('\'["web"]\'');
+  });
+
+  test('a condition and its negation fold together', () => {
+    expect(
+      read(
+        "github.event_name != 'pull_request' || (needs.scope.outputs.run == 'true' && needs.scope.outputs.run == 'true')",
+      ),
+    ).toBe("github.event_name != 'pull_request'");
+    expect(
+      read(
+        "github.event_name == 'pull_request' || needs.scope.outputs.run == 'false'",
+      ),
+    ).toBe("github.event_name == 'pull_request'");
+    expect(
+      read(
+        "needs.scope.outputs.run == 'true' || github.event_name == 'pull_request'",
+      ),
+    ).toBe('true');
+    expect(
+      read(
+        "needs.scope.outputs.run == 'true' && github.event_name == 'pull_request'",
+      ),
+    ).toBe('false');
+  });
+
+  test('refuse a value with no branch that can be read back', () => {
+    const facts: Facts = {
+      conditional: new Map([
+        ['x.y', { when: pullRequest, ifTrue: '', ifFalse: null }],
+      ]),
+    };
+    expect(() => simplify(parseExpression('x.y'), facts, 'value')).toThrow(
+      ExpressionError,
+    );
+  });
+});
+
+describe('aliases', () => {
+  const facts: Facts = {
+    aliases: new Map([
+      ['github.event_name', new Map([['merge_group', 'push']])],
+    ]),
+    oneOf: new Map([['github.event_name', ['pull_request', 'push']]]),
+  };
+  const read = (source: string) =>
+    printExpression(simplify(parseExpression(source), facts));
+
+  test('a batch is a push', () => {
+    expect(read("github.event_name == 'merge_group'")).toBe(
+      "github.event_name == 'push'",
+    );
+    expect(read("'Merge_Group' != github.event_name")).toBe(
+      "'push' != github.event_name",
+    );
+    expect(read("github.event_name != 'pull_request'")).toBe(
+      "github.event_name != 'pull_request'",
+    );
+  });
+
+  test('a workflow that only has pushes decides it', () => {
+    const only: Facts = {
+      ...facts,
+      oneOf: new Map([['github.event_name', ['push']]]),
+    };
+    expect(
+      printExpression(
+        simplify(parseExpression("github.event_name == 'merge_group'"), only),
+      ),
+    ).toBe('true');
+  });
+});
+
 describe('templates', () => {
   test('split text from holes, and a quoted }} stays in its string', () => {
     expect(parseTemplate("a ${{ x }} b ${{ format('}}', y) }}")).toEqual([
