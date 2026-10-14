@@ -500,6 +500,15 @@ active project. Every agent and task it names must be the project's, and its sch
 - **Example**: Mia, a member, tries to switch the project's dispatch on → refused. An admin adds a
   standing role on a task of another project → refused, naming the task.
 
+### TASK-R50 · Every switched-on dispatch reports when it last passed
+
+The backend's metrics name, per project, when its switched-on dispatch last completed a pass —
+whatever the pass found — so an alert outside the platform notices a dispatch that stopped. A
+dispatch switched off drops out; a read that fails reports zero for every project it knew.
+
+- **Example**: The job workers stop at 14:00 → the Fleet project's last pass stays at 13:59, and
+  an alert on its age fires at 14:15.
+
 ## What a run is handed
 
 ### TASK-R49 · Every turn opens with its project's current instructions, and its run records them

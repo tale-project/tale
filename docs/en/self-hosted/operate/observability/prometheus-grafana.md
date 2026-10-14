@@ -93,9 +93,17 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale cannot reach its default {{ $labels.store }} store'
+      - alert: TaleDispatchStopped
+        expr: time() - tale_backend_dispatch_last_pass_timestamp_seconds > 900
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: 'The dispatch of project {{ $labels.project }} has not passed for 15 minutes'
 ```
 
 Adjust severity and waiting periods to your service requirements, and configure Alertmanager or Grafana alert delivery. A rule visible in Prometheus does not send a notification by itself. The store alert covers deployment defaults; it does not monitor organization-specific databases or buckets.
+
+The dispatch alert names a project whose dispatch is switched on and has completed no pass for 15 minutes. Every switched-on dispatch passes at least once a minute, so a value that stops moving points to stopped job workers or a pass that keeps failing.
 
 ## Start and verify collection
 
@@ -122,5 +130,6 @@ Open Grafana at `http://127.0.0.1:3001` and add a Prometheus data source at `htt
 | Job states | `tale_backend_jobs` | Jobs by queue state; inspect sustained growth and failures. |
 | Default stores | `tale_backend_store_up` | Cached reachability for `app_db`, `knowledge_db`, and `object_store`. |
 | Deployment drain | `tale_backend_drain_active` | Whether deployment draining is refusing new turns. |
+| Dispatch heartbeat | `time() - tale_backend_dispatch_last_pass_timestamp_seconds` | Seconds since each switched-on project dispatch last completed a pass. |
 
 Some collectors read shared database counts; others describe one process. With multiple replicas, collect per-replica process metrics through your private monitoring network and avoid double-counting shared gauges. [Operations](/self-hosted/operate/observability/operations) explains the limits of the store probes and the additional measurements required by the SLA rule template.

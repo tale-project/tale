@@ -273,6 +273,12 @@ A queued job, drain handover, failed/aborted attempt or unavailable organization
 table cannot refresh it. The stamp survives process restarts; a healthy API
 process alone does not prove that its workers are scanning.
 
+`tale_backend_dispatch_last_pass_timestamp_seconds{project}` reads when each
+switched-on project dispatch last completed a pass (zero before its first, and
+for every project the last good read knew when the read fails). A dispatch
+passes at least once a minute, so its age is the heartbeat an external alert
+watches; a pass that started nothing still counts.
+
 The scan runs each minute with a 120-second attempt budget and one retry. An
 external alert can allow three minutes of stamp age and five continuous
 unhealthy minutes before firing, with two healthy minutes before resolving.

@@ -167,7 +167,7 @@ describe('pull-time collectors', () => {
     );
     // `register.metrics()` runs every registered `collect()` itself — the
     // real scrape path, so the test exercises what Prometheus would.
-    expect(gauges).toHaveLength(6);
+    expect(gauges).toHaveLength(7);
     const metrics = await client.register.metrics();
     expect(metrics).toContain('tale_backend_generations_inflight 3');
     expect(metrics).toContain('tale_backend_jobs{state="created"} 12');
@@ -200,7 +200,7 @@ describe('pull-time collectors', () => {
         throw new Error('connection reset');
       }),
     );
-    expect(gauges).toHaveLength(6);
+    expect(gauges).toHaveLength(7);
     // The scrape still renders: each collector swallowed its own failure.
     await expect(client.register.metrics()).resolves.toBeTypeOf('string');
   });
@@ -238,6 +238,46 @@ describe('pull-time collectors', () => {
       completed = missing;
       expect(await sample()).toBe(`${name} 0`);
     }
+  });
+});
+
+describe('the dispatch heartbeat', () => {
+  function fakeSql(rowsByQuery: (text: string) => unknown[]) {
+    return ((strings: TemplateStringsArray) =>
+      Promise.resolve(rowsByQuery(strings.join('?')))) as unknown as Parameters<
+      typeof registerBackendCollectors
+    >[0];
+  }
+  const name = 'tale_backend_dispatch_last_pass_timestamp_seconds';
+
+  test("reports each switched-on dispatch's last pass, drops one switched off, and zeroes them when unreadable [TASK-R50]", async () => {
+    let rows: unknown[] = [
+      { projectId: 'fleet', at: 1_791_123_456_789 },
+      { projectId: 'docs', at: null },
+    ];
+    let failed = false;
+    registerBackendCollectors(
+      fakeSql((text) => {
+        if (!text.includes('app.project_dispatch d')) return [];
+        expect(text).toContain('d.enabled = true');
+        if (failed) throw new Error('database unavailable');
+        return rows;
+      }),
+    );
+    const sample = async () =>
+      (await client.register.metrics())
+        .split('\n')
+        .filter((line) => line.startsWith(`${name}{`))
+        .sort();
+    expect(await sample()).toEqual([
+      `${name}{project="docs"} 0`,
+      `${name}{project="fleet"} 1791123456`,
+    ]);
+    rows = [{ projectId: 'fleet', at: 1_791_123_516_000 }];
+    expect(await sample()).toEqual([`${name}{project="fleet"} 1791123516`]);
+    failed = true;
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(await sample()).toEqual([`${name}{project="fleet"} 0`]);
   });
 });
 
