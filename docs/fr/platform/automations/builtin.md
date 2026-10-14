@@ -3,7 +3,7 @@ title: Automatisations livrées
 description: Choisis un workflow fourni pour les e-mails, GitHub ou GlitchTip, vérifie ses entrées et connexions et découvre ce qu’il lit ou écrit avant le déploiement.
 ---
 
-Tale fournit douze paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception, deux workflows de revue GitHub, des imports d’issues GitHub et GlitchTip, et deux paquets qui poursuivent ces imports d’eux-mêmes. Chacun commence en version 1 avec le statut **Pas en service**. Les quatre paquets d’issues commencent sans planification ; les autres paquets incluent une planification, désactivée au départ : après la mise en service d’une version, l’éditeur propose **Activer le déclencheur**. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
+Tale fournit dix paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception, deux workflows de revue GitHub et des imports d’issues GitHub et GlitchTip. Chacun commence en version 1 avec le statut **Pas en service**. Les imports d’issues s’exécutent manuellement ; les autres paquets incluent une planification, désactivée au départ : après la mise en service d’une version, l’éditeur propose **Activer le déclencheur**. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
 
 <Frame caption="Le catalogue affiche les noms des paquets, le nombre de versions et leur état de mise en service.">
 
@@ -15,7 +15,7 @@ Tale fournit douze paquets d’automatisation : trois synchronisations de courri
 
 Ouvre **Automatisations**, choisis un paquet et examine ses nœuds dans l’[éditeur de workflow](/fr/platform/automations/editor). Le connector requis doit être connecté. Les paquets nomment un modèle : quand Tale les ajoute et qu’aucun de tes fournisseurs ne le sert, chaque nœud `llm` reçoit un modèle comparable qu’ils servent, et le message de la version 1 dit lequel. Un paquet ajouté avant qu’un fournisseur soit connecté — comme chaque paquet d’une nouvelle organisation — garde son modèle, et la validation t’en avertit à l’enregistrement — choisis un modèle servi avec **Changer de modèle**, qui le remplace dans toutes les étapes à la fois. Un essai utilise des réponses simulées : il vérifie le déroulement sans prouver l’accès à ta boîte de réception ou à ton dépôt réel.
 
-Les paquets sont ajoutés à la création de l’organisation. Un paquet ajouté par une version ultérieure rejoint une organisation existante quand les valeurs par défaut intégrées sont de nouveau provisionnées, ce que fait [`tale migrate`](/fr/self-hosted/install/cli-install#maintenance) sur un déploiement auto-hébergé. Lorsque le paquet fourni évolue, tes versions existantes sont conservées ; seuls son nom et sa description fournis sont actualisés. Un paquet supprimé reste supprimé. Tes modifications créent de nouvelles versions, que tu mets en service séparément.
+Les paquets sont ajoutés à la création de l’organisation. Lorsque le paquet fourni évolue, tes versions existantes sont conservées ; seuls son nom et sa description fournis sont actualisés. Un paquet supprimé reste supprimé. Tes modifications créent de nouvelles versions, que tu mets en service séparément.
 
 ## Synchroniser le courrier dans la Boîte de réception
 
@@ -58,43 +58,11 @@ La sortie de l’exécution liste ce qui a été lu, le résumé du modèle, les
 1. Connecte la source dans **Paramètres > Connectors** et choisis ses identifiants par défaut. GitHub nécessite un accès au dépôt avec le droit de lire les issues. GlitchTip nécessite l’URL de l’instance et un token disposant de `project:read` et `event:read`. Un token réservé à la configuration des projets ne peut pas lire les issues. Une instance auto-hébergée doit être autorisée par la politique des hôtes du connector.
 2. Ouvre l’import et choisis **Essai**. Sélectionne le **Projet Tale**, puis saisis le propriétaire et le dépôt GitHub ou les identifiants de l’organisation et du projet GlitchTip. Des labels facultatifs ou une recherche GlitchTip permettent de filtrer les nouvelles issues. **Nombre maximal d'issues** accepte 1–500, avec 100 par défaut.
 3. Vérifie le résultat du test, mets la version en service, puis choisis **Exécuter en réel** avec la même destination et les mêmes filtres. Un test utilise des données d’exemple et ne crée aucune tâche. Seule une exécution réelle vérifie la connexion.
-4. Ouvre **Exécutions** et sélectionne l’exécution. **Tâches importées** contient les liens vers les tâches Tale correspondantes. S’il reste un lot, **Poursuivre l'import** reprend la source, la destination et la position de continuation pour l’exécution suivante. Pour importer plutôt chaque issue selon une planification, laisse l’un des [paquets qui poursuivent les imports](#poursuivre-les-imports-automatiquement) conserver cette position entre ses exécutions.
+4. Ouvre **Exécutions** et sélectionne l’exécution. **Tâches importées** contient les liens vers les tâches Tale correspondantes. S’il reste un lot, **Poursuivre l'import** reprend la source, la destination et la position de continuation pour l’exécution suivante. Pour importer plutôt chaque issue selon une planification, une automatisation conserve cette position entre ses occurrences : voir [Importer chaque issue selon une planification](/fr/platform/automations/triggers#importer-chaque-issue-selon-une-planification).
 
 Chaque synchronisation recherche de nouvelles issues et actualise jusqu’à 500 issues déjà liées, en commençant par celles dont la vérification est la plus ancienne, même lorsqu’elles ne correspondent plus au filtre. Relance la synchronisation pour maintenir les grandes collections à jour. Les pull requests GitHub sont exclues. Un nouvel import réutilise la même identité source dans un projet Tale. Renommer un dépôt ou un projet actualise le lien vers la source sans créer une deuxième tâche. Une issue déplacée vers un autre dépôt ou projet source reste liée et continue d’être actualisée par les imports précédents, si la connexion peut accéder à son nouvel emplacement.
 
 La fiche source d’une tâche affiche séparément le titre, la description et le statut actuels de l’issue. À l’import, Tale coupe sur la tâche les titres de plus de 200 unités de code UTF-16 et les descriptions de plus de 20 000 (la plupart des emojis en comptent 2) à cette longueur et les termine par « … » ; la fiche source et l’issue liée conservent le texte complet. Fermer ou résoudre une issue conserve le statut, le titre, la description, l’attribution et la priorité de la tâche Tale. Si une issue devient inaccessible, ses dernières informations connues restent visibles. Les erreurs d’authentification et les limites de requêtes font échouer l’exécution, sans déclarer l’issue supprimée. Vérifie et termine le travail dans Tale comme d’habitude.
-
-### Poursuivre les imports automatiquement
-
-**Importer les issues de plusieurs sources** maintient importée une liste de dépôts GitHub et de projets GlitchTip, sans que personne ait à choisir **Poursuivre l'import**. Chaque exécution importe le prochain lot de chaque source, jusqu’à sa `limit` (100 par défaut, 500 au maximum), à partir de l’endroit où s’est arrêté son dernier lot enregistré, puis enregistre où ce lot s’arrête. Quand un lot atteint la fin de la liste d’une source, la passe est terminée et l’exécution suivante reprend au premier lot, ce qui récupère les nouvelles issues. **Importer le prochain lot d’une source d’issues** fait de même pour une seule source ; la liste l’exécute une fois par source.
-
-Donne à une exécution le projet Tale et ses sources :
-
-```json
-{
-  "projectId": "<l’ID du projet>",
-  "sources": [
-    { "kind": "github", "owner": "ton-organisation", "repo": "ton-depot", "limit": 500 },
-    { "kind": "glitchtip", "organization": "ton-organisation", "project": "ton-projet" }
-  ]
-}
-```
-
-Une source GitHub accepte aussi `labels`, et une source GlitchTip `query`, comme les imports. Pour exécuter le paquet selon une planification, mets une version en service, ajoute une planification dans l’onglet **Général** et saisis cet objet comme son [entrée fixe](/fr/platform/automations/triggers#entree-fixe). Pour l’exécuter plutôt comme étape de ta propre automatisation, consulte [Importer chaque issue selon une planification](/fr/platform/automations/triggers#importer-chaque-issue-selon-une-planification).
-
-Chaque source est importée séparément. Quand l’import d’une source échoue, rien n’est enregistré pour elle : l’exécution suivante importe donc de nouveau le même lot, tandis que les autres sources continuent. Après trois exécutions sans enregistrement, cette source recommence sa passe. L’exécution n’échoue entièrement que lorsque Tale ne peut pas lire ou enregistrer les positions du projet, par exemple une fois le projet archivé.
-
-La sortie de l’exécution en est le reçu, avec une entrée par source dans l’ordre de la liste :
-
-| Champ | Signification |
-| --- | --- |
-| `kind`, `source` | La source, nommée `owner/repo` ou `organization/project`. |
-| `ok`, `error` | `false` et `import_failed` quand l’import a échoué et que rien n’a été enregistré. |
-| `batch`, `resumed`, `restarted` | Le rang du lot dans la passe, s’il poursuivait une passe et si une passe qui échouait sans cesse a recommencé. |
-| `saved`, `conflict`, `drained` | Si la position a été enregistrée, si une autre exécution l’avait déplacée avant, de sorte que rien n’a été enregistré, et si ce lot a terminé la passe. |
-| `imported`, `created`, `updated`, `skipped`, `truncated`, `nextCursor`, `refreshHasMore` | Ce que l’import a indiqué pour le lot. |
-
-Les positions sont conservées par projet Tale et par nom de source : une passe qu’une de tes automatisations a commencée sous le même `owner/repo` ou `organization/project` se poursuit donc ici. Les paquets exécutent les imports d’issues de ton organisation, y compris une version que tu as modifiée ou mise en service, et ont besoin des mêmes connexions. L’éditeur signale qu’ils écrivent dans un nœud `subautomation` : si ta politique d’approbation demande qu’une personne valide les écritures sur les tâches, l’exécution échoue au lieu d’attendre.
 
 ## Examiner le travail sur GitHub
 

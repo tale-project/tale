@@ -4,8 +4,7 @@
 
 The rules an automation is held to between the editor and a finished run: who can change one
 and run it live, what a saved version and a deployment guarantee, what creating from a starter does, what a check for problems
-reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what the built-in
-issue intake imports and reports, what a run that ends takes
+reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
 to another and what a resumed run never repeats, what a run records of each step, whose
 approval policy a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
@@ -657,71 +656,6 @@ capacity through ordinary worker admission.
 
 - **Example**: Leo's dispatch schedule fails three wake occurrences in a row → the wake waits
   one, two, then four minutes, and fires the same pending release again after that.
-
-## Importing issues on a schedule
-
-Two built-in automations keep issue imports going without anyone pressing **Continue
-import**. **Import the next batch of an issue source** (`issues-intake-source`) imports one
-GitHub repository or GlitchTip project, and **Import issues from several sources**
-(`issues-intake`) runs it for each source of a list. Each run imports one batch per source
-from where that source's last saved batch stopped. Its output is the receipt: one entry per
-source, in the order listed, with what was imported, which batch of the pass it was, whether
-the run resumed or restarted the pass, and whether it saved the position and ended the pass.
-
-### AUTO-R57 · An intake imports each source from where its last saved batch stopped
-
-A run reads the source's position, imports one batch from it and saves where that batch
-stopped. The batch that reaches the end of the listing ends the pass, and the next run starts
-a new one.
-
-- **Example**: Ada's intake saved batch 2 of `example/web`, which stopped at `page-3`. The
-  next run starts → it imports batch 3 from `page-3` and saves where batch 3 stopped.
-
-### AUTO-R58 · An intake shares a source's position with every automation naming it
-
-A GitHub repository's position is kept under `owner/repo` and a GlitchTip project's under
-`organization/project`, the names an automation that reads and saves positions itself gives
-them, so a pass that automation began carries on in the intake.
-
-- **Example**: Noah's own automation saved batch 4 of `tale-project/tale`. He replaces its
-  import steps with the intake → the intake's first run imports batch 5.
-
-### AUTO-R59 · A source whose import fails saves nothing, so its batch is imported again
-
-The receipt marks the source `ok: false` with `import_failed`, and its position stays where
-it was. After three reads of one position without a save, the next read starts the pass
-over.
-
-- **Example**: GitHub answers 502 while Ada's intake imports batch 3 of `example/web` →
-  nothing is saved, and the next run imports batch 3 again.
-
-### AUTO-R60 · One failing source does not stop the other sources of an intake
-
-Each source is imported on its own. The run fails as a whole only when a position cannot be
-read or saved, which Tale refuses for every source of the project alike, for example once the
-project is archived.
-
-- **Example**: Mia's intake lists three sources, and GitHub refuses the second → the first
-  and the third import and save their positions, and the receipt lists all three, the second
-  as not imported.
-
-### AUTO-R61 · A batch whose save another run overtook is reported as not saved
-
-A position is saved only while it is still where the run read it. When another run saved,
-ended or restarted the pass meanwhile, the save is refused and writes nothing, and the
-receipt says `saved: false` with `conflict: true`.
-
-- **Example**: Two runs of Ada's intake overlap on `example/web` → the second run's save is
-  refused, its receipt says the position was not saved, and the position stays where the
-  first run left it.
-
-### AUTO-R62 · An intake runs the importers an organization already has
-
-The intake asks each importer only for the inputs the importer took when it first shipped, so
-a copy the organization kept, edited or deployed still runs.
-
-- **Example**: Ada's organization deployed its own version 2 of **Import GitHub issues**
-  before the intake shipped. The intake runs → it imports through that version.
 
 ## When a run ends
 

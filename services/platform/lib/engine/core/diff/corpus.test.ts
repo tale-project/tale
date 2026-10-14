@@ -286,7 +286,7 @@ function medianMs(run: () => void, samples: number): number {
 describe('the structural diff on the shipped corpus', () => {
   it('covers every kind of shipped document', () => {
     const labels = documents.map(({ label }) => label);
-    expect(labels.filter((label) => label.startsWith('pack ')).length).toBe(12);
+    expect(labels.filter((label) => label.startsWith('pack ')).length).toBe(10);
     expect(labels).toContain('get_docs example');
     expect(labels).toContain('blank wizard scaffold');
     expect(labels.some((label) => label.startsWith('docs '))).toBe(true);

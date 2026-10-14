@@ -3,7 +3,7 @@ title: Built-in automations
 description: Choose a shipped mail, GitHub or GlitchTip workflow, check its inputs and connections, and understand what it reads or writes before deployment.
 ---
 
-Tale includes twelve automation packages: three mailbox syncs, three inbox digests, two GitHub review workflows, GitHub and GlitchTip issue imports, and two issue intakes that continue those imports on their own. Each starts as version 1 and **Not deployed**. The issue imports and intakes start without a schedule; the other packages include schedules, which start switched off: after you deploy a version, the editor offers **Turn on the trigger**. Inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
+Tale includes ten automation packages: three mailbox syncs, three inbox digests, two GitHub review workflows, and GitHub and GlitchTip issue imports. Each starts as version 1 and **Not deployed**. The issue importers run manually; the other packages include schedules, which start switched off: after you deploy a version, the editor offers **Turn on the trigger**. Inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
 
 <Frame caption="The Automations catalog shows package names, version counts, and deployment status.">
 
@@ -15,7 +15,7 @@ Tale includes twelve automation packages: three mailbox syncs, three inbox diges
 
 Open **Automations**, select a package, and inspect its nodes in the [workflow editor](/platform/automations/editor). Check that the required connector is connected. The packages name a model: when Tale adds them and none of your providers serves it, each `llm` node gets a comparable model they do serve, and the message of version 1 says which. A package added before any provider was connected — as every package of a new organization is — keeps its model, and validation warns about it when you save — choose a served model with **Change model**, which swaps it in every step at once. A test run uses mock responses; it validates the flow without proving access to your real mailbox or repository.
 
-The packages are added when an organization is created. A package that a later release adds reaches an existing organization when the built-in defaults are provisioned again, which [`tale migrate`](/self-hosted/install/cli-install#maintain) does on a self-hosted deployment. Existing versions are preserved when the shipped package changes; only its shipped name and description refresh. A deleted package stays deleted. Your edits create new versions, which you deploy separately.
+The packages are added when an organization is created. Existing versions are preserved when the shipped package changes; only its shipped name and description refresh. A deleted package stays deleted. Your edits create new versions, which you deploy separately.
 
 ## Sync mail into the Inbox
 
@@ -58,43 +58,11 @@ The run's output lists what was read, the model's summary, the threads that need
 1. Connect the source under **Settings > Connectors** and choose its default credential. GitHub needs repository access with read permission for issues. GlitchTip needs its instance URL and a token with `project:read` and `event:read`; a project-provisioning token alone cannot read issues. Self-hosted instances must be allowed by the deployment's connector host policy.
 2. Open the importer and choose **Test run**. Select the **Tale project**, then enter the GitHub owner and repository or the GlitchTip organization and project slugs. Optional labels or a GlitchTip search narrow new issue discovery. **Maximum issues** accepts 1–500, defaulting to 100.
 3. Inspect the test result, deploy the version, and choose **Run live** with the same destination and filters. A test run uses fixtures and creates no tasks; only a live run verifies the real connection.
-4. Open **Runs** and select the run. **Imported tasks** links to the corresponding Tale tasks. If another batch remains, **Continue import** carries the same source, destination, and continuation position into the next run. To import every issue on a schedule instead, let an [issue intake](#continue-imports-on-their-own) keep that position between its runs.
+4. Open **Runs** and select the run. **Imported tasks** links to the corresponding Tale tasks. If another batch remains, **Continue import** carries the same source, destination, and continuation position into the next run. To import every issue on a schedule instead, an automation keeps that position between its occurrences: see [Import every issue on a schedule](/platform/automations/triggers#import-every-issue-on-a-schedule).
 
 Each synchronization discovers new issues and refreshes up to 500 linked issues, prioritizing the oldest checks. Linked issues are refreshed even when they no longer match the discovery filter. Run again to keep large collections current. GitHub pull requests are excluded. Repeating or retrying an import reuses the same source identity within a Tale project; repository and project renames update the canonical source link instead of creating a second task. Issues moved to another repository or source project remain linked and continue to refresh through earlier imports, provided the connection can read their new location.
 
 A task's source card shows the latest source title, description and status separately. When it imports an issue, Tale cuts a title over 200 UTF-16 code units or a description over 20,000 (most emoji count as 2) to that length on the task, ending it in "…"; the source card and the linked issue keep the full text. Closing or resolving a source issue leaves the Tale task's status, title, description, assignee and priority unchanged. A source issue that becomes unavailable retains its last known snapshot; authentication and rate-limit errors fail the run rather than declaring the issue deleted. Review and complete work in Tale as usual.
-
-### Continue imports on their own
-
-**Import issues from several sources** keeps a list of GitHub repositories and GlitchTip projects imported without anyone choosing **Continue import**. Each run imports the next batch of every source, up to its `limit` (100 by default, at most 500), from where that source's last saved batch stopped, and saves where the batch stopped. Once a batch reaches the end of a source's listing, the pass is complete and the next run starts again at the first batch, which picks up new issues. **Import the next batch of an issue source** does the same for a single source; the list runs it once per source.
-
-Give a run the Tale project and its sources:
-
-```json
-{
-  "projectId": "<the project's ID>",
-  "sources": [
-    { "kind": "github", "owner": "your-organization", "repo": "your-repository", "limit": 500 },
-    { "kind": "glitchtip", "organization": "your-organization", "project": "your-project" }
-  ]
-}
-```
-
-A GitHub source also takes `labels` and a GlitchTip source `query`, as the importers do. To run the intake on a schedule, deploy a version, add a schedule on the **General** tab and enter this object as its [fixed input](/platform/automations/triggers#fixed-input). To run it as a step of your own automation instead, see [Import every issue on a schedule](/platform/automations/triggers#import-every-issue-on-a-schedule).
-
-Each source is imported on its own. When the import of a source fails, nothing is saved for it, so the next run imports the same batch again, while the other sources carry on. After three runs without a save, that source starts its pass over. The run fails as a whole only when Tale cannot read or save the positions of the project, for example once the project is archived.
-
-The run's output is the receipt, one entry per source in the order listed:
-
-| Field | Meaning |
-| --- | --- |
-| `kind`, `source` | The source, named `owner/repo` or `organization/project`. |
-| `ok`, `error` | `false` and `import_failed` when the import failed and nothing was saved. |
-| `batch`, `resumed`, `restarted` | Which batch of the pass this was, whether it continued a pass, and whether a pass that kept failing started over. |
-| `saved`, `conflict`, `drained` | Whether the position was saved, whether another run had moved it first so nothing was saved, and whether this batch ended the pass. |
-| `imported`, `created`, `updated`, `skipped`, `truncated`, `nextCursor`, `refreshHasMore` | What the importer reported for the batch. |
-
-Positions are kept per Tale project and source name, so a pass that an automation of your own began under the same `owner/repo` or `organization/project` continues here. The intakes run your organization's issue importers, including a version you edited or deployed, and need the same connections. The editor warns that they write inside a subautomation: if your approval policy asks a person to release task writes, the run fails instead of waiting.
 
 ## Review GitHub work
 
