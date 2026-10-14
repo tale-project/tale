@@ -24,6 +24,16 @@ export type Plan =
   /** Not ported yet: a follow-up with a named reason. */
   | { readonly kind: 'later'; readonly why: string };
 
+/** A change to a workflow that stays on GitHub, made by the cut-over and by nothing before it. */
+export interface GithubEdit {
+  /** The file under `.github/workflows`. */
+  readonly file: string;
+  /** The exact text to find, once. */
+  readonly find: string;
+  readonly replace: string;
+  readonly why: string;
+}
+
 export interface Manifest {
   /** The registry CI images are pushed to, and the secret that holds the package token. */
   readonly registry: Registry;
@@ -48,6 +58,8 @@ export interface Manifest {
   }[];
   /** What happens to each file of `.github/workflows`; one that is not named is ported. */
   readonly workflows: Readonly<Record<string, Plan>>;
+  /** What GitHub's own copies need once Forgejo is the source. */
+  readonly githubEdits: readonly GithubEdit[];
 }
 
 const RELEASE_LANE =
@@ -69,6 +81,15 @@ export const MANIFEST: Manifest = {
             '^(ghcr\\.io|git\\.tale\\.dev)/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$',
         },
       ],
+    },
+  ],
+  githubEdits: [
+    {
+      file: 'publish-packages.yml',
+      find: '  publish:\n    name: Publish ${{ matrix.package }}\n',
+      replace:
+        "  publish:\n    name: Publish ${{ matrix.package }}\n    # Forgejo publishes the snapshots and its push mirror carries them to GitHub, which\n    # deletes any ref Forgejo does not hold: a snapshot made here would not stay.\n    if: vars.TALE_SOURCE != 'forgejo'\n",
+      why: 'the release lane still dispatches this workflow on GitHub, and it must publish nothing once Forgejo is the source',
     },
   ],
   workflows: {

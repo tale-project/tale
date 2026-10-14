@@ -12,6 +12,7 @@ import {
   githubApiToken,
   movePaths,
   ownPath,
+  publishOnTag,
   publishRemote,
   readyJob,
   recordRemoved,
@@ -264,6 +265,79 @@ jobs:
       'publish-packages.yml',
     );
     expect(report.warnings).toHaveLength(2);
+  });
+});
+
+describe('publishOnTag', () => {
+  const PUBLISH = `name: Publish packages
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/ui/**'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        required: false
+        type: string
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA}
+        with:
+          persist-credentials: false
+      - name: Resolve snapshot tag
+        id: tag
+        env:
+          REF: \${{ github.ref }}
+          RELEASE_TAG: \${{ inputs.release_tag }}
+          SOURCE_SHA: \${{ inputs.source_sha }}
+        run: echo "$REF"
+`;
+
+  test("a release tag pins the snapshots from main's tooling and the tag's commit", () => {
+    const { text, report } = run(
+      PUBLISH,
+      [publishOnTag],
+      'publish-packages.yml',
+    );
+    // the branch and path filters still hold for main; a tag is matched on its own
+    expect(text).toContain("tags: ['v*.*.*']");
+    expect(text).toContain(
+      '# A release tag pins the snapshot of its own commit.',
+    );
+    expect(text).toContain(
+      "ref: ${{ startsWith(github.ref, 'refs/tags/') && 'main' || '' }}",
+    );
+    expect(text).toContain(
+      "REF: ${{ startsWith(github.ref, 'refs/tags/') && 'refs/heads/main' || github.ref }}",
+    );
+    expect(text).toContain(
+      "RELEASE_TAG: ${{ inputs.release_tag || startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}",
+    );
+    expect(text).toContain(
+      "SOURCE_SHA: ${{ inputs.source_sha || startsWith(github.ref, 'refs/tags/') && github.sha || '' }}",
+    );
+    expect(report.changes.map((change) => change.rule)).toEqual([
+      'publish-on-tag',
+    ]);
+  });
+
+  test('says when the publisher is not the one it knows, and leaves it alone', () => {
+    const odd = PUBLISH.replace(
+      'REF: ${{ github.ref }}',
+      'REF: refs/heads/main',
+    );
+    const { text, report } = run(odd, [publishOnTag], 'publish-packages.yml');
+    expect(text).not.toContain('tags:');
+    expect(report.warnings.map((warning) => warning.rule)).toEqual(['anchor']);
+    expect(run(PUBLISH, [publishOnTag], 'other.yml').text).not.toContain(
+      'tags:',
+    );
   });
 });
 

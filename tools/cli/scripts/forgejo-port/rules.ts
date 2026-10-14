@@ -95,7 +95,7 @@ function startScript(
  * is pulled and the container started while the next steps check out the code.
  * Nothing removes the container: the runner's instance is deleted with the job.
  */
-export const servicesToDockerRun: Rule = (doc, context) => {
+const servicesToDockerRun: Rule = (doc, context) => {
   const { file, report } = context;
   for (const id of jobIds(doc)) {
     const job = jobOf(doc, id);
@@ -175,7 +175,7 @@ export const servicesToDockerRun: Rule = (doc, context) => {
 // --- the size of a matrix -----------------------------------------------------
 
 /** The number of jobs a plain matrix makes, or `undefined` when something decides it at run time. */
-export function matrixSize(job: YAMLMap): number | undefined {
+function matrixSize(job: YAMLMap): number | undefined {
   const strategy = job.get('strategy');
   const matrix = isMap(strategy) ? strategy.get('matrix') : undefined;
   if (!isMap(matrix)) return undefined;
@@ -194,7 +194,7 @@ export function matrixSize(job: YAMLMap): number | undefined {
  * passes `--shard=N/${{ strategy.job-total }}` would pass `--shard=N/`. The size
  * of a plain matrix is known when the file is generated.
  */
-export const matrixTotals: Rule = (doc, context) => {
+const matrixTotals: Rule = (doc, context) => {
   for (const id of jobIds(doc)) {
     const job = jobOf(doc, id);
     const size = job && matrixSize(job);
@@ -209,7 +209,7 @@ export const matrixTotals: Rule = (doc, context) => {
 // --- what has no meaning on Forgejo ------------------------------------------
 
 /** Deployment environments do not exist on Forgejo and the server drops the key. */
-export const dropEnvironments: Rule = (doc, context) => {
+const dropEnvironments: Rule = (doc, context) => {
   const { file, report } = context;
   for (const id of jobIds(doc)) {
     if (jobOf(doc, id)?.delete('environment'))
