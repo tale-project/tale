@@ -188,13 +188,17 @@ function withheldCredentials(args: {
 
 /**
  * The reads a launching turn builds its instructions and exec from — the
- * organization's Custom instructions, whether the run is confined (a run a
- * member started holds none of the agent's credentials), the task's
- * language, and the serving model's window (so the harness compacts before
- * the prompt outgrows what the model serves; unknown leaves it to the
- * harness). None depends on another, so they run together. The credential
- * env is resolved after them by the caller, as before: only once every read
- * succeeded and only for a run that is not confined.
+ * organization's Custom instructions, the project's instructions as they
+ * read now (recorded on the run with the agent's and the task's, so which
+ * version a run worked from is a fact on the run), whether the run is
+ * confined (a run a member started holds none of the agent's credentials),
+ * the task's language, and the serving model's window (so the harness
+ * compacts before the prompt outgrows what the model serves; unknown leaves
+ * it to the harness). None depends on another, so they run together. The
+ * credential env is resolved after them by the caller, as before: only once
+ * every read succeeded and only for a run that is not confined. A project or
+ * task that cannot be read fails the start: the turn would work without the
+ * instructions it is meant to follow.
  */
 async function readTurnLaunchContext(
   ctx: ActionCtx,
@@ -206,9 +210,12 @@ async function readTurnLaunchContext(
     execId: string;
     providerSlug: string;
     modelId: string;
+    /** The agent's instructions this turn is handed, for the record. */
+    agentInstructions: string | undefined;
   },
 ): Promise<{
   mandatoryInstructions: string | undefined;
+  projectInstructions: string | undefined;
   confined: boolean;
   language: AgentLanguageContext;
   contextWindow: number | undefined;
@@ -217,21 +224,46 @@ async function readTurnLaunchContext(
     internal.tasks.agent_runs.getAgentLanguageContext,
     { organizationId: args.organizationId, taskId: args.taskId },
   );
-  const [mandatoryInstructions, confined, language, contextWindow] =
-    await Promise.all([
-      readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
-      isTurnConfined(ctx, args.runId),
-      languageRead,
-      resolveHarnessTurnContextWindow(ctx, {
-        organizationId: args.organizationId,
-        providerSlug: args.providerSlug,
-        modelId: args.modelId,
-        sessionId: args.sessionId,
-        execId: args.execId,
-        kind: 'task-agent',
-      }),
-    ]);
-  return { mandatoryInstructions, confined, language, contextWindow };
+  const projectRead: Promise<string | null> = ctx.runMutation(
+    internal.tasks.agent_runs.snapshotTaskAgentRunInstructions,
+    {
+      organizationId: args.organizationId,
+      runId: args.runId,
+      taskId: args.taskId,
+      execId: args.execId,
+      agentInstructions:
+        args.agentInstructions !== undefined && args.agentInstructions !== ''
+          ? args.agentInstructions
+          : null,
+    },
+  );
+  const [
+    mandatoryInstructions,
+    projectInstructions,
+    confined,
+    language,
+    contextWindow,
+  ] = await Promise.all([
+    readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
+    projectRead,
+    isTurnConfined(ctx, args.runId),
+    languageRead,
+    resolveHarnessTurnContextWindow(ctx, {
+      organizationId: args.organizationId,
+      providerSlug: args.providerSlug,
+      modelId: args.modelId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      kind: 'task-agent',
+    }),
+  ]);
+  return {
+    mandatoryInstructions,
+    projectInstructions: projectInstructions ?? undefined,
+    confined,
+    language,
+    contextWindow,
+  };
 }
 
 interface TurnKeys {
@@ -1540,19 +1572,27 @@ export async function startTaskAgentTurnImpl(
       const toolsGuidance = grantedToolsGuidance(
         normalizeToolGrants(args.tools),
       );
-      const { mandatoryInstructions, confined, language, contextWindow } =
-        await readTurnLaunchContext(ctx, {
-          organizationId: args.organizationId,
-          runId: args.runId,
-          taskId: args.taskId,
-          sessionId: args.sessionId,
-          execId: args.execId,
-          providerSlug: resolved.providerSlug,
-          modelId: resolved.modelId,
-        });
+      const {
+        mandatoryInstructions,
+        projectInstructions,
+        confined,
+        language,
+        contextWindow,
+      } = await readTurnLaunchContext(ctx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        providerSlug: resolved.providerSlug,
+        modelId: resolved.modelId,
+        agentInstructions: args.instructions,
+      });
       const instructions = [
-        // The organization's Custom instructions lead, as on a chat turn.
+        // The organization's Custom instructions lead, as on a chat turn;
+        // the project's follow, then the agent's own.
         ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
+        ...(projectInstructions !== undefined ? [projectInstructions] : []),
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
           : []),
@@ -2817,19 +2857,27 @@ export async function steerTaskAgentTurnImpl(
 
     const toolsGuidance = grantedToolsGuidance(normalizeToolGrants(args.tools));
     // Same reads as the fresh start, under the rotated exec.
-    const { mandatoryInstructions, confined, language, contextWindow } =
-      await readTurnLaunchContext(ctx, {
-        organizationId: args.organizationId,
-        runId: args.runId,
-        taskId: args.taskId,
-        sessionId: args.sessionId,
-        execId,
-        providerSlug: resolved.providerSlug,
-        modelId: resolved.modelId,
-      });
+    const {
+      mandatoryInstructions,
+      projectInstructions,
+      confined,
+      language,
+      contextWindow,
+    } = await readTurnLaunchContext(ctx, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+      taskId: args.taskId,
+      sessionId: args.sessionId,
+      execId,
+      providerSlug: resolved.providerSlug,
+      modelId: resolved.modelId,
+      agentInstructions: args.instructions,
+    });
     const instructions = [
-      // The organization's Custom instructions lead, as on a chat turn.
+      // The organization's Custom instructions lead, as on a chat turn;
+      // the project's follow, then the agent's own.
       ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
+      ...(projectInstructions !== undefined ? [projectInstructions] : []),
       ...(args.instructions !== undefined && args.instructions !== ''
         ? [args.instructions]
         : []),

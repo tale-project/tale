@@ -500,6 +500,21 @@ active project. Every agent and task it names must be the project's, and its sch
 - **Example**: Mia, a member, tries to switch the project's dispatch on → refused. An admin adds a
   standing role on a task of another project → refused, naming the task.
 
+## What a run is handed
+
+### TASK-R49 · Every turn opens with its project's current instructions, and its run records them
+
+Every turn of a task agent — a start, a retry, a steered restart — reads its project's
+instructions when it starts and is handed them between the organization's Custom instructions
+and the agent's own; a project without instructions adds nothing. The run records the SHA-256
+of the project's instructions, of the agent's and of the task's description the turn was
+handed, with the execution that read them. A turn whose task or project cannot be read does not
+start: its run fails as a start failure and is retried like one.
+
+- **Example**: Ada changes the project's instructions to "Never merge red" while Scribe works
+  "Changelog". She asks for changes → the turn that continues the conversation opens with "Never
+  merge red", and the run's record names the new digest.
+
 ## Runs that need no workspace
 
 The organization's standard agent works a task with what a chat reply has: the model, the

@@ -54,6 +54,7 @@ interface RunRow {
   startedViaRunId: string | null;
   startedViaAutomation: string | null;
   startedViaAgentId: string | null;
+  instructionsSnapshot: unknown;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -90,7 +91,8 @@ export async function recordTaskAgentRunLedgerEntry(
            started_via AS "startedVia",
            started_via_run_id AS "startedViaRunId",
            started_via_automation AS "startedViaAutomation",
-           started_via_agent_id AS "startedViaAgentId"
+           started_via_agent_id AS "startedViaAgentId",
+           instructions_snapshot AS "instructionsSnapshot"
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
     LIMIT 1
@@ -124,6 +126,26 @@ export async function recordTaskAgentRunLedgerEntry(
     LIMIT 1
   `;
   const op = ops[0];
+
+  // A run a dispatch pass started: the sandbox host's verdict the pass read
+  // right before the start (an occurrence of a standing role, named
+  // `<role>@<time>`, asks no host).
+  const admission =
+    run.startedVia === 'dispatch' &&
+    run.startedViaRunId !== null &&
+    !run.startedViaRunId.includes('@')
+      ? ((
+          await tx<{ admission: unknown }[]>`
+            SELECT entry -> 'admission' AS admission
+            FROM app.project_dispatch_passes p,
+                 jsonb_array_elements(p.started) AS entry
+            WHERE p.id = ${run.startedViaRunId}
+              AND p.org_id = ${args.organizationId}
+              AND entry ->> 'runId' = ${run.id}
+            LIMIT 1
+          `
+        )[0]?.admission ?? null)
+      : null;
 
   // The capability bounds at mint time, matched to THIS run by key id.
   let scope: Record<string, unknown> | null = null;
@@ -260,6 +282,12 @@ export async function recordTaskAgentRunLedgerEntry(
             },
           }
         : {}),
+      // What the run's latest turn was handed: digests of the project's,
+      // the agent's and the task's texts.
+      ...(run.instructionsSnapshot !== null
+        ? { instructions: run.instructionsSnapshot }
+        : {}),
+      ...(admission !== null ? { admission } : {}),
       finalStatus: args.finalStatus,
       startedAt,
       settledAt: args.settledAt,

@@ -50,6 +50,7 @@ import {
   announceAgentRunFailed,
   withdrawAgentRunFailedNotices,
 } from './run-failure-notice.ts';
+import type { RunInstructionsSnapshot } from './run-instructions.ts';
 import {
   assertTaskAutomationEnabled,
   lockTaskRunStart,
@@ -157,13 +158,16 @@ export interface AgentRunRow {
   launchedAt: number | null;
   deadlineAt: number;
   settledAt: number | null;
-  /** Who put the agent to work when no person pressed Start (0139). */
-  startedVia: 'automation' | 'agent' | null;
+  /** Who put the agent to work when no person pressed Start (0139, 0206). */
+  startedVia: 'automation' | 'agent' | 'dispatch' | null;
   /** The automation run, or the delegating agent run. */
   startedViaRunId: string | null;
   startedViaNodeId: string | null;
   startedViaAutomation: string | null;
   startedViaAgentId: string | null;
+  /** What the run's latest turn was handed (migration 0209); null before
+   * its first turn started. */
+  instructionsSnapshot: RunInstructionsSnapshot | null;
 }
 
 /** The read's name for `app.project_agent_runs`: none, or its alias `r`. A
@@ -204,7 +208,8 @@ const RUN_COLUMNS = `
   started_via AS "startedVia", started_via_run_id AS "startedViaRunId",
   started_via_node_id AS "startedViaNodeId",
   started_via_automation AS "startedViaAutomation",
-  started_via_agent_id AS "startedViaAgentId"
+  started_via_agent_id AS "startedViaAgentId",
+  instructions_snapshot AS "instructionsSnapshot"
 `;
 
 /**

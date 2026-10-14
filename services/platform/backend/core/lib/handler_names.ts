@@ -347,6 +347,7 @@ interface HandlerNames {
       parkTaskAgentRunForCapacity: FunctionRef;
       rotateTaskAgentRunExec: FunctionRef;
       setTaskAgentRunRunning: FunctionRef;
+      snapshotTaskAgentRunInstructions: FunctionRef;
       stampTaskAgentRunBrokerToken: FunctionRef;
     };
     internal_mutations: FunctionRef & {

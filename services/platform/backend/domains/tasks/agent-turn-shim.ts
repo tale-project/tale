@@ -47,6 +47,7 @@ import { readProjectAgentSkillScope } from './agent-skill-scope.ts';
 import { parkAgentRunInTx } from './agent-workers.ts';
 import { staleTaskInputMirrors } from './input-mirrors.ts';
 import { isTaskRunConfined } from './run-authority.ts';
+import { snapshotRunInstructions } from './run-instructions.ts';
 import {
   agentRecordTaskOutputsTrusted,
   deferredAgentKickRefusal,
@@ -104,6 +105,19 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; taskId: string };
       return loadAgentLanguageContext(sql, args);
+    },
+
+    'tasks/agent_runs:snapshotTaskAgentRunInstructions': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        taskId: string;
+        execId: string;
+        agentInstructions: string | null;
+      };
+      const { projectBlock } = await snapshotRunInstructions(sql, args);
+      return projectBlock;
     },
 
     'tasks/agent_runs:getTaskAgentRunForDrive': async (raw) => {
