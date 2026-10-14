@@ -293,7 +293,11 @@ function assembleConnectorHost(sql: Sql): void {
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
     sandboxScripts: workflowScripts(sql),
-    tasks: pgTaskStore(sql),
+    // The issue sync reads its trackers through this same door, as the step
+    // that runs it: their credentials, hosts, audit and usage stay policed.
+    tasks: pgTaskStore(sql, {
+      runConnector: (args) => runConnectorAction(sql, args),
+    }),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),
     // A search step searches as its run: the run's scope and its spend.

@@ -4,9 +4,10 @@
 
 The rules a task write is held to before anything is saved: who can create, change and delete
 a task, what an archived task or project refuses, how long its text can be, how often
-automations can start an agent on it, how one agent works several tasks at once, and what a
-deleted task leaves behind. The rest of agent runs, reviews beyond captured agent handoffs and a
-reviewer who loses access, repeating tasks and the importers are not covered; see Not yet.
+automations can start an agent on it, how one agent works several tasks at once, what a
+deleted task leaves behind, and how an issue sync keeps tasks in step with their trackers. The
+rest of agent runs, reviews beyond captured agent handoffs and a reviewer who loses access,
+repeating tasks and the importers beyond the issue sync are not covered; see Not yet.
 
 ## Who can do what
 
@@ -707,6 +708,96 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
   review → refused. A new managed review context accepts batches instead, while
   each implementation card keeps its own independent captured gate.
 
+## Issue sync
+
+An issue sync is one automation step (`task.sync_issues`) that keeps a project's tasks in step
+with a list of issue sources: GitHub repositories and GlitchTip projects. Each run reads every
+source in turn, and answers one receipt per source: what it read and wrote, where it stopped,
+and why it did not go as planned.
+
+### TASK-R53 · One source that fails never stops the other sources of an issue sync
+
+When a tracker refuses a source (its credentials, a repository that is gone, a tracker that does
+not answer), that source's receipt names the error, and the sync goes on with the next source.
+The failed source saves nothing, and reads the same batch on the next run.
+
+- **Example**: Mia's sync lists the repositories web and mobile. GitHub refuses the token for web
+  → mobile's new issues become tasks, and web's receipt says `unauthorized`.
+
+### TASK-R54 · An issue sync fails only when every one of its sources failed
+
+While some sources succeed, the step succeeds, with the failed sources' errors in their receipts.
+When every source failed, the step fails with the cause they share, so the schedule counts the
+failure like any other. A source that waits out a rate limit has not failed.
+
+- **Example**: Both of Mia's repositories refuse the token → the step fails, named as refused
+  credentials, and the schedule counts a failed run.
+
+### TASK-R55 · One issue that cannot be read or written never stops the rest of its source
+
+An issue imported earlier that the tracker will not show again (a 403, a 500) is skipped and read
+again on a later run, while the others are refreshed. Each issue is written into its task on its
+own, so one that the task domain refuses (`TASK_EXTERNAL_REF_INVALID`) rolls back alone. The
+receipt counts the skipped issues and names the first ones.
+
+- **Example**: Of the 50 issues a run reads again, GitHub answers 403 for one → the other 49
+  tasks are refreshed, and the receipt counts 1 skipped.
+
+### TASK-R56 · A rate-limited source keeps what it did and waits as long as its tracker asks
+
+When a tracker answers with its rate limit (a 429, or GitHub's 403 with its reset time), the
+source stops for this run: what it read and wrote stays, its position moves on as far as it got,
+and the wait is kept. Until the wait is over, later runs leave that tracker alone. The wait
+counts as no failure, neither for the step (`TASK-R54`) nor for the position (`TASK-R59`).
+
+- **Example**: GitHub asks the sync to wait 20 minutes while it reads Mia's issues again → the
+  new batch is written and saved all the same, and the runs of the next 20 minutes do not call
+  GitHub for that repository.
+
+### TASK-R57 · Each run of an issue sync reads a source's next batch from where it stopped
+
+A source's position is kept per project, source name (`owner/repo`, `organization/project`) and
+filter: each run reads the next batch of open issues from there and saves where it stopped, and
+after the last issue the next run starts the next pass from the first. Automations naming the
+same source under the same filter in the same project share one position; a source narrowed by
+labels or a search keeps a position of its own, and one without keeps the plain name a
+hand-built import chain uses. A new issue becomes a task in Backlog, and an issue imported
+before is written into its task again, never into a second one (`CONN-R12`).
+
+- **Example**: Mia's repository has 250 open issues and her sync reads 100 a run → the first
+  three runs import 100, 100 and 50, and the fourth starts again from the oldest.
+- **Example**: Mia syncs her repository's `bug` issues in one automation and its `ui` issues in
+  another → each continues its own pass, and neither starts the other's over.
+
+### TASK-R58 · An issue sync saves its position only from where its run read it
+
+Two runs of one source may overlap. The first to save moves the position on; the save of the
+other is refused (`conflict`) and writes nothing, so a pass never moves backwards and no batch
+is skipped.
+
+- **Example**: A slow run and the next scheduled one read the same batch of Mia's repository →
+  both write the same tasks, the first saves its position, and the second's receipt says
+  `conflict`.
+
+### TASK-R59 · A position that fails three times, or no longer fits its filter, starts over
+
+A batch the tracker refuses counts against its position, and after three in a row the next run
+starts the pass from the first issue. A position saved under another label filter or search
+starts over at once. A rate limit and a stopped server count nothing.
+
+- **Example**: Mia changes the sync's label filter from `bug` to `bug, ui` → the next run reads
+  from the first matching issue instead of failing on the old position.
+
+### TASK-R60 · An issue closed upstream leaves its task where it is
+
+The sync records the issue's state, title and text on the task's source card (closed,
+resolved, ignored, or no longer available), and never moves the task or changes its title,
+description, status or assignee. Its receipt counts the issues closed, reopened and gone since
+they were last read. The tracker itself is only ever read.
+
+- **Example**: Noah closes an issue on GitHub while its task is In progress in Tale → after the
+  next run the task's source card shows Closed, and the task stays In progress.
+
 ## Not yet
 
 - **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38` and `TASK-R40`, and how a run moves the card between statuses (`agent-runs.ts`,
@@ -717,8 +808,9 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
   reconciliation, a deleted team and an edited project audience do not hand them on yet.
 - **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).
-- **Imported and externally referenced tasks** beyond `TASK-R9` and `TASK-R14`–`TASK-R20` (`external-ref.ts`,
-  `import-cursors.ts`).
+- **Imported and externally referenced tasks** beyond `TASK-R9`, `TASK-R14`–`TASK-R20` and the
+  issue sync's `TASK-R53`–`TASK-R60` (`external-ref.ts`, `import-cursors.ts`): the hand-built import
+  chains' reads and saves of a position (`task.get_import_cursor`, `task.save_import_cursor`).
 - **Undecided: can a task with an old, over-long description still be edited?** Some tasks
   hold a description over 20,000, left by an import made before `TASK-R9`. The server checks
   a description only when a request sends one (`updateTask` in `service.ts`), so a change to

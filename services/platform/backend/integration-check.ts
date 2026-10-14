@@ -190,6 +190,7 @@ import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
+import { checkIssueSync } from './domains/tasks/issue-sync.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
 import { checkNativeAgentRuns } from './domains/tasks/native-runs.integration.ts';
@@ -65665,6 +65666,7 @@ async function main(): Promise<void> {
         'checkImportCursorContinuation',
         () => checkImportCursorContinuation(sql, authCtx, record),
       ],
+      ['checkIssueSync', () => checkIssueSync(sql, authCtx, record)],
       [
         'checkTaskWorkflowParentMoves',
         async () =>

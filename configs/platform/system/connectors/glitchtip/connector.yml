@@ -77,7 +77,7 @@ actions:
         title: Importierte Issues aktualisieren
       fr:
         title: Actualiser les issues importées
-    description: Refresh up to 500 linked source snapshots with bounded request concurrency. Closed and unavailable issues remain linked to their existing Tale tasks.
+    description: Refresh up to 500 linked source snapshots, four at a time, each on its own. An issue the tracker refuses is skipped and tried again on a later run, without failing the others; a rate limit stops the batch, and the issues after it wait for a later run. Closed and unavailable issues remain linked to their existing Tale tasks. With report, the answer also names the issues skipped, how many were not read, and the rate limit's wait.
     effects: read
     input:
       type: object
@@ -88,9 +88,13 @@ actions:
         organization: { type: string, minLength: 1, maxLength: 100 }
         repositoryId: { type: integer, minimum: 1 }
         sourceProjectId: { type: string, minLength: 1 }
+        report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the issues alone.' }
+    # `report: true` answers { issues, failed, notRead, retryAfter } instead
+    # (the issue sync's own reading); the signature types the plain answer.
     output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
     mock: |
-      return input.issues.map((issue) => ({ externalSystem: 'glitchtip', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      const issues = input.issues.map((issue) => ({ externalSystem: 'glitchtip', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;
     backend:
       kind: native
       impl: glitchtip.refresh_import_issues

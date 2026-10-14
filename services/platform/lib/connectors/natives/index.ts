@@ -182,6 +182,7 @@ export const NATIVE_IMPL_IDS = [
   'task.list_external_issues',
   'task.save_import_cursor',
   'task.start_agent',
+  'task.sync_issues',
   'task.update_status',
   'task.upsert',
   'task.upsert_issues',

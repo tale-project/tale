@@ -1,8 +1,9 @@
 /**
  * Native backend for the `task` platform connector — the task lifecycle as
  * automation capabilities: read a task, move its status, write and read its
- * discussion comments, put the task's project agent to work, and keep a
- * scheduled issue import's position between its occurrences.
+ * discussion comments, put the task's project agent to work, sync a list of
+ * issue sources into a project, and keep a scheduled issue import's position
+ * between its occurrences.
  *
  * The thin rim: input narrowing and the marker-window semantics. The store
  * fronts the task domain's own trusted writers, so actor attribution, the
@@ -28,6 +29,13 @@ import type {
   ConnectorCaller,
 } from '../dispatcher';
 import { ConnectorError } from '../errors';
+import {
+  IssueSyncProjectRefusal,
+  issueSyncFailure,
+  issueSyncInputSchema,
+  type IssueSyncInput,
+  type IssueSyncResult,
+} from './issue-sync';
 
 /**
  * The statuses an automation may MOVE a task to — every column except `done`.
@@ -275,6 +283,18 @@ export interface WorkflowTaskStore {
   saveImportCursor(
     args: WorkflowImportCursorKey & { revision: string; next: string },
   ): Promise<WorkflowImportCursorSave>;
+  /** Sync the project's issue sources as an automation run's step: per
+   * source, the next batch from its position, its linked tasks refreshed,
+   * every issue written into its task, the position saved — one receipt
+   * each. Throws {@link IssueSyncProjectRefusal} when the run may not write
+   * in the project. */
+  syncIssues(
+    args: IssueSyncInput & {
+      organizationId: string;
+      caller: ConnectorCaller;
+      signal?: AbortSignal;
+    },
+  ): Promise<IssueSyncResult>;
 }
 
 /** Which listing an import position belongs to. */
@@ -967,12 +987,59 @@ export function platformTaskNatives(
       caller: workflowCaller('save_import_cursor', ctx),
     });
   };
+  /**
+   * The issue sync. Each source answers for itself in its receipt; the step
+   * fails only when the run may not write in the project, or when every
+   * source failed — a source a rate limit holds back is waiting, not
+   * failed — so the trigger's failure streak and its notifications speak
+   * for a sync that is broken, never for one tracker that is down.
+   */
+  const syncIssues: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = issueSyncInputSchema.safeParse(input);
+    if (!parsed.success) refuse('sync_issues', parsed.error);
+    const caller = workflowCaller('sync_issues', ctx);
+    const { projectId } = parsed.data;
+    let result: IssueSyncResult;
+    try {
+      result = await store.syncIssues({
+        ...parsed.data,
+        organizationId: ctx.organizationId,
+        caller,
+        ...(ctx.signal !== undefined && { signal: ctx.signal }),
+      });
+    } catch (error) {
+      if (error instanceof IssueSyncProjectRefusal) {
+        throw new TaskStepRefusal(
+          'sync_issues',
+          `task.sync_issues cannot write in project "${projectId}": ${error.message}`,
+          { reason: 'TASK_PROJECT_NOT_BOUND', params: { projectId } },
+          'install the automation in the project, or run it in a project it is installed in',
+        );
+      }
+      throw error;
+    }
+    if (result.failed === result.sources.length) {
+      throw new TaskStepRefusal(
+        'sync_issues',
+        `task.sync_issues: every issue source failed — ${result.sources
+          .map(
+            (receipt) =>
+              `${receipt.kind} ${receipt.source}: ${receipt.message ?? receipt.error ?? 'failed'}`,
+          )
+          .join('; ')}`,
+        issueSyncFailure(result.sources),
+        'check each source’s connection, its access to the repository or project, and the names in the step',
+      );
+    }
+    return result;
+  };
 
   return {
     'task.create': create,
     'task.start_agent': startAgent,
     'task.get_import_cursor': getImportCursor,
     'task.save_import_cursor': saveImportCursor,
+    'task.sync_issues': syncIssues,
     'task.upsert': upsert,
     'task.upsert_issues': upsertIssues,
     'task.list_external_issues': listExternal,

@@ -1112,6 +1112,41 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     expect(updates[0]).not.toMatch(/[ ,]title = \?/);
   });
 
+  it('records an issue closed upstream on its task, and leaves the task where it is [TASK-R60]', async () => {
+    const { tx, updates } = reconciling({
+      ...stored,
+      status: 'in_progress',
+      assigneeType: 'user',
+      assigneeId: 'u-2',
+    });
+    await expect(
+      upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: 'Closed upstream',
+        externalIssue: { ...snapshot, state: 'closed' },
+        // An import that would close a mirrored item says so; a source
+        // snapshot's state is evidence only.
+        externalState: 'closed',
+      }),
+    ).resolves.toEqual({
+      taskId: 't-42',
+      created: false,
+      title: 'Triaged in Tale',
+    });
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toContain('external_issue = ?');
+    for (const column of [
+      'status',
+      'assignee_id',
+      'completed_at_ms',
+      'external_closed_at_ms',
+    ]) {
+      expect(updates[0]).not.toMatch(new RegExp(`[ ,]${column} = \\?`));
+    }
+    expect(requestTaskReview).not.toHaveBeenCalled();
+    expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
+  });
+
   it('answers the cut title when nothing was materialized', async () => {
     const { tx } = fakeDb(() => []);
     await expect(

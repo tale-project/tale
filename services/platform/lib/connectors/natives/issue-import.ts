@@ -12,6 +12,7 @@ import PQueue from 'p-queue';
 import { z } from 'zod';
 
 import { truncateImportedDescription } from '../../../backend/core/tasks/helpers';
+import type { FailureCause } from '../../engine/core/record/failure';
 import type { ConnectorHttpResponse } from '../../engine/core/slots';
 import type {
   NativeConnectorContext,
@@ -19,13 +20,111 @@ import type {
 } from '../dispatcher';
 import { ConnectorError } from '../errors';
 
-interface ImportedIssue {
+/** One issue as a tracker answered it, in the shape a task takes it. */
+export interface ImportedIssue {
   externalSystem: 'github' | 'glitchtip';
   externalId: string;
   externalUrl: string;
   title: string;
   description: string;
   externalIssue: TaskExternalIssue;
+}
+
+/** The longest a rate limit may ask the sync to wait. A reset further out
+ * reads as a broken header, not as a day off. */
+const MAX_RATE_LIMIT_WAIT_MS = 24 * 60 * 60 * 1000;
+
+/** How long to wait on a rate limit that names no time: GitHub's advice for
+ * a secondary limit without `retry-after`. */
+const DEFAULT_RATE_LIMIT_WAIT_MS = 60 * 1000;
+
+/**
+ * A tracker answered with an error status. `status` lets a run record name
+ * the cause (refused credentials, a missing repository); `retryAfter` is set
+ * when the answer is a rate limit, to when the tracker asked to be called
+ * again.
+ */
+export class IssueSourceHttpError extends ConnectorError {
+  readonly status: number;
+  /** Until when the tracker asked to be left alone (epoch ms) — a rate
+   * limit's only. */
+  readonly retryAfter: number | null;
+  /** A rate limit is a wait, not a refusal: the run record says so even
+   * when the tracker answered 403. */
+  readonly failure?: FailureCause;
+
+  constructor(
+    message: string,
+    args: { status: number; retryAfter: number | null; action: string },
+  ) {
+    super('REQUEST_FAILED', message, {});
+    this.status = args.status;
+    this.retryAfter = args.retryAfter;
+    if (args.retryAfter !== null) {
+      this.failure = {
+        reason: 'CONNECTOR_RATE_LIMITED',
+        params: {
+          connector: args.action.slice(0, args.action.indexOf('.')),
+          action: args.action,
+          status: args.status,
+        },
+      };
+    }
+  }
+}
+
+/** The stored position belongs to another source or filter, or cannot be
+ * read: only a fresh pass can go on. */
+export class IssueCursorError extends ConnectorError {
+  constructor(message: string) {
+    super('INPUT_INVALID', message, {});
+  }
+}
+
+/**
+ * When a tracker that answered `response` asked to be called again, or null
+ * when the answer is no rate limit. A 429 always is; GitHub also answers a
+ * rate limit with 403, and says so through `retry-after`, an exhausted
+ * `x-ratelimit-remaining`, or its message.
+ */
+export function rateLimitWait(
+  response: ConnectorHttpResponse,
+  now: number,
+): number | null {
+  const headers = response.headers;
+  const retryAfter = headers['retry-after'];
+  const remaining = headers['x-ratelimit-remaining'];
+  const limited =
+    response.status === 429 ||
+    (response.status === 403 &&
+      (retryAfter !== undefined ||
+        remaining === '0' ||
+        /rate limit/i.test(safeText(response))));
+  if (!limited) return null;
+  let until: number | null = null;
+  if (retryAfter !== undefined) {
+    const seconds = Number(retryAfter);
+    until = Number.isFinite(seconds)
+      ? now + seconds * 1000
+      : Date.parse(retryAfter);
+  } else if (remaining === '0') {
+    const reset = Number(headers['x-ratelimit-reset']);
+    if (Number.isFinite(reset)) until = reset * 1000;
+  }
+  if (until === null || !Number.isFinite(until)) {
+    until = now + DEFAULT_RATE_LIMIT_WAIT_MS;
+  }
+  return Math.min(Math.max(until, now + 1000), now + MAX_RATE_LIMIT_WAIT_MS);
+}
+
+/** A response's text, or nothing when it has none to give. */
+function safeText(response: ConnectorHttpResponse): string {
+  try {
+    return response.text();
+  } catch (error) {
+    console.warn('[issue-import] could not read an error response', error);
+    return '';
+  }
 }
 // A task's description is the task domain's own cut of the source text
 // (`truncateImportedDescription`: the board's cap, on a grapheme boundary),
@@ -108,22 +207,25 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
     );
   return result.data;
 }
+function staleCursor(message: string): never {
+  throw new IssueCursorError(message);
+}
 function position(raw: string | undefined, scope: string): Position {
   if (!raw) return { scope, page: 1, offset: 0, upstream: '' };
   let data: unknown;
   try {
     data = JSON.parse(raw);
   } catch {
-    invalid('The issue cursor is invalid. Start a new import.');
+    staleCursor('The issue cursor is invalid. Start a new import.');
   }
-  const result = parse(positionSchema, data);
-  if (result.offset > 0 && !result.anchor)
-    invalid('The issue cursor is invalid. Start a new import.');
-  if (result.scope !== scope)
-    invalid(
+  const result = positionSchema.safeParse(data);
+  if (!result.success || (result.data.offset > 0 && !result.data.anchor))
+    staleCursor('The issue cursor is invalid. Start a new import.');
+  if (result.data.scope !== scope)
+    staleCursor(
       'The issue cursor belongs to another source or filter. Start a new import.',
     );
-  return result;
+  return result.data;
 }
 const githubHeaders = {
   Accept: 'application/vnd.github+json',
@@ -143,15 +245,32 @@ async function get(
 function requireSuccess(
   response: ConnectorHttpResponse,
   provider: string,
+  action: string,
 ): unknown {
   if (response.status < 200 || response.status >= 300) {
+    const retryAfter = rateLimitWait(response, Date.now());
+    throw new IssueSourceHttpError(
+      retryAfter !== null
+        ? `${provider} rate-limited the issue sync (HTTP ${response.status}) until ${new Date(retryAfter).toISOString()}.`
+        : `${provider} issue sync failed (HTTP ${response.status}). Check the connection, source access, and rate limit${provider === 'GlitchTip' ? '; the token needs event:read and project:read' : ''}.`,
+      { status: response.status, retryAfter, action },
+    );
+  }
+  try {
+    return response.json();
+  } catch (error) {
+    // The answer's own text stays out of the error: it would reach the
+    // run's record, and a tracker's page can say anything.
+    console.warn(
+      `[issue-import] ${action}: ${provider} answered HTTP ${response.status} with a body that is not JSON`,
+      error instanceof Error ? error.name : typeof error,
+    );
     throw new ConnectorError(
-      'REQUEST_FAILED',
-      `${provider} issue sync failed (HTTP ${response.status}). Check the connection, source access, and rate limit${provider === 'GlitchTip' ? '; the token needs event:read and project:read' : ''}.`,
+      'INPUT_INVALID',
+      `${provider} answered HTTP ${response.status} with a body that is not JSON.`,
       {},
     );
   }
-  return response.json();
 }
 function unavailable(
   provider: ImportedIssue['externalSystem'],
@@ -181,8 +300,14 @@ const githubIssueSchema = z
     updated_at: z.string().optional(),
   })
   .passthrough();
+/** Text as Postgres can store it: a NUL character, which a tracker may
+ * carry and no text or JSON column takes, is dropped. */
+function storable(text: string): string {
+  return text.replaceAll('\u0000', '');
+}
 function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
   const row = parse(githubIssueSchema, raw);
+  const title = storable(row.title).trim() || `#${row.number}`;
   const url = new URL(row.html_url);
   const ref = /^\/([^/]+)\/([^/]+)\/issues\/([1-9][0-9]*)$/.exec(url.pathname);
   if (
@@ -191,16 +316,16 @@ function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
     Number(ref[3]) !== row.number
   )
     invalid('GitHub returned an invalid issue URL.');
-  const description = (row.body ?? '').slice(0, 100000);
+  const description = storable(row.body ?? '').slice(0, 100000);
   return {
     externalSystem: 'github',
     externalId: `${ref[1]}/${ref[2]}#${row.number}`.toLowerCase(),
     externalUrl: row.html_url,
-    title: row.title,
+    title,
     description: truncateImportedDescription(description),
     externalIssue: {
       id: String(row.id),
-      title: row.title,
+      title,
       description,
       url: row.html_url,
       state: row.state,
@@ -239,8 +364,10 @@ function glitchtipIssue(
 ): ImportedIssue {
   const row = parse(glitchtipIssueSchema, raw);
   const id = String(row.id);
+  const title = storable(row.title).trim() || `Issue ${id}`;
   const description = [row.culprit, row.metadata?.value]
-    .filter((value) => value?.trim())
+    .map((value) => storable(value ?? ''))
+    .filter((value) => value.trim())
     .join('\n\n')
     .slice(0, 100000);
   const url = `${endpoint}/${encodeURIComponent(organization)}/issues/${id}`;
@@ -248,11 +375,11 @@ function glitchtipIssue(
     externalSystem: 'glitchtip',
     externalId: `${endpoint}/${encodeURIComponent(organization)}/${encodeURIComponent(row.project.slug)}#${id}`,
     externalUrl: url,
-    title: row.title,
+    title,
     description: truncateImportedDescription(description),
     externalIssue: {
       id: `${endpoint}#${id}`,
-      title: row.title,
+      title,
       description,
       url,
       state: row.status === 'unresolved' ? 'open' : row.status,
@@ -345,8 +472,12 @@ async function discover(options: {
   }
   return { issues, truncated: true, nextCursor: JSON.stringify(continuation) };
 }
-function rows(response: ConnectorHttpResponse, provider: string): unknown[] {
-  const value = requireSuccess(response, provider);
+function rows(
+  response: ConnectorHttpResponse,
+  provider: string,
+  action: string,
+): unknown[] {
+  const value = requireSuccess(response, provider, action);
   if (!Array.isArray(value))
     invalid(`${provider} returned an invalid issue list.`);
   return value;
@@ -372,6 +503,7 @@ export function issueImportNatives(): Readonly<
         requireSuccess(
           await get(ctx, 'GitHub', `https://api.github.com/repos/${repo}`),
           'GitHub',
+          'github.list_import_issues',
         ),
       );
       const start = position(
@@ -399,7 +531,7 @@ export function issueImportNatives(): Readonly<
             'GitHub',
             `https://api.github.com/repositories/${metadata.id}/issues?state=open&sort=created&direction=asc&per_page=100&page=${at.page}${input.labels ? `&labels=${encodeURIComponent(input.labels)}` : ''}`,
           );
-          const data = rows(response, 'GitHub');
+          const data = rows(response, 'GitHub', 'github.list_import_issues');
           const link = response.headers.link ?? response.headers.Link;
           const more = link ? /rel="next"/.test(link) : data.length === 100;
           return {
@@ -439,7 +571,10 @@ export function issueImportNatives(): Readonly<
       );
       if (response.status === 404 || response.status === 410)
         return source ? unavailable('github', issue, syncedAt) : null;
-      const result = githubIssue(requireSuccess(response, 'GitHub'), repoId);
+      const result = githubIssue(
+        requireSuccess(response, 'GitHub', 'github.get_import_issue'),
+        repoId,
+      );
       if (source && result.externalIssue.id !== source.id)
         invalid('GitHub returned a different issue identity.');
       if (
@@ -463,6 +598,7 @@ export function issueImportNatives(): Readonly<
               `https://api.github.com/repos/${canonical}`,
             ),
             'GitHub',
+            'github.get_import_issue',
           ),
         );
         result.externalIssue.repositoryId = repository.id;
@@ -488,6 +624,7 @@ export function issueImportNatives(): Readonly<
             `${endpoint}/api/0/projects/${encodeURIComponent(input.organization)}/${encodeURIComponent(input.project)}/`,
           ),
           'GlitchTip',
+          'glitchtip.list_import_issues',
         ),
       );
       const syncedAt = Date.now();
@@ -527,7 +664,11 @@ export function issueImportNatives(): Readonly<
             base +
               (at.upstream ? `&cursor=${encodeURIComponent(at.upstream)}` : ''),
           );
-          const data = rows(response, 'GlitchTip');
+          const data = rows(
+            response,
+            'GlitchTip',
+            'glitchtip.list_import_issues',
+          );
           const next = (response.headers.link ?? response.headers.Link ?? '')
             .split(',')
             .find((part) => /rel="next"/.test(part));
@@ -580,7 +721,7 @@ export function issueImportNatives(): Readonly<
       if (response.status === 404 || response.status === 410)
         return source ? unavailable('glitchtip', issue, syncedAt) : null;
       const result = glitchtipIssue(
-        requireSuccess(response, 'GlitchTip'),
+        requireSuccess(response, 'GlitchTip', 'glitchtip.get_import_issue'),
         endpoint,
         organization,
       );
@@ -602,41 +743,200 @@ export function issueImportNatives(): Readonly<
             organization: sourceInput.shape.organization,
             repositoryId: sourceInput.shape.repositoryId,
             sourceProjectId: sourceInput.shape.sourceProjectId,
+            report: z.boolean().optional(),
           })
           .strict(),
         raw,
       );
-      const queue = new PQueue({ concurrency: 4 });
       const refresh = natives[`${provider}.get_import_issue`];
       if (!refresh) throw new Error('Missing issue refresh backend');
-      try {
-        const refreshed = await Promise.all(
-          input.issues.map((issue) =>
-            queue.add(() =>
-              refresh(
-                {
-                  issue,
-                  ...(input.organization
-                    ? { organization: input.organization }
-                    : {}),
-                  ...(input.repositoryId
-                    ? { repositoryId: input.repositoryId }
-                    : {}),
-                  ...(input.sourceProjectId
-                    ? { sourceProjectId: input.sourceProjectId }
-                    : {}),
-                },
-                ctx,
-              ),
-            ),
-          ),
+      const outcome = await refreshEach(input.issues, (issue) =>
+        refresh(
+          {
+            issue,
+            ...(input.organization ? { organization: input.organization } : {}),
+            ...(input.repositoryId ? { repositoryId: input.repositoryId } : {}),
+            ...(input.sourceProjectId
+              ? { sourceProjectId: input.sourceProjectId }
+              : {}),
+          },
+          ctx,
+        ),
+      );
+      if (input.report === true) return outcome;
+      const [first] = outcome.failed;
+      if (first !== undefined) {
+        console.warn(
+          `[issue-import] ${provider}: ${outcome.failed.length} of ${input.issues.length} linked issues could not be refreshed and are tried again on a later run (first: ${first.error}${first.status !== undefined ? ` HTTP ${first.status}` : ''})`,
         );
-        return refreshed.filter((issue) => issue !== null);
-      } catch (error) {
-        queue.clear();
-        throw error;
       }
+      return outcome.issues;
     };
   }
   return natives;
+}
+
+/** What went wrong reading a tracker, in the words a sync receipt uses. */
+export type IssueSourceErrorCode =
+  | 'credential'
+  | 'unauthorized'
+  | 'not_found'
+  | 'rate_limited'
+  | 'unavailable'
+  | 'invalid_response'
+  | 'failed';
+
+export interface IssueSourceFailure {
+  error: IssueSourceErrorCode;
+  /** The tracker's HTTP status, when it answered one. */
+  status?: number;
+  /** A rate limit's wait, until then (epoch ms). */
+  retryAfter?: number;
+  /** The failure's sentence — never the tracker's own body. */
+  message: string;
+}
+
+/** The longest failure sentence a receipt keeps. */
+const FAILURE_MESSAGE_MAX = 300;
+
+/** What a receipt says of a failure whose own words could quote the
+ * tracker's answer. */
+const UNREADABLE_ANSWER =
+  'The tracker’s answer could not be read; the next run tries again.';
+
+/**
+ * Why a read of a tracker failed, as a receipt says it: no usable
+ * credential, refused access, a missing repository or project, a rate limit
+ * with its wait, a tracker or network that did not answer, an answer that
+ * made no sense, or anything else. A call cut because the server is
+ * stopping is not the tracker's failure: it is thrown on, so the step stops
+ * there and runs again.
+ */
+export function issueSourceFailure(error: unknown): IssueSourceFailure {
+  if (error instanceof ConnectorError && error.code === 'INTERRUPTED') {
+    throw error;
+  }
+  const message = (
+    error instanceof Error ? error.message : String(error)
+  ).slice(0, FAILURE_MESSAGE_MAX);
+  if (error instanceof IssueSourceHttpError) {
+    const status = error.status;
+    if (error.retryAfter !== null)
+      return {
+        error: 'rate_limited',
+        status,
+        retryAfter: error.retryAfter,
+        message,
+      };
+    if (status === 401 || status === 403)
+      return { error: 'unauthorized', status, message };
+    if (status === 404 || status === 410)
+      return { error: 'not_found', status, message };
+    if (status >= 500) return { error: 'unavailable', status, message };
+    return { error: 'failed', status, message };
+  }
+  if (error instanceof ConnectorError) {
+    switch (error.code) {
+      case 'CREDENTIAL_UNRESOLVED':
+        return { error: 'credential', message };
+      // The request never produced a response: the network, a timeout.
+      case 'REQUEST_FAILED':
+        return { error: 'unavailable', message };
+      case 'INPUT_INVALID':
+        return { error: 'invalid_response', message };
+      // Whatever the reading threw, in its own words — which may quote what
+      // the tracker answered, so the run's record gets a sentence of ours.
+      case 'LIVE_BODY_FAILED':
+        console.warn(
+          '[issue-import] a tracker read failed in its body',
+          error.connector ?? '',
+          error.action ?? '',
+        );
+        return { error: 'failed', message: UNREADABLE_ANSWER };
+      // The platform's own refusals: a host the connector may not reach, a
+      // connector or action that is not there.
+      default:
+        return { error: 'failed', message };
+    }
+  }
+  console.warn(
+    '[issue-import] a tracker read failed',
+    error instanceof Error ? error.name : typeof error,
+  );
+  return { error: 'failed', message: UNREADABLE_ANSWER };
+}
+
+/** What a refresh of linked issues answers when asked for its report. */
+export interface IssueRefreshReport {
+  /** The issues read, in the order asked. */
+  issues: ImportedIssue[];
+  /** The issues that could not be read; a later run tries them again. */
+  failed: Array<{
+    externalId: string;
+    error: IssueSourceErrorCode;
+    status?: number;
+  }>;
+  /** Issues not read at all: a rate limit stopped the batch before them. */
+  notRead: number;
+  /** The rate limit's wait, until then (epoch ms); null when none met. */
+  retryAfter: number | null;
+}
+
+/**
+ * Refresh each linked issue on its own, four at a time: one issue the
+ * tracker refuses (403, 500, an answer that makes no sense) is reported and
+ * skipped, never failing the others. A rate limit stops the batch: the
+ * issues not started yet are not read, and the wait is reported.
+ */
+async function refreshEach(
+  issues: ReadonlyArray<{ externalId: string }>,
+  read: (issue: { externalId: string }) => Promise<unknown>,
+): Promise<IssueRefreshReport> {
+  const queue = new PQueue({ concurrency: 4 });
+  let retryAfter: number | null = null;
+  type Outcome =
+    | { kind: 'read'; value: unknown }
+    | { kind: 'failed'; externalId: string; failure: IssueSourceFailure }
+    | { kind: 'not_read' };
+  const outcomes = await Promise.all(
+    issues.map((issue) =>
+      queue.add(async (): Promise<Outcome> => {
+        if (retryAfter !== null) return { kind: 'not_read' };
+        try {
+          return { kind: 'read', value: await read(issue) };
+        } catch (error) {
+          const failure = issueSourceFailure(error);
+          if (failure.retryAfter !== undefined) {
+            retryAfter = Math.max(retryAfter ?? 0, failure.retryAfter);
+          }
+          return { kind: 'failed', externalId: issue.externalId, failure };
+        }
+      }),
+    ),
+  );
+  const report: IssueRefreshReport = {
+    issues: [],
+    failed: [],
+    notRead: 0,
+    retryAfter,
+  };
+  for (const outcome of outcomes) {
+    if (outcome === undefined || outcome.kind === 'not_read') {
+      report.notRead++;
+    } else if (outcome.kind === 'failed') {
+      report.failed.push({
+        externalId: outcome.externalId,
+        error: outcome.failure.error,
+        ...(outcome.failure.status !== undefined && {
+          status: outcome.failure.status,
+        }),
+      });
+    } else if (outcome.value !== null) {
+      // A legacy row the tracker no longer has, with no snapshot to keep:
+      // nothing to refresh, and nothing failed.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the issue natives answer this shape
+      report.issues.push(outcome.value as ImportedIssue);
+    }
+  }
+  return report;
 }

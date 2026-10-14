@@ -453,6 +453,17 @@ const taskStore: WorkflowTaskStore = {
       conflict: false,
       revision: '2',
     }),
+  syncIssues: () =>
+    Promise.resolve({
+      sources: [],
+      failed: 0,
+      rateLimited: 0,
+      created: 0,
+      refreshed: 0,
+      unchanged: 0,
+      skipped: 0,
+      closedUpstream: 0,
+    }),
 };
 
 const documentStore: WorkflowDocumentStore = {
