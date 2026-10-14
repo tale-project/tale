@@ -458,6 +458,44 @@ describe('a credential someone pasted into a policy in Tale [MCP-R12]', () => {
 });
 
 describe('what a policy change does', () => {
+  it('names a workspace size cap that can now delete more as irreversible', () => {
+    const rules = { deleteUnused: true, unusedDays: 30 };
+    const capped = { ...rules, maxWorkspaceGiB: 30 };
+    expect(governanceEffects('sandbox_workspaces', null, capped)).toEqual([
+      'irreversible',
+    ]);
+    expect(governanceEffects('sandbox_workspaces', rules, capped)).toEqual([
+      'irreversible',
+    ]);
+    expect(
+      governanceEffects('sandbox_workspaces', capped, {
+        ...rules,
+        maxWorkspaceGiB: 20,
+      }),
+    ).toEqual(['irreversible']);
+    expect(
+      governanceEffects('sandbox_workspaces', capped, {
+        ...capped,
+        reclaimMinIdleHours: 6,
+      }),
+    ).toEqual(['irreversible']);
+    // A looser cap, no cap, or the disk switch alone deletes nothing more.
+    expect(
+      governanceEffects('sandbox_workspaces', capped, {
+        ...rules,
+        maxWorkspaceGiB: 40,
+      }),
+    ).toEqual([]);
+    expect(governanceEffects('sandbox_workspaces', capped, rules)).toEqual([]);
+    expect(
+      governanceEffects('sandbox_workspaces', rules, {
+        ...rules,
+        reclaimOnDiskPressure: true,
+        reclaimMinIdleHours: 1,
+      }),
+    ).toEqual([]);
+  });
+
   it('names a lockout, a sign-out or a removed approval only where one happens', () => {
     expect(governanceEffects('login_policy', null, { enabled: true })).toEqual([
       'may-lock-out-members',

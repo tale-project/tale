@@ -57,8 +57,9 @@ export const POLICY_TYPES = [
   // org admin tunes. See `sandboxQuotaConfigSchema`.
   'sandbox_quota',
   // When a project agent's workspace that nobody has used for a while is
-  // deleted. Missing file ⇒ after 30 days without use. See
-  // `sandboxWorkspacesConfigSchema`.
+  // deleted, and when an idle one goes for disk space or for its size.
+  // Missing file ⇒ after 30 days without use, and the largest idle ones while
+  // the sandbox disk runs short. See `sandboxWorkspacesConfigSchema`.
   'sandbox_workspaces',
   // Deprecated / ignored. Conversation assignment privacy is built into RLS
   // (always on). Kept so existing org-config / configCache rows still validate.
@@ -190,12 +191,17 @@ export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =
   sandboxQuotaConfigSchema.parse({});
 
 /**
- * How long a project agent's workspace is kept once nobody uses it. A
- * workspace is a project agent's persistent `/agent` directory (its standing
- * one, and one per member who starts its runs); it outlives every idle stop,
- * so without this bound it grows for as long as the agent exists. Missing
- * file ⇒ these schema defaults: deleted 30 days after its last use. An
- * "always-on" (pinned) workspace is never deleted for being unused, and a
+ * How long a project agent's workspace is kept once nobody uses it, and when
+ * an idle one goes for its size. A workspace is a project agent's persistent
+ * `/agent` directory (its standing one, and one per member who starts its
+ * runs); it outlives every idle stop, so without these bounds it grows for as
+ * long as the agent exists, on a disk every organization of the sandbox host
+ * shares. Missing file ⇒ these schema defaults: deleted 30 days after its
+ * last use; while the sandbox host's workspace disk is below its free-space
+ * floor, the largest workspaces idle for 24 hours go first, until the disk
+ * has twice its floor free again; no size cap. A file written before a field
+ * existed reads that field's default. An "always-on" (pinned) workspace is
+ * never deleted for being unused, for disk space or for its size, and a
  * legal hold keeps every workspace it covers.
  */
 export const sandboxWorkspacesConfigSchema = z.object({
@@ -203,6 +209,17 @@ export const sandboxWorkspacesConfigSchema = z.object({
   deleteUnused: z.boolean().default(true),
   /** Days after its last use that an unused workspace is deleted. */
   unusedDays: z.number().int().min(1).max(3650).default(30),
+  /** Whether this organization's idle workspaces are deleted, the largest
+   * of the sandbox host first, while its workspace disk is below the floor
+   * of free space admission keeps. Off keeps them out of that reclaim; the
+   * other organizations' still go. */
+  reclaimOnDiskPressure: z.boolean().default(true),
+  /** The size in GiB above which an idle workspace is deleted, whatever the
+   * disk holds. Absent: no cap. */
+  maxWorkspaceGiB: z.number().int().min(1).max(10_240).optional(),
+  /** Hours without use before a workspace counts as idle, and may be
+   * deleted for disk space or for its size. */
+  reclaimMinIdleHours: z.number().int().min(1).max(8760).default(24),
 });
 export type SandboxWorkspacesConfig = z.infer<
   typeof sandboxWorkspacesConfigSchema

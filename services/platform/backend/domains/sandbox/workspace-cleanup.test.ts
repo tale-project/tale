@@ -81,7 +81,7 @@ describe('workspaceVerdict', () => {
   });
 
   it('deletes after 30 days, switched on, unless the organization set otherwise [SBX-R12]', () => {
-    expect(DEFAULT_SANDBOX_WORKSPACES).toEqual({
+    expect(DEFAULT_SANDBOX_WORKSPACES).toMatchObject({
       deleteUnused: true,
       unusedDays: 30,
     });
@@ -92,13 +92,17 @@ describe('workspaceVerdict', () => {
     expect(
       workspaceVerdict(facts({ lastUsedAt }), {
         ...context,
-        policy: { deleteUnused: true, unusedDays: 7 },
+        policy: { ...DEFAULT_SANDBOX_WORKSPACES, unusedDays: 7 },
       }),
     ).toEqual({ retire: true, reason: 'unused', mode: 'stopped' });
     expect(
       workspaceVerdict(facts({ lastUsedAt: NOW - 4000 * DAY }), {
         ...context,
-        policy: { deleteUnused: false, unusedDays: 7 },
+        policy: {
+          ...DEFAULT_SANDBOX_WORKSPACES,
+          deleteUnused: false,
+          unusedDays: 7,
+        },
       }),
     ).toEqual({ retire: false });
   });
@@ -219,6 +223,7 @@ function scriptedSpawner(script: {
       };
     },
     inventory: async () => null,
+    usage: async () => null,
     teardownOrganization: async (organizationId) => {
       calls.push(`teardown ${organizationId}`);
       return {};

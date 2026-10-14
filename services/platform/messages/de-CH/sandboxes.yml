@@ -1,2 +1,9 @@
 capacity:
   memoryHint: Genutzter und gesamter Host-Speicher, einschliesslich anderer Dienste.
+cleanup:
+  reclaimOnDiskPressureHint: Wird der Speicherplatz auf dem Sandbox-Host knapp, löscht Tale die grössten inaktiven Arbeitsbereiche des Hosts, bis wieder genug Platz frei ist. Schalte das aus, um die Arbeitsbereiche deiner Organisation davon auszunehmen.
+  limitSize: Grösse der Arbeitsbereiche begrenzen
+  limitSizeHint: Löscht bei der nächsten stündlichen Bereinigung einen inaktiven Arbeitsbereich, der mehr als die unten angegebene Grösse belegt.
+  maxWorkspaceGiB: Maximale Grösse (GiB)
+  maxWorkspaceGiBHint: Tale misst jeden Arbeitsbereich auf dem Sandbox-Host. Ein Arbeitsbereich, dessen Grösse noch nicht bekannt ist, wird nie deswegen gelöscht.
+  reclaimMinIdleHoursHint: Um Speicherplatz freizugeben oder weil er zu gross ist, löscht Tale einen Arbeitsbereich erst, wenn ihn mindestens so viele Stunden niemand genutzt hat. Angepinnte Arbeitsbereiche und Arbeitsbereiche unter einem Legal Hold bleiben immer erhalten.

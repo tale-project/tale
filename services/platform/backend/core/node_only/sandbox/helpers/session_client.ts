@@ -1448,6 +1448,63 @@ export async function sandboxWorkspaceInventory(
   return workspaceInventorySchema.parse(await res.json());
 }
 
+const workspaceUsageSchema = z.object({
+  /** When the spawner answered, on its own clock. */
+  measuredAtMs: z.number(),
+  /** The workspaces' filesystem against the floor admission keeps and its
+   * critical tier, as last read; null where the spawner does not hold that
+   * disk (Kubernetes, Incus) or has not read it yet. */
+  disk: z
+    .object({
+      freeBytes: z.number().nonnegative(),
+      floorBytes: z.number().nonnegative(),
+      criticalBytes: z.number().nonnegative(),
+      short: z.boolean(),
+      critical: z.boolean(),
+    })
+    .nullable(),
+  workspaces: z.array(
+    z.object({
+      sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+      /** null while it is not measured, or its measurement failed or ran
+       * out of time. */
+      bytes: z.number().nonnegative().nullable(),
+      /** When it was measured, on the spawner's clock; null when never. */
+      measuredAtMs: z.number().nullable(),
+    }),
+  ),
+});
+
+export type SandboxWorkspaceUsage = z.infer<typeof workspaceUsageSchema>;
+
+/** GET /v1/workspaces/usage?organizationId= — how much each of the
+ * organization's workspaces holds, as the spawner last measured it (at most
+ * every ten minutes, at most fifty a call), beside where the workspaces' disk
+ * stands. `null` from a spawner that predates the route; THROWS when the
+ * spawner could not list its workspaces (503) or could not be reached, and
+ * once `signal` aborts (the read gives up after 60 s on its own: a
+ * measurement in flight is waited for). */
+export async function sandboxWorkspaceUsage(
+  organizationId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<SandboxWorkspaceUsage | null> {
+  const res = await spawnerFetch(
+    'GET',
+    `/v1/workspaces/usage?organizationId=${encodeURIComponent(organizationId)}`,
+    {
+      signal: AbortSignal.any([
+        AbortSignal.timeout(60_000),
+        ...(options.signal ? [options.signal] : []),
+      ]),
+    },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox workspace usage unavailable (${res.status})`);
+  }
+  return workspaceUsageSchema.parse(await res.json());
+}
+
 /** DELETE /v1/organizations/:id — a deleted organization's remaining
  * sessions and its resources beyond them (build helpers, networks, caches).
  * `null` from a spawner that predates the route; THROWS on any other

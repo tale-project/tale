@@ -354,7 +354,13 @@ describe('POST /policies/sandbox_workspaces — the rule takes effect with the s
     expect(recordUnusedWorkspaceRule).toHaveBeenCalledWith(
       expect.anything(),
       'o1',
-      { deleteUnused: true, unusedDays: 7 },
+      // A file without the disk and size fields reads their defaults.
+      {
+        deleteUnused: true,
+        unusedDays: 7,
+        reclaimOnDiskPressure: true,
+        reclaimMinIdleHours: 24,
+      },
       expect.any(Number),
     );
     expect(order).toEqual(['rule', 'file']);

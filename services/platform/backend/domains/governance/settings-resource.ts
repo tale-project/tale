@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SANDBOX_WORKSPACES,
   FILE_POLICY_TYPES,
   isFilePolicyType,
   POLICY_SCHEMAS,
@@ -165,6 +166,26 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === 'number' ? value : undefined;
 }
 
+/** Whether a change of the workspace rules lets the size cap delete
+ * workspaces it would not have: a cap set or lowered, or the idle hours a
+ * capped workspace must wait shortened. The next hourly cleanup deletes
+ * them, and their files cannot be brought back. */
+function workspaceCapTightened(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown>,
+): boolean {
+  const cap = asNumber(after.maxWorkspaceGiB);
+  if (cap === undefined) return false;
+  const previousCap = asNumber(before?.maxWorkspaceGiB);
+  const { reclaimMinIdleHours } = DEFAULT_SANDBOX_WORKSPACES;
+  return (
+    previousCap === undefined ||
+    cap < previousCap ||
+    (asNumber(after.reclaimMinIdleHours) ?? reclaimMinIdleHours) <
+      (asNumber(before?.reclaimMinIdleHours) ?? reclaimMinIdleHours)
+  );
+}
+
 /**
  * What a change of one policy does beyond the value it sets, from the
  * policy before (null when none is saved) and after: who may be locked
@@ -211,6 +232,8 @@ export function governanceEffects(
       return approvalLoosened(was, now) ? ['removes-human-approval'] : [];
     case 'review_policy':
       return reviewLoosened(was, now) ? ['removes-human-approval'] : [];
+    case 'sandbox_workspaces':
+      return workspaceCapTightened(was, now) ? ['irreversible'] : [];
     default:
       return [];
   }

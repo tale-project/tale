@@ -277,10 +277,11 @@ contract, with every shape:
 
 Stopping keeps a workspace; the platform decides when one goes — its owner
 (agent, member, organization) was deleted, nobody used it for the
-organization's window, or nothing owns it any more — and the spawner reports
-and enforces: `GET /v1/workspaces` lists every workspace it holds (stopped
-sessions' data included) and the organizations holding build helpers or
-package caches, `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` deletes a
+organization's window, nothing owns it any more, or, idle, it is above its
+organization's size cap or among the largest while the disk runs short — and
+the spawner reports and enforces: `GET /v1/workspaces` lists every workspace it
+holds (stopped sessions' data included) and the organizations holding build
+helpers or package caches, `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` deletes a
 workspace only while no compute runs under it, and `DELETE /v1/organizations/:id`
 removes what is left of a deleted organization. `GET /v1/workspaces/usage?organizationId=`
 says what each of an organization's workspaces holds, measured by the

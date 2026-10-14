@@ -957,7 +957,17 @@ deletes a workspace:
   organization the deployment holds (unless its project agent still exists)
   or deleted. A spawner or namespace can also hold another deployment's
   workspaces, which no row names either; those, and the ones with no
-  recorded organization, are left alone.
+  recorded organization, are left alone;
+- when a project agent's workspace is idle — no compute, no run waiting for
+  it, unused for the organization's `reclaimMinIdleHours` (24 by default),
+  not pinned, not held — and either measured above the organization's
+  `maxWorkspaceGiB` cap, or among the largest on the host while
+  `GET /v1/workspaces/usage` reports the workspaces' disk below its floor:
+  the largest of every organization that allows it (`reclaimOnDiskPressure`,
+  on by default) first, until what the deletions free brings the disk back
+  to twice its floor (`workspace-reclaim.ts`). Only a size measured after
+  the workspace's last use counts; one unmeasured is never deleted for it,
+  and a spawner without the route reclaims nothing.
 
 An hourly sweep (`sandbox.workspace_gc`) is the backstop for all of it. A legal
 hold keeps everything it covers. Every decision is taken again under the

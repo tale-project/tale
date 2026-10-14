@@ -796,5 +796,9 @@
  * reports a state or a value (`DISPATCH_GATE_UNKNOWN`,
  * `DISPATCH_GATE_VALUE_UNJUDGED`), and `GET /api/v1/projects/{id}/dispatch`
  * reads what the dispatch does and why each agent of its pool is idle.
+ * The governance policy `sandbox_workspaces` takes `reclaimOnDiskPressure`,
+ * `maxWorkspaceGiB` and `reclaimMinIdleHours` (a file without them reads
+ * their defaults), and a plan that sets or tightens the size cap names the
+ * effect `irreversible`.
  */
 export const API_CONTRACT_VERSION = '3.45.0';
