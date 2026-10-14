@@ -265,8 +265,8 @@ ${RUNS}    strategy:
   });
 });
 
-describe('dropWhatForgejoIgnores', () => {
-  test('removes environments and SARIF uploads, and says so', () => {
+describe('dropEnvironments', () => {
+  test('removes an environment and says so', () => {
     const { text, report } = port(`name: S
 on:
   pull_request:
@@ -275,17 +275,11 @@ jobs:
     environment: production
 ${RUNS}    steps:
       - run: scan
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v4
-        with:
-          sarif_file: out.sarif
 `);
     expect(text).not.toContain('environment');
-    expect(text).not.toContain('codeql');
     expect(report.changes.map((change) => change.rule)).toContain(
       'environment',
     );
-    expect(report.changes.map((change) => change.rule)).toContain('sarif');
   });
 });
 

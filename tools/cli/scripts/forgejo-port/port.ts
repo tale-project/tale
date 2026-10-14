@@ -26,6 +26,7 @@ import { DEFAULT_RULES, learnEmptyOutputs } from './rules';
 import { rewriteTriggers, type TriggerOptions } from './triggers';
 import {
   emptyReport,
+  foldAction,
   foldWorkflow,
   jobIds,
   readWorkflow,
@@ -39,6 +40,8 @@ export interface PortOptions {
   readonly triggers?: Partial<TriggerOptions>;
   /** Rules that run before folding, in order. */
   readonly rules?: readonly Rule[];
+  /** Rules that run once folding is done, in order. */
+  readonly after?: readonly Rule[];
 }
 
 export interface PortedWorkflow {
@@ -61,6 +64,9 @@ export function portWorkflow(
 
   const triggers = rewriteTriggers(doc, { file, ...options.triggers }, report);
   knowledge.oneOf.set('github.event_name', [...triggers.events]);
+  // Forgejo has no draft to skip for and no event when one is marked ready, so a pull
+  // request runs whatever its title says; the merge train itself refuses a work in progress.
+  knowledge.values.set('github.event.pull_request.draft', false);
   knowledge.absent.push(
     'github.event.client_payload',
     'github.event.merge_group',
@@ -94,10 +100,30 @@ export function portWorkflow(
     }
   }
 
+  for (const rule of options.after ?? []) rule(doc, context);
+
   return {
     text: writeWorkflow(doc),
     jobs: jobIds(doc),
     removed,
     events: triggers.events,
   };
+}
+
+/**
+ * Port a composite action: its steps go through the rules given, and are folded by what
+ * those rules learned. An action has no events or jobs of its own to decide.
+ */
+export function portAction(
+  source: string,
+  file: string,
+  report: Report,
+  rules: readonly Rule[],
+): string {
+  const doc = readWorkflow(source, file);
+  const knowledge = newKnowledge();
+  const context: PortContext = { file, report, knowledge, removed: new Map() };
+  for (const rule of rules) rule(doc, context);
+  foldAction(doc, { file, facts: factsOf(knowledge), report });
+  return writeWorkflow(doc);
 }

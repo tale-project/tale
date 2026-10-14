@@ -17,8 +17,8 @@ export interface Knowledge {
   readonly absent: string[];
   /** The strings a context path can be: the events the generated workflow has. */
   readonly oneOf: Map<string, string[]>;
-  /** Values that hold inside one job only, by job id: the size of its matrix. */
-  readonly jobValues: Map<string, Map<string, Scalar>>;
+  /** What holds inside one job only, by job id: the size of its matrix, the steps it lost. */
+  readonly jobs: Map<string, { values: Map<string, Scalar>; absent: string[] }>;
 }
 
 export function newKnowledge(): Knowledge {
@@ -26,7 +26,7 @@ export function newKnowledge(): Knowledge {
     values: new Map(),
     absent: [],
     oneOf: new Map(),
-    jobValues: new Map(),
+    jobs: new Map(),
   };
 }
 
@@ -41,11 +41,23 @@ export function factsOf(knowledge: Knowledge): Facts {
 /** The facts that hold inside each job only, as the folder wants them. */
 export function jobFactsOf(knowledge: Knowledge): Map<string, Facts> {
   return new Map(
-    [...knowledge.jobValues].map(([id, values]) => [
+    [...knowledge.jobs].map(([id, facts]) => [
       id,
-      { values } satisfies Facts,
+      { values: facts.values, absent: facts.absent } satisfies Facts,
     ]),
   );
+}
+
+/** The mutable facts of one job, made when first asked for. */
+export function jobKnowledge(
+  knowledge: Knowledge,
+  id: string,
+): { values: Map<string, Scalar>; absent: string[] } {
+  const existing = knowledge.jobs.get(id);
+  if (existing) return existing;
+  const made = { values: new Map<string, Scalar>(), absent: [] as string[] };
+  knowledge.jobs.set(id, made);
+  return made;
 }
 
 export interface PortContext {
