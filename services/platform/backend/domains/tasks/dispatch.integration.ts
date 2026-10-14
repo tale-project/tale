@@ -30,7 +30,11 @@ import { failAgentRunFromTurn, settleAgentRun } from './agent-runs.ts';
 import { claimAgentWorker } from './agent-workers.ts';
 import { holdAgentJobs } from './delegated-start.integration.ts';
 import { admitAutomatedStart } from './delegated-start.ts';
-import { saveProjectDispatch } from './dispatch-config.ts';
+import {
+  readProjectDispatchConfiguration,
+  saveProjectDispatch,
+} from './dispatch-config.ts';
+import { reportDispatchGate } from './dispatch-gates.ts';
 import { runDispatchPass, type HostVerdict } from './dispatch-pass.ts';
 import { readProjectDispatchStatus } from './dispatch-readback.ts';
 import { snapshotRunInstructions } from './run-instructions.ts';
@@ -71,6 +75,8 @@ export async function checkFleetDispatch(
     t4: randomUUID(),
     t5: randomUUID(),
     t6: randomUUID(),
+    t7: randomUUID(),
+    t8: randomUUID(),
     manager: randomUUID(),
   };
   const now = Date.now();
@@ -531,6 +537,121 @@ export async function checkFleetDispatch(
       "fleet dispatch: capacity refusals of the manager's own task close no circuit [TASK-R12]",
       circuit.admitted,
       `circuit=${JSON.stringify(circuit)}`,
+    );
+
+    // 9. A gate: the CI queue is full, so the work labelled `ci` waits and
+    // the rest starts; the queue drains below the recover value, the gate
+    // opens, a pass is asked for at once, and the held work starts.
+    const ciLabel = randomUUID();
+    await sql`
+      INSERT INTO app.task_labels (id, org_id, project_id, name, color,
+        created_by, created_at_ms, updated_at_ms)
+      VALUES (${ciLabel}, ${orgId}, ${projectId}, 'ci', 'blue', ${userId},
+        ${now}, ${now})
+    `;
+    await sql`
+      INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
+        label_ids, created_by, created_by_type, created_at_ms, updated_at_ms)
+      VALUES
+        (${tasks.t7}, ${orgId}, ${projectId}, 'Release build', 'todo', 'h',
+          ${[ciLabel]}, ${userId}, 'user', ${now}, ${now}),
+        (${tasks.t8}, ${orgId}, ${projectId}, 'FAQ', 'todo', 'i',
+          ${[]}::text[], ${userId}, 'user', ${now}, ${now})
+    `;
+    const current = await readProjectDispatchConfiguration(
+      sql,
+      auth,
+      projectId,
+    );
+    await transactSerializable(sql, (tx) =>
+      saveProjectDispatch(tx, auth, {
+        projectId,
+        dispatch: {
+          ...dispatch,
+          gates: [{ key: 'ci', labels: ['ci'], holdAt: 20 }],
+        },
+        expectedHash: current.hash,
+      }),
+    );
+    const report = (value: number) =>
+      transactSerializable(sql, (tx) =>
+        reportDispatchGate(tx, auth, {
+          projectId,
+          key: 'ci',
+          report: { value, reason: 'queued CI jobs' },
+          reporter: `user:${userId}`,
+          access: 'administer',
+        }),
+      );
+    const full = await report(23);
+    if (styleGuide === undefined)
+      throw new Error('itest: style guide run missing');
+    await settleAgentRun(sql, {
+      runId: styleGuide.id,
+      execId: styleGuide.execId,
+      resultText: 'Done.',
+    });
+    const gatedPass = await pass(ADMIT);
+    const faq = await runOf(tasks.t8);
+    const releaseBuildWaits = (await runOf(tasks.t7)) === undefined;
+    const easing = await report(14);
+    // One pass waits per project: drop the lane's own held requests, so the
+    // pass the opening report asks for is a row of its own.
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'tasks.dispatch_project'
+        AND data ->> 'projectId' = ${projectId} AND state = 'created'
+    `;
+    const drained = await report(9);
+    const gatePasses = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pgboss.job
+      WHERE name = 'tasks.dispatch_project'
+        AND data ->> 'projectId' = ${projectId}
+        AND data ->> 'trigger' = 'gate'
+    `;
+    if (faq === undefined) throw new Error('itest: FAQ run missing');
+    await settleAgentRun(sql, {
+      runId: faq.id,
+      execId: faq.execId,
+      resultText: 'Done.',
+    });
+    const openPass = await pass(ADMIT);
+    const releaseBuild = await runOf(tasks.t7);
+    record(
+      'fleet dispatch: a held gate leaves the work it governs and starts the rest, holds until its value falls below the recover value, and asks for a pass when it opens [TASK-R51]',
+      full.held &&
+        gatedPass !== null &&
+        faq.agentId === agents.b1 &&
+        releaseBuildWaits &&
+        gatedPass.held.some(
+          (hold) => hold.taskId === tasks.t7 && hold.reason === 'gate:ci',
+        ) &&
+        easing.held &&
+        !easing.changed &&
+        !drained.held &&
+        drained.changed &&
+        gatePasses[0]?.n === 1 &&
+        openPass !== null &&
+        releaseBuild?.agentId === agents.b1,
+      `full=${JSON.stringify(full)} gated=${JSON.stringify(gatedPass)} easing=${JSON.stringify(easing)} drained=${JSON.stringify(drained)} gatePasses=${gatePasses[0]?.n} open=${JSON.stringify(openPass)} releaseBuild=${JSON.stringify(releaseBuild)}`,
+    );
+
+    // A report nobody repeats goes stale: the gate opens again.
+    await report(25);
+    await sql`
+      UPDATE app.project_dispatch_gates
+      SET reported_at_ms = ${Date.now() - 11 * 60_000}
+      WHERE project_id = ${projectId} AND gate_key = 'ci'
+    `;
+    const staleStatus = await readProjectDispatchStatus(sql, auth, projectId);
+    const ciGate = staleStatus.gates.find((gate) => gate.key === 'ci');
+    record(
+      'fleet dispatch: a gate nobody reports on for its stale window opens again, and the readback says it is stale [TASK-R51]',
+      ciGate !== undefined &&
+        ciGate.stale &&
+        !ciGate.held &&
+        ciGate.value === 25,
+      `gate=${JSON.stringify(ciGate)}`,
     );
   } finally {
     await sql`
