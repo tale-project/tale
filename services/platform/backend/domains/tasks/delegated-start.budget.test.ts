@@ -155,7 +155,6 @@ describe('automated start budget after a broker cooldown [TASK-R12]', () => {
       ]),
     ).resolves.toEqual({ admitted: false, retryAfter: NOW - 3_000 + HOUR_MS });
   });
-
 });
 
 describe('automated start budget around a model at capacity [TASK-R12]', () => {
