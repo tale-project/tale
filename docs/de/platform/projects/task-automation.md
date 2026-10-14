@@ -83,6 +83,8 @@ Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich
 
 Ein Manager-Agent ist ein Projektagent, der laut seinen Anweisungen das ganze Board liest, startbereite Arbeit verteilt und die Routinefragen anderer Agenten beantwortet, damit Personen nur noch sehen, was ihr Eingreifen braucht. Er liest mit **Aufgaben finden** und **Aufgabe lesen**; keines der beiden Tools ändert etwas.
 
+Der Manager entscheidet, was sich zu tun lohnt; jeden Agenten selbst starten muss er nicht. Mit der [Arbeitsverteilung](/de/platform/projects/dispatch) startet das Projekt die bereite Arbeit auf freien Agenten und führt den Manager als ständige Rolle nach Zeitplan aus: Der Manager ordnet das Board und beantwortet Fragen, während die Arbeitsverteilung die Agenten auslastet.
+
 ### Die ganze Warteschlange in Durchgängen lesen
 
 **Aufgaben finden** liefert höchstens 50 Aufgaben auf einmal. Solange eine Seite `isDone: false` meldet, bringt ihr `continueCursor`, als `cursor` mit denselben Argumenten zurückgegeben, die nächste Seite; die letzte Seite meldet `isDone: true`. Ein Cursor, der mit anderen Filtern, einer anderen Reihenfolge oder aus dem Lauf eines anderen Projekts zurückkommt, wird abgelehnt, ebenso ein beschädigter: Er wird nie als erste Seite gelesen. Eine Gesamtzahl erscheint nur, wenn eine einzige Seite alle passenden Aufgaben enthält.
@@ -118,7 +120,7 @@ Eine Frage aus einer Daueraufgabe, die ein Zeitplan mit `moveToInProgress: false
 
 Fragen einer Automatisierung und Workflow-Genehmigungen bleiben Sache von Personen. Ein Manager darf ein Review von Projektagentenarbeit nur über den oben beschriebenen unabhängigen Prüfablauf entscheiden, wenn es ihm zugewiesen ist. Das Lesen oder Fortsetzen einer Aufgabe nimmt ihr Ergebnis nicht an.
 
-## Wartende und fehlgeschlagene Läufe behandeln
+## Wartende und fehlgeschlagene Läufe behandeln {#handle-waiting-and-failed-runs}
 
 | Zustand oder Problem | Maßnahme |
 | --- | --- |

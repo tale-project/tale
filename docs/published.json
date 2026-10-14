@@ -193,6 +193,7 @@
     "platform/projects/backlog",
     "platform/projects/concepts",
     "platform/projects/discussions",
+    "platform/projects/dispatch",
     "platform/projects/manage-files",
     "platform/projects/overview",
     "platform/projects/project-agents",

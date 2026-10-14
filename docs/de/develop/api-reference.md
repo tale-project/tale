@@ -593,6 +593,41 @@ Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redak
 
 Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte und ein aktives Projekt. Ein unsichtbares oder fehlendes Projekt sowie eine Agenten-ID aus einem anderen Projekt ergibt **404**. Bei Mitgliedschaft in mehreren Organisationen muss jede Lese- und Schreibanfrage `X-Organization-Slug` enthalten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt die Arbeit an Aufgaben; der direkte Chat verwendet weiterhin den eingebauten Assistenten.
 
+## Die Arbeitsverteilung eines Projekts lesen und ihre Schranken melden {#dispatch}
+
+Die [Arbeitsverteilung](/de/platform/projects/dispatch) eines Projekts startet seine bereite Arbeit auf den freien Agenten ihres Pools. Zwei Operationen erreichen sie von außen:
+
+| Operation | Route | Erfolg |
+| --- | --- | --- |
+| Lesen, was die Arbeitsverteilung tut | `GET /api/v1/projects/{id}/dispatch` | `200` |
+| Eine Schranke melden | `POST /api/v1/projects/{id}/dispatch/gates/{key}` | `200 {held, changed}` |
+
+Das Lesen liefert, was die Seite **Arbeitsverteilung** des Projekts zeigt: jeden Agenten des Pools mit den Läufen, die er hält, oder dem Grund, warum er untätig ist (`idle`: `model_capacity`, `host_pressure`, `org_limit`, `pacing`, `gated`, `no_ready_work`, `disabled` oder `unknown`), die ständigen Rollen mit ihrem nächsten und letzten Termin, die Modelle, auf die die Organisation wartet (`holds`), die Schranken, wie der nächste Durchlauf sie beurteilt, die Agenten-Worker der Organisation im Vergleich zum Pool (`poolExceedsWorkers` ist `true`, wenn der Pool gleichzeitig mehr Läufe halten kann, als es Worker gibt) und die letzten 20 Durchläufe. Ein Projekt ohne Arbeitsverteilung antwortet mit `configured: false`. Wer das Projekt lesen darf, darf sie lesen.
+
+Eine Schranke hält die bereite Arbeit zurück, für die sie gilt, solange ein Signal von außen das verlangt, etwa ein CI-System, dessen Runner-Warteschlange voll ist. Die Arbeitsverteilung deklariert jede Schranke; eine Meldung setzt sie dann. Sende `{"state": "hold"}` oder `{"state": "open"}` oder für eine Schranke, die `holdAt` deklariert, `{"value": 23}`: Ab `holdAt` schließt sie, und geschlossen öffnet sie sich erst unter `recoverBelow` wieder (der Hälfte von `holdAt`, sofern nicht deklariert). `reason`, höchstens 500 Zeichen, wird bei der Schranke angezeigt. Ein Schlüssel, den die Arbeitsverteilung nicht deklariert, ergibt **404**, `DISPATCH_GATE_UNKNOWN`; ein Wert für eine Schranke ohne `holdAt` ergibt **400**, `DISPATCH_GATE_VALUE_UNJUDGED`. Zum Melden brauchst du Bearbeitungsrechte für das Projekt.
+
+Eine Schranke, zu der innerhalb ihrer `staleAfterSeconds` – 600, sofern nicht deklariert – niemand etwas meldet, öffnet sich wieder oder schließt sich, wenn sie `whenStale: "hold"` deklariert. Melde deshalb nach Zeitplan, nicht nur bei einer Änderung des Signals. Dieses Beispiel meldet die Länge einer CI-Warteschlange aus einem Job, der alle fünf Minuten läuft:
+
+```bash
+: "${BASE:?Set BASE to your Tale origin}"
+: "${TALE_API_KEY:?Set TALE_API_KEY}"
+: "${ORG_SLUG:?Set ORG_SLUG}"
+: "${PROJECT_ID:?Set PROJECT_ID to the project whose dispatch declares the gate}"
+: "${QUEUED:?Set QUEUED to the number of queued CI jobs}"
+GATE_URL="$BASE/api/v1/projects/$PROJECT_ID/dispatch/gates/ci"
+curl -fsS "$GATE_URL" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -n --argjson value "$QUEUED" '{value: $value, reason: "queued CI jobs"}')"
+```
+
+```json
+{ "held": true, "changed": true }
+```
+
+Eine Meldung, die eine Schranke öffnet, löst sofort einen Durchlauf aus, sodass die zurückgehaltene Arbeit startet, ohne auf die nächste Minute zu warten (Vertrag 3.45.0).
+
 ## Automatisierungsnamen in URLs
 
 Der Name einer Automatisierung ist ein `/`-Pfad — `billing/dunning` — und ein Pfad passt nicht in ein einzelnes URL-Segment. Schreib den Namen in jeder `.../automations/{name}/...`-URL mit `__` an Stelle jedes `/`:

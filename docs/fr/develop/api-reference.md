@@ -642,6 +642,41 @@ Le droit de lire un projet permet de consulter ses agents. Les écritures exigen
 
 [Agents de projet](/fr/platform/projects/project-agents) explique leur travail sur les tâches. Le chat direct utilise l’assistant intégré.
 
+## Lire la répartition du travail d’un projet et signaler ses barrières {#dispatch}
+
+La [répartition du travail](/fr/platform/projects/dispatch) d’un projet lance son travail prêt sur les agents libres de son pool. Deux opérations l’atteignent depuis l’extérieur :
+
+| Opération | Route | Succès |
+| --- | --- | --- |
+| Lire ce que fait la répartition | `GET /api/v1/projects/{id}/dispatch` | `200` |
+| Signaler une barrière | `POST /api/v1/projects/{id}/dispatch/gates/{key}` | `200 {held, changed}` |
+
+La lecture renvoie ce qu’affiche la page **Répartition du travail** du projet : chaque agent du pool avec les exécutions qu’il tient ou la raison de son inactivité (`idle` : `model_capacity`, `host_pressure`, `org_limit`, `pacing`, `gated`, `no_ready_work`, `disabled` ou `unknown`), les rôles permanents avec leur prochaine et leur dernière occurrence, les modèles que l’organisation attend (`holds`), les barrières telles que le prochain passage les juge, les workers d’agent de l’organisation face au pool (`poolExceedsWorkers` vaut `true` quand le pool peut tenir plus d’exécutions simultanées qu’il n’y a de workers) et les 20 derniers passages. Un projet sans répartition répond `configured: false`. Les lecteurs du projet peuvent la lire.
+
+Une barrière retient le travail prêt qu’elle régit tant qu’un signal extérieur le demande, par exemple un système de CI dont la file des runners est pleine. La répartition déclare chaque barrière ; un signalement la règle ensuite. Envoie `{"state": "hold"}` ou `{"state": "open"}`, ou `{"value": 23}` pour une barrière qui déclare `holdAt` : à partir de `holdAt` elle se ferme, et une fois fermée elle ne se rouvre que sous `recoverBelow` (la moitié de `holdAt` sauf déclaration contraire). `reason`, 500 caractères au plus, s’affiche avec la barrière. Une clé que la répartition ne déclare pas renvoie **404**, `DISPATCH_GATE_UNKNOWN` ; une valeur pour une barrière sans `holdAt` renvoie **400**, `DISPATCH_GATE_VALUE_UNJUDGED`. Signaler demande le droit de modifier le projet.
+
+Une barrière que personne ne signale pendant ses `staleAfterSeconds` — 600 sauf déclaration contraire — se rouvre, ou se ferme quand elle déclare `whenStale: "hold"` : signale donc selon un horaire, pas seulement quand le signal change. Cet exemple signale la longueur d’une file de CI depuis un job qui tourne toutes les cinq minutes :
+
+```bash
+: "${BASE:?Set BASE to your Tale origin}"
+: "${TALE_API_KEY:?Set TALE_API_KEY}"
+: "${ORG_SLUG:?Set ORG_SLUG}"
+: "${PROJECT_ID:?Set PROJECT_ID to the project whose dispatch declares the gate}"
+: "${QUEUED:?Set QUEUED to the number of queued CI jobs}"
+GATE_URL="$BASE/api/v1/projects/$PROJECT_ID/dispatch/gates/ci"
+curl -fsS "$GATE_URL" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -n --argjson value "$QUEUED" '{value: $value, reason: "queued CI jobs"}')"
+```
+
+```json
+{ "held": true, "changed": true }
+```
+
+Un signalement qui ouvre une barrière demande aussitôt un passage, pour que le travail retenu démarre sans attendre la minute suivante (contrat 3.45.0).
+
 ## Les noms d'automatisation dans les URL
 
 Un nom d’automatisation peut contenir des `/`, par exemple `billing/dunning`. Dans chaque URL `.../automations/{name}/...`, remplace ces séparateurs par `__` pour garder le nom dans un seul segment.

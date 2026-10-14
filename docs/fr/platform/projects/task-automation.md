@@ -83,6 +83,8 @@ Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours
 
 Un agent coordinateur est un agent de projet dont les instructions consistent à lire tout le tableau, à distribuer le travail prêt et à répondre aux questions de routine que laissent les autres agents, pour que les personnes ne voient que ce qui demande leur intervention. Il lit avec **Trouver des tâches** et **Lire une tâche** ; aucun de ces deux outils ne modifie quoi que ce soit.
 
+Le coordinateur décide de ce qui vaut la peine d’être fait ; il n’a pas à lancer lui-même chaque agent. Avec la [répartition du travail](/fr/platform/projects/dispatch), le projet lance le travail prêt sur les agents libres et exécute le coordinateur comme rôle permanent selon un horaire : le coordinateur ordonne le tableau et répond aux questions pendant que la répartition occupe les agents.
+
 ### Lire toute la file de travail par passages
 
 **Trouver des tâches** renvoie au plus 50 tâches à la fois. Tant qu’une page indique `isDone: false`, son `continueCursor`, renvoyé comme `cursor` avec les mêmes arguments, donne la page suivante ; la dernière page indique `isDone: true`. Un curseur qui revient avec d’autres filtres, un autre ordre ou depuis l’exécution d’un autre projet est refusé, tout comme un curseur abîmé : il n’est jamais lu comme la première page. Un total n’apparaît que lorsqu’une seule page contient toutes les tâches correspondantes.
@@ -118,7 +120,7 @@ Une question venant d’une tâche permanente, qu’une planification démarre a
 
 Les questions d’une automatisation et les approbations de workflows restent l’affaire des personnes. Un coordinateur peut décider d’une relecture de travail d’agent uniquement par le parcours indépendant décrit plus haut, quand elle lui est attribuée. Lire ou reprendre une tâche n’approuve pas son résultat.
 
-## Traiter une attente ou un échec
+## Traiter une attente ou un échec {#handle-waiting-and-failed-runs}
 
 | État ou symptôme | Action |
 | --- | --- |

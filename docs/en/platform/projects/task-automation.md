@@ -83,6 +83,8 @@ A task can have only one queued, running, or waiting run at a time, whichever au
 
 A manager agent is a project agent whose instructions are to read the whole board, hand out ready work and answer the routine questions other agents leave, so that people see only what needs them. It reads with **Find tasks** and **Read a task**; neither tool changes anything.
 
+The manager decides what is worth doing; it does not have to start each agent itself. With [dispatch](/platform/projects/dispatch), the project starts the ready work on idle agents and runs the manager as a standing role on a schedule, so the manager ranks the board and answers questions while dispatch keeps the agents busy.
+
 ### Read the whole queue in passes
 
 **Find tasks** answers at most 50 tasks at a time. While a page says `isDone: false`, its `continueCursor`, passed back as `cursor` with the same arguments, returns the next page; the last page says `isDone: true`. A cursor that comes back with other filters, another order or from another project's run is refused, and so is a damaged one: it is never read as the first page. A total appears only when one page holds every matching task.
@@ -118,7 +120,7 @@ A question from a standing task, one a schedule starts with `moveToInProgress: f
 
 Answering an automation's question and deciding a workflow approval stay with people. A manager may decide a project-agent task review only through the independent-review flow above, when that review is assigned to it; reading or resuming a task does not approve it.
 
-## Handle waiting and failed runs
+## Handle waiting and failed runs {#handle-waiting-and-failed-runs}
 
 | State or symptom | What to do |
 | --- | --- |

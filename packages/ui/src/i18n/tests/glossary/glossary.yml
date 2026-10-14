@@ -362,6 +362,16 @@ terms:
     _note: A job a project's dispatch gives one agent on a schedule, on its
       own task (a manager's routing pass, a nightly QA sweep). Plurals —
       Standing roles, Ständige Rollen, Rôles permanents. de-CH inherits de.
+  - key: feature_dispatchGate
+    category: feature
+    en: Gate
+    de: Schranke
+    fr: barrière
+    _note: A dispatch's gate — a signal from outside that holds the ready
+      work it governs while it is held. Held/open read Geschlossen/Offen in
+      DE (die Schranke schließt, öffnet sich) and Fermée/Ouverte in FR (la
+      barrière se ferme, s'ouvre). The API keeps `gates`, `held` and `open`.
+      de-CH inherits de.
   - key: feature_automations
     category: feature
     en: Automations

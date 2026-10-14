@@ -773,6 +773,14 @@
       "description": "Verstehe, was ein Projekt gemeinsam bereitstellt, welche Chats persönlich bleiben und wann sich ein Projekt lohnt."
     }
   },
+  "de:platform/projects/dispatch": {
+    "slug": "platform/projects/dispatch",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Agenten mit der Arbeitsverteilung auslasten",
+      "description": "Lass Tale die bereiten Aufgaben eines Projekts auf freien Agenten starten, ständige Rollen nach Zeitplan ausführen, Arbeit hinter Signalen von außen zurückhalten und sehen, warum ein Agent untätig ist."
+    }
+  },
   "de:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "de",
@@ -2005,6 +2013,14 @@
       "description": "Understand what a project shares, what stays personal, and when to move recurring work into one."
     }
   },
+  "en:platform/projects/dispatch": {
+    "slug": "platform/projects/dispatch",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Keep agents busy with dispatch",
+      "description": "Let Tale start a project's ready tasks on idle agents, run standing roles on a schedule, hold work behind outside signals, and see why an agent is idle."
+    }
+  },
   "en:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "en",
@@ -3235,6 +3251,14 @@
     "frontmatter": {
       "title": "Comprendre les projets",
       "description": "Comprends ce qu’un projet partage, quels chats restent personnels et quand y regrouper un travail suivi."
+    }
+  },
+  "fr:platform/projects/dispatch": {
+    "slug": "platform/projects/dispatch",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Occuper les agents avec la répartition du travail",
+      "description": "Laisse Tale lancer les tâches prêtes d’un projet sur les agents libres, exécuter des rôles permanents selon un horaire, retenir du travail derrière des signaux extérieurs et voir pourquoi un agent est inactif."
     }
   },
   "fr:platform/projects/manage-files": {
