@@ -21,6 +21,11 @@ export type Plan =
         readonly id: string;
         readonly why: string;
       }[];
+      /** Events that make no sense on Forgejo even though it fires them, with why. */
+      readonly dropEvents?: readonly {
+        readonly name: string;
+        readonly why: string;
+      }[];
     }
   /** Stays on GitHub on purpose: the release lane and what only GitHub can serve. */
   | { readonly kind: 'github'; readonly why: string }
@@ -105,6 +110,12 @@ export const MANIFEST: Manifest = {
   workflows: {
     'cli.yml': {
       kind: 'port',
+      dropEvents: [
+        {
+          name: 'workflow_dispatch',
+          why: 'it builds the binaries of a release tag, to attach them to a GitHub release; releases are made on GitHub',
+        },
+      ],
       dropJobs: [
         {
           id: 'release',
