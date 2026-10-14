@@ -5,6 +5,7 @@ import type { Rule } from './context';
 import { portWorkflow } from './port';
 import { emptyReport } from './workflow';
 import {
+  batchEvent,
   commitlintBatch,
   dropForeignRows,
   dropJobs,
@@ -85,9 +86,15 @@ jobs:
     expect(text).not.toContain('ci-ready/action.yml');
   });
 
-  test('says which jobs of the GitHub workflow are gone', () => {
+  test('says which jobs of the GitHub workflow are gone, and what each would have reported', () => {
     const { text } = run(SOURCE, [readyJob], 'checks.yml', [recordRemoved]);
-    expect(text).toContain('CI_PORT_REMOVED: candidate-source');
+    const recorded = /CI_PORT_REMOVED: \|\n([\s\S]*?)\n\s*run:/.exec(text);
+    expect(JSON.parse(recorded?.[1] ?? 'null')).toEqual({
+      'candidate-source': {
+        pull_request: { result: 'skipped', outputs: {} },
+        push: { result: 'skipped', outputs: {} },
+      },
+    });
   });
 
   test('leaves a job it does not recognise alone, and says when it cannot rewrite', () => {
@@ -267,6 +274,36 @@ describe('small text rules', () => {
       [runUrls],
     );
     expect(text).toContain('/actions/runs/${{ github.run_number }}');
+  });
+
+  test('the service matrix tells a batch by its push', () => {
+    const source = `name: Build
+on:
+  pull_request:
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ -n "$CANDIDATE_SHA" ] || [ "$EVENT_NAME" = merge_group ] || [ "$FULL_SCOPE" = true ]; then
+            echo all
+          fi
+`;
+    const { text, report } = run(source, [batchEvent], 'build.yml');
+    expect(text).toContain('[ "$EVENT_NAME" = push ]');
+    expect(text).not.toContain('merge_group');
+    expect(report.changes.map((change) => change.rule)).toEqual([
+      'batch-event',
+    ]);
+    // another workflow's script is not touched, and a moved anchor is said
+    expect(run(source, [batchEvent], 'e2e.yml').text).toContain('merge_group');
+    expect(
+      run(
+        source.replace('= merge_group', '= merge'),
+        [batchEvent],
+        'build.yml',
+      ).report.warnings.map((warning) => warning.rule),
+    ).toEqual(['anchor']);
   });
 
   test('a build that feeds the release feed takes a GitHub token, a publisher keeps the job token', () => {

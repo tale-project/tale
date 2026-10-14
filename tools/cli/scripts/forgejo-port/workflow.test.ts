@@ -121,6 +121,79 @@ describe('readWorkflow and writeWorkflow', () => {
     expect(jobIds(doc)).toEqual(['b']);
   });
 
+  test('drop the inputs of an action that came to nothing, and the `with` that held them', () => {
+    const { doc } = fold(`jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: \${{ needs.candidate-source.outputs.candidate_sha }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: \${{ needs.candidate-source.outputs.candidate_sha }}
+          fetch-depth: 0
+`);
+    expect(writeWorkflow(doc)).toBe(`jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+`);
+  });
+
+  test('leave no blank line after `jobs:` when the first job is removed', () => {
+    const doc = readWorkflow(
+      `jobs:
+  a:
+    runs-on: ubuntu-latest
+
+  # about b
+  b:
+    runs-on: ubuntu-latest
+`,
+      'x.yml',
+    );
+    removeJobs(doc, ['a']);
+    expect(writeWorkflow(doc)).toBe(
+      `jobs:
+  # about b
+  b:
+    runs-on: ubuntu-latest
+`,
+    );
+  });
+
+  test('hand the comment above a removed run-name to the key that follows', () => {
+    const { doc } = fold(`name: X
+
+# What this workflow is for.
+run-name: \${{ github.event_name == 'repository_dispatch' && 'candidate' || '' }}
+
+on:
+  push:
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo
+`);
+    expect(writeWorkflow(doc)).toBe(`name: X
+
+# What this workflow is for.
+on:
+  push:
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo
+`);
+  });
+
   test('keep comments and the style of text it does not change', () => {
     const { doc } = fold(COMMITLINT);
     const written = writeWorkflow(doc);
@@ -175,6 +248,29 @@ describe('foldCondition', () => {
       kind: 'text',
       text: '${{ !cancelled() }}',
     });
+  });
+
+  test('decides a condition that is the same for every event the workflow has', () => {
+    // facts: a workflow with pull requests and pushes only
+    expect(
+      foldCondition(
+        "github.event_name != 'pull_request' && github.event_name != 'push' && needs.x.result == 'success'",
+        facts,
+      ),
+    ).toEqual({ kind: 'never' });
+    expect(
+      foldCondition(
+        "github.event_name == 'pull_request' || github.event_name == 'push'",
+        facts,
+      ),
+    ).toEqual({ kind: 'always' });
+    // one that depends on the event stays
+    expect(
+      foldCondition(
+        "github.event_name != 'pull_request' && needs.x.result == 'success'",
+        facts,
+      ),
+    ).toEqual({ kind: 'unchanged' });
   });
 
   test('refuse a wrapped condition with text around it', () => {

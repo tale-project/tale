@@ -183,6 +183,9 @@ export function removeJobs(doc: Document, ids: readonly string[]): void {
   const gone = new Set(ids);
   const jobs = jobsOf(doc);
   for (const id of gone) jobs.delete(id);
+  // The blank line that separated the first job from its neighbour would now open the map.
+  const [first] = jobs.items;
+  if (isScalar(first?.key)) first.key.spaceBefore = false;
   for (const pair of jobs.items) {
     const job = isMap(pair.value) ? pair.value : undefined;
     if (!job) continue;
@@ -219,10 +222,44 @@ export function foldCondition(source: string, facts: Facts): Condition {
   })();
   const folded = simplify(expression, facts, 'condition');
   const after = printExpression(folded);
-  if (after === printExpression(expression)) return { kind: 'unchanged' };
-  if (folded.kind === 'literal')
+  if (folded.kind === 'literal' && after !== printExpression(expression))
     return { kind: truthy(folded.value) ? 'always' : 'never' };
+  const everywhere = holdsForEveryEvent(folded, facts);
+  if (everywhere !== undefined)
+    return { kind: everywhere ? 'always' : 'never' };
+  if (after === printExpression(expression)) return { kind: 'unchanged' };
   return { kind: 'text', text: wrapped ? `\${{ ${after} }}` : after };
+}
+
+/**
+ * Whether a condition comes to the same answer for each event the workflow has. A
+ * condition like `event != 'pull_request' && event != 'push'` mentions no event twice
+ * in the same way, so folding one comparison at a time cannot see that a workflow with
+ * only those two events never meets it.
+ */
+function holdsForEveryEvent(
+  condition: ReturnType<typeof parseExpression>,
+  facts: Facts,
+): boolean | undefined {
+  const events = facts.oneOf?.get('github.event_name');
+  if (!events || events.length < 2) return undefined;
+  const answers = events.map((event) => {
+    const here = simplify(
+      condition,
+      {
+        ...facts,
+        values: new Map([
+          ...(facts.values ?? []),
+          ['github.event_name', event],
+        ]),
+      },
+      'condition',
+    );
+    return here.kind === 'literal' ? truthy(here.value) : undefined;
+  });
+  if (answers.every((answer) => answer === true)) return true;
+  if (answers.every((answer) => answer === false)) return false;
+  return undefined;
 }
 
 export interface FoldContext {
@@ -253,6 +290,11 @@ export function withFacts(
       values,
       oneOf,
       absent: [...(context.facts.absent ?? []), ...(extra.absent ?? [])],
+      conditional: new Map([
+        ...(context.facts.conditional ?? []),
+        ...(extra.conditional ?? []),
+      ]),
+      aliases: context.facts.aliases,
     },
   };
 }
@@ -394,7 +436,9 @@ function foldValue(
   const value = pair.value;
   if (isScalar(value)) {
     const outcome = foldScalar(value, at, context);
-    if (outcome === 'empty' && dropWhenEmpty) parent.delete(pair.key);
+    // What stood above `run-name` is the file's own description: the next key keeps it.
+    if (outcome === 'empty' && dropWhenEmpty)
+      deletePair(parent, pair, at === 'run-name');
     return;
   }
   if (isMap(value)) {
@@ -410,6 +454,9 @@ function foldValue(
           value.delete(inner.key);
       } else foldValue(value, inner, here, false, context);
     }
+    // An action given nothing is given no inputs: `with: {}` says nothing.
+    if (value.items.length === 0 && dropWhenEmpty)
+      deletePair(parent, pair, false);
     return;
   }
   if (isSeq(value)) {
@@ -419,6 +466,19 @@ function foldValue(
       else if (isMap(item)) foldMapValues(item, here, context, new Set());
     }
   }
+}
+
+/** Delete a pair; with `carry`, the comment that stood above it moves to the pair that follows. */
+function deletePair(parent: YAMLMap, pair: Pair, carry: boolean): void {
+  const index = parent.items.indexOf(pair);
+  if (index < 0) return;
+  const comment = isNode(pair.key) ? pair.key.commentBefore : undefined;
+  parent.items.splice(index, 1);
+  const next = parent.items[index];
+  if (carry && comment && next && isNode(next.key))
+    next.key.commentBefore = next.key.commentBefore
+      ? `${comment}\n${next.key.commentBefore}`
+      : comment;
 }
 
 /** `empty` when a whole value came to nothing (null or the empty string). */

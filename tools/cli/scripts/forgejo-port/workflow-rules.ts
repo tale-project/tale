@@ -13,7 +13,13 @@ import { Scalar, YAMLMap, YAMLSeq, isMap, isSeq } from 'yaml';
 import type { Document } from 'yaml';
 
 import { replaceText } from './actions';
-import { learnRemoval, type PortContext, type Rule } from './context';
+import {
+  SKIPPED,
+  learnRemoval,
+  type EventResults,
+  type PortContext,
+  type Rule,
+} from './context';
 import {
   jobIds,
   jobOf,
@@ -112,18 +118,28 @@ export const readyJob: Rule = (doc, context) => {
   });
 };
 
-/** After folding: say which jobs of the GitHub workflow are gone, so the policy takes them as skipped. */
+/**
+ * After folding: say which jobs of the GitHub workflow are gone and what each would have
+ * reported, so the policy, which judges the GitHub workflow's jobs, finds them where it
+ * expects them: skipped, or a scope job's success with its outputs.
+ */
 export const recordRemoved: Rule = (doc, context) => {
   const job = jobOf(doc, 'ci-ready');
   const steps = job && stepsOf(job);
   if (!steps) return;
+  const removed: Record<string, EventResults> = {};
+  for (const id of [...context.removed.keys()].toSorted())
+    removed[id] = context.results.get(id) ?? {
+      pull_request: SKIPPED,
+      push: SKIPPED,
+    };
   for (const step of steps.items) {
     if (!isMap(step) || stringOf(step.get('name')) !== READY_STEP) continue;
     const env = step.get('env');
     if (isMap(env))
       env.set(
         'CI_PORT_REMOVED',
-        [...context.removed.keys()].toSorted().join(','),
+        literal(`${JSON.stringify(removed, null, 2)}\n`),
       );
   }
 };
@@ -208,6 +224,30 @@ export const commitlintBatch: Rule = (doc, context) => {
       rule: 'commitlint-batch',
       detail:
         'a push of a new branch lints every commit since main, not only the last',
+    });
+};
+
+/**
+ * Build's service matrix names a batch by its event, `merge_group`, to build everything for
+ * it. A batch is a push here, and the only pushes the workflow has are batches.
+ */
+export const batchEvent: Rule = (doc, context) => {
+  if (context.file !== 'build.yml') return;
+  const from = '[ "$EVENT_NAME" = merge_group ]';
+  const to = '[ "$EVENT_NAME" = push ]';
+  if (replaceText(doc, from, to) === 0)
+    context.report.warnings.push({
+      file: context.file,
+      at: 'jobs.changes',
+      rule: 'anchor',
+      detail: `the line \`${from}\` is gone: a batch may no longer build every service`,
+    });
+  else
+    context.report.changes.push({
+      file: context.file,
+      at: 'jobs.changes',
+      rule: 'batch-event',
+      detail: 'the service matrix tells a batch by its push, not a merge group',
     });
 };
 
