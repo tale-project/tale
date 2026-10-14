@@ -170,9 +170,11 @@ export const managedAutomationScheduleSchema = z.union([
 ]);
 
 /** A project's dispatch (`./project-dispatch`): its pool, how many runs it
- * holds, which columns count as ready, how starts are admitted, and its
- * standing roles. Managed configuration may create it; the platform checks
- * that every agent and task it names is the project's. */
+ * holds, which columns and labels count as ready, how starts are admitted,
+ * its standing roles and the gates it declares. Managed configuration may
+ * create it; the platform checks that every agent, task and label it names
+ * is the project's. What is reported on a gate is runtime state, kept apart
+ * from the document, so it is never declared and never drifts a plan. */
 export const managedProjectDispatchSchema = projectDispatchSchema.safeExtend({
   ...project,
 });

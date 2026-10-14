@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   checkProjectDispatch,
+  readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
+import { readStoredDispatch } from './dispatch-store.ts';
 
 vi.mock('../projects/service.ts', async (importOriginal) => {
   const actual =
@@ -18,6 +20,7 @@ vi.mock('../projects/service.ts', async (importOriginal) => {
     ),
     assertProjectAdministrable: vi.fn(),
     assertProjectActive: vi.fn(),
+    assertReadable: vi.fn(),
   };
 });
 
@@ -144,4 +147,64 @@ describe('a dispatch names only what is the project’s, and only who administer
       }).success,
     ).toBe(false);
   });
+});
+
+describe('a stored dispatch this version cannot read is never overwritten [TASK-R52]', () => {
+  const ada = {
+    organizationId: 'org-1',
+    userId: 'ada',
+    role: 'admin',
+    teamIds: [],
+  };
+
+  /** A database holding a dispatch a newer version wrote, with a field this
+   * one does not know; it records every statement it is sent. */
+  function databaseWithNewerDispatch() {
+    const statements: string[] = [];
+    const query = (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      statements.push(text);
+      if (text.includes('FROM app.project_dispatch'))
+        return Promise.resolve([
+          {
+            config: { ...dispatch, quorum: 2 },
+            updatedAt: 1,
+            updatedBy: 'ada',
+          },
+        ]);
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the readers use only the tagged template; one row models the stored document
+    return { sql: query as unknown as TransactionSql, statements };
+  }
+
+  it('acts on it as on none, so nothing starts on what this version does not understand', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { sql } = databaseWithNewerDispatch();
+    await expect(readStoredDispatch(sql, 'org-1', 'p-1')).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('refuses it to managed configuration instead of reading it as missing', async () => {
+    const { sql } = databaseWithNewerDispatch();
+    await expect(
+      readProjectDispatchConfiguration(sql, ada, 'p-1'),
+    ).rejects.toMatchObject({ code: 'CONFIG_UNREADABLE' });
+  });
+
+  it.each([null, undefined])(
+    'refuses a save over it, whatever the caller reviewed (expected hash %s)',
+    async (expectedHash) => {
+      const { sql, statements } = databaseWithNewerDispatch();
+      await expect(
+        saveProjectDispatch(sql, ada, {
+          projectId: 'p-1',
+          dispatch,
+          expectedHash,
+        }),
+      ).rejects.toMatchObject({ code: 'CONFIG_UNREADABLE' });
+      expect(statements.filter((text) => !text.includes('SELECT'))).toEqual([]);
+    },
+  );
 });

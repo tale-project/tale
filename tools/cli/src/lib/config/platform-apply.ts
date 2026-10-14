@@ -98,6 +98,11 @@ function ordered(configuration: PlatformConfiguration) {
     if (resource.kind === 'automation-definition') return 5;
     if (resource.kind === 'automation-deployment') return 6;
     if (resource.kind === 'automation-schedule') return 7;
+    // A dispatch names the project's agents and tasks by id and starts work
+    // as soon as it is saved switched on, so it goes last: after the
+    // instructions, tools, models and review contexts its runs read, and
+    // after schedules that the same declaration may be switching off.
+    if (resource.kind === 'project-dispatch') return 8;
     return 3;
   };
   return [...configuration.resources].sort(

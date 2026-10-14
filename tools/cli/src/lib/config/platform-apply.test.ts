@@ -54,9 +54,13 @@ async function fixture(
     const prior = entries.get(id);
     entries.set(id, {
       config: structuredClone(config),
-      hash: id.startsWith('project-instructions/')
-        ? valueHash(config)
-        : valueHash({ config, serial: ++serial }),
+      // Managed kinds answer the hash of the value they return, which the
+      // CLI checks; the others answer an opaque revision.
+      hash:
+        id.startsWith('project-instructions/') ||
+        id.startsWith('project-dispatch/')
+          ? valueHash(config)
+          : valueHash({ config, serial: ++serial }),
       ...(id.startsWith('provider-credential/')
         ? { id: prior?.id ?? `credential-${serial}` }
         : {}),
@@ -146,6 +150,12 @@ async function fixture(
         )
       )
         id = `project-instructions/${url.pathname.split('/')[4]}`;
+      else if (
+        /^\/api\/app\/tasks\/dispatch\/by-project\/[^/]+\/configuration$/.test(
+          url.pathname,
+        )
+      )
+        id = `project-dispatch/${url.pathname.split('/')[6]}`;
       else throw new Error(`Unexpected fixture API: ${path}`);
       const current = entries.get(id);
       if (method === 'GET') {
@@ -1164,7 +1174,11 @@ describe('one general native configuration lifecycle', () => {
 });
 
 describe('configuration-only native plan admission', () => {
-  async function hotFixture(brandingUnchanged: boolean) {
+  /** `extra` resources lead the declaration and have no native state yet. */
+  async function hotFixture(
+    brandingUnchanged: boolean,
+    extra: readonly object[] = [],
+  ) {
     const policy = {
       projectId: 'existing-project',
       instructions: 'Reviewed instructions',
@@ -1173,6 +1187,7 @@ describe('configuration-only native plan admission', () => {
     const configuration = parsePlatformConfiguration({
       schemaVersion: 1,
       resources: [
+        ...extra,
         { kind: 'branding', config: branding },
         { kind: 'project-instructions', config: policy },
       ],
@@ -1255,7 +1270,7 @@ describe('configuration-only native plan admission', () => {
       const f = await hotFixture(false);
       const before = structuredClone(f.entries);
       await expect(f.apply()).rejects.toThrow(
-        'managed instructions, agent tool grants and automations only',
+        'review contexts, automations and project dispatch only',
       );
       expect(f.entries).toEqual(before);
       expect(f.writes).toEqual([]);
@@ -1277,7 +1292,7 @@ describe('configuration-only native plan admission', () => {
       expect(f.writes).toEqual(['branding']);
       const before = await readFile(f.receipt, 'utf8');
       await expect(f.apply()).rejects.toThrow(
-        'managed instructions, agent tool grants and automations only',
+        'review contexts, automations and project dispatch only',
       );
       expect(f.writes).toEqual(['branding']);
       expect(await readFile(f.receipt, 'utf8')).toBe(before);
@@ -1302,6 +1317,35 @@ describe('configuration-only native plan admission', () => {
       });
       await f.apply();
       expect(f.writes).toEqual(['project-instructions/existing-project']);
+    },
+  );
+  testPosix(
+    'creates a project dispatch without a rollout, after the instructions it reads',
+    async () => {
+      const dispatch = {
+        projectId: 'existing-project',
+        enabled: true,
+        agents: ['existing-agent'],
+        maxConcurrentRuns: 2,
+        statuses: ['todo'],
+        assignment: 'assigned',
+      };
+      const f = await hotFixture(true, [
+        { kind: 'project-dispatch', config: dispatch },
+      ]);
+      expect(await f.apply()).toMatchObject({
+        configured: true,
+        restartRequired: false,
+      });
+      expect(f.writes).toEqual([
+        'project-instructions/existing-project',
+        'project-dispatch/existing-project',
+      ]);
+      expect(
+        f.entries.get('project-dispatch/existing-project')?.config,
+      ).toEqual(dispatch);
+      await f.apply();
+      expect(f.writes).toHaveLength(2);
     },
   );
 });

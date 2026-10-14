@@ -18,7 +18,7 @@ import {
 import { requestDispatchPassInTx } from './dispatch-requests.ts';
 import {
   dispatchConfigurationValue,
-  readStoredDispatch,
+  readDispatchPreimage,
   type ProjectDispatchConfigurationValue,
 } from './dispatch-store.ts';
 import { TaskError } from './errors.ts';
@@ -37,7 +37,8 @@ import { TaskError } from './errors.ts';
  */
 
 /** The dispatch as managed configuration reads it: the value and its
- * hash, both null when the project has none. */
+ * hash, both null when the project has none. A stored document this image
+ * cannot read is refused, never read as none (`readDispatchPreimage`). */
 export async function readProjectDispatchConfiguration(
   sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
@@ -48,7 +49,11 @@ export async function readProjectDispatchConfiguration(
 }> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
-  const stored = await readStoredDispatch(sql, auth.organizationId, projectId);
+  const stored = await readDispatchPreimage(
+    sql,
+    auth.organizationId,
+    projectId,
+  );
   const config =
     stored === null
       ? null
@@ -181,10 +186,11 @@ export async function checkProjectDispatch(
  * Write a project's dispatch, in the caller's serializable transaction:
  * the caller may administer the project, the project is active, the
  * document the caller reviewed is still the stored one (`expectedHash`,
- * null for none), and everything it names checks out. Writing the stored
- * document again changes nothing. A change is audited and asks for a pass
- * at once, so switching dispatch on or widening its pool takes effect
- * without waiting for the next minute.
+ * null for none), and everything it names checks out. A stored document
+ * this image cannot read is never replaced (`CONFIG_UNREADABLE`). Writing
+ * the stored document again changes nothing. A change is audited and asks
+ * for a pass at once, so switching dispatch on or widening its pool takes
+ * effect without waiting for the next minute.
  */
 export async function saveProjectDispatch(
   tx: TransactionSql,
@@ -203,7 +209,7 @@ export async function saveProjectDispatch(
   await tx`
     SELECT pg_advisory_xact_lock(hashtextextended('project-dispatch:' || ${args.projectId}, 0))
   `;
-  const stored = await readStoredDispatch(
+  const stored = await readDispatchPreimage(
     tx,
     auth.organizationId,
     args.projectId,

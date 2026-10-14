@@ -272,6 +272,8 @@ After a full deployment using a CLI and platform revision that support managed
 instruction and automation resources, prepare a new reviewed bundle and apply it
 with `tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --configuration-only --yes --json`.
 Add `--dry-run` first to verify the runtime prerequisites without applying changes.
+This mode changes managed resources only: instructions, agent tools and models,
+review contexts, automations and project dispatch.
 
 This mode requires a completed deployment receipt that records its exact runtime
 and identity basis, the same healthy running containers and images, and no pending
@@ -568,6 +570,24 @@ refuses to re-enable an existing disabled schedule or modify a schedule paused a
 failures: investigate and recover it through the native trigger controls first, then
 plan again. Automation deletion also requires explicit native recovery; a source
 apply cannot resurrect a tombstoned name.
+
+A `project-dispatch` resource declares one project's
+[dispatch](../../docs/en/platform/projects/dispatch.md) with its exact `projectId`
+and the dispatch's fields: `enabled`, `agents`, `maxConcurrentRuns`, `statuses` and
+`assignment`, and optionally `perAgentConcurrency`, `rebalance`, `labels`,
+`admission`, `standingRoles` and `gates`. A declaration creates the dispatch when the
+project has none, switched on or off as `enabled` says. Each apply replaces the whole
+document: an omitted field reads as its default, and an edit made in the app is
+overwritten. Applying requires a project administrator, or an organization Owner or
+Admin, on an active project. The platform refuses a dispatch that names an agent or
+task outside the project, a standing role on an archived task, a cron expression
+that does not parse, or a label the project lacks; create labels first. A dispatch
+switched on starts work at once, so application writes it after every other
+resource. Gates are configuration: what an external system reports on a gate through
+`POST /api/v1/projects/{id}/dispatch/gates/{key}` is runtime state and never enters
+the declaration, plan or readback, so a report never makes a plan differ. A stored
+dispatch the runtime cannot read, such as one a newer version wrote, is refused at
+planning instead of planned as a new one.
 
 ### Capture configuration from owned source files
 
