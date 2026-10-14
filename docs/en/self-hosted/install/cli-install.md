@@ -254,7 +254,7 @@ The managed organization itself is unaffected: the deployment creates it during 
 
 #### Prepare, verify, and apply the bundle
 
-Set `TALE_DEPLOY_SPEC` to that JSON file, `TALE_DEPLOY_BUNDLE` to a new absolute output directory, and `TALE_CLI_COMMIT` to the compiled CLI's full commit. `DEPLOYMENT_COMMIT` is optional orchestration provenance; omit its flags when unused. Prepare and verify, transfer the whole directory to the destination, then preview and apply there with the same pinned CLI.
+Set `TALE_DEPLOY_SPEC` to that file, `TALE_DEPLOY_BUNDLE` to a new absolute output directory, and `TALE_CLI_COMMIT` to the compiled CLI's full commit. `DEPLOYMENT_COMMIT` is optional orchestration provenance; omit its flags when unused. The spec is JSON, or the same declaration as YAML in a file whose name ends in `.yml` or `.yaml`: YAML is read as version 1.2, refuses a key written twice and any alias, and means exactly what the JSON of the same declaration means; the same applies to a `configurationSource` file. Prepare and verify, transfer the whole directory to the destination, then preview and apply there with the same pinned CLI.
 
 ```bash
 tale --json deploy prepare \

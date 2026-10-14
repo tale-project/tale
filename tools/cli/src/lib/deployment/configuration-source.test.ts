@@ -11,6 +11,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { stringify } from 'yaml';
+
 import { valueHash } from '../config/releases/identity';
 import { resolveConfigurationSource } from './configuration-source';
 
@@ -106,6 +108,32 @@ test('captures referenced files as ordinary immutable configuration without reta
   expect(result.configuration.resources[0]?.config.instructions).toBe(
     'Review the complete scope.\n',
   );
+});
+
+test('reads the configuration declaration written as YAML to the same result as JSON', async () => {
+  const f = await fixture();
+  const fromJson = await resolveConfigurationSource(f.spec, f.specPath);
+  await writeFile(
+    join(f.root, 'cycle', 'configuration.yml'),
+    stringify(f.declaration),
+  );
+  expect(
+    await resolveConfigurationSource(
+      { configurationSource: 'cycle/configuration.yml' },
+      join(f.root, 'tale.yml'),
+    ),
+  ).toEqual(fromJson);
+  // A declaration YAML spells twice is refused before any schema reads it.
+  await writeFile(
+    join(f.root, 'cycle', 'configuration.yml'),
+    'schemaVersion: 1\nschemaVersion: 1\nresources: []\n',
+  );
+  await expect(
+    resolveConfigurationSource(
+      { configurationSource: 'cycle/configuration.yml' },
+      join(f.root, 'tale.yml'),
+    ),
+  ).rejects.toThrow('Deployment declaration YAML is invalid.');
 });
 
 test('rejects competing sources, traversal, symlink escapes, secrets and oversized files', async () => {

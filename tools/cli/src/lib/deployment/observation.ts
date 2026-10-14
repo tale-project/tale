@@ -12,6 +12,7 @@ import { exec } from '../docker/exec';
 import { localHttpEnvironmentArgs } from './acceptance-health';
 import { migrationReadScript } from './acceptance-migrations';
 import { backendDataOwner } from './backend-cli';
+import { parseDeclarationText } from './declaration-text';
 import { resolveDeploymentSpec, resolveValue } from './model';
 import {
   ObservationCleanupError,
@@ -153,7 +154,7 @@ async function readDeployment(
   const selectedEnvironment =
     observationEnvironmentSchema.parse(privateInput).environment;
   const spec = resolveDeploymentSpec(
-    JSON.parse(specFile.bytes.toString('utf8')),
+    parseDeclarationText(specFile.bytes.toString('utf8'), options.spec),
     selectedEnvironment,
   );
   if (!spec.identity)

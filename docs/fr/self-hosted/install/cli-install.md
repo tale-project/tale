@@ -254,7 +254,7 @@ L’organisation gérée elle-même n’est pas concernée : le déploiement la
 
 #### Préparer, vérifier et appliquer le bundle
 
-Définis `TALE_DEPLOY_SPEC` avec ce fichier JSON, `TALE_DEPLOY_BUNDLE` avec un nouveau répertoire absolu et `TALE_CLI_COMMIT` avec le commit complet du binaire. `DEPLOYMENT_COMMIT` est une provenance d’orchestration optionnelle ; omets ses arguments si tu ne l’utilises pas. Prépare et vérifie, transfère le répertoire entier, puis lance l’aperçu et le déploiement sur la destination avec la même CLI fixée.
+Définis `TALE_DEPLOY_SPEC` avec ce fichier, `TALE_DEPLOY_BUNDLE` avec un nouveau répertoire absolu et `TALE_CLI_COMMIT` avec le commit complet du binaire. `DEPLOYMENT_COMMIT` est une provenance d’orchestration optionnelle ; omets ses arguments si tu ne l’utilises pas. La spécification est du JSON, ou la même déclaration en YAML dans un fichier dont le nom se termine par `.yml` ou `.yaml` : le YAML est lu en version 1.2, refuse une clé écrite deux fois et tout alias, et signifie exactement ce que signifie le JSON de la même déclaration ; il en va de même pour un fichier `configurationSource`. Prépare et vérifie, transfère le répertoire entier, puis lance l’aperçu et le déploiement sur la destination avec la même CLI fixée.
 
 ```bash
 tale --json deploy prepare \

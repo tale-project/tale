@@ -10,6 +10,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { stringify } from 'yaml';
+
 import { sha256 } from '../config/releases/identity';
 import type { exec } from '../docker/exec';
 import { observeDeployment } from './observation';
@@ -216,6 +218,35 @@ function fixture() {
     },
   };
 }
+
+testPosix(
+  'observes from a spec written as YAML exactly as from the same spec as JSON',
+  async () => {
+    const f = fixture();
+    const spec = join(f.root, 'spec.yml');
+    writeFileSync(
+      spec,
+      stringify(JSON.parse(readFileSync(f.options.spec, 'utf8'))),
+      { mode: 0o600 },
+    );
+    const fromJson = await observeDeployment(
+      f.options,
+      f.input,
+      f.dependencies,
+    );
+    const fromYaml = await observeDeployment(
+      { ...f.options, spec },
+      f.input,
+      f.dependencies,
+    );
+    expect(fromYaml.complete).toBe(true);
+    // The facts are the same; only the hash of the file read differs.
+    expect(fromYaml.target).toEqual(fromJson.target);
+    expect(fromYaml.retained).toEqual(fromJson.retained);
+    expect(fromYaml.specSha256).toBe(sha256(readFileSync(spec, 'utf8')));
+    expect(fromYaml.specSha256).not.toBe(fromJson.specSha256);
+  },
+);
 
 testPosix(
   'observes runtime and retained facts with only scoped temporary tooling writes',

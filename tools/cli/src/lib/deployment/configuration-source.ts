@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { parsePlatformConfiguration } from '../config/platform-model';
 import { relativePath } from '../config/releases/model';
+import { parseDeclarationText } from './declaration-text';
 
 const fileReference = z.strictObject({ file: relativePath });
 const MAX_FILE_BYTES = 512 * 1024;
@@ -29,9 +30,11 @@ export async function resolveConfigurationSource(
     throw preconditionError(
       'Select configuration or configurationSource, never both.',
     );
-  if (extname(envelope.configurationSource) !== '.json')
+  if (
+    !['.json', '.yaml', '.yml'].includes(extname(envelope.configurationSource))
+  )
     throw preconditionError(
-      'Configuration source must be a relative JSON file.',
+      'Configuration source must be a relative JSON or YAML file.',
     );
   let total = 0;
   let files = 0;
@@ -113,8 +116,9 @@ export async function resolveConfigurationSource(
     }
   }
   const sourcePath = resolve(dirname(specPath), envelope.configurationSource);
-  const raw: unknown = JSON.parse(
+  const raw: unknown = parseDeclarationText(
     await readOwned(dirname(resolve(specPath)), envelope.configurationSource),
+    envelope.configurationSource,
   );
   const declaration = z
     .strictObject({

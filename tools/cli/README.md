@@ -120,6 +120,13 @@ Managed deployments select full source commits, a target, credentials and a pinn
 CLI revision. Preparation verifies source and image provenance; application keeps
 persistent deployment receipts and verifies native state.
 
+The `--spec` file is JSON, or the same declaration as YAML when its name ends in
+`.yml` or `.yaml` (the `configurationSource` file it points at follows the same rule).
+YAML is read as version 1.2 and refused, in fixed words that quote nothing, when it
+repeats a key, uses an alias, holds a second document or does not parse; a declaration
+means exactly the same either way. The deployment observation hashes the file as
+written, so it reports a different `specSha256` for the YAML spelling of one spec.
+
 Preparation checks configurations before it pulls runtime images. It refuses a
 pack that declares fields this CLI does not know and names those fields, so pin a
 CLI at least as new as the Tale your packs target.

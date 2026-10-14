@@ -8,6 +8,7 @@ import { deploymentBuild } from './build';
 import { copyDeploymentCli, writeDeploymentBundle } from './bundle';
 import { prepareDeploymentConfig } from './config-source';
 import { resolveConfigurationSource } from './configuration-source';
+import { parseDeclarationText } from './declaration-text';
 import { resolveDeploymentSpec, resolveValue } from './model';
 import { prepareRuntime } from './runtime';
 import { TALE_REPOSITORY, withDeploymentSources } from './sources';
@@ -32,7 +33,7 @@ export async function prepareDeployment(
   const build = (dependencies.build ?? deploymentBuild)();
   const spec = resolveDeploymentSpec(
     await resolveConfigurationSource(
-      JSON.parse(await readFile(options.spec, 'utf8')),
+      parseDeclarationText(await readFile(options.spec, 'utf8'), options.spec),
       options.spec,
     ),
   );
