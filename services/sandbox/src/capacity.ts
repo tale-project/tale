@@ -73,6 +73,9 @@ export interface SandboxCapacity {
   }>;
   /** Where the organization's device-placed sessions live (hub only). */
   placements?: Array<{ sessionId: string; deviceId: string }>;
+  /** The host's heavy-phase leases: how many are active, of the most it
+   * runs at once (host-admission.ts). */
+  leases?: { active: number; max: number };
 }
 
 interface InfrastructureSnapshot {

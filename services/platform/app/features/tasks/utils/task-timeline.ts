@@ -36,6 +36,9 @@ export type TaskAgentRunRow = {
   wfExecutionId?: string;
   /** The project agent whose run started this one (`task_start_agent`). */
   delegatedByAgentId?: string;
+  /** The occurrence a standing role of the project's dispatch started this
+   * run for, as the role's time zone reads it. */
+  occurrence?: string;
 };
 
 export type TaskTimelineEntry =

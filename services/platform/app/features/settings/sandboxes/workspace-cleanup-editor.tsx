@@ -16,6 +16,7 @@ import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
+import type { SettingsRowControlIds } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useT } from '@/lib/i18n/client';
@@ -30,21 +31,62 @@ interface WorkspaceCleanupEditorProps {
 
 const FORM_ID = 'sandbox-workspace-cleanup-form';
 
-/** The days `sandboxWorkspacesConfigSchema` accepts for `unusedDays`. */
+/** The values `sandboxWorkspacesConfigSchema` accepts for each number. */
 const MIN_UNUSED_DAYS = 1;
 const MAX_UNUSED_DAYS = 3650;
+const MIN_WORKSPACE_GIB = 1;
+const MAX_WORKSPACE_GIB = 10_240;
+const MIN_IDLE_HOURS = 1;
+const MAX_IDLE_HOURS = 8760;
+/** The size the cap field holds while no cap is saved. */
+const SUGGESTED_WORKSPACE_GIB = 50;
+
+/** The policy as the form edits it: the cap is a switch and a size, so the
+ * size typed in stays while the switch is off. */
+interface WorkspaceCleanupForm {
+  deleteUnused: boolean;
+  unusedDays: number;
+  reclaimOnDiskPressure: boolean;
+  limitSize: boolean;
+  maxWorkspaceGiB: number;
+  reclaimMinIdleHours: number;
+}
+
+type NumberField = 'unusedDays' | 'maxWorkspaceGiB' | 'reclaimMinIdleHours';
+
+function toForm(config: SandboxWorkspacesConfig): WorkspaceCleanupForm {
+  return {
+    deleteUnused: config.deleteUnused,
+    unusedDays: config.unusedDays,
+    reclaimOnDiskPressure: config.reclaimOnDiskPressure,
+    limitSize: config.maxWorkspaceGiB !== undefined,
+    maxWorkspaceGiB: config.maxWorkspaceGiB ?? SUGGESTED_WORKSPACE_GIB,
+    reclaimMinIdleHours: config.reclaimMinIdleHours,
+  };
+}
+
+function toConfig(values: WorkspaceCleanupForm): SandboxWorkspacesConfig {
+  return {
+    deleteUnused: values.deleteUnused,
+    unusedDays: values.unusedDays,
+    reclaimOnDiskPressure: values.reclaimOnDiskPressure,
+    ...(values.limitSize ? { maxWorkspaceGiB: values.maxWorkspaceGiB } : {}),
+    reclaimMinIdleHours: values.reclaimMinIdleHours,
+  };
+}
 
 // No policy file means the schema defaults, which the cleanup applies as
-// well, so the editor shows the rule actually in force.
+// well, so the editor shows the rules actually in force.
 const parseConfig = createConfigParser(sandboxWorkspacesConfigSchema, () => ({
   ...DEFAULT_SANDBOX_WORKSPACES,
 }));
 
 /**
- * When a project agent's workspace that nobody uses any more is deleted: the
- * organization's `sandbox_workspaces` policy. Reading the policy is an admin
- * read, so the page renders this section for admins only. It saves through
- * the settings header's grouped Save/Discard cluster, like the page's limits.
+ * When a project agent's workspace that nobody uses any more is deleted, and
+ * when an idle one goes for disk space or its size: the organization's
+ * `sandbox_workspaces` policy. Reading the policy is an admin read, so the
+ * page renders this section for admins only. It saves through the settings
+ * header's grouped Save/Discard cluster, like the page's limits.
  */
 export function WorkspaceCleanupEditor({
   organizationId,
@@ -58,22 +100,41 @@ export function WorkspaceCleanupEditor({
   // A read that has not answered yet, or whose first answer failed, is no
   // policy at all: it never becomes an editable set of defaults someone could
   // save over the real one. A failed refresh keeps the last answer.
-  const savedConfig = useMemo<SandboxWorkspacesConfig | undefined>(
+  const savedConfig = useMemo<WorkspaceCleanupForm | undefined>(
     () =>
-      policy.data === undefined ? undefined : parseConfig(policy.data?.config),
+      policy.data === undefined
+        ? undefined
+        : toForm(parseConfig(policy.data?.config)),
     [policy.data],
   );
   const readFailed = policy.isError && policy.data === undefined;
 
   const schema = useMemo(() => {
-    const invalidDays = t('cleanup.invalidDays');
+    const whole = (min: number, max: number, message: string) =>
+      z
+        .number({ error: message })
+        .int(message)
+        .min(min, message)
+        .max(max, message);
     return z.object({
       deleteUnused: z.boolean(),
-      unusedDays: z
-        .number({ error: invalidDays })
-        .int(invalidDays)
-        .min(MIN_UNUSED_DAYS, invalidDays)
-        .max(MAX_UNUSED_DAYS, invalidDays),
+      unusedDays: whole(
+        MIN_UNUSED_DAYS,
+        MAX_UNUSED_DAYS,
+        t('cleanup.invalidDays'),
+      ),
+      reclaimOnDiskPressure: z.boolean(),
+      limitSize: z.boolean(),
+      maxWorkspaceGiB: whole(
+        MIN_WORKSPACE_GIB,
+        MAX_WORKSPACE_GIB,
+        t('cleanup.invalidSize'),
+      ),
+      reclaimMinIdleHours: whole(
+        MIN_IDLE_HOURS,
+        MAX_IDLE_HOURS,
+        t('cleanup.invalidHours'),
+      ),
     });
   }, [t]);
 
@@ -81,15 +142,12 @@ export function WorkspaceCleanupEditor({
   // flashes "Saved" on success and raises the single destructive toast on
   // failure.
   const save = useCallback(
-    async (values: SandboxWorkspacesConfig) => {
+    async (values: WorkspaceCleanupForm) => {
       try {
         await upsertPolicy({
           organizationId,
           policyType: 'sandbox_workspaces',
-          config: {
-            deleteUnused: values.deleteUnused,
-            unusedDays: values.unusedDays,
-          } satisfies SandboxWorkspacesConfig,
+          config: toConfig(values),
         });
       } catch (err) {
         console.error('[workspaceCleanup save]', err);
@@ -99,9 +157,9 @@ export function WorkspaceCleanupEditor({
     [organizationId, t, upsertPolicy],
   );
 
-  const editor = useFormEditor<SandboxWorkspacesConfig>({
+  const editor = useFormEditor<WorkspaceCleanupForm>({
     data: savedConfig,
-    defaultValues: DEFAULT_SANDBOX_WORKSPACES,
+    defaultValues: toForm(DEFAULT_SANDBOX_WORKSPACES),
     schema,
     save,
   });
@@ -117,23 +175,78 @@ export function WorkspaceCleanupEditor({
     setValue,
     formState: { errors },
   } = editor.form;
-  const deleteUnused = useWatch({ control, name: 'deleteUnused' });
+  const [deleteUnused, reclaimOnDiskPressure, limitSize] = useWatch({
+    control,
+    name: ['deleteUnused', 'reclaimOnDiskPressure', 'limitSize'],
+  });
+  const idleHoursApply = reclaimOnDiskPressure || limitSize;
+
+  // A switch turned off disables its number: an entry that is not a valid
+  // number would then hold Save back from a field nobody can edit, so it
+  // returns to its saved value.
+  const resetIfInvalid = useCallback(
+    (name: NumberField) => {
+      if (!schema.shape[name].safeParse(getValues(name)).success) {
+        resetField(name);
+      }
+    },
+    [getValues, resetField, schema],
+  );
 
   const onDeleteUnusedChange = useCallback(
     (checked: boolean) => {
       setValue('deleteUnused', checked, { shouldDirty: true });
-      // Switching deletion off disables the days: an entry that is not a
-      // valid number of days would then hold Save back from a field nobody
-      // can edit, so it returns to its saved value.
-      if (
-        !checked &&
-        !schema.shape.unusedDays.safeParse(getValues('unusedDays')).success
-      ) {
-        resetField('unusedDays');
+      if (!checked) resetIfInvalid('unusedDays');
+    },
+    [resetIfInvalid, setValue],
+  );
+
+  const onReclaimOnDiskPressureChange = useCallback(
+    (checked: boolean) => {
+      setValue('reclaimOnDiskPressure', checked, { shouldDirty: true });
+      if (!checked && !getValues('limitSize')) {
+        resetIfInvalid('reclaimMinIdleHours');
       }
     },
-    [getValues, resetField, schema, setValue],
+    [getValues, resetIfInvalid, setValue],
   );
+
+  const onLimitSizeChange = useCallback(
+    (checked: boolean) => {
+      setValue('limitSize', checked, { shouldDirty: true });
+      if (checked) return;
+      resetIfInvalid('maxWorkspaceGiB');
+      if (!getValues('reclaimOnDiskPressure')) {
+        resetIfInvalid('reclaimMinIdleHours');
+      }
+    },
+    [getValues, resetIfInvalid, setValue],
+  );
+
+  // The row's control: a whole number, disabled on the element, not through
+  // `register` — a field registered as disabled drops its value from the
+  // save, and a saved number must survive a switch that is off.
+  const numberField =
+    (
+      name: NumberField,
+      bounds: { min: number; max: number },
+      enabled: boolean,
+    ) =>
+    ({ labelId, descriptionId }: SettingsRowControlIds) => (
+      <Input
+        id={`${FORM_ID}-${name}`}
+        aria-labelledby={labelId}
+        aria-describedby={descriptionId}
+        type="number"
+        min={bounds.min}
+        max={bounds.max}
+        step={1}
+        wrapperClassName="w-full"
+        errorMessage={errors[name]?.message}
+        {...register(name, { valueAsNumber: true })}
+        disabled={!enabled}
+      />
+    );
 
   return (
     <Skeletonize loading={policy.isLoading} label={t('cleanup.title')}>
@@ -161,24 +274,46 @@ export function WorkspaceCleanupEditor({
                   label={t('cleanup.unusedDays')}
                   description={t('cleanup.unusedDaysHint')}
                 >
-                  {({ labelId, descriptionId }) => (
-                    <Input
-                      id={`${FORM_ID}-unusedDays`}
-                      aria-labelledby={labelId}
-                      aria-describedby={descriptionId}
-                      type="number"
-                      min={MIN_UNUSED_DAYS}
-                      max={MAX_UNUSED_DAYS}
-                      step={1}
-                      wrapperClassName="w-full"
-                      errorMessage={errors.unusedDays?.message}
-                      {...register('unusedDays', { valueAsNumber: true })}
-                      // Disabled on the element, not through `register`: a
-                      // field registered as disabled drops its value from
-                      // the save, and the saved days must survive a switch
-                      // that is off.
-                      disabled={!deleteUnused}
-                    />
+                  {numberField(
+                    'unusedDays',
+                    { min: MIN_UNUSED_DAYS, max: MAX_UNUSED_DAYS },
+                    deleteUnused,
+                  )}
+                </SettingsFieldRow>
+                <SettingsToggleRow
+                  className="py-5"
+                  label={t('cleanup.reclaimOnDiskPressure')}
+                  description={t('cleanup.reclaimOnDiskPressureHint')}
+                  checked={reclaimOnDiskPressure}
+                  onCheckedChange={onReclaimOnDiskPressureChange}
+                  disabled={editor.isLoading || editor.isSaving}
+                />
+                <SettingsToggleRow
+                  className="py-5"
+                  label={t('cleanup.limitSize')}
+                  description={t('cleanup.limitSizeHint')}
+                  checked={limitSize}
+                  onCheckedChange={onLimitSizeChange}
+                  disabled={editor.isLoading || editor.isSaving}
+                />
+                <SettingsFieldRow
+                  label={t('cleanup.maxWorkspaceGiB')}
+                  description={t('cleanup.maxWorkspaceGiBHint')}
+                >
+                  {numberField(
+                    'maxWorkspaceGiB',
+                    { min: MIN_WORKSPACE_GIB, max: MAX_WORKSPACE_GIB },
+                    limitSize,
+                  )}
+                </SettingsFieldRow>
+                <SettingsFieldRow
+                  label={t('cleanup.reclaimMinIdleHours')}
+                  description={t('cleanup.reclaimMinIdleHoursHint')}
+                >
+                  {numberField(
+                    'reclaimMinIdleHours',
+                    { min: MIN_IDLE_HOURS, max: MAX_IDLE_HOURS },
+                    idleHoursApply,
                   )}
                 </SettingsFieldRow>
               </SettingsFieldList>

@@ -323,7 +323,12 @@ export interface WorkflowAgentStart {
    * (the sandbox host is full), `destroy_pending` (its workspace is being
    * deleted) or `exec_limit` (its sandbox is still ending an earlier
    * process). It starts by itself once room frees. */
-  waitingReason?: 'org_limit' | 'host' | 'destroy_pending' | 'exec_limit';
+  waitingReason?:
+    | 'org_limit'
+    | 'host'
+    | 'destroy_pending'
+    | 'exec_limit'
+    | 'model_capacity';
   /** The closed card's status (`closed`): done or cancelled. */
   taskStatus?: string;
   blockedBy?: string[];

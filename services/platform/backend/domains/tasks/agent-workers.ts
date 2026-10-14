@@ -21,6 +21,10 @@ import { lockOrgAdmission } from '../sandbox/admission-lock.ts';
 import { sessionDestroyStates } from '../sandbox/destroy-schedule.ts';
 import { projectSessionRoom } from '../sandbox/sessions.ts';
 import { emitTaskRunHint, TASK_AGENT_RUN_DEADLINE_MS } from './agent-runs.ts';
+import {
+  admitModelCapacityInTx,
+  readModelCapacityHold,
+} from './model-capacity-holds.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
 
 /**
@@ -171,7 +175,10 @@ export function chooseWorker(facts: WorkerFacts): WorkerChoice {
 export type WorkerClaim =
   | { sessionId: string; worker: number; moved: boolean }
   | {
-      parked: Extract<AgentRunWaitingReason, 'org_limit' | 'destroy_pending'>;
+      parked: Extract<
+        AgentRunWaitingReason,
+        'org_limit' | 'destroy_pending' | 'model_capacity'
+      >;
     };
 
 interface ClaimedRun {
@@ -181,6 +188,10 @@ interface ClaimedRun {
   startedBy: string;
   sessionId: string;
   claimedAt: number | null;
+  /** The model the run's serving names, and its provider: the key of a
+   * model capacity hold (`model-capacity-holds.ts`). */
+  model: string;
+  modelProvider: string | null;
   /** A wake restarted the run from its park and it has not claimed since:
    * it keeps its place in line ({@link workerRoom}). */
   woken: boolean;
@@ -244,6 +255,7 @@ async function claimInTx(
            project_id AS "projectId", started_by AS "startedBy",
            session_id AS "sessionId",
            session_claimed_at_ms::float8 AS "claimedAt",
+           model, model_provider AS "modelProvider",
            ${tx.unsafe(WOKEN_RUN_SQL)} AS woken
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
@@ -253,6 +265,24 @@ async function claimInTx(
   `;
   const run = runs[0];
   if (run === undefined) return null;
+
+  // A model the provider called at capacity is waited for before any
+  // worker is taken: the run would only launch into the same refusal.
+  const capacity = await admitModelCapacityInTx(tx, {
+    organizationId: args.organizationId,
+    modelProvider: run.modelProvider,
+    model: run.model,
+    runId: args.runId,
+  });
+  if (!capacity.admitted) {
+    await parkAgentRunInTx(tx, {
+      runId: args.runId,
+      execId: args.execId,
+      reason: 'model_capacity',
+      wakeAfterMs: Math.max(1_000, capacity.wakeAtMs - Date.now()),
+    });
+    return { parked: 'model_capacity' };
+  }
 
   const base = await runFamilyBase(tx, args.organizationId, run);
   const facts = await readWorkerFacts(tx, {
@@ -309,6 +339,7 @@ export async function predictWorkerWait(
            project_id AS "projectId", started_by AS "startedBy",
            session_id AS "sessionId",
            session_claimed_at_ms::float8 AS "claimedAt", status,
+           model, model_provider AS "modelProvider",
            waiting_for_capacity_at_ms IS NOT NULL AS parked,
            waiting_reason AS reason,
            ${sql.unsafe(WOKEN_RUN_SQL)} AS woken
@@ -320,6 +351,12 @@ export async function predictWorkerWait(
   if (run.parked) {
     return isAgentRunWaitingReason(run.reason) ? run.reason : null;
   }
+  const hold = await readModelCapacityHold(sql, {
+    organizationId: args.organizationId,
+    modelProvider: run.modelProvider,
+    model: run.model,
+  });
+  if (hold !== null && hold.heldUntilMs > Date.now()) return 'model_capacity';
   const base = workerFamilyBase(run.agentId, run.sessionId);
   const choice = chooseWorker(
     await readWorkerFacts(sql, {

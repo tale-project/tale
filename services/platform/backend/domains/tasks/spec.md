@@ -148,17 +148,16 @@ and noted on the task's timeline. A start by a person, and its retries, are neve
 never refused.
 
 One wait is free: when a run hits the model provider's rate limit (HTTP 429) and waits before
-trying again, that wait is not counted as a start. A second wait in a row is. A provider
-model-capacity refusal is also excluded from this hourly circuit: it reports temporary provider
-availability, not a task restart loop. Its normal automatic-retry budget still applies.
+trying again, that wait is not counted as a start. A second wait in a row is.
 
-A Codex model-capacity failure schedules an automatic retry one minute later. Its
-attempt still counts toward the retry budget, but it does not consume the hourly automated-start
-circuit, qualify as a free account-cooldown wait, or exclude the account. A new automated start
-requested before that minute waits for the same floor instead of sending another provider request.
+A run the provider refused because its model is at capacity is not counted either: its retry
+waits on the model (`TASK-R40`), which spaces the attempts out and ends them, so it cannot
+restart the task in a loop.
 
 - **Example**: A schedule has started the agent on a task three times since 14:00. At 14:40
   another agent starts it again → refused as `paused`, with the time after which it may retry.
+- **Example**: Since 14:00 the provider has refused three runs on the task because the model
+  was at capacity. At 14:40 a schedule starts the agent → it is started.
 
 ## Deleting a task
 
@@ -394,6 +393,167 @@ new one can open.
   notes" continues in worker 1, and "Changelog" takes another worker: a run that has not
   started yet holds no worker.
 
+### TASK-R40 · A model at capacity makes every run on it wait instead of failing
+
+When the provider answers a run that its model is at capacity, the organization's runs on that
+model wait for it: the run that was refused fails once and its automatic retry, which uses no
+attempt, waits; a run started meanwhile waits before it takes a worker, reading "Waiting for
+model capacity". The wait lasts 1 minute, then 2, 4, 8 and 15 minutes as the refusals go on.
+When it ends one run goes first; the others follow once that run has worked for two minutes,
+or as soon as any run on the model finishes. A model at capacity for twelve hours is no longer
+waited for: its next refusal ends the run, and a run that waited that long fails as having
+waited too long.
+
+- **Example**: The provider refuses Scribe's run on "Changelog" at 10:00 because its model is
+  at capacity. At 10:00:30 a schedule starts Lector, on the same model, on "Press kit" → it
+  reads "Waiting for model capacity" and takes no worker. At 10:01 the retry of "Changelog"
+  starts first; at 10:03 it is still working → "Press kit" starts.
+
+## Dispatch
+
+A project's dispatch starts its ready work on its idle agents without anyone starting each run.
+People and their manager agents decide what is ready and in what order: the column a task waits
+in, its priority, its place on the board, its assignee. Dispatch decides when, and on which agent
+of its pool, as the sandbox host allows.
+
+### TASK-R41 · Dispatch starts ready work on idle agents of its pool, up to its limits
+
+Ready work is a task in one of the dispatch's columns that no run works on, whose last run is not
+about to retry on its own, that nothing open blocks, and that is assigned to an agent of the pool.
+It is taken by column, then priority, then board order, then age. An agent of the pool holds one run at a time (or as many as the dispatch
+allows), and the pool as many as its limit, counting every run of its agents whoever started it.
+Nothing starts while the organization's agent workers are all in use. Each start is an ordinary
+automated start: the task's hourly limit and its dependencies apply (`TASK-R12`).
+
+- **Example**: The pool is Scribe and Lector, with two runs at most. Scribe works on "Changelog".
+  "Release notes" (To do, p1) is Lector's, "Press kit" (To do, p2) is Scribe's → Lector starts on
+  "Release notes"; "Press kit" waits for Scribe.
+
+### TASK-R42 · Dispatch hands unassigned work to its pool only when told to
+
+With pool assignment, a ready task nobody is assigned to goes to the idle agent of the pool with
+the most room, and is assigned to it. With rebalance, a ready task that never ran moves from its
+busy agent to such an agent. A task that already ran stays with its agent, so its conversation
+and files stay where they are.
+
+- **Example**: The dispatch hands work to its pool. "Sitemap" is assigned to nobody, Scribe is
+  busy and Lector idle → Lector is assigned "Sitemap" and starts on it.
+
+### TASK-R43 · An agent whose model is at capacity takes no work from dispatch
+
+While the provider holds its model at capacity (`TASK-R40`), the agent's ready work waits, and
+unassigned work goes to an agent whose model answers. When the model answers again, dispatch
+looks for work at once.
+
+- **Example**: Scribe's model is at capacity; Lector's is not. "Sitemap" is assigned to nobody →
+  Lector takes it, and Scribe's own ready work waits.
+
+### TASK-R44 · Dispatch asks the sandbox host before each start and spaces its starts
+
+Before each start of ready work, dispatch asks the sandbox host whether it admits another, by the
+deployment's thresholds or, with the conservative preset, by stricter ones for load and CPU,
+memory and I/O pressure. A hold ends the pass, and dispatch asks again after its recheck delays
+(60, 120, then 240 seconds by default, then the last). Its starts are at least the spacing it
+names apart (30 seconds by default). The host's readings a start was admitted on are kept with
+the pass and with the record of the run it started.
+
+- **Example**: The host's memory pressure is high when "Changelog" is next → nothing starts, and
+  dispatch asks again a minute later, then after two minutes, then every four.
+
+### TASK-R45 · A standing role starts its agent on its task at each occurrence of its schedule
+
+An occurrence fires on time, within ten minutes, never as a burst of what an outage missed. It
+moves the task to In progress and hands the agent the occurrence, read in the schedule's time zone
+with its UTC instant, the role's mode and its brief. An occurrence that finds the task still being
+worked on is coalesced into that run. Each occurrence is decided once, whichever passes decide it
+again. A role starts even when the pool holds as many runs as it may; a run of a role whose agent
+is in the pool counts toward the pool.
+
+- **Example**: The manager role runs at :00 and :30 in Zurich. At 14:00 its agent starts with
+  "Scheduled occurrence: manager 2026-10-14 14:00 Europe/Zurich (2026-10-14T12:00:00.000Z)". At
+  14:30 the 14:00 run still works → nothing new starts, and the occurrence reads as coalesced.
+
+### TASK-R46 · The dispatch readback says what each agent of the pool does, or why it is idle
+
+For every agent of the pool it names the runs it holds, and for an idle one why: dispatch is off,
+its model is at capacity, the host held the last start, the agent workers are all in use, the
+last start was spaced, or no work is ready for it. It reads the run ledger and the passes, never
+where cards stand on the board.
+
+- **Example**: Scribe has no run and the last pass stopped because the host was under pressure →
+  the readback says Scribe is idle because the host held the last start.
+
+### TASK-R47 · A run dispatch starts answers to the project, never to a person
+
+It names the project's dispatch as its starter and spends under the automation subject, as a
+schedule's run does. It acts with the agent's full equipment while the project's dispatch is
+switched on and the project is active; a run that has not launched when dispatch is switched off
+fails without running.
+
+- **Example**: Dispatch starts Scribe on "Changelog" → the run's starter reads `dispatch:` and the
+  project, and no member's budget pays for it.
+
+### TASK-R48 · Only who may administer the project changes its dispatch
+
+Owners and admins of the organization, and the project's own administrators, change it on an
+active project. Every agent, task and label it names must be the project's, and its schedules must
+read (`DISPATCH_INVALID`). Anyone who can read the project reads it.
+
+- **Example**: Mia, a member, tries to switch the project's dispatch on → refused. An admin adds a
+  standing role on a task of another project → refused, naming the task.
+
+### TASK-R52 · A stored dispatch this version cannot read is never overwritten
+
+A dispatch stored in a shape this version of Tale cannot read, such as one a newer version wrote,
+starts nothing. Managed configuration does not read it as missing, and a save is refused
+(`CONFIG_UNREADABLE`) instead of replacing it with a document that drops what this version does
+not know. The readback says the project has one this version cannot read.
+
+- **Example**: A newer version stored the Fleet project's dispatch with a field this one lacks,
+  and the deployment rolls back. A declaration that names the Fleet dispatch → refused when it is
+  planned, never planned as a new dispatch; Ada saves the dispatch → refused, and the stored one
+  is kept for the newer version.
+
+### TASK-R50 · Every switched-on dispatch reports when it last passed
+
+The backend's metrics name, per project, when its switched-on dispatch last completed a pass —
+whatever the pass found — so an alert outside the platform notices a dispatch that stopped. A
+dispatch switched off drops out; a read that fails reports zero for every project it knew.
+
+- **Example**: The job workers stop at 14:00 → the Fleet project's last pass stays at 13:59, and
+  an alert on its age fires at 14:15.
+
+### TASK-R51 · A gate holds the ready work it governs while a signal from outside says so
+
+A dispatch may declare gates: signals from outside the platform, such as a CI system whose runner
+queue is full. Something outside reports on a gate — a state, or a value the gate judges: at or
+above its hold value it holds, and once held it opens only below its recover value (half the
+hold value unless declared). A held gate leaves the ready work it governs — the tasks with one of
+its labels, or all ready work when it names none — and dispatch starts the rest; standing roles
+are never held by a gate. A gate nobody reports on for its stale window (ten minutes unless
+declared) opens, or holds when it declares so. A gate with start spacing lets one start of its
+work through, then the next only after the spacing. A report that opens a gate asks for a pass
+at once. Who may edit the project reports through the API; who may administer it, in the app.
+
+- **Example**: The CI watcher reports 23 queued jobs on the gate `ci` (hold at 20) → "Changelog",
+  labelled `ci`, waits and "Press kit" starts. It reports 14 → `ci` still holds; 9 → it opens, and
+  "Changelog" starts within the minute.
+
+## What a run is handed
+
+### TASK-R49 · Every turn gets its project's current instructions, and its run records them
+
+Every turn of a task agent — a start, a retry, a steered restart — reads its project's
+instructions when it starts and is handed them between the organization's Custom instructions
+and the agent's own; a project without instructions adds nothing. The run records the SHA-256
+of the project's instructions, of the agent's and of the task's description the turn was
+handed, with the execution that read them. A turn whose task or project cannot be read does not
+start: its run fails as a start failure and is retried like one.
+
+- **Example**: Ada changes the project's instructions to "Never merge red" while Scribe works
+  "Changelog". She asks for changes → the turn that continues the conversation opens with "Never
+  merge red", and the run's record names the new digest.
+
 ## Runs that need no workspace
 
 The organization's standard agent works a task with what a chat reply has: the model, the
@@ -549,7 +709,7 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
 
 ## Not yet
 
-- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27` and `TASK-R30`–`TASK-R38`, and how a run moves the card between statuses (`agent-runs.ts`,
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38` and `TASK-R40`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29` and `TASK-R39`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`). `TASK-R39` hands reviews on from the members door

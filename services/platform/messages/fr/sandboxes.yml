@@ -5,8 +5,7 @@ description: >-
   temps dans un worker distinct, une sandbox avec son propre espace de travail
   que les tâches suivantes réutilisent. Les étapes d'un workflow partagent le
   même espace. L'espace d'un worker est conservé jusqu'au retrait de son agent, de son projet ou du membre concerné,
-  ou jusqu'à ce que le nettoyage des espaces de travail le supprime faute
-  d'utilisation. L'état d'exécution et l'allocation
+  ou jusqu'à ce que le nettoyage des espaces de travail le supprime. L'état d'exécution et l'allocation
   du quota sont distincts : un conteneur peut rester actif après la libération
   de son allocation.
 limits:
@@ -48,13 +47,25 @@ cleanup:
   description:
     Les agents de projet gardent leurs fichiers dans des espaces de travail
     entre deux exécutions. Un espace de travail est supprimé immédiatement quand
-    son agent, son projet ou le membre concerné est retiré. Les espaces de
-    travail sous conservation légale ne sont pas supprimés.
+    son agent, son projet ou le membre concerné est retiré, et un espace
+    inactif peut aussi être supprimé pour libérer de l'espace disque ou à cause
+    de sa taille. Les espaces de travail sous conservation légale ne sont pas
+    supprimés.
   deleteUnused: Supprimer les espaces de travail inutilisés
   deleteUnusedHint: Supprime un espace de travail après le nombre de jours sans utilisation indiqué ci-dessous. Les espaces de travail épinglés sont conservés.
   unusedDays: Jours sans utilisation
   unusedDaysHint: Les jours se comptent à partir de la dernière fois que l'agent a travaillé dans l'espace de travail. Quand tu actives la suppression ou que tu raccourcis la période, aucun espace de travail n'est supprimé avant que ce nombre de jours ne se soit entièrement écoulé.
+  reclaimOnDiskPressure: Libérer de l'espace disque quand il vient à manquer
+  reclaimOnDiskPressureHint: Quand l'hôte des sandboxes manque d'espace disque, Tale supprime ses plus gros espaces de travail inactifs jusqu'à ce qu'il y ait de nouveau assez de place. Désactive cette option pour en tenir à l'écart les espaces de travail de ton organisation.
+  limitSize: Limiter la taille des espaces de travail
+  limitSizeHint: Supprime, lors du nettoyage horaire suivant, un espace de travail inactif qui occupe plus que la taille indiquée ci-dessous.
+  maxWorkspaceGiB: Taille maximale (Gio)
+  maxWorkspaceGiBHint: Tale mesure chaque espace de travail sur l'hôte des sandboxes. Un espace dont la taille n'est pas encore connue n'est jamais supprimé pour cette raison.
+  reclaimMinIdleHours: Nombre minimal d'heures sans utilisation
+  reclaimMinIdleHoursHint: Pour libérer de l'espace disque ou à cause de sa taille, Tale ne supprime un espace de travail qu'une fois que personne ne l'a utilisé pendant au moins ce nombre d'heures. Les espaces épinglés et ceux sous conservation légale sont toujours conservés.
   invalidDays: Saisis un nombre entier entre 1 et 3650.
+  invalidSize: Saisis un nombre entier entre 1 et 10240.
+  invalidHours: Saisis un nombre entier entre 1 et 8760.
   loadFailed: Impossible de charger les paramètres de nettoyage des espaces de travail. Recharge la page pour réessayer.
   saveFailed: Impossible d'enregistrer les paramètres de nettoyage des espaces de travail
 capacity:

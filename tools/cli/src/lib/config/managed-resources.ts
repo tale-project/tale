@@ -23,7 +23,20 @@ export function isManagedResource(
     resource.kind === 'task-review-context' ||
     resource.kind === 'automation-definition' ||
     resource.kind === 'automation-deployment' ||
-    resource.kind === 'automation-schedule'
+    resource.kind === 'automation-schedule' ||
+    resource.kind === 'project-dispatch'
+  );
+}
+
+/** The kinds a declaration may create: their native readback answers `null`
+ * for a resource that does not exist yet, which planning shows as `create`.
+ * Every other managed kind adopts an existing native target, so a `null`
+ * readback there means a missing or retargeted identity. */
+function createsWhenAbsent(resource: ManagedPlatformResource): boolean {
+  return (
+    resource.kind.startsWith('automation-') ||
+    resource.kind === 'task-review-context' ||
+    resource.kind === 'project-dispatch'
   );
 }
 
@@ -32,6 +45,8 @@ function resourcePath(resource: ManagedPlatformResource, read = false): string {
   switch (resource.kind) {
     case 'project-instructions':
       return `/api/app/projects/${encodeURIComponent(projectId)}/configuration/instructions`;
+    case 'project-dispatch':
+      return `/api/app/tasks/dispatch/by-project/${encodeURIComponent(projectId)}/configuration`;
     case 'agent-instructions':
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/instructions`;
     case 'agent-model':
@@ -55,11 +70,7 @@ export async function readManagedResource(
     .object({ config: z.unknown(), hash: expectedConfigurationHashSchema })
     .parse(await client.request(resourcePath(resource, true)));
   if (view.config === null) {
-    if (
-      view.hash !== null ||
-      (!resource.kind.startsWith('automation-') &&
-        resource.kind !== 'task-review-context')
-    )
+    if (view.hash !== null || !createsWhenAbsent(resource))
       throw preconditionError(
         'Managed configuration target is missing or inconsistent.',
       );

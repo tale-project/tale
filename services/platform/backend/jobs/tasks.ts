@@ -52,6 +52,16 @@ export interface TaskPayloads {
   'tasks.enforce_dates': Record<string, never>;
   /** Continue repeating tasks whose due day began (every five minutes). */
   'tasks.repeat_on_due': Record<string, never>;
+  /** Ask every switched-on project dispatch that is due for a pass, and drop
+   * pass records older than a week (every minute). */
+  'tasks.dispatch_scan': Record<string, never>;
+  /** One pass of a project's dispatch: its standing roles that are due, then
+   * its ready work on its idle agents, one start at a time. */
+  'tasks.dispatch_project': {
+    organizationId: string;
+    projectId: string;
+    trigger: string;
+  };
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
   /** Start a task's owning automation (the comment-@mention trigger). */
@@ -321,6 +331,14 @@ export interface TaskPayloads {
     sessionId: string;
     generation: string;
   };
+  /** End, on the sandbox host, every heavy-phase lease a project agent's
+   * run still held when it ended — enqueued in the transaction that ended
+   * it, with the leases that transaction read (a row may go with its run). */
+  'sandbox.release_run_leases': {
+    organizationId: string;
+    runId: string;
+    leases?: Array<{ leaseId: string; sessionId: string }>;
+  };
   /** Recreate one pinned session the drift reconcile found gone
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
@@ -509,6 +527,15 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // task's lock, so a retry that overlaps the attempt it replaces creates
   // nothing twice; the scan stops on the job's signal at its expiry.
   'tasks.repeat_on_due': { retryLimit: 1, expireInSeconds: 300 },
+  'tasks.dispatch_scan': { retryLimit: 0, expireInSeconds: 120 },
+  // One waiting pass per project (`singletonKey` dispatch:<project>): a
+  // burst of ended runs asks once. A pass holds its project's lease, so a
+  // retry that overlaps it stands down; the scan is the backstop.
+  'tasks.dispatch_project': {
+    policy: 'short',
+    retryLimit: 1,
+    expireInSeconds: 600,
+  },
   'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
   // The steer owns its OWN retry ladder (it re-enqueues itself with an
   // attempt counter, tight then coarse), so pg-boss must not add a second
@@ -693,6 +720,18 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryDelay: 5,
     retryBackoff: true,
     expireInSeconds: 60,
+  },
+  // One queued release per run (`short`, keyed by run). Every step is
+  // idempotent — a lease ended already is skipped, one the host no longer
+  // holds counts as ended — so a retry is always safe. The ladder (15 s
+  // doubling, six tries, about a quarter of an hour) waits out a spawner
+  // restart; the sandbox sweep is the backstop past it.
+  'sandbox.release_run_leases': {
+    policy: 'short',
+    retryLimit: 6,
+    retryDelay: 15,
+    retryBackoff: true,
+    expireInSeconds: 120,
   },
   // One queued-or-running recreate per session (`exclusive`, keyed by
   // organization and session): a sweep tick or a page open that finds the

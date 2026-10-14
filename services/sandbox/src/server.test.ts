@@ -14,6 +14,7 @@ import {
   verify,
 } from './auth.ts';
 import { DockerBackend } from './backend/docker/docker-backend.ts';
+import { CapacityReader, type SandboxCapacity } from './capacity.ts';
 import { loadConfig } from './config.ts';
 import { ControlRoutes } from './control-routes.ts';
 import { ImageWarmup } from './image-warmup.ts';
@@ -130,6 +131,10 @@ describe('session HTTP routes', () => {
       expect(create).not.toHaveBeenCalled();
       expect((await request('GET', '/v1/sessions/existing')).status).toBe(200);
       expect((await request('GET', '/v1/limits')).status).toBe(200);
+      // The admission answer rests on the host's readings, not on adoption.
+      expect(
+        (await request('GET', '/v1/admission?organizationId=org-a')).status,
+      ).toBe(200);
       expect(get).toHaveBeenCalledWith('existing');
       pending.mockReturnValue(false);
       expect((await request('POST', '/v1/sessions', '{}')).status).toBe(200);
@@ -256,6 +261,9 @@ describe('session HTTP routes', () => {
         ['POST', '/v1/sessions'],
         ['GET', '/v1/workspaces'],
         ['GET', '/v1/capacity?organizationId=org-a'],
+        ['POST', '/v1/sessions/existing/leases'],
+        ['GET', '/v1/sessions/existing/leases?organizationId=org-a'],
+        ['DELETE', '/v1/sessions/existing/leases/lease-1?organizationId=org-a'],
         ['DELETE', '/v1/organizations/org-a'],
         ['POST', '/v1/devices/device-1/disconnect'],
         ['POST', '/v1/drain'],
@@ -282,6 +290,10 @@ describe('session HTTP routes', () => {
       expect(health.status).toBe(503);
       expect(await health.json()).toEqual({ status: 'starting' });
       expect((await request('GET', '/v1/limits')).status).toBe(200);
+      // The admission answer rests on the host's readings, not on adoption.
+      expect(
+        (await request('GET', '/v1/admission?organizationId=org-a')).status,
+      ).toBe(200);
       expect(
         (await request('GET', '/v1/sessions/existing/screencast')).status,
       ).toBe(404);
@@ -743,6 +755,227 @@ describe('session HTTP routes', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual({ maxSessions: 8 });
+  });
+
+  /** A request signed with the routes' shared secret. */
+  const signedRequest = (method: string, path: string, body = '') => {
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    return new Request(`http://sandbox${path}`, {
+      method,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          method,
+          path,
+          timestamp,
+          body,
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+      ...(body === '' ? {} : { body }),
+    });
+  };
+
+  test('the admission answer is signed, and refuses a question it cannot read', async () => {
+    expect(
+      (
+        await router(
+          new Request('http://sandbox/v1/admission?organizationId=org-a'),
+        )
+      ).status,
+    ).toBe(401);
+    for (const path of [
+      '/v1/admission',
+      '/v1/admission?organizationId=bad%2Forg',
+      '/v1/admission?organizationId=org-a&kind=light',
+      '/v1/admission?organizationId=org-a&preset=strict',
+    ]) {
+      expect((await router(signedRequest('GET', path))).status).toBe(400);
+    }
+  });
+
+  test('a host the spawner cannot read is admitted under the default preset and held under conservative', async () => {
+    const admitted = await router(
+      signedRequest('GET', '/v1/admission?organizationId=org-a&kind=start'),
+    );
+    expect(admitted.status).toBe(200);
+    expect(admitted.headers.get('retry-after')).toBeNull();
+    expect(await admitted.json()).toMatchObject({
+      verdict: 'admit',
+      reason: 'unavailable',
+      preset: 'default',
+      evidence: { leases: { active: 0, max: 2 } },
+    });
+    const held = await router(
+      signedRequest(
+        'GET',
+        '/v1/admission?organizationId=org-a&preset=conservative',
+      ),
+    );
+    expect(held.status).toBe(200);
+    expect(held.headers.get('retry-after')).toBe('60');
+    expect(await held.json()).toMatchObject({
+      verdict: 'hold',
+      reason: 'unavailable',
+      preset: 'conservative',
+    });
+    const heavy = await router(
+      signedRequest('GET', '/v1/admission?organizationId=org-a&kind=heavy'),
+    );
+    expect(await heavy.json()).toMatchObject({
+      verdict: 'hold',
+      reason: 'unavailable',
+      preset: 'conservative',
+    });
+  });
+
+  test("an organization's leases are listed signed, and only with its id", async () => {
+    expect(
+      (
+        await router(
+          new Request('http://sandbox/v1/leases?organizationId=org-a'),
+        )
+      ).status,
+    ).toBe(401);
+    expect((await router(signedRequest('GET', '/v1/leases'))).status).toBe(400);
+    const listed = await router(
+      signedRequest('GET', '/v1/leases?organizationId=org-a'),
+    );
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({ leases: [] });
+  });
+
+  test("a session's lease routes reach their handlers, signed and scoped", async () => {
+    const acquire = spyOn(
+      SessionRoutes.prototype,
+      'handleLeaseAcquire',
+    ).mockImplementation(async () =>
+      Response.json({ lease: {} }, { status: 201 }),
+    );
+    const list = spyOn(SessionRoutes.prototype, 'handleLeaseList');
+    const release = spyOn(SessionRoutes.prototype, 'handleLeaseRelease');
+    try {
+      const body = JSON.stringify({ organizationId: 'org-a', class: 'heavy' });
+      expect(
+        (await router(signedRequest('POST', '/v1/sessions/sess1/leases', body)))
+          .status,
+      ).toBe(201);
+      expect(acquire.mock.calls).toEqual([['sess1', body]]);
+      expect(
+        (
+          await router(
+            signedRequest(
+              'GET',
+              '/v1/sessions/sess1/leases?organizationId=org-a',
+            ),
+          )
+        ).status,
+      ).toBe(200);
+      expect(list.mock.calls).toEqual([['org-a', 'sess1']]);
+      const released = await router(
+        signedRequest(
+          'DELETE',
+          '/v1/sessions/sess1/leases/lease-1?organizationId=org-a',
+        ),
+      );
+      expect(released.status).toBe(404);
+      expect(await released.json()).toEqual({ error: 'lease_not_found' });
+      expect(release.mock.calls).toEqual([['sess1', 'lease-1', 'org-a']]);
+      for (const [method, path] of [
+        ['GET', '/v1/sessions/sess1/leases'],
+        ['DELETE', '/v1/sessions/sess1/leases/lease-1'],
+      ] as const) {
+        expect((await router(signedRequest(method, path))).status).toBe(400);
+      }
+      expect(
+        (
+          await router(
+            new Request('http://sandbox/v1/sessions/sess1/leases', {
+              method: 'POST',
+              body,
+            }),
+          )
+        ).status,
+      ).toBe(401);
+    } finally {
+      acquire.mockRestore();
+      list.mockRestore();
+      release.mockRestore();
+    }
+  });
+
+  test('workspace usage is signed and scoped to an organization', async () => {
+    const usage = spyOn(
+      SessionRoutes.prototype,
+      'handleWorkspaceUsage',
+    ).mockImplementation(async () =>
+      Response.json({ measuredAtMs: 1, disk: null, workspaces: [] }),
+    );
+    try {
+      expect(
+        (
+          await router(
+            new Request(
+              'http://sandbox/v1/workspaces/usage?organizationId=org-a',
+            ),
+          )
+        ).status,
+      ).toBe(401);
+      expect(
+        (await router(signedRequest('GET', '/v1/workspaces/usage'))).status,
+      ).toBe(400);
+      expect(
+        (
+          await router(
+            signedRequest('GET', '/v1/workspaces/usage?organizationId=org-a'),
+          )
+        ).status,
+      ).toBe(200);
+      expect(usage.mock.calls).toEqual([['org-a']]);
+    } finally {
+      usage.mockRestore();
+    }
+  });
+
+  test('capacity carries the heavy-phase leases beside its existing shape', async () => {
+    const snapshot: SandboxCapacity = {
+      status: 'available',
+      observedAt: 1,
+      backend: 'docker',
+      scope: 'host',
+      sessions: {
+        running: 0,
+        starting: 0,
+        limit: 8,
+        organizationRunning: 0,
+        organizationStarting: 0,
+        organizationLimit: 8,
+      },
+      resources: {
+        cpu: { totalCores: null, usedCores: null },
+        memory: { totalBytes: null, usedBytes: null },
+      },
+      runtimeSessions: [],
+    };
+    const observe = spyOn(
+      CapacityReader.prototype,
+      'forOrganization',
+    ).mockImplementation(async () => ({ ...snapshot }));
+    try {
+      const response = await router(
+        signedRequest('GET', '/v1/capacity?organizationId=org-a'),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        ...snapshot,
+        leases: { active: 0, max: 2 },
+      });
+    } finally {
+      observe.mockRestore();
+    }
   });
 
   test('capacity rejects missing or invalid organization ids before observing the host', async () => {

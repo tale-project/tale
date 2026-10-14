@@ -450,3 +450,243 @@ sharing:
   teamNamesLoadError: Impossible de charger les noms des équipes.
   teamCount: '{count, plural, one {# équipe} other {# équipes}}'
   noTeamsCreateLink: Créer une équipe
+dispatch:
+  title: Répartition du travail
+  description: Lance les tâches prêtes de ce projet sur les agents libres de son pool, et ses rôles permanents selon leur horaire.
+  readerDescription: Montre ce qui lance les tâches prêtes de ce projet et pourquoi un agent est inactif. Les administrateurs du projet la modifient.
+  edit: Modifier
+  runPass: Lancer un passage maintenant
+  passRequested: Passage demandé
+  passRequestedBody: Il apparaît sous Derniers passages une fois effectué.
+  passFailed: Impossible de demander un passage
+  loadFailed: Impossible de charger la répartition du travail de ce projet.
+  refreshFailed: Impossible d’actualiser la répartition du travail de ce projet. L’affichage n’est peut-être plus à jour.
+  notSetUp:
+    title: La répartition du travail n’est pas configurée pour ce projet
+    body: Choisis les agents qui prennent les tâches prêtes de ce projet et le nombre d’exécutions qu’ils tiennent à la fois. D’ici là, une tâche ne démarre que si quelqu’un la lance.
+    readerBody: Un administrateur du projet peut la configurer. D’ici là, une tâche ne démarre que si quelqu’un la lance.
+    action: Configurer la répartition du travail
+  unreadable:
+    title: Une version plus récente de Tale a enregistré cette répartition du travail
+    body: 'Cette version de Tale ne peut pas la lire : elle ne lance donc rien ici et ne peut pas être modifiée ici. Elle reste telle quelle jusqu’à la mise à jour de Tale.'
+  summary:
+    status: Statut
+    on: Répartition activée
+    off: La répartition est désactivée
+    runs: Exécutions simultanées
+    runsValue: '{running} sur {max}'
+    workers: Workers d’agent
+    workersValue: '{inUse} sur {limit} occupés'
+    lastPass: Dernier passage
+    nextPass: Prochain passage
+    noPass: Aucun passage encore
+    nextPassSoon: Dans la minute
+  workersWarning:
+    title: Le pool peut tenir plus d’exécutions que tu n’as de workers d’agent
+    body: 'Le pool peut tenir {runs, plural, one {# exécution} other {# exécutions}} à la fois, mais ton organisation a {workers, plural, one {# worker d’agent} other {# workers d’agent}}. Les exécutions en trop ne feraient qu’attendre un worker libre.'
+    manage: Gérer les workers d’agent
+  holds:
+    title: '{count, plural, one {Un modèle est saturé} other {# modèles sont saturés}}'
+    body: Les agents qui utilisent ces modèles ne prennent aucun travail de la répartition tant que leur modèle ne répond pas de nouveau.
+    item: '{model} jusqu’à {time}'
+  agents:
+    title: Agents
+    caption: Agents du pool de la répartition du travail de ce projet
+    agent: Agent
+    model: Modèle
+    workingOn: Travaille sur
+    idleBecause: Inactif, car
+    empty: Aucun agent n’est encore dans le pool.
+    emptyEditor: Aucun agent n’est encore dans le pool. Choisis des agents sous Modifier.
+    running: En cours
+    queued: En file d’attente
+  idle:
+    model_capacity: Son modèle est saturé
+    host_pressure: L’hôte des sandbox est occupé
+    org_limit: Tous les workers d’agent sont occupés
+    pacing: Attend entre deux démarrages
+    gated: Une barrière retient le travail prêt
+    no_ready_work: Aucun travail prêt
+    disabled: La répartition est désactivée
+    unknown: Aucun passage encore
+  roles:
+    title: Rôles permanents
+    caption: Rôles permanents de la répartition du travail de ce projet
+    role: Rôle
+    agent: Agent
+    task: Tâche
+    schedule: Planification
+    next: Prochaine occurrence
+    last: Dernière occurrence
+    notYet: Pas encore
+    unknownAgent: Un agent qui n’est plus dans ce projet
+    unknownTask: Une tâche qui n’est plus dans ce projet
+    outcome:
+      started: Lancée
+      coalesced: Fondue dans l’exécution encore en cours
+      refused: Non lancée
+    refusal:
+      paused: 'Non lancée : la tâche a déjà reçu trois démarrages automatiques cette heure-ci'
+      blocked: 'Non lancée : un bloqueur ouvert retient la tâche'
+      in_review: 'Non lancée : la tâche est en relecture'
+      closed: 'Non lancée : la tâche est terminée'
+  gates:
+    title: Barrières
+    caption: Barrières de la répartition du travail de ce projet
+    gate: Barrière
+    holds: Retient
+    allWork: Tout le travail prêt
+    state: État
+    lastReport: Dernier signalement
+    states:
+      held: Fermée
+      open: Ouverte
+      stale: Aucun signalement récent
+    noReport: Aucun signalement encore
+    value: 'Dernière valeur {value}, se ferme à partir de {holdAt}'
+    valueOnly: 'Dernière valeur {value}'
+    spacedUntil: 'Prochain démarrage de son travail après {time}'
+    hold: Fermer
+    open: Ouvrir
+    holdAria: 'Fermer la barrière {key}'
+    openAria: 'Ouvrir la barrière {key}'
+    heldToast: 'La barrière {key} retient son travail'
+    openedToast: 'La barrière {key} est ouverte'
+    changeFailed: Impossible de modifier la barrière
+  passes:
+    title: Derniers passages
+    caption: Derniers passages de la répartition du travail de ce projet
+    when: Quand
+    askedBy: Demandé par
+    started: Lancées
+    held: Retenues
+    stoppedBecause: Arrêté, car
+    empty: Aucun passage encore.
+    trigger:
+      scan: Le contrôle de chaque minute
+      run_ended: Une exécution s’est terminée
+      capacity_cleared: Un modèle répond de nouveau
+      config: Une modification enregistrée
+      recheck: Une nouvelle vérification prévue
+      manual: Une demande manuelle
+      gate: Une barrière s’est ouverte
+    stop:
+      disabled: La répartition est désactivée
+      automation_disabled: L’automatisation des tâches est désactivée
+      pool_full: Le pool est plein
+      org_limit: Tous les workers d’agent sont occupés
+      no_ready_work: Aucun travail prêt
+      agents_busy: Ses agents sont occupés
+      model_capacity: Les modèles de ses agents sont saturés
+      host_pressure: L’hôte des sandbox est occupé
+      pacing: Attend entre deux démarrages
+      gated: Une barrière retient le travail prêt
+      started: Il a lancé du travail
+      held: Chaque démarrage a été refusé
+  editor:
+    title: Modifier la répartition du travail
+    setUpTitle: Configurer la répartition du travail
+    description: Choisis les agents qui prennent les tâches prêtes de ce projet et la façon dont leurs exécutions démarrent.
+    loadFailed: Impossible de charger la répartition du travail pour la modifier.
+    enabled: Répartition activée
+    enabledHint: Désactivée, elle ne lance rien ; les exécutions en cours continuent.
+    agents: Agents du pool
+    agentsHint: La répartition ne lance que ces agents.
+    agentsPlaceholder: Choisir des agents
+    agentsSearch: Rechercher des agents
+    noAgents: Ce projet n’a encore aucun agent. Ajoutes-en d’abord un sous Agents.
+    maxConcurrentRuns: Exécutions simultanées
+    maxConcurrentRunsHint: 'Les exécutions que quiconque lance sur ces agents comptent aussi. Ton organisation a {count, plural, one {# worker d’agent} other {# workers d’agent}}.'
+    perAgentConcurrency: Exécutions par agent
+    perAgentConcurrencyHint: Chaque exécution travaille dans son propre worker d’agent.
+    statuses: Prendre le travail prêt dans
+    statusesBoth: '{first}, puis {second}'
+    assignment: Tâches non assignées
+    assignmentAssigned: Les laisser
+    assignmentPool: Les confier au pool
+    rebalance: Confier les tâches jamais lancées à un agent libre
+    rebalanceHint: Une tâche déjà exécutée reste à son agent.
+    labelsInclude: Seulement les tâches avec l’étiquette
+    labelsExclude: Jamais les tâches avec l’étiquette
+    labelsAny: N’importe quelle étiquette
+    labelsNone: Aucune étiquette
+    labelsSearch: Rechercher des étiquettes
+    preset: Hôte des sandbox
+    presetDefault: Seuils du déploiement
+    presetConservative: Prudent
+    presetHint: Prudent attend aussi que la charge et la pression sur la mémoire et les entrées-sorties disque retombent.
+    startSpacing: Délai entre deux démarrages (secondes)
+    recheck: Redemander à un hôte occupé après (secondes)
+    recheckHint: Délais tour à tour, séparés par des virgules ; le dernier se répète.
+    remove: Retirer
+    roles:
+      title: Rôles permanents
+      description: Lance un agent sur sa propre tâche selon un horaire, pour un travail qui revient.
+      add: Ajouter un rôle permanent
+      removeAria: 'Retirer le rôle permanent {key}'
+      untitled: Nouveau rôle permanent
+      key: Clé
+      keyHint: Lettres minuscules, chiffres et traits d’union, comme manager.
+      agent: Agent
+      agentPlaceholder: Choisir un agent
+      task: Tâche
+      taskPlaceholder: Choisir une tâche
+      taskSearch: Rechercher des tâches
+      cron: Planification (cron)
+      cronHint: 'Cinq champs, comme */30 * * * * pour toutes les 30 minutes.'
+      timezone: Fuseau horaire
+      timezoneSearch: Rechercher un fuseau horaire
+      mode: Mode
+      modeHint: Un mot que l’agent reçoit à chaque occurrence, comme full ou light.
+      brief: Consigne
+      briefHint: Ce que l’agent traite en premier à chaque occurrence.
+      limit: 'Une répartition compte au plus {count} rôles permanents.'
+    gates:
+      title: Barrières
+      description: Retient le travail prêt qu’une barrière régit tant qu’un signal extérieur le demande.
+      add: Ajouter une barrière
+      removeAria: 'Retirer la barrière {key}'
+      untitled: Nouvelle barrière
+      key: Clé
+      labels: Étiquettes retenues
+      labelsHint: Sans étiquette, elle retient tout le travail prêt.
+      labelsPlaceholder: Tout le travail prêt
+      holdAt: Fermer à partir de
+      holdAtHint: Laisse ce champ vide pour une barrière fermée et ouverte à la main ou par ses signalements.
+      recoverBelow: Rouvrir sous
+      recoverBelowHint: La moitié de Fermer à partir de si tu ne la fixes pas.
+      staleAfter: Obsolète après (secondes)
+      staleAfterHint: 600 secondes si tu ne le fixes pas.
+      whenStale: Si obsolète
+      startSpacing: Délai entre ses démarrages (secondes)
+      limit: 'Une répartition compte au plus {count} barrières.'
+    validation:
+      wholeNumber: 'Saisis un nombre entier de {min, number} à {max, number}.'
+      recheck: 'Saisis de 1 à 10 délais de {min, number} à {max, number} secondes, séparés par des virgules.'
+      agentsMax: 'Choisis au plus {count} agents.'
+      labelsMax: 'Choisis au plus {count} étiquettes.'
+      key: Utilise des lettres minuscules, des chiffres et des traits d’union internes, 64 caractères au plus.
+      keyTaken: Une autre entrée utilise déjà cette clé.
+      roleAgent: Choisis un agent.
+      roleTask: Choisis une tâche.
+      cronRequired: Saisis une expression cron.
+      cronInvalid: 'Cette expression cron n’est pas valide : {reason}'
+      timezone: Choisis un fuseau horaire.
+      tooLong: 'Utilise au plus {count, number} caractères.'
+      number: Saisis un nombre.
+      recoverWithoutHold: Fixe d’abord Fermer à partir de.
+      recoverAboveHold: Cette valeur ne doit pas dépasser Fermer à partir de.
+    issues:
+      agent: Un agent de ce pool ne travaille plus dans ce projet. Retire-le, puis enregistre de nouveau.
+      roleAgent: Cet agent ne travaille plus dans ce projet.
+      roleTask: Choisis une tâche de ce projet qui n’est pas archivée.
+      cron: Cette planification n’est pas lisible.
+      label: 'Ce projet n’a pas d’étiquette nommée « {name} ».'
+      refusedTitle: La répartition du travail a été refusée
+    saved: Répartition du travail enregistrée
+    saveFailed: Impossible d’enregistrer la répartition du travail.
+    forbidden: Seul un administrateur du projet peut modifier sa répartition du travail.
+    conflict: Quelqu’un d’autre a enregistré cette répartition du travail pendant que tu la modifiais. Charge la version actuelle, puis refais ta modification.
+    changedTitle: Cette répartition du travail a changé depuis son ouverture
+    changedBody: Un enregistrement serait refusé maintenant. Charge la version actuelle pour repartir d’elle ; tes modifications ici sont abandonnées.
+    reload: Charger la version actuelle

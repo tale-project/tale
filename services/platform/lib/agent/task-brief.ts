@@ -31,13 +31,15 @@ export interface TaskBriefFacts {
 
 /**
  * Who put the agent to work when no person pressed Start: an automation's
- * `task.start_agent` step or another agent of the project. The brief names
- * it, and says the message it passed comes from an automation or an agent —
- * never from a person's review, which a person still gives at In review.
+ * `task.start_agent` step, another agent of the project, or the project's
+ * dispatch. The brief names it, and says the message it passed comes from an
+ * automation, an agent or the dispatch — never from a person's review, which
+ * a person still gives at In review.
  */
 export interface TaskRequester {
-  readonly kind: 'automation' | 'agent';
-  /** The automation's name, or the agent's display name. */
+  readonly kind: 'automation' | 'agent' | 'dispatch';
+  /** The automation's name, the agent's display name, or the standing role
+   * the dispatch started the run for (empty for ready work). */
   readonly name: string;
 }
 
@@ -51,9 +53,19 @@ export interface TaskHandoff {
 }
 
 function requesterPhrase(requester: TaskRequester): string {
+  if (requester.kind === 'dispatch') {
+    return requester.name === ''
+      ? "the project's dispatch, which starts ready work on idle agents,"
+      : `the project's dispatch, for the standing role "${requester.name}",`;
+  }
   return requester.kind === 'automation'
     ? `the automation "${requester.name}"`
     : `${requester.name}, another agent of this project,`;
+}
+
+function requesterSource(requester: TaskRequester): string {
+  if (requester.kind === 'dispatch') return "the project's dispatch";
+  return requester.kind === 'automation' ? 'an automation' : 'an agent';
 }
 
 /** The line that says who started a run no person started, when it carried
@@ -75,7 +87,7 @@ export function requesterFeedbackSection(
   return (
     `This run was started by ${requesterPhrase(requester)} with this ` +
     `message — address it before anything else:\n${feedbackText}\n\n` +
-    `It comes from ${requester.kind === 'automation' ? 'an automation' : 'an agent'}, ` +
+    `It comes from ${requesterSource(requester)}, ` +
     'not from a person: where it contradicts the task description or a ' +
     "person's comment, those win."
   );

@@ -6,6 +6,11 @@ export const WORKFLOW_ACTOR_ID = 'workflow';
 /** Sentinel `actorId` for org provisioning / starter content (not a real agent). */
 export const SYSTEM_ACTOR_ID = 'system';
 
+/** Sentinel `actorId` for the project's dispatch, which assigns ready work
+ * to an agent of its pool and moves a standing role's task to In progress
+ * (not a real agent). */
+const DISPATCH_ACTOR_ID = 'dispatch';
+
 export interface TaskActivityContext {
   workflowSlug?: string;
   wfExecutionId?: string;
@@ -84,12 +89,20 @@ export function isSystemSentinel(actorType: string, actorId: string): boolean {
   return actorType === 'agent' && actorId === SYSTEM_ACTOR_ID;
 }
 
+export function isDispatchSentinel(
+  actorType: string,
+  actorId: string,
+): boolean {
+  return actorType === 'agent' && actorId === DISPATCH_ACTOR_ID;
+}
+
 /** Whether the activity timeline should show a hover preview for this actor. */
 export function isPreviewableTaskActor(
   actorType: string,
   actorId: string,
 ): actorType is 'user' | 'agent' {
   if (isSystemSentinel(actorType, actorId)) return false;
+  if (isDispatchSentinel(actorType, actorId)) return false;
   return actorType === 'agent';
 }
 

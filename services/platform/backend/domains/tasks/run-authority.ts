@@ -37,6 +37,12 @@ import {
  * confines the chain's runs at their next tool call, as a member's lost
  * Editor role does.
  *
+ * A run the project's dispatch started (`dispatch-pass.ts`) names the
+ * project's dispatch (`dispatch:<projectId>`) and no person either. It acts
+ * with the agent's full equipment in the standing workspace while the
+ * project's dispatch is switched on and the project is active; switching
+ * dispatch off confines its runs the same way.
+ *
  * The workspace family is chosen when the run is kicked, by the starter's
  * rights then, and checked again whenever the run starts: its turn job
  * claims a worker of the family (`agent-workers.ts`) and moves a run whose
@@ -67,11 +73,33 @@ export async function scheduleMayActInProject(
   return rows.length > 0;
 }
 
+/** Whether the project's dispatch may act in it: the dispatch the starter
+ * names is this project's, switched on, and the project is not archived. */
+export async function dispatchMayActInProject(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    dispatchProjectId: string;
+  },
+): Promise<boolean> {
+  if (args.dispatchProjectId !== args.projectId) return false;
+  const rows = await sql<{ id: string }[]>`
+    SELECT d.project_id AS id FROM app.project_dispatch d
+    JOIN app.projects p ON p.id = d.project_id AND p.org_id = d.org_id
+    WHERE d.project_id = ${args.projectId} AND d.org_id = ${args.organizationId}
+      AND d.enabled = true AND p.archived_at_ms IS NULL
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 /** Whether a run's starter may act in the project with the agent's full
  * equipment now: the person it names is a live member of the organization
- * with the Editor role or higher and the project's audience, or the schedule
- * it names may act there ({@link scheduleMayActInProject}). A starter that
- * names nobody usable may not. */
+ * with the Editor role or higher and the project's audience, the schedule it
+ * names may act there ({@link scheduleMayActInProject}), or the project's
+ * dispatch it names is switched on ({@link dispatchMayActInProject}). A
+ * starter that names nobody usable may not. */
 export async function runStarterMayEditProject(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string; startedBy: string },
@@ -82,6 +110,13 @@ export async function runStarterMayEditProject(
       organizationId: args.organizationId,
       projectId: args.projectId,
       triggerId: starter.triggerId,
+    });
+  }
+  if (starter.kind === 'dispatch') {
+    return dispatchMayActInProject(sql, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      dispatchProjectId: starter.projectId,
     });
   }
   const userId = runStarterUserId(args.startedBy);

@@ -407,6 +407,7 @@ function TaskTimelineEntryContent({
           <span aria-hidden="true"> · </span>
           <span>
             {t(`agentRuns.trigger.${run.trigger}`)}
+            {run.occurrence !== undefined ? ` · ${run.occurrence}` : ''}
             {run.durationMs !== undefined
               ? ` · ${Math.round(run.durationMs / 1000)}s`
               : ''}

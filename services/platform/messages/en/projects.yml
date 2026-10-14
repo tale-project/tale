@@ -432,3 +432,243 @@ sharing:
   teamsLoadError: Couldn't load teams.
   teamNamesLoadError: Couldn't load team names.
   teamCount: '{count, plural, one {# team} other {# teams}}'
+dispatch:
+  title: Dispatch
+  description: Starts this project's ready tasks on the idle agents of its pool, and its standing roles on their schedules.
+  readerDescription: Shows what starts this project's ready tasks and why an agent is idle. Project administrators change it.
+  edit: Edit
+  runPass: Run a pass now
+  passRequested: Pass requested
+  passRequestedBody: It shows under Recent passes once it has run.
+  passFailed: Couldn't ask for a pass
+  loadFailed: Couldn't load this project's dispatch.
+  refreshFailed: Couldn't refresh this project's dispatch. What's shown may be out of date.
+  notSetUp:
+    title: Dispatch is not set up for this project
+    body: Choose the agents that take this project's ready tasks and how many runs they hold at once. Until then, a task starts only when someone starts it.
+    readerBody: A project administrator can set it up. Until then, a task starts only when someone starts it.
+    action: Set up dispatch
+  unreadable:
+    title: A newer version of Tale saved this dispatch
+    body: This version of Tale can't read it, so it starts nothing here and can't be changed here. It is kept as it is until Tale is upgraded.
+  summary:
+    status: Status
+    on: Dispatch is on
+    off: Dispatch is off
+    runs: Runs at once
+    runsValue: '{running} of {max}'
+    workers: Agent workers
+    workersValue: '{inUse} of {limit} in use'
+    lastPass: Last pass
+    nextPass: Next pass
+    noPass: No pass yet
+    nextPassSoon: Within a minute
+  workersWarning:
+    title: The pool can hold more runs than your agent workers
+    body: 'The pool may hold {runs, plural, one {# run} other {# runs}} at once, but your organization has {workers, plural, one {# agent worker} other {# agent workers}}. The extra runs would only wait for a free worker.'
+    manage: Manage agent workers
+  holds:
+    title: '{count, plural, one {A model is at capacity} other {# models are at capacity}}'
+    body: Agents on these models take no work from dispatch until their model answers again.
+    item: '{model} until {time}'
+  agents:
+    title: Agents
+    caption: Agents in the pool of this project's dispatch
+    agent: Agent
+    model: Model
+    workingOn: Working on
+    idleBecause: Idle because
+    empty: No agent is in the pool yet.
+    emptyEditor: No agent is in the pool yet. Choose agents under Edit.
+    running: Running
+    queued: Queued
+  idle:
+    model_capacity: Its model is at capacity
+    host_pressure: The sandbox host is busy
+    org_limit: All agent workers are in use
+    pacing: Waiting between starts
+    gated: A gate holds the ready work
+    no_ready_work: No ready work
+    disabled: Dispatch is off
+    unknown: No pass yet
+  roles:
+    title: Standing roles
+    caption: Standing roles of this project's dispatch
+    role: Role
+    agent: Agent
+    task: Task
+    schedule: Schedule
+    next: Next
+    last: Last
+    notYet: Not yet
+    unknownAgent: An agent no longer in this project
+    unknownTask: A task no longer in this project
+    outcome:
+      started: Started
+      coalesced: Folded into the run still working
+      refused: Not started
+    refusal:
+      paused: 'Not started: the task took three automated starts this hour'
+      blocked: 'Not started: an open blocker holds the task'
+      in_review: 'Not started: the task is in review'
+      closed: 'Not started: the task is closed'
+  gates:
+    title: Gates
+    caption: Gates of this project's dispatch
+    gate: Gate
+    holds: Holds
+    allWork: All ready work
+    state: State
+    lastReport: Last report
+    states:
+      held: Held
+      open: Open
+      stale: No recent report
+    noReport: No report yet
+    value: 'Last value {value}, holds at {holdAt}'
+    valueOnly: 'Last value {value}'
+    spacedUntil: 'Next start of its work after {time}'
+    hold: Hold
+    open: Open
+    holdAria: 'Hold the gate {key}'
+    openAria: 'Open the gate {key}'
+    heldToast: 'The gate {key} holds its work'
+    openedToast: 'The gate {key} is open'
+    changeFailed: Couldn't change the gate
+  passes:
+    title: Recent passes
+    caption: Recent passes of this project's dispatch
+    when: When
+    askedBy: Asked by
+    started: Started
+    held: Held
+    stoppedBecause: Stopped because
+    empty: No pass yet.
+    trigger:
+      scan: The check every minute
+      run_ended: A run ended
+      capacity_cleared: A model answered again
+      config: A saved change
+      recheck: A planned recheck
+      manual: Someone asked
+      gate: A gate opened
+    stop:
+      disabled: Dispatch is off
+      automation_disabled: Task automation is off
+      pool_full: The pool is full
+      org_limit: All agent workers are in use
+      no_ready_work: No ready work
+      agents_busy: Its agents are busy
+      model_capacity: Its agents' models are at capacity
+      host_pressure: The sandbox host is busy
+      pacing: Waiting between starts
+      gated: A gate holds the ready work
+      started: It started work
+      held: Every start was refused
+  editor:
+    title: Edit dispatch
+    setUpTitle: Set up dispatch
+    description: Choose which agents take this project's ready tasks and how their runs start.
+    loadFailed: Couldn't load the dispatch to edit it.
+    enabled: Dispatch is on
+    enabledHint: Switched off, it starts nothing; runs already working continue.
+    agents: Agents in the pool
+    agentsHint: Dispatch starts only these agents.
+    agentsPlaceholder: Choose agents
+    agentsSearch: Search agents
+    noAgents: This project has no agents yet. Add one under Agents first.
+    maxConcurrentRuns: Runs at once
+    maxConcurrentRunsHint: 'Runs anyone starts on these agents count too. Your organization has {count, plural, one {# agent worker} other {# agent workers}}.'
+    perAgentConcurrency: Runs per agent
+    perAgentConcurrencyHint: Each run works in an agent worker of its own.
+    statuses: Take ready work from
+    statusesBoth: '{first}, then {second}'
+    assignment: Unassigned tasks
+    assignmentAssigned: Leave them alone
+    assignmentPool: Give them to the pool
+    rebalance: Move tasks that never started to an idle agent
+    rebalanceHint: A task that already ran stays with its agent.
+    labelsInclude: Only tasks labelled
+    labelsExclude: Never tasks labelled
+    labelsAny: Any label
+    labelsNone: No label
+    labelsSearch: Search labels
+    preset: Sandbox host
+    presetDefault: Deployment's thresholds
+    presetConservative: Conservative
+    presetHint: Conservative also waits for load, memory and disk input/output pressure to ease.
+    startSpacing: Time between starts (seconds)
+    recheck: Ask a busy host again after (seconds)
+    recheckHint: Delays in turn, separated by commas; the last one repeats.
+    remove: Remove
+    roles:
+      title: Standing roles
+      description: Starts one agent on its own task on a schedule, for work that recurs.
+      add: Add a standing role
+      removeAria: 'Remove the standing role {key}'
+      untitled: New standing role
+      key: Key
+      keyHint: Lower-case letters, digits and hyphens, such as manager.
+      agent: Agent
+      agentPlaceholder: Choose an agent
+      task: Task
+      taskPlaceholder: Choose a task
+      taskSearch: Search tasks
+      cron: Schedule (cron)
+      cronHint: 'Five fields, such as */30 * * * * for every 30 minutes.'
+      timezone: Time zone
+      timezoneSearch: Search time zones
+      mode: Mode
+      modeHint: A word the agent receives with every occurrence, such as full or light.
+      brief: Brief
+      briefHint: What the agent addresses first on every occurrence.
+      limit: 'A dispatch holds up to {count} standing roles.'
+    gates:
+      title: Gates
+      description: Holds the ready work a gate governs while a signal from outside says so.
+      add: Add a gate
+      removeAria: 'Remove the gate {key}'
+      untitled: New gate
+      key: Key
+      labels: Labels it holds
+      labelsHint: None holds all ready work.
+      labelsPlaceholder: All ready work
+      holdAt: Hold at
+      holdAtHint: Leave it empty for a gate that is held and opened by hand or by its reports.
+      recoverBelow: Open again below
+      recoverBelowHint: Half of Hold at unless you set it.
+      staleAfter: Stale after (seconds)
+      staleAfterHint: 600 seconds unless you set it.
+      whenStale: When stale
+      startSpacing: Time between its starts (seconds)
+      limit: 'A dispatch holds up to {count} gates.'
+    validation:
+      wholeNumber: 'Enter a whole number from {min, number} to {max, number}.'
+      recheck: 'Enter 1 to 10 delays from {min, number} to {max, number} seconds, separated by commas.'
+      agentsMax: 'Choose up to {count} agents.'
+      labelsMax: 'Choose up to {count} labels.'
+      key: Use lower-case letters, digits and inner hyphens, up to 64 characters.
+      keyTaken: Another entry already uses this key.
+      roleAgent: Choose an agent.
+      roleTask: Choose a task.
+      cronRequired: Enter a cron expression.
+      cronInvalid: 'This cron expression is not valid: {reason}'
+      timezone: Choose a time zone.
+      tooLong: 'Use up to {count, number} characters.'
+      number: Enter a number.
+      recoverWithoutHold: Set Hold at first.
+      recoverAboveHold: This must not be above Hold at.
+    issues:
+      agent: An agent of this pool no longer works in this project. Remove it, then save again.
+      roleAgent: This agent no longer works in this project.
+      roleTask: Choose a task of this project that is not archived.
+      cron: This schedule doesn't read.
+      label: 'This project has no label named "{name}".'
+      refusedTitle: The dispatch was refused
+    saved: Dispatch saved
+    saveFailed: Couldn't save the dispatch.
+    forbidden: Only a project administrator can change this project's dispatch.
+    conflict: Someone else saved this dispatch while you were editing it. Load the current version, then make your change again.
+    changedTitle: This dispatch changed since you opened it
+    changedBody: Saving now would be refused. Load the current version to start again from it; your changes here are discarded.
+    reload: Load the current version

@@ -783,5 +783,22 @@
  * `agentOAuth` joins the security schemes (OAuth 2.1 authorization code with
  * PKCE, the seven scopes) and the endpoint's security lists it beside the API
  * key. No operation, schema or API key behaviour changes.
+ *
+ * 3.45.0 — 2026-10-14: the settings tools take a project's dispatch
+ * (`project-dispatch`, id `<projectId>`): its pool of agents, how many runs it
+ * holds, which columns count as ready work, how carefully the sandbox host
+ * admits a start, and its standing roles started on a schedule. A project
+ * without one reads as null; a change may create it. A start the dispatch
+ * makes answers to the project (`startedBy` `dispatch:<projectId>`) and runs
+ * with trigger `dispatch`. A run waiting for its model reads `waitingReason`
+ * `model_capacity`. A dispatch may declare `gates`, signals from outside that
+ * hold the ready work they govern: `POST /api/v1/projects/{id}/dispatch/gates/{key}`
+ * reports a state or a value (`DISPATCH_GATE_UNKNOWN`,
+ * `DISPATCH_GATE_VALUE_UNJUDGED`), and `GET /api/v1/projects/{id}/dispatch`
+ * reads what the dispatch does and why each agent of its pool is idle.
+ * The governance policy `sandbox_workspaces` takes `reclaimOnDiskPressure`,
+ * `maxWorkspaceGiB` and `reclaimMinIdleHours` (a file without them reads
+ * their defaults), and a plan that sets or tightens the size cap names the
+ * effect `irreversible`.
  */
-export const API_CONTRACT_VERSION = '3.44.0';
+export const API_CONTRACT_VERSION = '3.45.0';

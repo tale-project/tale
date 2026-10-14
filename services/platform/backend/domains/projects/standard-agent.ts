@@ -544,9 +544,11 @@ export async function standardAgentServingForKick(
   if (!config.enabled) throw refusalError('off');
   const serving = await resolveStandardAgentServing(tx, {
     organizationId: args.organizationId,
-    userId: args.startedBy.startsWith('trigger:')
-      ? agent.createdBy
-      : args.startedBy,
+    userId:
+      args.startedBy.startsWith('trigger:') ||
+      args.startedBy.startsWith('dispatch:')
+        ? agent.createdBy
+        : args.startedBy,
     config,
   });
   if (!serving.ok) throw refusalError(serving.refusal);

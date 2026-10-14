@@ -7,6 +7,7 @@ import {
   resourceId,
   type PlatformResource,
 } from '@tale/shared/config/platform-resources';
+import type { ManagedProjectDispatch } from '@tale/shared/schemas/managed-configuration';
 
 import { managedConfigurationHash } from '../../../../../services/platform/backend/core/lib/config_store/value_hash';
 import { readManagedResource } from './managed-resources';
@@ -101,12 +102,26 @@ function declaration() {
   });
 }
 
+/** The facet a managed request addresses, by its native path: the automation
+ * routes name their kind, every other facet has a path of its own. */
+function facetOf(path: string): string {
+  if (path.includes('/dispatch/by-project/')) return 'project-dispatch';
+  if (path.includes('/configuration/review-context'))
+    return 'task-review-context';
+  if (path.endsWith('/configuration/model')) return 'agent-model';
+  if (path.endsWith('/configuration/tools')) return 'agent-tools';
+  if (path.startsWith('/api/app/tasks/')) return 'task-instructions';
+  if (path.includes('/agents/')) return 'agent-instructions';
+  return 'project-instructions';
+}
+
 function native(resources: PlatformResource[]) {
   const state = new Map<string, unknown>(
     resources.map((resource) => [
       resourceId(resource),
       resource.kind.startsWith('automation-') ||
-      resource.kind === 'task-review-context'
+      resource.kind === 'task-review-context' ||
+      resource.kind === 'project-dispatch'
         ? null
         : {
             ...resource.config,
@@ -135,30 +150,9 @@ function native(resources: PlatformResource[]) {
         method === 'GET'
           ? (new URL(path, 'https://example.invalid').searchParams.get(
               'kind',
-            ) ??
-            (path.includes('/configuration/review-context')
-              ? 'task-review-context'
-              : path.endsWith('/configuration/model')
-                ? 'agent-model'
-                : path.endsWith('/configuration/tools')
-                  ? 'agent-tools'
-                  : path.startsWith('/api/app/tasks/')
-                    ? 'task-instructions'
-                    : path.includes('/agents/')
-                      ? 'agent-instructions'
-                      : 'project-instructions'))
+            ) ?? facetOf(path))
           : ((body?.resource as PlatformResource | undefined)?.kind ??
-            (path.includes('/configuration/review-context')
-              ? 'task-review-context'
-              : path.endsWith('/configuration/model')
-                ? 'agent-model'
-                : path.endsWith('/configuration/tools')
-                  ? 'agent-tools'
-                  : path.startsWith('/api/app/tasks/')
-                    ? 'task-instructions'
-                    : path.includes('/agents/')
-                      ? 'agent-instructions'
-                      : 'project-instructions'));
+            facetOf(path));
       const selected = resources.find(
         (resource) =>
           resource.kind === kind &&
@@ -170,7 +164,11 @@ function native(resources: PlatformResource[]) {
               ? path.includes(
                   `/tasks/${encodeURIComponent(resource.config.taskId)}/`,
                 )
-              : true),
+              : resource.kind === 'project-dispatch'
+                ? path.includes(
+                    `/by-project/${encodeURIComponent(resource.config.projectId)}/`,
+                  )
+                : true),
       );
       if (!selected) throw new Error('unknown native resource');
       const key = resourceId(selected);
@@ -743,6 +741,299 @@ describe('managed model preimages', () => {
     await expect(
       planPlatformConfiguration(configuration, api.client),
     ).rejects.toThrow('unsupported native model facet');
+    expect(api.writes).toEqual([]);
+  });
+});
+
+describe('managed project dispatch', () => {
+  const dispatch = {
+    projectId: 'project-1',
+    enabled: true,
+    agents: ['agent-1'],
+    maxConcurrentRuns: 3,
+    statuses: ['todo', 'backlog'],
+    assignment: 'pool',
+    admission: { preset: 'conservative', recheckSeconds: [60, 120, 240] },
+    standingRoles: [
+      {
+        key: 'manager',
+        taskId: 'task-1',
+        agentId: 'agent-1',
+        cron: '0,30 * * * *',
+        // Node and Bun spell this alias differently; the dispatch keeps it.
+        timezone: 'Etc/UTC',
+        mode: 'light',
+      },
+    ],
+    labels: { include: ['ci', 'docs'], exclude: ['blocked'] },
+    // A gate is declared with the rest of the document; what is reported on
+    // it is runtime state the configuration never holds.
+    gates: [
+      {
+        key: 'ci',
+        labels: ['ci'],
+        holdAt: 20,
+        recoverBelow: 10,
+        staleAfterSeconds: 900,
+        whenStale: 'hold',
+        startSpacingSeconds: 300,
+      },
+      { key: 'freeze' },
+    ],
+  } satisfies ManagedProjectDispatch;
+  const id = 'project-dispatch/project-1';
+
+  function declared(config: object = dispatch) {
+    const [resource] = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [{ kind: 'project-dispatch', config }],
+    }).resources;
+    if (resource?.kind !== 'project-dispatch')
+      throw new Error('the declaration holds no dispatch');
+    return resource;
+  }
+
+  /** The fixture fleet with a dispatch listed first, to prove apply order. */
+  function withDispatch() {
+    return parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [
+        { kind: 'project-dispatch', config: dispatch },
+        ...declaration().resources,
+      ],
+    });
+  }
+
+  async function receipt() {
+    const directory = await mkdtemp(join(tmpdir(), 'managed-dispatch-'));
+    roots.push(directory);
+    return join(directory, 'receipt.json');
+  }
+
+  test('hashes as the platform hashes the dispatch it stores, and keeps one per project', () => {
+    const resource = declared();
+    expect(resource.config).toEqual(dispatch);
+    expect(resourceId(resource)).toBe(id);
+    // The platform stores the document without its project, and reads it
+    // back as `{ projectId, ...document }` after a JSON round trip.
+    const { projectId, ...document } = dispatch;
+    const readback: unknown = JSON.parse(
+      JSON.stringify({ ...document, projectId }),
+    );
+    expect(valueHash(resource.config)).toBe(
+      managedConfigurationHash(readback) ?? '',
+    );
+    expect(() =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [
+          { kind: 'project-dispatch', config: dispatch },
+          { kind: 'project-dispatch', config: { ...dispatch, enabled: false } },
+        ],
+      }),
+    ).toThrow();
+    expect(
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [
+          { kind: 'project-dispatch', config: dispatch },
+          {
+            kind: 'project-dispatch',
+            config: { ...dispatch, projectId: 'project-2' },
+          },
+        ],
+      }).resources.map(resourceId),
+    ).toEqual([id, 'project-dispatch/project-2']);
+  });
+
+  test('creates a dispatch the project lacks after everything it names, then re-applies unchanged', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    const paths: string[] = [];
+    const request = api.client.request.bind(api.client);
+    api.client.request = async (path, method, body) => {
+      if (path.includes('/dispatch/')) paths.push(`${method ?? 'GET'} ${path}`);
+      return request(path, method, body);
+    };
+    const plan = await planPlatformConfiguration(config, api.client);
+    expect(plan.resources.at(-1)).toEqual({
+      id,
+      scope: 'organization',
+      currentSha256: valueHash(null),
+      desiredSha256: valueHash(dispatch),
+      revision: null,
+      action: 'create',
+      effects: [],
+    });
+    const path = join(await receipt());
+    await applyPlatformConfiguration(config, plan, api.client, path);
+    expect(api.writes.map(({ kind }) => kind)).toEqual([
+      'project-instructions',
+      'agent-instructions',
+      'agent-tools',
+      'agent-model',
+      'task-instructions',
+      'automation-definition',
+      'automation-deployment',
+      'automation-schedule',
+      'project-dispatch',
+    ]);
+    expect(api.writes.at(-1)?.body).toEqual({
+      config: dispatch,
+      expectedHash: null,
+    });
+    expect(new Set(paths)).toEqual(
+      new Set([
+        'GET /api/app/tasks/dispatch/by-project/project-1/configuration',
+        'POST /api/app/tasks/dispatch/by-project/project-1/configuration',
+      ]),
+    );
+    const before = api.writes.length;
+    const again = await applyPlatformConfiguration(
+      config,
+      plan,
+      api.client,
+      path,
+    );
+    expect(again.unchanged).toBe(true);
+    expect(api.writes).toHaveLength(before);
+    expect(
+      (await planPlatformConfiguration(config, api.client)).resources.every(
+        (change) => change.action === 'unchanged',
+      ),
+    ).toBe(true);
+  });
+
+  test('switches a dispatch off, and creates one switched off rather than reading none as off', async () => {
+    const off = { ...dispatch, enabled: false };
+    const configuration = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [{ kind: 'project-dispatch', config: off }],
+    });
+    const running = native(configuration.resources);
+    running.state.set(id, structuredClone(dispatch));
+    const update = await planPlatformConfiguration(
+      configuration,
+      running.client,
+    );
+    expect(update.resources).toMatchObject([
+      { id, action: 'update', revision: valueHash(dispatch) },
+    ]);
+    await applyPlatformConfiguration(
+      configuration,
+      update,
+      running.client,
+      await receipt(),
+    );
+    expect(running.writes).toEqual([
+      {
+        kind: 'project-dispatch',
+        body: { config: off, expectedHash: valueHash(dispatch) },
+      },
+    ]);
+    expect(running.state.get(id)).toEqual(off);
+
+    const fresh = native(configuration.resources);
+    const create = await planPlatformConfiguration(configuration, fresh.client);
+    expect(create.resources).toMatchObject([
+      { id, action: 'create', revision: null },
+    ]);
+    await applyPlatformConfiguration(
+      configuration,
+      create,
+      fresh.client,
+      await receipt(),
+    );
+    expect(fresh.writes).toEqual([
+      { kind: 'project-dispatch', body: { config: off, expectedHash: null } },
+    ]);
+  });
+
+  test('reconciles a lost response without writing the dispatch twice', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    const path = await receipt();
+    const plan = await planPlatformConfiguration(config, api.client);
+    api.lose('project-dispatch');
+    await expect(
+      applyPlatformConfiguration(config, plan, api.client, path),
+    ).rejects.toThrow(`Configuration apply stopped at ${id}`);
+    expect(JSON.parse(await readFile(path, 'utf8')).phase).toBe('pending');
+    await applyPlatformConfiguration(config, plan, api.client, path);
+    expect(
+      api.writes.filter(({ kind }) => kind === 'project-dispatch'),
+    ).toHaveLength(1);
+    expect(JSON.parse(await readFile(path, 'utf8')).phase).toBe('ready');
+  });
+
+  test('refuses a dispatch edited after planning before any resource is written', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    const plan = await planPlatformConfiguration(config, api.client);
+    api.state.set(id, { ...dispatch, maxConcurrentRuns: 9 });
+    await expect(
+      applyPlatformConfiguration(config, plan, api.client, await receipt()),
+    ).rejects.toThrow('changed since planning');
+    expect(api.writes).toEqual([]);
+  });
+
+  test.each([
+    { ...dispatch, projectId: 'project-2' },
+    { ...dispatch, pool: ['agent-1'] },
+    { ...dispatch, maxConcurrentRuns: 0 },
+    { ...dispatch, gates: [{ key: 'ci', held: true, value: 23 }] },
+  ])(
+    'refuses a readback for another project or in a shape it does not know: %j',
+    async (config) => {
+      const client = {
+        request: async () => ({ config, hash: valueHash(config) }),
+      } as unknown as PlatformConfigurationClient;
+      await expect(readManagedResource(client, declared())).rejects.toThrow();
+    },
+  );
+
+  test.each([
+    { state: 'hold' },
+    { held: true },
+    { value: 23 },
+    { reason: 'runner queue full' },
+    { reportedAt: 1_760_000_000_000 },
+  ])(
+    'never declares what is reported on a gate, only the gate: %j',
+    (reported) => {
+      const [gate, ...rest] = dispatch.gates;
+      expect(() =>
+        declared({ ...dispatch, gates: [{ ...gate, ...reported }, ...rest] }),
+      ).toThrow();
+    },
+  );
+
+  test('refuses a hash that does not describe the dispatch, or a hash without one', async () => {
+    for (const [view, message] of [
+      [{ config: dispatch, hash: '0'.repeat(64) }, 'native identity or hash'],
+      [{ config: null, hash: valueHash(dispatch) }, 'missing or inconsistent'],
+    ] as const) {
+      const client = {
+        request: async () => view,
+      } as unknown as PlatformConfigurationClient;
+      await expect(readManagedResource(client, declared())).rejects.toThrow(
+        message,
+      );
+    }
+  });
+
+  test('fails closed on a runtime without the dispatch facet', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    const supported = api.client.request;
+    api.client.request = async (...args) => {
+      if (args[0].includes('/dispatch/by-project/'))
+        throw new Error('404 unsupported native dispatch facet');
+      return supported(...args);
+    };
+    await expect(planPlatformConfiguration(config, api.client)).rejects.toThrow(
+      'unsupported native dispatch facet',
+    );
     expect(api.writes).toEqual([]);
   });
 });

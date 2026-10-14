@@ -10,13 +10,13 @@
 // as the daemon reports (a remote daemon, or a context pointing elsewhere,
 // leaves admission to the session count alone).
 //
-// The same reading carries the host's CPU pressure (the kernel's pressure
-// stall information): while runnable tasks keep waiting for a CPU, admission
-// lets new work start one at a time instead of adding to the queue.
+// The same judgement decides where the host's pressure is read
+// (host-pressure.ts): the load and the kernel's pressure stall information
+// describe the Docker host only where its memory does.
 
 import { release } from 'node:os';
 
-import { parseMemory, parsePressureSomeAvg10 } from './proc-stats.ts';
+import { parseMemory } from './proc-stats.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import type { SandboxSessionProfile } from './wire.ts';
@@ -42,8 +42,8 @@ const SIZING_BYTES_PER_SESSION = 768 * MIB;
 const AUTO_MIN_SESSIONS = 8;
 const AUTO_MAX_SESSIONS = 256;
 /** The CPU pressure (PSI `some avg10`, in percent) from which admission lets
- * sessions start one at a time, unless SANDBOX_CPU_PRESSURE_PERCENT says
- * otherwise. */
+ * sessions start one at a time under the `default` preset, unless
+ * SANDBOX_CPU_PRESSURE_PERCENT says otherwise. */
 export const DEFAULT_CPU_PRESSURE_PERCENT = 60;
 
 /** Sessions per CPU when capacity follows the host: an agent session may use
@@ -124,9 +124,6 @@ export interface HostMemoryDeps {
   kernelRelease?: () => string;
   now?: () => number;
   env?: Record<string, string | undefined>;
-  /** Read the host's CPU pressure beside its memory (off where admission
-   * ignores it: SANDBOX_CPU_PRESSURE_PERCENT=0). */
-  cpuPressure?: boolean;
 }
 
 export class HostMemoryProbe {
@@ -135,7 +132,6 @@ export class HostMemoryProbe {
   private readonly kernelRelease: () => string;
   private readonly now: () => number;
   private readonly env: Record<string, string | undefined>;
-  private readonly readsCpuPressure: boolean;
   private verdict: {
     local: boolean;
     atMs: number;
@@ -147,9 +143,7 @@ export class HostMemoryProbe {
   private reading: {
     atMs: number;
     memory: HostMemory | null;
-    cpuPressure: number | null;
   } | null = null;
-  private cpuPressureWarned = false;
   private refreshing: Promise<HostMemory | null> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
 
@@ -163,7 +157,6 @@ export class HostMemoryProbe {
     this.kernelRelease = deps.kernelRelease ?? release;
     this.now = deps.now ?? Date.now;
     this.env = deps.env ?? process.env;
-    this.readsCpuPressure = deps.cpuPressure ?? true;
   }
 
   /** Keep the reading fresh: one read a second, so admission, which
@@ -191,13 +184,11 @@ export class HostMemoryProbe {
     return this.reading?.memory ?? null;
   }
 
-  /** The Docker host's CPU pressure from the last reading: the share of the
-   * last ten seconds, in percent, in which some runnable task waited for a
-   * CPU (`some avg10` of /proc/pressure/cpu). Null where this process cannot
-   * see the Docker host's /proc, or its kernel keeps no pressure stall
-   * information. */
-  cpuPressure(): number | null {
-    return this.reading?.cpuPressure ?? null;
+  /** Whether this process's /proc describes the Docker host: the verdict
+   * the memory reading itself rests on, judged at most every ten minutes
+   * (sooner after the Docker CLI could not answer). Never rejects. */
+  describesHost(): Promise<boolean> {
+    return this.describesDockerHost();
   }
 
   /** The CPUs the daemon reports for the Docker host this process shares,
@@ -230,7 +221,6 @@ export class HostMemoryProbe {
   private async readNow(): Promise<HostMemory | null> {
     const now = this.now();
     let memory: HostMemory | null = null;
-    let cpuPressure: number | null = null;
     if (await this.describesDockerHost()) {
       try {
         const parsed = parseMemory(await this.readFile('/proc/meminfo'));
@@ -243,37 +233,12 @@ export class HostMemoryProbe {
       } catch (error) {
         console.warn('[sandbox] cannot read the host memory:', error);
       }
-      if (this.readsCpuPressure) cpuPressure = await this.readCpuPressure();
     }
     // A slower read that started earlier never replaces a newer reading.
     if (this.reading === null || this.reading.atMs <= now) {
-      this.reading = { atMs: now, memory, cpuPressure };
+      this.reading = { atMs: now, memory };
     }
     return memory;
-  }
-
-  /** The host's CPU pressure, or null where its kernel keeps none (built
-   * without it, or booted with `psi=0`): admission then ignores CPU load,
-   * which is said once. */
-  private async readCpuPressure(): Promise<number | null> {
-    try {
-      const percent = parsePressureSomeAvg10(
-        await this.readFile('/proc/pressure/cpu'),
-      );
-      if (percent === null) {
-        throw new Error('/proc/pressure/cpu has no "some avg10" reading');
-      }
-      return percent;
-    } catch (error) {
-      if (!this.cpuPressureWarned) {
-        this.cpuPressureWarned = true;
-        console.warn(
-          '[sandbox] the host keeps no CPU pressure reading; admission ignores CPU load:',
-          error,
-        );
-      }
-      return null;
-    }
   }
 
   private describesDockerHost(): Promise<boolean> {

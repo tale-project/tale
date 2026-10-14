@@ -31,6 +31,7 @@ const DECLARABLE: Record<PlatformResource['kind'], true> = {
   'automation-definition': true,
   'automation-deployment': true,
   'automation-schedule': true,
+  'project-dispatch': true,
   governance: true,
   branding: true,
   deployment: true,

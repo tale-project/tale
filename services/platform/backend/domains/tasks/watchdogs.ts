@@ -1,6 +1,8 @@
 import type { Sql } from 'postgres';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import { CHAT_GENERATION_STALE_MS } from '../chat/watchdogs.ts';
 import { releaseProjectAgentSessionSlot } from '../sandbox/sessions.ts';
 import {
@@ -13,6 +15,74 @@ import {
 
 /** Parked runs one watchdog tick wakes per organization (see the wake). */
 const PARKED_WAKES_PER_TICK = 4;
+
+/** How long after its arm a retry may still be waiting for its job before
+ * the arm is taken for lost: past the longest wait a retry decision is held
+ * for (a sandbox out of memory, 30 minutes) and the job's own expiry and
+ * retry (twice ten minutes). */
+const LOST_RETRY_AFTER_MS = 60 * 60_000;
+/** Lost retries one tick re-arms. */
+const LOST_RETRIES_PER_TICK = 50;
+
+/**
+ * Failed runs whose automatic retry was armed and never decided: the newest
+ * run of their task, not retired, armed over an hour ago, with no retry job
+ * waiting, running or about to be retried. A retry job that threw on both of
+ * its deliveries (a lock, an unreadable policy, a database fault) left the
+ * run reading "retry pending" for good — the card, the readbacks and a
+ * manager all wait on a retry nothing will ever start. Re-arming lets the
+ * retry decide once more; every guard is re-derived there, and a refusal
+ * retires the run as usual. Runs settled a day ago or more are left alone.
+ */
+async function rearmLostRetries(sql: Sql): Promise<number> {
+  const now = Date.now();
+  const lost = await sql<
+    { id: string; organizationId: string; taskId: string; agentId: string }[]
+  >`
+    SELECT r.id, r.org_id AS "organizationId", r.task_id AS "taskId",
+           r.agent_id AS "agentId"
+    FROM app.project_agent_runs r
+    WHERE r.status = 'failed'
+      AND r.auto_retry_armed_at_ms IS NOT NULL
+      AND r.auto_retry_armed_at_ms < ${now - LOST_RETRY_AFTER_MS}
+      AND r.auto_retry_refused_at_ms IS NULL
+      AND r.settled_at_ms > ${now - 24 * 60 * 60_000}
+      AND NOT EXISTS (
+        SELECT 1 FROM app.project_agent_runs later
+        WHERE later.task_id = r.task_id AND later.seq > r.seq
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM pgboss.job j
+        WHERE j.name = ${physicalTaskQueue('task.agent_retry')}
+          AND j.data ->> 'expectedRunId' = r.id
+          AND j.state IN ('created', 'retry', 'active')
+      )
+    ORDER BY r.auto_retry_armed_at_ms
+    LIMIT ${LOST_RETRIES_PER_TICK}
+  `;
+  let rearmed = 0;
+  for (const run of lost) {
+    await sql.begin(async (tx) => {
+      // Re-stamp the arm under the run's row lock, so a second watchdog
+      // tick running alongside re-arms the run once.
+      const stamped = await tx`
+        UPDATE app.project_agent_runs SET auto_retry_armed_at_ms = ${Date.now()}
+        WHERE id = ${run.id} AND status = 'failed'
+          AND auto_retry_refused_at_ms IS NULL
+          AND auto_retry_armed_at_ms < ${now - LOST_RETRY_AFTER_MS}
+      `;
+      if (stamped.count === 0) return;
+      await addJobInTx(tx, 'task.agent_retry', {
+        organizationId: run.organizationId,
+        taskId: run.taskId,
+        agentId: run.agentId,
+        expectedRunId: run.id,
+      });
+      rearmed += 1;
+    });
+  }
+  return rearmed;
+}
 
 /** How long a native run may be `running` with no transcript at all — the
  * job claimed it and died before opening one — before it is failed. */
@@ -158,9 +228,15 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
   }
 
   const overdueParked = await sql<
-    { id: string; organizationId: string; execId: string }[]
+    {
+      id: string;
+      organizationId: string;
+      execId: string;
+      waitingReason: string | null;
+    }[]
   >`
-    SELECT id, org_id AS "organizationId", exec_id AS "execId"
+    SELECT id, org_id AS "organizationId", exec_id AS "execId",
+           waiting_reason AS "waitingReason"
     FROM app.project_agent_runs
     WHERE status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL
       AND deadline_at_ms < ${Date.now()}
@@ -168,15 +244,29 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
     LIMIT 50
   `;
   for (const run of overdueParked) {
+    // A run that waited for its model reads as the model's failure, not as
+    // a full deployment: nothing about workers would have helped it.
+    const forModel = run.waitingReason === 'model_capacity';
     const didFail = await failAgentRun(sql, {
       organizationId: run.organizationId,
       runId: run.id,
       execId: run.execId,
-      error:
-        'the agent run waited for sandbox capacity past its time limit and was stopped',
-      failureCode: 'park_deadline',
+      error: forModel
+        ? 'the agent run waited for its model to have capacity past its time limit and was stopped'
+        : 'the agent run waited for sandbox capacity past its time limit and was stopped',
+      failureCode: forModel ? 'model_capacity' : 'park_deadline',
     });
     if (didFail) failed += 1;
+  }
+
+  // A retry whose job was lost would read as pending forever.
+  try {
+    await rearmLostRetries(sql);
+  } catch (error) {
+    console.error(
+      '[task-agent] watchdog: re-arming lost retries failed:',
+      error,
+    );
   }
 
   // Backstop for a slot held by nothing. A settle leaves a worker up while a

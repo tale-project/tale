@@ -5,8 +5,8 @@
 A sandbox is the isolated environment an agent works in, and its workspace is the files it
 keeps between turns. These rules cover who can see and manage workspaces, what an agent in a
 sandbox can reach, how many sandboxes run at once, what is left of a workspace whose sandbox
-disappears, when a workspace is deleted, how a turn's spend is booked, and the light sandboxes
-chats run code in. Connected devices
+disappears, when a workspace is deleted, how a turn's spend is booked, the light sandboxes
+chats run code in, and the leases agent runs take before a heavy phase. Connected devices
 and agent secrets have their own specs. Egress, the health checks, image generation and how
 waiting work resumes are not covered; see Not yet.
 
@@ -178,7 +178,7 @@ once (`SBX-R2`).
 ### SBX-R10 · A pinned workspace is kept running and exempt from automatic cleanup
 
 It is not stopped when its agent's turn ends, its session does not expire, and it is not
-deleted for being unused (`SBX-R12`). A pinned workspace can therefore go on holding a slot.
+deleted for being unused (`SBX-R12`), for disk space or for its size (`SBX-R35`). A pinned workspace can therefore go on holding a slot.
 If its sandbox disappears, for example after a host restart, a sandbox is started again for
 the same workspace and pinned again; a crawler's temporary sandbox is the exception and is
 closed instead. Destroy (`SBX-R11`) and the removal of what the workspace belongs to
@@ -219,8 +219,9 @@ connected device, which it does not list.
 ## Automatic deletion
 
 Tale deletes a workspace on its own in two cases: nobody has used it for a while, or what it
-belongs to is gone. A legal hold keeps every workspace it covers, whatever the two rules
-below say; see Not yet.
+belongs to is gone. An idle one can also go for the room it takes; see Reclaim by size and
+disk pressure. A legal hold keeps every workspace it covers, whatever the two rules below
+say; see Not yet.
 
 ### SBX-R12 · A workspace nobody used for the set number of days is deleted
 
@@ -350,6 +351,144 @@ working sandbox. It is removed only once it has itself been unused for five minu
 
 - **Example**: A resumed turn’s old token names its superseded exec → discovery keeps identity unknown rather than reporting that exec as current.
 
+## Heavy-phase leases
+
+A sandbox host is admitted into when work starts, but what presses it comes later: installing
+dependencies, building an image, checking a whole workspace, running a full test suite. Before
+such a phase, an agent asks the host for a lease.
+
+### SBX-R28 · A task run asks the host for a lease before a heavy phase
+
+Before such a phase, a project agent's task run asks the sandbox host for a lease on its own
+sandbox (`host_lease_acquire`). Every task run has the tool where its agent runtime can reach the
+platform's tools; no grant is needed. The host grants the lease while it is not under pressure,
+runs fewer heavy phases than its limit, and keeps room on disk and in memory beside the others;
+the platform records which run holds it. A run holds one lease at a time: asking again while it
+holds one answers that lease (`held`).
+
+- **Example**: Ada's agent is about to run `npm ci` while the host is calm → it gets a lease with
+  its ID and expiry, runs the install, then releases the lease.
+
+### SBX-R29 · A refused lease says why and when to ask again
+
+The answer names the reason — the host is under pressure (`pressure`), as many heavy phases as it
+runs at once already run (`limit`), disk or memory would run short beside them (`disk`,
+`memory`), or its readings are out of date (`stale`) — and how many seconds to wait
+(`retryAfterSeconds`). The agent waits and asks again instead of running the phase. A host that
+does not answer is asked again the same way (`unreachable`).
+
+- **Example**: Two builds hold the host's two leases. Ada's agent asks for a third → refused as
+  `limit`, to ask again in 30 seconds; it waits, asks again once a build has ended, and gets the
+  lease.
+
+### SBX-R30 · Where the host cannot be judged, the agent works without a lease
+
+On Kubernetes, on Incus, with a remote Docker daemon, with a sandbox service that has no leases,
+or when the service's answer cannot be read, the answer is `unavailable`: leases do not exist
+there, so the agent runs the phase without one instead of waiting. No run waits for a lease
+that cannot come.
+
+- **Example**: Ada's organization runs its sandboxes on Kubernetes. Her agent asks for a lease →
+  `unavailable`, and it starts the build at once.
+
+### SBX-R31 · A run releases only its own leases, on its own sandbox
+
+The run, its sandbox and its organization come from the turn's session token; whatever the call
+names is ignored. A lease of another run, even one on the same sandbox, is answered as not found
+and stays held. Only a project agent's live task run takes leases: any other session is refused
+(`not_a_project_agent_run`), and so is a run that has ended (`run_ended`).
+
+- **Example**: Ada's agent releases the lease ID of a run of Noah's agent → not found, and Noah's
+  lease stays held.
+
+### SBX-R32 · Every lease of a run ends when the run ends
+
+When a run settles, fails or is cancelled, every lease it still holds is released on the host. A
+lease the host no longer holds — expired, its sandbox gone, the service restarted — counts as
+released. When the host cannot be asked, the release is tried again, and the sandbox sweep ends
+what is left five minutes after the run ended. A lease also ends by itself at its expiry, at most
+two hours after it was granted.
+
+- **Example**: Ada cancels her agent's run in the middle of a Docker build → its lease ends with
+  the run, and the next agent's build can start.
+
+### SBX-R33 · Only owners and admins see which runs hold the host's leases
+
+The list of the organization's active leases names runs, tasks, agents and sandboxes, so it
+follows the workspace list (`SBX-R2`): anyone else is refused (HTTP 403). The capacity reading,
+which developers read too (`SBX-R1`), carries only how many leases the host holds and how many it
+grants at once.
+
+- **Example**: Noah has the developer role. He asks for the active leases → refused; the
+  capacity he reads says 1 of 2 leases is in use.
+
+## Reclaim by size and disk pressure
+
+A workspace keeps everything its agent installed and built, on a disk every organization on the
+sandbox host shares; while that disk is below the free space the host keeps, every new session is
+refused there. So the hourly cleanup also deletes idle workspaces for the room they take.
+
+### SBX-R34 · While the sandbox disk is short, the largest idle workspaces go first
+
+When the sandbox host's workspace disk is below its floor, the free space the host keeps for new
+sessions, the hourly cleanup deletes idle project-agent workspaces, the largest first, whichever
+organization on the host holds them. It stops once the space those deletions free brings the
+disk back to twice its floor. A deletion still waiting for its workspace to stop frees nothing in
+that count; one whose files are being deleted does.
+
+- **Example**: The host has 6 GiB free and a 10 GiB floor. Ada's organization has idle workspaces
+  of 26 and 4 GiB, Noah's one of 22 GiB → Ada's 26 GiB workspace is deleted; the others stay,
+  since 32 GiB is more than twice the floor.
+
+### SBX-R35 · Only an idle workspace is deleted for disk space or for its size
+
+Idle means a live project agent's workspace that no sandbox runs in, no run waits for, and nobody
+has used for the organization's idle hours, 24 unless changed. A pinned workspace, one a legal
+hold keeps, and one its organization's records do not hold are never deleted for disk space or
+size. The decision is taken again right before the deletion, so a workspace used again in
+between stays, and the sandbox service refuses one that any compute runs in.
+
+- **Example**: Ada's agent finished in a 30 GiB workspace two hours ago, and Noah pinned a 40 GiB
+  one a month ago → both stay while the disk is short.
+
+### SBX-R36 · A workspace without a known size is never deleted for space or size
+
+Sizes come from the sandbox service, which measures each workspace at most every ten minutes and
+at most fifty in one request. A workspace it has not measured, could not measure in time, or
+last measured before the workspace was last used counts as having no size: it is skipped, and
+nothing is counted for it.
+
+- **Example**: The service has measured 50 of Noah's 60 workspaces → only those 50 can be
+  deleted in this hour's cleanup.
+
+### SBX-R37 · An idle workspace above its organization's size cap is deleted
+
+An organization can set a maximum workspace size in GiB; there is none unless it does. The hourly
+cleanup then deletes every idle workspace measured above it, the largest first, whether the disk
+is short or not, and what that frees counts toward the room the disk needs.
+
+- **Example**: Ada sets 30 GiB. An agent's workspace has been idle for two days at 34 GiB → it is
+  deleted at the next hourly cleanup; one of 28 GiB stays.
+
+### SBX-R38 · An organization can keep its workspaces out of the disk reclaim
+
+The disk reclaim is on unless the organization switches it off. Switched off, its idle workspaces
+are not deleted for disk space, and the other organizations' still are. A policy saved before
+these settings existed reads their defaults, and one that cannot be read deletes nothing for disk
+space or size that hour.
+
+- **Example**: Ada switches **Free disk space when it runs short** off, and the disk runs short →
+  her organization's idle workspaces stay; Noah's largest idle one goes.
+
+### SBX-R39 · A deletion for space or size is audited with its reason and size
+
+Like every automatic deletion, it appears in the audit log once its files are confirmed gone. Its
+reason reads `disk_pressure` or `over_size`, and its details give the size measured, when it was
+measured, and the disk's free space and floor, or the organization's cap.
+
+- **Example**: Ada's 26 GiB workspace is deleted while the disk is short → the audit log lists
+  **Sandbox workspace deleted** with the reason `disk_pressure` and its size.
+
 ## Not yet
 
 - **Egress**: which addresses a sandbox can reach is decided by the sandbox service, outside
@@ -377,6 +516,9 @@ working sandbox. It is removed only once it has itself been unused for five minu
   `gateway_provisioning.ts`). Agent secrets have their own spec.
 - **Size limit on a tool call**: a body over 8 MB is refused (HTTP 413)
   (`door-body-limit.ts`).
+- **Leases beyond a project agent's task run**: an automation's agent step, a chat and a standard
+  agent run in a light sandbox take no heavy-phase lease (`SBX-R28`), and the Sandboxes page
+  does not show the active leases yet; the readback route serves them (`SBX-R33`).
 - **The engine behind a turn**: rendering pages for a crawl, collecting the files a turn
   produced, connector calls made from a sandbox, administering the gateway, and the platform
   version an agent is told (`render_fetch.ts`, `session_exec.ts`, `connectors_bridge.ts` and
@@ -389,6 +531,10 @@ working sandbox. It is removed only once it has itself been unused for five minu
 - **Around `SBX-R12` and `SBX-R13`**: which changes restart the wait (switching the rule on,
   shortening the period), the audit entry of each automatic deletion, and the hourly cleanup of
   leftovers nothing owns (`unused-rule.ts`, `workspace-cleanup.ts`).
+- **The reclaim between hourly cleanups, and on other hosts**: a disk that fills between two
+  cleanups refuses new sessions until the next one; a Kubernetes or Incus host reports no disk,
+  so nothing is reclaimed there; and no workspace is held to a size while it works
+  (`workspace-reclaim.ts`).
 - **A session token stops working once it is revoked or has expired.** No unit test holds the
   check (`getSessionTokenByHash` in `sessions.ts`).
 - **A run carries no figure of its own for `SBX-R14`**, and **a call cut short is booked at

@@ -15,6 +15,7 @@ Surveille les actions que les utilisateurs doivent terminer autant que les servi
 | Hausse des réponses 5xx du backend | Compare `tale_backend_http_requests_total` par `route` et `status` à l’action affectée. | Les erreurs touchent des utilisateurs actifs ou des intégrations critiques. |
 | Stockage inaccessible | Examine `tale_backend_store_up` et la surveillance du stockage lui-même. | Des données, recherches ou fichiers nécessaires sont bloqués. |
 | Accumulation de jobs en attente ou en échec | Examine `tale_backend_jobs{state=...}`, les workers et quelques erreurs d’exécution représentatives. | Le retard ne se résorbe plus ou une échéance est menacée. |
+| La répartition du travail d’un projet ne lance plus de travail | Examine l’âge de `tale_backend_dispatch_last_pass_timestamp_seconds{project=...}` et la page **Répartition du travail** du projet, qui indique pourquoi chaque agent est inactif. | Du travail prêt attend pendant que des agents sont inactifs, et la répartition n’a terminé aucun passage depuis 15 minutes. |
 | Réduction de l’espace disque ou des connexions disponibles | Utilise la surveillance de l’hôte et de la base ; Tale n’exporte pas toutes ces métriques. | Anticipe assez pour ajouter de la capacité ou corriger la cause. |
 | Sauvegarde ou copie planifiée absente | Vérifie le job de sauvegarde, le manifeste complet et la destination externe. | Ton objectif de perte de données maximale n’est plus respecté. |
 | Requêtes limitées ou refusées par un fournisseur | Lis sa réponse et l’erreur de l’exécution ; vérifie quota, identifiants et état du fournisseur. | Le travail nécessaire échoue ou attend au-delà du délai admis. |
@@ -36,9 +37,10 @@ Vérifie le contenu attendu autant que le statut HTTP. Un chemin inconnu du fron
 
 ## Comprendre ce que les métriques prouvent
 
-Le backend exporte les métriques de processus, les nombres et durées des réponses HTTP, les comptes de jobs, les générations en cours, les flux de notification ouverts, l’état de drainage et l’accessibilité des stockages. Examine les séries réellement exposées par ta version avant d’écrire une alerte.
+Le backend exporte les métriques de processus, les nombres et durées des réponses HTTP, les comptes de jobs, les générations en cours, les flux de notification ouverts, l’état de drainage, l’accessibilité des stockages et le dernier passage terminé de la répartition du travail de chaque projet. Examine les séries réellement exposées par ta version avant d’écrire une alerte.
 
 - `tale_backend_store_up` sonde les **stockages par défaut du déploiement** : base applicative, base de connaissances et bucket. Les connexions propres à une organisation demandent une surveillance distincte.
+- `tale_backend_dispatch_last_pass_timestamp_seconds` prouve que la répartition du travail d’un projet a terminé un passage, pas qu’elle a lancé du travail : un passage qui a trouvé l’hôte sous pression ou tous les agents occupés compte aussi. Une répartition désactivée n’a pas de série.
 - Les sondes sont mises en cache pendant 30 secondes. Un `403` lors de la vérification du bucket compte comme accessible : la clé peut simplement ne pas avoir le droit de lister son contenu. La valeur `1` ne prouve pas qu’un objet précis peut être envoyé ou téléchargé.
 - `/ready` indique la disponibilité pour le déploiement. Il n’intègre pas la santé des stockages externes ; un réplica prêt peut donc dépendre d’un stockage indisponible.
 - L’URL publique des métriques backend peut atteindre différents réplicas d’API. Les métriques de processus concernent celui qui répond ; les compteurs de jobs et de générations lisent un état partagé en base. Ne les additionne pas comme si chaque réplica possédait sa propre file.

@@ -15,6 +15,7 @@ Monitor the actions people need to complete, as well as the services beneath the
 | Backend 5xx responses rise | Compare `tale_backend_http_requests_total` by `route` and `status` with the affected action. | Errors affect active users or critical integrations. |
 | A store becomes unreachable | Inspect `tale_backend_store_up` and the store's own monitoring. | The missing store blocks required data, search, or file access. |
 | Queued or failed jobs accumulate | Inspect `tale_backend_jobs{state=...}`, workers, and representative run errors. | The backlog stops clearing or a completion deadline is at risk. |
+| A project's dispatch stops starting work | Check the age of `tale_backend_dispatch_last_pass_timestamp_seconds{project=...}` and the project's **Dispatch** page, which says why each agent is idle. | Ready work waits while agents are idle, and the dispatch has completed no pass for 15 minutes. |
 | Disk or connection headroom shrinks | Use host/database monitoring; these are not all Tale-exported metrics. | Forecast exhaustion early enough to add capacity or resolve the cause. |
 | A scheduled backup or copy is missing | Check the backup job, completed manifest, and off-host destination. | Your recovery-point objective is no longer met. |
 | Provider requests are throttled or rejected | Read the provider response and affected run; check quota, credentials, and provider status. | Required work fails or waits beyond its allowed delay. |
@@ -36,9 +37,10 @@ Check the expected response body as well as the HTTP status. An unrecognized fro
 
 ## Understand what the metrics prove
 
-The backend exports process metrics, HTTP response counts and durations, queue counts, in-flight generations, open hint streams, the drain flag, and store reachability. Inspect the actual series from your deployed version before writing an alert against it.
+The backend exports process metrics, HTTP response counts and durations, queue counts, in-flight generations, open hint streams, the drain flag, store reachability, and when each project's dispatch last completed a pass. Inspect the actual series from your deployed version before writing an alert against it.
 
 - `tale_backend_store_up` probes the **deployment-default** application database, knowledge database, and bucket. Organization-specific connections need their own monitoring.
+- `tale_backend_dispatch_last_pass_timestamp_seconds` proves that a project's dispatch completed a pass, not that it started work: a pass that found the host under pressure or every agent busy counts too. A dispatch that is switched off has no series.
 - Store probes are cached for 30 seconds. An object-store `403` on the bucket probe counts as reachable: it can mean the key cannot list the bucket. A value of `1` does not prove that a particular object can be uploaded or downloaded.
 - `/ready` expresses rollout readiness. It does not incorporate external-store health, so a healthy replica can still depend on an unavailable store.
 - The public backend metrics URL can reach different API replicas. Process metrics describe the replica that answered; queue and generation collectors read shared database state. Do not sum shared counts as if every replica owned a separate queue.

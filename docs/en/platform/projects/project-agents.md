@@ -101,6 +101,16 @@ Workers count against your organization’s **Agent workers** limit in [Sandboxe
 
 A task’s next run goes back to the worker it last worked in when that worker is free, so the agent continues the conversation and finds its files there. If that worker is busy, the run takes another one and starts fresh from the task’s description, discussion, attachments and deliverables. After a run fails or is cancelled, its worker stays reserved for that task for 15 minutes, so a retry finds what the run left; another task’s run takes it only when no other worker is free.
 
+## Share the sandbox host during heavy work {#heavy-phases}
+
+Agent workers of every organization share the deployment's sandbox host, and a few phases of work press it hardest: installing dependencies, building an image, type-checking or linting a whole workspace, running a full test suite. Before such a phase, an agent working a task asks the host for a lease. Every task run on a runtime with Tale's MCP channel can, without a tool grant: Tale names the tools in the agent's instructions. The agent calls `host_lease_acquire` with what the phase is (`label`) and, when it can tell, how much it will write to disk, how much memory it needs and how many minutes it takes. The answer decides what happens next:
+
+- **Granted**: the agent runs the phase, then releases the lease with `host_lease_release`, so the next agent's phase can start.
+- **Refused**: the host is under pressure, already runs as many heavy phases as it allows at once, or would run short of disk or memory beside them. The answer names the reason and how many seconds to wait. The agent waits, then asks again instead of running the phase.
+- **Unavailable**: the host cannot be judged, for example sandboxes on Kubernetes, Incus or a remote Docker daemon, or an older sandbox service. Leases do not exist there, and the agent runs the phase without one.
+
+A run holds one lease at a time. Every lease it still holds ends when the run ends, whether it settles, fails or is cancelled; a lease also ends by itself at its expiry, two hours after it was granted at most. A run that waits for a lease is still working, so the wait counts toward its working time. A command that touches one package or one test file needs no lease. Operators set how many heavy phases run at once and how much disk they must leave free; see [Heavy-phase leases](/self-hosted/configuration/environment-reference#heavy-phase-leases).
+
 ## The standard agent {#standard-agent}
 
 A project without agents of its own can still take on agent work. Unless an admin has turned it off under [Governance > Models](/platform/admin/governance/content-models#standard-agent), **Assignee** offers **Standard agent** there, to everyone who can assign the task, Members included. The first time someone chooses it, Tale sets the agent up in the project and assigns it the task. You then start it like any other agent, or mention it in a comment. When it can't start for you, the comment box says so, and your comment is saved as a plain mention.

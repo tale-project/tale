@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.44.0",
+    "version": "3.45.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -14599,6 +14599,1119 @@
           },
           "409": {
             "description": "A name another agent of this project already carries, compared without regard to case (`PROJECT_AGENT_NAME_TAKEN`) — reuse that agent or pick another name; nothing is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/dispatch": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Read a project's dispatch",
+        "description": "What the project's dispatch does: every agent of its pool with the runs it holds or why it is idle (`idle`), its standing roles with their next and last occurrence, the models it waits on (`holds`), its gates as a pass judges them now, the organization's agent workers against the pool, and its last 20 passes. A project without a dispatch answers `configured: false`. Project readers; the same answer as the project’s Dispatch page.",
+        "operationId": "getProjectDispatch",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "unreadable": {
+                      "type": "boolean"
+                    },
+                    "config": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "agents": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "pattern": "^[^/\\\\\\x00-\\x20\\x7f]+$"
+                          }
+                        },
+                        "maxConcurrentRuns": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        },
+                        "perAgentConcurrency": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5
+                        },
+                        "statuses": {
+                          "minItems": 1,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": ["todo", "backlog"]
+                          }
+                        },
+                        "assignment": {
+                          "type": "string",
+                          "enum": ["assigned", "pool"]
+                        },
+                        "rebalance": {
+                          "type": "boolean"
+                        },
+                        "labels": {
+                          "type": "object",
+                          "properties": {
+                            "include": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 50
+                              }
+                            },
+                            "exclude": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 50
+                              }
+                            }
+                          }
+                        },
+                        "admission": {
+                          "type": "object",
+                          "properties": {
+                            "preset": {
+                              "type": "string",
+                              "enum": ["default", "conservative"]
+                            },
+                            "startSpacingSeconds": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3600
+                            },
+                            "recheckSeconds": {
+                              "minItems": 1,
+                              "maxItems": 10,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 10,
+                                "maximum": 3600
+                              }
+                            }
+                          },
+                          "required": ["preset"]
+                        },
+                        "standingRoles": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
+                              },
+                              "taskId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128,
+                                "pattern": "^[^/\\\\\\x00-\\x20\\x7f]+$"
+                              },
+                              "agentId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128,
+                                "pattern": "^[^/\\\\\\x00-\\x20\\x7f]+$"
+                              },
+                              "cron": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "timezone": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "mode": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "brief": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4000
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "taskId",
+                              "agentId",
+                              "cron",
+                              "timezone"
+                            ]
+                          }
+                        },
+                        "gates": {
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
+                              },
+                              "labels": {
+                                "minItems": 1,
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 50
+                                }
+                              },
+                              "holdAt": {
+                                "type": "number"
+                              },
+                              "recoverBelow": {
+                                "type": "number"
+                              },
+                              "staleAfterSeconds": {
+                                "type": "integer",
+                                "minimum": 60,
+                                "maximum": 86400
+                              },
+                              "whenStale": {
+                                "type": "string",
+                                "enum": ["open", "hold"]
+                              },
+                              "startSpacingSeconds": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 86400
+                              }
+                            },
+                            "required": ["key"]
+                          }
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "agents",
+                        "maxConcurrentRuns",
+                        "statuses",
+                        "assignment"
+                      ],
+                      "nullable": true
+                    },
+                    "hash": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "canEdit": {
+                      "type": "boolean"
+                    },
+                    "state": {
+                      "type": "object",
+                      "properties": {
+                        "lastPassAt": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "lastStartAt": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "nextPassAt": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "lastStopReason": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "lastPassAt",
+                        "lastStartAt",
+                        "nextPassAt",
+                        "lastStopReason"
+                      ],
+                      "nullable": true
+                    },
+                    "pool": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "modelProvider": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "runs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "taskId": {
+                                  "type": "string"
+                                },
+                                "taskNumber": {
+                                  "type": "number",
+                                  "nullable": true
+                                },
+                                "taskTitle": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": ["queued", "running"]
+                                },
+                                "waitingReason": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "runId",
+                                "taskId",
+                                "taskNumber",
+                                "taskTitle",
+                                "status",
+                                "waitingReason"
+                              ]
+                            }
+                          },
+                          "capacity": {
+                            "type": "number"
+                          },
+                          "modelHeldUntil": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "idle": {
+                            "type": "string",
+                            "enum": [
+                              "model_capacity",
+                              "host_pressure",
+                              "org_limit",
+                              "pacing",
+                              "gated",
+                              "no_ready_work",
+                              "disabled",
+                              "unknown",
+                              null
+                            ],
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "agentId",
+                          "name",
+                          "model",
+                          "modelProvider",
+                          "runs",
+                          "capacity",
+                          "modelHeldUntil",
+                          "idle"
+                        ]
+                      }
+                    },
+                    "standingRoles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "taskId": {
+                            "type": "string"
+                          },
+                          "taskTitle": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "mode": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "cron": {
+                            "type": "string"
+                          },
+                          "timezone": {
+                            "type": "string"
+                          },
+                          "nextAt": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "last": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string"
+                              },
+                              "outcome": {
+                                "type": "string"
+                              },
+                              "runId": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "reason": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "at": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "outcome",
+                              "runId",
+                              "reason",
+                              "at"
+                            ],
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "agentId",
+                          "taskId",
+                          "taskTitle",
+                          "mode",
+                          "cron",
+                          "timezone",
+                          "nextAt",
+                          "last"
+                        ]
+                      }
+                    },
+                    "holds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "modelProvider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "heldUntil": {
+                            "type": "number"
+                          },
+                          "consecutive": {
+                            "type": "number"
+                          },
+                          "firstRefusedAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "modelProvider",
+                          "model",
+                          "heldUntil",
+                          "consecutive",
+                          "firstRefusedAt"
+                        ]
+                      }
+                    },
+                    "gates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "labels": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "nullable": true
+                          },
+                          "held": {
+                            "type": "boolean"
+                          },
+                          "stale": {
+                            "type": "boolean"
+                          },
+                          "holdAt": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "recoverBelow": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "whenStale": {
+                            "type": "string",
+                            "enum": ["open", "hold"]
+                          },
+                          "value": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "reason": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "reportedAt": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "reportedBy": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "spacedUntil": {
+                            "type": "number",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "labels",
+                          "held",
+                          "stale",
+                          "holdAt",
+                          "recoverBelow",
+                          "whenStale",
+                          "value",
+                          "reason",
+                          "reportedAt",
+                          "reportedBy",
+                          "spacedUntil"
+                        ]
+                      }
+                    },
+                    "workers": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "number"
+                        },
+                        "inUse": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["limit", "inUse"]
+                    },
+                    "poolExceedsWorkers": {
+                      "type": "boolean"
+                    },
+                    "passes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "number"
+                          },
+                          "stopReason": {
+                            "type": "string"
+                          },
+                          "started": {
+                            "type": "number"
+                          },
+                          "held": {
+                            "type": "number"
+                          },
+                          "nextPassAt": {
+                            "type": "number",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "trigger",
+                          "startedAt",
+                          "stopReason",
+                          "started",
+                          "held",
+                          "nextPassAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "unreadable",
+                    "config",
+                    "hash",
+                    "canEdit",
+                    "state",
+                    "pool",
+                    "standingRoles",
+                    "holds",
+                    "gates",
+                    "workers",
+                    "poolExceedsWorkers",
+                    "passes"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible; or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/dispatch/gates/{key}": {
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Report on a dispatch gate",
+        "description": "A report on one of the gates the project's dispatch declares — a signal from outside that holds the ready work the gate governs, such as a full CI runner queue. Send `{state: \"hold\" | \"open\"}`, or `{value}` for a gate that judges values: at or above its `holdAt` it holds, and once held it opens only below its `recoverBelow` (half of `holdAt` unless declared). `reason` is shown with the gate. A gate nobody reports on within its `staleAfterSeconds` does what its `whenStale` says, so report on a schedule, not only on change. A report that opens a gate asks for a pass at once. Requires project edit access.",
+        "operationId": "reportProjectDispatchGate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The gate key the dispatch declares"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "A state, or a value the gate judges by its thresholds; `reason` is shown with the gate.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["state"],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": ["open", "hold"]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["value"],
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The state the report left the gate in, and whether it changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "held": {
+                      "type": "boolean"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["held", "changed"]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "A body the schema refuses (`INVALID_BODY`), or a value for a gate that declares no `holdAt` (`DISPATCH_GATE_VALUE_UNJUDGED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "Project is not editable or is archived; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible, or its dispatch declares no gate of that key (`DISPATCH_GATE_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
             "content": {
               "application/json": {
                 "schema": {
@@ -44625,7 +45738,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.44.0"
+          "example": "3.45.0"
         }
       },
       "Location": {
@@ -44811,6 +45924,8 @@
                   "DELIVERY_RECEIPT_CONFLICT",
                   "DELIVERY_RETRY_UNAVAILABLE",
                   "DELIVERY_UNACKNOWLEDGED",
+                  "DISPATCH_GATE_UNKNOWN",
+                  "DISPATCH_GATE_VALUE_UNJUDGED",
                   "DOCUMENT_HAS_KNOWLEDGE_ENTRY",
                   "DOCUMENT_NOT_FOUND",
                   "DOCUMENT_RECORD_FROZEN",
@@ -45058,6 +46173,8 @@
                   "DELIVERY_RECEIPT_CONFLICT",
                   "DELIVERY_RETRY_UNAVAILABLE",
                   "DELIVERY_UNACKNOWLEDGED",
+                  "DISPATCH_GATE_UNKNOWN",
+                  "DISPATCH_GATE_VALUE_UNJUDGED",
                   "DOCUMENT_HAS_KNOWLEDGE_ENTRY",
                   "DOCUMENT_NOT_FOUND",
                   "DOCUMENT_RECORD_FROZEN",
@@ -45296,6 +46413,8 @@
               "DELIVERY_RECEIPT_CONFLICT",
               "DELIVERY_RETRY_UNAVAILABLE",
               "DELIVERY_UNACKNOWLEDGED",
+              "DISPATCH_GATE_UNKNOWN",
+              "DISPATCH_GATE_VALUE_UNJUDGED",
               "DOCUMENT_HAS_KNOWLEDGE_ENTRY",
               "DOCUMENT_NOT_FOUND",
               "DOCUMENT_RECORD_FROZEN",

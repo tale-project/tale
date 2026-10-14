@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseRunStarter, runStarterUserId } from './run-starter';
+import {
+  dispatchRunStarter,
+  parseRunStarter,
+  runStarterUserId,
+} from './run-starter';
 
 /** The one reader of the `startedBy` door format: a person behind `user:`
  * and `api-key:`, nobody behind `trigger:`, and a bare id read as the
@@ -21,6 +25,15 @@ describe('parseRunStarter', () => {
     });
   });
 
+  it("reads a run the project's dispatch started as the project's, no person's [TASK-R47]", () => {
+    expect(dispatchRunStarter('p-1')).toBe('dispatch:p-1');
+    expect(parseRunStarter('dispatch:p-1')).toEqual({
+      kind: 'dispatch',
+      projectId: 'p-1',
+    });
+    expect(runStarterUserId('dispatch:p-1')).toBeNull();
+  });
+
   it('reads a bare id as the person — project-agent runs and pre-prefix automation runs', () => {
     expect(parseRunStarter('u-1')).toEqual({ kind: 'user', userId: 'u-1' });
   });
@@ -31,6 +44,7 @@ describe('parseRunStarter', () => {
       'user:',
       'api-key:',
       'trigger:',
+      'dispatch:',
       'system:automation',
     ]) {
       expect(parseRunStarter(raw)).toEqual({ kind: 'unknown', raw });

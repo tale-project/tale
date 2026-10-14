@@ -696,11 +696,16 @@ export interface TasksContract {
         | 'auto_retry'
         | 'automation'
         | 'delegated'
+        | 'dispatch'
         | 'assignment'
         | 'revision'
         | 'sla_escalation'
         | 'unblock'
         | 'decomposition';
+      /** For a run a standing role of the project's dispatch started: the
+       * occurrence it was started for, as the role's time zone reads it
+       * (`manager 2026-10-14 16:30 Europe/Zurich`). */
+      occurrence?: string;
       status: 'running' | 'failed' | 'completed' | 'timed_out';
       error: undefined | string;
       failureCode: undefined | string;

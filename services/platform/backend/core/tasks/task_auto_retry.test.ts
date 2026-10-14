@@ -4,6 +4,7 @@ import {
   AUTO_RETRY_HISTORY_LIMIT,
   AUTO_RETRY_MAX_ATTEMPTS,
   CREDENTIAL_ROTATION_FREE_RETRIES,
+  freeCapacityWaits,
   freeCooldownWaits,
   freeCredentialRotations,
   isAutoRetryableFailure,
@@ -109,17 +110,41 @@ function cooled(overrides: Partial<AutoRetryRunFacts> = {}): AutoRetryRunFacts {
 }
 
 describe('resolveAutoRetryBudget', () => {
-  it('counts model capacity normally and never turns its wait into a free account cooldown', () => {
+  it('spends no attempt on a model at capacity, and never turns its wait into a free account cooldown [TASK-R40]', () => {
     const capacity = failed({ failureCode: 'model_capacity' });
     expect(resolveAutoRetryBudget([capacity])).toEqual({
       retry: true,
-      attempt: 1,
+      attempt: 0,
     });
     expect(
-      resolveAutoRetryBudget([capacity, capacity, capacity, capacity]).retry,
-    ).toBe(false);
+      resolveAutoRetryBudget([capacity, capacity, capacity, capacity, capacity])
+        .retry,
+    ).toBe(true);
     expect(freeCooldownWaits([cooled(), capacity])).toEqual([false, false]);
     expect(freeCredentialRotations([capacity])).toEqual([false]);
+  });
+
+  it('keeps counting real failures around capacity waits [TASK-R40]', () => {
+    const capacity = failed({ failureCode: 'model_capacity' });
+    expect(
+      resolveAutoRetryBudget([
+        failed(),
+        capacity,
+        failed(),
+        capacity,
+        failed(),
+      ]),
+    ).toEqual({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
+    expect(
+      resolveAutoRetryBudget([
+        failed(),
+        capacity,
+        failed(),
+        failed(),
+        capacity,
+        failed(),
+      ]).retry,
+    ).toBe(false);
   });
 
   it('counts consecutive short failures and stops one past the budget', () => {
@@ -298,6 +323,19 @@ describe('resolveAutoRetryBudget', () => {
     expect(rows.length).toBeLessThanOrEqual(AUTO_RETRY_HISTORY_LIMIT);
     expect(resolveAutoRetryBudget(rows).retry).toBe(false);
     expect(resolveAutoRetryBudget(rows.slice(1)).retry).toBe(true);
+  });
+});
+
+describe('freeCapacityWaits', () => {
+  it('frees every failure the provider refused for model capacity, and nothing else [TASK-R40]', () => {
+    expect(
+      freeCapacityWaits([
+        failed({ failureCode: 'model_capacity' }),
+        failed(),
+        failed({ status: 'settled', failureCode: 'model_capacity' }),
+        failed({ failureCode: 'credential_cooldown' }),
+      ]),
+    ).toEqual([true, false, false, false]);
   });
 });
 

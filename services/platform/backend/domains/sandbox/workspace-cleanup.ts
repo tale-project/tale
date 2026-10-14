@@ -12,9 +12,11 @@ import {
   sandboxDeviceDisconnect,
   sandboxOrganizationTeardown,
   sandboxWorkspaceInventory,
+  sandboxWorkspaceUsage,
   sessionDestroyWorkspace,
   sessionSetPinned,
   type SandboxWorkspaceInventory,
+  type SandboxWorkspaceUsage,
   type WorkspaceDestroyAnswer,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
@@ -38,6 +40,15 @@ import {
   readUnusedRuleSince,
   recordUnusedWorkspaceRule,
 } from './unused-rule.ts';
+import {
+  idleForReclaim,
+  reclaimWorkspaces,
+  sizeCapBytes,
+  type ReclaimCandidate,
+  type ReclaimIo,
+  type ReclaimReason,
+  type ReclaimResult,
+} from './workspace-reclaim.ts';
 
 /**
  * Sandbox workspace cleanup — deleting the `/agent` workspaces nothing owns
@@ -57,7 +68,10 @@ import {
  *    every project-agent workspace the rows name, judged by
  *    {@link workspaceVerdict} — owner gone, or unused past the
  *    `sandbox_workspaces` policy's window — then every workspace the
- *    spawner's inventory lists that no row owns any more;
+ *    spawner's inventory lists that no row owns any more, then the idle
+ *    workspaces that go for the room they take (`workspace-reclaim.ts`):
+ *    above their organization's size cap, and the largest while the
+ *    sandbox disk is below its floor;
  *  - the Sandboxes page's explicit Destroy, which keeps its own path
  *    (`teardownSession`, run by the `sandbox.destroy_session` job).
  *
@@ -127,7 +141,12 @@ export type WorkspaceRetireReason =
   | 'unused'
   /** Nothing owns it any more: its run ended, its render was cut off, or no
    * row names it at all. */
-  | 'orphaned';
+  | 'orphaned'
+  /** It was idle, and among the largest on the sandbox host while the
+   * host's workspace disk was below its floor. */
+  | 'disk_pressure'
+  /** It was idle, and larger than its organization's size cap. */
+  | 'over_size';
 
 /**
  * How firmly the spawner is asked:
@@ -194,6 +213,9 @@ export interface WorkspaceSpawner {
   ) => Promise<WorkspaceDestroyAnswer>;
   /** `null` from a spawner without an inventory. */
   inventory: () => Promise<SandboxWorkspaceInventory | null>;
+  /** What each of an organization's workspaces holds, and where their disk
+   * stands; `null` from a spawner without the route. */
+  usage: (organizationId: string) => Promise<SandboxWorkspaceUsage | null>;
   /** `null` from a spawner without the route. */
   teardownOrganization: (organizationId: string) => Promise<unknown>;
   disconnectDevice: (deviceId: string) => Promise<unknown>;
@@ -213,6 +235,7 @@ const DEFAULT_SPAWNER: WorkspaceSpawner = {
       ifStopped: mode === 'stopped',
     }),
   inventory: sandboxWorkspaceInventory,
+  usage: (organizationId) => sandboxWorkspaceUsage(organizationId),
   teardownOrganization: sandboxOrganizationTeardown,
   disconnectDevice: sandboxDeviceDisconnect,
   revokeKey: revokeVirtualKey,
@@ -659,6 +682,10 @@ class OrganizationContext {
     Promise<{
       exists: boolean;
       policy: SandboxWorkspacesConfig;
+      /** The policy was read (its file, or its defaults for no file): a
+       * policy that could not be read deletes nothing for disk space or
+       * size. */
+      policyRead: boolean;
       unusedRuleSince: number;
       holds: ActiveHolds;
       heldSessions: HeldMemberWorkspaces;
@@ -711,7 +738,14 @@ class OrganizationContext {
       organizationId,
       holds.userMembershipIds,
     );
-    return { exists, policy, unusedRuleSince, holds, heldSessions };
+    return {
+      exists,
+      policy,
+      policyRead: exists && read !== null,
+      unusedRuleSince,
+      holds,
+      heldSessions,
+    };
   }
 }
 
@@ -829,6 +863,42 @@ async function judge(
     unusedRuleSince: context.unusedRuleSince,
   });
   return verdict.retire ? { verdict, facts } : null;
+}
+
+/**
+ * The reclaim's decision, taken again under the organization's admission
+ * lock right before the workspace goes: the organization's policy is read
+ * and still takes it (its cap still below the measured size, or disk
+ * reclaim still on), no hold keeps it, and it is still idle — not used since
+ * it was judged, so the size measured is still its size.
+ */
+async function stillReclaimable(
+  tx: TransactionSql,
+  candidate: ReclaimCandidate,
+  reason: ReclaimReason,
+  now: number,
+): Promise<boolean> {
+  const context = await new OrganizationContext(tx, now, false).get(
+    candidate.organizationId,
+  );
+  if (!context.policyRead || heldBack(context, candidate.sessionId)) {
+    return false;
+  }
+  const facts = await readWorkspaceFacts(
+    tx,
+    candidate.organizationId,
+    candidate.sessionId,
+  );
+  if (
+    facts === null ||
+    facts.lastUsedAt > candidate.lastUsedAt ||
+    !idleForReclaim(facts, context.policy, now)
+  ) {
+    return false;
+  }
+  if (reason === 'disk_pressure') return context.policy.reclaimOnDiskPressure;
+  const cap = sizeCapBytes(context.policy);
+  return cap !== null && candidate.bytes > cap;
 }
 
 /**
@@ -989,10 +1059,14 @@ export interface WorkspaceCleanupResult {
   organizations: number;
   /** Whether the spawner's inventory was read this sweep. */
   inventory: 'read' | 'unsupported' | 'unavailable';
+  /** What the reclaim for disk space and size read: whether the spawner's
+   * usage was needed and answered, the disk as it last read it, and the
+   * workspaces it could not weigh for want of a size. */
+  reclaim: ReclaimResult;
 }
 
 /**
- * One sweep, in three passes:
+ * One sweep, in four passes:
  *
  *  1. OWNED — every project-agent workspace the rows name whose latest
  *     incarnation has not been destroyed: a deleted agent's goes, a live
@@ -1006,6 +1080,12 @@ export interface WorkspaceCleanupResult {
  *     outright.
  *  3. ORGANIZATIONS — the build caches and package caches the spawner still
  *     holds for an organization this deployment deleted.
+ *  4. RECLAIM — after everything above has gone, the idle project-agent
+ *     workspaces that go for the room they take
+ *     ({@link reclaimWorkspaces}): above their organization's size cap, and
+ *     the largest of the host while its workspace disk is below its floor.
+ *     Only workspaces the rows hold that this sweep has not tried to delete
+ *     already; every one decided again under the lock before it goes.
  *
  * Bounded by `retireLimit` deletions, {@link SWEEP_ATTEMPTS_PER_RETIRE}
  * times as many attempts per pass, and the job's signal; whatever is left
@@ -1025,6 +1105,7 @@ export async function runWorkspaceCleanup(
     unattributed: 0,
     organizations: 0,
     inventory: 'unavailable',
+    reclaim: { usage: 'skipped', disk: null, unmeasured: 0, freedBytes: 0 },
   };
   // Deletions are bounded across the sweep, attempts per pass: workspaces
   // that keep refusing (a device offline for weeks, a destroy that keeps
@@ -1037,14 +1118,19 @@ export async function runWorkspaceCleanup(
     deletions >= limit ||
     attempts >= attemptLimit ||
     options.signal?.aborted === true;
+  // What this sweep already tried to delete, so the reclaim never weighs
+  // it again (its rows may still read it as there).
+  const attempted = new Set<string>();
   const retire = async (args: RetireWorkspaceArgs) => {
     attempts += 1;
+    attempted.add(`${args.organizationId ?? ''}\u0000${args.sessionId}`);
     const outcome = await retireWorkspace(sql, args, spawner);
     if (pending(outcome)) result.deferred += 1;
     if (outcome === 'destroyed' || outcome === 'absent') {
       deletions += 1;
       result.retired[args.reason] = (result.retired[args.reason] ?? 0) + 1;
     }
+    return outcome;
   };
   const rotation = String(Math.floor(now / HOUR_MS));
 
@@ -1091,133 +1177,183 @@ export async function runWorkspaceCleanup(
     });
   }
 
-  // 2. INVENTORY
-  let inventory: SandboxWorkspaceInventory | null;
-  try {
-    inventory = await spawner.inventory();
-  } catch (error) {
-    // A plain error is a sentence an operator can act on — a deployment with
-    // no sandbox has no spawner token, and said so with a stack on every
-    // sweep. Anything the runtime raised keeps its stack.
-    console.warn(
-      '[sandbox.cleanup] the spawner inventory is unavailable; owner-less workspaces wait for the next sweep:',
-      error instanceof Error && error.constructor === Error
-        ? error.message
-        : error,
+  // 2. INVENTORY and 3. ORGANIZATIONS. A spawner without an inventory
+  // ends these two passes, never the reclaim after them.
+  const inventoryPasses = async (): Promise<void> => {
+    let inventory: SandboxWorkspaceInventory | null;
+    try {
+      inventory = await spawner.inventory();
+    } catch (error) {
+      // A plain error is a sentence an operator can act on — a deployment
+      // with no sandbox has no spawner token, and said so with a stack on
+      // every sweep. Anything the runtime raised keeps its stack.
+      console.warn(
+        '[sandbox.cleanup] the spawner inventory is unavailable; owner-less workspaces wait for the next sweep:',
+        error instanceof Error && error.constructor === Error
+          ? error.message
+          : error,
+      );
+      return;
+    }
+    if (inventory === null) {
+      result.inventory = 'unsupported';
+      return;
+    }
+    result.inventory = 'read';
+    attempts = 0;
+    const order = new Map(
+      inventory.workspaces.map((workspace) => [
+        workspace.sessionId,
+        createHash('sha256')
+          .update(`${rotation}:${workspace.sessionId}`)
+          .digest('hex'),
+      ]),
     );
-    return result;
-  }
-  if (inventory === null) {
-    result.inventory = 'unsupported';
-    return result;
-  }
-  result.inventory = 'read';
-  attempts = 0;
-  const order = new Map(
-    inventory.workspaces.map((workspace) => [
-      workspace.sessionId,
-      createHash('sha256')
-        .update(`${rotation}:${workspace.sessionId}`)
-        .digest('hex'),
-    ]),
-  );
-  const walk = [...inventory.workspaces].sort((a, b) =>
-    (order.get(a.sessionId) ?? '').localeCompare(order.get(b.sessionId) ?? ''),
-  );
-  for (const workspace of walk) {
-    if (exhausted()) break;
-    if (workspace.active || workspace.pinned) continue;
-    if (workspace.touchedAtMs > now - WORKSPACE_CLEANUP_GRACE_MS) continue;
-    const owners = await sql<{ organizationId: string }[]>`
-      SELECT DISTINCT org_id AS "organizationId" FROM app.sandbox_sessions
-      WHERE session_id = ${workspace.sessionId}
-    `;
-    if (owners.length === 0) {
-      if (scope !== null && workspace.organizationId !== scope) continue;
-      const leftover = await readLeftoverFacts(sql, workspace);
-      if (!leftoverVerdict(leftover)) {
-        if (leftover.owner === 'foreign' || leftover.owner === 'unknown') {
-          result.unattributed += 1;
+    const walk = [...inventory.workspaces].sort((a, b) =>
+      (order.get(a.sessionId) ?? '').localeCompare(
+        order.get(b.sessionId) ?? '',
+      ),
+    );
+    for (const workspace of walk) {
+      if (exhausted()) break;
+      if (workspace.active || workspace.pinned) continue;
+      if (workspace.touchedAtMs > now - WORKSPACE_CLEANUP_GRACE_MS) continue;
+      const owners = await sql<{ organizationId: string }[]>`
+        SELECT DISTINCT org_id AS "organizationId" FROM app.sandbox_sessions
+        WHERE session_id = ${workspace.sessionId}
+      `;
+      if (owners.length === 0) {
+        if (scope !== null && workspace.organizationId !== scope) continue;
+        const leftover = await readLeftoverFacts(sql, workspace);
+        if (!leftoverVerdict(leftover)) {
+          if (leftover.owner === 'foreign' || leftover.owner === 'unknown') {
+            result.unattributed += 1;
+          }
+          continue;
         }
+        // One of this deployment's organizations: its holds keep it, and it is
+        // decided again under its lock and audited there. Otherwise nobody
+        // here answers for it (a deleted organization had no hold to keep).
+        const organizationId =
+          leftover.owner === 'ours' ? (workspace.organizationId ?? null) : null;
+        if (
+          organizationId !== null &&
+          heldBack(await organizations.get(organizationId), workspace.sessionId)
+        ) {
+          continue;
+        }
+        await retire({
+          organizationId,
+          sessionId: workspace.sessionId,
+          reason: 'orphaned',
+          mode: 'stopped',
+          eligible: async (tx) =>
+            organizationId === null ||
+            (!(await sessionNamed(tx, organizationId, workspace.sessionId)) &&
+              !(await loadActiveHolds(tx, organizationId)).orgHeld),
+        });
         continue;
       }
-      // One of this deployment's organizations: its holds keep it, and it is
-      // decided again under its lock and audited there. Otherwise nobody
-      // here answers for it (a deleted organization had no hold to keep).
-      const organizationId =
-        leftover.owner === 'ours' ? (workspace.organizationId ?? null) : null;
       if (
-        organizationId !== null &&
-        heldBack(await organizations.get(organizationId), workspace.sessionId)
+        scope !== null &&
+        !owners.some((owner) => owner.organizationId === scope)
       ) {
         continue;
       }
-      await retire({
-        organizationId,
-        sessionId: workspace.sessionId,
-        reason: 'orphaned',
-        mode: 'stopped',
-        eligible: async (tx) =>
-          organizationId === null ||
-          (!(await sessionNamed(tx, organizationId, workspace.sessionId)) &&
-            !(await loadActiveHolds(tx, organizationId)).orgHeld),
-      });
-      continue;
-    }
-    if (
-      scope !== null &&
-      !owners.some((owner) => owner.organizationId === scope)
-    ) {
-      continue;
-    }
-    for (const { organizationId } of owners) {
-      if (scope !== null && organizationId !== scope) continue;
-      const judged = await judge(
-        sql,
-        organizations,
-        organizationId,
-        workspace.sessionId,
-        now,
-      );
-      if (judged === null) continue;
-      await retire({
-        organizationId,
-        sessionId: workspace.sessionId,
-        reason: judged.verdict.reason,
-        // Nothing runs under an inactive workspace: only a stopped one goes.
-        mode: 'stopped',
-        eligible: async (tx) => {
-          const again = await judge(
-            tx,
-            new OrganizationContext(tx, now, false),
-            organizationId,
-            workspace.sessionId,
-            now,
-          );
-          return again?.verdict.reason === judged.verdict.reason;
-        },
-        detail: { lastUsedAt: judged.facts.lastUsedAt },
-      });
-      break;
-    }
-  }
-
-  // 3. ORGANIZATIONS
-  for (const organizationId of inventory.organizations) {
-    if (options.signal?.aborted === true) break;
-    if (scope !== null && organizationId !== scope) continue;
-    if (!(await deletedByThisDeployment(sql, organizationId))) continue;
-    try {
-      if ((await spawner.teardownOrganization(organizationId)) !== null) {
-        result.organizations += 1;
+      for (const { organizationId } of owners) {
+        if (scope !== null && organizationId !== scope) continue;
+        const judged = await judge(
+          sql,
+          organizations,
+          organizationId,
+          workspace.sessionId,
+          now,
+        );
+        if (judged === null) continue;
+        await retire({
+          organizationId,
+          sessionId: workspace.sessionId,
+          reason: judged.verdict.reason,
+          // Nothing runs under an inactive workspace: only a stopped one goes.
+          mode: 'stopped',
+          eligible: async (tx) => {
+            const again = await judge(
+              tx,
+              new OrganizationContext(tx, now, false),
+              organizationId,
+              workspace.sessionId,
+              now,
+            );
+            return again?.verdict.reason === judged.verdict.reason;
+          },
+          detail: { lastUsedAt: judged.facts.lastUsedAt },
+        });
+        break;
       }
-    } catch (error) {
-      console.warn(
-        `[sandbox.cleanup] teardown of deleted organization ${organizationId} failed; the next sweep retries:`,
-        error,
-      );
     }
+
+    // 3. ORGANIZATIONS
+    for (const organizationId of inventory.organizations) {
+      if (options.signal?.aborted === true) break;
+      if (scope !== null && organizationId !== scope) continue;
+      if (!(await deletedByThisDeployment(sql, organizationId))) continue;
+      try {
+        if ((await spawner.teardownOrganization(organizationId)) !== null) {
+          result.organizations += 1;
+        }
+      } catch (error) {
+        console.warn(
+          `[sandbox.cleanup] teardown of deleted organization ${organizationId} failed; the next sweep retries:`,
+          error,
+        );
+      }
+    }
+  };
+  await inventoryPasses();
+
+  // 4. RECLAIM
+  attempts = 0;
+  const ownedSessions = new Map<string, Set<string>>();
+  for (const { organizationId, sessionId } of owned) {
+    const sessions = ownedSessions.get(organizationId) ?? new Set<string>();
+    sessions.add(sessionId);
+    ownedSessions.set(organizationId, sessions);
   }
+  const reclaimIo: ReclaimIo = {
+    organizations: async () => {
+      const weighed = [];
+      for (const organizationId of ownedSessions.keys()) {
+        const context = await organizations.get(organizationId);
+        if (!context.policyRead || context.holds.orgHeld) continue;
+        weighed.push({
+          organizationId,
+          policy: context.policy,
+          held: (sessionId: string) => context.heldSessions.has(sessionId),
+        });
+      }
+      return weighed;
+    },
+    usage: (organizationId) => spawner.usage(organizationId),
+    // Only a workspace its organization's rows hold, and not one this
+    // sweep already tried to delete.
+    facts: async (organizationId, sessionId) =>
+      ownedSessions.get(organizationId)?.has(sessionId) === true &&
+      !attempted.has(`${organizationId}\u0000${sessionId}`)
+        ? readWorkspaceFacts(sql, organizationId, sessionId)
+        : null,
+    retire: (candidate, reason, detail) =>
+      retire({
+        organizationId: candidate.organizationId,
+        sessionId: candidate.sessionId,
+        reason,
+        // Only a workspace with no compute of any kind goes for its size.
+        mode: 'stopped',
+        eligible: (tx) => stillReclaimable(tx, candidate, reason, now),
+        detail,
+      }),
+    exhausted,
+  };
+  result.reclaim = await reclaimWorkspaces(reclaimIo, now);
   return result;
 }
 

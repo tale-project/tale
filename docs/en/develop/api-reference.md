@@ -566,6 +566,41 @@ Only organization Owners and Admins may change secret grants, so an editor's ful
 
 Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, returns **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks; direct chat keeps using the built-in assistant.
 
+## Read a project's dispatch and report on its gates {#dispatch}
+
+A project's [dispatch](/platform/projects/dispatch) starts its ready work on the idle agents of its pool. Two operations reach it from outside:
+
+| Operation | Route | Success |
+| --- | --- | --- |
+| Read what the dispatch does | `GET /api/v1/projects/{id}/dispatch` | `200` |
+| Report on a gate | `POST /api/v1/projects/{id}/dispatch/gates/{key}` | `200 {held, changed}` |
+
+The read answers what the project's **Dispatch** page shows: each agent of the pool with the runs it holds or why it is idle (`idle`: `model_capacity`, `host_pressure`, `org_limit`, `pacing`, `gated`, `no_ready_work`, `disabled` or `unknown`), the standing roles with their next and last occurrence, the models the organization waits on (`holds`), the gates as the next pass judges them, the organization's agent workers against the pool (`poolExceedsWorkers` is `true` when the pool can hold more runs at once than there are workers) and the last 20 passes. A project without a dispatch answers `configured: false`. Project readers may read it.
+
+A gate holds the ready work it governs while a signal from outside says so, such as a CI system whose runner queue is full. The dispatch declares each gate; a report then sets it. Send `{"state": "hold"}` or `{"state": "open"}`, or `{"value": 23}` for a gate that declares `holdAt`: at or above `holdAt` it holds, and once held it opens only below `recoverBelow` (half of `holdAt` unless declared). `reason`, up to 500 characters, is shown with the gate. A key the dispatch does not declare returns **404**, `DISPATCH_GATE_UNKNOWN`; a value for a gate without `holdAt` returns **400**, `DISPATCH_GATE_VALUE_UNJUDGED`. Reporting needs project edit access.
+
+A gate nobody reports on within its `staleAfterSeconds`, 600 unless declared, opens again, or holds when it declares `whenStale: "hold"`: report on a schedule, not only when the signal changes. This example reports the depth of a CI queue from a job that runs every five minutes:
+
+```bash
+: "${BASE:?Set BASE to your Tale origin}"
+: "${TALE_API_KEY:?Set TALE_API_KEY}"
+: "${ORG_SLUG:?Set ORG_SLUG}"
+: "${PROJECT_ID:?Set PROJECT_ID to the project whose dispatch declares the gate}"
+: "${QUEUED:?Set QUEUED to the number of queued CI jobs}"
+GATE_URL="$BASE/api/v1/projects/$PROJECT_ID/dispatch/gates/ci"
+curl -fsS "$GATE_URL" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -n --argjson value "$QUEUED" '{value: $value, reason: "queued CI jobs"}')"
+```
+
+```json
+{ "held": true, "changed": true }
+```
+
+A report that opens a gate asks for a pass at once, so the work it held starts without waiting for the next minute (contract 3.45.0).
+
 ## Automation names in URLs
 
 An automation's name is a `/`-separated path — `billing/dunning` — and a path cannot travel inside one URL segment. In every `.../automations/{name}/...` URL, write the name with `__` in place of each `/`:

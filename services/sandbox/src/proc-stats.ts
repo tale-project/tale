@@ -1,8 +1,9 @@
-// Pure parsers for the Linux /proc files the spawner reads about its host:
-// CPU counters from /proc/stat, memory from /proc/meminfo and CPU pressure
-// from /proc/pressure/cpu. Kept apart from
-// the capacity reader and the memory guard so either can use them without
-// loading the other's dependencies.
+// Pure parsers for the Linux /proc and /sys files the spawner reads about its
+// host: CPU counters from /proc/stat, memory from /proc/meminfo, CPU, memory
+// and I/O pressure from /proc/pressure/{cpu,memory,io}, the load average from
+// /proc/loadavg and the online CPUs from /sys/devices/system/cpu/online. Kept
+// apart from the capacity reader, the memory guard and the pressure sampler
+// so each can use them without loading the others' dependencies.
 
 export interface CpuCounters {
   total: number;
@@ -67,9 +68,10 @@ export function parseMemory(meminfo: string): {
   return { totalBytes: total, usedBytes: total - available };
 }
 
-/** The `some avg10` of a pressure stall file (/proc/pressure/cpu): the share
- * of the last ten seconds, in percent, in which at least one runnable task
- * waited for a CPU. Null for a file without that line. */
+/** The `some avg10` of a pressure stall file (/proc/pressure/cpu, memory or
+ * io): the share of the last ten seconds, in percent, in which at least one
+ * task waited for that resource — a CPU, memory it had to reclaim or swap
+ * in, or I/O. Null for a file without that line. */
 export function parsePressureSomeAvg10(pressure: string): number | null {
   const match = pressure.match(/^some\b.*\bavg10=(\d+(?:\.\d+)?)\b/m);
   if (match === null) return null;
@@ -77,4 +79,34 @@ export function parsePressureSomeAvg10(pressure: string): number | null {
   return Number.isFinite(percent) && percent >= 0 && percent <= 100
     ? percent
     : null;
+}
+
+/** The one-minute load average of /proc/loadavg (its first field): the
+ * runnable and uninterruptible tasks, averaged. Null for a file that does
+ * not start with one. */
+export function parseLoadAverage(loadavg: string): number | null {
+  const match = /^\s*(\d+(?:\.\d+)?)(?:\s|$)/.exec(loadavg);
+  if (match === null) return null;
+  const load = Number(match[1]);
+  return Number.isFinite(load) && load >= 0 ? load : null;
+}
+
+/** How many CPUs /sys/devices/system/cpu/online lists as online: a range
+ * list such as `0-3,6` (five CPUs). Null for anything that is not one. */
+export function parseOnlineCpus(online: string): number | null {
+  const list = online.trim();
+  if (list === '') return null;
+  let count = 0;
+  for (const part of list.split(',')) {
+    const match = /^(\d+)(?:-(\d+))?$/.exec(part);
+    if (match === null) return null;
+    const first = Number(match[1]);
+    const last = match[2] === undefined ? first : Number(match[2]);
+    if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last)) {
+      return null;
+    }
+    if (last < first) return null;
+    count += last - first + 1;
+  }
+  return count > 0 ? count : null;
 }

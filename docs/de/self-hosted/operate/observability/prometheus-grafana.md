@@ -93,9 +93,17 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale cannot reach its default {{ $labels.store }} store'
+      - alert: TaleDispatchStopped
+        expr: time() - tale_backend_dispatch_last_pass_timestamp_seconds > 900
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: 'The dispatch of project {{ $labels.project }} has not passed for 15 minutes'
 ```
 
 Passe Dringlichkeit und Wartezeiten an deine Anforderungen an und richte die Zustellung über Alertmanager oder Grafana ein. Eine in Prometheus sichtbare Regel versendet für sich allein keine Benachrichtigung. Der Speicher-Alarm umfasst Bereitstellungsstandards, keine organisationsspezifischen Datenbanken oder Buckets.
+
+Der Alarm zur Arbeitsverteilung nennt ein Projekt, dessen Arbeitsverteilung eingeschaltet ist und seit 15 Minuten keinen Durchlauf abgeschlossen hat. Jede eingeschaltete Arbeitsverteilung läuft mindestens einmal pro Minute; ein Wert, der stehen bleibt, deutet auf angehaltene Job-Worker oder einen Durchlauf, der immer wieder fehlschlägt.
 
 ## Erfassung starten und prüfen
 
@@ -122,5 +130,6 @@ docker compose -f compose.monitoring.yml up -d
 | Job-Zustände | `tale_backend_jobs` | Jobs nach Warteschlangenzustand; achte auf anhaltendes Wachstum und Fehler. |
 | Standardspeicher | `tale_backend_store_up` | Zwischengespeicherte Erreichbarkeit von `app_db`, `knowledge_db` und `object_store`. |
 | Bereitstellungs-Drain | `tale_backend_drain_active` | Ob das Entleeren vor einer Bereitstellung neue Turns zurückweist. |
+| Herzschlag der Arbeitsverteilung | `time() - tale_backend_dispatch_last_pass_timestamp_seconds` | Sekunden seit dem letzten abgeschlossenen Durchlauf jeder eingeschalteten Arbeitsverteilung eines Projekts. |
 
 Einige Metriken lesen gemeinsame Datenbankzähler, andere beschreiben einen einzelnen Prozess. Erfasse bei mehreren Replikaten die Prozessmetriken einzeln über dein privates Monitoring-Netz und vermeide mehrfaches Zählen gemeinsamer Werte. [Betrieb überwachen](/de/self-hosted/operate/observability/operations) erklärt die Grenzen der Speicherprüfungen und die zusätzlichen Messungen für die SLA-Regelvorlage.

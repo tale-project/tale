@@ -5,7 +5,10 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
-import type { SandboxWorkspaceInventory } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import type {
+  SandboxWorkspaceInventory,
+  SandboxWorkspaceUsage,
+} from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   memberWorkerSessionId,
   standingWorkerSessionId,
@@ -55,6 +58,9 @@ export async function checkWorkspaceCleanup(
   const destroyCalls: Array<[string, WorkspaceDestroyMode]> = [];
   const unpinCalls: string[] = [];
   let inventory: SandboxWorkspaceInventory | null = null;
+  // What the spawner measures; null (a spawner without the route) until
+  // the reclaim's own check, so no other check reclaims anything.
+  let usage: SandboxWorkspaceUsage | null = null;
   /** How far the spawner reports a workspace's deletion — `done` unless
    * scripted; `legacy` is a spawner older than the contract, whose answer
    * carries no deletion state at all. */
@@ -73,6 +79,7 @@ export async function checkWorkspaceCleanup(
       };
     },
     inventory: async () => inventory,
+    usage: async () => usage,
     teardownOrganization: async () => null,
     disconnectDevice: async () => ({}),
     revokeKey: async () => {},
@@ -896,6 +903,78 @@ export async function checkWorkspaceCleanup(
         pendingAlone === 0 &&
         pendingBeside === 1,
       JSON.stringify({ retirementJobs, pendingAlone, pendingBeside }),
+    );
+
+    // 10. The sandbox disk runs short (6 GiB free of a 10 GiB floor): the
+    // largest idle workspace goes, stopped only, until twice the floor is
+    // free; one used an hour ago, a pinned one and one without a size stay,
+    // whatever they hold.
+    inventory = null;
+    const reclaimAgent = randomUUID();
+    await agent(reclaimAgent);
+    const twoDaysAgo = now - 2 * DAY;
+    const reclaimLarge = standingSessionIdForProjectAgent(reclaimAgent);
+    const reclaimSmall = standingWorkerSessionId(reclaimAgent, 2);
+    const reclaimRecent = standingWorkerSessionId(reclaimAgent, 3);
+    const reclaimPinned = standingWorkerSessionId(reclaimAgent, 4);
+    const reclaimUnsized = standingWorkerSessionId(reclaimAgent, 5);
+    for (const sessionId of [reclaimLarge, reclaimSmall, reclaimUnsized]) {
+      await session(sessionId, { ownerId: reclaimAgent, at: twoDaysAgo });
+    }
+    await session(reclaimRecent, {
+      ownerId: reclaimAgent,
+      at: Date.now() - 60 * 60_000,
+    });
+    await session(reclaimPinned, {
+      ownerId: reclaimAgent,
+      at: twoDaysAgo,
+      pinned: true,
+    });
+    const GIB = 1024 ** 3;
+    const measuredAtMs = Date.now() - 60_000;
+    usage = {
+      measuredAtMs: Date.now(),
+      disk: {
+        freeBytes: 6 * GIB,
+        floorBytes: 10 * GIB,
+        criticalBytes: 2.5 * GIB,
+        short: true,
+        critical: false,
+      },
+      workspaces: [
+        { sessionId: reclaimLarge, bytes: 30 * GIB, measuredAtMs },
+        { sessionId: reclaimSmall, bytes: 5 * GIB, measuredAtMs },
+        { sessionId: reclaimRecent, bytes: 60 * GIB, measuredAtMs },
+        { sessionId: reclaimPinned, bytes: 50 * GIB, measuredAtMs },
+        { sessionId: reclaimUnsized, bytes: null, measuredAtMs: null },
+      ],
+    };
+    const pressureSweep = await runWorkspaceCleanup(sql, {
+      spawner,
+      organizationId: orgId,
+    });
+    usage = null;
+    const reclaimAudit = await sql<{ reason: string; bytes: number }[]>`
+      SELECT metadata ->> 'reason' AS reason,
+             (metadata ->> 'workspaceBytes')::float8 AS bytes
+      FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sandbox_workspace.deleted'
+        AND resource_id = ${reclaimLarge}
+    `;
+    record(
+      'workspace cleanup: while the sandbox disk is short the largest idle workspace goes, stopped, until twice the floor is free; a recent, a pinned and an unsized one stay',
+      pressureSweep.retired.disk_pressure === 1 &&
+        pressureSweep.reclaim.usage === 'read' &&
+        destroyedWith(reclaimLarge).join() === 'stopped' &&
+        (await statusOf(reclaimLarge))?.status === 'destroyed' &&
+        reclaimAudit.length === 1 &&
+        reclaimAudit[0]?.reason === 'disk_pressure' &&
+        reclaimAudit[0]?.bytes === 30 * GIB &&
+        [reclaimSmall, reclaimRecent, reclaimPinned, reclaimUnsized].every(
+          (id) => destroyedWith(id).length === 0,
+        ) &&
+        (await statusOf(reclaimSmall))?.status === 'stopped',
+      JSON.stringify({ pressureSweep, reclaimAudit }),
     );
   } finally {
     await sql`DELETE FROM "member" WHERE "organizationId" = ${orgId}`;

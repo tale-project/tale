@@ -93,9 +93,17 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale cannot reach its default {{ $labels.store }} store'
+      - alert: TaleDispatchStopped
+        expr: time() - tale_backend_dispatch_last_pass_timestamp_seconds > 900
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: 'The dispatch of project {{ $labels.project }} has not passed for 15 minutes'
 ```
 
 Adapte la gravité et les délais à tes exigences, puis configure la distribution via Alertmanager ou Grafana. Une règle visible dans Prometheus n’envoie pas de notification à elle seule. L’alerte de stockage couvre les valeurs par défaut du déploiement, pas les bases ou buckets propres aux organisations.
+
+L’alerte de répartition du travail nomme un projet dont la répartition du travail est activée et n’a terminé aucun passage depuis 15 minutes. Chaque répartition activée passe au moins une fois par minute ; une valeur qui ne bouge plus signale des workers de jobs arrêtés ou un passage qui échoue sans cesse.
 
 ## Démarrer et vérifier la collecte
 
@@ -122,5 +130,6 @@ Ouvre Grafana sur `http://127.0.0.1:3001` et ajoute une source de données Prome
 | États des jobs | `tale_backend_jobs` | Jobs par état de file ; surveille une croissance durable et les échecs. |
 | Stockages par défaut | `tale_backend_store_up` | Accessibilité mise en cache de `app_db`, `knowledge_db` et `object_store`. |
 | Drainage de déploiement | `tale_backend_drain_active` | Le drainage refuse-t-il de nouveaux tours ? |
+| Pouls de la répartition du travail | `time() - tale_backend_dispatch_last_pass_timestamp_seconds` | Secondes écoulées depuis le dernier passage terminé de chaque répartition du travail activée, par projet. |
 
 Certains collecteurs lisent des comptes partagés en base, d’autres décrivent un processus. Avec plusieurs réplicas, collecte leurs métriques de processus séparément sur ton réseau privé et évite de compter plusieurs fois les jauges partagées. [Surveiller les opérations](/fr/self-hosted/operate/observability/operations) explique les limites des sondes de stockage et les mesures supplémentaires nécessaires au modèle de règles SLA.

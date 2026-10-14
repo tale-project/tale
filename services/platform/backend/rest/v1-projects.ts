@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
+import { dispatchGateReportSchema } from '@tale/shared/schemas/project-dispatch';
 import {
   PROJECT_AGENT_NAME_MAX,
   PROJECT_DESCRIPTION_MAX,
@@ -74,6 +75,8 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
+import { reportDispatchGate } from '../domains/tasks/dispatch-gates.ts';
+import { readProjectDispatchStatus } from '../domains/tasks/dispatch-readback.ts';
 import {
   chargeLane,
   documentDeleteRefusal,
@@ -94,6 +97,7 @@ import {
   readQuery,
   requireEditor,
   type RestEnv,
+  restApiKeyId,
   restProjectAuth,
   RestRefusal,
   serveDocumentBytes,
@@ -699,6 +703,51 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     id: folder.id,
     name: folder.name,
     parentId: folder.parentId,
+  });
+
+  /** GET /projects/{id}/dispatch — what the project's dispatch does and
+   * why each agent of its pool is idle, as the app's Dispatch page reads it;
+   * `configured: false` for a project without one. Project readers. */
+  app.get('/projects/:id/dispatch', noQuery, async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadVisibleProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      return c.json(
+        await readProjectDispatchStatus(deps.sql, auth, project.id),
+      );
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** POST /projects/{id}/dispatch/gates/{key} — an external system's
+   * report on one of the dispatch's gates: a state, or a value the gate
+   * judges by its thresholds. A write of this door: project edit access. */
+  app.post('/projects/:id/dispatch/gates/:key', async (c) => {
+    const body = await parseBody(c, dispatchGateReportSchema);
+    if (body instanceof Response) return body;
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const apiKeyId = restApiKeyId(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        reportDispatchGate(tx, auth, {
+          projectId: project.id,
+          key: c.req.param('key'),
+          report: body,
+          reporter:
+            apiKeyId !== undefined
+              ? `api-key:${apiKeyId}`
+              : `user:${auth.userId}`,
+          access: 'checked',
+        }),
+      );
+      return c.json(result);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
   });
 
   /** The folder `folderId` names IF it is this project's — a foreign,

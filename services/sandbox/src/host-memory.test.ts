@@ -1,4 +1,4 @@
-import { describe, expect, spyOn, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
 import {
   autoSessionCapacity,
@@ -86,8 +86,6 @@ describe('HostMemoryProbe', () => {
     dockerFails?: () => boolean;
     now?: () => number;
     cpus?: unknown;
-    pressure?: () => string;
-    cpuPressure?: boolean;
   }) {
     const totalKb = 16 * 1024 * 1024;
     let dockerCalls = 0;
@@ -97,17 +95,12 @@ describe('HostMemoryProbe', () => {
       env: {},
       kernelRelease: () => '6.10.14-linuxkit',
       ...(scenario.now ? { now: scenario.now } : {}),
-      ...(scenario.cpuPressure !== undefined
-        ? { cpuPressure: scenario.cpuPressure }
-        : {}),
       readFile: (path) => {
-        if (path === '/proc/pressure/cpu') {
+        if (path.startsWith('/proc/pressure/')) {
           pressureReads += 1;
-          return scenario.pressure === undefined
-            ? Promise.resolve(
-                'some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n',
-              )
-            : Promise.resolve().then(() => scenario.pressure?.() ?? '');
+          return Promise.resolve(
+            'some avg10=0.00 avg60=0.00 avg300=0.00 total=0\n',
+          );
         }
         reads += 1;
         return Promise.resolve(
@@ -225,64 +218,32 @@ describe('HostMemoryProbe', () => {
     expect((await instance.read())?.availableBytes).toBe(3 * GIB);
   });
 
-  test("reads the host's CPU pressure and CPUs beside its memory", async () => {
-    let pressure = 'some avg10=72.50 avg60=40.00 avg300=12.00 total=99\n';
-    let now = 1_000_000;
-    const { instance } = probe({
-      now: () => now,
-      pressure: () => pressure,
-      cpus: 12,
-    });
-    expect(instance.cpuPressure()).toBeNull();
+  test("reads the CPUs the daemon reports beside the host's memory", async () => {
+    const { instance } = probe({ cpus: 12 });
     expect(instance.cpus()).toBeNull();
     await instance.read();
-    expect(instance.cpuPressure()).toBe(72.5);
     expect(instance.cpus()).toBe(12);
-    pressure = 'some avg10=3.10 avg60=40.00 avg300=12.00 total=99\n';
-    now += 1_000;
-    await instance.read();
-    expect(instance.cpuPressure()).toBe(3.1);
   });
 
-  test('no CPU pressure or CPUs where /proc is not the Docker host', async () => {
-    const { instance, pressureReads } = probe({
-      endpoint: 'tcp://10.0.0.5:2376',
-      pressure: () => 'some avg10=90.00 avg60=0 avg300=0 total=0\n',
-    });
+  test('no CPUs where /proc is not the Docker host, and it says so', async () => {
+    const { instance } = probe({ endpoint: 'tcp://10.0.0.5:2376' });
     await instance.read();
-    expect(instance.cpuPressure()).toBeNull();
     expect(instance.cpus()).toBeNull();
-    expect(pressureReads()).toBe(0);
+    expect(await instance.describesHost()).toBe(false);
   });
 
-  test('a kernel without pressure stall information fails open, said once', async () => {
-    let now = 1_000_000;
-    const warn = spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const { instance } = probe({
-        now: () => now,
-        pressure: () => {
-          throw new Error('ENOENT: /proc/pressure/cpu');
-        },
-      });
-      await instance.read();
-      now += 1_000;
-      await instance.read();
-      expect(instance.cpuPressure()).toBeNull();
-      expect((await instance.read(true))?.availableBytes).toBe(4 * GIB);
-      const said = warn.mock.calls.filter((call) =>
-        String(call[0]).includes('no CPU pressure reading'),
-      );
-      expect(said).toHaveLength(1);
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  test('switched off, it never reads the CPU pressure', async () => {
-    const { instance, pressureReads } = probe({ cpuPressure: false });
+  test('its judgement of the host is the one the pressure sampler reads by', async () => {
+    const { instance, dockerCalls } = probe({});
+    expect(await instance.describesHost()).toBe(true);
     await instance.read();
-    expect(instance.cpuPressure()).toBeNull();
+    // Judged once: the memory reading and the sampler share the verdict.
+    expect(dockerCalls()).toBe(2);
+  });
+
+  test('it never reads the pressure stall files: the pressure sampler is their one reader', async () => {
+    const { instance, pressureReads } = probe({});
+    await instance.read();
+    await instance.read(true);
     expect(pressureReads()).toBe(0);
   });
 

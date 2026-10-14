@@ -20,6 +20,11 @@ import {
 } from '@tale/shared/schemas/automation-trigger';
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import {
+  DISPATCH_GATE_REASON_MAX,
+  dispatchGateReportResultSchema,
+  projectDispatchStatusSchema,
+} from '@tale/shared/schemas/project-dispatch';
+import {
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_MODEL_MAX,
   PROJECT_SHARED_TEAMS_MAX,
@@ -3845,6 +3850,107 @@ export function buildSpec(): Json {
       responses: {
         '204': noContent('Deleted'),
         ...projectAgentErrors,
+      },
+    },
+  };
+
+  const dispatchParameters = [
+    orgSlugHeaderParam,
+    pathParam('id', 'Project ID'),
+  ];
+  paths['/api/v1/projects/{id}/dispatch'] = {
+    get: {
+      tags: ['Projects'],
+      summary: "Read a project's dispatch",
+      description:
+        "What the project's dispatch does: every agent of its pool with " +
+        'the runs it holds or why it is idle (`idle`), its standing roles ' +
+        'with their next and last occurrence, the models it waits on ' +
+        '(`holds`), its gates as a pass judges them now, the ' +
+        "organization's agent workers against the pool, and its last 20 " +
+        'passes. A project without a dispatch answers `configured: false`. ' +
+        'Project readers; the same answer as the project’s Dispatch page.',
+      operationId: 'getProjectDispatch',
+      security: sec,
+      parameters: dispatchParameters,
+      responses: {
+        '200': jsonResponse(
+          "The project's dispatch",
+          wireSchemaSpec(projectDispatchStatusSchema),
+        ),
+        ...standardErrors,
+        '404': errorResponse('Project is missing or invisible'),
+      },
+    },
+  };
+  paths['/api/v1/projects/{id}/dispatch/gates/{key}'] = {
+    post: {
+      tags: ['Projects'],
+      summary: 'Report on a dispatch gate',
+      description:
+        "A report on one of the gates the project's dispatch declares — " +
+        'a signal from outside that holds the ready work the gate governs, ' +
+        'such as a full CI runner queue. Send `{state: "hold" | "open"}`, ' +
+        'or `{value}` for a gate that judges values: at or above its ' +
+        '`holdAt` it holds, and once held it opens only below its ' +
+        '`recoverBelow` (half of `holdAt` unless declared). `reason` is ' +
+        'shown with the gate. A gate nobody reports on within its ' +
+        '`staleAfterSeconds` does what its `whenStale` says, so report on a ' +
+        'schedule, not only on change. A report that opens a gate asks for ' +
+        'a pass at once. Requires project edit access.',
+      operationId: 'reportProjectDispatchGate',
+      security: sec,
+      parameters: [
+        ...dispatchParameters,
+        pathParam('key', 'The gate key the dispatch declares'),
+      ],
+      requestBody: jsonBody({
+        description:
+          'A state, or a value the gate judges by its thresholds; `reason` ' +
+          'is shown with the gate.',
+        oneOf: [
+          {
+            type: 'object',
+            additionalProperties: false,
+            required: ['state'],
+            properties: {
+              state: { type: 'string', enum: ['open', 'hold'] },
+              reason: {
+                type: 'string',
+                minLength: 1,
+                maxLength: DISPATCH_GATE_REASON_MAX,
+              },
+            },
+          },
+          {
+            type: 'object',
+            additionalProperties: false,
+            required: ['value'],
+            properties: {
+              value: { type: 'number' },
+              reason: {
+                type: 'string',
+                minLength: 1,
+                maxLength: DISPATCH_GATE_REASON_MAX,
+              },
+            },
+          },
+        ],
+      }),
+      responses: {
+        '200': jsonResponse(
+          'The state the report left the gate in, and whether it changed',
+          wireSchemaSpec(dispatchGateReportResultSchema),
+        ),
+        ...standardErrors,
+        '400': errorResponse(
+          'A body the schema refuses (`INVALID_BODY`), or a value for a ' +
+            'gate that declares no `holdAt` (`DISPATCH_GATE_VALUE_UNJUDGED`)',
+        ),
+        '403': errorResponse('Project is not editable or is archived'),
+        '404': errorResponse(
+          'Project is missing or invisible, or its dispatch declares no gate of that key (`DISPATCH_GATE_UNKNOWN`)',
+        ),
       },
     },
   };

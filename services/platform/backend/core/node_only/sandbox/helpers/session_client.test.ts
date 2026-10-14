@@ -16,6 +16,7 @@ import {
   sandboxDeviceDisconnect,
   sandboxDevices,
   sandboxWorkspaceInventory,
+  sandboxWorkspaceUsage,
   STAGE_BODY_BUDGET_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
@@ -2027,6 +2028,92 @@ describe('sandboxWorkspaceInventory', () => {
       backend: 'incus',
       workspaces: [{ sessionId: 'sess_one', organizationId: 'org_one' }],
     });
+  });
+});
+
+describe('sandboxWorkspaceUsage', () => {
+  const GIB = 1024 ** 3;
+  const urls: string[] = [];
+  function answer(body: unknown, status = 200) {
+    urls.length = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+  }
+
+  test('reads what an organization’s workspaces hold beside where their disk stands', async () => {
+    const usage = {
+      measuredAtMs: 1_700_000_600_000,
+      disk: {
+        freeBytes: 6 * GIB,
+        floorBytes: 10 * GIB,
+        criticalBytes: 2.5 * GIB,
+        short: true,
+        critical: false,
+      },
+      workspaces: [
+        {
+          sessionId: 'pa-one',
+          bytes: 26 * GIB,
+          measuredAtMs: 1_700_000_500_000,
+        },
+        // Not measured by the deadline, or never: unknown, never zero.
+        { sessionId: 'pa-two', bytes: null, measuredAtMs: 1_700_000_500_000 },
+        { sessionId: 'pa-three', bytes: null, measuredAtMs: null },
+      ],
+    };
+    answer(usage);
+    await expect(sandboxWorkspaceUsage('org one')).resolves.toEqual(usage);
+    expect(urls[0]).toMatch(
+      /\/v1\/workspaces\/usage\?organizationId=org%20one$/,
+    );
+  });
+
+  test('a host whose disk the spawner does not hold answers no disk and no workspace', async () => {
+    answer({ measuredAtMs: 1, disk: null, workspaces: [] });
+    await expect(sandboxWorkspaceUsage('org-1')).resolves.toEqual({
+      measuredAtMs: 1,
+      disk: null,
+      workspaces: [],
+    });
+  });
+
+  test('a spawner older than the route answers null', async () => {
+    answer({ error: 'not_found' }, 404);
+    await expect(sandboxWorkspaceUsage('org-1')).resolves.toBeNull();
+  });
+
+  test('throws when the spawner cannot list its workspaces, never reading it as empty', async () => {
+    answer({ error: 'inventory_unavailable' }, 503);
+    await expect(sandboxWorkspaceUsage('org-1')).rejects.toThrow(
+      'sandbox workspace usage unavailable (503)',
+    );
+  });
+
+  test('throws on a size that is not one', async () => {
+    answer({
+      measuredAtMs: 1,
+      disk: null,
+      workspaces: [{ sessionId: 'pa-one', bytes: -1, measuredAtMs: 1 }],
+    });
+    await expect(sandboxWorkspaceUsage('org-1')).rejects.toThrow();
+  });
+
+  test('throws when the spawner cannot be reached', async () => {
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      throw new TypeError('fetch failed');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    await expect(sandboxWorkspaceUsage('org-1')).rejects.toBeInstanceOf(
+      SpawnerUnreachableError,
+    );
   });
 });
 

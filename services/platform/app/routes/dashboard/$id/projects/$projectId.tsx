@@ -222,6 +222,14 @@ function ProjectDetailLayout() {
         matchMode: 'exact',
         disabled: allProjectsMode,
       },
+      // What starts the project's ready work on its agents, and why an agent
+      // is idle: every reader sees it; administrators change it there.
+      {
+        label: t('dispatch.title'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/dispatch`,
+        matchMode: 'exact',
+        disabled: allProjectsMode,
+      },
       // Secrets are administer-only data — even the secret *names* are
       // sensitive (per the query doc comment). Hide the tab from non-admin
       // readers so they never land on the misleading empty state with a dead

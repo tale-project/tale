@@ -25,6 +25,12 @@ import {
   type SessionBackend,
   type SessionSpec,
 } from '../backend/types.ts';
+import { HostAdmission } from '../host-admission.ts';
+import {
+  CONSERVATIVE_THRESHOLDS,
+  type HostPressureReading,
+} from '../host-pressure-assessment.ts';
+import type { HostPressureSource } from '../host-pressure.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
@@ -7156,22 +7162,57 @@ describe('memory-aware admission', () => {
     ]);
   });
 
-  describe('CPU pressure', () => {
-    /** A roomy host whose CPU pressure reads as `pressure()` percent. */
-    const pressured = (pressure: () => number | null) => ({
-      ...host(() => 12),
-      cpuPressure: pressure,
+  describe('host pressure', () => {
+    /** Two readings ten seconds apart, the newer one now: the CPU at
+     * `pressure()` percent, the rest at `other`'s (quiet unless named). */
+    const readings = (
+      pressure: () => number | null,
+      other: () => Partial<Omit<HostPressureReading, 'atMs'>> = () => ({}),
+    ): HostPressureSource => ({
+      readings: () => {
+        const now = Date.now();
+        const values = {
+          load1: 0.5,
+          cpus: 4,
+          cpuPsi: pressure(),
+          memoryPsi: 0,
+          ioPsi: 0,
+          ...other(),
+        };
+        return [
+          { atMs: now - 10_000, ...values },
+          { atMs: now, ...values },
+        ];
+      },
     });
+    /** Routes on a roomy host whose CPU pressure reads `pressure()`. */
+    const pressured = (
+      routesCfg: SpawnerConfig,
+      pressure: () => number | null,
+      memory = host(() => 12),
+      other?: () => Partial<Omit<HostPressureReading, 'atMs'>>,
+    ) => {
+      const admission = new HostAdmission(routesCfg, {
+        pressure: readings(pressure, other),
+        memory,
+      });
+      return {
+        routes: new SessionRoutes(
+          routesCfg,
+          fakeBackend,
+          undefined,
+          memory,
+          undefined,
+          admission,
+        ),
+        admission,
+      };
+    };
 
     test('under pressure, sessions start one at a time and the rest wait in line', async () => {
       const startMs = Date.now();
       try {
-        const routes = new SessionRoutes(
-          cfg,
-          fakeBackend,
-          undefined,
-          pressured(() => 80),
-        );
+        const { routes } = pressured(cfg, () => 80);
         expect((await create(routes, 'cpu-1')).status).toBe(201);
         const refused = await create(routes, 'cpu-2');
         expect(refused.status).toBe(429);
@@ -7198,19 +7239,36 @@ describe('memory-aware admission', () => {
       }
     });
 
-    test('once the pressure eases, the line drains without spacing', async () => {
+    test('once the pressure eases below the recover share, the line drains without spacing', async () => {
       let pressure = 90;
-      const routes = new SessionRoutes(
-        cfg,
-        fakeBackend,
-        undefined,
-        pressured(() => pressure),
-      );
+      const { routes } = pressured(cfg, () => pressure);
       expect((await create(routes, 'eased-1')).status).toBe(201);
       expect((await create(routes, 'eased-2')).status).toBe(429);
       pressure = 20;
       expect((await create(routes, 'eased-2')).status).toBe(201);
       expect((await create(routes, 'eased-3')).status).toBe(201);
+    });
+
+    test('a pressed host stays paced until it falls below half its threshold', async () => {
+      const startMs = Date.now();
+      let pressure = 70;
+      try {
+        const { routes } = pressured(cfg, () => pressure);
+        expect((await create(routes, 'held-1')).status).toBe(201);
+        // Under the threshold, but above the recover share: still pressed.
+        pressure = 45;
+        expect(await (await create(routes, 'held-2')).json()).toMatchObject({
+          error: 'host_cpu',
+        });
+        setSystemTime(new Date(startMs + 11_000));
+        expect((await create(routes, 'held-2')).status).toBe(201);
+        expect((await create(routes, 'held-3')).status).toBe(429);
+        pressure = 29;
+        expect((await create(routes, 'held-3')).status).toBe(201);
+        expect((await create(routes, 'held-4')).status).toBe(201);
+      } finally {
+        setSystemTime();
+      }
     });
 
     test.each([
@@ -7229,7 +7287,7 @@ describe('memory-aware admission', () => {
       async (_, pressure, cpuPressurePercent) => {
         const warn = spyOn(console, 'warn').mockImplementation(() => {});
         try {
-          const routes = new SessionRoutes(
+          const { routes } = pressured(
             {
               ...cfg,
               session: {
@@ -7239,9 +7297,7 @@ describe('memory-aware admission', () => {
                   : { cpuPressurePercent }),
               },
             },
-            fakeBackend,
-            undefined,
-            pressured(pressure),
+            pressure,
           );
           for (const id of ['free-1', 'free-2', 'free-3']) {
             expect((await create(routes, id)).status).toBe(201);
@@ -7252,13 +7308,48 @@ describe('memory-aware admission', () => {
       },
     );
 
-    test('a create waiting for a slot does not hold back a warm start under pressure', async () => {
-      let pressure = 0;
+    test('readings that stopped coming refuse no create', async () => {
+      const memory = host(() => 12);
       const routes = new SessionRoutes(
-        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        cfg,
         fakeBackend,
         undefined,
-        pressured(() => pressure),
+        memory,
+        undefined,
+        new HostAdmission(cfg, {
+          memory,
+          pressure: {
+            readings: () => [
+              {
+                atMs: Date.now() - 70_000,
+                load1: 9,
+                cpus: 4,
+                cpuPsi: 95,
+                memoryPsi: 0,
+                ioPsi: 0,
+              },
+              {
+                atMs: Date.now() - 60_000,
+                load1: 9,
+                cpus: 4,
+                cpuPsi: 95,
+                memoryPsi: 0,
+                ioPsi: 0,
+              },
+            ],
+          },
+        }),
+      );
+      for (const id of ['stale-1', 'stale-2']) {
+        expect((await create(routes, id)).status).toBe(201);
+      }
+    });
+
+    test('a create waiting for a slot does not hold back a warm start under pressure', async () => {
+      let pressure = 0;
+      const { routes } = pressured(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        () => pressure,
       );
       expect((await create(routes, 'cpu-pinned')).status).toBe(201);
       await releaseWarm(routes, 'cpu-pinned');
@@ -7287,12 +7378,7 @@ describe('memory-aware admission', () => {
       const startMs = Date.now();
       let pressure = 0;
       try {
-        const routes = new SessionRoutes(
-          cfg,
-          fakeBackend,
-          undefined,
-          pressured(() => pressure),
-        );
+        const { routes } = pressured(cfg, () => pressure);
         expect((await create(routes, 'cpu-warm')).status).toBe(201);
         await releaseWarm(routes, 'cpu-warm');
         pressure = 75;
@@ -7317,12 +7403,15 @@ describe('memory-aware admission', () => {
       const startMs = Date.now();
       let pressure = 0;
       try {
-        const routes = new SessionRoutes(
-          { ...cfg, session: { ...cfg.session, autoMaxSessions: false } },
-          fakeBackend,
-          undefined,
-          // No memory left at all: only the explicit cap's rule admits.
-          { ...host(() => 0), cpuPressure: () => pressure },
+        const capped = {
+          ...cfg,
+          session: { ...cfg.session, autoMaxSessions: false },
+        };
+        // No memory left at all: only the explicit cap's rule admits.
+        const { routes } = pressured(
+          capped,
+          () => pressure,
+          host(() => 0),
         );
         expect((await create(routes, 'cap-cpu-warm')).status).toBe(201);
         await releaseWarm(routes, 'cap-cpu-warm');
@@ -7339,6 +7428,114 @@ describe('memory-aware admission', () => {
         expect(
           await (await create(routes, 'cap-cpu-second')).json(),
         ).toMatchObject({ error: 'host_cpu' });
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    /** A deployment that judges its host by the conservative thresholds. */
+    const conservative: SpawnerConfig = {
+      ...cfg,
+      admission: {
+        preset: 'conservative',
+        thresholds: { ...CONSERVATIVE_THRESHOLDS },
+        heavyLeasesMax: 2,
+        heavyMinFreeDiskBytes: 20 * GIB,
+      },
+    };
+
+    test('under the default preset, memory, I/O and load pressure pace nothing', async () => {
+      const { routes } = pressured(
+        cfg,
+        () => 5,
+        undefined,
+        () => ({ memoryPsi: 40, ioPsi: 80, load1: 32 }),
+      );
+      for (const id of ['quiet-1', 'quiet-2', 'quiet-3']) {
+        expect((await create(routes, id)).status).toBe(201);
+      }
+    });
+
+    test('a conservative deployment paces creates and warm starts under memory pressure, refused as host_pressure', async () => {
+      const startMs = Date.now();
+      let memoryPsi = 0;
+      try {
+        const { routes } = pressured(
+          conservative,
+          () => 5,
+          undefined,
+          () => ({ memoryPsi }),
+        );
+        expect((await create(routes, 'mem-warm')).status).toBe(201);
+        await releaseWarm(routes, 'mem-warm');
+        memoryPsi = 3;
+        expect((await create(routes, 'mem-1')).status).toBe(201);
+        const refused = await create(routes, 'mem-2');
+        expect(refused.status).toBe(429);
+        expect(refused.headers.get('retry-after')).toBe('5');
+        expect(await refused.json()).toMatchObject({
+          error: 'host_pressure',
+          queue: { position: 0, waiting: 1 },
+        });
+        const warm = await routes.handleActivity('mem-warm', 'acquire');
+        expect(warm.status).toBe(429);
+        expect(await warm.json()).toMatchObject({
+          error: 'host_pressure',
+          queue: { position: 1 },
+        });
+        setSystemTime(new Date(startMs + 11_000));
+        expect((await create(routes, 'mem-2')).status).toBe(201);
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test.each([
+      ['I/O', { ioPsi: 25 }],
+      ['load', { load1: 6, cpus: 4 }],
+    ])(
+      'a conservative deployment paces creates under %s pressure too',
+      async (_, other) => {
+        const { routes } = pressured(
+          conservative,
+          () => 5,
+          undefined,
+          () => other,
+        );
+        expect((await create(routes, 'other-1')).status).toBe(201);
+        expect(await (await create(routes, 'other-2')).json()).toMatchObject({
+          error: 'host_pressure',
+        });
+      },
+    );
+
+    test('where the CPU presses the host most, the refusal still names the CPU', async () => {
+      const { routes } = pressured(
+        conservative,
+        () => 50,
+        undefined,
+        () => ({ memoryPsi: 1.5 }),
+      );
+      expect((await create(routes, 'both-1')).status).toBe(201);
+      expect(await (await create(routes, 'both-2')).json()).toMatchObject({
+        error: 'host_cpu',
+      });
+    });
+
+    test('a create and a warm start note the start the admission answer paces by', async () => {
+      const startMs = Date.now();
+      setSystemTime(new Date(startMs));
+      try {
+        const { routes, admission } = pressured(cfg, () => 0);
+        expect(admission.lastStartAtMs()).toBeNull();
+        expect((await create(routes, 'noted')).status).toBe(201);
+        expect(admission.lastStartAtMs()).toBe(startMs);
+        await releaseWarm(routes, 'noted');
+        setSystemTime(new Date(startMs + 120_000));
+        expect((await routes.handleActivity('noted', 'acquire')).status).toBe(
+          200,
+        );
+        expect(admission.lastStartAtMs()).toBe(startMs + 120_000);
       } finally {
         setSystemTime();
       }
@@ -9019,5 +9216,497 @@ describe('sessions whose egress proxy moved', () => {
     expect(
       second.warnings.filter((line) => line.includes('drift-pinned')),
     ).toEqual([]);
+  });
+});
+
+describe('host admission routes', () => {
+  const GIB = 1024 ** 3;
+  const ORG = 'org_lease';
+  /** Two readings ten seconds apart, the newer one now: a quiet host, or
+   * one with `values`. */
+  const readingsOf = (
+    values: () => Partial<Omit<HostPressureReading, 'atMs'>> = () => ({}),
+  ): HostPressureSource => ({
+    readings: () => {
+      const now = Date.now();
+      const reading = {
+        load1: 0.2,
+        cpus: 4,
+        cpuPsi: 1,
+        memoryPsi: 0,
+        ioPsi: 0,
+        ...values(),
+      };
+      return [
+        { atMs: now - 10_000, ...reading },
+        { atMs: now, ...reading },
+      ];
+    },
+  });
+  /** A 16 GiB host with `memoryGib()` available, a 200 GiB session disk
+   * (its floor 10 GiB) with `diskGib()` free. */
+  function setup(
+    scenario: {
+      cfg?: SpawnerConfig;
+      pressure?: () => Partial<Omit<HostPressureReading, 'atMs'>>;
+      memoryGib?: () => number;
+      diskGib?: () => number;
+      backend?: SessionBackend;
+    } = {},
+  ) {
+    const routesCfg = scenario.cfg ?? cfg;
+    const memoryReading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: (scenario.memoryGib?.() ?? 12) * GIB,
+    });
+    const diskReading = () => ({
+      totalBytes: 200 * GIB,
+      availableBytes: (scenario.diskGib?.() ?? 150) * GIB,
+    });
+    const memory = {
+      latest: memoryReading,
+      read: () => Promise.resolve(memoryReading()),
+    };
+    const disk = {
+      latest: diskReading,
+      read: () => Promise.resolve(diskReading()),
+    };
+    const admission = new HostAdmission(routesCfg, {
+      pressure: readingsOf(scenario.pressure),
+      memory,
+      disk,
+    });
+    const routes = new SessionRoutes(
+      routesCfg,
+      scenario.backend ?? fakeBackend,
+      undefined,
+      memory,
+      disk,
+      admission,
+    );
+    return { routes, admission };
+  }
+  const create = (routes: SessionRoutes, id: string, organizationId = ORG) =>
+    routes.handleCreate(
+      JSON.stringify({ sessionId: id, organizationId, profile: 'agent' }),
+    );
+  const acquire = (
+    routes: SessionRoutes,
+    id: string,
+    body: Record<string, unknown> = {},
+  ) =>
+    routes.handleLeaseAcquire(
+      id,
+      JSON.stringify({ organizationId: ORG, class: 'heavy', ...body }),
+    );
+  /** What the list route answers, to compare whole. */
+  const leasesOf = (routes: SessionRoutes, sessionId?: string) =>
+    routes.handleLeaseList(ORG, sessionId).json();
+
+  describe('GET /v1/admission', () => {
+    test('a quiet host admits, with the sessions admission counts', async () => {
+      const { routes } = setup();
+      await create(routes, 'adm-1');
+      await create(routes, 'adm-2', 'org_elsewhere');
+      // Past the pacing of those starts.
+      setSystemTime(new Date(Date.now() + 11_000));
+      try {
+        const response = routes.handleAdmission('start', undefined);
+        expect(response.status).toBe(200);
+        expect(response.headers.get('retry-after')).toBeNull();
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect(await response.json()).toMatchObject({
+          verdict: 'admit',
+          reason: null,
+          retryAfterMs: null,
+          preset: 'default',
+          evidence: {
+            pressure: {
+              pressured: false,
+              thresholds: { cpuPsi: 60, memoryPsi: null },
+            },
+            memory: { availableBytes: 12 * GIB, totalBytes: 16 * GIB },
+            disk: { freeBytes: 150 * GIB, floorBytes: 10 * GIB, short: false },
+            sessions: { running: 2, starting: 0, limit: 10 },
+            leases: { active: 0, max: 2 },
+          },
+        });
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test('a start the spawner just let in paces the next one', async () => {
+      const { routes } = setup();
+      await create(routes, 'adm-paced');
+      const response = routes.handleAdmission('start', undefined);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        verdict: 'hold',
+        reason: 'pacing',
+      });
+      expect(Number(response.headers.get('retry-after'))).toBeGreaterThan(0);
+    });
+
+    test('a pressed host holds with a retry-after', async () => {
+      const { routes } = setup({ pressure: () => ({ cpuPsi: 85 }) });
+      const response = routes.handleAdmission('start', undefined);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('retry-after')).toBe('15');
+      expect(await response.json()).toMatchObject({
+        verdict: 'hold',
+        reason: 'pressure',
+        retryAfterMs: 15_000,
+        evidence: { pressure: { pressured: true } },
+      });
+    });
+
+    test('memory or disk that would refuse an agent session holds', async () => {
+      const short = setup({ memoryGib: () => 1 });
+      expect(
+        await short.routes.handleAdmission('start', undefined).json(),
+      ).toMatchObject({ verdict: 'hold', reason: 'memory' });
+      const full = setup({ diskGib: () => 5 });
+      const response = full.routes.handleAdmission('start', undefined);
+      expect(response.headers.get('retry-after')).toBe('60');
+      expect(await response.json()).toMatchObject({
+        verdict: 'hold',
+        reason: 'disk',
+        evidence: { disk: { short: true } },
+      });
+    });
+
+    test('a conservative caller is held where the default preset would admit', async () => {
+      const { routes } = setup({ pressure: () => ({ ioPsi: 12 }) });
+      expect(
+        await routes.handleAdmission('start', undefined).json(),
+      ).toMatchObject({ verdict: 'admit' });
+      expect(
+        await routes.handleAdmission('start', 'conservative').json(),
+      ).toMatchObject({
+        verdict: 'hold',
+        reason: 'pressure',
+        preset: 'conservative',
+      });
+    });
+
+    test('the kind heavy answers as a lease would be, without taking one', async () => {
+      const { routes, admission } = setup({ diskGib: () => 21 });
+      expect(
+        await routes.handleAdmission('heavy', undefined).json(),
+      ).toMatchObject({
+        verdict: 'hold',
+        reason: 'disk',
+        preset: 'conservative',
+      });
+      expect(admission.leases.active()).toEqual([]);
+    });
+  });
+
+  describe('heavy-phase leases', () => {
+    test('a live session of the organization gets one, listed until it is released', async () => {
+      const { routes, admission } = setup();
+      await create(routes, 'lease-1');
+      const granted = await acquire(routes, 'lease-1', {
+        label: 'npm ci',
+        predictedGrowthBytes: GIB,
+        memoryBytes: 512 * 1024 ** 2,
+        ttlMs: 600_000,
+      });
+      expect(granted.status).toBe(201);
+      const [lease] = admission.leases.active();
+      if (lease === undefined) throw new Error('no lease was recorded');
+      expect(await granted.json()).toEqual({ lease });
+      expect(lease).toEqual({
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        sessionId: 'lease-1',
+        organizationId: ORG,
+        class: 'heavy',
+        label: 'npm ci',
+        predictedGrowthBytes: GIB,
+        memoryBytes: 512 * 1024 ** 2,
+        acquiredAtMs: expect.any(Number),
+        expiresAtMs: lease.acquiredAtMs + 600_000,
+      });
+      expect(await leasesOf(routes)).toEqual({ leases: [lease] });
+      expect(await leasesOf(routes, 'lease-1')).toEqual({ leases: [lease] });
+      expect(await leasesOf(routes, 'other')).toEqual({ leases: [] });
+      expect(await routes.handleLeaseList('org_elsewhere').json()).toEqual({
+        leases: [],
+      });
+      // Another organization cannot end it.
+      expect(
+        routes.handleLeaseRelease('lease-1', lease.id, 'org_elsewhere').status,
+      ).toBe(404);
+      const released = routes.handleLeaseRelease('lease-1', lease.id, ORG);
+      expect(released.status).toBe(204);
+      expect(await released.text()).toBe('');
+      const again = routes.handleLeaseRelease('lease-1', lease.id, ORG);
+      expect(again.status).toBe(404);
+      expect(await again.json()).toEqual({ error: 'lease_not_found' });
+      expect(await leasesOf(routes)).toEqual({ leases: [] });
+    });
+
+    test('a malformed request is a 400', async () => {
+      const { routes } = setup();
+      await create(routes, 'lease-bad');
+      expect((await routes.handleLeaseAcquire('lease-bad', '{')).status).toBe(
+        400,
+      );
+      const response = await acquire(routes, 'lease-bad', { class: 'light' });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'bad_request' });
+      expect((await acquire(routes, 'lease-bad', { ttlMs: 10 })).status).toBe(
+        400,
+      );
+    });
+
+    test("a session that does not exist, or is another organization's, is not found", async () => {
+      const { routes } = setup();
+      await create(routes, 'lease-theirs', 'org_elsewhere');
+      expect((await acquire(routes, 'lease-nobody')).status).toBe(404);
+      expect((await acquire(routes, 'lease-theirs')).status).toBe(404);
+    });
+
+    test('a session being stopped takes no lease, and one it held ends with it', async () => {
+      const stopStarted = Promise.withResolvers<void>();
+      const stopRelease = Promise.withResolvers<void>();
+      const { routes } = setup({
+        backend: {
+          ...fakeBackend,
+          async stopSession(sessionId: string) {
+            stopStarted.resolve();
+            await stopRelease.promise;
+            return fakeBackend.stopSession(sessionId);
+          },
+        },
+      });
+      await create(routes, 'lease-stopping');
+      expect((await acquire(routes, 'lease-stopping')).status).toBe(201);
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await stopStarted.promise;
+      const refused = await acquire(routes, 'lease-stopping');
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toMatchObject({ error: 'session_not_live' });
+      stopRelease.resolve();
+      expect(await sweep).toBe(1);
+      expect(await leasesOf(routes)).toEqual({ leases: [] });
+    });
+
+    test('a destroyed session ends its leases', async () => {
+      const { routes } = setup();
+      await create(routes, 'lease-destroyed');
+      await create(routes, 'lease-kept');
+      await acquire(routes, 'lease-destroyed');
+      await acquire(routes, 'lease-kept');
+      expect((await routes.handleDestroy('lease-destroyed')).status).toBe(200);
+      expect(await leasesOf(routes)).toEqual({
+        leases: [expect.objectContaining({ sessionId: 'lease-kept' })],
+      });
+    });
+
+    test('a session whose container is gone ends its leases', async () => {
+      const { routes } = setup();
+      await create(routes, 'lease-evicted');
+      await acquire(routes, 'lease-evicted');
+      backendGone.add('lease-evicted');
+      expect((await routes.handleGet('lease-evicted')).status).toBe(404);
+      expect(await leasesOf(routes)).toEqual({ leases: [] });
+    });
+
+    test('a lease expires on its own, and the sweep drops it', async () => {
+      const startMs = Date.now();
+      setSystemTime(new Date(startMs));
+      try {
+        const { routes, admission } = setup();
+        await create(routes, 'lease-expiring');
+        await acquire(routes, 'lease-expiring', { ttlMs: 60_000 });
+        setSystemTime(new Date(startMs + 60_000));
+        expect(await leasesOf(routes)).toEqual({ leases: [] });
+        await acquire(routes, 'lease-expiring', { ttlMs: 60_000 });
+        setSystemTime(new Date(startMs + 125_000));
+        await routes.sweepExpired(startMs + 125_000);
+        expect(admission.leases.summary()).toEqual({ active: 0, max: 2 });
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test.each([
+      ['pressure', { pressure: () => ({ memoryPsi: 2 }) }, 'pressure', '15'],
+      // 21 GiB free less the 2 GiB announced keeps under 20 GiB.
+      ['disk', { diskGib: () => 21 }, 'disk', '60'],
+      // Room for the session, not for the 1 GiB the phase announces.
+      ['memory', { memoryGib: () => 2.5 }, 'memory', '15'],
+    ] as const)(
+      'refused for %s with why, when to ask again and the evidence',
+      async (_, scenario, reason, retryAfter) => {
+        const { routes } = setup(scenario);
+        await create(routes, `lease-${reason}`);
+        const refused = await acquire(routes, `lease-${reason}`);
+        expect(refused.status).toBe(429);
+        expect(refused.headers.get('retry-after')).toBe(retryAfter);
+        expect(await refused.json()).toMatchObject({
+          error: 'lease_refused',
+          reason,
+          retryAfterMs: Number(retryAfter) * 1000,
+          evidence: {
+            leases: { active: 0, max: 2 },
+            sessions: { running: 1, starting: 0, limit: 10 },
+          },
+        });
+      },
+    );
+
+    test('refused at the limit until a lease ends', async () => {
+      const { routes, admission } = setup({
+        cfg: {
+          ...cfg,
+          admission: {
+            preset: 'default',
+            thresholds: {
+              loadPerCpu: null,
+              cpuPsi: 60,
+              memoryPsi: null,
+              ioPsi: null,
+              recover: 0.5,
+            },
+            heavyLeasesMax: 1,
+            heavyMinFreeDiskBytes: 20 * GIB,
+          },
+        },
+      });
+      await create(routes, 'lease-a');
+      await create(routes, 'lease-b');
+      expect((await acquire(routes, 'lease-a')).status).toBe(201);
+      const first = admission.leases.active()[0]?.id ?? '';
+      const refused = await acquire(routes, 'lease-b');
+      expect(refused.status).toBe(429);
+      expect(await refused.json()).toMatchObject({
+        reason: 'limit',
+        evidence: { leases: { active: 1, max: 1 } },
+      });
+      routes.handleLeaseRelease('lease-a', first, ORG);
+      expect((await acquire(routes, 'lease-b')).status).toBe(201);
+    });
+
+    test('a host that cannot be judged refuses every lease', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await create(routes, 'lease-blind');
+      const refused = await acquire(routes, 'lease-blind');
+      expect(refused.status).toBe(429);
+      expect(await refused.json()).toMatchObject({ reason: 'unavailable' });
+    });
+  });
+
+  describe('GET /v1/workspaces/usage', () => {
+    const usageBackend = (
+      sizes: (ids: readonly string[]) => Promise<Map<string, number | null>>,
+    ): SessionBackend => ({
+      ...fakeBackend,
+      async listWorkspaces() {
+        return [
+          {
+            sessionId: 'ws-1',
+            touchedAtMs: 1,
+            active: false,
+            pinned: false,
+            organizationId: ORG,
+          },
+          {
+            sessionId: 'ws-2',
+            touchedAtMs: 1,
+            active: true,
+            pinned: false,
+            organizationId: ORG,
+          },
+          {
+            sessionId: 'ws-x',
+            touchedAtMs: 1,
+            active: false,
+            pinned: false,
+            organizationId: 'org_elsewhere',
+          },
+          {
+            sessionId: 'ws-unowned',
+            touchedAtMs: 1,
+            active: false,
+            pinned: false,
+          },
+        ];
+      },
+      workspaceSizes: sizes,
+    });
+
+    test("measures the organization's workspaces, beside where the session disk stands", async () => {
+      const asked: string[][] = [];
+      const { routes } = setup({
+        diskGib: () => 9,
+        backend: usageBackend(async (ids) => {
+          asked.push([...ids]);
+          return new Map([
+            ['ws-1', 3 * GIB],
+            ['ws-2', null],
+          ]);
+        }),
+      });
+      const response = await routes.handleWorkspaceUsage(ORG);
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toEqual({
+        measuredAtMs: expect.any(Number),
+        disk: {
+          freeBytes: 9 * GIB,
+          floorBytes: 10 * GIB,
+          criticalBytes: Math.floor((10 * GIB) / 4),
+          short: true,
+          critical: false,
+        },
+        workspaces: [
+          {
+            sessionId: 'ws-1',
+            bytes: 3 * GIB,
+            measuredAtMs: expect.any(Number),
+          },
+          { sessionId: 'ws-2', bytes: null, measuredAtMs: expect.any(Number) },
+        ],
+      });
+      expect(asked).toEqual([['ws-1', 'ws-2']]);
+      // Within ten minutes the measurement stands.
+      await routes.handleWorkspaceUsage(ORG);
+      expect(asked).toHaveLength(1);
+    });
+
+    test('a backend that holds no workspace disk answers an empty list', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      expect(await (await routes.handleWorkspaceUsage(ORG)).json()).toEqual({
+        measuredAtMs: expect.any(Number),
+        disk: null,
+        workspaces: [],
+      });
+    });
+
+    test('an inventory that cannot be read is a 503, never an empty answer', async () => {
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const { routes } = setup({
+          backend: {
+            ...usageBackend(async () => new Map()),
+            async listWorkspaces() {
+              throw new Error('docker ps failed');
+            },
+          },
+        });
+        const response = await routes.handleWorkspaceUsage(ORG);
+        expect(response.status).toBe(503);
+        expect(await response.json()).toEqual({
+          error: 'inventory_unavailable',
+        });
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });

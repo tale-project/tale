@@ -268,6 +268,10 @@ interface HandlerNames {
     gateway_reconcile: FunctionRef & {
       reconcileSessionOpKey: FunctionRef;
     };
+    heavy_leases: FunctionRef & {
+      acquireRunLease: FunctionRef;
+      releaseRunLease: FunctionRef;
+    };
     image_generation: FunctionRef & {
       admitImageGeneration: FunctionRef;
       getImageTurnContext: FunctionRef;
@@ -347,6 +351,7 @@ interface HandlerNames {
       parkTaskAgentRunForCapacity: FunctionRef;
       rotateTaskAgentRunExec: FunctionRef;
       setTaskAgentRunRunning: FunctionRef;
+      snapshotTaskAgentRunInstructions: FunctionRef;
       stampTaskAgentRunBrokerToken: FunctionRef;
     };
     internal_mutations: FunctionRef & {

@@ -34,8 +34,15 @@ import { analyzable } from './syntax-check';
 import { type InputsCheck, triggerInputWarnings } from './trigger-input';
 
 /** ajv keywords that judge a VALUE — unknowable where the value is still a
- * template; structural keywords (required, additionalProperties) stay. */
+ * template; structural keywords (required, additionalProperties) stay. The
+ * composition keywords judge a whole value against alternatives, which a
+ * template that resolves to an object can only meet at run time. */
 const VALUE_KEYWORDS = new Set([
+  'oneOf',
+  'anyOf',
+  'allOf',
+  'not',
+  'if',
   'type',
   'enum',
   'const',

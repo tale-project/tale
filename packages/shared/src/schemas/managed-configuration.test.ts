@@ -7,6 +7,7 @@ import {
   managedAgentModelSchema,
   managedAgentModelObservationSchema,
   managedPlatformResourceSchema,
+  managedProjectDispatchSchema,
 } from './managed-configuration';
 import { PROJECT_AGENT_BINDINGS_MAX } from './projects';
 
@@ -237,6 +238,74 @@ describe('managed agent model declarations', () => {
   ])('rejects incomplete or unrelated fields %j', (fields) => {
     expect(
       managedAgentModelSchema.safeParse({ ...config, ...fields }).success,
+    ).toBe(false);
+  });
+});
+
+describe('managed project dispatch declarations read as the platform stores them', () => {
+  const config = {
+    projectId: 'project-a',
+    enabled: false,
+    agents: ['agent-a'],
+    maxConcurrentRuns: 2,
+    statuses: ['todo', 'backlog'],
+    assignment: 'assigned',
+  };
+  const role = {
+    key: 'manager',
+    taskId: 'task-a',
+    agentId: 'agent-a',
+    cron: '0,30 * * * *',
+    timezone: 'Europe/Zurich',
+  };
+
+  it('adds nothing a declaration leaves out, so it hashes as written', () => {
+    expect(
+      managedPlatformResourceSchema.parse({ kind: 'project-dispatch', config }),
+    ).toEqual({ kind: 'project-dispatch', config });
+  });
+
+  it.each(['Etc/UTC', 'Europe/Kyiv', 'Asia/Kolkata', 'US/Eastern', 'utc'])(
+    'keeps the standing role zone %j as spelled, which no engine rewrites',
+    (timezone) => {
+      expect(
+        managedProjectDispatchSchema.parse({
+          ...config,
+          standingRoles: [{ ...role, timezone }],
+        }).standingRoles?.[0]?.timezone,
+      ).toBe(timezone);
+    },
+  );
+
+  it('trims a standing role zone and refuses one no engine reads', () => {
+    expect(
+      managedProjectDispatchSchema.parse({
+        ...config,
+        standingRoles: [{ ...role, timezone: ' Europe/Zurich ' }],
+      }).standingRoles?.[0]?.timezone,
+    ).toBe('Europe/Zurich');
+    for (const [timezone, code] of [
+      ['Mars/Olympus', 'timezone.unknown'],
+      ['  ', 'timezone.blank'],
+    ]) {
+      const parsed = managedProjectDispatchSchema.safeParse({
+        ...config,
+        standingRoles: [{ ...role, timezone }],
+      });
+      expect(parsed.error?.issues).toMatchObject([
+        { path: ['standingRoles', 0, 'timezone'], params: { code } },
+      ]);
+    }
+  });
+
+  it.each([
+    { projectId: undefined },
+    { projectId: '' },
+    { pool: ['agent-a'] },
+    { enabled: 'false' },
+  ])('refuses a missing identity or a field it does not know %j', (fields) => {
+    expect(
+      managedProjectDispatchSchema.safeParse({ ...config, ...fields }).success,
     ).toBe(false);
   });
 });

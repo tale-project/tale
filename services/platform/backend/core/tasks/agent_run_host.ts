@@ -120,6 +120,8 @@ import {
 import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import {
   grantedToolsGuidance,
+  HOST_LEASE_GUIDANCE,
+  HOST_LEASE_TOOLS,
   IMAGE_GENERATION_TOOL,
   imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
@@ -188,13 +190,17 @@ function withheldCredentials(args: {
 
 /**
  * The reads a launching turn builds its instructions and exec from — the
- * organization's Custom instructions, whether the run is confined (a run a
- * member started holds none of the agent's credentials), the task's
- * language, and the serving model's window (so the harness compacts before
- * the prompt outgrows what the model serves; unknown leaves it to the
- * harness). None depends on another, so they run together. The credential
- * env is resolved after them by the caller, as before: only once every read
- * succeeded and only for a run that is not confined.
+ * organization's Custom instructions, the project's instructions as they
+ * read now (recorded on the run with the agent's and the task's, so which
+ * version a run worked from is a fact on the run), whether the run is
+ * confined (a run a member started holds none of the agent's credentials),
+ * the task's language, and the serving model's window (so the harness
+ * compacts before the prompt outgrows what the model serves; unknown leaves
+ * it to the harness). None depends on another, so they run together. The
+ * credential env is resolved after them by the caller, as before: only once
+ * every read succeeded and only for a run that is not confined. A project or
+ * task that cannot be read fails the start: the turn would work without the
+ * instructions it is meant to follow.
  */
 async function readTurnLaunchContext(
   ctx: ActionCtx,
@@ -206,9 +212,12 @@ async function readTurnLaunchContext(
     execId: string;
     providerSlug: string;
     modelId: string;
+    /** The agent's instructions this turn is handed, for the record. */
+    agentInstructions: string | undefined;
   },
 ): Promise<{
   mandatoryInstructions: string | undefined;
+  projectInstructions: string | undefined;
   confined: boolean;
   language: AgentLanguageContext;
   contextWindow: number | undefined;
@@ -217,21 +226,46 @@ async function readTurnLaunchContext(
     internal.tasks.agent_runs.getAgentLanguageContext,
     { organizationId: args.organizationId, taskId: args.taskId },
   );
-  const [mandatoryInstructions, confined, language, contextWindow] =
-    await Promise.all([
-      readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
-      isTurnConfined(ctx, args.runId),
-      languageRead,
-      resolveHarnessTurnContextWindow(ctx, {
-        organizationId: args.organizationId,
-        providerSlug: args.providerSlug,
-        modelId: args.modelId,
-        sessionId: args.sessionId,
-        execId: args.execId,
-        kind: 'task-agent',
-      }),
-    ]);
-  return { mandatoryInstructions, confined, language, contextWindow };
+  const projectRead: Promise<string | null> = ctx.runMutation(
+    internal.tasks.agent_runs.snapshotTaskAgentRunInstructions,
+    {
+      organizationId: args.organizationId,
+      runId: args.runId,
+      taskId: args.taskId,
+      execId: args.execId,
+      agentInstructions:
+        args.agentInstructions !== undefined && args.agentInstructions !== ''
+          ? args.agentInstructions
+          : null,
+    },
+  );
+  const [
+    mandatoryInstructions,
+    projectInstructions,
+    confined,
+    language,
+    contextWindow,
+  ] = await Promise.all([
+    readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
+    projectRead,
+    isTurnConfined(ctx, args.runId),
+    languageRead,
+    resolveHarnessTurnContextWindow(ctx, {
+      organizationId: args.organizationId,
+      providerSlug: args.providerSlug,
+      modelId: args.modelId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      kind: 'task-agent',
+    }),
+  ]);
+  return {
+    mandatoryInstructions,
+    projectInstructions: projectInstructions ?? undefined,
+    confined,
+    language,
+    contextWindow,
+  };
 }
 
 interface TurnKeys {
@@ -1080,6 +1114,9 @@ export async function insertTaskTurnSessionToken(
     tools: readonly string[];
     /** The organization's image generation is on and a model resolved. */
     imageGeneration: boolean;
+    /** The harness mounts the platform bridge, so the turn can ask the
+     * sandbox host for heavy-phase leases. Absent: no leases. */
+    hostLeases?: boolean;
     deadlineAt: number;
     prepared: Pick<
       PreparedServing,
@@ -1109,11 +1146,13 @@ export async function insertTaskTurnSessionToken(
       // widens what the run can read) PLUS the agent's configured tool
       // grants — writes included, since an explicit grant IS the
       // standing authorization on this async lane — PLUS image generation
-      // while the organization's policy offers it.
+      // while the organization's policy offers it — PLUS the heavy-phase
+      // lease pair, which only makes the run wait its turn on the host.
       toolGrants: [
         ...KNOWLEDGE_READ_TOOLS,
         ...normalizeToolGrants(args.tools),
         ...(args.imageGeneration ? [IMAGE_GENERATION_TOOL] : []),
+        ...(args.hostLeases === true ? HOST_LEASE_TOOLS : []),
       ],
       // Read by the connectors bridge alone, and it names the exec, never
       // the person. It is not `userId`: the workspace tools read that one as
@@ -1474,6 +1513,7 @@ export async function startTaskAgentTurnImpl(
         connectors: args.connectors,
         tools: args.tools,
         imageGeneration: imageModel !== null,
+        hostLeases: harnessMountsMcp(args.harness),
         deadlineAt: args.deadlineAt,
         prepared,
       });
@@ -1540,19 +1580,27 @@ export async function startTaskAgentTurnImpl(
       const toolsGuidance = grantedToolsGuidance(
         normalizeToolGrants(args.tools),
       );
-      const { mandatoryInstructions, confined, language, contextWindow } =
-        await readTurnLaunchContext(ctx, {
-          organizationId: args.organizationId,
-          runId: args.runId,
-          taskId: args.taskId,
-          sessionId: args.sessionId,
-          execId: args.execId,
-          providerSlug: resolved.providerSlug,
-          modelId: resolved.modelId,
-        });
+      const {
+        mandatoryInstructions,
+        projectInstructions,
+        confined,
+        language,
+        contextWindow,
+      } = await readTurnLaunchContext(ctx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        providerSlug: resolved.providerSlug,
+        modelId: resolved.modelId,
+        agentInstructions: args.instructions,
+      });
       const instructions = [
-        // The organization's Custom instructions lead, as on a chat turn.
+        // The organization's Custom instructions lead, as on a chat turn;
+        // the project's follow, then the agent's own.
         ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
+        ...(projectInstructions !== undefined ? [projectInstructions] : []),
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
           : []),
@@ -1564,6 +1612,7 @@ export async function startTaskAgentTurnImpl(
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(imageModel !== null ? [imageGenerationGuidance(outputDir)] : []),
+        ...(harnessMountsMcp(args.harness) ? [HOST_LEASE_GUIDANCE] : []),
         ...(visionGuidance !== '' ? [visionGuidance] : []),
         ...(confined
           ? [memberRunGuidance(withheldCredentials(args))]
@@ -2731,6 +2780,7 @@ export async function steerTaskAgentTurnImpl(
       connectors: args.connectors,
       tools: args.tools,
       imageGeneration: imageModel !== null,
+      hostLeases: harnessMountsMcp(args.harness),
       deadlineAt: args.deadlineAt,
       prepared,
     });
@@ -2817,19 +2867,27 @@ export async function steerTaskAgentTurnImpl(
 
     const toolsGuidance = grantedToolsGuidance(normalizeToolGrants(args.tools));
     // Same reads as the fresh start, under the rotated exec.
-    const { mandatoryInstructions, confined, language, contextWindow } =
-      await readTurnLaunchContext(ctx, {
-        organizationId: args.organizationId,
-        runId: args.runId,
-        taskId: args.taskId,
-        sessionId: args.sessionId,
-        execId,
-        providerSlug: resolved.providerSlug,
-        modelId: resolved.modelId,
-      });
+    const {
+      mandatoryInstructions,
+      projectInstructions,
+      confined,
+      language,
+      contextWindow,
+    } = await readTurnLaunchContext(ctx, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+      taskId: args.taskId,
+      sessionId: args.sessionId,
+      execId,
+      providerSlug: resolved.providerSlug,
+      modelId: resolved.modelId,
+      agentInstructions: args.instructions,
+    });
     const instructions = [
-      // The organization's Custom instructions lead, as on a chat turn.
+      // The organization's Custom instructions lead, as on a chat turn;
+      // the project's follow, then the agent's own.
       ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
+      ...(projectInstructions !== undefined ? [projectInstructions] : []),
       ...(args.instructions !== undefined && args.instructions !== ''
         ? [args.instructions]
         : []),
@@ -2841,6 +2899,7 @@ export async function steerTaskAgentTurnImpl(
       KNOWLEDGE_TOOLS_GUIDANCE,
       ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
       ...(imageModel !== null ? [imageGenerationGuidance(outputDir)] : []),
+      ...(harnessMountsMcp(args.harness) ? [HOST_LEASE_GUIDANCE] : []),
       ...(visionGuidance !== '' ? [visionGuidance] : []),
       ...(confined
         ? [memberRunGuidance(withheldCredentials(args))]

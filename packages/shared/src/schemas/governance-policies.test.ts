@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import {
   chatToolsConfigSchema,
   DEFAULT_CHAT_TOOLS,
+  DEFAULT_SANDBOX_WORKSPACES,
   POLICY_SCHEMAS,
+  sandboxWorkspacesConfigSchema,
   uploadPolicyConfigSchema,
   retentionPolicyConfigSchema,
   piiConfigSchema,
@@ -207,6 +209,77 @@ describe('sandboxQuotaConfigSchema — light sandboxes', () => {
     expect(sandboxQuotaTotal(config)).toBe(8);
     expect(sandboxQuotaTotal({ ...config, maxLightSessionsPerOrg: 5 })).toBe(
       11,
+    );
+  });
+});
+
+describe('sandboxWorkspacesConfigSchema — size and disk space', () => {
+  it('reclaims idle workspaces while the disk runs short, after 24 idle hours, with no size cap, unless the organization set otherwise', () => {
+    expect(DEFAULT_SANDBOX_WORKSPACES).toEqual({
+      deleteUnused: true,
+      unusedDays: 30,
+      reclaimOnDiskPressure: true,
+      reclaimMinIdleHours: 24,
+    });
+    expect('maxWorkspaceGiB' in DEFAULT_SANDBOX_WORKSPACES).toBe(false);
+  });
+
+  it('reads a file written before the size and disk fields existed with their defaults', () => {
+    expect(
+      sandboxWorkspacesConfigSchema.parse({
+        deleteUnused: false,
+        unusedDays: 90,
+      }),
+    ).toEqual({
+      deleteUnused: false,
+      unusedDays: 90,
+      reclaimOnDiskPressure: true,
+      reclaimMinIdleHours: 24,
+    });
+  });
+
+  it('keeps a cap and the switches as set', () => {
+    expect(
+      sandboxWorkspacesConfigSchema.parse({
+        reclaimOnDiskPressure: false,
+        maxWorkspaceGiB: 30,
+        reclaimMinIdleHours: 6,
+      }),
+    ).toEqual({
+      deleteUnused: true,
+      unusedDays: 30,
+      reclaimOnDiskPressure: false,
+      maxWorkspaceGiB: 30,
+      reclaimMinIdleHours: 6,
+    });
+  });
+
+  it.each([
+    { maxWorkspaceGiB: 0 },
+    { maxWorkspaceGiB: 10_241 },
+    { maxWorkspaceGiB: 2.5 },
+    { maxWorkspaceGiB: '30g' },
+    { maxWorkspaceGiB: null },
+    { reclaimMinIdleHours: 0 },
+    { reclaimMinIdleHours: 8761 },
+    { reclaimMinIdleHours: 1.5 },
+    { reclaimOnDiskPressure: 'yes' },
+  ])('refuses %j', (config) => {
+    expect(sandboxWorkspacesConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it.each([
+    { maxWorkspaceGiB: 1 },
+    { maxWorkspaceGiB: 10_240 },
+    { reclaimMinIdleHours: 1 },
+    { reclaimMinIdleHours: 8760 },
+  ])('accepts %j', (config) => {
+    expect(sandboxWorkspacesConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it('is the sandbox_workspaces policy type', () => {
+    expect(POLICY_SCHEMAS.sandbox_workspaces).toBe(
+      sandboxWorkspacesConfigSchema,
     );
   });
 });

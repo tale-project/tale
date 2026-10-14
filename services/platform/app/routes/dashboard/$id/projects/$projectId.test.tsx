@@ -266,12 +266,30 @@ describe('project shell — All projects Tasks mode', () => {
       'projects.navigation.threads',
       'projects.navigation.files',
       'projects.navigation.agents',
+      'projects.dispatch.title',
     ]) {
       expect(
         screen.queryByRole('link', { name: label }),
       ).not.toBeInTheDocument();
       expect(screen.getByText(label)).toHaveAttribute('aria-disabled', 'true');
     }
+  });
+});
+
+describe('project shell — Dispatch tab', () => {
+  it('opens the project’s Dispatch page for every reader, right after Agents', () => {
+    setup([]);
+    const dispatch = screen.getByRole('link', {
+      name: 'projects.dispatch.title',
+    });
+    expect(dispatch).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/projects/proj-1/dispatch',
+    );
+    const labels = screen.getAllByRole('link').map((link) => link.textContent);
+    expect(labels.indexOf('projects.dispatch.title')).toBe(
+      labels.indexOf('projects.navigation.agents') + 1,
+    );
   });
 });
 

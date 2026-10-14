@@ -34,6 +34,10 @@ vi.mock('../governance/hooks/mutations', () => ({
 }));
 
 const INVALID_DAYS = 'Must be a whole number between 1 and 3650.';
+const INVALID_SIZE = 'Must be a whole number between 1 and 10240.';
+const INVALID_HOURS = 'Must be a whole number between 1 and 8760.';
+/** The disk and size rules every saved policy carries unless changed. */
+const UNCAPPED = { reclaimOnDiskPressure: true, reclaimMinIdleHours: 24 };
 
 function HeaderActions() {
   const editor = useActiveEditor();
@@ -107,7 +111,7 @@ describe('WorkspaceCleanupEditor', () => {
       expect(save).toHaveBeenCalledWith({
         organizationId: 'org-1',
         policyType: 'sandbox_workspaces',
-        config: { deleteUnused: true, unusedDays: 45 },
+        config: { deleteUnused: true, unusedDays: 45, ...UNCAPPED },
       }),
     );
   });
@@ -123,7 +127,7 @@ describe('WorkspaceCleanupEditor', () => {
       expect(save).toHaveBeenCalledWith({
         organizationId: 'org-1',
         policyType: 'sandbox_workspaces',
-        config: { deleteUnused: false, unusedDays: 30 },
+        config: { deleteUnused: false, unusedDays: 30, ...UNCAPPED },
       }),
     );
   });
@@ -178,7 +182,7 @@ describe('WorkspaceCleanupEditor', () => {
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith(
         expect.objectContaining({
-          config: { deleteUnused: false, unusedDays: 30 },
+          config: { deleteUnused: false, unusedDays: 30, ...UNCAPPED },
         }),
       ),
     );
@@ -232,5 +236,154 @@ describe('WorkspaceCleanupEditor', () => {
     expect(
       screen.queryByRole('button', { name: 'Save' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('WorkspaceCleanupEditor — disk space and size', () => {
+  function diskSwitch() {
+    return screen.getByRole('switch', {
+      name: 'Free disk space when it runs short',
+    });
+  }
+  function capSwitch() {
+    return screen.getByRole('switch', { name: 'Limit workspace size' });
+  }
+  function sizeInput() {
+    return screen.getByRole('spinbutton', { name: 'Maximum size (GiB)' });
+  }
+  function hoursInput() {
+    return screen.getByRole('spinbutton', {
+      name: 'Minimum hours without use',
+    });
+  }
+
+  it('shows the rules in force without a policy file: disk space freed when it runs short, no cap, 24 idle hours', () => {
+    render(<EditorView />);
+    expect(diskSwitch()).toBeChecked();
+    expect(capSwitch()).not.toBeChecked();
+    expect(sizeInput()).toBeDisabled();
+    expect(sizeInput()).toHaveValue(50);
+    expect(hoursInput()).toBeEnabled();
+    expect(hoursInput()).toHaveValue(24);
+    expect(hoursInput()).toHaveAccessibleDescription(
+      'Tale deletes a workspace to free disk space or for its size only once nobody has used it for at least this many hours. Pinned workspaces and workspaces under a legal hold are always kept.',
+    );
+  });
+
+  it('saves a size cap through the grouped Save', async () => {
+    const { user } = render(<EditorView />);
+    await user.click(capSwitch());
+    expect(sizeInput()).toBeEnabled();
+    await user.clear(sizeInput());
+    await user.type(sizeInput(), '30');
+    await user.tab();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'sandbox_workspaces',
+        config: {
+          deleteUnused: true,
+          unusedDays: 30,
+          ...UNCAPPED,
+          maxWorkspaceGiB: 30,
+        },
+      }),
+    );
+  });
+
+  it('shows a saved cap, and leaves it out of the policy once switched off', async () => {
+    state.policy.data = {
+      key: 'sandbox_workspaces',
+      config: {
+        deleteUnused: true,
+        unusedDays: 30,
+        maxWorkspaceGiB: 40,
+        reclaimMinIdleHours: 6,
+      },
+    };
+    const { user } = render(<EditorView />);
+    expect(capSwitch()).toBeChecked();
+    expect(sizeInput()).toHaveValue(40);
+    expect(hoursInput()).toHaveValue(6);
+    await user.click(capSwitch());
+    expect(sizeInput()).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: {
+            deleteUnused: true,
+            unusedDays: 30,
+            reclaimOnDiskPressure: true,
+            reclaimMinIdleHours: 6,
+          },
+        }),
+      ),
+    );
+  });
+
+  it('disables the idle hours while neither rule uses them', async () => {
+    const { user } = render(<EditorView />);
+    await user.click(diskSwitch());
+    expect(diskSwitch()).not.toBeChecked();
+    expect(hoursInput()).toBeDisabled();
+    await user.click(capSwitch());
+    expect(hoursInput()).toBeEnabled();
+  });
+
+  it.each([1, 10_240, 0, 10_241])(
+    'accepts a %i GiB cap exactly when the policy schema does',
+    async (gib) => {
+      const accepted =
+        sandboxWorkspacesConfigSchema.shape.maxWorkspaceGiB.safeParse(
+          gib,
+        ).success;
+      const { user } = render(<EditorView />);
+      await user.click(capSwitch());
+      await user.clear(sizeInput());
+      await user.type(sizeInput(), String(gib));
+      await user.tab();
+      if (accepted) {
+        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        expect(screen.queryByText(INVALID_SIZE)).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expect(await screen.findByText(INVALID_SIZE)).toBeInTheDocument();
+      }
+    },
+  );
+
+  it.each([1, 8760, 0, 8761])(
+    'accepts %i idle hours exactly when the policy schema does',
+    async (hours) => {
+      const accepted =
+        sandboxWorkspacesConfigSchema.shape.reclaimMinIdleHours.safeParse(
+          hours,
+        ).success;
+      const { user } = render(<EditorView />);
+      await user.clear(hoursInput());
+      await user.type(hoursInput(), String(hours));
+      await user.tab();
+      if (accepted) {
+        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        expect(screen.queryByText(INVALID_HOURS)).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expect(await screen.findByText(INVALID_HOURS)).toBeInTheDocument();
+      }
+    },
+  );
+
+  it('returns an invalid size to the one it held when the cap is switched off', async () => {
+    const { user } = render(<EditorView />);
+    await user.click(capSwitch());
+    await user.clear(sizeInput());
+    await user.type(sizeInput(), '0');
+    await user.tab();
+    expect(await screen.findByText(INVALID_SIZE)).toBeInTheDocument();
+    await user.click(capSwitch());
+    expect(sizeInput()).toHaveValue(50);
+    expect(screen.queryByText(INVALID_SIZE)).not.toBeInTheDocument();
   });
 });

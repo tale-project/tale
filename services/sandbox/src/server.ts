@@ -9,6 +9,12 @@
 //                                        (create/get/list/destroy/exec/cancel).
 //   GET /v1/workspaces                 — HMAC-auth, workspace inventory for the
 //                                        platform's cleanup.
+//   GET /v1/workspaces/usage           — HMAC-auth, an organization's workspace
+//                                        sizes for the platform's reclaim.
+//   GET /v1/admission                  — HMAC-auth, whether the host takes
+//                                        more work (host-admission.ts).
+//   POST/GET/DELETE /v1/sessions/:id/leases[/:leaseId], GET /v1/leases
+//                                      — HMAC-auth, heavy-phase leases.
 //   DELETE /v1/organizations/:id       — HMAC-auth, a deleted organization's
 //                                        remaining sessions and caches.
 //
@@ -37,13 +43,18 @@ import {
   sandboxServerError,
 } from './error-reporting.ts';
 import { makeHealthProbe } from './health-probe.ts';
+import { HostAdmission, type AdmissionKind } from './host-admission.ts';
 import { HostDiskProbe } from './host-disk.ts';
 import {
   autoSessionCapacity,
-  DEFAULT_CPU_PRESSURE_PERCENT,
   HostMemoryProbe,
   memoryReserveBytes,
 } from './host-memory.ts';
+import {
+  ADMISSION_PRESETS,
+  type AdmissionPresetName,
+} from './host-pressure-assessment.ts';
+import { HostPressureSampler } from './host-pressure.ts';
 import { jsonResponse } from './http-util.ts';
 import { ImageWarmup } from './image-warmup.ts';
 import { createRequestAuth } from './request-auth.ts';
@@ -72,13 +83,14 @@ const bootAdoption = new BootAdoption();
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
 // The Docker host's memory, read where /proc describes it (a local Docker
 // spawner or connected device; never Kubernetes or a remote daemon).
-const hostMemory =
-  cfg.backend === 'docker'
-    ? new HostMemoryProbe({
-        cpuPressure:
-          (cfg.session.cpuPressurePercent ?? DEFAULT_CPU_PRESSURE_PERCENT) > 0,
-      })
-    : null;
+const hostMemory = cfg.backend === 'docker' ? new HostMemoryProbe() : null;
+// Its load and pressure stall shares, read where its memory is: the one
+// reader of /proc/pressure, which session admission paces starts by and the
+// platform's admission questions are answered from.
+const hostPressure =
+  hostMemory === null
+    ? null
+    : new HostPressureSampler({ isLocal: () => hostMemory.describesHost() });
 // Keep a floor on the workspace filesystem and the Docker metadata filesystem
 // where its existing hostname bind can be verified against the local daemon.
 const hostDisk =
@@ -122,6 +134,14 @@ async function sizeSessionCapacity(): Promise<void> {
   );
 }
 
+// The one host admission service: the pressure gate of session admission,
+// the admission answer, and the heavy-phase leases (host-admission.ts).
+const hostAdmission = new HostAdmission(cfg, {
+  ...(hostPressure === null ? {} : { pressure: hostPressure }),
+  ...(hostMemory === null ? {} : { memory: hostMemory }),
+  ...(hostDisk === null ? {} : { disk: hostDisk }),
+});
+
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
@@ -148,6 +168,7 @@ function getSessionRoutes(): SessionRoutes {
       () => controlRoutes.isDraining,
       hostMemory ?? undefined,
       hostDisk ?? undefined,
+      hostAdmission,
     );
   }
   return sessionRoutes;
@@ -284,6 +305,10 @@ const SESSION_FILES_CONTENT_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/content$`,
 );
 const SESSION_FILES_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/files$`);
+const SESSION_LEASES_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/leases$`);
+const SESSION_LEASE_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/leases/([a-zA-Z0-9_-]{1,64})$`,
+);
 
 /** Is this a session route at all? Checked before the signature, so an
  * unknown or retired path answers 404 whether or not it is signed — and the
@@ -309,6 +334,9 @@ function isSessionRoute(method: string, path: string): boolean {
     ['POST', SESSION_FILES_DELETE_RE],
     ['GET', SESSION_FILES_CONTENT_RE],
     ['GET', SESSION_FILES_RE],
+    ['POST', SESSION_LEASES_RE],
+    ['GET', SESSION_LEASES_RE],
+    ['DELETE', SESSION_LEASE_RE],
     ['GET', SESSION_ONE_RE],
     ['DELETE', SESSION_ONE_RE],
   ];
@@ -319,6 +347,30 @@ const ORG_ID_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const DEVICE_DISCONNECT_RE =
   /^\/v1\/devices\/([a-zA-Z0-9_-]{1,64})\/disconnect$/;
 const ORGANIZATION_RE = /^\/v1\/organizations\/([a-zA-Z0-9_-]{1,128})$/;
+
+/** The `organizationId` a route is scoped to, or null when it is missing or
+ * malformed. */
+function organizationParam(url: URL): string | null {
+  const organizationId = url.searchParams.get('organizationId');
+  return organizationId !== null && ORG_ID_RE.test(organizationId)
+    ? organizationId
+    : null;
+}
+
+/** GET /v1/admission's question: `kind` (start unless named) and an
+ * optional stricter `preset`; null for a value that is neither. */
+function admissionQuery(url: URL): {
+  kind: AdmissionKind;
+  preset: AdmissionPresetName | undefined;
+} | null {
+  const rawKind = url.searchParams.get('kind') ?? 'start';
+  const rawPreset = url.searchParams.get('preset');
+  const kind = rawKind === 'start' || rawKind === 'heavy' ? rawKind : undefined;
+  const preset = ADMISSION_PRESETS.find((name) => name === rawPreset);
+  if (kind === undefined || (rawPreset !== null && preset === undefined))
+    return null;
+  return { kind, preset };
+}
 
 /** The calls whose answer depends on what boot adoption fills in — the
  * session registry and the hub's placements — and so wait for it. The
@@ -479,6 +531,32 @@ async function handleSessionRoutes(
       url.searchParams.get('path') ?? '.',
     );
   }
+  // POST / GET /v1/sessions/:id/leases — the session's heavy-phase leases.
+  const leasesMatch = path.match(SESSION_LEASES_RE);
+  if (leasesMatch && (req.method === 'POST' || req.method === 'GET')) {
+    const sessionId = leasesMatch[1] ?? '';
+    if (req.method === 'POST') {
+      return getSessionRoutes().handleLeaseAcquire(sessionId, body);
+    }
+    const organizationId = organizationParam(url);
+    if (organizationId === null) {
+      return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    return getSessionRoutes().handleLeaseList(organizationId, sessionId);
+  }
+  // DELETE /v1/sessions/:id/leases/:leaseId?organizationId=
+  const leaseMatch = path.match(SESSION_LEASE_RE);
+  if (req.method === 'DELETE' && leaseMatch) {
+    const organizationId = organizationParam(url);
+    if (organizationId === null) {
+      return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    return getSessionRoutes().handleLeaseRelease(
+      leaseMatch[1] ?? '',
+      leaseMatch[2] ?? '',
+      organizationId,
+    );
+  }
   // GET / DELETE /v1/sessions/:id
   const oneMatch = path.match(SESSION_ONE_RE);
   if (oneMatch) {
@@ -565,6 +643,40 @@ export async function router(req: Request): Promise<Response> {
     if ('error' in signed) return signed.error;
     return getSessionRoutes().handleWorkspaces();
   }
+  // GET /v1/workspaces/usage?organizationId= — how much each of the
+  // organization's workspaces holds, for the platform's reclaim.
+  if (req.method === 'GET' && url.pathname === '/v1/workspaces/usage') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    const organizationId = organizationParam(url);
+    if (organizationId === null) {
+      return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    return getSessionRoutes().handleWorkspaceUsage(organizationId);
+  }
+  // GET /v1/admission?organizationId=&kind=start|heavy&preset= — whether the
+  // host takes more work now; always 200, a hold with its retry-after. It
+  // does not wait for boot adoption: the verdict rests on the host's
+  // readings, and only its session counts read low until adoption ends.
+  if (req.method === 'GET' && url.pathname === '/v1/admission') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    const query = admissionQuery(url);
+    if (organizationParam(url) === null || query === null) {
+      return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    return getSessionRoutes().handleAdmission(query.kind, query.preset);
+  }
+  // GET /v1/leases?organizationId= — the organization's heavy-phase leases.
+  if (req.method === 'GET' && url.pathname === '/v1/leases') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    const organizationId = organizationParam(url);
+    if (organizationId === null) {
+      return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    return getSessionRoutes().handleLeaseList(organizationId);
+  }
   // DELETE /v1/organizations/:id — the organization was deleted: its
   // remaining sessions, build helpers and caches go.
   const organizationMatch = url.pathname.match(ORGANIZATION_RE);
@@ -587,6 +699,7 @@ export async function router(req: Request): Promise<Response> {
     }
     try {
       const snapshot = await capacity.forOrganization(organizationId);
+      snapshot.leases = hostAdmission.leases.summary();
       if (hub !== null) {
         // The organization's device-placed sessions: where each lives, and
         // how the connected devices report them (an offline device's are
@@ -749,6 +862,7 @@ async function main(): Promise<void> {
   }
 
   hostMemory?.start();
+  hostPressure?.start();
   hostDisk?.start();
   await sizeSessionCapacity();
   if (!capacitySized) {

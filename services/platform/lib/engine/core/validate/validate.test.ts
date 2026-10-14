@@ -721,6 +721,54 @@ describe('contracts', () => {
     expect(codesOf(errors)).toContain('CONNECTOR_INPUT_INVALID');
   });
 
+  it('leaves the alternatives a templated value must match to the run, and judges a literal', async () => {
+    store.save('child', {
+      version: 1,
+      name: 'child',
+      inputs: {
+        type: 'object',
+        required: ['source'],
+        properties: {
+          source: {
+            oneOf: [
+              {
+                type: 'object',
+                required: ['kind', 'repo'],
+                properties: { kind: { enum: ['github'] }, repo: {} },
+              },
+              {
+                type: 'object',
+                required: ['kind', 'project'],
+                properties: { kind: { enum: ['glitchtip'] }, project: {} },
+              },
+            ],
+          },
+        },
+      },
+      nodes: [{ id: 'x', type: 'transform', code: 'return input;' }],
+      output: '{{ nodes.x.output }}',
+    });
+    const parent = (source: unknown): Automation => ({
+      version: 1,
+      name: 'parent',
+      nodes: [
+        {
+          id: 'sub',
+          type: 'subautomation',
+          automation: 'child',
+          input: { source },
+        },
+      ],
+      output: '{{ nodes.sub.output }}',
+    });
+    const templated = await validate(parent('{{ input.source }}'), { store });
+    expect(codesOf(templated.warnings)).not.toContain(
+      'SUBAUTOMATION_INPUT_INVALID',
+    );
+    const literal = await validate(parent({ kind: 'jira' }), { store });
+    expect(codesOf(literal.warnings)).toContain('SUBAUTOMATION_INPUT_INVALID');
+  });
+
   it('always reports missing required connector fields', async () => {
     const doc = automationDoc(
       [{ id: 'w', type: 'weather.current', input: { units: 'metric' } }],

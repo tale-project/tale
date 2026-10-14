@@ -401,6 +401,16 @@ export interface SessionBackend {
    */
   largestWorkspaces?(limit: number): Promise<LargestWorkspaces>;
   /**
+   * The bytes each named session's workspace holds, measured now by one
+   * bounded `du` (the one behind `largestWorkspaces`), for the platform's
+   * reclaim: null for a workspace not measured by the deadline. THROWS
+   * when the workspaces cannot be listed or measured at all. Absent where
+   * the spawner does not hold the workspaces' disk (Kubernetes, Incus).
+   */
+  workspaceSizes?(
+    sessionIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number | null>>;
+  /**
    * The organizations holding resources beyond their sessions' workspaces
    * (Docker: the organization's build helpers, their network and cache
    * volumes, and its package caches). THROWS when it cannot be read.

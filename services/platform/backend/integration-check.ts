@@ -153,6 +153,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
+import { checkHeavyPhaseLeases } from './domains/sandbox/heavy-leases.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
@@ -184,6 +185,7 @@ import {
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDependencyResolution } from './domains/tasks/dependencies.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
+import { checkFleetDispatch } from './domains/tasks/dispatch.integration.ts';
 import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
@@ -65552,6 +65554,11 @@ async function main(): Promise<void> {
       [
         'checkModelCapacityRetry',
         () => checkModelCapacityRetry(sql, boss, authCtx, record),
+      ],
+      ['checkFleetDispatch', () => checkFleetDispatch(sql, authCtx, record)],
+      [
+        'checkHeavyPhaseLeases',
+        () => checkHeavyPhaseLeases(sql, authCtx, record),
       ],
       [
         'checkSessionOpTranscriptMerge',

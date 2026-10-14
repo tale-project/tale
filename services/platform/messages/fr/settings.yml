@@ -1523,6 +1523,7 @@ logs:
       project.instructions.changed: Instructions du projet modifiées
       project.knowledge_mode.changed: Mode de connaissances du projet modifié
       project.agents.changed: Agents du projet modifiés
+      project.dispatch.changed: Répartition du travail du projet modifiée
       project.models.changed: Modèles du projet modifiés
       project.connectors.changed: Connectors du projet modifiés
       project.file.attached: Fichier joint au projet

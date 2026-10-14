@@ -30,6 +30,9 @@ import { internal } from '../../lib/handler_names';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import {
   ASK_HUMAN_TOOL,
+  HOST_LEASE_ACQUIRE_TOOL,
+  HOST_LEASE_RELEASE_TOOL,
+  HOST_LEASE_TOOLS,
   IMAGE_GENERATION_TOOL,
   KNOWLEDGE_REFS_PER_CALL_CAP,
   WRITE_EFFECT_TOOLS,
@@ -50,6 +53,12 @@ import {
   TASK_LABELS_CAP,
   WORKSPACE_TASK_TOOLS,
 } from './workspace_domain_tools';
+import {
+  HOST_LEASE_ACQUIRE_DESCRIPTION,
+  HOST_LEASE_RELEASE_DESCRIPTION,
+  isHostLeaseTool,
+  runHostLeaseTool,
+} from './workspace_host_lease_tools';
 import {
   IMAGE_GENERATION_TOOL_DESCRIPTION,
   runGenerateImage,
@@ -94,6 +103,7 @@ const ALL_WORKSPACE_TOOLS: readonly string[] = [
   'document_create',
   KNOWLEDGE_ENTRY_WRITE_TOOL,
   IMAGE_GENERATION_TOOL,
+  ...HOST_LEASE_TOOLS,
 ];
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_EFFECT_TOOLS);
@@ -435,6 +445,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'documentId}. knowledge_entry_find lists a saved entry at once; ' +
     'rag_search finds it only after it has been indexed.',
   [IMAGE_GENERATION_TOOL]: IMAGE_GENERATION_TOOL_DESCRIPTION,
+  [HOST_LEASE_ACQUIRE_TOOL]: HOST_LEASE_ACQUIRE_DESCRIPTION,
+  [HOST_LEASE_RELEASE_TOOL]: HOST_LEASE_RELEASE_DESCRIPTION,
 };
 
 /** The blocker a refused session-authority dispatch relays. `subject` names
@@ -626,6 +638,21 @@ async function runWorkspaceTool(
     return await runAskHuman(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
+      callArgs,
+    });
+  }
+
+  // Neither a read nor a write of organization data: the lease pair only
+  // makes the run wait its turn on the sandbox host. The run it acts for is
+  // the live one on the token's session and execution.
+  if (isHostLeaseTool(args.tool)) {
+    return await runHostLeaseTool(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      ...(args.taskRunExecId !== undefined
+        ? { taskRunExecId: args.taskRunExecId }
+        : {}),
+      tool: args.tool,
       callArgs,
     });
   }
@@ -1312,8 +1339,12 @@ export function workspaceToolStatusImpl(
       name,
       description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
       // Image generation changes no org data, but it writes files and
-      // spends the organization's money: never badge it read-only.
-      readOnly: !WRITE_TOOL_SET.has(name) && name !== IMAGE_GENERATION_TOOL,
+      // spends the organization's money; a lease holds the shared host's
+      // room: never badge either read-only.
+      readOnly:
+        !WRITE_TOOL_SET.has(name) &&
+        name !== IMAGE_GENERATION_TOOL &&
+        !isHostLeaseTool(name),
     })),
   };
 }

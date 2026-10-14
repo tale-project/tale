@@ -3,9 +3,9 @@ sessionsTitle: Workspaces
 description:
   A project agent works each task it runs at the same time in a worker of its
   own, a sandbox with its own workspace that later tasks reuse. Workflow runs
-  share one workspace across their steps. A worker's workspace stays until it
-  goes unused for longer than Workspace cleanup allows, or until its agent,
-  project or member is removed. Runtime status and organization quota
+  share one workspace across their steps. A worker's workspace stays until
+  Workspace cleanup deletes it, or until its agent, project or member is
+  removed. Runtime status and organization quota
   allocation are shown separately; a released allocation can still have a
   running container.
 limits:
@@ -45,13 +45,24 @@ cleanup:
   title: Workspace cleanup
   description:
     Project agents keep their files in workspaces between runs. A workspace is
-    deleted right away when its agent, project or member is removed. Workspaces
+    deleted right away when its agent, project or member is removed, and an
+    idle one can be deleted to free disk space or for its size. Workspaces
     under a legal hold are kept.
   deleteUnused: Delete unused workspaces
   deleteUnusedHint: Deletes a workspace after the number of days without use set below. Pinned workspaces are kept.
   unusedDays: Days without use
   unusedDaysHint: Counted from the last time the agent worked in the workspace. After you turn deletion on or shorten the period, no workspace is deleted until the full number of days has passed.
+  reclaimOnDiskPressure: Free disk space when it runs short
+  reclaimOnDiskPressureHint: While the sandbox host is short of disk space, Tale deletes the host's largest idle workspaces until there is room again. Turn this off to keep your organization's workspaces out of it.
+  limitSize: Limit workspace size
+  limitSizeHint: Deletes an idle workspace that holds more than the size set below, at the next hourly cleanup.
+  maxWorkspaceGiB: Maximum size (GiB)
+  maxWorkspaceGiBHint: Tale measures each workspace on the sandbox host. A workspace whose size isn't known yet is never deleted for it.
+  reclaimMinIdleHours: Minimum hours without use
+  reclaimMinIdleHoursHint: Tale deletes a workspace to free disk space or for its size only once nobody has used it for at least this many hours. Pinned workspaces and workspaces under a legal hold are always kept.
   invalidDays: Must be a whole number between 1 and 3650.
+  invalidSize: Must be a whole number between 1 and 10240.
+  invalidHours: Must be a whole number between 1 and 8760.
   loadFailed: Couldn't load the workspace cleanup settings. Reload the page to try again.
   saveFailed: Couldn't save the workspace cleanup settings
 capacity:

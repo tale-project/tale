@@ -11,6 +11,7 @@ export const PROJECT_AUDIT_ACTIONS = {
   sharingChanged: 'project.sharing.changed',
   instructionsChanged: 'project.instructions.changed',
   agentsChanged: 'project.agents.changed',
+  dispatchChanged: 'project.dispatch.changed',
   fileAttached: 'project.file.attached',
   fileDetached: 'project.file.detached',
   threadShared: 'project.thread.shared',

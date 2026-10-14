@@ -2109,7 +2109,7 @@
         "kinds": {
           "description": "The kinds to read. Left out, the catalog: every kind, what it is and what your role may do with it.",
           "minItems": 1,
-          "maxItems": 13,
+          "maxItems": 14,
           "type": "array",
           "items": {
             "type": "string",
@@ -2126,6 +2126,7 @@
               "task-instructions",
               "task-review-context",
               "automation-approval",
+              "project-dispatch",
               "deployment"
             ],
             "description": "The kind of setting; get_settings without kinds lists them."
@@ -2279,6 +2280,7 @@
                   "task-instructions",
                   "task-review-context",
                   "automation-approval",
+                  "project-dispatch",
                   "deployment"
                 ],
                 "description": "The kind of setting; get_settings without kinds lists them."
@@ -2396,6 +2398,7 @@
                   "task-instructions",
                   "task-review-context",
                   "automation-approval",
+                  "project-dispatch",
                   "deployment"
                 ],
                 "description": "The kind of setting; get_settings without kinds lists them."

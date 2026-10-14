@@ -4,10 +4,9 @@ description:
   Ein Projekt-Agent bearbeitet jede Aufgabe, an der er gleichzeitig arbeitet,
   in einem eigenen Worker, einer Sandbox mit eigenem Arbeitsbereich, die
   spätere Aufgaben wiederverwenden. Die Schritte eines Workflow-Laufs teilen
-  sich einen Arbeitsbereich. Der Arbeitsbereich eines Workers wird gelöscht,
-  sobald er länger ungenutzt ist, als die Bereinigung der Arbeitsbereiche
-  zulässt, oder sobald sein Agent, sein Projekt oder das zugehörige Mitglied
-  entfernt wird. Laufzeitstatus und
+  sich einen Arbeitsbereich. Der Arbeitsbereich eines Workers bleibt, bis die
+  Bereinigung der Arbeitsbereiche ihn löscht oder sein Agent, sein Projekt
+  oder das zugehörige Mitglied entfernt wird. Laufzeitstatus und
   Kontingentbelegung stehen getrennt, denn ein Container kann nach der Freigabe
   des Kontingents weiterlaufen.
 limits:
@@ -49,13 +48,24 @@ cleanup:
   description:
     Projekt-Agenten bewahren ihre Dateien zwischen den Läufen in Arbeitsbereichen
     auf. Ein Arbeitsbereich wird sofort gelöscht, wenn sein Agent, sein Projekt
-    oder das zugehörige Mitglied entfernt wird. Arbeitsbereiche unter einem
-    Legal Hold bleiben erhalten.
+    oder das zugehörige Mitglied entfernt wird; ein inaktiver kann auch gelöscht
+    werden, um Speicherplatz freizugeben oder weil er zu viel Platz belegt.
+    Arbeitsbereiche unter einem Legal Hold bleiben erhalten.
   deleteUnused: Ungenutzte Arbeitsbereiche löschen
   deleteUnusedHint: Löscht einen Arbeitsbereich nach der unten angegebenen Anzahl Tage ohne Nutzung. Angepinnte Arbeitsbereiche bleiben erhalten.
   unusedDays: Tage ohne Nutzung
   unusedDaysHint: Die Tage zählen ab dem Zeitpunkt, an dem der Agent zuletzt im Arbeitsbereich gearbeitet hat. Wenn du das Löschen einschaltest oder den Zeitraum verkürzt, wird kein Arbeitsbereich gelöscht, bevor die volle Anzahl Tage vergangen ist.
+  reclaimOnDiskPressure: Speicherplatz freigeben, wenn er knapp wird
+  reclaimOnDiskPressureHint: Wird der Speicherplatz auf dem Sandbox-Host knapp, löscht Tale die größten inaktiven Arbeitsbereiche des Hosts, bis wieder genug Platz frei ist. Schalte das aus, um die Arbeitsbereiche deiner Organisation davon auszunehmen.
+  limitSize: Größe der Arbeitsbereiche begrenzen
+  limitSizeHint: Löscht bei der nächsten stündlichen Bereinigung einen inaktiven Arbeitsbereich, der mehr als die unten angegebene Größe belegt.
+  maxWorkspaceGiB: Maximale Größe (GiB)
+  maxWorkspaceGiBHint: Tale misst jeden Arbeitsbereich auf dem Sandbox-Host. Ein Arbeitsbereich, dessen Größe noch nicht bekannt ist, wird nie deswegen gelöscht.
+  reclaimMinIdleHours: Mindestanzahl Stunden ohne Nutzung
+  reclaimMinIdleHoursHint: Um Speicherplatz freizugeben oder weil er zu groß ist, löscht Tale einen Arbeitsbereich erst, wenn ihn mindestens so viele Stunden niemand genutzt hat. Angepinnte Arbeitsbereiche und Arbeitsbereiche unter einem Legal Hold bleiben immer erhalten.
   invalidDays: Gib eine ganze Zahl zwischen 1 und 3650 ein.
+  invalidSize: Gib eine ganze Zahl zwischen 1 und 10240 ein.
+  invalidHours: Gib eine ganze Zahl zwischen 1 und 8760 ein.
   loadFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht geladen werden. Lade die Seite neu, um es erneut zu versuchen.
   saveFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht gespeichert werden
 capacity:

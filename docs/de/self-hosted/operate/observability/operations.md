@@ -15,6 +15,7 @@ description: Wähle aussagekräftige Signale, ordne Metriken richtig ein und unt
 | Mehr 5xx-Antworten im Backend | Vergleiche `tale_backend_http_requests_total` nach `route` und `status` mit der betroffenen Aktion. | Fehler betreffen aktive Nutzer oder wichtige Integrationen. |
 | Ein Speicher ist nicht erreichbar | Prüfe `tale_backend_store_up` und die Überwachung des Speichers selbst. | Benötigte Daten, Suche oder Dateizugriffe sind blockiert. |
 | Wartende oder fehlgeschlagene Jobs häufen sich | Prüfe `tale_backend_jobs{state=...}`, Worker und beispielhafte Lauf-Fehler. | Der Rückstand baut sich nicht ab oder eine Frist ist gefährdet. |
+| Die Arbeitsverteilung eines Projekts startet keine Arbeit mehr | Prüfe das Alter von `tale_backend_dispatch_last_pass_timestamp_seconds{project=...}` und die Seite **Arbeitsverteilung** des Projekts, die nennt, warum jeder Agent untätig ist. | Bereite Arbeit wartet, während Agents untätig sind, und die Arbeitsverteilung hat seit 15 Minuten keinen Durchlauf abgeschlossen. |
 | Speicherplatz oder freie Verbindungen werden knapp | Nutze Host- und Datenbanküberwachung; Tale liefert nicht alle diese Metriken. | Handle mit genug Vorlauf, um Kapazität zu schaffen oder die Ursache zu beseitigen. |
 | Eine geplante Sicherung oder Kopie fehlt | Prüfe Backup-Job, vollständiges Manifest und externes Ziel. | Der maximal zulässige Datenverlust wird überschritten. |
 | Anbieter drosselt oder verweigert Anfragen | Lies Anbieterantwort und Lauf-Fehler; prüfe Kontingent, Zugangsdaten und Anbieterstatus. | Benötigte Arbeit scheitert oder wartet länger als erlaubt. |
@@ -36,9 +37,10 @@ Prüfe neben dem HTTP-Status den erwarteten Antwortinhalt. Ein unbekannter Front
 
 ## Aussagekraft der Metriken verstehen
 
-Das Backend liefert Prozessmetriken, Anzahl und Dauer von HTTP-Antworten, Job-Zähler, laufende Generierungen, offene Hinweis-Streams, den Drain-Zustand und die Speichererreichbarkeit. Prüfe die tatsächlich ausgegebenen Zeitreihen deiner Version, bevor du Alarme darauf aufbaust.
+Das Backend liefert Prozessmetriken, Anzahl und Dauer von HTTP-Antworten, Job-Zähler, laufende Generierungen, offene Hinweis-Streams, den Drain-Zustand, die Speichererreichbarkeit und den letzten abgeschlossenen Durchlauf der Arbeitsverteilung jedes Projekts. Prüfe die tatsächlich ausgegebenen Zeitreihen deiner Version, bevor du Alarme darauf aufbaust.
 
 - `tale_backend_store_up` prüft die **Bereitstellungsstandards** für Anwendungsdatenbank, Wissensdatenbank und Bucket. Organisationsspezifische Verbindungen brauchen eine eigene Überwachung.
+- `tale_backend_dispatch_last_pass_timestamp_seconds` belegt, dass die Arbeitsverteilung eines Projekts einen Durchlauf abgeschlossen hat, nicht, dass sie Arbeit gestartet hat: Ein Durchlauf, der den Host unter Druck oder alle Agents beschäftigt vorfand, zählt ebenfalls. Eine ausgeschaltete Arbeitsverteilung hat keine Reihe.
 - Speicherprüfungen werden 30 Sekunden zwischengespeichert. Eine Bucket-Antwort `403` gilt als erreichbar, weil dem Schlüssel lediglich das Auflisten fehlen kann. Der Wert `1` beweist nicht, dass sich ein bestimmtes Objekt hoch- oder herunterladen lässt.
 - `/ready` beschreibt die Bereitschaft für einen Rollout. Externe Speicher fließen nicht ein; ein bereites Replikat kann daher von einem ausgefallenen Speicher abhängen.
 - Die öffentliche Backend-Metrik-URL kann verschiedene API-Replikate erreichen. Prozessmetriken beschreiben das antwortende Replikat. Job- und Generierungszähler lesen gemeinsamen Datenbankzustand. Addiere diese gemeinsamen Zähler nicht so, als hätte jedes Replikat eine eigene Warteschlange.

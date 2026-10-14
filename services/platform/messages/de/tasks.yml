@@ -89,6 +89,7 @@ agentRun:
     host: Wartet auf freien Platz
     destroy_pending: Wartet auf einen Arbeitsbereich
     exec_limit: Wartet auf seine Sandbox
+    model_capacity: Wartet auf Modellkapazität
     unknown: Wartet auf einen Worker
   # Was der kurze Zustand bedeutet, darunter, solange der Lauf wartet.
   waitingWhy:
@@ -96,6 +97,7 @@ agentRun:
     host: Der Sandbox-Host ist voll oder hat zu wenig Arbeitsspeicher oder Speicherplatz. Der Lauf startet von selbst, sobald wieder Platz ist.
     destroy_pending: Ein Admin löscht gerade den Arbeitsbereich, den dieser Lauf nutzen würde. Danach startet der Lauf in einem neuen.
     exec_limit: Seine Sandbox beendet noch einen früheren Prozess. Der Lauf startet gleich von selbst.
+    model_capacity: Das KI-Modell dieses Agenten ist ausgelastet. Der Lauf startet von selbst, sobald das Modell wieder antwortet; das Warten verbraucht keinen Versuch.
     unknown: Der Lauf startet von selbst, sobald Platz für ihn frei ist.
   # Für Owner und Admins neben „Alle … Agenten-Worker sind belegt".
   manageWorkers: Agenten-Worker verwalten
@@ -120,6 +122,7 @@ agentRun:
     input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
     time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
     capacity: Der Lauf hat zu lange auf einen freien Worker gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
+    model_capacity: Das KI-Modell war zwölf Stunden lang ausgelastet, deshalb hat der Lauf aufgehört zu warten. Starte den Agenten später erneut — bleibt das Modell nicht verfügbar, bitte einen Admin, den KI-Anbieter zu prüfen.
     model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
     start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
     interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
@@ -496,6 +499,7 @@ agentRuns:
     auto_retry: automatische Wiederholung
     automation: Automatisierung
     delegated: delegiert
+    dispatch: Von der Arbeitsverteilung gestartet
   refused:
     agent_busy: Agent arbeitet an einer anderen Aufgabe
     agent_disabled: Agent ist nicht installiert oder deaktiviert
@@ -521,6 +525,7 @@ timeline:
   deletedAgent: Gelöschter Agent
   viewMore: "Mehr anzeigen"
   viewWorkflow: Automatisierung anzeigen
+  dispatchActor: Arbeitsverteilung
 dueDate:
   label: Fällig am
   overdue: Überfällig

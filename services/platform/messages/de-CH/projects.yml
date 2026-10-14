@@ -6,3 +6,18 @@ settings:
 dangerZone:
   deleteHelp: Löschen entfernt das Projekt endgültig, einschliesslich seiner
     Dateien und Einstellungen. Das lässt sich nicht rückgängig machen.
+dispatch:
+  gates:
+    value: 'Letzter Wert {value}, schliesst ab {holdAt}'
+    hold: Schliessen
+    holdAria: 'Schranke {key} schliessen'
+  editor:
+    gates:
+      description: Hält die bereite Arbeit zurück, für die eine Schranke gilt, solange ein Signal von aussen das verlangt.
+      holdAt: Schliessen ab
+      recoverBelowHint: Die Hälfte von Schliessen ab, wenn du nichts festlegst.
+    validation:
+      recoverWithoutHold: Lege zuerst Schliessen ab fest.
+      recoverAboveHold: Der Wert darf nicht über Schliessen ab liegen.
+    issues:
+      label: 'Dieses Projekt hat kein Label namens «{name}».'

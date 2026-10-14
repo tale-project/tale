@@ -111,6 +111,10 @@ export const SCHEDULES: CronSchedule[] = [
   // within five minutes of the due day's start in the rule's zone. Offset so
   // it does not share the minute of the other five-minute sweeps.
   { name: 'tasks.repeat_on_due', cron: '3-59/5 * * * *' },
+  // Project dispatch: standing roles fire at minute resolution, and a pass
+  // whose project had no event of its own (a task became ready, a host that
+  // held starts may admit again) is asked within a minute.
+  { name: 'tasks.dispatch_scan', cron: '* * * * *' },
   // Session-idle enforcement: the control only exists if something revokes.
   { name: 'governance.revoke_idle_sessions', cron: '*/5 * * * *' },
   // Outbound-send crash recovery: fail replies stranded 'queued' by a lost or

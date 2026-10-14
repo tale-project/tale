@@ -286,6 +286,41 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
     },
   });
 
+  // The projects the last good read knew: a failing read zeroes them rather
+  // than leaving their last healthy sample to say the dispatch still runs.
+  let dispatchProjects: string[] = [];
+  const dispatchPass = new client.Gauge({
+    name: 'tale_backend_dispatch_last_pass_timestamp_seconds',
+    help: 'Completion time of the last pass of each switched-on project dispatch, by project id; zero before its first pass and when unreadable. An alert on its age catches a dispatch that stopped, which the platform cannot report about itself during an outage.',
+    labelNames: ['project'] as const,
+    async collect() {
+      try {
+        const rows = await sql<{ projectId: string; at: number | null }[]>`
+          SELECT d.project_id AS "projectId",
+                 s.last_pass_at_ms::float8 AS at
+          FROM app.project_dispatch d
+          LEFT JOIN app.project_dispatch_state s ON s.project_id = d.project_id
+          WHERE d.enabled = true
+          ORDER BY d.project_id
+          LIMIT 1000
+        `;
+        // A dispatch switched off since the last scrape drops out.
+        this.reset();
+        dispatchProjects = rows.map((row) => row.projectId);
+        for (const row of rows) {
+          const at = Number(row.at);
+          this.set(
+            { project: row.projectId },
+            Number.isFinite(at) && at > 0 ? Math.floor(at / 1000) : 0,
+          );
+        }
+      } catch (error) {
+        console.warn('[metrics] dispatch-pass gauge failed:', error);
+        for (const project of dispatchProjects) this.set({ project }, 0);
+      }
+    },
+  });
+
   const stores = new client.Gauge({
     name: 'tale_backend_store_up',
     help: 'Whether each of the deployment’s three stores is reachable.',
@@ -305,7 +340,15 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
 
   // Returned so a test can drive the collectors against a throwaway
   // registry; the constructors already self-register on the default one.
-  return [hintStreams, generations, jobs, drain, triggerScan, stores];
+  return [
+    hintStreams,
+    generations,
+    jobs,
+    drain,
+    triggerScan,
+    dispatchPass,
+    stores,
+  ];
 }
 
 /**

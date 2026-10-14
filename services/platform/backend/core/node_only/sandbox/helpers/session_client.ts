@@ -738,6 +738,226 @@ export async function sandboxDeploymentLimits(organizationId: string): Promise<{
   return sandboxDeploymentLimitsSchema.parse(await response.json());
 }
 
+/** The sandbox host's answer to "may another start begin now?"
+ * (`GET /v1/admission`): its verdict, why, when to ask again, and the
+ * readings it judged — kept on the dispatch pass that asked. */
+const sandboxAdmissionSchema = z.object({
+  verdict: z.enum(['admit', 'hold']),
+  reason: z.string().nullable(),
+  retryAfterMs: z.number().nullable(),
+  preset: z.string(),
+  observedAtMs: z.number(),
+  evidence: z.record(z.string(), z.unknown()),
+});
+export type SandboxAdmission = z.infer<typeof sandboxAdmissionSchema>;
+
+/**
+ * Ask the sandbox host whether another start may begin now, judged with the
+ * deployment's thresholds or a stricter preset. A spawner too old to answer
+ * (404) yields null: the caller decides what an unknown host means.
+ */
+export async function sandboxAdmission(
+  organizationId: string,
+  args: { kind: 'start' | 'heavy'; preset: 'default' | 'conservative' },
+): Promise<SandboxAdmission | null> {
+  const path = `/v1/admission?organizationId=${encodeURIComponent(organizationId)}&kind=${args.kind}&preset=${args.preset}`;
+  const response = await spawnerFetch('GET', path, {
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(`Sandbox admission unavailable (${response.status})`);
+  return sandboxAdmissionSchema.parse(await response.json());
+}
+
+/** A heavy-phase lease the sandbox host holds for one session: what the
+ * phase said it would write to disk and hold in memory, and when the lease
+ * ends by itself. */
+const heavyLeaseSchema = z.object({
+  id: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+  sessionId: z.string().min(1),
+  organizationId: z.string().min(1),
+  class: z.literal('heavy'),
+  label: z.string().nullable(),
+  predictedGrowthBytes: z.number().int().nonnegative(),
+  memoryBytes: z.number().int().nonnegative(),
+  acquiredAtMs: z.number().int().nonnegative(),
+  expiresAtMs: z.number().int().nonnegative(),
+});
+export type SandboxHeavyLease = z.infer<typeof heavyLeaseSchema>;
+
+const heavyLeaseGrantSchema = z.object({ lease: heavyLeaseSchema });
+const heavyLeaseListSchema = z.object({ leases: z.array(heavyLeaseSchema) });
+const heavyLeaseRefusalSchema = z.object({
+  error: z.literal('lease_refused'),
+  reason: z.string().min(1).max(64),
+  retryAfterMs: z.number().nonnegative(),
+  evidence: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+/** When to ask again where leases do not exist: a host that cannot be
+ * judged stays that way, so this only paces a caller that asks anyway. */
+const LEASES_UNAVAILABLE_RETRY_MS = 60_000;
+
+/** The host's answer to a heavy-phase lease request. A refusal names why:
+ * `pressure`, `pacing`, `stale`, `limit`, `disk` or `memory` are holds to
+ * wait out for `retryAfterMs`; `unavailable` means the host cannot be judged
+ * — Kubernetes, Incus, a remote Docker daemon, or a spawner without leases —
+ * so leases do not exist there. A reason a later spawner adds arrives as it
+ * is. */
+export type SandboxLeaseAcquisition =
+  | { granted: true; lease: SandboxHeavyLease }
+  | {
+      granted: false;
+      reason: string;
+      retryAfterMs: number;
+      evidence: Record<string, unknown> | null;
+    };
+
+/** What a heavy-phase lease asks for; every size has the spawner's default
+ * when left out (2 GiB written, 1 GiB held, 30 minutes). */
+export interface SandboxLeaseRequest {
+  organizationId: string;
+  label?: string;
+  predictedGrowthBytes?: number;
+  memoryBytes?: number;
+  ttlMs?: number;
+}
+
+/** Let go of an answer whose body nothing reads, so a caller that asks
+ * again every few seconds holds no connection per answer. */
+function discardBody(res: Response): void {
+  void res.body?.cancel().catch((error: unknown) => {
+    console.warn('[session_client] releasing an unread answer failed:', error);
+  });
+}
+
+/**
+ * Ask the sandbox host for a heavy-phase lease on a session (`POST
+ * /v1/sessions/:id/leases`). A grant and a refusal are both answers, never
+ * thrown: the refusal carries the host's reason and when to ask again. A
+ * spawner without lease routes answers 404, as does one that does not know
+ * the session: both mean no lease can be held there, `unavailable`. Any
+ * other answer — a session being stopped (409), a spawner booting (503), a
+ * transport failure — throws.
+ */
+export async function sandboxLeaseAcquire(
+  sessionId: string,
+  request: SandboxLeaseRequest,
+): Promise<SandboxLeaseAcquisition> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/leases`;
+  const body = JSON.stringify({
+    organizationId: request.organizationId,
+    class: 'heavy',
+    ...(request.label !== undefined ? { label: request.label } : {}),
+    ...(request.predictedGrowthBytes !== undefined
+      ? { predictedGrowthBytes: request.predictedGrowthBytes }
+      : {}),
+    ...(request.memoryBytes !== undefined
+      ? { memoryBytes: request.memoryBytes }
+      : {}),
+    ...(request.ttlMs !== undefined ? { ttlMs: request.ttlMs } : {}),
+  });
+  const response = await spawnerFetch('POST', path, {
+    body,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (response.status === 201) {
+    const { lease } = heavyLeaseGrantSchema.parse(await response.json());
+    return { granted: true, lease };
+  }
+  if (response.status === 404) {
+    discardBody(response);
+    return {
+      granted: false,
+      reason: 'unavailable',
+      retryAfterMs: LEASES_UNAVAILABLE_RETRY_MS,
+      evidence: null,
+    };
+  }
+  if (response.status === 429) {
+    const refusal = heavyLeaseRefusalSchema.safeParse(
+      await response.json().catch((error: unknown) => {
+        console.warn('[session_client] a lease refusal was not JSON:', error);
+        return null;
+      }),
+    );
+    if (refusal.success) {
+      return {
+        granted: false,
+        reason: refusal.data.reason,
+        retryAfterMs: refusal.data.retryAfterMs,
+        evidence: refusal.data.evidence ?? null,
+      };
+    }
+    throw new SpawnerStatusError(
+      'sandbox lease request refused without a reason (429)',
+      response,
+    );
+  }
+  throw await refusedAnswerErrorOf(
+    `sandbox lease request failed (${response.status})`,
+    response,
+  );
+}
+
+/**
+ * End a heavy-phase lease (`DELETE /v1/sessions/:id/leases/:leaseId`).
+ * `released` when the host ended it now, `gone` when it held no such lease
+ * any more — it expired, ended with its session, the spawner restarted, or
+ * the spawner has no leases at all: either way nothing is held. Any other
+ * answer throws, so a caller retries.
+ */
+export async function sandboxLeaseRelease(args: {
+  organizationId: string;
+  sessionId: string;
+  leaseId: string;
+}): Promise<'released' | 'gone'> {
+  const lease = `${encodeURIComponent(args.sessionId)}/leases/${encodeURIComponent(args.leaseId)}`;
+  const path = `/v1/sessions/${lease}?organizationId=${encodeURIComponent(args.organizationId)}`;
+  const response = await spawnerFetch('DELETE', path, {
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (response.status === 204 || response.status === 404) {
+    discardBody(response);
+    return response.status === 204 ? 'released' : 'gone';
+  }
+  throw await refusedAnswerErrorOf(
+    `sandbox lease release failed (${response.status})`,
+    response,
+  );
+}
+
+/**
+ * The organization's active heavy-phase leases on the host (`GET
+ * /v1/leases`), or one session's (`GET /v1/sessions/:id/leases`). A spawner
+ * without leases answers null.
+ */
+export async function sandboxLeases(
+  organizationId: string,
+  sessionId?: string,
+): Promise<SandboxHeavyLease[] | null> {
+  const query = `?organizationId=${encodeURIComponent(organizationId)}`;
+  const path =
+    sessionId === undefined
+      ? `/v1/leases${query}`
+      : `/v1/sessions/${encodeURIComponent(sessionId)}/leases${query}`;
+  const response = await spawnerFetch('GET', path, {
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (response.status === 404) {
+    discardBody(response);
+    return null;
+  }
+  if (!response.ok) {
+    throw await refusedAnswerErrorOf(
+      `sandbox leases unavailable (${response.status})`,
+      response,
+    );
+  }
+  return heavyLeaseListSchema.parse(await response.json()).leases;
+}
+
 const acquisitionSchema = z.object({ generation: z.string().min(1) });
 
 /** The organization's connected devices, as the spawner's hub sees them. An
@@ -1226,6 +1446,63 @@ export async function sandboxWorkspaceInventory(
     throw new Error(`sandbox workspace inventory unavailable (${res.status})`);
   }
   return workspaceInventorySchema.parse(await res.json());
+}
+
+const workspaceUsageSchema = z.object({
+  /** When the spawner answered, on its own clock. */
+  measuredAtMs: z.number(),
+  /** The workspaces' filesystem against the floor admission keeps and its
+   * critical tier, as last read; null where the spawner does not hold that
+   * disk (Kubernetes, Incus) or has not read it yet. */
+  disk: z
+    .object({
+      freeBytes: z.number().nonnegative(),
+      floorBytes: z.number().nonnegative(),
+      criticalBytes: z.number().nonnegative(),
+      short: z.boolean(),
+      critical: z.boolean(),
+    })
+    .nullable(),
+  workspaces: z.array(
+    z.object({
+      sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+      /** null while it is not measured, or its measurement failed or ran
+       * out of time. */
+      bytes: z.number().nonnegative().nullable(),
+      /** When it was measured, on the spawner's clock; null when never. */
+      measuredAtMs: z.number().nullable(),
+    }),
+  ),
+});
+
+export type SandboxWorkspaceUsage = z.infer<typeof workspaceUsageSchema>;
+
+/** GET /v1/workspaces/usage?organizationId= — how much each of the
+ * organization's workspaces holds, as the spawner last measured it (at most
+ * every ten minutes, at most fifty a call), beside where the workspaces' disk
+ * stands. `null` from a spawner that predates the route; THROWS when the
+ * spawner could not list its workspaces (503) or could not be reached, and
+ * once `signal` aborts (the read gives up after 60 s on its own: a
+ * measurement in flight is waited for). */
+export async function sandboxWorkspaceUsage(
+  organizationId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<SandboxWorkspaceUsage | null> {
+  const res = await spawnerFetch(
+    'GET',
+    `/v1/workspaces/usage?organizationId=${encodeURIComponent(organizationId)}`,
+    {
+      signal: AbortSignal.any([
+        AbortSignal.timeout(60_000),
+        ...(options.signal ? [options.signal] : []),
+      ]),
+    },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox workspace usage unavailable (${res.status})`);
+  }
+  return workspaceUsageSchema.parse(await res.json());
 }
 
 /** DELETE /v1/organizations/:id — a deleted organization's remaining

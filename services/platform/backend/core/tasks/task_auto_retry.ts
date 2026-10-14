@@ -5,9 +5,10 @@
  * `tasks/mutations.ts` (`kickAutoRetryRun`).
  *
  * Semantics (2026-08-20): after per-request recovery, a failed run retries
- * immediately unless the task is in a rapid crash loop or the provider
- * explicitly ended on model capacity. The latter waits one minute without
- * forgiving an attempt: pinned Codex does not retry that terminal error.
+ * immediately unless the task is in a rapid crash loop. A run the provider
+ * ended because its model is at capacity is no crash: its retry spends no
+ * attempt and waits, parked with every other run on that model, until the
+ * model answers again (`domains/tasks/model-capacity-holds.ts`).
  * Other harness errors retain their existing request recovery; an unconfined
  * fresh task start bounds transient broker GET recovery within the admitted
  * run. The loop detector is a CONSECUTIVE-failure budget
@@ -23,8 +24,10 @@
 
 export const AUTO_RETRY_MAX_ATTEMPTS = 3;
 
-/** Application retry floor after a typed model-capacity failure. Not an
- * account cooldown or a promise that provider capacity returns in a minute. */
+/** The automation lane's re-kick floor after a typed model-capacity
+ * failure. Not an account cooldown or a promise that provider capacity
+ * returns in a minute; the task lane waits on the model's capacity hold
+ * instead. */
 export const MODEL_CAPACITY_RETRY_DELAY_MS = 60_000;
 
 /** How long the retry of a run whose sandbox ran out of memory waits, by
@@ -55,7 +58,8 @@ export function resourceExhaustedRetryDelayMs(
 export type TaskRunFailureCode =
   | 'harness_error'
   /** The selected model is overloaded, not a failed credential. The retry
-   * waits briefly, still counts, and keeps the prior account eligible. */
+   * spends no attempt, waits on the model's capacity hold with every other
+   * run on it, and keeps the prior account eligible. */
   | 'model_capacity'
   | 'turn_crashed'
   /** The sandbox ended the harness because it stalled: it printed nothing
@@ -269,6 +273,23 @@ export function freeCooldownWaits(
 }
 
 /**
+ * Which rows of a task's newest-first run history are FREE capacity waits:
+ * every `model_capacity` failure. The provider refused the model, not the
+ * task: the retry waits on the model's capacity hold
+ * (`domains/tasks/model-capacity-holds.ts`), which spaces the attempts out
+ * (1 to 15 minutes, one probing run at a time) and ends the wait after
+ * twelve hours — no crash loop for the budget or the hourly automated-start
+ * circuit to stop.
+ */
+export function freeCapacityWaits(
+  rows: readonly AutoRetryRunFacts[],
+): boolean[] {
+  return rows.map(
+    (row) => row.status === 'failed' && row.failureCode === 'model_capacity',
+  );
+}
+
+/**
  * Count the streak of consecutive short-lived failures ending at `rows[0]`
  * (the run that just failed) and decide whether one more auto-retry fits the
  * budget. The walk stops — resetting the budget — at the first row that is
@@ -286,7 +307,10 @@ export function resolveAutoRetryBudget(
   const agentId = rows[0]?.agentId;
   const rotations = freeCredentialRotations(rows);
   const waits = freeCooldownWaits(rows);
-  const free = rotations.map((rotation, index) => rotation || waits[index]);
+  const capacity = freeCapacityWaits(rows);
+  const free = rotations.map(
+    (rotation, index) => rotation || waits[index] || capacity[index],
+  );
   let shortStreak = 0;
   for (const [index, row] of rows.entries()) {
     if (row.agentId !== agentId) break;
@@ -301,9 +325,10 @@ export function resolveAutoRetryBudget(
     retry: free[0] || shortStreak <= AUTO_RETRY_MAX_ATTEMPTS,
     // A free wait's run retried a counted 429, so it shows the count that
     // 429 reached, as an ordinary retry would.
-    attempt: rotations[0]
-      ? freeRotationAttempt(rows[0])
-      : Math.min(Math.max(shortStreak, 1), AUTO_RETRY_MAX_ATTEMPTS),
+    attempt:
+      rotations[0] || capacity[0]
+        ? freeRotationAttempt(rows[0])
+        : Math.min(Math.max(shortStreak, 1), AUTO_RETRY_MAX_ATTEMPTS),
   };
 }
 

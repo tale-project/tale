@@ -36,6 +36,9 @@ export const TASK_RUN_FAILURE_CLASSES = [
   'capacity',
   /** The model or its provider failed the turn. */
   'model',
+  /** The provider kept the model at capacity for twelve hours: the run
+   * stopped waiting for it. */
+  'model_capacity',
   /** The run never started: the sandbox or the model behind it refused. */
   'start',
   /** The run stopped mid-way on the platform's side. */
@@ -62,7 +65,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   deadline: 'time_limit',
   park_deadline: 'capacity',
   harness_error: 'model',
-  model_capacity: 'model',
+  model_capacity: 'model_capacity',
   empty_turn: 'model',
   credential_rotated: 'model',
   credential_cooldown: 'model',

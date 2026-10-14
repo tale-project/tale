@@ -12,7 +12,7 @@ import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waitin
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import {
-  MODEL_CAPACITY_RETRY_DELAY_MS,
+  freeCapacityWaits,
   freeCooldownWaits,
   freeCredentialRotations,
   type AutoRetryRunFacts,
@@ -60,10 +60,11 @@ import {
 /**
  * A project agent put to work by something other than a person's own Start:
  * an automation's `task.start_agent` step (a schedule's occurrence, or a run
- * a person started), or another project agent's run through the granted
- * `task_start_agent` tool. One admission for both doors, over the same kick
- * a person's Start uses (`kickAgentRun`), so the run is an ordinary run of
- * the agent with its provenance on the row (migration 0139).
+ * a person started), another project agent's run through the granted
+ * `task_start_agent` tool, or the project's dispatch (`dispatch-pass.ts`).
+ * One admission for every door, over the same kick a person's Start uses
+ * (`kickAgentRun`), so the run is an ordinary run of the agent with its
+ * provenance on the row (migrations 0139, 0206).
  *
  * Who it answers to. The started run inherits the door the requesting run
  * answers to — `startedBy`: the person who started it (a bare id), or the
@@ -114,10 +115,10 @@ import {
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
  *   automations and agents per task in any rolling hour, their automatic
  *   retries included (a broker cooldown after its own 429, the first two
- *   consecutive broker credential rotations, and provider model-capacity
- *   refusals spend no second start), so two agents (or an agent and a
- *   schedule) cannot restart one task in a loop, and failing retries cannot
- *   stretch the budget. The refusal
+ *   consecutive broker credential rotations and a model at capacity spend no
+ *   second start), so two
+ *   agents (or an agent and a schedule) cannot restart one task in a loop, and
+ *   failing retries cannot stretch the budget. The refusal
  *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
  *   never counted or refused by it.
  *
@@ -146,11 +147,16 @@ import {
 export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
   'The schedule that started this run was paused or removed, or its automation is no longer bound to the project, before the run launched — nothing ran.';
 
+/** Why a run the project's dispatch started failed without launching: the
+ * dispatch was switched off, or the project archived, before its start. */
+export const DISPATCH_REVOKED_BEFORE_LAUNCH =
+  "The project's dispatch that started this run was switched off, or the project archived, before the run launched — nothing ran.";
+
 /** Starts by automations and agents one task takes in any rolling hour —
- * their automatic retries included, except the existing free cooldown wait
- * after the run's own 429, the first two consecutive credential rotations,
- * and provider model-capacity refusals — before the circuit breaker refuses
- * the next. */
+ * their automatic retries included, except the free cooldown wait after the
+ * run's own 429, the first two consecutive credential rotations and a run
+ * the provider refused because its model is at capacity — before the circuit
+ * breaker refuses the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -164,9 +170,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in the last hour —
  * every run row carrying `started_via`, whatever its trigger, except the
  * broker wait its retry budget already counts as part of the preceding 429
- * ({@link freeCooldownWaits}), or a provider model-capacity refusal, which is
- * an availability signal rather than a task restart loop — and records a
- * refusal on the task's timeline
+ * ({@link freeCooldownWaits}) — and records a refusal on the task's timeline
  * as the refused agent (`agent_run.refused`,
  * `task_circuit_breaker`: "<agent> could not start: agent runs are paused on
  * this task"). Runs a person started carry no `started_via`, so neither they
@@ -181,8 +185,6 @@ export async function admitAutomatedStart(
   args: {
     task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
     agentId: string;
-    /** An automatic retry queued now whose turn will start at this floor. */
-    startAfterMs?: number;
   },
 ): Promise<AutomatedStartWindow> {
   await tx`
@@ -190,17 +192,15 @@ export async function admitAutomatedStart(
     WHERE id = ${args.task.id} AND org_id = ${args.task.organizationId}
     FOR UPDATE
   `;
-  const window = await automatedStartWindow(tx, args.task, args);
+  const window = await automatedStartWindow(tx, args.task);
   if (window.admitted) return window;
-  if (window.reason !== 'model_capacity') {
-    await recordActivity(tx, {
-      task: args.task,
-      actorType: 'agent',
-      actorId: args.agentId,
-      action: 'agent_run.refused',
-      toValue: 'task_circuit_breaker',
-    });
-  }
+  await recordActivity(tx, {
+    task: args.task,
+    actorType: 'agent',
+    actorId: args.agentId,
+    action: 'agent_run.refused',
+    toValue: 'task_circuit_breaker',
+  });
   return window;
 }
 
@@ -208,11 +208,7 @@ export async function admitAutomatedStart(
  * exactly when it may. */
 type AutomatedStartWindow =
   | { admitted: true }
-  | {
-      admitted: false;
-      retryAfter: number;
-      reason?: 'model_capacity';
-    };
+  | { admitted: false; retryAfter: number };
 
 /**
  * The circuit's count alone ({@link admitAutomatedStart} without the task
@@ -223,7 +219,6 @@ type AutomatedStartWindow =
 export async function automatedStartWindow(
   tx: Sql | TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId'>,
-  options: { startAfterMs?: number } = {},
 ): Promise<AutomatedStartWindow> {
   const now = Date.now();
   const since = now - HOUR_MS;
@@ -235,7 +230,9 @@ export async function automatedStartWindow(
   // A broker credential rotation is a recovery handoff, not a second piece of
   // automated work: the same free-rotation rule used by the retry budget keeps
   // its first two consecutive 401s out of this circuit. The third rotation is
-  // counted, so a genuinely dead grant still closes the task's circuit.
+  // counted, so a genuinely dead grant still closes the task's circuit. A run
+  // the provider refused for model capacity is no restart loop either: its
+  // retries wait on the model's hold, which spaces them out and ends them.
   const history = await tx<
     (Pick<AutoRetryRunFacts, 'agentId' | 'status'> & {
       startedAt: number;
@@ -276,28 +273,14 @@ export async function automatedStartWindow(
   }));
   const waits = freeCooldownWaits(facts);
   const rotations = freeCredentialRotations(facts);
-  // Fresh scheduled/delegated starts respect the same provider retry floor
-  // as automatic retries. Excluding an overload from the hourly circuit
-  // must not allow a caller to spin new starts into the same refusal.
-  const newest = history[0];
-  const capacityRetryAfter =
-    newest?.status === 'failed' && newest.failureCode === 'model_capacity'
-      ? (newest.settledAt ?? newest.startedAt) + MODEL_CAPACITY_RETRY_DELAY_MS
-      : 0;
-  if (capacityRetryAfter > Math.max(now, options.startAfterMs ?? now)) {
-    return {
-      admitted: false,
-      retryAfter: capacityRetryAfter,
-      reason: 'model_capacity',
-    };
-  }
+  const capacity = freeCapacityWaits(facts);
   const recent = history.filter(
     (run, index) =>
       run.automated &&
       run.startedAt > since &&
       !waits[index] &&
       !rotations[index] &&
-      !(run.status === 'failed' && run.failureCode === 'model_capacity'),
+      !capacity[index],
   );
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
@@ -342,6 +325,9 @@ export async function inPlaceStartRefusal(
 /** The actor an automation's writes are recorded as on the task timeline —
  * the engine's task natives use the same sentinel. */
 const WORKFLOW_ACTOR_ID = 'workflow';
+
+/** The actor the project's dispatch is recorded as on the task timeline. */
+const DISPATCH_ACTOR_ID = 'dispatch';
 
 export interface DelegatedAgentStartArgs {
   organizationId: string;
@@ -533,10 +519,12 @@ async function assertDelegatingRun(
   }
 }
 
-/** The activity actor of the requester: the asking agent, or the workflow
- * sentinel for an automation step. */
+/** The activity actor of the requester: the asking agent, the dispatch
+ * sentinel for the project's dispatch, or the workflow sentinel for an
+ * automation step. */
 function actorOf(via: StartedVia): string {
-  return via.kind === 'agent' ? via.agentId : WORKFLOW_ACTOR_ID;
+  if (via.kind === 'agent') return via.agentId;
+  return via.kind === 'dispatch' ? DISPATCH_ACTOR_ID : WORKFLOW_ACTOR_ID;
 }
 
 /** The agent of one of the task's runs; null when the run is not the
@@ -655,7 +643,12 @@ export async function startDelegatedAgentRun(
       403,
     );
   }
-  const trigger = args.via.kind === 'agent' ? 'delegated' : 'automation';
+  const trigger =
+    args.via.kind === 'agent'
+      ? 'delegated'
+      : args.via.kind === 'dispatch'
+        ? 'dispatch'
+        : 'automation';
   let task = await loadTaskOrThrow(tx, args.taskId, args.organizationId).catch(
     (error: unknown) => {
       if (error instanceof TaskError && error.code === 'TASK_NOT_FOUND') {
@@ -721,7 +714,9 @@ export async function startDelegatedAgentRun(
       'AGENT_START_FORBIDDEN',
       parseRunStarter(args.startedBy).kind === 'trigger'
         ? 'The schedule this work began with may not start agents in this project any more: it is paused, removed, or its automation is no longer bound to the project'
-        : 'The person this work answers to may no longer edit this project, so no agent can be started for them',
+        : parseRunStarter(args.startedBy).kind === 'dispatch'
+          ? "The project's dispatch may not start agents any more: it is switched off, or the project is archived"
+          : 'The person this work answers to may no longer edit this project, so no agent can be started for them',
       403,
     );
   }
