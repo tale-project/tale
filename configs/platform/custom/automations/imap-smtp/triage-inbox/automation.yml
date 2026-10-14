@@ -2,9 +2,9 @@
 # The directory path is the slug (`imap-smtp/triage-inbox`); `workflow.yml`
 # beside this file is the document that runs.
 name: Triage the IMAP inbox
-description: >-
-  Triages the open IMAP conversations in the Inbox that are waiting on the team: sets their priority, records the verdict on each thread, and leaves a drafted reply where one is due for a person to send. Runs on a schedule and needs the IMAP/SMTP sync automation deployed.
-icon: mail
+description: Sets a priority on the IMAP conversations waiting on the team and drafts the replies that are due, for a person to send.
+icon: brand:imap-smtp
+category: inbox
 labels:
   - Email
   - IMAP
@@ -14,18 +14,140 @@ requires:
     - imap-smtp
     - conversation
 triggers:
+  # The batch is the trigger's fixed input: the template's question replaces
+  # this placeholder, and every run gets it.
   - kind: schedule
     repeat:
       frequency: hourly
       interval: 6
       minute: 0
     timezone: UTC
+    input:
+      limit: 20
 i18n:
   de:
     name: IMAP-Posteingang sichten
-    description: >-
-      Sichtet die offenen IMAP-Konversationen in der Inbox, die auf das Team warten: setzt ihre Priorität, hält das Urteil an jedem Thread fest und legt dort, wo eine Antwort fällig ist, einen Antwortentwurf ab, den eine Person abschickt. Läuft nach Zeitplan und braucht die bereitgestellte IMAP/SMTP-Synchronisierung.
+    description: Setzt die Priorität der IMAP-Konversationen, die auf das Team warten, und entwirft fällige Antworten, die eine Person abschickt.
   fr:
     name: Trier la boîte de réception IMAP
-    description: >-
-      Trie les conversations IMAP ouvertes de la Boîte de réception qui attendent l’équipe : fixe leur priorité, note le verdict sur chaque fil et dépose un brouillon de réponse là où une réponse est due, qu’une personne enverra. S’exécute selon une planification et requiert l’automatisation de synchronisation IMAP/SMTP déployée.
+    description: Fixe la priorité des conversations IMAP qui attendent l’équipe et rédige les réponses dues, qu’une personne enverra.
+template:
+  details: >-
+    On the schedule you set — every six hours to start with — the automation
+    reads the open IMAP conversations in the Inbox that wait on the team and
+    that no pass judged since the customer last wrote. A language model sets
+    the priority of each one nobody has prioritized yet, notes why on the
+    thread, and drafts a reply wherever one is due; the draft waits in the
+    thread until a person sends it. A thread whose draft could not be left
+    is not marked as judged, so the next run tries it again, and a thread
+    never holds two drafts. One run judges at most the number you set; the
+    rest wait for the next run. It needs the IMAP/SMTP sync automation, which
+    fills the Inbox.
+  i18n:
+    de:
+      details: >-
+        Nach dem gewählten Zeitplan — anfangs alle sechs Stunden — liest die
+        Automatisierung die offenen IMAP-Konversationen in der Inbox, die
+        auf das Team warten und seit der letzten Nachricht des Kunden von
+        keinem Durchgang beurteilt wurden. Ein Sprachmodell setzt die Priorität
+        jeder Konversation, die noch niemand priorisiert hat, hält den Grund am
+        Thread fest und entwirft eine Antwort, wo eine fällig ist; der Entwurf
+        wartet im Thread, bis eine Person ihn abschickt. Ein Thread, dessen
+        Entwurf nicht abgelegt werden konnte, gilt nicht als beurteilt, sodass
+        der nächste Lauf ihn erneut versucht, und ein Thread hat nie zwei
+        Entwürfe. Ein Lauf beurteilt höchstens die gewählte Anzahl; der Rest
+        wartet auf den nächsten Lauf. Sie braucht die
+        IMAP/SMTP-Synchronisierung, die die Inbox füllt.
+    fr:
+      details: >-
+        Selon l’horaire choisi — toutes les six heures pour commencer —, l’automatisation lit les conversations IMAP ouvertes de la Boîte de réception qui attendent l’équipe et qu’aucun passage n’a jugées depuis le dernier message du client. Un modèle de langage fixe la priorité de chacune que personne n’a encore priorisée, note pourquoi sur le fil et rédige une réponse partout où elle est due ; le brouillon attend dans le fil qu’une personne l’envoie. Un fil dont le brouillon n’a pas pu être déposé n’est pas marqué comme jugé, la prochaine exécution le reprend donc, et un fil n’a jamais deux brouillons. Une exécution en juge au plus le nombre choisi ; les autres attendent la suivante. Elle requiert l’automatisation de synchronisation IMAP/SMTP, qui remplit la Boîte de réception.
+  steps:
+    - title: Finds the conversations waiting on the team
+      detail: Open IMAP threads whose newest message is the customer's and that no pass judged since.
+      i18n:
+        de:
+          title: Findet die Konversationen, die auf das Team warten
+          detail: Offene IMAP-Threads, deren neueste Nachricht vom Kunden ist und die seither kein Durchgang beurteilt hat.
+        fr:
+          title: Trouve les conversations qui attendent l’équipe
+          detail: Les fils IMAP ouverts dont le dernier message vient du client et qu’aucun passage n’a jugés depuis.
+    - title: Decides what each one needs
+      detail: Whether the team has to reply, how urgent it is, and why in one sentence.
+      i18n:
+        de:
+          title: Entscheidet, was jede braucht
+          detail: Ob das Team antworten muss, wie dringend es ist, und warum, in einem Satz.
+        fr:
+          title: Décide de ce qu’il faut à chacune
+          detail: Si l’équipe doit répondre, son urgence, et pourquoi en une phrase.
+    - title: Drafts the replies that are due
+      detail: In the customer's language; each draft waits in its thread for a person to send.
+      i18n:
+        de:
+          title: Entwirft die fälligen Antworten
+          detail: In der Sprache des Kunden; jeder Entwurf wartet in seinem Thread, bis eine Person ihn abschickt.
+        fr:
+          title: Rédige les réponses dues
+          detail: Dans la langue du client ; chaque brouillon attend dans son fil qu’une personne l’envoie.
+    - title: Marks the conversations it judged
+      detail: Sets the priority where none is set; a thread whose draft failed comes back in the next run.
+      i18n:
+        de:
+          title: Markiert die beurteilten Konversationen
+          detail: Setzt die Priorität, wo keine gesetzt ist; ein Thread, dessen Entwurf scheiterte, kommt im nächsten Lauf wieder.
+        fr:
+          title: Marque les conversations jugées
+          detail: Fixe la priorité là où aucune n’est fixée ; un fil dont le brouillon a échoué revient à l’exécution suivante.
+  outcomes:
+    - kind: changes
+      text: The priority of each waiting conversation nobody has prioritized yet.
+      i18n:
+        de:
+          text: Die Priorität jeder wartenden Konversation, die noch niemand priorisiert hat.
+        fr:
+          text: La priorité de chaque conversation en attente que personne n’a encore priorisée.
+    - kind: creates
+      text: A suggested reply on the thread for a person to send — never two on one thread.
+      i18n:
+        de:
+          text: Einen Antwortvorschlag im Thread, den eine Person abschickt — nie zwei in einem Thread.
+        fr:
+          text: Une proposition de réponse sur le fil qu’une personne enverra — jamais deux sur un même fil.
+    - kind: never
+      text: Never sends an email.
+      i18n:
+        de:
+          text: Sendet nie eine E-Mail.
+        fr:
+          text: N’envoie jamais d’e-mail.
+  worksWith:
+    - imap-smtp/sync-emails
+  fields:
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the waiting conversations are triaged.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft die wartenden Konversationen gesichtet werden.
+        fr:
+          label: Quand
+          description: À quelle fréquence les conversations en attente sont triées.
+    - id: limit
+      kind: number
+      label: Conversations per run
+      description: The most conversations one run judges; the others wait for the next run.
+      min: 1
+      max: 40
+      default: 20
+      writes:
+        - trigger: true
+          pointer: /input/limit
+      i18n:
+        de:
+          label: Konversationen pro Lauf
+          description: Höchstens so viele Konversationen beurteilt ein Lauf; die übrigen warten auf den nächsten.
+        fr:
+          label: Conversations par exécution
+          description: Le nombre maximal de conversations qu’une exécution juge ; les autres attendent la suivante.

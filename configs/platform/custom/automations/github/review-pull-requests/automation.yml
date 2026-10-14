@@ -2,8 +2,9 @@
 # The directory path is the slug (`github/review-pull-requests`);
 # `workflow.yml` beside this file is the document that runs.
 name: Review GitHub pull requests
-description: Reviews every open pull request on a schedule and leaves the findings as a comment. It never approves and never merges — a human still does that.
-icon: check-check
+description: Reviews each open pull request once per new commit and comments its findings. It never approves or merges.
+icon: brand:github
+category: code-review
 labels:
   - GitHub
   - Code review
@@ -12,19 +13,209 @@ requires:
   connectors:
     - github
 triggers:
-  # Off until a person names the repository: the workflow requires `owner`
-  # and `repo`, which a schedule never sends, so they go in the trigger's
-  # fixed input before it is turned on.
+  # The repository and the batch are the trigger's fixed input: the
+  # template's questions replace these placeholders, and every run gets them.
   - kind: schedule
     enabled: false
     repeat:
       frequency: minutely
       interval: 30
     timezone: UTC
+    input:
+      owner: your-organization
+      repo: your-repository
+      limit: 5
+      maxDiffChars: 30000
 i18n:
   de:
     name: GitHub-Pull-Requests prüfen
-    description: Prüft regelmäßig jeden offenen Pull Request und hinterlässt die Ergebnisse als Kommentar. Genehmigt und merged wird nie — das bleibt beim Menschen.
+    description: Prüft jeden offenen Pull Request einmal pro neuem Commit und kommentiert die Ergebnisse. Genehmigt und gemergt wird nie.
   fr:
     name: Examiner les pull requests GitHub
-    description: Examine régulièrement chaque pull request ouverte et publie ses conclusions en commentaire. Jamais d'approbation ni de fusion — cela reste humain.
+    description: Examine chaque pull request ouverte une fois par nouveau commit et commente ses conclusions. Jamais d’approbation ni de fusion.
+template:
+  details: >-
+    On the schedule you set — every 30 minutes to start with — the automation
+    looks at the repository's open pull requests and reviews the ones this
+    GitHub account has not reviewed at their newest commit. A language model
+    reads each diff, cut to the size you choose, and its findings are posted
+    as a comment pinned to that commit. A new push makes the pull request due
+    again. Drafts and the account's own pull requests are left out, and one
+    run reviews at most the number you set; the rest wait for the next run.
+  i18n:
+    de:
+      details: >-
+        Nach dem gewählten Zeitplan — anfangs alle 30 Minuten — sieht sich die
+        Automatisierung die offenen Pull Requests des Repositorys an und prüft
+        die, die dieses GitHub-Konto bei ihrem neuesten Commit noch nicht
+        geprüft hat. Ein Sprachmodell liest jeden Diff, gekürzt auf die
+        gewählte Größe, und seine Ergebnisse erscheinen als Kommentar zu
+        diesem Commit. Ein neuer Push macht den Pull Request wieder fällig.
+        Entwürfe und die eigenen Pull Requests des Kontos bleiben außen vor,
+        und ein Lauf prüft höchstens die gewählte Anzahl; der Rest wartet auf
+        den nächsten Lauf.
+    fr:
+      details: >-
+        Selon l’horaire choisi — toutes les 30 minutes pour commencer —, l’automatisation parcourt les pull requests ouvertes du dépôt et examine celles que ce compte GitHub n’a pas encore examinées à leur dernier commit. Un modèle de langage lit chaque diff, coupé à la taille choisie, et ses conclusions sont publiées en commentaire rattaché à ce commit. Un nouveau push rend la pull request à nouveau due. Les brouillons et les pull requests du compte lui-même sont laissés de côté, et une exécution en examine au plus le nombre choisi ; les autres attendent la suivante.
+  steps:
+    - title: Finds the pull requests due a review
+      detail: Open pull requests this GitHub account has not reviewed at their newest commit; drafts and its own are left out.
+      i18n:
+        de:
+          title: Findet die fälligen Pull Requests
+          detail: Offene Pull Requests, die dieses GitHub-Konto bei ihrem neuesten Commit noch nicht geprüft hat; Entwürfe und eigene bleiben außen vor.
+        fr:
+          title: Trouve les pull requests à examiner
+          detail: Les pull requests ouvertes que ce compte GitHub n’a pas examinées à leur dernier commit ; brouillons et pull requests du compte exclus.
+    - title: Reads each diff
+      detail: Cut to the size you choose, so one huge change cannot fill the prompt.
+      i18n:
+        de:
+          title: Liest jeden Diff
+          detail: Gekürzt auf die gewählte Größe, damit eine riesige Änderung den Prompt nicht füllt.
+        fr:
+          title: Lit chaque diff
+          detail: Coupé à la taille choisie, pour qu’un changement énorme ne remplisse pas le prompt.
+    - title: Reviews it with a language model
+      detail: Concrete problems with the file and the reason, or a one-line all-clear.
+      i18n:
+        de:
+          title: Prüft ihn mit einem Sprachmodell
+          detail: Konkrete Probleme mit Datei und Grund, oder eine einzeilige Entwarnung.
+        fr:
+          title: L’examine avec un modèle de langage
+          detail: Des problèmes concrets avec le fichier et la raison, ou un feu vert en une ligne.
+    - title: Comments the review on the pull request
+      detail: Pinned to the commit it read; a pull request it could not finish comes back in the next run.
+      i18n:
+        de:
+          title: Kommentiert das Ergebnis im Pull Request
+          detail: Bezogen auf den gelesenen Commit; ein Pull Request, der nicht fertig wurde, kommt im nächsten Lauf wieder.
+        fr:
+          title: Commente l’examen sur la pull request
+          detail: Rattaché au commit lu ; une pull request qu’il n’a pas pu terminer revient à l’exécution suivante.
+  outcomes:
+    - kind: creates
+      text: A review comment on each pull request, once per new commit.
+      i18n:
+        de:
+          text: Einen Review-Kommentar pro Pull Request, einmal pro neuem Commit.
+        fr:
+          text: Un commentaire d’examen sur chaque pull request, une fois par nouveau commit.
+    - kind: never
+      text: Never approves, requests changes or merges — a person decides.
+      i18n:
+        de:
+          text: Genehmigt nie, fordert nie Änderungen an und mergt nie — das entscheidet ein Mensch.
+        fr:
+          text: N’approuve jamais, ne demande jamais de modifications et ne fusionne jamais — une personne décide.
+    - kind: never
+      text: Never reviews drafts or the account's own pull requests.
+      i18n:
+        de:
+          text: Prüft nie Entwürfe oder die eigenen Pull Requests des Kontos.
+        fr:
+          text: N’examine jamais les brouillons ni les pull requests du compte lui-même.
+  fields:
+    - id: credential
+      kind: credential
+      connector: github
+      label: GitHub account
+      description: The connected GitHub account that reads the pull requests and posts the reviews; its reviews are the ones it counts.
+      writes:
+        - node: queue
+          pointer: /credential
+        - node: diff
+          pointer: /credential
+        - node: post
+          pointer: /credential
+      i18n:
+        de:
+          label: GitHub-Konto
+          description: Das verbundene GitHub-Konto, das die Pull Requests liest und die Reviews veröffentlicht; es zählt seine eigenen Reviews.
+        fr:
+          label: Compte GitHub
+          description: Le compte GitHub connecté qui lit les pull requests et publie les examens ; ce sont ses examens qu’il compte.
+    - id: owner
+      kind: text
+      label: Owner
+      description: The user or organization that owns the repository.
+      placeholder: octocat
+      maxLength: 39
+      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$'
+      writes:
+        - trigger: true
+          pointer: /input/owner
+      i18n:
+        de:
+          label: Besitzer
+          description: Der Benutzer oder die Organisation, der das Repository gehört.
+          placeholder: octocat
+        fr:
+          label: Propriétaire
+          description: L’utilisateur ou l’organisation à qui appartient le dépôt.
+          placeholder: octocat
+    - id: repo
+      kind: text
+      label: Repository
+      description: The repository whose pull requests are reviewed.
+      placeholder: hello-world
+      maxLength: 100
+      pattern: '^[A-Za-z0-9._-]{1,100}$'
+      writes:
+        - trigger: true
+          pointer: /input/repo
+      i18n:
+        de:
+          label: Repository
+          description: Das Repository, dessen Pull Requests geprüft werden.
+          placeholder: hello-world
+        fr:
+          label: Dépôt
+          description: Le dépôt dont les pull requests sont examinées.
+          placeholder: hello-world
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the open pull requests are looked at.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft die offenen Pull Requests angesehen werden.
+        fr:
+          label: Quand
+          description: À quelle fréquence les pull requests ouvertes sont parcourues.
+    - id: limit
+      kind: number
+      label: Pull requests per run
+      description: The most pull requests one run reviews; the others wait for the next run.
+      min: 1
+      max: 10
+      default: 5
+      writes:
+        - trigger: true
+          pointer: /input/limit
+      i18n:
+        de:
+          label: Pull Requests pro Lauf
+          description: Höchstens so viele Pull Requests prüft ein Lauf; die übrigen warten auf den nächsten.
+        fr:
+          label: Pull requests par exécution
+          description: Le nombre maximal de pull requests qu’une exécution examine ; les autres attendent la suivante.
+    - id: maxDiffChars
+      kind: number
+      label: Diff size read, in characters
+      description: A longer diff is cut there, and the review says what it did not read. Bigger costs more per review.
+      min: 1000
+      max: 100000
+      default: 30000
+      writes:
+        - trigger: true
+          pointer: /input/maxDiffChars
+      i18n:
+        de:
+          label: Gelesene Diff-Größe in Zeichen
+          description: Ein längerer Diff wird dort gekürzt, und das Review sagt, was es nicht gelesen hat. Mehr kostet mehr pro Review.
+        fr:
+          label: Taille de diff lue, en caractères
+          description: Un diff plus long est coupé là, et l’examen indique ce qu’il n’a pas lu. Plus grand coûte plus par examen.

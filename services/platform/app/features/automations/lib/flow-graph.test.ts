@@ -4,9 +4,9 @@ import path from 'node:path';
 import { validateFlowGraph } from '@tale/ui/flow/types';
 import type { FlowGraph, FlowStepNode } from '@tale/ui/flow/types';
 import {
-  reviewPullRequestsFlowGraph,
-  triageFlowGraph,
-  triageInboxFlowGraph,
+  shippedReviewPullRequestsFlowGraph,
+  shippedTriageInboxFlowGraph,
+  shippedTriageIssuesFlowGraph,
 } from '@tale/ui/testing/flow';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -106,39 +106,43 @@ const doc = (...nodes: NodeDef[]): Automation => ({ name: 'test', nodes });
 describe('toFlowGraph on the shipped automations', () => {
   it('draws Triage GitHub issues as the flow fixture the layout is proven on', () => {
     const { graph } = build(shipped('github/triage-issues'));
-    expect(structure(graph)).toEqual(structure(triageFlowGraph()));
-    expect(graph.groups?.[0]?.label).toBe(
-      'For each item of issues of Open issues',
-    );
+    expect(structure(graph)).toEqual(structure(shippedTriageIssuesFlowGraph()));
+    expect(graph.groups?.[0]?.label).toBe('For each item of issues of Batch');
     expect(step(graph, 'issues')).toMatchObject({
       label: 'Issues',
       typeLabel: 'GitHub · List issues',
-      reads: [{ id: 'input', label: 'run input (owner, repo, limit)' }],
+      reads: [
+        { id: 'position', label: 'Position' },
+        { id: 'input', label: 'run input (owner, repo)' },
+      ],
     });
-    expect(step(graph, 'open_issues').reads?.map((row) => row.label)).toEqual([
+    expect(step(graph, 'batch').reads?.map((row) => row.label)).toEqual([
+      'Position',
       'Issues',
       'run input (limit)',
     ]);
     expect(step(graph, 'score')).toMatchObject({
       typeLabel: 'Language model · anthropic/claude-haiku-4-5',
       reads: [
-        { id: 'open_issues', label: 'Open issues' },
+        { id: 'batch', label: 'Batch' },
         { id: 'item', label: 'each item' },
       ],
     });
-    expect(
-      graph.edges.find((edge) => edge.id === 'issues>open_issues')?.detail,
-    ).toBe('Carries .issues');
+    expect(graph.edges.find((edge) => edge.id === 'issues>batch')?.detail).toBe(
+      'Carries .issues',
+    );
   });
 
   it('frames each of the three nodes that walk the pull requests', () => {
     const { graph } = build(shipped('github/review-pull-requests'));
-    expect(structure(graph)).toEqual(structure(reviewPullRequestsFlowGraph()));
+    expect(structure(graph)).toEqual(
+      structure(shippedReviewPullRequestsFlowGraph()),
+    );
   });
 
-  it('puts an only-if condition above Triage and a chip on Propose', () => {
+  it('puts an only-if condition above Triage and another above the stamp', () => {
     const { graph } = build(shipped('gmail/triage-inbox'));
-    expect(structure(graph)).toEqual(structure(triageInboxFlowGraph()));
+    expect(structure(graph)).toEqual(structure(shippedTriageInboxFlowGraph()));
     const gate = graph.nodes.find((node) => node.id === gateIdOf('triage'));
     expect(gate).toMatchObject({
       kind: 'gate',
@@ -146,11 +150,24 @@ describe('toFlowGraph on the shipped automations', () => {
       condition: 'conversations of Inbox is not empty',
       decisionKey: 'when:triage',
     });
-    expect(step(graph, 'propose').chips).toEqual([
-      { id: 'onError', label: 'Continues on error', tone: 'error' },
-    ]);
-    // Every node below the condition may be skipped with it.
-    for (const id of ['triage', 'record', 'due', 'draft', 'propose']) {
+    expect(
+      graph.nodes.find((node) => node.id === gateIdOf('record')),
+    ).toMatchObject({
+      kind: 'gate',
+      mode: 'only-if',
+      condition: 'verdicts of Settle is not empty',
+      decisionKey: 'when:record',
+    });
+    // Every node below the first condition may be skipped with it.
+    for (const id of [
+      'triage',
+      'due',
+      'draft',
+      'drafts',
+      'propose',
+      'settle',
+      'record',
+    ]) {
       expect(step(graph, id).conditional).toBe(true);
     }
     expect(step(graph, 'inbox').conditional).toBeUndefined();
@@ -158,13 +175,12 @@ describe('toFlowGraph on the shipped automations', () => {
 
   it('reads the same in German, verb last', () => {
     const { graph } = build(shipped('gmail/triage-inbox'), {}, 'de');
-    const gate = graph.nodes.find((node) => node.id === gateIdOf('triage'));
-    expect(gate).toMatchObject({
-      condition: 'conversations von Inbox nicht leer ist',
-    });
-    expect(step(graph, 'propose').chips?.[0]?.label).toBe(
-      'Läuft bei Fehler weiter',
-    );
+    expect(
+      graph.nodes.find((node) => node.id === gateIdOf('triage')),
+    ).toMatchObject({ condition: 'conversations von Inbox nicht leer ist' });
+    expect(
+      graph.nodes.find((node) => node.id === gateIdOf('record')),
+    ).toMatchObject({ condition: 'verdicts von Settle nicht leer ist' });
   });
 });
 
@@ -393,7 +409,7 @@ describe('Start and End', () => {
     expect(start.inputs.map((row) => `${row.label}: ${row.detail}`)).toEqual([
       'owner: text · required',
       'repo: text · required',
-      'limit: a number',
+      'limit: a whole number',
       'trigger: text · from the trigger',
       'firedAt: a number · from the trigger',
     ]);
@@ -408,7 +424,7 @@ describe('Start and End', () => {
   });
 
   it('names the node the output is, and counts what stops a run', () => {
-    const { graph } = build(shipped('github/triage-issues'));
+    const { graph } = build(shipped('github/review-pull-requests'));
     const end = graph.nodes.at(-1);
     expect(end).toMatchObject({
       kind: 'exit',
@@ -417,7 +433,7 @@ describe('Start and End', () => {
     if (end?.kind !== 'exit') return;
     expect(end.outcomes?.map((row) => `${row.label} ${row.detail}`)).toEqual([
       'Succeeded returns the output',
-      'Failed when one of 4 nodes fails',
+      'Failed when one of 7 nodes fails',
       'Stopped when someone stops it',
     ]);
   });
@@ -431,7 +447,8 @@ describe('Start and End', () => {
       'summary: from Triage · may be empty',
       'recorded: from Record · may be empty',
       'needsReply: from Due · may be empty',
-      'drafted: from Propose · may be empty',
+      'drafted: from Settle · may be empty',
+      'unstamped: from Settle · may be empty',
     ]);
     expect(end.notice).toEqual({
       tone: 'info',

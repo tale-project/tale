@@ -1,6 +1,7 @@
 name: Answer questions from your documents
 description: Answers each new task of a project that asks a question, from the organization's documents, as a comment.
 icon: book-open
+category: tasks
 scope: project
 requires:
   connectors:
@@ -33,6 +34,49 @@ template:
     fr:
       details: >-
         Quand une tâche est créée dans le projet choisi et que son titre se termine par un point d’interrogation, l’automatisation cherche dans les documents de l’organisation et commente une réponse tirée uniquement de ce qu’elle a trouvé, en citant ses sources — ou dit clairement que les documents n’y répondent pas. Les autres nouvelles tâches ne sont pas touchées.
+  steps:
+    - title: Reads each new task of the project
+      detail: Only a task whose title ends with a question mark counts as a question; any other is left alone.
+      i18n:
+        de:
+          title: Liest jede neue Aufgabe des Projekts
+          detail: Nur eine Aufgabe, deren Titel mit einem Fragezeichen endet, gilt als Frage; alle anderen bleiben unberührt.
+        fr:
+          title: Lit chaque nouvelle tâche du projet
+          detail: Seule une tâche dont le titre se termine par un point d’interrogation compte comme une question ; les autres ne sont pas touchées.
+    - title: Searches the organization's documents
+      detail: It looks for the passages that answer the question.
+      i18n:
+        de:
+          title: Durchsucht die Dokumente der Organisation
+          detail: Sie sucht die Stellen, die die Frage beantworten.
+        fr:
+          title: Cherche dans les documents de l’organisation
+          detail: Elle cherche les passages qui répondent à la question.
+    - title: Comments the answer with its sources
+      detail: The answer draws only on what it found; when nothing answers the question, the comment says so.
+      i18n:
+        de:
+          title: Kommentiert die Antwort mit ihren Quellen
+          detail: Die Antwort beruht nur auf dem Gefundenen; beantwortet nichts die Frage, sagt der Kommentar das.
+        fr:
+          title: Commente la réponse avec ses sources
+          detail: La réponse s’appuie uniquement sur ce qu’elle a trouvé ; si rien n’y répond, le commentaire le dit.
+  outcomes:
+    - kind: creates
+      text: A comment with the answer and its sources on each task that asks a question.
+      i18n:
+        de:
+          text: Einen Kommentar mit der Antwort und ihren Quellen an jeder Aufgabe, die eine Frage stellt.
+        fr:
+          text: Un commentaire avec la réponse et ses sources sur chaque tâche qui pose une question.
+    - kind: never
+      text: Never changes the task itself.
+      i18n:
+        de:
+          text: Ändert nie die Aufgabe selbst.
+        fr:
+          text: Ne modifie jamais la tâche elle-même.
   fields:
     - id: project
       kind: project

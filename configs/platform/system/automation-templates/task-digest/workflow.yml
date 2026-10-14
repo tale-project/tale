@@ -1,10 +1,20 @@
-# Every morning, the tasks created in the project during the 24 hours
-# before the run are sent to a member as one message, a line each, with a
-# link to the project's tasks. A day without new tasks sends nothing. It
-# only reads the project.
+# Every morning, the tasks created in the project since the last digest are
+# sent to a member as one message, a line each, oldest first, with a link to
+# the project's tasks. A run without new tasks sends nothing. It only reads
+# the project.
+#
+# The digest keeps its place (automation.read_position / save_position): the
+# window runs from where the last digest that reached its end left off to the
+# occurrence this run is for (now, for a run started by hand), and the listing
+# takes the tasks created in it, oldest first, at most 50. When more were
+# created than one digest holds, the place is the last task it listed, and
+# the next digest carries on behind it. So a schedule moved to another hour,
+# days the server was down, a failed digest or a busy week lists every task
+# exactly once. The place is saved last: a run that fails before its end keeps
+# it where it was. A first digest looks back one day.
 version: 1
 name: task-digest
-description: Send a member the tasks created in a project during the last day.
+description: Send a member the tasks created in a project since the last digest.
 inputs:
   type: object
   properties:
@@ -17,17 +27,32 @@ inputs:
       type: number
       description: Epoch-ms occurrence the schedule fired for.
 nodes:
+  - id: place
+    type: automation.read_position
+    input:
+      key: window
+
   - id: window
     type: transform
     input:
       firedAt: '{{ input.firedAt }}'
+      saved: '{{ nodes.place.output.value }}'
       projectId: the-project
     code: |
-      // A scheduled run looks back from the moment it was due; a run
-      // started by hand, from now.
-      const now = typeof input.firedAt === 'number' ? input.firedAt : Date.now();
+      // The window ends at the occurrence the schedule fired for — a run
+      // started by hand, now. It starts behind the last task the previous
+      // digest listed when that one had more than it could hold, else where
+      // its window ended; the first digest looks back one day. It never runs
+      // backwards: after a digest whose window ended later, it is empty.
+      const day = 24 * 60 * 60 * 1000;
+      const end = typeof input.firedAt === 'number' ? input.firedAt : Date.now();
+      const saved = input.saved !== null && typeof input.saved === 'object' ? input.saved : null;
+      const after = saved !== null && typeof saved.after === 'string' ? saved.after : '';
+      const until = saved !== null && typeof saved.until === 'number' ? saved.until : null;
       return {
-        since: now - 24 * 60 * 60 * 1000,
+        since: after !== '' ? 0 : (until ?? end - day),
+        after,
+        until: Math.max(end, until ?? end),
         link: `/projects/${input.projectId}/tasks`,
       };
 
@@ -35,7 +60,10 @@ nodes:
     type: task.list
     input:
       projectId: the-project
+      order: oldest
       createdSince: '{{ nodes.window.output.since }}'
+      after: '{{ nodes.window.output.after }}'
+      createdBefore: '{{ nodes.window.output.until }}'
       limit: 50
 
   - id: digest
@@ -43,6 +71,8 @@ nodes:
     input:
       tasks: '{{ nodes.tasks.output.tasks }}'
       more: '{{ nodes.tasks.output.hasMore }}'
+      next: '{{ nodes.tasks.output.next }}'
+      until: '{{ nodes.window.output.until }}'
     code: |
       const tasks = Array.isArray(input.tasks) ? input.tasks : [];
       const lines = tasks.map((task) => {
@@ -50,8 +80,15 @@ nodes:
         const who = task.assignee && task.assignee.name ? ` · ${task.assignee.name}` : '';
         return `${number}${task.title}${who}`;
       });
-      if (input.more === true) lines.push('…');
-      return { count: tasks.length, message: lines.join('\n') };
+      // More than one digest holds: the next one carries on behind the last
+      // task listed here.
+      const more = input.more === true && typeof input.next === 'string';
+      if (more) lines.push('…');
+      return {
+        count: tasks.length,
+        message: lines.join('\n'),
+        position: more ? { until: input.until, after: input.next } : { until: input.until },
+      };
 
   - id: notify
     type: notify.member
@@ -62,28 +99,125 @@ nodes:
       title: New tasks
       message: '{{ nodes.digest.output.message }}'
       link: '{{ nodes.window.output.link }}'
+
+  # Last: a run that fails before here keeps the place where it was.
+  - id: save
+    type: automation.save_position
+    input:
+      key: window
+      value: '{{ nodes.digest.output.position }}'
+      revision: '{{ nodes.place.output.revision }}'
 output:
   count: '{{ nodes.digest.output.count }}'
+  windowEnd: '{{ nodes.window.output.until }}'
+  more: '{{ nodes.tasks.output.hasMore }}'
 tests:
-  - name: the day's new tasks reach the member in one message
+  - name: a first digest lists the day before its occurrence and keeps its end
     input:
       trigger: schedule
       firedAt: 1791000000000
     expect:
       output:
         count: 1
+        windowEnd: 1791000000000
+        more: false
       # The recipient, the title and the project are the creator's answers.
       effects:
         - connector: notify.member
           node: notify
           inputIncludes:
             message: '#7 · Draft the launch announcement · Mock Member'
-  - name: a run started by hand looks back from now
-    input: {}
+        - connector: automation.save_position
+          node: save
+          input:
+            key: window
+            value:
+              until: 1791000000000
+            revision: '0'
+  - name: the next digest carries on where the last one ended, however long ago
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    mocks:
+      place:
+        value:
+          until: 1790740800000
+        revision: '4'
     expect:
       output:
         count: 1
-  - name: a day without new tasks sends nothing
+        windowEnd: 1791000000000
+        more: false
+      effects:
+        - connector: automation.save_position
+          node: save
+          input:
+            key: window
+            value:
+              until: 1791000000000
+            revision: '4'
+  - name: a digest with more tasks than it holds carries on behind its last one
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    mocks:
+      tasks:
+        tasks:
+          - taskId: tsk_mock_1
+            number: 7
+            title: Draft the launch announcement
+            status: todo
+            priority: p1
+            assignee: null
+            dueDate: null
+            createdAt: '2026-10-10T08:00:00.000Z'
+            url: /dashboard/org_mock/projects/the-project/tasks?task=tsk_mock_1
+        hasMore: true
+        next: '1791000000000:tsk_mock_1'
+    expect:
+      output:
+        count: 1
+        windowEnd: 1791000000000
+        more: true
+      effects:
+        - connector: notify.member
+          node: notify
+          inputIncludes:
+            message: "#7 · Draft the launch announcement\n…"
+        - connector: automation.save_position
+          node: save
+          inputIncludes:
+            value:
+              until: 1791000000000
+              after: '1791000000000:tsk_mock_1'
+  - name: a digest whose window another digest already covered sends nothing
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    mocks:
+      place:
+        value:
+          until: 1791000300000
+        revision: '9'
+      tasks:
+        tasks: []
+        hasMore: false
+        next: null
+    expect:
+      output:
+        count: 0
+        windowEnd: 1791000300000
+        more: false
+      effects:
+        - connector: notify.member
+          node: notify
+          absent: true
+  - name: a run started by hand looks back from now
+    input: {}
+    expect:
+      outputIncludes:
+        count: 1
+  - name: a day without new tasks sends nothing, and still moves its place
     input:
       trigger: schedule
       firedAt: 1791000000000
@@ -91,10 +225,18 @@ tests:
       tasks:
         tasks: []
         hasMore: false
+        next: null
     expect:
       output:
         count: 0
+        windowEnd: 1791000000000
+        more: false
       effects:
         - connector: notify.member
           node: notify
           absent: true
+        - connector: automation.save_position
+          node: save
+          inputIncludes:
+            value:
+              until: 1791000000000

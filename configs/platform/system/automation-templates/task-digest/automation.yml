@@ -1,11 +1,13 @@
 name: Daily task digest
-description: Sends a member the tasks created in a project during the last day, every morning.
+description: Sends a member the tasks created in a project since the last digest, every morning.
 icon: newspaper
+category: notifications
 scope: project
 requires:
   connectors:
     - task
     - notify
+    - automation
 triggers:
   - kind: schedule
     repeat:
@@ -17,27 +19,78 @@ triggers:
 i18n:
   de:
     name: Tägliche Aufgabenübersicht
-    description: Schickt einem Mitglied jeden Morgen die Aufgaben, die am Vortag in einem Projekt erstellt wurden.
+    description: Schickt einem Mitglied jeden Morgen die Aufgaben, die seit der letzten Übersicht in einem Projekt erstellt wurden.
   fr:
     name: Récapitulatif quotidien des tâches
     description: >-
-      Envoie chaque matin à un membre les tâches créées la veille dans un projet.
+      Envoie chaque matin à un membre les tâches créées dans un projet depuis le dernier récapitulatif.
 template:
   details: >-
     On the schedule you set — every day at 09:00 to start with — the automation lists the tasks
-    created in the project you pick during the 24 hours before the run, and the member you
-    choose gets them as one message in Tale, a line each, with a link to the project's tasks.
-    A day without new tasks sends nothing.
+    created in the project you pick since the last digest, and the member you choose gets them
+    as one message in Tale, a line each, with a link to the project's tasks. Each digest starts
+    where the last one that was sent ended, so a schedule moved to another hour, a digest that
+    failed, or days the server was down never miss a task or send one twice; the first digest
+    looks back one day. A digest lists 50 tasks at most, oldest first: after a busy stretch the
+    next one carries on behind its last task. A digest without new tasks sends nothing.
   i18n:
     de:
       details: >-
         Nach dem gewählten Zeitplan — anfangs jeden Tag um 09:00 — listet die Automatisierung
-        die Aufgaben, die in den 24 Stunden vor dem Lauf im gewählten Projekt erstellt wurden,
-        und das gewählte Mitglied bekommt sie als eine Nachricht in Tale, je eine Zeile, mit
-        einem Link zu den Aufgaben des Projekts. Ein Tag ohne neue Aufgaben sendet nichts.
+        die Aufgaben, die seit der letzten Übersicht im gewählten Projekt erstellt wurden, und
+        das gewählte Mitglied bekommt sie als eine Nachricht in Tale, je eine Zeile, mit einem
+        Link zu den Aufgaben des Projekts. Jede Übersicht beginnt dort, wo die letzte gesendete
+        endete: Ein verschobener Zeitplan, eine gescheiterte Übersicht oder Tage, an denen der
+        Server stillstand, lassen keine Aufgabe aus und senden keine doppelt; die erste
+        Übersicht blickt einen Tag zurück. Eine Übersicht listet höchstens 50 Aufgaben, in der
+        Reihenfolge ihrer Erstellung: Nach einer arbeitsreichen Zeit macht die nächste hinter
+        ihrer letzten Aufgabe weiter. Eine Übersicht ohne neue Aufgaben sendet nichts.
     fr:
       details: >-
-        Selon l’horaire choisi — chaque jour à 09:00 pour commencer —, l’automatisation liste les tâches créées dans le projet choisi au cours des 24 heures précédant l’exécution, et le membre choisi les reçoit en un seul message dans Tale, une ligne chacune, avec un lien vers les tâches du projet. Un jour sans nouvelle tâche n’envoie rien.
+        Selon l’horaire choisi — chaque jour à 09:00 pour commencer —, l’automatisation liste les tâches créées dans le projet choisi depuis le dernier récapitulatif, et le membre choisi les reçoit en un seul message dans Tale, une ligne chacune, avec un lien vers les tâches du projet. Chaque récapitulatif commence là où le dernier envoyé s’est arrêté : un horaire déplacé, un récapitulatif qui a échoué ou des jours où le serveur était arrêté ne font jamais manquer une tâche ni ne l’envoient deux fois ; le premier récapitulatif remonte d’un jour. Un récapitulatif liste 50 tâches au plus, les plus anciennes d’abord : après une période chargée, le suivant reprend derrière sa dernière tâche. Un récapitulatif sans nouvelle tâche n’envoie rien.
+  steps:
+    - title: Lists the project's new tasks
+      detail: The tasks created in the project you pick since the last digest was sent; the first digest looks back one day.
+      i18n:
+        de:
+          title: Listet die neuen Aufgaben des Projekts
+          detail: Die Aufgaben, die seit der letzten gesendeten Übersicht im gewählten Projekt erstellt wurden; die erste blickt einen Tag zurück.
+        fr:
+          title: Liste les nouvelles tâches du projet
+          detail: Les tâches créées dans le projet choisi depuis le dernier récapitulatif envoyé ; le premier remonte d’un jour.
+    - title: Writes one line per task
+      detail: With a link to the project's tasks.
+      i18n:
+        de:
+          title: Schreibt je Aufgabe eine Zeile
+          detail: Mit einem Link zu den Aufgaben des Projekts.
+        fr:
+          title: Écrit une ligne par tâche
+          detail: Avec un lien vers les tâches du projet.
+    - title: Sends the digest to a member
+      detail: A digest without new tasks sends nothing.
+      i18n:
+        de:
+          title: Schickt die Übersicht an ein Mitglied
+          detail: Eine Übersicht ohne neue Aufgaben sendet nichts.
+        fr:
+          title: Envoie le récapitulatif à un membre
+          detail: Un récapitulatif sans nouvelle tâche n’envoie rien.
+  outcomes:
+    - kind: sends
+      text: One message with the new tasks to the member you choose.
+      i18n:
+        de:
+          text: Eine Nachricht mit den neuen Aufgaben an das gewählte Mitglied.
+        fr:
+          text: Un message avec les nouvelles tâches au membre choisi.
+    - kind: never
+      text: Never changes a task.
+      i18n:
+        de:
+          text: Ändert nie eine Aufgabe.
+        fr:
+          text: Ne modifie jamais une tâche.
   fields:
     - id: project
       kind: project
@@ -72,14 +125,14 @@ template:
     - id: schedule
       kind: schedule
       label: When
-      description: When the digest is sent; it lists the tasks of the 24 hours before.
+      description: When the digest is sent; it lists the tasks created since the last one.
       i18n:
         de:
           label: Wann
-          description: Wann die Übersicht gesendet wird; sie listet die Aufgaben der 24 Stunden davor.
+          description: Wann die Übersicht gesendet wird; sie listet die Aufgaben, die seit der letzten erstellt wurden.
         fr:
           label: Quand
-          description: Quand le récapitulatif est envoyé ; il liste les tâches des 24 heures précédentes.
+          description: Quand le récapitulatif est envoyé ; il liste les tâches créées depuis le précédent.
     - id: title
       kind: text
       label: Message title

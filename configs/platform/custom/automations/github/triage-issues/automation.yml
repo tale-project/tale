@@ -2,8 +2,9 @@
 # The directory path is the slug (`github/triage-issues`); `workflow.yml` beside
 # this file is the document that runs.
 name: Triage GitHub issues
-description: Scores a repository's open GitHub issues on a schedule and ranks the ones that are ready to be worked. It reads only — nothing is written back to GitHub.
-icon: list-checks
+description: Scores a repository's open GitHub issues as they change and tells a member which ones are ready to be worked. It writes nothing to GitHub.
+icon: brand:github
+category: issues
 labels:
   - GitHub
   - Issues
@@ -11,10 +12,11 @@ scope: org
 requires:
   connectors:
     - github
+    - automation
+    - notify
 triggers:
-  # Off until a person names the repository: the workflow requires `owner`
-  # and `repo`, which a schedule never sends, so they go in the trigger's
-  # fixed input before it is turned on.
+  # The repository and the batch are the trigger's fixed input: the
+  # template's questions replace these placeholders, and every run gets them.
   - kind: schedule
     enabled: false
     repeat:
@@ -23,10 +25,205 @@ triggers:
       times:
         - '07:00'
     timezone: UTC
+    input:
+      owner: your-organization
+      repo: your-repository
+      limit: 20
 i18n:
   de:
     name: GitHub-Issues sichten
-    description: Bewertet regelmäßig die offenen GitHub-Issues eines Repositorys und ordnet die umsetzbaren nach Priorität. Es wird nur gelesen — nichts wird nach GitHub zurückgeschrieben.
+    description: Bewertet die offenen GitHub-Issues eines Repositorys, sobald sie sich ändern, und sagt einem Mitglied, welche umsetzbar sind. Nach GitHub wird nichts geschrieben.
   fr:
     name: Trier les issues GitHub
-    description: Évalue régulièrement les issues GitHub ouvertes d'un dépôt et classe celles qui sont prêtes à être traitées. En lecture seule — rien n'est réécrit sur GitHub.
+    description: Évalue les issues GitHub ouvertes d’un dépôt quand elles changent et dit à un membre lesquelles sont prêtes à être traitées. Rien n’est écrit sur GitHub.
+template:
+  details: >-
+    On the schedule you set — every morning at 07:00 to start with — the
+    automation reads the repository's open issues that changed since its last
+    good run, a language model scores each one, and the member you choose gets
+    the ones ready to be worked in one message, most urgent first, with the
+    reason for each. Its first run looks at the most recently changed issues;
+    after that, an issue is scored again only when it changes. One run scores
+    at most the number you set; the rest wait for the next run. Nothing is
+    written to GitHub.
+  i18n:
+    de:
+      details: >-
+        Nach dem gewählten Zeitplan — anfangs jeden Morgen um 07:00 — liest die
+        Automatisierung die offenen Issues des Repositorys, die sich seit ihrem
+        letzten erfolgreichen Lauf geändert haben, ein Sprachmodell bewertet
+        jedes, und das gewählte Mitglied bekommt die umsetzbaren in einer
+        Nachricht, die dringendsten zuerst, mit dem Grund für jedes. Der erste
+        Lauf sieht sich die zuletzt geänderten Issues an; danach wird ein Issue
+        nur neu bewertet, wenn es sich ändert. Ein Lauf bewertet höchstens die
+        gewählte Anzahl; der Rest wartet auf den nächsten Lauf. Nach GitHub wird
+        nichts geschrieben.
+    fr:
+      details: >-
+        Selon l’horaire choisi — chaque matin à 07:00 pour commencer —, l’automatisation lit les issues ouvertes du dépôt qui ont changé depuis sa dernière exécution réussie, un modèle de langage évalue chacune, et le membre choisi reçoit celles qui sont prêtes à être traitées en un message, les plus urgentes d’abord, avec la raison de chacune. Sa première exécution regarde les issues modifiées le plus récemment ; ensuite, une issue n’est réévaluée que lorsqu’elle change. Une exécution en évalue au plus le nombre choisi ; les autres attendent la suivante. Rien n’est écrit sur GitHub.
+  steps:
+    - title: Picks up where the last good run stopped
+      detail: The issues changed since then, oldest change first; the first run starts with the most recent ones.
+      i18n:
+        de:
+          title: Macht dort weiter, wo der letzte gute Lauf aufhörte
+          detail: Die seither geänderten Issues, die älteste Änderung zuerst; der erste Lauf beginnt mit den neuesten.
+        fr:
+          title: Reprend là où la dernière bonne exécution s’est arrêtée
+          detail: Les issues modifiées depuis, la plus ancienne modification d’abord ; la première exécution commence par les plus récentes.
+    - title: Scores each issue with a language model
+      detail: Whether it is concrete, startable work, how urgent it is, and why.
+      i18n:
+        de:
+          title: Bewertet jedes Issue mit einem Sprachmodell
+          detail: Ob es konkrete, startbare Arbeit ist, wie dringend es ist, und warum.
+        fr:
+          title: Évalue chaque issue avec un modèle de langage
+          detail: Si c’est un travail concret qu’on peut commencer, son urgence, et pourquoi.
+    - title: Tells the member the ones ready to be worked
+      detail: One message, most urgent first, with a link to the repository's issues.
+      i18n:
+        de:
+          title: Sagt dem Mitglied, welche umsetzbar sind
+          detail: Eine Nachricht, die dringendsten zuerst, mit einem Link zu den Issues des Repositorys.
+        fr:
+          title: Dit au membre lesquelles sont prêtes
+          detail: Un seul message, les plus urgentes d’abord, avec un lien vers les issues du dépôt.
+  outcomes:
+    - kind: sends
+      text: A message in Tale to the member you choose, when issues are ready to be worked.
+      i18n:
+        de:
+          text: Eine Nachricht in Tale an das gewählte Mitglied, wenn Issues umsetzbar sind.
+        fr:
+          text: Un message dans Tale au membre choisi, quand des issues sont prêtes à être traitées.
+    - kind: creates
+      text: A ranked shortlist in the run's output.
+      i18n:
+        de:
+          text: Eine priorisierte Auswahl in der Ausgabe des Laufs.
+        fr:
+          text: Une sélection classée dans la sortie de l’exécution.
+    - kind: never
+      text: Never writes to GitHub, and never scores an unchanged issue twice.
+      i18n:
+        de:
+          text: Schreibt nie nach GitHub und bewertet ein unverändertes Issue nie zweimal.
+        fr:
+          text: N’écrit jamais sur GitHub et n’évalue jamais deux fois une issue inchangée.
+  worksWith:
+    - github/sync-issues
+  fields:
+    - id: credential
+      kind: credential
+      connector: github
+      label: GitHub account
+      description: The connected GitHub account that reads the issues.
+      writes:
+        - node: issues
+          pointer: /credential
+      i18n:
+        de:
+          label: GitHub-Konto
+          description: Das verbundene GitHub-Konto, das die Issues liest.
+        fr:
+          label: Compte GitHub
+          description: Le compte GitHub connecté qui lit les issues.
+    - id: owner
+      kind: text
+      label: Owner
+      description: The user or organization that owns the repository.
+      placeholder: octocat
+      maxLength: 39
+      pattern: '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$'
+      writes:
+        - trigger: true
+          pointer: /input/owner
+      i18n:
+        de:
+          label: Besitzer
+          description: Der Benutzer oder die Organisation, der das Repository gehört.
+          placeholder: octocat
+        fr:
+          label: Propriétaire
+          description: L’utilisateur ou l’organisation à qui appartient le dépôt.
+          placeholder: octocat
+    - id: repo
+      kind: text
+      label: Repository
+      description: The repository whose issues are triaged.
+      placeholder: hello-world
+      maxLength: 100
+      pattern: '^[A-Za-z0-9._-]{1,100}$'
+      writes:
+        - trigger: true
+          pointer: /input/repo
+      i18n:
+        de:
+          label: Repository
+          description: Das Repository, dessen Issues gesichtet werden.
+          placeholder: hello-world
+        fr:
+          label: Dépôt
+          description: Le dépôt dont les issues sont triées.
+          placeholder: hello-world
+    - id: recipient
+      kind: member
+      label: Send to
+      description: Who gets the issues ready to be worked.
+      writes:
+        - node: notify
+          pointer: /input/to
+      i18n:
+        de:
+          label: Senden an
+          description: Wer die umsetzbaren Issues bekommt.
+        fr:
+          label: Envoyer à
+          description: Qui reçoit les issues prêtes à être traitées.
+    - id: schedule
+      kind: schedule
+      label: When
+      description: When the changed issues are triaged.
+      i18n:
+        de:
+          label: Wann
+          description: Wann die geänderten Issues gesichtet werden.
+        fr:
+          label: Quand
+          description: Quand les issues modifiées sont triées.
+    - id: limit
+      kind: number
+      label: Issues per run
+      description: The most issues one run scores; the others wait for the next run.
+      min: 1
+      max: 40
+      default: 20
+      writes:
+        - trigger: true
+          pointer: /input/limit
+      i18n:
+        de:
+          label: Issues pro Lauf
+          description: Höchstens so viele Issues bewertet ein Lauf; die übrigen warten auf den nächsten.
+        fr:
+          label: Issues par exécution
+          description: Le nombre maximal d’issues qu’une exécution évalue ; les autres attendent la suivante.
+    - id: title
+      kind: text
+      label: Message title
+      description: The title of the message the issues arrive in.
+      default: GitHub issues ready to work on
+      maxLength: 120
+      writes:
+        - node: notify
+          pointer: /input/title
+      i18n:
+        de:
+          label: Titel der Nachricht
+          description: Der Titel der Nachricht, in der die Issues ankommen.
+          default: Umsetzbare GitHub-Issues
+        fr:
+          label: Titre du message
+          description: Le titre du message qui apporte les issues.
+          default: Issues GitHub prêtes à être traitées

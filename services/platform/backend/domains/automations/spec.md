@@ -6,7 +6,9 @@ The rules an automation is held to between the editor and a finished run: who ca
 and run it live, what a saved version and a deployment guarantee, what creating from a starter does, what a check for problems
 reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
-to another and what a resumed run never repeats, what a run records of each step, whose
+to another and what a resumed run never repeats, what a step that runs once per item does with
+a failed item, where a scheduled automation carries on, what the shipped templates guarantee, what a run
+records of each step, whose
 approval policy a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
 agent steps and their retries, the rest of approvals and questions inside a run, package upload
 and managed configuration are not covered; see Not yet.
@@ -693,6 +695,75 @@ a retention policy, leaves them as they are.
 - **Example**: Ben's daily digest saved its place on Monday and failed on Tuesday before saving →
   Wednesday's digest starts where Monday's ended, and Tuesday's tasks are not lost.
 
+## What the shipped templates guarantee
+
+The templates Tale ships run on a schedule, a webhook or an event for months without anyone
+watching them, so each says what one run takes, what it does when one item fails, and how the next
+run carries on.
+
+### AUTO-R72 · A shipped template takes no more in one run than one run can finish
+
+Every template that works through a list — pull requests, issues, Inbox threads — bounds how many
+items one run takes, so a run never reaches the run's execution limit; the rest wait for the next
+run. A start that asks for more than the bound is refused (`AUTOMATION_INPUT_INVALID`): 10 pull
+requests, 40 issues, 40 threads.
+
+- **Example**: Ada's repository has 60 pull requests due a review and her reviewer takes 5 a run →
+  each run reviews 5 and succeeds, and the others wait their turn.
+
+### AUTO-R73 · The pull request reviewer reviews each pull request once per new commit
+
+The reviewer reviews an open pull request only when the connected account has not reviewed it at
+its newest commit; drafts and the account's own pull requests are left out. Each review is a
+comment pinned to the commit it read, never an approval. A pull request whose diff cannot be read,
+or whose review fails, is left for the next run while the others are reviewed. A diff is cut at
+the size the template sets, and one GitHub will not render gets a short note instead.
+
+- **Example**: Ben pushes a fix to a pull request the reviewer commented on → the next run reviews
+  the new commit once, and not again until he pushes another.
+
+### AUTO-R74 · Inbox triage marks a thread judged only once its draft waits in it
+
+The triage stamps a thread as judged — the stamp that keeps it out of the next pass until the
+customer writes again — only when the run left a draft in it, or found it needs no reply. A thread
+whose draft could not be left stays unstamped and comes back in the next run, and a thread never
+holds two pending drafts. When no draft at all could be left, the run fails and stamps nothing.
+
+- **Example**: Of three waiting threads, Mia's is closed before its draft is left → the other two
+  are stamped, and Mia's comes back in the next run.
+
+### AUTO-R75 · The task digest lists each new task once, however its schedule moved
+
+The daily task digest lists the tasks created from where the last digest that reached its end
+left off up to the occurrence it runs for, oldest first; a first digest looks back one day. A
+digest holds at most 50 tasks: when more were created, the next digest carries on behind the last
+one listed. A failed digest, a schedule moved to another hour, days the server was down or a busy
+week neither skip a task nor list one twice.
+
+- **Example**: Noah moves his digest from 09:00 to 17:00 → the first afternoon digest lists the
+  tasks created since 09:00 that morning, each once.
+
+### AUTO-R76 · A webhook delivery sent again updates the task it made
+
+Each task the webhook template makes is keyed by its delivery: the value of the field the creator
+names (`id` unless they name another), or a digest of the whole body for a delivery without it. A
+delivery whose key was seen before updates that task instead of making another, even after the
+webhook address stopped remembering the delivery (`AUTO-R9`).
+
+- **Example**: A monitoring system sends alert `a-9` again a week later → the alert's task gets the
+  new title, and the project still holds one task for it.
+
+### AUTO-R77 · Issue triage scores an issue again only once it changed
+
+The issue triage keeps a place per repository (`AUTO-R71`): it scores the open issues changed
+since its last run that reached its end, oldest change first, and a run for another repository
+moves nothing of it. An issue it scored is scored again only after it changes; a run that fails
+keeps no place, so its issues come back. A first run of a repository starts with its most
+recently changed issues.
+
+- **Example**: Ada's triage ran yesterday morning → today it scores only the two issues changed
+  since, and tells Ben the one that is ready to be worked.
+
 ## When a run ends
 
 ### AUTO-R14 · A run that ends takes its open approvals and questions with it
@@ -986,6 +1057,14 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in
   `store.ts`). The project settings of an existing automation refuse an archived project
   (`AUTO-R8`) and answer a project the author cannot read like a missing one.
+- **Inbox triage can draft a thread twice in one narrow case.** A run that left a draft and failed
+  before stamping the thread lets the next run judge it again; when a person discarded that draft
+  in between, the thread gets a second one. The draft writer keeps one pending draft per thread,
+  not one per message (`backend/domains/conversations/draft.ts`, `AUTO-R74`).
+- **A webhook run never sees the delivery's own id.** The `Idempotency-Key` or vendor delivery
+  header keeps a repeat from starting a second run for a day (`AUTO-R9`), but it is not part of
+  the run's input, so the webhook template keys its task by a body field or by the whole body
+  (`AUTO-R76`); adding the header to the trigger's input would refuse every closed input schema.
 - **A webhook's body is never checked when it is saved.** `AUTO-R36` warns about what is known
   before a request comes — a required field the fixed input lacks, a `payload` the inputs do
   not take — but a delivery whose body the inputs refuse is refused only when it comes, and the

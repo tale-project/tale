@@ -1,6 +1,7 @@
 name: Triage new tasks
 description: Comments a suggested priority and first step on each new task of a project.
 icon: list-checks
+category: tasks
 scope: project
 requires:
   connectors:
@@ -31,6 +32,49 @@ template:
     fr:
       details: >-
         Chaque fois qu’une tâche est créée dans le projet choisi, un modèle de langage lit son titre et sa description et commente la tâche : son urgence, pourquoi, et la première étape concrète. Il écrit dans la langue de la tâche et ne change rien d’autre.
+  steps:
+    - title: Reads each new task
+      detail: Its title and description, as soon as it is created in the project you pick.
+      i18n:
+        de:
+          title: Liest jede neue Aufgabe
+          detail: Titel und Beschreibung, sobald sie im gewählten Projekt erstellt wird.
+        fr:
+          title: Lit chaque nouvelle tâche
+          detail: Son titre et sa description, dès qu’elle est créée dans le projet choisi.
+    - title: Judges how soon it needs attention
+      detail: A language model suggests a priority, says why and names the first concrete step.
+      i18n:
+        de:
+          title: Schätzt ein, wie dringend sie ist
+          detail: Ein Sprachmodell schlägt eine Priorität vor, begründet sie und nennt den ersten konkreten Schritt.
+        fr:
+          title: Évalue son urgence
+          detail: Un modèle de langage propose une priorité, explique pourquoi et indique la première étape concrète.
+    - title: Comments the suggestion
+      detail: In the task's language.
+      i18n:
+        de:
+          title: Kommentiert den Vorschlag
+          detail: In der Sprache der Aufgabe.
+        fr:
+          title: Commente la suggestion
+          detail: Dans la langue de la tâche.
+  outcomes:
+    - kind: creates
+      text: A comment with a suggested priority and a first step on each new task.
+      i18n:
+        de:
+          text: Einen Kommentar mit vorgeschlagener Priorität und erstem Schritt an jeder neuen Aufgabe.
+        fr:
+          text: Un commentaire avec une priorité suggérée et une première étape sur chaque nouvelle tâche.
+    - kind: never
+      text: Never changes the task's priority, status or text.
+      i18n:
+        de:
+          text: Ändert nie Priorität, Status oder Text der Aufgabe.
+        fr:
+          text: Ne modifie jamais la priorité, le statut ni le texte de la tâche.
   fields:
     - id: project
       kind: project

@@ -86,24 +86,27 @@ describe('automationPaths', () => {
     ).toEqual([
       [
         'Path 1',
-        '6 of 6 nodes run',
-        ['Triage runs (positive)', 'Propose succeeds (neutral)'],
+        '8 of 8 nodes run',
+        ['Triage runs (positive)', 'Record runs (positive)'],
       ],
       [
         'Path 2',
-        '5 of 6 nodes run',
-        ['Triage runs (positive)', 'Propose fails, the run goes on (error)'],
+        '7 of 8 nodes run',
+        ['Triage runs (positive)', 'Record is skipped (negative)'],
       ],
-      ['Path 3', '1 of 6 nodes runs', ['Triage is skipped (negative)']],
+      ['Path 3', '1 of 8 nodes runs', ['Triage is skipped (negative)']],
     ]);
     expect(list?.footer).toBeUndefined();
     expect(halts?.title).toBe('Ends the run when it fails');
     expect(halts?.rows.map((row) => [row.title, row.pinnable])).toEqual([
       ['Inbox', false],
       ['Triage', false],
-      ['Record', false],
       ['Due', false],
       ['Draft', false],
+      ['Drafts', false],
+      ['Propose', false],
+      ['Settle', false],
+      ['Record', false],
     ]);
   });
 
@@ -112,7 +115,7 @@ describe('automationPaths', () => {
     const [first, second] = flow?.paths ?? [];
     const coverage = new Map([
       [first?.id ?? '', ['triages a reply', 'triages a newsletter']],
-      [second?.id ?? '', ['survives a failed proposal']],
+      [second?.id ?? '', ['stamps nothing when no draft landed']],
     ]);
     const { paths: result } = paths(inbox, { coverage });
     const [list] = result.sections;
@@ -123,7 +126,7 @@ describe('automationPaths', () => {
       }),
     ).toEqual([
       'Tested by triages a reply and triages a newsletter (positive)',
-      'Tested by survives a failed proposal (positive)',
+      'Tested by stamps nothing when no draft landed (positive)',
       'Not tested (neutral)',
     ]);
     // Without tests, no row speaks of them.
@@ -152,10 +155,12 @@ describe('automationPaths', () => {
     );
     expect(preview?.reasons).toEqual({
       triage: 'Skipped: condition false',
-      record: 'Skipped: Triage is skipped',
       due: 'Skipped: Triage is skipped',
       draft: 'Skipped: Due is skipped',
-      propose: 'Skipped: Draft is skipped',
+      drafts: 'Skipped: Due is skipped',
+      propose: 'Skipped: Drafts is skipped',
+      settle: 'Skipped: Triage is skipped',
+      record: 'Skipped: Settle is skipped',
     });
     // The condition's line into Triage is not on a path where it was false.
     expect(preview?.edges.has(`${gateIdOf('triage')}>triage`)).toBe(false);
@@ -164,7 +169,7 @@ describe('automationPaths', () => {
       true,
     );
     expect(result.highlightFor('path:3', true)?.announcement).toBe(
-      'Showing path 3: 1 of 6 nodes runs.',
+      'Showing path 3: 1 of 8 nodes runs.',
     );
     expect([...(result.ranOn('path:3') ?? [])]).toEqual(['inbox']);
   });
@@ -174,7 +179,16 @@ describe('automationPaths', () => {
     const halts = result.highlightFor('halt:due', false);
     expect(halts?.tone).toBe('error');
     expect([...(halts?.nodes ?? [])].sort()).toEqual(
-      ['draft', 'due', 'inbox', 'record', 'triage'].sort(),
+      [
+        'draft',
+        'drafts',
+        'due',
+        'inbox',
+        'propose',
+        'record',
+        'settle',
+        'triage',
+      ].sort(),
     );
     expect(result.haltNode('halt:due')).toBe('due');
     expect(result.haltNode('path:1')).toBeNull();

@@ -99,8 +99,10 @@ const step = (
   extra: Partial<FlowStepNode> = {},
 ): FlowStepNode => ({ id, kind: 'step', label, icon: Braces, ...extra });
 
-/** Triage GitHub issues: the long `open_issues → report` edge must run
- *  round `score`'s frame, never through it. */
+/** An earlier shape of Triage GitHub issues, kept as the canvas tests' rich
+ *  graph: the long `open_issues → report` edge must run round `score`'s
+ *  frame, never through it. The shipped one is
+ *  {@link shippedTriageIssuesFlowGraph}. */
 export function triageFlowGraph(): FlowGraph {
   return sorted({
     nodes: [
@@ -195,8 +197,9 @@ export function triageFlowGraph(): FlowGraph {
   });
 }
 
-/** Review pull requests: three consecutive nodes each iterate the same
- *  list, one frame each. */
+/** An earlier shape of Review pull requests: three consecutive nodes each
+ *  iterate the same list, one frame each. The shipped one is
+ *  {@link shippedReviewPullRequestsFlowGraph}. */
 export function reviewPullRequestsFlowGraph(): FlowGraph {
   const each = (id: string): FlowGroup => ({
     id: `each:${id}`,
@@ -266,8 +269,9 @@ export function reviewPullRequestsFlowGraph(): FlowGraph {
   });
 }
 
-/** Triage inbox: an only-if gate in front of Triage, and a node that lets
- *  the run go on when it fails. */
+/** An earlier shape of Triage inbox: an only-if gate in front of Triage,
+ *  and a node that lets the run go on when it fails. The shipped one is
+ *  {@link shippedTriageInboxFlowGraph}. */
 export function triageInboxFlowGraph(): FlowGraph {
   const each = (id: string): FlowGroup => ({
     id: `each:${id}`,
@@ -368,6 +372,482 @@ export function triageInboxFlowGraph(): FlowGraph {
       edge('propose', '__end', 'exit'),
     ],
     groups: [each('draft'), each('propose')],
+  });
+}
+
+/** Triage GitHub issues as it ships: it reads the place its last run of the
+ *  repository saved, lists the issues changed since, scores each one in a
+ *  frame, an only-if gate holds the message to a member behind the report,
+ *  and the new place is saved last. */
+export function shippedTriageIssuesFlowGraph(): FlowGraph {
+  return sorted({
+    nodes: [
+      start(
+        [
+          {
+            id: 'input:owner',
+            label: 'owner',
+            detail: 'text · required',
+            code: true,
+          },
+          {
+            id: 'input:repo',
+            label: 'repo',
+            detail: 'text · required',
+            code: true,
+          },
+          {
+            id: 'input:limit',
+            label: 'limit',
+            detail: 'a whole number',
+            code: true,
+          },
+          {
+            id: 'input:trigger',
+            label: 'trigger',
+            detail: 'text · from the trigger',
+            code: true,
+          },
+          {
+            id: 'input:firedAt',
+            label: 'firedAt',
+            detail: 'a number · from the trigger',
+            code: true,
+          },
+        ],
+        [
+          {
+            id: 'schedule',
+            icon: Clock,
+            label: 'Every day at 07:00 · Europe/Zurich',
+            note: 'Next Thu 15 Oct, 07:00',
+          },
+          { id: 'manual', icon: Hand, label: 'By hand, the API or MCP' },
+        ],
+      ),
+      step('place', 'Place', {
+        icon: Clock,
+        typeLabel: 'Automation · Read the saved position',
+        reads: [{ id: 'input', label: 'run input (owner, repo)' }],
+      }),
+      step('position', 'Position', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'place', label: 'Place' },
+          { id: 'input', label: 'run input (limit)' },
+        ],
+      }),
+      step('issues', 'Issues', {
+        icon: CircleDot,
+        typeLabel: 'GitHub · List issues',
+        reads: [
+          { id: 'position', label: 'Position' },
+          { id: 'input', label: 'run input (owner, repo)' },
+        ],
+      }),
+      step('batch', 'Batch', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'position', label: 'Position' },
+          { id: 'issues', label: 'Issues' },
+          { id: 'input', label: 'run input (limit)' },
+        ],
+      }),
+      step('score', 'Score', {
+        icon: Sparkles,
+        typeLabel: 'Language model · claude-haiku-4-5',
+        reads: [
+          { id: 'batch', label: 'Batch' },
+          { id: 'item', label: 'each item' },
+        ],
+        description: 'For each item of issues of Batch',
+      }),
+      step('report', 'Report', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'batch', label: 'Batch' },
+          { id: 'score', label: 'Score' },
+        ],
+      }),
+      {
+        id: '__gate:notify',
+        kind: 'gate',
+        label: 'Notify',
+        mode: 'only-if',
+        condition:
+          'actionable of Report is greater than 0 or failed of Report is not empty',
+        decisionKey: 'when:notify',
+      },
+      step('notify', 'Notify', {
+        icon: Send,
+        typeLabel: 'Notify · Notify members',
+        reads: [
+          { id: 'report', label: 'Report' },
+          { id: 'input', label: 'run input (owner, repo)' },
+        ],
+        conditional: true,
+      }),
+      step('save', 'Save', {
+        icon: Clock,
+        typeLabel: 'Automation · Save the position',
+        reads: [
+          { id: 'place', label: 'Place' },
+          { id: 'report', label: 'Report' },
+          { id: 'input', label: 'run input (owner, repo)' },
+        ],
+      }),
+      end([
+        {
+          id: 'output:triaged',
+          label: 'triaged',
+          detail: 'from Report',
+          code: true,
+        },
+        {
+          id: 'output:actionable',
+          label: 'actionable',
+          detail: 'from Report',
+          code: true,
+        },
+        {
+          id: 'output:issues',
+          label: 'issues',
+          detail: 'from Report',
+          code: true,
+        },
+        {
+          id: 'output:failed',
+          label: 'failed',
+          detail: 'from Report',
+          code: true,
+        },
+        {
+          id: 'output:caughtUp',
+          label: 'caughtUp',
+          detail: 'from Report',
+          code: true,
+        },
+        {
+          id: 'output:position',
+          label: 'position',
+          detail: 'from Report',
+          code: true,
+        },
+      ]),
+    ],
+    edges: [
+      edge('__start', 'place', 'entry'),
+      edge('place', 'position', 'data', { detail: 'Carries .value' }),
+      edge('position', 'issues', 'data', {
+        detail: 'Carries .first, .at, .perPage',
+      }),
+      edge('position', 'batch', 'data'),
+      edge('issues', 'batch', 'data', { detail: 'Carries .issues' }),
+      edge('batch', 'score', 'data', { detail: 'Carries .issues' }),
+      edge('batch', 'report', 'data', {
+        detail: 'Carries .issues, .position, .caughtUp',
+      }),
+      edge('score', 'report', 'data'),
+      edge('report', '__gate:notify', 'order'),
+      edge('report', 'notify', 'data', { detail: 'Carries .message' }),
+      edge('__gate:notify', 'notify', 'gate'),
+      edge('place', 'save', 'data', { detail: 'Carries .revision' }),
+      edge('report', 'save', 'data', { detail: 'Carries .position' }),
+      edge('report', '__end', 'exit'),
+      edge('notify', '__end', 'completion'),
+      edge('save', '__end', 'completion'),
+    ],
+    groups: [
+      {
+        id: 'each:score',
+        kind: 'each',
+        label: 'For each item of issues of Batch',
+        members: ['score'],
+      },
+    ],
+  });
+}
+
+/** Review pull requests as it ships: a queue of the pull requests due a
+ *  review, then three frames over it — the diffs, the reviews, the posts —
+ *  each followed by a step that keeps only what came back. */
+export function shippedReviewPullRequestsFlowGraph(): FlowGraph {
+  const each = (id: string, of: string): FlowGroup => ({
+    id: `each:${id}`,
+    kind: 'each',
+    label: `For each item of ${of}`,
+    members: [id],
+  });
+  return sorted({
+    nodes: [
+      start([
+        {
+          id: 'input:owner',
+          label: 'owner',
+          detail: 'text · required',
+          code: true,
+        },
+        {
+          id: 'input:repo',
+          label: 'repo',
+          detail: 'text · required',
+          code: true,
+        },
+        {
+          id: 'input:limit',
+          label: 'limit',
+          detail: 'a whole number',
+          code: true,
+        },
+        {
+          id: 'input:maxDiffChars',
+          label: 'maxDiffChars',
+          detail: 'a whole number',
+          code: true,
+        },
+      ]),
+      step('queue', 'Queue', {
+        icon: GitPullRequest,
+        typeLabel: 'GitHub · List pull requests to review',
+        reads: [{ id: 'input', label: 'run input (owner, repo, limit)' }],
+      }),
+      step('diff', 'Diff', {
+        icon: GitPullRequest,
+        typeLabel: 'GitHub · Get pull request diff',
+        reads: [
+          { id: 'queue', label: 'Queue' },
+          { id: 'input', label: 'run input (owner, repo, maxDiffChars)' },
+          { id: 'item', label: 'each item' },
+        ],
+      }),
+      step('due', 'Due', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'queue', label: 'Queue' },
+          { id: 'diff', label: 'Diff' },
+        ],
+      }),
+      step('review', 'Review', {
+        icon: Sparkles,
+        typeLabel: 'Language model · claude-haiku-4-5',
+        reads: [
+          { id: 'due', label: 'Due' },
+          { id: 'item', label: 'each item' },
+        ],
+      }),
+      step('ready', 'Ready', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'due', label: 'Due' },
+          { id: 'review', label: 'Review' },
+        ],
+      }),
+      step('post', 'Post', {
+        icon: GitPullRequest,
+        typeLabel: 'GitHub · Submit pull request review',
+        reads: [
+          { id: 'ready', label: 'Ready' },
+          { id: 'input', label: 'run input (owner, repo)' },
+          { id: 'item', label: 'each item' },
+        ],
+      }),
+      step('report', 'Report', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'queue', label: 'Queue' },
+          { id: 'due', label: 'Due' },
+          { id: 'ready', label: 'Ready' },
+          { id: 'post', label: 'Post' },
+        ],
+      }),
+      end([{ id: 'output', label: 'The output of Report' }]),
+    ],
+    edges: [
+      edge('__start', 'queue', 'entry'),
+      edge('queue', 'diff', 'data', { detail: 'Carries .pulls' }),
+      edge('queue', 'due', 'data', { detail: 'Carries .pulls' }),
+      edge('diff', 'due', 'data'),
+      edge('due', 'review', 'data', { detail: 'Carries .pulls' }),
+      edge('due', 'ready', 'data', { detail: 'Carries .pulls, .tooLarge' }),
+      edge('review', 'ready', 'data'),
+      edge('ready', 'post', 'data', { detail: 'Carries .posts' }),
+      edge('queue', 'report', 'data', { detail: 'Carries .waiting, .skipped' }),
+      edge('due', 'report', 'data', { detail: 'Carries .unread' }),
+      edge('ready', 'report', 'data', { detail: 'Carries .posts, .failed' }),
+      edge('post', 'report', 'data'),
+      edge('report', '__end', 'exit'),
+    ],
+    groups: [
+      each('diff', 'pulls of Queue'),
+      each('review', 'pulls of Due'),
+      each('post', 'posts of Ready'),
+    ],
+  });
+}
+
+/** Triage inbox as it ships: an only-if gate in front of Triage, the drafts
+ *  in two frames, and a second gate holding the stamp, which comes last. */
+export function shippedTriageInboxFlowGraph(): FlowGraph {
+  const each = (id: string, of: string): FlowGroup => ({
+    id: `each:${id}`,
+    kind: 'each',
+    label: `For each item of conversations of ${of}`,
+    members: [id],
+  });
+  return sorted({
+    nodes: [
+      start([
+        {
+          id: 'input:limit',
+          label: 'limit',
+          detail: 'a whole number',
+          code: true,
+        },
+      ]),
+      step('inbox', 'Inbox', {
+        icon: Inbox,
+        typeLabel: 'Conversations · List untriaged conversations',
+        reads: [{ id: 'input', label: 'run input (limit)' }],
+      }),
+      {
+        id: '__gate:triage',
+        kind: 'gate',
+        label: 'Triage',
+        mode: 'only-if',
+        condition: 'conversations of Inbox is not empty',
+        decisionKey: 'when:triage',
+      },
+      step('triage', 'Triage', {
+        icon: Sparkles,
+        typeLabel: 'Language model · claude-haiku-4-5',
+        reads: [{ id: 'inbox', label: 'Inbox' }],
+        conditional: true,
+      }),
+      step('due', 'Due', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'inbox', label: 'Inbox' },
+          { id: 'triage', label: 'Triage' },
+        ],
+        conditional: true,
+      }),
+      step('draft', 'Draft', {
+        icon: Bot,
+        typeLabel: 'Language model · claude-haiku-4-5',
+        reads: [
+          { id: 'due', label: 'Due' },
+          { id: 'item', label: 'each item' },
+        ],
+        conditional: true,
+      }),
+      step('drafts', 'Drafts', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'due', label: 'Due' },
+          { id: 'draft', label: 'Draft' },
+        ],
+        conditional: true,
+      }),
+      step('propose', 'Propose', {
+        icon: Mail,
+        typeLabel: 'Conversations · Draft reply',
+        reads: [
+          { id: 'drafts', label: 'Drafts' },
+          { id: 'item', label: 'each item' },
+        ],
+        conditional: true,
+      }),
+      step('settle', 'Settle', {
+        typeLabel: 'Transform',
+        reads: [
+          { id: 'triage', label: 'Triage' },
+          { id: 'due', label: 'Due' },
+          { id: 'drafts', label: 'Drafts' },
+          { id: 'propose', label: 'Propose' },
+        ],
+        conditional: true,
+      }),
+      {
+        id: '__gate:record',
+        kind: 'gate',
+        label: 'Record',
+        mode: 'only-if',
+        condition: 'verdicts of Settle is not empty',
+        decisionKey: 'when:record',
+      },
+      step('record', 'Record', {
+        icon: Inbox,
+        typeLabel: 'Conversations · Record triage',
+        reads: [{ id: 'settle', label: 'Settle' }],
+        conditional: true,
+      }),
+      end(
+        [
+          {
+            id: 'output:read',
+            label: 'read',
+            detail: 'from Inbox',
+            code: true,
+          },
+          {
+            id: 'output:summary',
+            label: 'summary',
+            detail: 'from Triage · may be empty',
+            code: true,
+          },
+          {
+            id: 'output:recorded',
+            label: 'recorded',
+            detail: 'from Record · may be empty',
+            code: true,
+          },
+          {
+            id: 'output:needsReply',
+            label: 'needsReply',
+            detail: 'from Due · may be empty',
+            code: true,
+          },
+          {
+            id: 'output:drafted',
+            label: 'drafted',
+            detail: 'from Settle · may be empty',
+            code: true,
+          },
+          {
+            id: 'output:unstamped',
+            label: 'unstamped',
+            detail: 'from Settle · may be empty',
+            code: true,
+          },
+        ],
+        { notice: { tone: 'info', text: 'Some runs return empty values' } },
+      ),
+    ],
+    edges: [
+      edge('__start', 'inbox', 'entry'),
+      edge('inbox', '__gate:triage', 'order'),
+      edge('inbox', 'triage', 'data', { detail: 'Carries .conversations' }),
+      edge('__gate:triage', 'triage', 'gate'),
+      edge('inbox', 'due', 'data', { detail: 'Carries .conversations' }),
+      edge('triage', 'due', 'data', { detail: 'Carries .items' }),
+      edge('due', 'draft', 'data', { detail: 'Carries .conversations' }),
+      edge('due', 'drafts', 'data', { detail: 'Carries .conversations' }),
+      edge('draft', 'drafts', 'data'),
+      edge('drafts', 'propose', 'data', { detail: 'Carries .conversations' }),
+      edge('triage', 'settle', 'data', { detail: 'Carries .items' }),
+      edge('due', 'settle', 'data', { detail: 'Carries .conversations' }),
+      edge('drafts', 'settle', 'data', { detail: 'Carries .conversations' }),
+      edge('propose', 'settle', 'data'),
+      edge('settle', '__gate:record', 'order'),
+      edge('settle', 'record', 'data', { detail: 'Carries .verdicts' }),
+      edge('__gate:record', 'record', 'gate'),
+      edge('inbox', '__end', 'exit'),
+      edge('triage', '__end', 'exit'),
+      edge('due', '__end', 'exit'),
+      edge('settle', '__end', 'exit'),
+      edge('record', '__end', 'exit'),
+    ],
+    groups: [each('draft', 'Due'), each('propose', 'Drafts')],
   });
 }
 
