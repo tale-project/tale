@@ -58,6 +58,7 @@ import {
   union,
   UNKNOWN,
   widen,
+  withNull,
   type Shape,
   type ShapeOrigin,
 } from './shape';
@@ -538,10 +539,15 @@ function inferNode(
     opts,
     stack,
   );
+  // A step that goes on past its failed items holds null in their place.
+  const entry =
+    iterates && n.onItemError === 'continue' && !isUnknown(body.shape)
+      ? withNull(body.shape)
+      : body.shape;
   const output: Shape = iterates
     ? isUnknown(body.shape)
       ? { type: 'array', 'x-origin': body.origin }
-      : { type: 'array', items: body.shape, 'x-origin': body.origin }
+      : { type: 'array', items: entry, 'x-origin': body.origin }
     : body.shape;
   return {
     output,

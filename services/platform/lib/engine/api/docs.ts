@@ -263,6 +263,7 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
 - "forEach": "{{ <array expr> }}" — run once per item (use item / item.total); the node's output becomes the ARRAY of results.
 - "repeatUntil": "{{ <boolean> }}" with "maxRepeats": <1..20> — re-run the node until true (poll async jobs). The in-flight result is available as output (or this node's own nodes.<id>.output).
 - "onError": "continue" — record the failure, skip dependents, keep running (default stops the run).
+- "onItemError": "continue" — forEach only: a failed item is recorded, its entry in the output is null, and the next item runs; the node fails (and its onError decides what that does) only when every item failed. Default "fail": one failed item fails the node. Steps after it that iterate the same list should read only the items that succeeded — filter the nulls out in a transform first.
 
 ${CORE_NODE_KIND_REFERENCE.transform}
 

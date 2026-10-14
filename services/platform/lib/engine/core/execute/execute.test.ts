@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../selftest/memory-store';
+import { createRecorder } from '../record/recorder';
 import {
   registerNodeType,
   setAgentService,
@@ -337,6 +338,114 @@ describe('onError', () => {
     expect(byNode.get('dependent')?.status).toBe('skipped');
     expect(byNode.get('independent')?.status).toBe('ok');
     expect(result.output).toBe('alive');
+  });
+});
+
+describe('onItemError: continue — one failed item does not take the others with it [AUTO-R70]', () => {
+  /** A forEach step whose item `bad` fails; every other item succeeds. */
+  function fanOut(extra: Partial<NodeDef> = {}): NodeDef {
+    return {
+      id: 'fan',
+      type: 'transform',
+      forEach: '{{ input.items }}',
+      onItemError: 'continue',
+      code: "if (item === 'bad') throw new Error('this item is broken'); return { done: item };",
+      ...extra,
+    };
+  }
+
+  it('keeps the items that succeeded, null for the failed one, and runs the dependents', async () => {
+    const doc = automationDoc(
+      [
+        fanOut(),
+        {
+          id: 'count',
+          type: 'transform',
+          input: { outs: '{{ nodes.fan.output }}' },
+          code: 'return input.outs.filter((out) => out !== null).length;',
+        },
+      ],
+      {
+        output: {
+          outs: '{{ nodes.fan.output }}',
+          count: '{{ nodes.count.output }}',
+        },
+      },
+    );
+    const recorder = createRecorder({ now: () => 0 });
+    const result = await execute(doc, {
+      input: { items: ['a', 'bad', 'c'] },
+      recorder,
+    });
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual({
+      outs: [{ done: 'a' }, null, { done: 'c' }],
+      count: 2,
+    });
+    const fan = result.trace.find((t) => t.node === 'fan');
+    expect(fan?.status).toBe('ok');
+    expect(fan?.note).toBe(
+      'onItemError: continue — 1 of 3 items failed (item 1)',
+    );
+    const units = new Map(
+      (result.record ?? []).map((unit) => [
+        `${unit.key.path}|${unit.key.item}`,
+        unit,
+      ]),
+    );
+    expect(units.get('fan|-1')?.status).toBe('ok');
+    expect(units.get('fan|1')?.status).toBe('failed');
+    expect(units.get('fan|1')?.failure?.message).toContain(
+      'this item is broken',
+    );
+    expect(units.get('fan|1')?.decisions.map((d) => d.kind)).toContain(
+      'onError',
+    );
+    expect(units.get('fan|2')?.status).toBe('ok');
+  });
+
+  it('fails the step when every item failed, and onError decides what that does', async () => {
+    const halted = await execute(automationDoc([fanOut()]), {
+      input: { items: ['bad', 'bad'] },
+    });
+    expect(halted.status).toBe('error');
+    expect(halted.error?.nodeId).toBe('fan');
+    expect(halted.error?.message).toContain('this item is broken');
+
+    const continued = await execute(
+      automationDoc([
+        fanOut({ onError: 'continue' }),
+        {
+          id: 'after',
+          type: 'transform',
+          input: { v: '{{ nodes.fan.output }}' },
+          code: 'return 1;',
+        },
+      ]),
+      { input: { items: ['bad'] } },
+    );
+    expect(continued.status).toBe('success');
+    const byNode = new Map(continued.trace.map((t) => [t.node, t]));
+    expect(byNode.get('fan')?.status).toBe('error');
+    expect(byNode.get('after')?.status).toBe('skipped');
+  });
+
+  it('leaves a step without it as it was: one failed item fails the step', async () => {
+    const { onItemError: _dropped, ...plain } = fanOut();
+    const result = await execute(automationDoc([plain]), {
+      input: { items: ['a', 'bad', 'c'] },
+    });
+    expect(result.status).toBe('error');
+    expect(result.error?.nodeId).toBe('fan');
+  });
+
+  it('never isolates the run’s execution limit', async () => {
+    const result = await execute(automationDoc([fanOut()]), {
+      input: { items: ['a', 'b', 'c', 'd'] },
+      maxNodes: 2,
+    });
+    expect(result.status).toBe('error');
+    expect(result.error?.message).toContain('2-execution guard');
   });
 });
 

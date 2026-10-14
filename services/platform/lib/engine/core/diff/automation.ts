@@ -200,6 +200,7 @@ const NODE_FIELDS: ReadonlyMap<string, FieldDisplay> = new Map([
   ['repeatUntil', 'condition'],
   ['maxRepeats', 'scalar'],
   ['onError', 'scalar'],
+  ['onItemError', 'scalar'],
   ['input', 'json'],
   ['code', 'code'],
   ['prompt', 'template'],

@@ -224,7 +224,7 @@ node-unknown-field:
       nodeId: main
       path: nodes[0].prompt
       message: 'node "main" (transform): unknown field "prompt"'
-      hint: 'allowed fields: id, type, when, elseOf, forEach, repeatUntil, maxRepeats, onError, input, code'
+      hint: 'allowed fields: id, type, when, elseOf, forEach, repeatUntil, maxRepeats, onError, onItemError, input, code'
       at:
         pointer: /nodes/0/prompt
         subject: key
@@ -241,6 +241,7 @@ node-unknown-field:
           - repeatUntil
           - maxRepeats
           - onError
+          - onItemError
           - input
           - code
   warnings: []
@@ -412,6 +413,29 @@ onerror-invalid:
       params:
         node: main
         value: retry
+  warnings: []
+onitemerror-invalid:
+  errors:
+    - code: ONITEMERROR_INVALID
+      nodeId: main
+      message: 'node "main": "onItemError" must be "fail" or "continue"'
+      at:
+        pointer: /nodes/0/onItemError
+      params:
+        node: main
+        value: skip
+  warnings: []
+onitemerror-without-foreach:
+  errors:
+    - code: NODE_FIELD_TYPE
+      nodeId: main
+      message: 'node "main": onItemError only makes sense together with forEach'
+      at:
+        pointer: /nodes/0/onItemError
+      params:
+        node: main
+        field: onItemError
+        expected: forEach
   warnings: []
 subautomation-ref-invalid:
   errors:

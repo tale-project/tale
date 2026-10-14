@@ -657,6 +657,25 @@ capacity through ordinary worker admission.
 - **Example**: Leo's dispatch schedule fails three wake occurrences in a row → the wake waits
   one, two, then four minutes, and fires the same pending release again after that.
 
+## A step that runs once per item
+
+A step with a list (`forEach`) runs once per item, and by default one failed item fails the whole
+step. A step can choose to go on past its failed items instead (`onItemError: continue`).
+
+### AUTO-R70 · A step that goes on past failed items fails only if every item failed
+
+With `onItemError: continue`, a failed item is recorded as failed, its place in the step's output
+is empty (`null`), and the next item runs; the steps after it run with the items that succeeded.
+Only when every item failed does the step fail, and its own `onError` then decides what that does.
+A stop, a time limit, a server shutting down, a write that may already have happened and the run's
+execution limit are never an item's failure: the run stops, waits or is handed on at that item as
+it would without the setting. A step without the setting fails at its first failed item, as before.
+
+- **Example**: Ada's review automation runs over five pull requests and the diff of one cannot be
+  read → the four others are reviewed, the run succeeds, and its record shows one failed item.
+- **Example**: The server restarts while the review is at its second pull request → the run is
+  handed on, the next server carries on at that pull request, and no item is recorded as failed.
+
 ## When a run ends
 
 ### AUTO-R14 · A run that ends takes its open approvals and questions with it
@@ -854,7 +873,8 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
 
 - **The workflow document**: node types, references between steps, control flow, and limits
   such as the number of repeats and the depth of nested automations
-  (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`).
+  (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`);
+  `AUTO-R70` covers what a step that runs once per item does with a failed item.
 - **How a run proceeds**: checkpoints and resuming, how soon the sweep revives a run whose
   server stopped answering, what becomes of a step its server was running when it crashed, agent
   steps with their automatic retries and waits for a sandbox

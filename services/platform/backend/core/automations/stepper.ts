@@ -8,6 +8,11 @@ import {
   resolveForEach,
 } from '../../../lib/engine/core/execute/decide';
 import {
+  failsTheRun,
+  isolatesItemFailures,
+  itemFailureNote,
+} from '../../../lib/engine/core/execute/item-errors';
+import {
   cloneData,
   makeScope,
   mockAgentText,
@@ -23,7 +28,11 @@ import {
   type RunRecorder,
   type NodeRunWrite,
 } from '../../../lib/engine/core/record/recorder';
-import { END_PATH, type UnitKey } from '../../../lib/engine/core/record/types';
+import {
+  END_PATH,
+  type StepFailure,
+  type UnitKey,
+} from '../../../lib/engine/core/record/types';
 import { recordBudget } from '../../../lib/engine/core/record/value';
 import {
   evalTemplates,
@@ -1274,6 +1283,9 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   let passes = 0;
   let outs: unknown[] = [];
   let pins: Record<string, number> | undefined;
+  // The items that failed and the loop went on past (`onItemError:
+  // continue`), carried in the cursor so a later turn still knows them.
+  let failedItems: number[] = [];
   // Whether `index`/`passes`/`outs` hold this node's real place yet: an
   // interruption before they do must not save a cursor that would send a
   // half-done loop back to its first item.
@@ -1284,6 +1296,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     passes,
     outs,
     ...(pins !== undefined && { pins }),
+    ...(failedItems.length > 0 && { failed: [...failedItems] }),
   });
   const outputs = outputsFrom(checkpoints);
   const skipped = skippedFrom(checkpoints);
@@ -1292,6 +1305,39 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   const trace: NodeTrace = { node: node.id, type: node.type, status: 'ok' };
   const effects: Effect[] = [];
   const rec = run.recorder;
+  /** A failure of this step, or of one of its items: the one sentence the
+   * run detail and the trace show — `message — hint`, never a JSON blob —
+   * and its record. */
+  const describeFailure = (
+    error: unknown,
+  ): {
+    message: string;
+    hint: string | undefined;
+    code: RunFailureCode;
+    failure: StepFailure;
+  } => {
+    const message =
+      error instanceof NodeFailure && error.hint !== undefined
+        ? `${error.message} — ${error.hint}`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    const hint = /is not defined/.test(message)
+      ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
+      : /Cannot read propert/.test(message)
+        ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
+        : undefined;
+    const code = runFailureCodeOf(error);
+    const failure = stepFailureOf(error, {
+      code,
+      message,
+      ...(hint !== undefined && { hint }),
+      pointer,
+      nodeType: node.type,
+      ...(node.model !== undefined && { model: node.model }),
+    });
+    return { message, hint, code, failure };
+  };
   // Back at the node a loop or an agent turn left off: the same attempt.
   const resumingHere = checkpoints.cursor?.node === node.id;
   rec.unitStarted(nodeKey, {
@@ -1442,6 +1488,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         ? { ...checkpoints.cursor, outs: [...checkpoints.cursor.outs] }
         : { node: node.id, index: 0, passes: 0, outs: [] };
     ({ index, passes, outs, pins } = cursor);
+    failedItems = [...(cursor.failed ?? [])];
     placed = true;
 
     // A subautomation node fixes the versions it walks the first time it
@@ -1483,6 +1530,17 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // behind it rather than all of them.
     let savedIndex = index;
     let savedAt = Date.now();
+    // `onItemError: continue`: a failed item is recorded and the next one
+    // runs. What stops the run is never an item's failure.
+    const isolates = items !== null && isolatesItemFailures(node);
+    const itemFailed = (error: unknown): boolean =>
+      isolates &&
+      !(error instanceof StaleClaim) &&
+      !(error instanceof InDoubtPark) &&
+      !(error instanceof RunStopFailure) &&
+      !run.signal.aborted &&
+      !failsTheRun(error);
+    let lastItemFailure: unknown;
 
     for (;;) {
       if (items !== null && index >= items.length) break;
@@ -1515,75 +1573,95 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         openPass = { path, item: items === null ? -1 : index, pass: passes };
         rec.unitStarted(openPass, { nodeId: node.id, nodeType: node.type });
       }
-      const output = await explainedBody(run, input, outputs, extra, {
-        run,
-        node,
-        extra,
-        outputs,
-        input,
-        record: items === null && passes === 0,
-        trace,
-        effects,
-        depth,
-        path,
-        itemIndex: index,
-        pass: passes,
-        pins: pins ?? args.pins,
-        pinPrefix: args.pinPrefix,
-        unit: openPass ?? openItem ?? nodeKey,
-        pointer,
-        ...(openPass !== undefined && { mirror: openItem ?? nodeKey }),
-        ...(long &&
-          !iterates && { started: () => run.recordStarted([nodeKey]) }),
-      });
-
-      if (typeof node.repeatUntil === 'string') {
-        passes++;
-        const passKey = openPass ?? {
-          path,
-          item: items === null ? -1 : index,
-          pass: passes - 1,
-        };
-        const condition = await repeatSettled(
+      let output: unknown;
+      let failedHere = false;
+      try {
+        output = await explainedBody(run, input, outputs, extra, {
+          run,
           node,
-          node.repeatUntil,
+          extra,
+          outputs,
           input,
-          { outputs },
-          {
-            key: passKey,
-            pointer,
-            index: passes - 1,
-            max: maxRepeats,
-            extra,
-            output,
-          },
-          rec,
-        );
-        rec.unitFinished(passKey, { status: 'ok', output });
-        openPass = undefined;
-        trace.note = `repeatUntil ran ${passes}x${condition ? '' : ' (maxRepeats hit before the condition became true)'}`;
-        if (!condition && passes < maxRepeats) {
-          // The pass did not settle it. Park rather than spin: a poll that has
-          // not finished must not hold an action open.
-          if (sink.canPark) {
-            rec.waitOpened(openItem ?? nodeKey, {
-              kind: 'repeat',
-              since: Date.now(),
+          record: items === null && passes === 0,
+          trace,
+          effects,
+          depth,
+          path,
+          itemIndex: index,
+          pass: passes,
+          pins: pins ?? args.pins,
+          pinPrefix: args.pinPrefix,
+          unit: openPass ?? openItem ?? nodeKey,
+          pointer,
+          ...(openPass !== undefined && { mirror: openItem ?? nodeKey }),
+          ...(long &&
+            !iterates && { started: () => run.recordStarted([nodeKey]) }),
+        });
+
+        if (typeof node.repeatUntil === 'string') {
+          passes++;
+          const passKey = openPass ?? {
+            path,
+            item: items === null ? -1 : index,
+            pass: passes - 1,
+          };
+          const condition = await repeatSettled(
+            node,
+            node.repeatUntil,
+            input,
+            { outputs },
+            {
+              key: passKey,
+              pointer,
+              index: passes - 1,
+              max: maxRepeats,
+              extra,
+              output,
+            },
+            rec,
+          );
+          rec.unitFinished(passKey, { status: 'ok', output });
+          openPass = undefined;
+          trace.note = `repeatUntil ran ${passes}x${condition ? '' : ' (maxRepeats hit before the condition became true)'}`;
+          if (!condition && passes < maxRepeats) {
+            // The pass did not settle it. Park rather than spin: a poll that has
+            // not finished must not hold an action open.
+            if (sink.canPark) {
+              rec.waitOpened(openItem ?? nodeKey, {
+                kind: 'repeat',
+                since: Date.now(),
+              });
+            }
+            const waited = await sink.wait({
+              detail: `repeat:${node.id}`,
+              cursor: cursorHere(),
+              executions: checkpoints.executions,
+              resumeInMs: REPEAT_DELAY_MS,
             });
+            if (waited === 'cancelled') return { kind: 'cancelled' };
+            if (waited === 'suspended') {
+              checkpoints.cursor = cursorHere();
+              return { kind: 'suspended' };
+            }
+            continue;
           }
-          const waited = await sink.wait({
-            detail: `repeat:${node.id}`,
-            cursor: cursorHere(),
-            executions: checkpoints.executions,
-            resumeInMs: REPEAT_DELAY_MS,
-          });
-          if (waited === 'cancelled') return { kind: 'cancelled' };
-          if (waited === 'suspended') {
-            checkpoints.cursor = cursorHere();
-            return { kind: 'suspended' };
-          }
-          continue;
         }
+      } catch (error) {
+        if (!itemFailed(error)) throw error;
+        // The item, and the pass it was on, failed; the next item runs.
+        const { failure } = describeFailure(error);
+        if (openPass !== undefined) {
+          rec.unitFinished(openPass, { status: 'failed', failure });
+          openPass = undefined;
+        }
+        if (openItem !== undefined) {
+          rec.decision(openItem, { kind: 'onError', policy: 'continue' });
+          rec.unitFinished(openItem, { status: 'failed', failure });
+          openItem = undefined;
+        }
+        failedItems.push(index);
+        lastItemFailure = error;
+        failedHere = true;
       }
 
       if (items === null) {
@@ -1594,7 +1672,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         rec.unitFinished(openItem, { status: 'ok', output });
         openItem = undefined;
       }
-      outs.push(output);
+      outs.push(failedHere ? null : output);
       index++;
       passes = 0;
       if (index >= items.length) break;
@@ -1628,6 +1706,16 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       }
     }
 
+    if (items !== null && failedItems.length > 0) {
+      // Every item failed: the step failed, and its onError decides.
+      if (failedItems.length === items.length) {
+        throw (
+          lastItemFailure ??
+          new NodeFailure('node_error', `every item of "${node.id}" failed`)
+        );
+      }
+      trace.note = itemFailureNote(failedItems, items.length);
+    }
     trace.status = 'ok';
     const output = items === null ? single : outs;
     trace.output = output;
@@ -1705,31 +1793,12 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     }
     // A failure that knows what to do next says so in the one sentence the
     // run detail and the trace show — `message — hint`, never a JSON blob.
-    const message =
-      error instanceof NodeFailure && error.hint !== undefined
-        ? `${error.message} — ${error.hint}`
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    const { message, hint, code, failure } = describeFailure(error);
     trace.status = 'error';
     trace.error = message;
     // A person decided the run stops here: `onError: continue` does not
     // apply, and inside a subautomation the calling node stops with it.
     if (error instanceof RunStopFailure && !sink.canPark) throw error;
-    const hint = /is not defined/.test(message)
-      ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
-      : /Cannot read propert/.test(message)
-        ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
-        : undefined;
-    const code = runFailureCodeOf(error);
-    const failure = stepFailureOf(error, {
-      code,
-      message,
-      ...(hint !== undefined && { hint }),
-      pointer,
-      nodeType: node.type,
-      ...(node.model !== undefined && { model: node.model }),
-    });
     // The pass and the item it was on failed with it.
     for (const unit of [openPass, openItem]) {
       if (unit !== undefined) {

@@ -20,7 +20,12 @@ import {
   failureCauseOf,
 } from '../record/failure';
 import { noRecorder, type RunRecorder } from '../record/recorder';
-import { END_PATH, START_PATH, type UnitKey } from '../record/types';
+import {
+  END_PATH,
+  START_PATH,
+  type StepFailure,
+  type UnitKey,
+} from '../record/types';
 import type {
   AgentTurnRequest,
   ConnectorHostCapabilities,
@@ -60,6 +65,11 @@ import {
 } from './bench';
 import { maxRepeatsOf, topoSort } from './controlflow';
 import { decideNode, repeatSettled, resolveForEach } from './decide';
+import {
+  failsTheRun,
+  isolatesItemFailures,
+  itemFailureNote,
+} from './item-errors';
 import {
   cloneData,
   makeScope,
@@ -376,6 +386,26 @@ export async function execute(
     }
     const finish = () => {
       entry.ms = Math.round((performance.now() - t0) * 10) / 10;
+    };
+    /** A failure of this step, or of one of its items, in the words the
+     * trace and the record use. */
+    const describeFailure = (
+      e: unknown,
+    ): { message: string; hint?: string; failure: StepFailure } => {
+      const message = e instanceof Error ? e.message : String(e);
+      const hint = /is not defined/.test(message)
+        ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
+        : /Cannot read propert/.test(message)
+          ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
+          : undefined;
+      const cause = failureCauseOf(e);
+      const failure = classifyStepFailure(e, {
+        code: reasonFamily(cause?.reason ?? 'UNKNOWN', cause?.params),
+        message,
+        ...(hint !== undefined && { hint }),
+        pointer,
+      });
+      return { message, ...(hint !== undefined && { hint }), failure };
     };
     if (call.kind === 'pinned') {
       // Data a step test hands the node it runs alone: its output, with
@@ -987,6 +1017,10 @@ export async function execute(
           }
           itemMocks = fits.outputs;
         }
+        // A step test that picked one item runs that item as written.
+        const isolates = picked === undefined && isolatesItemFailures(n);
+        const failedItems: number[] = [];
+        let lastItemFailure: unknown;
         const outs: unknown[] = [];
         for (const [index, item] of arr.entries()) {
           if (picked !== undefined && index !== picked) continue;
@@ -994,11 +1028,42 @@ export async function execute(
           if (itemStop !== undefined) throw new RunStopped(itemStop);
           const itemKey: UnitKey = { path, item: index, pass: -1 };
           rec.unitStarted(itemKey, { nodeId: n.id, nodeType: n.type });
+          const itemDepth = openUnits.length;
           openUnits.push(itemKey);
-          const out = await runWithRepeat({ item, index }, false, itemKey);
+          let out: unknown;
+          try {
+            out = await runWithRepeat({ item, index }, false, itemKey);
+          } catch (error) {
+            if (
+              !isolates ||
+              error instanceof RunStopped ||
+              failsTheRun(error)
+            ) {
+              throw error;
+            }
+            // The item and the pass it was on failed; the next item runs.
+            const { failure } = describeFailure(error);
+            const open = openUnits.splice(itemDepth);
+            for (const unit of open.slice(1).toReversed()) {
+              rec.unitFinished(unit, { status: 'failed', failure });
+            }
+            rec.decision(itemKey, { kind: 'onError', policy: 'continue' });
+            rec.unitFinished(itemKey, { status: 'failed', failure });
+            failedItems.push(index);
+            lastItemFailure = error;
+            outs.push(null);
+            continue;
+          }
           openUnits.pop();
           rec.unitFinished(itemKey, { status: 'ok', output: out });
           outs.push(out);
+        }
+        // Every item failed: the step failed, and its onError decides.
+        if (failedItems.length > 0 && failedItems.length === arr.length) {
+          throw lastItemFailure;
+        }
+        if (failedItems.length > 0) {
+          entry.note = itemFailureNote(failedItems, arr.length);
         }
         output = picked !== undefined ? outs[0] : outs;
       } else {
@@ -1014,22 +1079,10 @@ export async function execute(
         finish();
         return stopped(e.by, ordered.slice(position + 1), entry);
       }
-      const message = e instanceof Error ? e.message : String(e);
+      const { message, hint, failure } = describeFailure(e);
       entry.status = 'error';
       entry.error = message;
       finish();
-      const hint = /is not defined/.test(message)
-        ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
-        : /Cannot read propert/.test(message)
-          ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
-          : undefined;
-      const cause = failureCauseOf(e);
-      const failure = classifyStepFailure(e, {
-        code: reasonFamily(cause?.reason ?? 'UNKNOWN', cause?.params),
-        message,
-        ...(hint !== undefined && { hint }),
-        pointer,
-      });
       // The item or pass it was on failed with it.
       for (const unit of openUnits.slice(1).toReversed()) {
         rec.unitFinished(unit, { status: 'failed', failure });

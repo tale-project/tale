@@ -121,8 +121,8 @@ codes:
   NODE_FIELD_TYPE:
     title: Le champ a le mauvais type
     explanation: Les champs d’un nœud ont des types fixes. Les conditions et les boucles sont des templates, une entrée est un objet, et les listes d’un nœud agent sont des listes de noms.
-    cause: '{expected, select, repeatUntil {{fieldLabel} de {nodeLabel} ne fonctionne qu’avec une condition « Répéter jusqu’à ».} other {{fieldLabel} de {nodeLabel} doit être {expected, select, template {un seul template, comme ''{{'' nodes.check.output.ok ''}}''} nodeId {l’identifiant d’un autre nœud} object {un objet} string {du texte} stringArray {une liste de noms} filesMap {une association de noms à des fichiers ou des dossiers} other {de type {expected}}}.}}'
-    fix: '{expected, select, repeatUntil {Ajoute une condition « Répéter jusqu’à », ou retire {fieldLabel}.} other {Donne à {fieldLabel} une valeur de ce type.}}'
+    cause: '{expected, select, repeatUntil {{fieldLabel} de {nodeLabel} ne fonctionne qu’avec une condition « Répéter jusqu’à ».} forEach {{fieldLabel} de {nodeLabel} ne fonctionne qu’avec une liste « Pour chaque ».} other {{fieldLabel} de {nodeLabel} doit être {expected, select, template {un seul template, comme ''{{'' nodes.check.output.ok ''}}''} nodeId {l’identifiant d’un autre nœud} object {un objet} string {du texte} stringArray {une liste de noms} filesMap {une association de noms à des fichiers ou des dossiers} other {de type {expected}}}.}}'
+    fix: '{expected, select, repeatUntil {Ajoute une condition « Répéter jusqu’à », ou retire {fieldLabel}.} forEach {Ajoute une liste « Pour chaque », ou retire {fieldLabel}.} other {Donne à {fieldLabel} une valeur de ce type.}}'
   CODE_SYNTAX:
     title: Le code ne peut pas être validé
     explanation: Le code transform doit avoir une syntaxe JavaScript valide et respecter les limites d’analyse avant l’enregistrement ou le déploiement.
@@ -156,6 +156,11 @@ codes:
   ONERROR_INVALID:
     title: Gestion d’erreur invalide
     explanation: En cas d’erreur, la valeur est soit fail, qui arrête l’exécution au nœud, soit continue, qui note l’échec et ignore les nœuds qui lisent celui-ci.
+    cause: '{nodeLabel} utilise la valeur « {value} ».'
+    fix: Utilise fail ou continue.
+  ONITEMERROR_INVALID:
+    title: Gestion invalide d’un élément en échec
+    explanation: Pour un élément en échec, la valeur est soit fail, qui fait échouer le nœud au premier élément en échec, soit continue, qui note l’élément en échec et passe au suivant.
     cause: '{nodeLabel} utilise la valeur « {value} ».'
     fix: Utilise fail ou continue.
   SUBAUTOMATION_REF_INVALID:

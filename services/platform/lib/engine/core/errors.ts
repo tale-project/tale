@@ -47,6 +47,7 @@ export const CODES = {
   ELSEOF_TARGET_INVALID: 'elseOf must name another node that has `when`',
   REPEAT_MAX_INVALID: 'maxRepeats is 1..20',
   ONERROR_INVALID: 'onError is "fail" or "continue"',
+  ONITEMERROR_INVALID: 'onItemError is "fail" or "continue"',
   SUBAUTOMATION_REF_INVALID:
     'subautomation references are "name" or "name@version"',
   SUBAUTOMATION_NOT_FOUND: 'subautomation references must resolve in the store',
@@ -276,6 +277,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['node', 'value'],
   },
   ONERROR_INVALID: {
+    level: 'error',
+    family: 'node',
+    params: ['node', 'value'],
+  },
+  ONITEMERROR_INVALID: {
     level: 'error',
     family: 'node',
     params: ['node', 'value'],

@@ -194,6 +194,13 @@ export interface NodeCursor {
    * the same child. Absent on a node that walks no subautomation.
    */
   pins?: Record<string, number>;
+  /**
+   * The items that failed and the loop went on past (`onItemError:
+   * continue`), by index: their entries in `outs` are `null`, and the node
+   * fails only when every item is listed here. Absent while none failed —
+   * and on a cursor an earlier release wrote, which never went on past one.
+   */
+  failed?: number[];
 }
 
 export interface RunCheckpoints {
@@ -283,6 +290,11 @@ function unreadableCursor(cursor: unknown): string | null {
       )
     ) {
       return "the cursor's subautomation versions are not numbers";
+    }
+  }
+  if (cursor.failed !== undefined) {
+    if (!Array.isArray(cursor.failed) || !cursor.failed.every(isCount)) {
+      return "the cursor's failed items are not item indexes";
     }
   }
   return null;

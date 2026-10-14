@@ -127,6 +127,23 @@ describe('inferTypes — node kinds', () => {
     expect(tsOf(types, 'each')).toBe('Array<{ title: string, at: number }>');
   });
 
+  it('types a failed item of a step that goes on past it as null [AUTO-R70]', () => {
+    const types = inferTypes(
+      doc([
+        { id: 'issues', type: 'github.list_issues', input: {} },
+        {
+          id: 'each',
+          type: 'transform',
+          forEach: '{{ nodes.issues.output.issues }}',
+          onItemError: 'continue',
+          input: { at: '{{ index }}' },
+          code: 'return { at: input.at };',
+        },
+      ]),
+    );
+    expect(tsOf(types, 'each')).toBe('Array<{ at: number } | null>');
+  });
+
   it('types the document output from the nodes it reads', () => {
     const types = inferTypes(
       doc([{ id: 'issues', type: 'github.list_issues', input: {} }], {
@@ -257,19 +274,19 @@ describe('inferTypes — the shipped triage packs', () => {
 
   it('types github/triage-issues from its code', () => {
     const types = inferTypes(pack('github/triage-issues/workflow.yml'));
-    expect(tsOf(types, 'open_issues')).toBe(
-      '{ count: number, issues: Array<{ number: number, title: unknown, url: unknown, body: unknown, labels: unknown }> }',
+    expect(tsOf(types, 'batch')).toBe(
+      '{ issues: Array<{ number: unknown, title: unknown, url: unknown, body: unknown, labels: unknown }>, position: unknown, caughtUp: boolean }',
     );
     expect(toTs(types.nodes.score.item ?? {})).toBe(
-      '{ number: number, title: unknown, url: unknown, body: unknown, labels: unknown }',
+      '{ number: unknown, title: unknown, url: unknown, body: unknown, labels: unknown }',
     );
+    // The scoring goes on past an issue it fails on: that entry is null.
     expect(tsOf(types, 'score')).toBe(
-      'Array<{ actionable: boolean, priority: "p0" | "p1" | "p2" | "p3", reason: string }>',
+      'Array<{ actionable: boolean, priority: "p0" | "p1" | "p2" | "p3", reason: string } | null>',
     );
-    expect(tsOf(types, 'report')).toBe(
-      '{ reviewed: number, actionable: number, issues: Array<unknown> }',
+    expect(toTs(types.output)).toBe(
+      '{ triaged: number, actionable: number, issues: Array<unknown>, failed: Array<unknown>, caughtUp: boolean, position: unknown }',
     );
-    expect(toTs(types.output)).toBe(tsOf(types, 'report'));
   });
 
   it('types gmail/triage-inbox, whose code declares a local item', () => {
@@ -277,8 +294,11 @@ describe('inferTypes — the shipped triage packs', () => {
     expect(tsOf(types, 'due')).toBe(
       '{ count: number, conversations: Array<unknown> }',
     );
+    expect(tsOf(types, 'propose')).toBe(
+      'Array<{ approvalId: string, created: boolean } | null>',
+    );
     expect(toTs(types.output)).toBe(
-      '{ read: number, summary: string | null, recorded: { recorded: number, prioritized: number, unknown: Array<string> } | null, needsReply: Array<unknown>, drafted: Array<{ approvalId: string, created: boolean }> }',
+      '{ read: number, summary: string | null, recorded: { recorded: number, prioritized: number, unknown: Array<string> } | null, needsReply: Array<unknown>, drafted: Array<unknown>, unstamped: Array<unknown> }',
     );
   });
 

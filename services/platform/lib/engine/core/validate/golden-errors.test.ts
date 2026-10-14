@@ -388,6 +388,27 @@ const fixtures: Record<string, unknown> = {
       { id: 'main', type: 'transform', code: 'return 1;', onError: 'retry' },
     ],
   }),
+  'onitemerror-invalid': flow({
+    nodes: [
+      {
+        id: 'main',
+        type: 'transform',
+        forEach: '{{ input.items }}',
+        code: 'return item;',
+        onItemError: 'skip',
+      },
+    ],
+  }),
+  'onitemerror-without-foreach': flow({
+    nodes: [
+      {
+        id: 'main',
+        type: 'transform',
+        code: 'return 1;',
+        onItemError: 'continue',
+      },
+    ],
+  }),
   'subautomation-ref-invalid': flow({
     nodes: [
       { id: 'sub', type: 'subautomation', automation: 'Daily Digest@next' },
@@ -1087,6 +1108,7 @@ const VALIDATION_CODES: IssueCode[] = [
   'ELSEOF_TARGET_INVALID',
   'REPEAT_MAX_INVALID',
   'ONERROR_INVALID',
+  'ONITEMERROR_INVALID',
   'SUBAUTOMATION_REF_INVALID',
   'SUBAUTOMATION_NOT_FOUND',
   'SUBAUTOMATION_HAS_AGENT_NODE',
