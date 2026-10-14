@@ -60,14 +60,27 @@ a pull request.
 
 | Per day | `full` | `fast` |
 | --- | --- | --- |
-| Pull request pushes (about 108, 28 or 141 runner-minutes each) | 254 runner-hours | 50 runner-hours |
-| Batches (about 40, 141 runner-minutes each) | 94 runner-hours | 94 runner-hours |
-| Runners busy on average | 14.5 | 6 |
+| Pull request pushes (about 108; 122 or 28 runner-minutes each) | 220 runner-hours | 50 runner-hours |
+| Batches (about 40; 122 runner-minutes each) | 81 runner-hours | 81 runner-hours |
+| Runners busy on average | 12.5 | 5.5 |
 
-The minutes are medians of GitHub's runs, which hit a Turbo cache that a runner on the node
-does not have (the cache is per instance), so a job there can take longer. A node of 48
-threads runs 12 four-CPU runners at full speed. Measure on the soak before the tier is chosen
-for the repository, and move a workflow to `fast` with its own `tier` when the pool saturates.
+The minutes are medians of GitHub's runs without the CLI's macOS and Windows legs (19
+runner-minutes, which stay on GitHub), and they include Turbo cache hits that a runner on the
+node does not get (the cache is per instance). A node of 48 threads runs 12 four-CPU runners
+at full speed. Measure on the soak before the tier is chosen for the repository, and move a
+workflow to `fast` with its own `tier` when the pool saturates.
+
+## What the node must hold
+
+| Of | What the generated workflows need |
+| --- | --- |
+| Mirrors (the instance resolves `uses:` at itself) | `actions/checkout`, `actions/setup-node`, `aquasecurity/trivy-action`, `astral-sh/setup-uv`, `docker/bake-action`, `docker/build-push-action`, `docker/login-action`, `docker/setup-buildx-action`, `forgejo/download-artifact`, `forgejo/upload-artifact`, `oven-sh/setup-bun`; and the pins those actions resolve before a job starts: `aquasecurity/setup-trivy`, `actions/cache` |
+| Runner labels | `ubuntu-latest` and `ubuntu-24.04`, in host mode |
+| Runner image | Bun, Node, git, jq, Docker with buildx and compose, and passwordless `sudo` for the runner's user; 4 CPUs, 16 GiB of memory (Type check gives Node a 6 GiB heap) and 80 GiB of disk (Build reclaims space down to 40 GiB free before it pulls the images) |
+| Secrets of the repository | `CI_PACKAGES_TOKEN`, a token that may write packages (the job's own token logs in to the registry but cannot push), and `CI_GITHUB_TOKEN`, a read-only GitHub token for the web site's release feed |
+| Registry | `git.tale.dev`, where CI images are pushed under `tale/tale/` |
+
+`report` prints the actions the generated files use; a test holds the table to it.
 
 ## What stays on GitHub
 
