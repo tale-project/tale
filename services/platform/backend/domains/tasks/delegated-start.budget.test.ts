@@ -155,6 +155,7 @@ describe('automated start budget after a broker cooldown [TASK-R12]', () => {
       ]),
     ).resolves.toEqual({ admitted: false, retryAfter: NOW - 3_000 + HOUR_MS });
   });
+
 });
 
 describe('automated start budget around a model at capacity [TASK-R12]', () => {
@@ -179,6 +180,34 @@ describe('automated start budget around a model at capacity [TASK-R12]', () => {
       ]),
     ).resolves.toEqual({ admitted: false, retryAfter: NOW - 4_000 + HOUR_MS });
   });
+
+  it('admits a fresh automated start right after a capacity refusal: the model’s hold makes it wait, not the circuit', async () => {
+    await expect(
+      admit([
+        run(NOW - 2_000, {
+          failureCode: 'model_capacity',
+          settledAt: NOW - 1_000,
+        }),
+      ]),
+    ).resolves.toEqual({ admitted: true });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it.each(['queued', 'running', 'settled', 'cancelled'] as const)(
+    'counts a %s run even with stale capacity metadata',
+    async (status) => {
+      await expect(
+        admit([
+          run(NOW - 1_000, { status, failureCode: 'model_capacity' }),
+          run(NOW - 2_000),
+          run(NOW - 3_000),
+        ]),
+      ).resolves.toEqual({
+        admitted: false,
+        retryAfter: NOW - 3_000 + HOUR_MS,
+      });
+    },
+  );
 });
 
 describe('the circuit window the wake scan reads (#4540) [TASK-R12]', () => {

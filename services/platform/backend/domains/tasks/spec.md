@@ -619,7 +619,8 @@ organization refuses leaves the run working. Stop on the task ends it at once.
 
 ### TASK-R34 · A run without a workspace that fails or is lost fails as any run does
 
-A provider's rate limit fails the run as model capacity and is retried after a minute. A run
+A provider's rate limit fails the run as model capacity and is retried after a minute. That
+capacity refusal does not consume the task's hourly automated-start circuit. A run
 whose turn is gone fails as interrupted and is retried: it never opened its transcript, its
 turn ended without settling, or it has been silent for ten minutes. A run that outlasts its
 time limit, one the organization's content policy refuses, one a spent limit refuses, and one
