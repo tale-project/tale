@@ -46,6 +46,11 @@ const TRAIN_BRANCHES = 'mq/**';
 
 export interface TriggerOptions {
   readonly file: string;
+  /** Events the workflow has on GitHub and does not have here, with why. */
+  readonly dropEvents?: readonly {
+    readonly name: string;
+    readonly why: string;
+  }[];
   /** Whether the workflow keeps running for a push to the default branch, as a publisher does. */
   readonly keepMainPush?: boolean;
 }
@@ -150,6 +155,11 @@ export function rewriteTriggers(
         'trigger-train',
         `\`push\` now runs for ${branches.map((b) => `\`${b}\``).join(' and ')}, the merge train's batches${options.keepMainPush ? ' and the default branch' : ''}`,
       );
+  }
+
+  for (const { name, why } of options.dropEvents ?? []) {
+    if (events.delete(name))
+      note('trigger-dropped', `removed \`${name}\`: ${why}`);
   }
 
   const dispatch = events.get('workflow_dispatch');

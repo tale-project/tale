@@ -136,6 +136,7 @@ export function generate(
     const ported = portWorkflow(source, file, report, {
       rules: rulesFor(plan, manifest),
       after: [recordRemoved],
+      triggers: { dropEvents: plan.dropEvents ?? [] },
     });
     const path = `${WORKFLOW_DIR}/${file}`;
     const text = HEADER(`.github/workflows/${file}`) + ported.text;

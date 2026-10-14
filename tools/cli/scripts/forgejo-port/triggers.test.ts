@@ -3,7 +3,13 @@ import { describe, expect, test } from 'bun:test';
 import { rewriteTriggers } from './triggers';
 import { emptyReport, readWorkflow, writeWorkflow } from './workflow';
 
-function rewrite(on: string, options: { keepMainPush?: boolean } = {}) {
+function rewrite(
+  on: string,
+  options: {
+    keepMainPush?: boolean;
+    dropEvents?: { name: string; why: string }[];
+  } = {},
+) {
   const doc = readWorkflow(
     `name: W\n${on}\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: x\n`,
     'w.yml',
@@ -92,6 +98,35 @@ describe('rewriteTriggers', () => {
     expect(result.events).toEqual(['push']);
     expect(written).not.toContain('workflow_dispatch');
     expect(written).not.toContain('candidate_sha');
+  });
+
+  test('drops an event the plan says makes no sense here, and says why', () => {
+    const { result, written, report } = rewrite(
+      `on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        required: true
+  pull_request:
+`,
+      {
+        dropEvents: [
+          {
+            name: 'workflow_dispatch',
+            why: 'it attaches binaries to a release',
+          },
+        ],
+      },
+    );
+    expect(result.events).toEqual(['pull_request']);
+    expect(written).not.toContain('workflow_dispatch');
+    expect(report.changes.map((change) => change.rule)).toContain(
+      'trigger-dropped',
+    );
+    expect(
+      report.changes.find((change) => change.rule === 'trigger-dropped')
+        ?.detail,
+    ).toContain('it attaches binaries to a release');
   });
 
   test('keeps a manual dispatch with other inputs', () => {
