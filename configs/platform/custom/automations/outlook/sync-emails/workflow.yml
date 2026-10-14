@@ -3,15 +3,17 @@
 # One of three provider variants of the same automation (gmail / outlook /
 # imap-smtp). They stay the SAME document with the connectorSlug substituted;
 # a test in lib/automations/packs.test.ts fails if they drift apart.
+#
+# The template's questions write the mailbox, the days a first pass reads
+# back, whether Sent is read and the emails one pass reads into the sync step
+# itself, so a run started by hand reads the mailbox the way a scheduled one
+# does. A blank mailbox reads every connected one, each from its own position.
 version: 1
 name: outlook-sync-emails
-description: Pull new Outlook messages into the shared Inbox.
+description: Read new Outlook email, Inbox and Sent, into the shared Inbox.
 inputs:
   type: object
   properties:
-    limit:
-      type: number
-      description: How many of the newest messages to read in one pass (25 when unset).
     # Every trigger-started run arrives inside the trigger wrapper
     # (docs/en/platform/automations/triggers.md). A declared schema must
     # describe that wrapper, or the pack's own schedule is refused at start
@@ -28,15 +30,17 @@ nodes:
     type: conversation.sync_mailbox
     input:
       connectorSlug: outlook
-      limit: '{{ input.limit ?? 25 }}'
-      includeSent: false
+      mailbox: ''
+      backfillDays: 7
+      includeSent: true
+      limit: 50
 output:
   listed: '{{ nodes.sync.output.listed }}'
   inbound: '{{ nodes.sync.output.inbound }}'
+  mailboxes: '{{ nodes.sync.output.mailboxes }}'
 tests:
-  - name: a sync pass reports the mock mailbox
-    input:
-      limit: 25
+  - name: a sync pass reports each mailbox it read
+    input: {}
     expect:
       output:
         listed: 1
@@ -46,3 +50,13 @@ tests:
           skippedCount: 0
           conversationIds:
             - conv_mock
+        mailboxes:
+          - mailbox: default
+            ok: true
+            listed: 1
+            fetched: 1
+            ingested: 1
+            duplicates: 0
+            skipped: 0
+            vanished: 0
+            capped: false

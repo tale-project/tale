@@ -1,0 +1,69 @@
+# Keeps a project's tasks in step with the open issues of one GitHub
+# repository. One step does the whole sync (task.sync_issues): it reads the
+# next batch of open issues from where the last run stopped, reads issues
+# imported earlier again (the longest-unchecked first), writes every issue
+# into its task and saves where it stopped. The project, the repository, its
+# label filter, the credentials and the batch size are the creator's
+# answers; the platform keeps the position between runs.
+version: 1
+name: github-sync-issues
+description: Sync the open issues of a GitHub repository into a project's tasks, one batch per run, and keep the tasks made from them current.
+inputs:
+  type: object
+  properties:
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md).
+    trigger:
+      type: string
+      description: Which trigger started the run; a schedule sends "schedule".
+    firedAt:
+      type: number
+      description: Epoch-ms occurrence the schedule fired for.
+nodes:
+  - id: sync
+    type: task.sync_issues
+    input:
+      projectId: the-project
+      sources:
+        - kind: github
+          owner: your-organization
+          repo: your-repository
+          labels: ''
+          credential: ''
+      limit: 100
+      refreshLimit: 50
+output: '{{ nodes.sync.output }}'
+tests:
+  - name: reads the repository's next batch into the project and answers its receipt
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    # The project, the source and the batch size are the creator's answers:
+    # the test holds what any answers make of them.
+    expect:
+      outputIncludes:
+        sources:
+          - kind: github
+            ok: true
+            error: null
+            saved: true
+            drained: true
+            created: 1
+            retryAfter: null
+        failed: 0
+        rateLimited: 0
+        created: 1
+      effects:
+        - connector: task.sync_issues
+          node: sync
+          inputIncludes:
+            sources:
+              - kind: github
+            refreshLimit: 50
+  - name: a run that could read no source fails, so the schedule counts it
+    input: {}
+    failures:
+      sync: 'task.sync_issues: every issue source failed'
+    expect:
+      failure:
+        node: sync
