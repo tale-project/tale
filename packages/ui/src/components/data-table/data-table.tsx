@@ -1044,7 +1044,20 @@ export function DataTable<TData, TValue = unknown>({
                     title={emptyState?.title ?? ''}
                     description={emptyState?.description}
                     headingLevel={emptyState?.headingLevel}
-                    action={emptyHostsAddAction ? addActionControl : undefined}
+                    action={
+                      emptyState?.action === undefined ? (
+                        emptyHostsAddAction ? (
+                          addActionControl
+                        ) : undefined
+                      ) : (
+                        // The caller's own way out of the empty list leads;
+                        // the moved create action stays beside it.
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {emptyState.action}
+                          {emptyHostsAddAction ? addActionControl : null}
+                        </div>
+                      )
+                    }
                   />
                 </div>
               </TableCell>

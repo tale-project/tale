@@ -184,6 +184,32 @@ describe('DataTable loading states', () => {
       expect(screen.getByText('Nothing here')).toBeInTheDocument();
     });
 
+    it('shows the empty state’s own action, the moved create action beside it', () => {
+      render(
+        <DataTable
+          columns={columns}
+          data={[]}
+          approxRowCount={0}
+          addAction={{ label: 'New item', onClick: vi.fn() }}
+          emptyState={{
+            title: 'No items found',
+            action: (
+              <button type="button" onClick={vi.fn()}>
+                Browse examples
+              </button>
+            ),
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByRole('button', { name: 'Browse examples' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'New item' }),
+      ).toBeInTheDocument();
+    });
+
     it('does not force a column-size minWidth that would scroll an empty table', () => {
       const { container } = render(
         <DataTable
