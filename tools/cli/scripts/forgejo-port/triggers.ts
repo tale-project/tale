@@ -30,7 +30,7 @@ export const NEVER_FIRED = [
 ] as const;
 
 /** Pull request activities Forgejo has no event for (it has no drafts and no queue). */
-export const UNSUPPORTED_PULL_REQUEST_TYPES = [
+const UNSUPPORTED_PULL_REQUEST_TYPES = [
   'ready_for_review',
   'converted_to_draft',
   'auto_merge_enabled',
@@ -42,7 +42,7 @@ export const UNSUPPORTED_PULL_REQUEST_TYPES = [
 ] as const;
 
 /** The branches the merge train pushes a batch to (tools/merge-train: `mq/<batch>-<attempt>`). */
-export const TRAIN_BRANCHES = 'mq/**';
+const TRAIN_BRANCHES = 'mq/**';
 
 export interface TriggerOptions {
   readonly file: string;
@@ -58,7 +58,7 @@ export interface TriggerResult {
 }
 
 /** A flow sequence of branch names; a glob is quoted, since `*` is YAML's alias sign. */
-function flowSequence(values: readonly string[]): YAMLSeq {
+export function flowSequence(values: readonly string[]): YAMLSeq {
   const seq = new YAMLSeq();
   seq.flow = true;
   for (const value of values) {

@@ -64,12 +64,12 @@ function usesOf(step: unknown): string | undefined {
   return isMap(step) ? stringOf(step.get('uses')) : undefined;
 }
 
-export function isScopeStep(step: unknown): boolean {
+function isScopeStep(step: unknown): boolean {
   return usesOf(step)?.includes(CI_SCOPE_ACTION) === true;
 }
 
 /** A checkout that only fetches the scope action and its policy. */
-export function isScopeCheckout(step: unknown): boolean {
+function isScopeCheckout(step: unknown): boolean {
   if (!isMap(step) || !usesOf(step)?.startsWith('actions/checkout@'))
     return false;
   const inputs = step.get('with');

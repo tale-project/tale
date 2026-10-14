@@ -9,7 +9,7 @@
  * carried through wrong.
  */
 
-import { Scalar, YAMLMap, YAMLSeq, isMap, isSeq } from 'yaml';
+import { Pair, Scalar, YAMLMap, YAMLSeq, isMap, isSeq } from 'yaml';
 import type { Document } from 'yaml';
 
 import { replaceText } from './actions';
@@ -20,11 +20,13 @@ import {
   type PortContext,
   type Rule,
 } from './context';
+import { flowSequence } from './triggers';
 import {
   jobIds,
   jobOf,
   jobsOf,
   removeJobs,
+  rootOf,
   stepLists,
   stepsOf,
   stringOf,
@@ -34,13 +36,6 @@ function literal(text: string): Scalar {
   const node = new Scalar(text);
   node.type = Scalar.BLOCK_LITERAL;
   return node;
-}
-
-function flowSequence(values: readonly string[]): YAMLSeq {
-  const seq = new YAMLSeq();
-  seq.flow = true;
-  for (const value of values) seq.add(new Scalar(value));
-  return seq;
 }
 
 /** The pull request and the batch of the merge train are the two events a verdict is given for. */
@@ -320,6 +315,81 @@ export const publishRemote: Rule = (doc, context) => {
         detail: `the text \`${edit.from}\` is gone: the publisher would ${edit.detail.replace('pushes', 'push').replace('prints', 'print')} wrongly`,
       });
   }
+};
+
+const ON_TAG = "startsWith(github.ref, 'refs/tags/')";
+
+/**
+ * The release lane stays on GitHub, but the tags it releases are pushed to Forgejo, so the
+ * package snapshots pinned for a release are made where the tag is: Forgejo's refs are what
+ * the push mirror makes GitHub's, and it deletes any ref Forgejo does not hold. A tag run
+ * does what the dispatch of `release_tag` and `source_sha` does on GitHub: the tooling is
+ * main's, the source is the tag's commit.
+ */
+export const publishOnTag: Rule = (doc, context) => {
+  if (context.file !== 'publish-packages.yml') return;
+  const { file, report } = context;
+  const missing = (at: string, what: string): void => {
+    report.warnings.push({
+      file,
+      at,
+      rule: 'anchor',
+      detail: `${what} is not as the port expects: a release tag does not pin the package snapshots`,
+    });
+  };
+
+  const events = rootOf(doc).get('on');
+  const push = isMap(events) ? events.get('push') : undefined;
+  const job = jobOf(doc, 'publish');
+  const steps = job && stepsOf(job);
+  const checkout = steps?.items.find(
+    (step) =>
+      isMap(step) &&
+      stringOf(step.get('uses'))?.startsWith('actions/checkout@') &&
+      stringOf(step.get('name')) === 'Checkout',
+  );
+  const resolve = steps?.items.find(
+    (step) => isMap(step) && stringOf(step.get('id')) === 'tag',
+  );
+  const env = isMap(resolve) ? resolve.get('env') : undefined;
+  if (
+    !isMap(push) ||
+    !isMap(checkout) ||
+    !isMap(env) ||
+    stringOf(env.get('REF')) !== '${{ github.ref }}' ||
+    stringOf(env.get('RELEASE_TAG')) !== '${{ inputs.release_tag }}' ||
+    stringOf(env.get('SOURCE_SHA')) !== '${{ inputs.source_sha }}'
+  ) {
+    missing('on.push', 'the publisher');
+    return;
+  }
+
+  const tagsKey = new Scalar('tags');
+  tagsKey.commentBefore = ' A release tag pins the snapshot of its own commit.';
+  push.items.push(new Pair(tagsKey, flowSequence(['v*.*.*'])));
+  const inputs = checkout.get('with');
+  if (isMap(inputs)) inputs.set('ref', `\${{ ${ON_TAG} && 'main' || '' }}`);
+  else {
+    const added = new YAMLMap();
+    added.set('ref', `\${{ ${ON_TAG} && 'main' || '' }}`);
+    checkout.set('with', added);
+  }
+  env.set('REF', `\${{ ${ON_TAG} && 'refs/heads/main' || github.ref }}`);
+  env.set(
+    'RELEASE_TAG',
+    `\${{ inputs.release_tag || ${ON_TAG} && github.ref_name || '' }}`,
+  );
+  env.set(
+    'SOURCE_SHA',
+    `\${{ inputs.source_sha || ${ON_TAG} && github.sha || '' }}`,
+  );
+  report.changes.push({
+    file,
+    at: 'jobs.publish',
+    rule: 'publish-on-tag',
+    detail:
+      "a release tag pushed to Forgejo pins the package snapshots, from main's tooling and the tag's commit",
+  });
 };
 
 /**
