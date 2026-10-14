@@ -62,6 +62,70 @@ export const automationTriggerSchema = triggerWriteSchema.superRefine(
   },
 );
 
+/**
+ * The product logos a manifest's `icon` may name as `brand:<slug>` — the
+ * connectors Tale ships a logo for, under their connector slugs. The app
+ * draws each one; any other icon is a lucide name.
+ */
+export const AUTOMATION_BRAND_ICONS = [
+  'github',
+  'glitchtip',
+  'gmail',
+  'outlook',
+  'imap-smtp',
+  'slack',
+  'google-drive',
+  'onedrive',
+  'sharepoint',
+  'microsoft',
+  'shopify',
+] as const;
+
+export type AutomationBrandIcon = (typeof AUTOMATION_BRAND_ICONS)[number];
+
+const BRAND_ICON_PREFIX = 'brand:';
+
+function isBrandIcon(slug: string): slug is AutomationBrandIcon {
+  return (AUTOMATION_BRAND_ICONS as readonly string[]).includes(slug);
+}
+
+/** The brand an icon names (`brand:gmail` → `gmail`), or null for a lucide
+ * name or a brand Tale has no logo for. */
+export function brandOfIcon(
+  icon: string | undefined,
+): AutomationBrandIcon | null {
+  if (icon === undefined || !icon.startsWith(BRAND_ICON_PREFIX)) return null;
+  const slug = icon.slice(BRAND_ICON_PREFIX.length);
+  return isBrandIcon(slug) ? slug : null;
+}
+
+/** A manifest's icon: a lucide name, or `brand:<slug>` for a product logo
+ * Tale ships. */
+const packIconSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .refine(
+    (icon) => !icon.startsWith(BRAND_ICON_PREFIX) || brandOfIcon(icon) !== null,
+    {
+      message: `names a brand Tale has no logo for; use one of ${AUTOMATION_BRAND_ICONS.map((slug) => `${BRAND_ICON_PREFIX}${slug}`).join(', ')}`,
+    },
+  );
+
+/** What an automation is about, for the template catalog's filters. */
+export const AUTOMATION_CATEGORIES = [
+  'inbox',
+  'issues',
+  'code-review',
+  'tasks',
+  'notifications',
+  'webhooks',
+] as const;
+
+export type AutomationCategory = (typeof AUTOMATION_CATEGORIES)[number];
+
+export const automationCategorySchema = z.enum(AUTOMATION_CATEGORIES);
+
 /** Per-locale overrides for the manifest's display text; absent locales fall
  * back to the top-level fields, which are authored in English. */
 const packI18nSchema = z.record(
@@ -79,8 +143,11 @@ export const automationPackManifestSchema = z
     /** Display name; the slug is the directory path. */
     name: z.string().min(1).max(200),
     description: z.string().max(2000).optional(),
-    /** Lucide icon name for the automation card. */
-    icon: z.string().min(1).optional(),
+    /** The automation card's icon: a lucide name, or `brand:<slug>` for a
+     * product logo ({@link AUTOMATION_BRAND_ICONS}). */
+    icon: packIconSchema.optional(),
+    /** What it is about — the template catalog's filter. */
+    category: automationCategorySchema.optional(),
     /** Short catalog chips — proper nouns, left untranslated. */
     labels: z.array(z.string().min(1)).max(6).optional(),
     /** Where the automation installs and runs; absent means org-level. */

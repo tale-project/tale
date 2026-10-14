@@ -11,7 +11,8 @@
  * where the pack lives and what it is called; a pack directory may sit at any
  * depth up to {@link MAX_PACK_DEPTH}.
  *
- * The shared automation-pack contract validates the manifest. The
+ * The shared shipped-pack contract validates the manifest (the pack
+ * manifest, plus the template block a catalog template carries). The
  * DOCUMENT is not validated here: the engine's `validate` is the single source of truth for
  * what a document may contain, and re-declaring the node grammar in a Zod
  * schema would create a second one that drifts. This reader only proves the
@@ -26,9 +27,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import {
-  automationPackManifestSchema,
-  type AutomationPackManifest,
-} from '@tale/shared/schemas/automation-pack';
+  shippedPackManifestSchema,
+  type ShippedPackManifest,
+} from '@tale/shared/schemas/automation-template';
 import type { z } from 'zod/v4';
 
 import type { Automation } from '../engine/core/types';
@@ -59,7 +60,9 @@ export interface PackDirectory<M> {
   readonly automation: Automation;
 }
 
-export type AutomationPack = PackDirectory<AutomationPackManifest>;
+/** A shipped pack; one that carries a `template` block is also in the
+ * template catalog (`templates.ts`). */
+export type AutomationPack = PackDirectory<ShippedPackManifest>;
 
 export interface LoadPacksOptions {
   /** Absolute path of the `custom/` catalog directory (the one containing
@@ -203,7 +206,7 @@ export function loadAutomationPacks(
 ): AutomationPack[] {
   return readPackDirectories(
     resolveAutomationsDir(options),
-    automationPackManifestSchema,
+    shippedPackManifestSchema,
     { kind: 'pack' },
   );
 }
