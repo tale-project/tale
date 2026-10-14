@@ -186,4 +186,7 @@ export type SandboxCapacity =
       /** Where the organization's device-placed sessions live, also while
        * their device is offline. */
       placements?: Array<{ sessionId: string; deviceId: string }>;
+      /** The heavy-phase leases the host holds now, of every organization,
+       * and how many it grants at once; absent from an older spawner. */
+      leases?: { active: number; max: number };
     };

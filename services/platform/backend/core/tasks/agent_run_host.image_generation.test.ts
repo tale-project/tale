@@ -205,6 +205,8 @@ describe('image generation on a task run', () => {
       'rag_search',
       'rag_fetch',
       'task_find',
+      'host_lease_acquire',
+      'host_lease_release',
     ]);
     expect(scopeOf(0)).not.toHaveProperty('turnOp');
     expect(io.instructions[0]).not.toContain('generate_image');
@@ -221,6 +223,8 @@ describe('image generation on a task run', () => {
       'rag_fetch',
       'task_find',
       'generate_image',
+      'host_lease_acquire',
+      'host_lease_release',
     ]);
     expect(scopeOf(0).turnOp).toEqual({
       kind: 'task-agent',

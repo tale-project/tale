@@ -31,6 +31,7 @@ import {
   classifyOutcome,
   NO_OUTCOME_RESULT_STATUSES,
 } from './external-turn-outcome.ts';
+import { readActiveHeavyLeases } from './heavy-leases.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
 import { pinSession } from './service.ts';
 import {
@@ -111,6 +112,20 @@ export function createSandboxRoutes(deps: {
       );
       return c.json({ status: 'unavailable', reason: 'unreachable' });
     }
+  });
+
+  /** The organization's heavy-phase leases the host holds now, each with the
+   * run, task, agent and project that took it where the platform recorded
+   * one. It names runs and sessions, so administrators only: developers read
+   * the host-wide count on `/capacity`. Failure is explicit, as there. */
+  app.get('/leases', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    c.header('Cache-Control', 'no-store');
+    if (!process.env.SANDBOX_TOKEN?.trim()) {
+      return c.json({ status: 'unavailable', reason: 'not_configured' });
+    }
+    return c.json(await readActiveHeavyLeases(deps.sql, c.get('orgId')));
   });
 
   /** Per-budget quota pressure (the 0.4 `getSandboxQuotaUsage` wire). */

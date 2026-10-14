@@ -391,6 +391,19 @@ Ab dieser Version erhält eine Docker-Bereitstellung, die `SANDBOX_MAX_SESSIONS`
 
 Diese bemessene Kapazität beträgt jetzt außerdem höchstens zwei Sessions je CPU; ein Host mit viel Speicher und wenigen CPUs erhält daher weniger Sessions als zuvor (ein Host mit 16 GiB und 4 CPUs: 8 statt 19). Steht die CPU des Hosts unter Druck, starten neue Sessions zudem einzeln (`SANDBOX_CPU_PRESSURE_PERCENT`, `0` schaltet das ab). Ein expliziter Wert für `SANDBOX_MAX_SESSIONS` bleibt unverändert.
 
+### Leases für schwere Phasen {#heavy-phase-leases}
+
+Die Session-Zulassung beurteilt den Host, wenn Arbeit startet. Am stärksten belastet wird er aber später, in Sessions, die schon laufen: durch eine Installation von Abhängigkeiten, einen Image-Build, die Prüfung eines ganzen Arbeitsbereichs oder eine vollständige Testsuite. Vor einer solchen Phase bittet der Aufgabenlauf eines Projektagenten den Spawner um eine Lease für schwere Phasen und wartet, solange sie abgelehnt wird; [Den Sandbox-Host bei schwerer Arbeit teilen](/de/platform/projects/project-agents#heavy-phases) beschreibt die Seite des Agenten. Der Spawner gewährt eine Lease nur, solange alle diese Bedingungen erfüllt sind:
+
+- Der Host steht nach den `conservative`-Schwellenwerten von `SANDBOX_ADMISSION_PRESET` nicht unter Druck, oder nach denen des Deployments, wo diese strenger sind, beurteilt anhand aktueller Messwerte.
+- Es sind weniger als `SANDBOX_HEAVY_LEASES_MAX` Leases aktiv.
+- Das Dateisystem der Arbeitsbereiche und das verifizierte Docker-Daten-Dateisystem behalten `SANDBOX_HEAVY_MIN_FREE_DISK` frei, oder die Grenze aus `SANDBOX_MIN_FREE_DISK`, wo diese größer ist, nachdem jede aktive Phase und diese hier geschrieben haben, was sie angekündigt haben.
+- Der verfügbare Arbeitsspeicher behält seine Reserve aus `SANDBOX_MIN_FREE_MEMORY` neben dem, was jede aktive Phase zu belegen angekündigt hat.
+
+Eine Ablehnung nennt ihren Grund und wann erneut zu fragen ist. Der Spawner hält seine Leases im Speicher, und eine Lease endet, wenn ihr Agent sie freigibt, wenn ihr Lauf endet, wenn sie abläuft (nach den Minuten, die der Agent angefragt hat, standardmäßig 30, höchstens zwei Stunden), wenn ihre Session stoppt und wenn der Spawner neu startet. Endet ein Lauf, gibt die Plattform jede Lease frei, die er noch hält, und versucht es weiter, solange der Spawner nicht antwortet. Nach einem Neustart können neue schwere Phasen sofort beginnen, werden aber weiterhin zurückgehalten, solange der Host unter Druck steht.
+
+Wo der Spawner den Host nicht lesen kann, also auf Kubernetes, auf Incus oder mit einem entfernten Docker-Daemon, gewährt er keine Lease, und Agents führen ihre schweren Phasen ohne Lease aus; begrenze sie dort mit den Ressourcenlimits der Sessions und `SANDBOX_MAX_SESSIONS`. Erhöhe `SANDBOX_HEAVY_LEASES_MAX` nur auf einem Host, dessen CPU, Arbeitsspeicher und Speicherplatz du bei so vielen gleichzeitigen schweren Phasen beobachtet hast.
+
 ### Docker-Build-Caches
 
 Die Vorbereitung des gemeinsamen Build-Caches verwendet `SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` (standardmäßig 5 Sekunden). Eine Session wartet höchstens so lange oder ein Viertel ihres gesamten Startbudgets, falls das kürzer ist. Danach nutzt sie ihren lokalen Builder. Die gemeinsame Vorbereitung hat ein eigenes begrenztes Zeitbudget: Wird die Wartezeit einer Session abgebrochen, läuft die Vorbereitung für andere Sessions weiter. Eine Session, die bereits ihren lokalen Builder nutzt, wechselt bei einem verspäteten Ergebnis nicht nachträglich zum gemeinsamen Builder. Registry-Mirrors werden parallel vorbereitet. Die Zahl gleichzeitiger Schritte des gemeinsamen Builders ergibt sich aus seiner abgerundeten CPU-Grenze und beträgt mindestens eins; seine Speichergrenze gilt weiterhin. Die Vorbereitungszeit wird vom verbleibenden Startbudget der Session abgezogen.

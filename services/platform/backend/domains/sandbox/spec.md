@@ -5,8 +5,8 @@
 A sandbox is the isolated environment an agent works in, and its workspace is the files it
 keeps between turns. These rules cover who can see and manage workspaces, what an agent in a
 sandbox can reach, how many sandboxes run at once, what is left of a workspace whose sandbox
-disappears, when a workspace is deleted, how a turn's spend is booked, and the light sandboxes
-chats run code in. Connected devices
+disappears, when a workspace is deleted, how a turn's spend is booked, the light sandboxes
+chats run code in, and the leases agent runs take before a heavy phase. Connected devices
 and agent secrets have their own specs. Egress, the health checks, image generation and how
 waiting work resumes are not covered; see Not yet.
 
@@ -350,6 +350,77 @@ working sandbox. It is removed only once it has itself been unused for five minu
 
 - **Example**: A resumed turn’s old token names its superseded exec → discovery keeps identity unknown rather than reporting that exec as current.
 
+## Heavy-phase leases
+
+A sandbox host is admitted into when work starts, but what presses it comes later: installing
+dependencies, building an image, checking a whole workspace, running a full test suite. Before
+such a phase, an agent asks the host for a lease.
+
+### SBX-R28 · A task run asks the host for a lease before a heavy phase
+
+Before such a phase, a project agent's task run asks the sandbox host for a lease on its own
+sandbox (`host_lease_acquire`). Every task run has the tool where its agent runtime can reach the
+platform's tools; no grant is needed. The host grants the lease while it is not under pressure,
+runs fewer heavy phases than its limit, and keeps room on disk and in memory beside the others;
+the platform records which run holds it. A run holds one lease at a time: asking again while it
+holds one answers that lease (`held`).
+
+- **Example**: Ada's agent is about to run `npm ci` while the host is calm → it gets a lease with
+  its ID and expiry, runs the install, then releases the lease.
+
+### SBX-R29 · A refused lease says why and when to ask again
+
+The answer names the reason — the host is under pressure (`pressure`), as many heavy phases as it
+runs at once already run (`limit`), disk or memory would run short beside them (`disk`,
+`memory`), or its readings are out of date (`stale`) — and how many seconds to wait
+(`retryAfterSeconds`). The agent waits and asks again instead of running the phase. A host that
+does not answer is asked again the same way (`unreachable`).
+
+- **Example**: Two builds hold the host's two leases. Ada's agent asks for a third → refused as
+  `limit`, to ask again in 30 seconds; it waits, asks again once a build has ended, and gets the
+  lease.
+
+### SBX-R30 · Where the host cannot be judged, the agent works without a lease
+
+On Kubernetes, on Incus, with a remote Docker daemon, with a sandbox service that has no leases,
+or when the service's answer cannot be read, the answer is `unavailable`: leases do not exist
+there, so the agent runs the phase without one instead of waiting. No run waits for a lease
+that cannot come.
+
+- **Example**: Ada's organization runs its sandboxes on Kubernetes. Her agent asks for a lease →
+  `unavailable`, and it starts the build at once.
+
+### SBX-R31 · A run releases only its own leases, on its own sandbox
+
+The run, its sandbox and its organization come from the turn's session token; whatever the call
+names is ignored. A lease of another run, even one on the same sandbox, is answered as not found
+and stays held. Only a project agent's live task run takes leases: any other session is refused
+(`not_a_project_agent_run`), and so is a run that has ended (`run_ended`).
+
+- **Example**: Ada's agent releases the lease ID of a run of Noah's agent → not found, and Noah's
+  lease stays held.
+
+### SBX-R32 · Every lease of a run ends when the run ends
+
+When a run settles, fails or is cancelled, every lease it still holds is released on the host. A
+lease the host no longer holds — expired, its sandbox gone, the service restarted — counts as
+released. When the host cannot be asked, the release is tried again, and the sandbox sweep ends
+what is left five minutes after the run ended. A lease also ends by itself at its expiry, at most
+two hours after it was granted.
+
+- **Example**: Ada cancels her agent's run in the middle of a Docker build → its lease ends with
+  the run, and the next agent's build can start.
+
+### SBX-R33 · Only owners and admins see which runs hold the host's leases
+
+The list of the organization's active leases names runs, tasks, agents and sandboxes, so it
+follows the workspace list (`SBX-R2`): anyone else is refused (HTTP 403). The capacity reading,
+which developers read too (`SBX-R1`), carries only how many leases the host holds and how many it
+grants at once.
+
+- **Example**: Noah has the developer role. He asks for the active leases → refused; the
+  capacity he reads says 1 of 2 leases is in use.
+
 ## Not yet
 
 - **Egress**: which addresses a sandbox can reach is decided by the sandbox service, outside
@@ -377,6 +448,9 @@ working sandbox. It is removed only once it has itself been unused for five minu
   `gateway_provisioning.ts`). Agent secrets have their own spec.
 - **Size limit on a tool call**: a body over 8 MB is refused (HTTP 413)
   (`door-body-limit.ts`).
+- **Leases beyond a project agent's task run**: an automation's agent step, a chat and a standard
+  agent run in a light sandbox take no heavy-phase lease (`SBX-R28`), and the Sandboxes page
+  does not show the active leases yet; the readback route serves them (`SBX-R33`).
 - **The engine behind a turn**: rendering pages for a crawl, collecting the files a turn
   produced, connector calls made from a sandbox, administering the gateway, and the platform
   version an agent is told (`render_fetch.ts`, `session_exec.ts`, `connectors_bridge.ts` and

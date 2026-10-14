@@ -120,6 +120,8 @@ import {
 import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import {
   grantedToolsGuidance,
+  HOST_LEASE_GUIDANCE,
+  HOST_LEASE_TOOLS,
   IMAGE_GENERATION_TOOL,
   imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
@@ -1112,6 +1114,9 @@ export async function insertTaskTurnSessionToken(
     tools: readonly string[];
     /** The organization's image generation is on and a model resolved. */
     imageGeneration: boolean;
+    /** The harness mounts the platform bridge, so the turn can ask the
+     * sandbox host for heavy-phase leases. Absent: no leases. */
+    hostLeases?: boolean;
     deadlineAt: number;
     prepared: Pick<
       PreparedServing,
@@ -1141,11 +1146,13 @@ export async function insertTaskTurnSessionToken(
       // widens what the run can read) PLUS the agent's configured tool
       // grants — writes included, since an explicit grant IS the
       // standing authorization on this async lane — PLUS image generation
-      // while the organization's policy offers it.
+      // while the organization's policy offers it — PLUS the heavy-phase
+      // lease pair, which only makes the run wait its turn on the host.
       toolGrants: [
         ...KNOWLEDGE_READ_TOOLS,
         ...normalizeToolGrants(args.tools),
         ...(args.imageGeneration ? [IMAGE_GENERATION_TOOL] : []),
+        ...(args.hostLeases === true ? HOST_LEASE_TOOLS : []),
       ],
       // Read by the connectors bridge alone, and it names the exec, never
       // the person. It is not `userId`: the workspace tools read that one as
@@ -1506,6 +1513,7 @@ export async function startTaskAgentTurnImpl(
         connectors: args.connectors,
         tools: args.tools,
         imageGeneration: imageModel !== null,
+        hostLeases: harnessMountsMcp(args.harness),
         deadlineAt: args.deadlineAt,
         prepared,
       });
@@ -1604,6 +1612,7 @@ export async function startTaskAgentTurnImpl(
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(imageModel !== null ? [imageGenerationGuidance(outputDir)] : []),
+        ...(harnessMountsMcp(args.harness) ? [HOST_LEASE_GUIDANCE] : []),
         ...(visionGuidance !== '' ? [visionGuidance] : []),
         ...(confined
           ? [memberRunGuidance(withheldCredentials(args))]
@@ -2771,6 +2780,7 @@ export async function steerTaskAgentTurnImpl(
       connectors: args.connectors,
       tools: args.tools,
       imageGeneration: imageModel !== null,
+      hostLeases: harnessMountsMcp(args.harness),
       deadlineAt: args.deadlineAt,
       prepared,
     });
@@ -2889,6 +2899,7 @@ export async function steerTaskAgentTurnImpl(
       KNOWLEDGE_TOOLS_GUIDANCE,
       ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
       ...(imageModel !== null ? [imageGenerationGuidance(outputDir)] : []),
+      ...(harnessMountsMcp(args.harness) ? [HOST_LEASE_GUIDANCE] : []),
       ...(visionGuidance !== '' ? [visionGuidance] : []),
       ...(confined
         ? [memberRunGuidance(withheldCredentials(args))]

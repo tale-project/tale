@@ -54,6 +54,11 @@ export const sandboxCapacitySchema = z.object({
       }),
     )
     .optional(),
+  /** The heavy-phase leases the host holds now, of every organization, and
+   * how many it grants at once. Absent from spawners without leases. */
+  leases: z
+    .object({ active: count, max: z.number().int().positive() })
+    .optional(),
 });
 
 export type SandboxCapacityObservation = z.infer<typeof sandboxCapacitySchema>;

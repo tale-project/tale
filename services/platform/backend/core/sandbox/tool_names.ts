@@ -82,6 +82,44 @@ export function imageGenerationGuidance(outputDir: string): string {
 }
 
 /**
+ * The heavy-phase lease pair: before a phase that presses the shared sandbox
+ * host (a dependency install, an image build, a check of a whole workspace,
+ * a full test suite) a project agent's task run asks the host for a lease,
+ * waits while it is refused, and releases it when the phase ends; every lease
+ * of a run also ends with the run. The dispatch lives in
+ * `node_only/sandbox/workspace_host_lease_tools.ts`.
+ *
+ * Baseline on every task run whose harness mounts the platform bridge, and
+ * never user-grantable (in no {@link AGENT_TOOL_CATALOG}): the pair reads and
+ * changes no organization data, it only makes a run wait its turn on a host
+ * every organization shares, so it is no authority to grant. Left to a grant,
+ * protecting the host would depend on every editor remembering to tick it.
+ */
+export const HOST_LEASE_ACQUIRE_TOOL = 'host_lease_acquire';
+export const HOST_LEASE_RELEASE_TOOL = 'host_lease_release';
+export const HOST_LEASE_TOOLS = [
+  HOST_LEASE_ACQUIRE_TOOL,
+  HOST_LEASE_RELEASE_TOOL,
+] as const;
+
+/**
+ * The instructions paragraph that makes {@link HOST_LEASE_TOOLS}
+ * discoverable — on a turn granted them, and only there.
+ */
+export const HOST_LEASE_GUIDANCE =
+  'Heavy phases share this sandbox host with other agents: installing ' +
+  'dependencies, building images, type-checking or linting a whole ' +
+  'workspace, running a full test suite. Before you start one, call the ' +
+  '"workspace_tool" MCP tool with {tool: "host_lease_acquire", args: ' +
+  '{label, predictedGrowthGiB?, memoryGiB?, minutes?}}. When it answers ' +
+  'granted: true, run the phase, then release the lease with ' +
+  'host_lease_release {leaseId}. When it answers granted: false, do not run ' +
+  'the phase: wait retryAfterSeconds and ask again — unless the reason is ' +
+  '"unavailable", which means this host has no leases, so run the phase ' +
+  'without one. A command that touches one package or one test file needs ' +
+  'no lease. Every lease ends when your run ends.';
+
+/**
  * The op a turn's session token serves: the exec whose run a platform-side
  * generation is booked under, and whose delivery box receives its files.
  * Written into the token scope as `turnOp` on a turn granted

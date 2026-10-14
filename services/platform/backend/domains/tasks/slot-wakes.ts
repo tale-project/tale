@@ -5,6 +5,7 @@ import {
   lockProjectWork,
   queueOnProjectWork,
 } from '../../lib/project-work-lock.ts';
+import { requestRunLeaseReleaseInTx } from '../sandbox/heavy-lease-requests.ts';
 import { requestDispatchPassForRunInTx } from './dispatch-requests.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
@@ -336,6 +337,12 @@ export async function recordRunTerminalInTx(
   await recordSlotReleaseInTx(tx, {
     runId: entry.runId,
     organizationId: entry.organizationId,
+  });
+  // Every heavy-phase lease the run still holds on the sandbox host ends
+  // with it, whichever way it ended.
+  await requestRunLeaseReleaseInTx(tx, {
+    organizationId: entry.organizationId,
+    runId: entry.runId,
   });
   // The run that ended freed room in its project's dispatch pool: the next
   // ready task starts without waiting for the minute scan.

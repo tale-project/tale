@@ -518,6 +518,31 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         idleSessionReleaseSchema.parse(payload),
       );
     },
+    'sandbox.release_run_leases': async (payload) => {
+      // A throw is the retry: the host could not end one of the leases now.
+      const { releaseEndedRunLeases } =
+        await import('../domains/sandbox/heavy-leases.ts');
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          leases: z
+            .array(
+              z.object({
+                leaseId: z.string().min(1),
+                sessionId: z.string().min(1),
+              }),
+            )
+            .optional(),
+        })
+        .parse(payload);
+      const { ended } = await releaseEndedRunLeases(deps.sql, input);
+      if (ended > 0) {
+        console.log(
+          `[sandbox.leases] released ${ended} heavy-phase lease(s) of ended run ${input.runId}`,
+        );
+      }
+    },
     'sandbox.recreate_pinned': async (payload) => {
       const input = sessionJobSchema.parse(payload);
       try {
@@ -1063,6 +1088,25 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (released > 0) {
         console.log(
           `[watchdog] sandbox: released ${released} removed device(s)`,
+        );
+      }
+      // The heavy-phase leases of ended runs their release job could not
+      // end, and the ones past their expiry.
+      const { sweepHeavyLeases } =
+        await import('../domains/sandbox/heavy-leases.ts');
+      const leases = await sweepHeavyLeases(
+        deps.sql,
+        context !== undefined ? { signal: context.signal } : {},
+      ).catch((error: unknown) => {
+        console.error('[watchdog] sandbox lease sweep failed:', error);
+        return null;
+      });
+      if (
+        leases !== null &&
+        (leases.released > 0 || leases.expired > 0 || leases.pruned > 0)
+      ) {
+        console.log(
+          `[watchdog] sandbox: released ${leases.released} heavy-phase lease(s) of ended runs, ${leases.expired} expired, dropped ${leases.pruned} old record(s)`,
         );
       }
     },

@@ -331,6 +331,14 @@ export interface TaskPayloads {
     sessionId: string;
     generation: string;
   };
+  /** End, on the sandbox host, every heavy-phase lease a project agent's
+   * run still held when it ended — enqueued in the transaction that ended
+   * it, with the leases that transaction read (a row may go with its run). */
+  'sandbox.release_run_leases': {
+    organizationId: string;
+    runId: string;
+    leases?: Array<{ leaseId: string; sessionId: string }>;
+  };
   /** Recreate one pinned session the drift reconcile found gone
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
@@ -712,6 +720,18 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryDelay: 5,
     retryBackoff: true,
     expireInSeconds: 60,
+  },
+  // One queued release per run (`short`, keyed by run). Every step is
+  // idempotent — a lease ended already is skipped, one the host no longer
+  // holds counts as ended — so a retry is always safe. The ladder (15 s
+  // doubling, six tries, about a quarter of an hour) waits out a spawner
+  // restart; the sandbox sweep is the backstop past it.
+  'sandbox.release_run_leases': {
+    policy: 'short',
+    retryLimit: 6,
+    retryDelay: 15,
+    retryBackoff: true,
+    expireInSeconds: 120,
   },
   // One queued-or-running recreate per session (`exclusive`, keyed by
   // organization and session): a sweep tick or a page open that finds the

@@ -391,6 +391,19 @@ La capacité par défaut était de 16, et les organisations créées avant cette
 
 Cette capacité dimensionnée compte désormais aussi au plus deux sessions par CPU : un hôte avec beaucoup de mémoire et peu de CPU obtient donc moins de sessions qu’avant (un hôte de 16 GiB avec 4 CPU : 8 au lieu de 19). Quand le CPU de l’hôte est sous pression, les nouvelles sessions démarrent en outre une à une (`SANDBOX_CPU_PRESSURE_PERCENT`, `0` désactive ce comportement). Une valeur explicite de `SANDBOX_MAX_SESSIONS` reste inchangée.
 
+### Baux pour phases lourdes {#heavy-phase-leases}
+
+L’admission des sessions juge l’hôte quand le travail démarre, mais ce qui le sollicite le plus vient plus tard, dans des sessions déjà en cours : une installation de dépendances, un build d’image, la vérification de tout un espace de travail, une suite de tests complète. Avant une telle phase, l’exécution de tâche d’un agent de projet demande au spawner un bail pour phase lourde et attend tant qu’il est refusé ; [Partager l’hôte des sandboxes pendant les travaux lourds](/fr/platform/projects/project-agents#heavy-phases) décrit le côté de l’agent. Le spawner n’accorde un bail que si toutes ces conditions sont réunies :
+
+- L’hôte n’est pas sous pression selon les seuils `conservative` de `SANDBOX_ADMISSION_PRESET`, ou selon ceux du déploiement là où ils sont plus stricts, jugés sur des mesures récentes.
+- Moins de `SANDBOX_HEAVY_LEASES_MAX` baux sont actifs.
+- Le système de fichiers des espaces de travail et celui, vérifié, des données Docker gardent au moins `SANDBOX_HEAVY_MIN_FREE_DISK` d’espace libre, ou le seuil `SANDBOX_MIN_FREE_DISK` là où il est plus grand, une fois que chaque phase active et celle-ci ont écrit ce qu’elles ont annoncé.
+- La mémoire disponible garde sa réserve `SANDBOX_MIN_FREE_MEMORY` à côté de ce que chaque phase active a annoncé occuper.
+
+Un refus donne sa raison et le moment où redemander. Le spawner garde ses baux en mémoire, et un bail prend fin quand son agent le libère, quand son exécution se termine, à son expiration (après les minutes demandées par l’agent, 30 par défaut et deux heures au plus), quand sa session s’arrête et quand le spawner redémarre. Quand une exécution se termine, la plateforme libère chaque bail qu’elle tient encore et continue d’essayer tant que le spawner ne répond pas. Après un redémarrage, de nouvelles phases lourdes peuvent commencer aussitôt, mais restent retenues tant que l’hôte est sous pression.
+
+Là où le spawner ne peut pas lire l’hôte, sur Kubernetes, sur Incus ou avec un daemon Docker distant, il n’accorde aucun bail, et les agents mènent leurs phases lourdes sans bail ; encadre-les alors avec les limites de ressources des sessions et `SANDBOX_MAX_SESSIONS`. N’augmente `SANDBOX_HEAVY_LEASES_MAX` que sur un hôte dont tu as observé le CPU, la mémoire et le disque pendant autant de phases lourdes simultanées.
+
 ### Caches de build Docker
 
 La préparation du cache de build partagé utilise `SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS` (5 secondes par défaut). Chaque session attend au plus cette durée ou un quart de son budget total de démarrage si ce délai est plus court, puis utilise son builder local. La préparation partagée a son propre budget borné : annuler l’attente d’une session n’annule pas la préparation destinée aux autres sessions, et un résultat tardif ne se rattache pas à une session déjà passée au builder local. Les miroirs de registry sont préparés en parallèle. Le nombre d’étapes simultanées du builder partagé correspond à sa limite CPU arrondie à l’entier inférieur, avec un minimum de un ; sa limite de mémoire reste applicable. Le temps de préparation est déduit du budget de démarrage restant de la session.

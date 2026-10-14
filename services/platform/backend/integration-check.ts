@@ -153,6 +153,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
+import { checkHeavyPhaseLeases } from './domains/sandbox/heavy-leases.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
@@ -65555,6 +65556,10 @@ async function main(): Promise<void> {
         () => checkModelCapacityRetry(sql, boss, authCtx, record),
       ],
       ['checkFleetDispatch', () => checkFleetDispatch(sql, authCtx, record)],
+      [
+        'checkHeavyPhaseLeases',
+        () => checkHeavyPhaseLeases(sql, authCtx, record),
+      ],
       [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),

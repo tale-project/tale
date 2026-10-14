@@ -268,6 +268,10 @@ interface HandlerNames {
     gateway_reconcile: FunctionRef & {
       reconcileSessionOpKey: FunctionRef;
     };
+    heavy_leases: FunctionRef & {
+      acquireRunLease: FunctionRef;
+      releaseRunLease: FunctionRef;
+    };
     image_generation: FunctionRef & {
       admitImageGeneration: FunctionRef;
       getImageTurnContext: FunctionRef;
