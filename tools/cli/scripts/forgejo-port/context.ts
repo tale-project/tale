@@ -81,7 +81,7 @@ export function jobKnowledge(knowledge: Knowledge, id: string): JobKnowledge {
   return made;
 }
 
-export type { JobResult } from './ready';
+export type { JobResult, Tier } from './ready';
 
 /** What a job would have reported to the jobs that need it, by the kind of run. */
 export type EventResults = RemovedJob;

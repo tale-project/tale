@@ -1,12 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 
 import { BUILD_FILTERS } from '../ci-ready';
+import type { Tier } from './context';
 import { portWorkflow } from './port';
+import { defaultRules } from './rules';
 import { emptyReport } from './workflow';
 
-function port(source: string, file = 'w.yml') {
+function port(source: string, file = 'w.yml', tier: Tier = 'fast') {
   const report = emptyReport();
-  const result = portWorkflow(source, file, report);
+  const result = portWorkflow(source, file, report, {
+    rules: defaultRules(tier),
+  });
   return { ...result, report };
 }
 
@@ -82,6 +86,7 @@ ${RUNS}    steps:
     const report = emptyReport();
     const context: { results?: Map<string, unknown> } = {};
     const ported = portWorkflow(E2E, 'e2e.yml', report, {
+      rules: defaultRules('fast'),
       after: [
         (_doc, ctx) => {
           context.results = ctx.results;
@@ -253,5 +258,98 @@ ${RUNS}    steps:
 `);
     expect(text).toContain('./.github/actions/ci-scope');
     expect(report.warnings).toHaveLength(1);
+  });
+});
+
+describe('the full tier', () => {
+  const E2E = `name: E2E
+on:
+  merge_group:
+  pull_request:
+jobs:${scopeJob('e2e', true, ['run', 'full'])}
+  scope:
+    needs: [pr-scope]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+${RUNS}    steps:
+      - env:
+          FULL: \${{ needs.pr-scope.outputs.full }}
+        run: echo "$FULL"
+`;
+
+  test('a pull request owes the suite a batch owes, and the scope job answers so', () => {
+    const { text } = port(E2E, 'e2e.yml', 'full');
+    expect(text).toContain('if: "!cancelled()"');
+    expect(text).toContain(
+      "FULL: ${{ github.event_name == 'pull_request' && 'true' || '' }}",
+    );
+    expect(port(E2E, 'e2e.yml', 'fast').text).toContain(
+      "github.event_name != 'pull_request'",
+    );
+  });
+
+  test('hands the readiness policy the scope a pull request really had', () => {
+    const seen: Record<string, unknown> = {};
+    portWorkflow(E2E, 'e2e.yml', emptyReport(), {
+      rules: defaultRules('full'),
+      after: [
+        (_doc, context) => {
+          seen.pr = context.results.get('pr-scope');
+        },
+      ],
+    });
+    expect(seen.pr).toEqual({
+      pull_request: {
+        result: 'success',
+        outputs: { run: 'true', full: 'true' },
+      },
+      push: { result: 'skipped', outputs: { run: '', full: '' } },
+    });
+  });
+});
+
+describe('queueOnlyJobs', () => {
+  const CHECKS = (file: string, tier: Tier) =>
+    port(
+      `name: Checks
+on:
+  merge_group:
+  pull_request:
+jobs:
+  build:
+    if: >-
+      github.event_name != 'pull_request' &&
+      !cancelled() &&
+      needs.x.result == 'success'
+${RUNS}    steps:
+      - run: echo build
+  lint:
+    if: github.event_name != 'pull_request'
+${RUNS}    steps:
+      - run: echo lint
+`,
+      file,
+      tier,
+    );
+
+  test('lets a pull request of the full tier run the suites the merge queue alone ran', () => {
+    const { text } = CHECKS('checks.yml', 'full');
+    expect(text).toContain(
+      'if: "!cancelled() && needs.x.result == \'success\'"',
+    );
+  });
+
+  test('touches only the jobs Tale lists as queue-only, only in checks.yml, and not in the fast tier', () => {
+    expect(CHECKS('checks.yml', 'full').text).toContain(
+      "if: github.event_name != 'pull_request'",
+    );
+    expect(CHECKS('build.yml', 'full').text).toContain(
+      "github.event_name != 'pull_request' &&",
+    );
+    expect(CHECKS('checks.yml', 'fast').text).toContain(
+      "github.event_name != 'pull_request' &&",
+    );
   });
 });

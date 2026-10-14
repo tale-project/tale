@@ -766,7 +766,23 @@ export function hasExpression(source: string): boolean {
   return source.includes('${{');
 }
 
+/** The operands of a chain of `&&`, outermost first: `a && (b && c)` is `[a, b, c]`. */
+export function conjuncts(node: Expr): Expr[] {
+  if (node.kind === 'binary' && node.op === '&&')
+    return [...conjuncts(node.left), ...conjuncts(node.right)];
+  return [node];
+}
+
+/** `&&` of the operands, or `undefined` for none (always true). */
+export function allOf(nodes: readonly Expr[]): Expr | undefined {
+  return nodes.reduce<Expr | undefined>(
+    (left, right) =>
+      left === undefined ? right : { kind: 'binary', op: '&&', left, right },
+    undefined,
+  );
+}
+
 /** Whether two expressions are the same tree, whatever their spacing. */
-function sameExpression(a: Expr, b: Expr): boolean {
+export function sameExpression(a: Expr, b: Expr): boolean {
   return printExpression(a) === printExpression(b);
 }

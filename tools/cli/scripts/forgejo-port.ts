@@ -110,7 +110,7 @@ export function describe(generated: Generated): string[] {
     if (plan.kind === 'port') {
       const gone = [...outcome.removed.keys()];
       lines.push(
-        `  ${outcome.file}: ported; on ${outcome.events.join(', ') || 'nothing'}; ${outcome.jobs.length} jobs` +
+        `  ${outcome.file}: ported; a pull request owes ${outcome.tier === 'fast' ? 'the fast tier' : 'what a batch owes'}; on ${outcome.events.join(', ') || 'nothing'}; ${outcome.jobs.length} jobs` +
           (gone.length > 0
             ? `, ${gone.length} removed (${gone.join(', ')})`
             : ''),
@@ -256,6 +256,7 @@ const OPTIONS = {
   root: { type: 'string' },
   out: { type: 'string' },
   runner: { type: 'string' },
+  tier: { type: 'string' },
   write: { type: 'boolean' },
 } as const;
 
@@ -272,7 +273,7 @@ function parseCommandLine(argv: readonly string[]) {
 export function main(
   argv: readonly string[],
   io: Io,
-  manifest: Manifest = MANIFEST,
+  declared: Manifest = MANIFEST,
 ): number {
   let parsed: ReturnType<typeof parseCommandLine>;
   try {
@@ -282,6 +283,12 @@ export function main(
     return 2;
   }
   const { command } = parsed;
+  const tier = parsed.values.tier ?? declared.tier;
+  if (tier !== 'fast' && tier !== 'full') {
+    io.err(`--tier is fast or full, not ${tier}`);
+    return 2;
+  }
+  const manifest: Manifest = { ...declared, tier };
   if (parsed.extra !== undefined) {
     io.err(`unexpected argument ${parsed.extra}`);
     return 2;
@@ -312,10 +319,10 @@ export function main(
     ];
     if (parsed.values.runner)
       problems.push(...runnerCheck(parsed.values.runner, generated));
-    const declared = readDeclaredChecks(root);
+    const listed = readDeclaredChecks(root);
     if (
-      declared === undefined ||
-      JSON.stringify(declared) !== JSON.stringify(generated.checks)
+      listed === undefined ||
+      JSON.stringify(listed) !== JSON.stringify(generated.checks)
     )
       problems.push({
         file: DECLARED_CHECKS,

@@ -11,10 +11,16 @@ import { isMap } from 'yaml';
 
 import { rewriteActions, rewriteLocalActions, registryLogin } from './actions';
 import { buildCache } from './cache';
-import type { Rule } from './context';
-import { MANIFEST, planFor, type Manifest, type Plan } from './manifest';
+import type { Rule, Tier } from './context';
+import {
+  MANIFEST,
+  planFor,
+  tierOf,
+  type Manifest,
+  type Plan,
+} from './manifest';
 import { portAction, portWorkflow } from './port';
-import { DEFAULT_RULES } from './rules';
+import { defaultRules } from './rules';
 import { validateAction, validateWorkflow, type Problem } from './validate';
 import {
   emptyReport,
@@ -55,6 +61,8 @@ export interface WorkflowOutcome {
   /** The jobs of the GitHub file that are not in the generated one, with why. */
   readonly removed: ReadonlyMap<string, string>;
   readonly events: readonly string[];
+  /** What a pull request owes of it. */
+  readonly tier?: Tier;
 }
 
 export interface Generated {
@@ -86,9 +94,9 @@ function rulesFor(
   }));
   return [
     dropJobs(plan.dropJobs ?? []),
-    ...DEFAULT_RULES,
+    ...defaultRules(tierOf(manifest, plan)),
     dropForeignRows(manifest.labels),
-    readyJob,
+    readyJob(tierOf(manifest, plan)),
     rewriteActions,
     buildCache,
     registryLogin(manifest.registry),
@@ -138,6 +146,7 @@ export function generate(
       jobs: ported.jobs,
       removed: ported.removed,
       events: ported.events,
+      tier: tierOf(manifest, plan),
     });
     problems.push(...validateWorkflow(text, path, { labels: manifest.labels }));
     const doc = readWorkflow(ported.text, file);

@@ -82,6 +82,7 @@ jobs:
 `;
 
 const SMALL: Manifest = {
+  tier: 'full',
   registry: { host: 'git.example.test', tokenSecret: 'CI_PACKAGES_TOKEN' },
   githubApiTokenSecret: 'CI_GITHUB_TOKEN',
   labels: ['ubuntu-latest'],
@@ -149,7 +150,9 @@ describe('describe, compare and writeGenerated', () => {
     const root = repository();
     const generated = generate(readSources(root, SMALL), SMALL);
     const lines = describeGenerated(generated);
-    expect(lines.join('\n')).toContain('checks.yml: ported');
+    expect(lines.join('\n')).toContain(
+      'checks.yml: ported; a pull request owes what a batch owes',
+    );
     expect(lines.join('\n')).toContain('publish-packages.yml: github; stays');
     expect(lines).toContain('  Checks / CI ready (Checks)');
     expect(lines).toContain('Problems: 0');
@@ -267,6 +270,17 @@ describe('the command line', () => {
     expect(again.out.at(-1)).toBe('wrote 0 files');
   });
 
+  test("a tier of the command line replaces the manifest's, and only fast and full are tiers", () => {
+    const root = repository();
+    expect(run(root, 'report', '--tier', 'fast').out.join('\n')).toContain(
+      'checks.yml: ported; a pull request owes the fast tier',
+    );
+    expect(run(root, 'report').out.join('\n')).toContain(
+      'checks.yml: ported; a pull request owes what a batch owes',
+    );
+    expect(run(root, 'report', '--tier', 'half').code).toBe(2);
+  });
+
   test('refuses what it does not know', () => {
     const root = repository();
     expect(run(root, 'nonsense').code).toBe(2);
@@ -286,6 +300,22 @@ describe("Tale's own workflows", () => {
     expect(generated.checks).toEqual(readDeclaredChecks(ROOT) ?? []);
     for (const path of generated.files.keys())
       expect(path.startsWith('.forgejo/')).toBe(true);
+  });
+
+  test('are ported in both tiers, with the same checks', () => {
+    const fast = generate(sources, { ...MANIFEST, tier: 'fast' });
+    const full = generate(sources, { ...MANIFEST, tier: 'full' });
+    expect(fast.checks).toEqual(full.checks);
+    expect(fast.files.size).toBe(full.files.size);
+    expect(fast.files.get('.forgejo/workflows/e2e.yml')).not.toBe(
+      full.files.get('.forgejo/workflows/e2e.yml'),
+    );
+    expect(fast.files.get('.forgejo/workflows/sast.yml')).toContain(
+      'CI_TIER: fast',
+    );
+    expect(full.files.get('.forgejo/workflows/sast.yml')).toContain(
+      'CI_TIER: full',
+    );
   });
 
   test('say what Forgejo would refuse, without holding a workflow edited today to a port applied at the cut-over', () => {
