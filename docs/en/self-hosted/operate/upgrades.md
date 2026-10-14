@@ -71,7 +71,7 @@ If the new group does not become healthy within `HEALTH_CHECK_TIMEOUT`, the depl
 
 At boot, the backend applies its numbered migrations in file-name order under a session advisory lock. SQL migrations change the schema; TypeScript data migrations update existing rows by the application's own rules. The `app_migrations` table records both kinds by file name, so each runs once per database. Other replicas wait for that migration path. A migration error prevents the new backend from starting normally; inspect its error and the database before retrying. Forward-only migrations are not undone by changing an image tag.
 
-`tale migrate` refreshes built-in organization defaults; it is not a command for rolling database migrations backward. Review whether local configuration was meant to be replaced before using host-config override options.
+`tale migrate` adds the shipped configuration files an organization is missing, and the starter project to an organization that has no project. It adds no automation, and it is not a command for rolling database migrations backward. Review whether local configuration was meant to be replaced before using host-config override options.
 
 After deployment, verify the public certificate and sign-in, open an existing project or conversation, download a known file, and run a controlled check of the knowledge and automation paths you use. Check worker progress, store health, and the final deployed version. Keep the pre-upgrade recovery set until the deployment has met your acceptance criteria.
 

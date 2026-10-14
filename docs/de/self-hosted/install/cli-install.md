@@ -584,7 +584,7 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 - `-f, --force` — Re-Sync erzwingen und lokal geänderte Projektdateien überschreiben.
 - `--dry-run` — anzeigen, was sich ändern würde, ohne etwas zu ändern.
 
-`tale migrate` — die mitgelieferten Defaults für jede Organisation auf dem laufenden Deployment neu provisionieren, ein idempotenter Schritt: Führe ihn nach dem Deploy eines Releases aus, dessen neue mitgelieferte Automatisierungen bestehende Organisationen brauchen, denn ein Deploy führt ihn nicht aus. Schema-Migrationen sind kein Command: Das Backend wendet sie beim Start an, ein deployter Container ist also immer auf seinem eigenen Schema.
+`tale migrate` — die mitgelieferten Konfigurationsstandards für jede Organisation auf dem laufenden Deployment neu provisionieren, ein idempotenter Schritt, den ein Deploy nicht ausführt: Er ergänzt die mitgelieferten Konfigurationsdateien, die einer Organisation fehlen, und legt in einer Organisation ohne Projekt das Einstiegsprojekt mit seinen Beispielaufgaben an. Er fügt keine Automatisierung hinzu und ändert keine, die eine Organisation schon hat: Eine neue Automatisierung kommt erst in eine Organisation, wenn jemand sie aus dem [Vorlagenkatalog](/de/platform/automations/templates) in der App hinzufügt. Schema-Migrationen sind kein Command: Das Backend wendet sie beim Start an, ein deployter Container ist also immer auf seinem eigenen Schema.
 
 - `--dry-run` — zeigen, was laufen würde, ohne es auszuführen.
 

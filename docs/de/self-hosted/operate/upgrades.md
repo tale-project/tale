@@ -71,7 +71,7 @@ Wird die neue Gruppe nicht innerhalb von `HEALTH_CHECK_TIMEOUT` gesund, schließ
 
 Beim Start wendet das Backend seine nummerierten Migrationen in der Reihenfolge ihrer Dateinamen unter einem sitzungsgebundenen Advisory Lock an. SQL-Migrationen ändern das Schema, TypeScript-Datenmigrationen aktualisieren bestehende Zeilen nach den Regeln der Anwendung. Die Tabelle `app_migrations` verzeichnet beide Arten mit ihrem Dateinamen, sodass jede Migration pro Datenbank nur einmal läuft. Andere Replikate warten darauf. Ein Migrationsfehler verhindert den regulären Start des neuen Backends. Prüfe Fehler und Datenbank vor einem neuen Versuch. Vorwärtsgerichtete Migrationen werden durch einen anderen Image-Tag nicht rückgängig gemacht.
 
-`tale migrate` aktualisiert mitgelieferte Organisationsstandards und rollt keine Datenbankmigration zurück. Prüfe vor einer Überschreibung der Host-Konfiguration, ob lokale Anpassungen tatsächlich ersetzt werden sollen.
+`tale migrate` ergänzt die mitgelieferten Konfigurationsdateien, die einer Organisation fehlen, und legt in einer Organisation ohne Projekt das Einstiegsprojekt an. Der Befehl fügt keine Automatisierung hinzu und rollt keine Datenbankmigration zurück. Prüfe vor einer Überschreibung der Host-Konfiguration, ob lokale Anpassungen tatsächlich ersetzt werden sollen.
 
 Prüfe nach der Bereitstellung öffentliches Zertifikat und Anmeldung, öffne ein vorhandenes Projekt oder einen Chat und lade eine bekannte Datei herunter. Teste kontrolliert die genutzten Wissens- und Automatisierungsfunktionen. Kontrolliere Worker-Fortschritt, Speicherzustand und die tatsächlich laufende Version. Bewahre die Sicherung von vor dem Upgrade bis zur Abnahme auf.
 

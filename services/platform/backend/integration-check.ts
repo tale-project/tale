@@ -34101,20 +34101,16 @@ async function checkSsoAdminSurface(
 }
 
 /**
- * Org provisioning on a THROWAWAY org: the shipped default automation packs
- * seed once (version 1, trigger bound switched off as the pack's repeat rule,
- * presentation stored), a re-run skips
- * everything, a tombstoned pack stays deleted, and the starter content
- * seeds a Getting-started project with example tasks only while the org has
- * no project.
+ * Org provisioning on a THROWAWAY org: what the `org.scaffold` job runs —
+ * the config scaffold, then the starter content — adds no automation and no
+ * trigger, though the builtin catalog holds a shipped pack it could have
+ * added, and the starter content seeds a Getting-started project with
+ * example tasks only while the org has no project.
  */
 async function checkProvisioning(sql: Sql): Promise<void> {
-  const { seedDefaultAutomationPacks, seedStarterContent } =
-    await import('./domains/provisioning/service.ts');
-  const { isRecord } = await import('../lib/utils/type-utils.ts');
   // The harness's builtin catalog is a hermetic EMPTY dir — plant one REAL
-  // shipped pack (copied from the repo catalog) so the seeder has something
-  // to provision.
+  // shipped pack (copied from the repo catalog), so provisioning has an
+  // automation it could add and the zero below means something.
   const repoPack = path.resolve(
     process.cwd(),
     '../../configs/platform/custom/automations/imap-smtp/sync-emails',
@@ -34143,80 +34139,38 @@ async function checkProvisioning(sql: Sql): Promise<void> {
   `;
   const orgId = orgRows[0]?.id ?? '';
 
-  const first = await seedDefaultAutomationPacks(sql, orgId);
-  const versions = await sql<
-    { name: string; version: number; hasPresentation: boolean }[]
-  >`
-    SELECT name, version, (presentation IS NOT NULL) AS "hasPresentation"
-    FROM app.automations WHERE org_id = ${orgId}
+  // The job the organization's creation queues, run as the worker runs it —
+  // its provisioning half included: the harness keeps provisioning switched
+  // off for every other lane (TALE_PROVISIONING_DISABLED), so this lane turns
+  // it on around the job, or "no automation" would prove nothing.
+  const scaffold = createTaskList({ sql })['org.scaffold'];
+  const runScaffold = async (
+    payload: Record<string, unknown>,
+  ): Promise<string | null> => {
+    const before = process.env.TALE_PROVISIONING_DISABLED;
+    process.env.TALE_PROVISIONING_DISABLED = '0';
+    try {
+      await scaffold?.(payload);
+      return null;
+    } catch (error) {
+      return errorText(error);
+    } finally {
+      if (before === undefined) delete process.env.TALE_PROVISIONING_DISABLED;
+      else process.env.TALE_PROVISIONING_DISABLED = before;
+    }
+  };
+  const scaffoldError = await runScaffold({
+    orgSlug: 'itest-provision',
+    cleanFirst: true,
+  });
+  const automations = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automations
+    WHERE org_id = ${orgId}
   `;
   const triggers = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.automation_triggers
     WHERE org_id = ${orgId}
   `;
-  // PROVN-R7: the shipped trigger is bound switched off, and the pack's
-  // repeat rule is stored as a rule, not as a cron expression.
-  const seededTriggers = await sql<
-    {
-      name: string;
-      enabled: boolean;
-      cron: string | null;
-      repeat: unknown;
-      nextDueAt: string | null;
-    }[]
-  >`
-    SELECT name, enabled, cron, schedule_rule -> 'repeat' AS repeat,
-           next_due_at_ms::text AS "nextDueAt"
-    FROM app.automation_triggers
-    WHERE org_id = ${orgId}
-  `;
-  const syncTrigger = seededTriggers.find(
-    (row) => row.name === 'imap-smtp-sync-emails',
-  );
-  record(
-    'org provisioning binds a shipped trigger switched off, as the pack’s repeat rule [PROVN-R7]',
-    seededTriggers.length >= 1 &&
-      seededTriggers.every((row) => !row.enabled && row.nextDueAt === null) &&
-      syncTrigger !== undefined &&
-      syncTrigger.cron === null &&
-      // jsonb keeps its own key order, so the rule is compared by field.
-      isRecord(syncTrigger.repeat) &&
-      syncTrigger.repeat.frequency === 'minutely' &&
-      syncTrigger.repeat.interval === 5 &&
-      Object.keys(syncTrigger.repeat).length === 2,
-    `seeded=${seededTriggers.map((row) => `${row.name}:${row.enabled ? 'on' : 'off'}/next=${row.nextDueAt ?? 'none'}`).join('|')} (want every one off, none due), sync cron=${syncTrigger?.cron ?? 'null'} repeat=${JSON.stringify(syncTrigger?.repeat ?? null)} (want null / minutely 5)`,
-  );
-
-  // Idempotency: the second run provisions nothing and duplicates nothing.
-  const again = await seedDefaultAutomationPacks(sql, orgId);
-  const versionsAfter = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.automations
-    WHERE org_id = ${orgId}
-  `;
-
-  // A deliberate deletion outlives the deploy cycle.
-  const tombstoned = first.provisioned[0] ?? '';
-  await sql`
-    DELETE FROM app.automations
-    WHERE org_id = ${orgId} AND name = ${tombstoned}
-  `;
-  await sql`
-    DELETE FROM app.automation_triggers
-    WHERE org_id = ${orgId} AND name = ${tombstoned}
-  `;
-  await sql`
-    INSERT INTO app.automation_tombstones (org_id, name, deleted_by,
-                                           deleted_at_ms)
-    VALUES (${orgId}, ${tombstoned}, 'itest', ${Date.now()})
-  `;
-  const afterTombstone = await seedDefaultAutomationPacks(sql, orgId);
-  const resurrected = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.automations
-    WHERE org_id = ${orgId} AND name = ${tombstoned}
-  `;
-
-  // Starter content: seeds once, then the existing project blocks a re-run.
-  await seedStarterContent(sql, orgId);
   const starterProjects = await sql<{ id: string; name: string }[]>`
     SELECT id, name FROM app.projects WHERE org_id = ${orgId}
   `;
@@ -34228,30 +34182,38 @@ async function checkProvisioning(sql: Sql): Promise<void> {
   const starterTitles = await sql<{ title: string }[]>`
     SELECT title FROM app.tasks WHERE org_id = ${orgId}
   `;
-  await seedStarterContent(sql, orgId);
-  const projectsAfter = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgId}
-  `;
-
   record(
-    'org provisioning (default packs + starter content, throwaway org)',
-    first.provisioned.length >= 1 &&
-      versions.length === first.provisioned.length &&
-      versions.every((row) => row.version === 1 && row.hasPresentation) &&
-      Number(triggers[0]?.count ?? '0') >= 1 &&
-      again.provisioned.length === 0 &&
-      again.skipped.length >= first.provisioned.length &&
-      Number(versionsAfter[0]?.count ?? '0') === versions.length &&
-      tombstoned !== '' &&
-      afterTombstone.skipped.includes(tombstoned) &&
-      resurrected[0]?.count === '0' &&
+    'a new organization starts with the starter project and no automation (throwaway org) [PROVN-R9]',
+    scaffold !== undefined &&
+      scaffoldError === null &&
+      automations[0]?.count === '0' &&
+      triggers[0]?.count === '0' &&
       starterProjects.length === 1 &&
       starterProjects[0]?.name === 'Getting started' &&
       starterTasks[0]?.count === '3' &&
       starterTitles.some((row) => row.title === 'Connect a connector') &&
-      !starterTitles.some((row) => /\ban connector\b/i.test(row.title)) &&
-      projectsAfter[0]?.count === '1',
-    `first=${first.provisioned.length} packs (${first.provisioned.join('|')}) v1+presentation=${versions.every((r) => r.version === 1 && r.hasPresentation)} triggers=${triggers[0]?.count}, again=${again.provisioned.length}/${again.skipped.length} rows=${versionsAfter[0]?.count}, tombstone=${afterTombstone.skipped.includes(tombstoned)}/resurrected=${resurrected[0]?.count} (want 0), starter=${starterProjects[0]?.name}/${starterTasks[0]?.count} tasks (want 3) rerun=${projectsAfter[0]?.count} (want 1)`,
+      !starterTitles.some((row) => /\ban connector\b/i.test(row.title)),
+    `scaffold=${scaffold === undefined ? 'no handler' : (scaffoldError ?? 'ok')}, automations=${automations[0]?.count} triggers=${triggers[0]?.count} (want 0/0), starter=${starterProjects[0]?.name}/${starterTasks[0]?.count} tasks (want Getting started/3)`,
+  );
+
+  // Provisioning again, as `tale migrate` queues it: the existing project
+  // blocks a second starter, and still no automation appears.
+  const rerunError = await runScaffold({ orgSlug: 'itest-provision' });
+  const projectsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgId}
+  `;
+  const automationsAfter = await sql<{ count: string }[]>`
+    SELECT ((SELECT count(*) FROM app.automations WHERE org_id = ${orgId})
+      + (SELECT count(*) FROM app.automation_triggers
+         WHERE org_id = ${orgId}))::text AS count
+  `;
+  record(
+    'org provisioning run again adds no second starter project and no automation (throwaway org) [PROVN-R5]',
+    scaffold !== undefined &&
+      rerunError === null &&
+      projectsAfter[0]?.count === '1' &&
+      automationsAfter[0]?.count === '0',
+    `scaffold=${scaffold === undefined ? 'no handler' : (rerunError ?? 'ok')}, projects=${projectsAfter[0]?.count} (want 1), automations+triggers=${automationsAfter[0]?.count} (want 0)`,
   );
 }
 

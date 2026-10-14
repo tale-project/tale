@@ -71,7 +71,7 @@ Si le nouveau groupe ne devient pas sain avant `HEALTH_CHECK_TIMEOUT`, la CLI ne
 
 Au démarrage, le backend applique ses migrations numérotées dans l’ordre des noms de fichier, sous un verrou consultatif de session. Les migrations SQL modifient le schéma ; les migrations de données en TypeScript mettent à jour les lignes existantes selon les règles de l’application. La table `app_migrations` enregistre les deux types par nom de fichier, si bien que chaque migration ne s’exécute qu’une fois par base. Les autres réplicas attendent cette étape. Une erreur de migration empêche le nouveau backend de démarrer normalement ; examine l’erreur et la base avant de réessayer. Changer un tag d’image n’annule pas des migrations conçues pour avancer uniquement.
 
-`tale migrate` actualise les valeurs d’organisation fournies ; ce n’est pas une commande de retour arrière de la base. Avant de remplacer la configuration de l’hôte, vérifie que les adaptations locales doivent réellement être écrasées.
+`tale migrate` ajoute les fichiers de configuration fournis qui manquent à une organisation, et le projet de démarrage à une organisation qui n’a aucun projet. Cette commande n’ajoute aucune automatisation et ne sert pas à annuler une migration de la base. Avant de remplacer la configuration de l’hôte, vérifie que les adaptations locales doivent réellement être écrasées.
 
 Après le déploiement, vérifie certificat public et connexion, ouvre un projet ou une conversation existante et télécharge un fichier connu. Teste de façon contrôlée les parcours de connaissances et d’automatisation utilisés. Vérifie l’avancement des workers, les stockages et la version effectivement active. Conserve les éléments de reprise antérieurs jusqu’à l’acceptation du déploiement.
 

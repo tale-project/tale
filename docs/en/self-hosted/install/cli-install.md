@@ -584,7 +584,7 @@ With `--json`, the report lists each check with its status (`pass`, `fail` or `s
 - `-f, --force` — force re-sync and overwrite locally modified project files.
 - `--dry-run` — show what would change without modifying anything.
 
-`tale migrate` — re-provision the built-in defaults for every organization against the running deployment, an idempotent step: run it after deploying a release whose new built-in automations existing organizations need, since a deploy does not run it. Schema migrations are not a command: the backend applies them at boot, so a deployed container is always at its own schema.
+`tale migrate` — re-provision the configuration defaults for every organization against the running deployment, an idempotent step that a deploy does not run: it adds the shipped configuration files an organization is missing, and the starter project with its example tasks to an organization that has no project. It adds no automation and changes none an organization already has: a new automation reaches an organization only when someone adds it from the [template catalog](/platform/automations/templates) in the app. Schema migrations are not a command: the backend applies them at boot, so a deployed container is always at its own schema.
 
 - `--dry-run` — show what would run without executing it.
 

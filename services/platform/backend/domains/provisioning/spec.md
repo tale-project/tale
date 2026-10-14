@@ -2,64 +2,35 @@
 
 > **Prefix** `PROVN-`
 
-A new organization is given the automations that ship with the product and a starter project
-with a few example tasks. The same step runs again for every organization when an operator
-runs `tale migrate`, so that new shipped automations reach existing organizations; a deploy
-alone does not run it. These rules say what provisioning adds and what it
-leaves alone. The configuration files an organization is seeded with are not covered; see Not
-yet.
+A new organization is given a starter project with a few example tasks, and no automation:
+the automations that ship with the product are templates a person picks from the template
+catalog. The same step runs again for every organization when an operator runs `tale migrate`:
+it adds the shipped configuration files an organization is missing, and the starter project to
+an organization that has no project. A deploy alone does not run it. These rules say what
+provisioning adds and what it leaves alone. The configuration files an organization is seeded
+with are not covered; see Not yet.
 
-## Shipped automations
+## Automations
 
-### PROVN-R1 · An organization gets every shipped automation it does not have
+Provisioning adds no automation, and leaves every automation an organization has as it is.
 
-Each is saved as its first version, in the name of the system.
+### PROVN-R9 · A new organization starts with no automation
 
-- **Example**: A new release ships an automation that did not exist before. An existing
-  organization is provisioned again at the deploy → it gets that automation.
+Creating an organization adds none of the automations that ship with the product. A person adds
+one from the template catalog.
 
-### PROVN-R2 · Provisioning adds no version to an automation the organization already has
+- **Example**: Ada creates an organization → its Automations list is empty; the starter project
+  and its tasks are there.
 
-The organization's own versions decide how the automation behaves. Running provisioning any
-number of times changes nothing a run could observe.
+### PROVN-R10 · Provisioning never adds, changes or removes an automation
 
-- **Example**: Ada's organization edited a shipped automation and saved version 2. A deploy
-  provisions the organization again → version 2 is still the newest, and nothing was added.
+An automation an organization already has keeps its versions, its trigger and its name, however
+often provisioning runs again, and the templates a new release ships reach no organization on
+their own.
 
-### PROVN-R3 · An automation the organization deleted is never brought back
-
-- **Example**: Ada deletes a shipped automation her organization does not use. The next deploy
-  provisions the organization again → the automation stays deleted.
-
-### PROVN-R4 · A catalog that cannot be read is reported, not taken for an empty one
-
-Provisioning that cannot read the shipped automations says so. It does not conclude that
-there is nothing to add.
-
-- **Example**: The folder of shipped automations is unreadable on a server → provisioning
-  reports the catalog as unreadable.
-
-### PROVN-R7 · A shipped automation's trigger is added switched off, and only once
-
-The trigger a shipped automation comes with is added when the organization has none for it,
-switched off unless the automation says it starts on. Nothing is deployed yet, so it could
-start no run; deploying a version offers to turn it on. A trigger the organization already
-has, its own or an earlier one, is left as it is.
-
-- **Example**: A new organization gets the Gmail sync automation → its five-minute schedule is
-  there and off. Ada deploys a version → the editor offers to turn the schedule on.
-
-### PROVN-R8 · A shipped automation is given a model the organization serves
-
-When none of the organization's providers serves the model a shipped automation's model step
-names, the step is given one they do serve, of the same size — the pick the chat makes on Auto —
-and the automation's first version says which. A model the organization serves stays, and so
-does one that cannot be checked because a provider could not be reached; an automation the
-organization already has is never changed.
-
-- **Example**: An organization that connected only OpenAI is given the inbox triage automation →
-  its model step uses an OpenAI model, and its first version reads "Model
-  anthropic/claude-haiku-4-5 isn't served here; using gpt-5-mini."
+- **Example**: Ada's organization has the Gmail sync it got from an earlier release. An operator
+  runs `tale migrate` → its versions, trigger and how it is named are as they were, and a new
+  release's templates do not appear in her automations.
 
 ## Starter content
 
@@ -68,8 +39,8 @@ organization already has is never changed.
 A starter project with example tasks is created the first time. An organization that has any
 project gets nothing more, however often provisioning runs.
 
-- **Example**: Ada deletes the starter project and creates her own. A deploy provisions the
-  organization again → no starter project comes back.
+- **Example**: Ada deletes the starter project and creates her own. An operator runs
+  `tale migrate` → no starter project comes back.
 
 ### PROVN-R6 · The example tasks are assigned to nobody and mention nobody
 
@@ -82,6 +53,4 @@ Creating them notifies no one and starts no agent.
 
 - **The configuration files an organization starts with**: agents, skills, models and
   policies copied from the shipped catalog (`domains/organizations/scaffold.ts`).
-- **Refreshing how a shipped automation is presented** (its name and description as shown)
-  without touching its behaviour.
 - **Re-provisioning every organization, and the factory reset**: see the control spec.

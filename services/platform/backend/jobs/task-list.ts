@@ -573,7 +573,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // Starter content is a DB row, not a catalog file. Seed it even when
       // the filesystem scaffold skips (misconfigured catalog / invalid slug)
       // so a fresh org is usable and e2e can gate on "Getting started".
-      // Packs stay after starter so a pack-parse throw cannot block it.
+      // Nothing here adds, changes or removes an automation: a new
+      // organization starts with none, a person adds a shipped one from the
+      // template catalog, and one an organization already has stays as it is
+      // however often this job runs again (`tale migrate` queues it for every
+      // organization).
       const orgs = await deps.sql<{ id: string }[]>`
         SELECT "id" FROM "organization" WHERE "slug" = ${input.orgSlug}
         LIMIT 1
@@ -581,23 +585,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const organizationId = orgs[0]?.id;
       // Kill-switch (mirrors TALE_RETENTION_DISABLED): the integration
       // harness seeds nothing implicitly — its provisioning check drives the
-      // seeders directly against a throwaway org.
+      // starter content directly against a throwaway org.
       if (
         organizationId !== undefined &&
         process.env.TALE_PROVISIONING_DISABLED !== '1'
       ) {
-        const { seedDefaultAutomationPacks, seedStarterContent } =
+        const { seedStarterContent } =
           await import('../domains/provisioning/service.ts');
         await seedStarterContent(deps.sql, organizationId);
-        const seeded = await seedDefaultAutomationPacks(
-          deps.sql,
-          organizationId,
-        );
-        if (seeded.provisioned.length > 0) {
-          console.log(
-            `[provisioning] seeded packs for ${input.orgSlug}: ${seeded.provisioned.join(', ')}`,
-          );
-        }
       }
       if (!result.ok) {
         // Throw so pg-boss retries — scaffold is idempotent per domain.
