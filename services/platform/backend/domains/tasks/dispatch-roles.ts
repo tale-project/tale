@@ -21,9 +21,7 @@ import {
 
 /** A role's schedule, or why it has none (an unreadable cron or zone, which
  * the save refuses; a document a newer image wrote can still carry one). */
-function roleSchedule(
-  role: ProjectDispatchRole,
-): Schedule | { issue: string } {
+function roleSchedule(role: ProjectDispatchRole): Schedule | { issue: string } {
   const result = scheduleOfTrigger({
     cron: role.cron,
     timezone: role.timezone,

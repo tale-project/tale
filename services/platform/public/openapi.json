@@ -14730,6 +14730,9 @@
                     "configured": {
                       "type": "boolean"
                     },
+                    "unreadable": {
+                      "type": "boolean"
+                    },
                     "config": {
                       "type": "object",
                       "properties": {
@@ -15283,6 +15286,7 @@
                   },
                   "required": [
                     "configured",
+                    "unreadable",
                     "config",
                     "hash",
                     "canEdit",
