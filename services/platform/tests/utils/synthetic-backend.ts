@@ -1,6 +1,8 @@
 import { vi } from 'vitest';
 
-type Reply = (url: URL) => Response | Promise<Response>;
+/** An answer to one request; `init` carries what the request sent (its
+ * method and JSON body), for a door whose answer depends on it. */
+type Reply = (url: URL, init?: RequestInit) => Response | Promise<Response>;
 
 /**
  * A closed synthetic transport for the app's `/api/app` doors: `fetch` is
@@ -33,7 +35,7 @@ export function syntheticBackend(): SyntheticBackend {
     for (let index = routes.length - 1; index >= 0; index -= 1) {
       const route = routes[index];
       if (route !== undefined && route.pattern.test(call)) {
-        return route.reply(url);
+        return route.reply(url, init);
       }
     }
     return Response.json(

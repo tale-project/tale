@@ -23,6 +23,7 @@ errors, no error boundary) against a seeded org on 2026-06-23.
 | Files           | `/dashboard/{org}/projects/{projectId}/files`                                                                             |
 | Threads         | `/dashboard/{org}/projects/{projectId}/threads`                                                                           |
 | Agents          | `/dashboard/{org}/projects/{projectId}/agents`                                                                            |
+| Dispatch        | `/dashboard/{org}/projects/{projectId}/dispatch` (every reader; administrators change it)                                 |
 | Instructions    | `/dashboard/{org}/projects/{projectId}/instructions` → redirects to General                                              |
 | Secrets         | `/dashboard/{org}/projects/{projectId}/secrets`                                                                           |
 | Metrics         | `/dashboard/{org}/settings/metrics/projects?project={projectId}` (the one metrics home; linked from the tasks toolbar)    |
@@ -644,3 +645,88 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-F39` · **Save a default without taking over waiting reviews** — As an editor, open `/dashboard/{org}/projects/{projectId}/overview` → **Task reviews** (`projects.taskReview.title`) → **Default reviewer** (`projects.taskReview.defaultReviewer`), choose project agent B, save, and reload → B remains selected. An existing pending review keeps the person named in **Current review** (`tasks.reviewer.pendingFor`); a later review on a task using **Project default** (`tasks.reviewer.projectDefaultLabel`) names B. Neither saving nor reloading starts B or grants **Review other agents’ task results** (`projects.agents.tool.task_review`).
 - [ ] `PROJ-B14` · **A slow agent save cannot discard later typing** — Edit an agent's **Instructions** (`projects.agents.instructionsLabel`), throttle the save request, and choose **Save changes** (`projects.agents.editSubmit`) → name, agent type, model, equipment, secrets and instructions are unavailable while saving; keyboard and pointer input cannot change the submitted draft. Successful completion closes the dialog and reopening shows the submitted instructions. Repeat with a duplicate name → the dialog stays open, the draft remains visible, and editing becomes available again; the stored agent is unchanged. Repeat in **New agent** → fields also lock until creation finishes.
 - [ ] `PROJ-B12` · **Keep the review default safe across concurrent saves** — Open the project's General tab in two editor sessions, edit the default in both, and save B in the first → the second save refuses with the localized stale-draft message (`projects.taskReview.stale`), and reloading still shows B. Discard the stale draft, choose another default and save; then make and save a second change after the first save's live update → both deliberate later choices persist, without an unexpected stale warning or lost draft.
+
+## Dispatch
+
+The project's **Dispatch** tab (`projects.dispatch.title`) at
+`/dashboard/{org}/projects/{projectId}/dispatch`, judged against the user guide
+(`docs/en/platform/projects/dispatch.md`). Its readback states, the editor's
+checks, its save payload and refusals, and the timeline's label are held by
+component specs ([`reference/automation/projects.md`](../reference/automation/projects.md));
+these boxes are the live halves: real passes, real runs, two sessions, the
+keyboard and the three languages. Use a throwaway project with two agents and
+a few To do tasks.
+
+> **Agent note**: a pass runs as a job a moment after it is asked for, and at
+> least once a minute while dispatch is on; wait for the **Recent passes**
+> row, not for a toast. The readback refreshes itself every 30 seconds.
+
+- [ ] `PROJ-F67` · **Set up a project's dispatch** — As a project
+  administrator, open the tab of a project without a dispatch → it reads
+  **Dispatch is not set up for this project**
+  (`projects.dispatch.notSetUp.title`). Choose **Set up dispatch**
+  (`projects.dispatch.notSetUp.action`), pick both agents in **Agents in the
+  pool** (`projects.dispatch.editor.agents`), keep the other defaults and
+  choose **Save** → **Dispatch saved** (`projects.dispatch.editor.saved`);
+  reload → **Agents** (`projects.dispatch.agents.title`) lists both, and within
+  a minute **Recent passes** (`projects.dispatch.passes.title`) shows a pass
+  **A saved change** (`projects.dispatch.passes.trigger.config`) asked for.
+- [ ] `PROJ-F68` · **Dispatch starts ready work, and the task says so** —
+  With dispatch on, assign a To do task to an agent of the pool and choose
+  **Run a pass now** (`projects.dispatch.runPass`) → the task moves to In
+  progress, the agent's **Working on** (`projects.dispatch.agents.workingOn`)
+  links it, and the task's timeline reads **Started by dispatch**
+  (`tasks.agentRuns.trigger.dispatch`) with **Dispatch**
+  (`tasks.timeline.dispatchActor`) as the actor of its status change, never
+  "Deleted agent". An idle agent's **Idle because**
+  (`projects.dispatch.agents.idleBecause`) names the guide's reason, such as
+  **No ready work** (`projects.dispatch.idle.no_ready_work`).
+- [ ] `PROJ-F69` · **A standing role names its occurrence** — Under **Edit**
+  (`projects.dispatch.edit`) → **Standing roles**
+  (`projects.dispatch.editor.roles.title`) add key `manager`, an agent, a
+  task, schedule `*/5 * * * *` and your time zone, then save and wait for the
+  next five-minute mark → the role's task moves to In progress, its timeline
+  reads **Started by dispatch** followed by `manager`, the date, the time and
+  the zone, and the **Standing roles** table shows **Started**
+  (`projects.dispatch.roles.outcome.started`) under **Last** and the next
+  occurrence under **Next**.
+- [ ] `PROJ-F70` · **Hold and open a gate** — Under **Edit** → **Gates**
+  (`projects.dispatch.editor.gates.title`) declare `ci` holding the label `ci`
+  and save; on the page choose **Hold** (`projects.dispatch.gates.hold`) on its
+  row → it reads **Held** (`projects.dispatch.gates.states.held`), a ready task
+  labelled `ci` stays in To do while another ready task starts; choose
+  **Open** (`projects.dispatch.gates.open`) → **Open**
+  (`projects.dispatch.gates.states.open`), and the `ci` task starts within the
+  minute.
+- [ ] `PROJ-B20` · **A stale edit never overwrites another** — Open **Edit** in
+  two sessions; save a change in the first; change **Runs at once**
+  (`projects.dispatch.editor.maxConcurrentRuns`) in the second and save → one
+  destructive toast says someone else saved it
+  (`projects.dispatch.editor.conflict`), the dialog keeps the draft, and **Load
+  the current version** (`projects.dispatch.editor.reload`) shows the first
+  session's change; reload → the first save persisted, the second did not.
+- [ ] `PROJ-B21` · **The platform's refusal lands on its field** — Under
+  **Edit**, choose a label in **Only tasks labelled**
+  (`projects.dispatch.editor.labelsInclude`), delete that label from the board
+  in another tab, then save → no toast; the field names the missing label
+  (`projects.dispatch.editor.issues.label`), the draft stays, and removing the
+  label lets the save through.
+- [ ] `PROJ-B22` · **Who may not change it changes nothing** — As a project
+  reader, open the tab → no **Edit**, no **Run a pass now**, no **Hold** or
+  **Open**, and the header says project administrators change it
+  (`projects.dispatch.readerDescription`). Archive the project and open the
+  tab as an administrator → the archived banner
+  (`projects.readOnlyBanner.archivedTitle`) and no change either.
+- [ ] `PROJ-B23` · **A pool beyond the agent workers is named** — Set **Runs
+  at once** above the organization's agent workers (Settings → Sandboxes)
+  with as many agents → the page warns
+  (`projects.dispatch.workersWarning.title`) with both numbers; as an Owner or
+  Admin, **Manage agent workers** (`projects.dispatch.workersWarning.manage`)
+  opens Settings → Sandboxes.
+- [ ] `PROJ-A9` · **The Dispatch page and its editor by keyboard, in three
+  languages** — In English, German and French, walk the page and the **Edit**
+  dialog by keyboard alone → every control is reachable with visible focus; the
+  agent, label, task and time zone pickers open and close with Enter and
+  Escape without closing the dialog; a field's error is read with it; no German
+  or French label clips in the dialog or the tables; at phone width the tables
+  scroll sideways instead of clipping.

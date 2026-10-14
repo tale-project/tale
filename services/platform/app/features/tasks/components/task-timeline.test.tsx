@@ -199,6 +199,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'timeline.startedByAgent': 'started by',
         'agentRuns.trigger.automation': 'automation',
         'agentRuns.trigger.delegated': 'delegated',
+        'agentRuns.trigger.dispatch': 'Started by dispatch',
         'agentRuns.trigger.manual': 'manual',
         'agentRuns.status.settled': 'settled',
         'agentRuns.totalCost': `${String(values?.amount)} total`,
@@ -602,6 +603,43 @@ describe('TaskTimeline — runs no person started', () => {
     expect(screen.getByText('delegated')).toBeInTheDocument();
     expect(screen.getByText(/started by/)).toBeInTheDocument();
     expect(screen.getByText('Fleet manager')).toBeInTheDocument();
+  });
+
+  it('says the project’s dispatch started a run, and which occurrence started a standing role’s', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_role',
+        agentSlug: 'agent-worker',
+        trigger: 'dispatch',
+        occurrence: 'manager 2026-10-14 16:30 Europe/Zurich',
+        status: 'running',
+        startedAt: Date.now(),
+        costCents: 0,
+      },
+      {
+        runId: 'run_ready_work',
+        agentSlug: 'agent-worker',
+        trigger: 'dispatch',
+        status: 'running',
+        startedAt: Date.now() - 60_000,
+        costCents: 0,
+      },
+    ];
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'Started by dispatch · manager 2026-10-14 16:30 Europe/Zurich',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Started by dispatch')).toBeInTheDocument();
+    expect(screen.queryByText(/started by$/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Fleet manager cycle')).not.toBeInTheDocument();
   });
 
   it('says why a waiting run waits, on its own line under the run', () => {

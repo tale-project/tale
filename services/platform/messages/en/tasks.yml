@@ -494,6 +494,7 @@ agentRuns:
     auto_retry: auto retry
     automation: automation
     delegated: delegated
+    dispatch: Started by dispatch
   refused:
     agent_busy: agent is working on another task
     agent_disabled: agent is not installed or is disabled
@@ -519,6 +520,7 @@ timeline:
   deletedAgent: Deleted agent
   viewMore: "View more"
   viewWorkflow: View automation
+  dispatchActor: Dispatch
 dueDate:
   label: Due date
   overdue: Overdue

@@ -21,6 +21,7 @@ import {
   buildAgentRunPreview,
   buildTaskActorPreview,
   buildWorkflowRunPreview,
+  isDispatchSentinel,
   isWorkflowSentinel,
   type TaskActivityContext,
   type TaskActorPreview,
@@ -232,6 +233,15 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
               type,
               id,
               name: t('timeline.systemActor'),
+              isAgent: true,
+            };
+          }
+          // The project's dispatch assigned the task or moved it to work.
+          if (isDispatchSentinel(type, id)) {
+            return {
+              type,
+              id,
+              name: t('timeline.dispatchActor'),
               isAgent: true,
             };
           }

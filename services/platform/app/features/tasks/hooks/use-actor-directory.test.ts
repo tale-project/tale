@@ -168,6 +168,13 @@ describe('useActorDirectory — members + project-agent instances', () => {
     );
   });
 
+  it('names the project’s dispatch, never as a deleted agent', () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.resolveActor('agent', 'dispatch').name).toBe(
+      'timeline.dispatchActor',
+    );
+  });
+
   it('resolves assignee ids without a type for activity timeline rows', () => {
     const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
     expect(result.current.resolveAssigneeId('user-1')).toBe('Alex Doe');

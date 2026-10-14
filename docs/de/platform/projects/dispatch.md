@@ -9,7 +9,7 @@ Die Arbeitsverteilung entscheidet, wann und wo Arbeit startet. Was sich zu tun l
 
 ## Festlegen, was die Arbeitsverteilung nimmt und wer daran arbeitet
 
-Öffne das Projekt, wähle **Arbeitsverteilung** und dann **Bearbeiten**.
+Öffne das Projekt, wähle **Arbeitsverteilung** und dann **Bearbeiten** – oder **Arbeitsverteilung einrichten**, solange das Projekt keine hat.
 
 | Einstellung                                             | Was sie bestimmt                                                                                                                                                                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -70,6 +70,72 @@ export function ProjectAgentsFrame({
   );
 }
 
+export function ProjectDispatchFrame({
+  action,
+  reader = false,
+  children,
+}: {
+  action?: ReactNode;
+  /** The viewer reads the project's dispatch but may not change it: the
+   * header says who may, so a page without verbs is not mistaken for one
+   * that failed to load them. */
+  reader?: boolean;
+  children: ReactNode;
+}) {
+  const { t } = useT('projects');
+  return (
+    <ContentArea variant="narrow" gap={6} className="min-h-0 flex-1">
+      <StickySectionHeader
+        title={t('dispatch.title')}
+        description={t(
+          reader ? 'dispatch.readerDescription' : 'dispatch.description',
+        )}
+        action={action}
+      />
+      {children}
+    </ContentArea>
+  );
+}
+
+/** The Dispatch tab's frame while its chunk or its readback loads: the
+ * summary and one table, masked. */
+export function ProjectDispatchSkeleton() {
+  return (
+    <ProjectDispatchFrame>
+      <Skeletonize loading>
+        <Stack gap={6}>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((index) => (
+              <Stack key={index} gap={1}>
+                <Text variant="caption">
+                  <SkeletonText seed={index} />
+                </Text>
+                <SkeletonText seed={index + 4} />
+              </Stack>
+            ))}
+          </div>
+          <Stack gap={0} className="rounded-lg border">
+            {[0, 1, 2].map((index) => (
+              <Row
+                key={index}
+                gap={3}
+                className="border-b px-3 py-3 last:border-b-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <SkeletonText seed={index} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <SkeletonText seed={index + 2} />
+                </div>
+              </Row>
+            ))}
+          </Stack>
+        </Stack>
+      </Skeletonize>
+    </ProjectDispatchFrame>
+  );
+}
+
 export function ProjectFilesTreeSkeleton({
   canEdit = true,
 }: {

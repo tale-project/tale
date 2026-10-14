@@ -925,6 +925,67 @@ export const SHOTS: readonly Shot[] = [
     sanitize: replaceRigNames,
   },
   {
+    // The Dispatch tab of a project whose dispatch pools its agents: the
+    // summary, and each agent of the pool with why it is idle. Declared
+    // through the editor's own door, switched off, so it starts no run of
+    // the demo project for the shots after it. Gate on an idle reason in
+    // the Agents table: the summary says the same words before the table.
+    name: 'project-dispatch',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      await page.evaluate(
+        async ({ orgId, projectId }) => {
+          const base = `/api/app/tasks/dispatch/by-project/${projectId}/configuration?orgId=${orgId}`;
+          const list = await fetch(
+            `/api/app/projects/${projectId}/agents?orgId=${orgId}`,
+            { credentials: 'include' },
+          );
+          if (!list.ok) throw new Error(`Agents answered ${list.status}`);
+          const body: unknown = await list.json();
+          const agents =
+            typeof body === 'object' && body !== null && 'agents' in body
+              ? (body as { agents: { id: string; managed?: boolean }[] }).agents
+              : [];
+          const read = await fetch(base, { credentials: 'include' });
+          if (!read.ok) throw new Error(`Dispatch answered ${read.status}`);
+          const { hash } = (await read.json()) as { hash: string | null };
+          const saved = await fetch(base, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              config: {
+                projectId,
+                enabled: false,
+                agents: agents
+                  .filter((agent) => agent.managed !== true)
+                  .slice(0, 3)
+                  .map((agent) => agent.id),
+                maxConcurrentRuns: 2,
+                statuses: ['todo'],
+                assignment: 'assigned',
+              },
+              expectedHash: hash,
+            }),
+          });
+          if (!saved.ok) throw new Error(`Save answered ${saved.status}`);
+        },
+        { orgId: ctx.orgId, projectId: seededProjectId(ctx, RELAUNCH_PROJECT) },
+      );
+      await page.goto(projectRoute(ctx, '/dispatch'), {
+        waitUntil: 'domcontentloaded',
+      });
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('table', { name: t('projects.dispatch.agents.caption') })
+        .getByText(t('projects.dispatch.idle.disabled'))
+        .first(),
+    // Each row names the provider serving its model.
+    sanitize: replaceRigNames,
+  },
+  {
     // A new project agent starts with the document skills ticked, each row
     // naming who made it. The gate is the ticked docx row: the pre-tick only
     // lands once the skill catalog has answered.

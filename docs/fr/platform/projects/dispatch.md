@@ -9,7 +9,7 @@ La répartition décide quand et où le travail démarre. Ce qui vaut la peine d
 
 ## Choisir ce que la répartition prend et qui y travaille
 
-Ouvre le projet, choisis **Répartition du travail**, puis **Modifier**.
+Ouvre le projet, choisis **Répartition du travail**, puis **Modifier**, ou **Configurer la répartition du travail** tant que le projet n’en a pas.
 
 | Réglage | Ce qu’il décide |
 | --- | --- |

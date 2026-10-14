@@ -218,6 +218,31 @@ function boardView(body: BoardWire): TasksByProjectResult {
 // Read adapters
 // ---------------------------------------------------------------------------
 
+/**
+ * The occurrence a standing role's run was started for, as the first line
+ * of what the project's dispatch handed its agent reads it — `Scheduled
+ * occurrence: manager 2026-10-14 16:30 Europe/Zurich
+ * (2026-10-14T14:30:00.000Z).` — without the UTC instant. Undefined for any
+ * other run: one dispatch started on ready work hands its agent nothing.
+ */
+export function standingRoleOccurrence(
+  feedback: string | null | undefined,
+): string | undefined {
+  if (typeof feedback !== 'string') return undefined;
+  const match =
+    /^Scheduled occurrence: (\S+ \d{4}-\d{2}-\d{2} \d{2}:\d{2} \S+) \(\d{4}-\d{2}-\d{2}T[\d:.]+Z\)\./.exec(
+      feedback,
+    );
+  return match?.[1];
+}
+
+function occurrenceField(feedback: string | null | undefined): {
+  occurrence?: string;
+} {
+  const occurrence = standingRoleOccurrence(feedback);
+  return occurrence === undefined ? {} : { occurrence };
+}
+
 function orgOf(
   args: Record<string, unknown>,
   ctx: AdapterContext,
@@ -514,10 +539,11 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             startedAt: number;
             launchedAt: number | null;
             settledAt: number | null;
-            startedVia?: 'automation' | 'agent' | null;
+            startedVia?: 'automation' | 'agent' | 'dispatch' | null;
             startedViaRunId?: string | null;
             startedViaAutomation?: string | null;
             startedViaAgentId?: string | null;
+            feedback?: string | null;
           }[];
         }>(`/tasks/${encodeURIComponent(taskId)}/agent-runs`, { orgId }).then(
           (body) =>
@@ -552,6 +578,10 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               ...(run.startedVia === 'agent' &&
               typeof run.startedViaAgentId === 'string'
                 ? { delegatedByAgentId: run.startedViaAgentId }
+                : {}),
+              // A standing role's run says which occurrence started it.
+              ...(run.startedVia === 'dispatch'
+                ? occurrenceField(run.feedback)
                 : {}),
               startedAt: run.startedAt,
               ...(run.launchedAt !== null && run.settledAt !== null

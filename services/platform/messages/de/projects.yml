@@ -460,3 +460,243 @@ sharing:
   teamNamesLoadError: Teamnamen konnten nicht geladen werden.
   teamCount: '{count, plural, one {# Team} other {# Teams}}'
   noTeamsCreateLink: Team erstellen
+dispatch:
+  title: Arbeitsverteilung
+  description: Startet die bereiten Aufgaben dieses Projekts auf den freien Agenten ihres Pools und die ständigen Rollen nach ihrem Zeitplan.
+  readerDescription: Zeigt, was die bereiten Aufgaben dieses Projekts startet und warum ein Agent untätig ist. Projektadministratoren ändern sie.
+  edit: Bearbeiten
+  runPass: Jetzt einen Durchlauf starten
+  passRequested: Durchlauf angefordert
+  passRequestedBody: Er erscheint unter Letzte Durchläufe, sobald er gelaufen ist.
+  passFailed: Der Durchlauf konnte nicht angefordert werden
+  loadFailed: Die Arbeitsverteilung dieses Projekts konnte nicht geladen werden.
+  refreshFailed: Die Arbeitsverteilung dieses Projekts konnte nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+  notSetUp:
+    title: Für dieses Projekt ist keine Arbeitsverteilung eingerichtet
+    body: Wähle die Agenten, die die bereiten Aufgaben dieses Projekts übernehmen, und wie viele Läufe sie gleichzeitig halten. Bis dahin startet eine Aufgabe nur, wenn jemand sie startet.
+    readerBody: Ein Projektadministrator kann sie einrichten. Bis dahin startet eine Aufgabe nur, wenn jemand sie startet.
+    action: Arbeitsverteilung einrichten
+  unreadable:
+    title: Eine neuere Version von Tale hat diese Arbeitsverteilung gespeichert
+    body: Diese Version von Tale kann sie nicht lesen. Deshalb startet sie hier nichts und lässt sich hier nicht ändern. Sie bleibt unverändert, bis Tale aktualisiert ist.
+  summary:
+    status: Status
+    on: Arbeitsverteilung ist ein
+    off: Arbeitsverteilung ist aus
+    runs: Läufe gleichzeitig
+    runsValue: '{running} von {max}'
+    workers: Agenten-Worker
+    workersValue: '{inUse} von {limit} belegt'
+    lastPass: Letzter Durchlauf
+    nextPass: Nächster Durchlauf
+    noPass: Noch kein Durchlauf
+    nextPassSoon: Innerhalb einer Minute
+  workersWarning:
+    title: Der Pool kann mehr Läufe halten, als du Agenten-Worker hast
+    body: 'Der Pool darf {runs, plural, one {# Lauf} other {# Läufe}} gleichzeitig halten, deine Organisation hat aber {workers, plural, one {# Agenten-Worker} other {# Agenten-Worker}}. Die zusätzlichen Läufe würden nur auf einen freien Worker warten.'
+    manage: Agenten-Worker verwalten
+  holds:
+    title: '{count, plural, one {Ein Modell ist ausgelastet} other {# Modelle sind ausgelastet}}'
+    body: Agenten mit diesen Modellen nehmen keine Arbeit von der Arbeitsverteilung an, bis ihr Modell wieder antwortet.
+    item: '{model} bis {time}'
+  agents:
+    title: Agenten
+    caption: Agenten im Pool der Arbeitsverteilung dieses Projekts
+    agent: Agent
+    model: Modell
+    workingOn: Arbeitet an
+    idleBecause: Untätig, weil
+    empty: Noch ist kein Agent im Pool.
+    emptyEditor: Noch ist kein Agent im Pool. Wähle Agenten unter Bearbeiten.
+    running: Läuft
+    queued: In der Warteschlange
+  idle:
+    model_capacity: Sein Modell ist ausgelastet
+    host_pressure: Der Sandbox-Host ist ausgelastet
+    org_limit: Alle Agenten-Worker sind belegt
+    pacing: Wartet zwischen Starts
+    gated: Eine Schranke hält die bereite Arbeit zurück
+    no_ready_work: Keine bereite Arbeit
+    disabled: Arbeitsverteilung ist aus
+    unknown: Noch kein Durchlauf
+  roles:
+    title: Ständige Rollen
+    caption: Ständige Rollen der Arbeitsverteilung dieses Projekts
+    role: Rolle
+    agent: Agent
+    task: Aufgabe
+    schedule: Zeitplan
+    next: Nächster Termin
+    last: Letzter Termin
+    notYet: Noch keiner
+    unknownAgent: Ein Agent, der nicht mehr in diesem Projekt ist
+    unknownTask: Eine Aufgabe, die nicht mehr in diesem Projekt ist
+    outcome:
+      started: Gestartet
+      coalesced: In den noch laufenden Lauf aufgenommen
+      refused: Nicht gestartet
+    refusal:
+      paused: 'Nicht gestartet: Die Aufgabe hat in dieser Stunde schon drei automatische Starts erhalten'
+      blocked: 'Nicht gestartet: Ein offener Blocker hält die Aufgabe auf'
+      in_review: 'Nicht gestartet: Die Aufgabe ist im Review'
+      closed: 'Nicht gestartet: Die Aufgabe ist abgeschlossen'
+  gates:
+    title: Schranken
+    caption: Schranken der Arbeitsverteilung dieses Projekts
+    gate: Schranke
+    holds: Hält zurück
+    allWork: Alle bereite Arbeit
+    state: Zustand
+    lastReport: Letzte Meldung
+    states:
+      held: Geschlossen
+      open: Offen
+      stale: Keine aktuelle Meldung
+    noReport: Noch keine Meldung
+    value: 'Letzter Wert {value}, schließt ab {holdAt}'
+    valueOnly: 'Letzter Wert {value}'
+    spacedUntil: 'Nächster Start ihrer Arbeit nach {time}'
+    hold: Schließen
+    open: Öffnen
+    holdAria: 'Schranke {key} schließen'
+    openAria: 'Schranke {key} öffnen'
+    heldToast: 'Die Schranke {key} hält ihre Arbeit zurück'
+    openedToast: 'Die Schranke {key} ist offen'
+    changeFailed: Die Schranke konnte nicht geändert werden
+  passes:
+    title: Letzte Durchläufe
+    caption: Letzte Durchläufe der Arbeitsverteilung dieses Projekts
+    when: Wann
+    askedBy: Ausgelöst durch
+    started: Gestartet
+    held: Zurückgehalten
+    stoppedBecause: Aufgehört, weil
+    empty: Noch kein Durchlauf.
+    trigger:
+      scan: Die Prüfung jede Minute
+      run_ended: Ein Lauf ist zu Ende gegangen
+      capacity_cleared: Ein Modell antwortet wieder
+      config: Eine gespeicherte Änderung
+      recheck: Eine geplante erneute Prüfung
+      manual: Eine Anfrage von Hand
+      gate: Eine Schranke hat sich geöffnet
+    stop:
+      disabled: Arbeitsverteilung ist aus
+      automation_disabled: Die Aufgabenautomatisierung ist aus
+      pool_full: Der Pool ist voll
+      org_limit: Alle Agenten-Worker sind belegt
+      no_ready_work: Keine bereite Arbeit
+      agents_busy: Seine Agenten sind beschäftigt
+      model_capacity: Die Modelle seiner Agenten sind ausgelastet
+      host_pressure: Der Sandbox-Host ist ausgelastet
+      pacing: Wartet zwischen Starts
+      gated: Eine Schranke hält die bereite Arbeit zurück
+      started: Er hat Arbeit gestartet
+      held: Jeder Start wurde abgelehnt
+  editor:
+    title: Arbeitsverteilung bearbeiten
+    setUpTitle: Arbeitsverteilung einrichten
+    description: Lege fest, welche Agenten die bereiten Aufgaben dieses Projekts übernehmen und wie ihre Läufe starten.
+    loadFailed: Die Arbeitsverteilung konnte nicht zum Bearbeiten geladen werden.
+    enabled: Arbeitsverteilung ist ein
+    enabledHint: Ausgeschaltet startet sie nichts; laufende Läufe arbeiten weiter.
+    agents: Agenten im Pool
+    agentsHint: Die Arbeitsverteilung startet nur diese Agenten.
+    agentsPlaceholder: Agenten wählen
+    agentsSearch: Agenten suchen
+    noAgents: Dieses Projekt hat noch keine Agenten. Füge zuerst unter Agenten einen hinzu.
+    maxConcurrentRuns: Läufe gleichzeitig
+    maxConcurrentRunsHint: 'Läufe, die jemand auf diesen Agenten startet, zählen mit. Deine Organisation hat {count, plural, one {# Agenten-Worker} other {# Agenten-Worker}}.'
+    perAgentConcurrency: Läufe pro Agent
+    perAgentConcurrencyHint: Jeder Lauf arbeitet in einem eigenen Agenten-Worker.
+    statuses: Bereite Arbeit aus
+    statusesBoth: '{first}, dann {second}'
+    assignment: Nicht zugewiesene Aufgaben
+    assignmentAssigned: In Ruhe lassen
+    assignmentPool: Dem Pool geben
+    rebalance: Nie gestartete Aufgaben einem freien Agenten geben
+    rebalanceHint: Eine Aufgabe, die schon gelaufen ist, bleibt bei ihrem Agenten.
+    labelsInclude: Nur Aufgaben mit Label
+    labelsExclude: Nie Aufgaben mit Label
+    labelsAny: Jedes Label
+    labelsNone: Kein Label
+    labelsSearch: Labels suchen
+    preset: Sandbox-Host
+    presetDefault: Schwellenwerte der Bereitstellung
+    presetConservative: Vorsichtig
+    presetHint: Vorsichtig wartet zusätzlich, bis Last sowie Druck auf Arbeitsspeicher und Datenträger nachlassen.
+    startSpacing: Zeit zwischen Starts (Sekunden)
+    recheck: Ausgelasteten Host erneut fragen nach (Sekunden)
+    recheckHint: Wartezeiten nacheinander, durch Kommas getrennt; die letzte wiederholt sich.
+    remove: Entfernen
+    roles:
+      title: Ständige Rollen
+      description: Startet einen Agenten nach Zeitplan auf seiner eigenen Aufgabe, für Arbeit, die wiederkehrt.
+      add: Ständige Rolle hinzufügen
+      removeAria: 'Ständige Rolle {key} entfernen'
+      untitled: Neue ständige Rolle
+      key: Schlüssel
+      keyHint: Kleinbuchstaben, Ziffern und Bindestriche, etwa manager.
+      agent: Agent
+      agentPlaceholder: Agent wählen
+      task: Aufgabe
+      taskPlaceholder: Aufgabe wählen
+      taskSearch: Aufgaben suchen
+      cron: Zeitplan (Cron)
+      cronHint: 'Fünf Felder, etwa */30 * * * * für alle 30 Minuten.'
+      timezone: Zeitzone
+      timezoneSearch: Zeitzonen suchen
+      mode: Modus
+      modeHint: Ein Wort, das der Agent bei jedem Termin erhält, etwa full oder light.
+      brief: Auftrag
+      briefHint: Was der Agent bei jedem Termin zuerst angeht.
+      limit: 'Eine Arbeitsverteilung hat höchstens {count} ständige Rollen.'
+    gates:
+      title: Schranken
+      description: Hält die bereite Arbeit zurück, für die eine Schranke gilt, solange ein Signal von außen das verlangt.
+      add: Schranke hinzufügen
+      removeAria: 'Schranke {key} entfernen'
+      untitled: Neue Schranke
+      key: Schlüssel
+      labels: Labels, die sie zurückhält
+      labelsHint: Ohne Labels hält sie alle bereite Arbeit zurück.
+      labelsPlaceholder: Alle bereite Arbeit
+      holdAt: Schließen ab
+      holdAtHint: Lass das Feld leer für eine Schranke, die von Hand oder durch ihre Meldungen geschlossen und geöffnet wird.
+      recoverBelow: Wieder öffnen unter
+      recoverBelowHint: Die Hälfte von Schließen ab, wenn du nichts festlegst.
+      staleAfter: Veraltet nach (Sekunden)
+      staleAfterHint: 600 Sekunden, wenn du nichts festlegst.
+      whenStale: Wenn veraltet
+      startSpacing: Zeit zwischen ihren Starts (Sekunden)
+      limit: 'Eine Arbeitsverteilung hat höchstens {count} Schranken.'
+    validation:
+      wholeNumber: 'Gib eine ganze Zahl von {min, number} bis {max, number} ein.'
+      recheck: 'Gib 1 bis 10 Wartezeiten von {min, number} bis {max, number} Sekunden ein, durch Kommas getrennt.'
+      agentsMax: 'Wähle höchstens {count} Agenten.'
+      labelsMax: 'Wähle höchstens {count} Labels.'
+      key: Verwende Kleinbuchstaben, Ziffern und Bindestriche im Innern, höchstens 64 Zeichen.
+      keyTaken: Ein anderer Eintrag verwendet diesen Schlüssel schon.
+      roleAgent: Wähle einen Agenten.
+      roleTask: Wähle eine Aufgabe.
+      cronRequired: Gib einen Cron-Ausdruck ein.
+      cronInvalid: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
+      timezone: Wähle eine Zeitzone.
+      tooLong: 'Verwende höchstens {count, number} Zeichen.'
+      number: Gib eine Zahl ein.
+      recoverWithoutHold: Lege zuerst Schließen ab fest.
+      recoverAboveHold: Der Wert darf nicht über Schließen ab liegen.
+    issues:
+      agent: Ein Agent dieses Pools arbeitet nicht mehr in diesem Projekt. Entferne ihn und speichere dann erneut.
+      roleAgent: Dieser Agent arbeitet nicht mehr in diesem Projekt.
+      roleTask: Wähle eine Aufgabe dieses Projekts, die nicht archiviert ist.
+      cron: Dieser Zeitplan lässt sich nicht lesen.
+      label: 'Dieses Projekt hat kein Label namens „{name}“.'
+      refusedTitle: Die Arbeitsverteilung wurde abgelehnt
+    saved: Arbeitsverteilung gespeichert
+    saveFailed: Die Arbeitsverteilung konnte nicht gespeichert werden.
+    forbidden: Nur ein Projektadministrator kann die Arbeitsverteilung dieses Projekts ändern.
+    conflict: Jemand anderes hat diese Arbeitsverteilung gespeichert, während du sie bearbeitet hast. Lade die aktuelle Version und nimm deine Änderung dann erneut vor.
+    changedTitle: Diese Arbeitsverteilung hat sich seit dem Öffnen geändert
+    changedBody: Speichern würde jetzt abgelehnt. Lade die aktuelle Version, um von ihr aus neu zu beginnen; deine Änderungen hier werden verworfen.
+    reload: Aktuelle Version laden

@@ -3,9 +3,14 @@ import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BOARD_TASK_STATUSES } from '@/app/features/tasks/lib/display';
+import {
+  occurrenceLabel,
+  roleOccurrenceFeedback,
+} from '@/backend/domains/tasks/dispatch-roles';
 
 import { backendKey } from './query-keys';
 import {
+  standingRoleOccurrence,
   taskPaginatedAdapters,
   taskReadAdapters,
   taskWriteAdapters,
@@ -779,5 +784,59 @@ describe('the task run list adapter', () => {
       expect(run).not.toHaveProperty('waitingForCapacity');
       expect(run).not.toHaveProperty('waitingReason');
     }
+  });
+
+  it('names the occurrence a standing role’s run was started for, and none for a run dispatch started on ready work', async () => {
+    const role = {
+      key: 'manager',
+      taskId: 't1',
+      agentId: 'agent-manager',
+      cron: '0,30 * * * *',
+      timezone: 'Europe/Zurich',
+      mode: 'full',
+      brief: 'Route the reviews first.',
+    };
+    // What the dispatch hands the role's agent, as the backend words it.
+    const feedback = roleOccurrenceFeedback(
+      role,
+      occurrenceLabel(role, Date.UTC(2026, 9, 14, 14, 30)),
+    );
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        runs: [
+          wireRun({
+            id: 'run-role',
+            trigger: 'dispatch',
+            startedVia: 'dispatch',
+            startedViaRunId: `manager@${Date.UTC(2026, 9, 14, 14, 30)}`,
+            feedback,
+          }),
+          wireRun({
+            id: 'run-ready-work',
+            trigger: 'dispatch',
+            startedVia: 'dispatch',
+            startedViaRunId: 'pass-1',
+            feedback: null,
+          }),
+          // Feedback a person wrote is never read as an occurrence.
+          wireRun({ id: 'run-revision', feedback }),
+        ],
+      }),
+    );
+    const runs = (await taskReadAdapters['tasks/queries:listTaskAgentRuns']?.(
+      { organizationId: 'org-1', taskId: 't1' },
+      {},
+    )?.queryFn()) as Record<string, unknown>[];
+    expect(runs[0]).toMatchObject({
+      runId: 'run-role',
+      trigger: 'dispatch',
+      occurrence: 'manager 2026-10-14 16:30 Europe/Zurich',
+    });
+    expect(runs[1]).toMatchObject({ trigger: 'dispatch' });
+    expect(runs[1]).not.toHaveProperty('occurrence');
+    expect(runs[2]).not.toHaveProperty('occurrence');
+    expect(standingRoleOccurrence('Scheduled occurrence: soon.')).toBe(
+      undefined,
+    );
   });
 });

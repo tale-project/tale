@@ -499,6 +499,7 @@ agentRuns:
     auto_retry: automatische Wiederholung
     automation: Automatisierung
     delegated: delegiert
+    dispatch: Von der Arbeitsverteilung gestartet
   refused:
     agent_busy: Agent arbeitet an einer anderen Aufgabe
     agent_disabled: Agent ist nicht installiert oder deaktiviert
@@ -524,6 +525,7 @@ timeline:
   deletedAgent: Gelöschter Agent
   viewMore: "Mehr anzeigen"
   viewWorkflow: Automatisierung anzeigen
+  dispatchActor: Arbeitsverteilung
 dueDate:
   label: Fällig am
   overdue: Überfällig

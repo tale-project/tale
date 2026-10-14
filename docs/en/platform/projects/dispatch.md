@@ -9,7 +9,7 @@ Dispatch decides when and where work starts. What is worth doing stays a person'
 
 ## Choose what dispatch takes and who works on it
 
-Open the project, choose **Dispatch**, then **Edit**.
+Open the project, choose **Dispatch**, then **Edit**, or **Set up dispatch** while the project has none.
 
 | Setting                                            | What it decides                                                                                                                                                                                           |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
