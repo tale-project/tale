@@ -1024,7 +1024,9 @@ The complete [release-candidate gate](RELEASING.md) remains required before tagg
 
 `tools/cli/scripts/forgejo-port/` turns these workflows into the ones Forgejo's runner runs.
 It is applied once, when the repository moves to Forgejo, and nothing in the CI above reads it:
-it adds no job, input or condition to a workflow here. There a pull request owes the fast tier
-and a batch of the merge train, a push to `mq/**`, owes what the merge group owes. The
-[README](../tools/cli/scripts/forgejo-port/README.md) says what the port does and what stays on
-GitHub; `bun tools/cli/scripts/forgejo-port.ts report` shows it on the workflows as they are.
+it adds no job, input or condition to a workflow here. There a pull request owes what a batch of
+the merge train (a push to `mq/**`) owes, the whole suite, so that a failure shows on the pull
+request and not in the train; a workflow whose `tier` says `fast` owes this document's pull
+request tier instead. The [README](../tools/cli/scripts/forgejo-port/README.md) says what the
+port does and what stays on GitHub; `bun tools/cli/scripts/forgejo-port.ts report` shows it on
+the workflows as they are.
