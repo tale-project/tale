@@ -5043,6 +5043,12 @@ export async function deleteAutomationCascade(
       DELETE FROM app.automation_approval_allowances
       WHERE org_id = ${args.organizationId} AND automation_name = ${args.name}
     `;
+    // So do the places its steps carried on from: an automation created
+    // later under the name starts from its own first run.
+    await tx`
+      DELETE FROM app.automation_positions
+      WHERE org_id = ${args.organizationId} AND automation_name = ${args.name}
+    `;
     await tx`
       INSERT INTO app.automation_tombstones (
         org_id, name, deleted_by, deleted_at_ms

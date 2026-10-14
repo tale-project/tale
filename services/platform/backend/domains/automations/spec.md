@@ -676,6 +676,23 @@ it would without the setting. A step without the setting fails at its first fail
 - **Example**: The server restarts while the review is at its second pull request → the run is
   handed on, the next server carries on at that pull request, and no item is recorded as failed.
 
+## Where a scheduled automation carries on
+
+A step can keep a place between the runs of its automation (`automation.read_position`,
+`automation.save_position`), so a scheduled pass carries on where the last one ended.
+
+### AUTO-R71 · A step keeps its automation's place between runs, and only its own
+
+A place belongs to the automation the run belongs to, in the run's project (or the
+organization), under the step's key; the run decides which, never the input. A save lands only
+while the place still holds the revision its run read, so a run that overlapped another, or read
+before another saved, changes nothing (`conflict`). Deleting the automation deletes its places,
+so one created later under the same name starts from its first run; removing runs, by hand or by
+a retention policy, leaves them as they are.
+
+- **Example**: Ben's daily digest saved its place on Monday and failed on Tuesday before saving →
+  Wednesday's digest starts where Monday's ended, and Tuesday's tasks are not lost.
+
 ## When a run ends
 
 ### AUTO-R14 · A run that ends takes its open approvals and questions with it
@@ -857,8 +874,8 @@ run brought along: a run is not held up or refused because of another organizati
 
 ### AUTO-R15 · Deleting an automation keeps its runs and removes everything else
 
-Its versions, its deployment and the history of its deployments, its trigger and its project
-installs are removed in one step.
+Its versions, its deployment and the history of its deployments, its trigger, its project
+installs and the places its steps carry on from (`AUTO-R71`) are removed in one step.
 Its runs stay: they can still be listed under the automation's name, and opening the
 automation answers that it was deleted and when (`AUTOMATION_DELETED`). The delete is refused
 while one of its runs is still queued, running or waiting (`AUTOMATION_HAS_ACTIVE_RUNS`): stop
@@ -871,6 +888,10 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
 
 ## Not yet
 
+- **A place a member's run saved outlives the member's erasure**: the places of `AUTO-R71` belong
+  to the automation and go with it, like the runs its triggers start; erasing a member removes
+  the runs that member started, not a place one of them saved. The shipped templates keep only
+  times, ids and repository names there; an automation an organization writes could keep more.
 - **The workflow document**: node types, references between steps, control flow, and limits
   such as the number of repeats and the depth of nested automations
   (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`);

@@ -62379,6 +62379,141 @@ async function checkWorkflowDocumentListing(
 }
 
 /**
+ * `automation.read_position` / `automation.save_position` on real Postgres
+ * (migration 0213): a place is shared by the runs of one automation in one
+ * project, found from the asking run; a save lands only at the revision its
+ * run read, so a stale one changes nothing; another project or automation has
+ * its own places; and deleting the automation deletes its places.
+ */
+async function checkAutomationPositions(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { pgAutomationPositions } =
+    await import('./domains/automations/positions.ts');
+  const { deleteAutomationCascade, saveVersion } =
+    await import('./domains/automations/store.ts');
+  const { orgId, userId } = ctx;
+  const suffix = Date.now().toString(36);
+  const name = `itest-positions-${suffix}`;
+  const other = `itest-positions-other-${suffix}`;
+  const ids: string[] = [];
+  // Fixture runs are written the way the other automation lanes write one:
+  // inside a transaction that carries the current writer protocol.
+  const run = async (automation: string, projectId: string | null) => {
+    const [inserted] = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
+        INSERT INTO app.automation_runs (
+          org_id, name, version, project_id, status, mode, started_by,
+          started_at_ms, finished_at_ms
+        ) VALUES (
+          ${orgId}, ${automation}, 1, ${projectId}, 'success', 'live',
+          'user:itest', ${Date.now()}, ${Date.now()}
+        )
+        RETURNING id
+      `;
+    });
+    if (inserted === undefined) throw new Error('seeding a run wrote no row');
+    ids.push(inserted.id);
+    return inserted.id;
+  };
+  const places = pgAutomationPositions(sql);
+  try {
+    await saveVersion(sql, {
+      organizationId: orgId,
+      name,
+      document: {
+        version: 1,
+        name,
+        nodes: [{ id: 'noop', type: 'transform', code: 'return 1;' }],
+        output: '{{ nodes.noop.output }}',
+      },
+      origin: appOrigin(userId),
+    });
+    const first = await run(name, null);
+    const second = await run(name, null);
+    const elsewhere = await run(name, `itest-project-${suffix}`);
+    const stranger = await run(other, null);
+    const at = (runId: string) => ({
+      organizationId: orgId,
+      runId,
+      key: 'window',
+    });
+
+    const empty = await places.read(at(first));
+    const created = await places.save({
+      ...at(first),
+      value: { until: 1 },
+      revision: '0',
+    });
+    const raced = await places.save({
+      ...at(second),
+      value: { until: 9 },
+      revision: '0',
+    });
+    const shared = await places.read(at(second));
+    const moved = await places.save({
+      ...at(second),
+      value: { until: 2 },
+      revision: created?.revision ?? '',
+    });
+    const stale = await places.save({
+      ...at(first),
+      value: { until: 3 },
+      revision: created?.revision ?? '',
+    });
+    const now = await places.read(at(first));
+    const otherProject = await places.read(at(elsewhere));
+    await places.save({ ...at(stranger), value: { until: 5 }, revision: '0' });
+    const otherAutomation = await places.read(at(stranger));
+
+    await deleteAutomationCascade(sql, {
+      organizationId: orgId,
+      name,
+      origin: appOrigin(userId),
+    });
+    const left = await sql<{ name: string }[]>`
+      SELECT automation_name AS name FROM app.automation_positions
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${other})
+    `;
+    const until = (value: unknown): unknown =>
+      typeof value === 'object' && value !== null && 'until' in value
+        ? value.until
+        : null;
+    record(
+      'automation positions: shared by one automation’s runs in a project, saved only at the revision a run read, deleted with the automation',
+      empty.value === null &&
+        empty.revision === '0' &&
+        created?.saved === true &&
+        raced?.saved === false &&
+        raced.conflict &&
+        until(shared.value) === 1 &&
+        shared.revision === created.revision &&
+        moved?.saved === true &&
+        moved.revision !== created.revision &&
+        stale?.saved === false &&
+        stale.conflict &&
+        stale.revision === moved.revision &&
+        until(now.value) === 2 &&
+        otherProject.value === null &&
+        until(otherAutomation.value) === 5 &&
+        left.map((row) => row.name).join(',') === other,
+      `empty=${JSON.stringify(empty)}, created=${JSON.stringify(created)}, raced=${JSON.stringify(raced)}, shared=${JSON.stringify(shared)}, moved=${JSON.stringify(moved)}, stale=${JSON.stringify(stale)}, now=${JSON.stringify(now)}, otherProject=${JSON.stringify(otherProject)}, otherAutomation=${JSON.stringify(otherAutomation)}, left=${left.map((row) => row.name).join(',')} (want only the other automation's place left)`,
+    );
+  } finally {
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      await fixtureTx`DELETE FROM app.automation_runs WHERE id = ANY(${ids})`;
+    });
+    await sql`
+      DELETE FROM app.automation_positions
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${other})
+    `;
+  }
+}
+
+/**
  * Team audience on real Postgres: the ONE rule (`core/lib/audience.ts`)
  * behind documents, folders and projects, the assignment rule every write
  * door runs, the rollout fallback for a project row the previous image
@@ -64778,6 +64913,10 @@ async function main(): Promise<void> {
       [
         'checkWorkflowDocumentListing',
         () => checkWorkflowDocumentListing(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkAutomationPositions',
+        () => checkAutomationPositions(sql, authCtx),
       ],
       [
         'checkBlobRefAuthority',

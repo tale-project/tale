@@ -941,7 +941,7 @@ describe('task.list as an automation step [CONN-R27]', () => {
         },
         step as never,
       ),
-    ).resolves.toEqual({ tasks: [listed], hasMore: true });
+    ).resolves.toEqual({ tasks: [listed], hasMore: true, next: null });
     expect(list).toHaveBeenCalledWith({
       organizationId: 'org-1',
       caller: step.caller,
@@ -949,6 +949,7 @@ describe('task.list as an automation step [CONN-R27]', () => {
       statuses: ['todo', 'in_progress'],
       // A day alone is its start, in UTC.
       createdSince: Date.parse('2026-10-10T00:00:00Z'),
+      order: 'newest',
       limit: 20,
     });
   });
@@ -967,7 +968,84 @@ describe('task.list as an automation step [CONN-R27]', () => {
     });
   });
 
+  it('reads a window: created at or after one moment and before another', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [], hasMore: false });
+    await nativeWith(list)?.(
+      {
+        projectId: 'project-1',
+        createdSince: 1_791_000_000_000,
+        createdBefore: '2026-10-14T09:00:00Z',
+      },
+      step as never,
+    );
+    expect(list.mock.calls[0]?.[0]).toMatchObject({
+      createdSince: 1_791_000_000_000,
+      createdBefore: Date.parse('2026-10-14T09:00:00Z'),
+    });
+  });
+
+  it('reads oldest first, and says where to carry on when more match', async () => {
+    const at = (ms: number) => new Date(ms).toISOString();
+    const list = vi.fn().mockResolvedValue({
+      ok: true,
+      tasks: [
+        { ...listed, taskId: 'task-1', createdAt: at(1_791_000_000_000) },
+        { ...listed, taskId: 'task-2', createdAt: at(1_791_000_000_000) },
+      ],
+      hasMore: true,
+    });
+    const answer = await nativeWith(list)?.(
+      {
+        projectId: 'project-1',
+        order: 'oldest',
+        after: '1790999999000:task-0',
+        createdBefore: 1_791_000_100_000,
+        limit: 2,
+      },
+      step as never,
+    );
+    expect(list.mock.calls[0]?.[0]).toMatchObject({
+      order: 'oldest',
+      after: { createdAtMs: 1_790_999_999_000, taskId: 'task-0' },
+      createdBefore: 1_791_000_100_000,
+      limit: 2,
+    });
+    // The last task listed, by its moment and its id: two tasks of one
+    // millisecond are still told apart.
+    expect(answer).toMatchObject({
+      hasMore: true,
+      next: '1791000000000:task-2',
+    });
+  });
+
+  it('says nowhere to carry on when nothing more matches, or newest first', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [listed], hasMore: false });
+    await expect(
+      nativeWith(list)?.(
+        { projectId: 'project-1', order: 'oldest', after: '' },
+        step as never,
+      ),
+    ).resolves.toMatchObject({ next: null });
+    expect(list.mock.calls[0]?.[0]).not.toHaveProperty('after');
+    const more = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [listed], hasMore: true });
+    await expect(
+      nativeWith(more)?.({ projectId: 'project-1' }, step as never),
+    ).resolves.toMatchObject({ next: null });
+    expect(more.mock.calls[0]?.[0]).toMatchObject({ order: 'newest' });
+  });
+
   it.each([
+    [{ projectId: 'project-1', order: 'oldest', after: 'yesterday' }],
+    [{ projectId: 'project-1', order: 'newest', after: '1:task-1' }],
+    [{ projectId: 'project-1', after: '1:task-1' }],
+    [{ projectId: 'project-1', order: 'sideways' }],
+    [{ projectId: 'project-1', createdBefore: 'tomorrow' }],
     [{ projectId: 'project-1', createdSince: 'yesterday' }],
     [{ projectId: 'project-1', status: ['open'] }],
     [{ projectId: 'project-1', limit: 500 }],

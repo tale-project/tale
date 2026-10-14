@@ -1,0 +1,98 @@
+# Platform capability — the place a scheduled automation carries on from
+# between its runs. Native-backed over the automations domain's position
+# store: a step reads the place under its key at the start of a run and saves
+# the new one at its end, so a digest's window or a triage's last change
+# carries over — and a run that fails before its end keeps the place where it
+# was. The place belongs to the automation and the project of the asking run,
+# never to the input. `platform` auth — nothing to connect. The mocks are
+# deterministic.
+name: automation
+displayName: Automation
+i18n:
+  de:
+    displayName: Automatisierung
+  fr:
+    displayName: Automatisation
+description: >-
+  Keep the place a scheduled automation carries on from between its runs — a
+  digest's window, the last change a triage read.
+tags:
+  - Platform
+auth:
+  - method: platform
+actions:
+  - name: read_position
+    title: Read the saved position
+    i18n:
+      de:
+        title: Gespeicherte Position lesen
+      fr:
+        title: Lire la position enregistrée
+    description: >-
+      Where this automation carries on from, under the step's key: the value
+      the last save_position wrote in the run's project (or the organization),
+      and the revision to hand back to the save. Answers value null at revision
+      "0" when nothing was saved yet, as on the first run. The place belongs to
+      the automation: deleting the automation deletes its places, and neither
+      run retention nor deleting a run touches them. Runs only as an
+      automation step.
+    effects: read
+    input:
+      type: object
+      required: [key]
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The step's name for the place, such as window or a repository.
+    output: '{ value: unknown, revision: string }'
+    mock: |
+      return { value: null, revision: '0' };
+    backend:
+      kind: native
+      impl: automation.read_position
+    exampleInput: { key: window }
+  - name: save_position
+    title: Save the position
+    i18n:
+      de:
+        title: Position speichern
+      fr:
+        title: Enregistrer la position
+    description: >-
+      Save where the next run carries on, under the step's key: value is any
+      JSON value but null, at most 16 KiB, and revision the one read_position
+      answered in this run. The save lands only while the place still holds
+      that revision — after an overlapping run saved in between, it answers
+      conflict true and changes nothing. Put it last, so a run that fails
+      before its end keeps the place where it was. Runs only as an automation
+      step.
+    effects: write
+    # Saving the same value again under the revision the run read lands once:
+    # a repeat after the first landed answers conflict and changes nothing.
+    idempotent: true
+    input:
+      type: object
+      required: [key, value, revision]
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The step's name for the place, such as window or a repository.
+        value:
+          description: Where the next run carries on — any JSON value but null, at most 16 KiB.
+        revision:
+          type: string
+          pattern: '^[0-9]{1,19}$'
+          description: The revision read_position answered in this run.
+    output: '{ saved: boolean, conflict: boolean, revision: string }'
+    mock: |
+      return { saved: true, conflict: false, revision: String(Number(input.revision) + 1) };
+    backend:
+      kind: native
+      impl: automation.save_position
+    exampleInput: { key: window, value: { until: 1791000000000 }, revision: '0' }

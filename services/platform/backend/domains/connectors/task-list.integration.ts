@@ -2,7 +2,7 @@
  * through the store the native calls (`pgTaskStore`): a run of an
  * automation installed in one project reads that project's tasks newest
  * first — the archived one left out, narrowed to the statuses and the
- * creation moment it names, `hasMore` past its limit, a member assignee
+ * creation window it names, `hasMore` past its limit, a member assignee
  * named — and a project the automation is not installed in is refused, as
  * a create there is. The lane deletes what it wrote before it ends. */
 import { randomUUID } from 'node:crypto';
@@ -135,11 +135,68 @@ export async function checkTaskListStep(
       JSON.stringify(recent),
     );
 
+    // Two windows that follow each other: each lists what was created in
+    // it, and the second starts at the first one's end without repeating it.
+    const firstWindow = await list({
+      projectId: home,
+      createdSince: t0,
+      createdBefore: t0 + 1000,
+    });
+    const nextWindow = await list({
+      projectId: home,
+      createdSince: t0 + 1000,
+      createdBefore: t0 + 3000,
+    });
+    record(
+      'task.list: a window lists what was created in it, and the next window none of that',
+      firstWindow.ok &&
+        firstWindow.tasks.map((task) => task.title).join('|') ===
+          'First to do' &&
+        nextWindow.ok &&
+        nextWindow.tasks.map((task) => task.title).join('|') ===
+          'Finished|Second to do',
+      JSON.stringify({ firstWindow, nextWindow }),
+    );
+
     const one = await list({ projectId: home, limit: 1 });
     record(
       'task.list: a limit answers that more match',
       one.ok && one.tasks.length === 1 && one.hasMore,
       JSON.stringify(one),
+    );
+
+    // Oldest first, two at a time, each listing carrying on behind the
+    // last task of the one before: every task once, the two created in one
+    // millisecond told apart by their ids.
+    const tiedOne = await make('Tied one', 'todo');
+    const tiedTwo = await make('Tied two', 'todo');
+    await sql`
+      UPDATE app.tasks SET created_at_ms = ${t0 + 5000}
+      WHERE id IN ${sql([tiedOne, tiedTwo])}
+    `;
+    const paged: string[] = [];
+    let place: { createdAtMs: number; taskId: string } | undefined;
+    for (let page = 0; page < 5; page++) {
+      const answer = await list({
+        projectId: home,
+        order: 'oldest',
+        limit: 2,
+        ...(place !== undefined && { after: place }),
+      });
+      if (!answer.ok) break;
+      paged.push(...answer.tasks.map((task) => task.title));
+      const last = answer.tasks.at(-1);
+      if (!answer.hasMore || last === undefined) break;
+      place = { createdAtMs: Date.parse(last.createdAt), taskId: last.taskId };
+    }
+    const tied = [tiedOne, tiedTwo]
+      .sort()
+      .map((id) => (id === tiedOne ? 'Tied one' : 'Tied two'));
+    record(
+      'task.list: oldest first, each listing carrying on behind the last, lists every task once',
+      paged.join('|') ===
+        ['First to do', 'Second to do', 'Finished', ...tied].join('|'),
+      paged.join('|'),
     );
 
     const refused = await list({ projectId: other });

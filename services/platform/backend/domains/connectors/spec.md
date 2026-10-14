@@ -260,17 +260,24 @@ the call began — a label it minted — stays written.
 - **Example**: Noah's step assigns the task to `nobody@example.com` → the run fails at the step,
   saying the task's assignee isn't known and how to name one.
 
-### CONN-R27 · A task listing reads only a project its run may read, newest first
+### CONN-R27 · A task listing reads only a project its run may read, and lists each task once
 
 A `task.list` step lists a project's tasks, newest first and archived ones left out, narrowed to
-the statuses and the creation moment it names, at most 200 per call with `hasMore` when more
-match. It reads a project as the run creates there: one its automation is installed in, or any
-when it is installed in none, within the rights of the person who started the run. Any other
-project fails the step with `TASK_PROJECT_NOT_BOUND`.
+the statuses it names and to the tasks created at or after one moment and before another, so two
+windows that follow each other never list a task twice; at most 200 per call with `hasMore` when
+more match. Asked for the oldest first, a listing with more to come also answers `next`, the place
+behind its last task (its creation moment, then its id), and a listing handed that place as
+`after` carries on behind it — so a window read call by call lists every task in it once, even
+tasks created in the same millisecond. It reads a project as the run creates there: one its
+automation is installed in, or any when it is installed in none, within the rights of the person
+who started the run. Any other project fails the step with `TASK_PROJECT_NOT_BOUND`.
 
 - **Example**: Noah's morning digest lists the To do tasks of Website relaunch created since
   yesterday → it gets them newest first; pointed at Customer onboarding portal, where it is not
   installed, the run fails at the step and says so.
+- **Example**: A busy day leaves 130 new tasks and the digest lists 50 at a time, oldest first →
+  each listing carries on behind the last task the one before it listed, and the three listings
+  hold all 130, each once.
 
 ## Telling members from an automation
 

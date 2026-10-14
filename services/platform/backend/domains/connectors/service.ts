@@ -31,6 +31,7 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { limitRate } from '../../lib/rate-limit.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { pgAutomationPositions } from '../automations/positions.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import { draftReplyToConversation } from '../conversations/draft.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
@@ -299,6 +300,8 @@ function assembleConnectorHost(sql: Sql): void {
     knowledge: knowledgeSearchForRuns(sql),
     // A message step sends as its run: its automation, cap and starter.
     notify: pgNotifyStore(sql),
+    // A step keeps only its own automation's places.
+    automationPositions: pgAutomationPositions(sql),
     // Outbound mail attachments read from the org's own blob store — the
     // files domain refuses a ref outside the org before any byte moves.
     mailAttachments: ({ organizationId, storageRef }) =>

@@ -642,6 +642,9 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       projectId,
       statuses,
       createdSince,
+      createdBefore,
+      order = 'newest',
+      after,
       limit,
     }) {
       try {
@@ -679,7 +682,9 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               AND t.archived_at_ms IS NULL
               AND ${statuses === undefined ? tx`TRUE` : tx`t.status = ANY(${[...statuses]})`}
               AND ${createdSince === undefined ? tx`TRUE` : tx`t.created_at_ms >= ${createdSince}`}
-            ORDER BY t.created_at_ms DESC, t.id DESC
+              AND ${createdBefore === undefined ? tx`TRUE` : tx`t.created_at_ms < ${createdBefore}`}
+              AND ${after === undefined ? tx`TRUE` : tx`(t.created_at_ms, t.id) > (${after.createdAtMs}, ${after.taskId})`}
+            ORDER BY ${order === 'oldest' ? tx`t.created_at_ms ASC, t.id ASC` : tx`t.created_at_ms DESC, t.id DESC`}
             LIMIT ${limit + 1}
           `;
           return {

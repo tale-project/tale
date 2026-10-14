@@ -24,6 +24,7 @@ import {
   type WorkflowNotifyStore,
   type WorkflowTaskStore,
 } from './index';
+import type { WorkflowAutomationPositions } from './platform-automation';
 
 /**
  * The wiring test: with the natives registered, every one of the six shipped
@@ -117,6 +118,18 @@ const NATIVE_ACTIONS: Array<{
     connector: 'task',
     action: 'get',
     input: { taskId: 'tsk_1' },
+  },
+  {
+    impl: 'automation.read_position',
+    connector: 'automation',
+    action: 'read_position',
+    input: { key: 'window' },
+  },
+  {
+    impl: 'automation.save_position',
+    connector: 'automation',
+    action: 'save_position',
+    input: { key: 'window', value: { until: 1791000000000 }, revision: '0' },
   },
   {
     impl: 'task.update_status',
@@ -481,6 +494,18 @@ const notifyStore: WorkflowNotifyStore = {
     }),
 };
 
+/** The position store: nothing saved yet, and every save lands, as the
+ * mocks answer. */
+const automationPositions: WorkflowAutomationPositions = {
+  read: () => Promise.resolve({ value: null, revision: '0' }),
+  save: ({ revision }) =>
+    Promise.resolve({
+      saved: true,
+      conflict: false,
+      revision: String(Number(revision) + 1),
+    }),
+};
+
 const conversationStore: WorkflowConversationStore = {
   ingestEmails: () =>
     Promise.resolve({
@@ -586,6 +611,7 @@ beforeEach(() => {
     conversations: conversationStore,
     knowledge: knowledgeStore,
     notify: notifyStore,
+    automationPositions,
     mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
@@ -633,6 +659,7 @@ describe('registration', () => {
       conversations: conversationStore,
       knowledge: knowledgeStore,
       notify: notifyStore,
+      automationPositions,
       mailAttachments,
       mailTransport: transport,
     });
@@ -687,6 +714,7 @@ describe('dispatching the shipped native actions', () => {
       conversations: conversationStore,
       knowledge: knowledgeStore,
       notify: notifyStore,
+      automationPositions,
       mailAttachments,
       mailTransport: transport,
     });
@@ -727,6 +755,7 @@ describe('dispatching the shipped native actions', () => {
         conversations: conversationStore,
         knowledge: knowledgeStore,
         notify: notifyStore,
+        automationPositions,
         mailAttachments,
         mailTransport: transport,
         tasks: {

@@ -26,7 +26,7 @@ beforeAll(() => {
 
 describe('connector registry', () => {
   it('registers every shipped action as a node type', () => {
-    expect(loaded.connectors).toHaveLength(22);
+    expect(loaded.connectors).toHaveLength(23);
     const actionCount = loaded.connectors.reduce(
       (n, c) => n + c.actions.length,
       0,
@@ -49,6 +49,9 @@ describe('connector registry', () => {
     // A drafted reply is a platform capability too, and a decision is one call.
     expect(loaded.nodeTypes).toContain('conversation.draft_reply');
     expect(loaded.nodeTypes).toContain('jev.decide');
+    // A scheduled pass reads and saves where its automation carries on.
+    expect(loaded.nodeTypes).toContain('automation.read_position');
+    expect(loaded.nodeTypes).toContain('automation.save_position');
   });
 
   it('exposes each action to the engine with its schema and signature', () => {

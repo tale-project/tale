@@ -154,8 +154,12 @@ actions:
     description: >-
       List a project's tasks, newest first: each one's number, title, status,
       priority, assignee, due date and creation time, with a link to it.
-      Narrow it to some statuses, or to tasks created at or after a moment
-      (epoch milliseconds or an ISO date and time). Archived tasks are left
+      Narrow it to some statuses, or to tasks created at or after a moment and
+      before another (epoch milliseconds or an ISO date and time), so windows
+      that follow each other never list a task twice. With order oldest the
+      oldest come first, and when more match than limit, next names the last
+      one listed: pass it as after, and the next listing carries on behind it
+      — even past tasks created in the same millisecond. Archived tasks are left
       out. A run reads only a project its automation is installed in, or any
       project when it is installed in none, within the rights of the person
       who started it; at most 200 tasks per call, and hasMore says when more
@@ -184,6 +188,23 @@ actions:
             type: [number, string],
             description: 'Only tasks created at or after this moment: epoch milliseconds, or an ISO date such as 2026-10-17 or a date and time.',
           }
+        createdBefore:
+          {
+            type: [number, string],
+            description: 'Only tasks created before this moment, the same way: the end of a window, which the next window starts at.',
+          }
+        order:
+          {
+            type: string,
+            enum: [newest, oldest],
+            description: 'newest first (when left out) or oldest first.',
+          }
+        after:
+          {
+            type: string,
+            maxLength: 300,
+            description: "With order oldest: only tasks after this place, the next an earlier listing answered; '' starts from the first.",
+          }
         limit:
           {
             type: integer,
@@ -191,7 +212,7 @@ actions:
             maximum: 200,
             description: At most this many tasks; 50 when left out.,
           }
-    output: '{ tasks: Array<{ taskId: string, number: number | null, title: string, status: string, priority: string | null, assignee: { type: string, id: string, name: string | null } | null, dueDate: string | null, createdAt: string, url: string }>, hasMore: boolean }'
+    output: '{ tasks: Array<{ taskId: string, number: number | null, title: string, status: string, priority: string | null, assignee: { type: string, id: string, name: string | null } | null, dueDate: string | null, createdAt: string, url: string }>, hasMore: boolean, next: string | null }'
     mock: |
       const statuses = Array.isArray(input.status) ? input.status : ['todo'];
       const tasks = [
@@ -207,7 +228,7 @@ actions:
           url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
         },
       ];
-      return { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false };
+      return { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false, next: null };
     backend:
       kind: native
       impl: task.list
