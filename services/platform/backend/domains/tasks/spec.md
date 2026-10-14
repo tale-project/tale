@@ -529,7 +529,7 @@ at once. Who may edit the project reports through the API; who may administer it
 
 ## What a run is handed
 
-### TASK-R49 · Every turn opens with its project's current instructions, and its run records them
+### TASK-R49 · Every turn gets its project's current instructions, and its run records them
 
 Every turn of a task agent — a start, a retry, a steered restart — reads its project's
 instructions when it starts and is handed them between the organization's Custom instructions
