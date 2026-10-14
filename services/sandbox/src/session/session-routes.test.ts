@@ -8047,6 +8047,77 @@ describe('Kubernetes namespace admission', () => {
   });
 });
 
+describe('Incus project admission', () => {
+  const create = (routes: SessionRoutes, sessionId: string) =>
+    routes.handleCreate(JSON.stringify({ sessionId, organizationId: 'org' }));
+  const projectCfg = {
+    ...cfg,
+    backend: 'incus' as const,
+    session: { ...cfg.session, maxSessions: 1 },
+  };
+
+  test('counts what the project lists before the next sweep, like a Kubernetes namespace', async () => {
+    const sessions: BackendSession[] = [];
+    const backend: SessionBackend = {
+      ...fakeBackend,
+      kind: 'incus',
+      async createSession(spec) {
+        sessions.push({
+          ...mkBackendSession(spec.sessionId, spec.organizationId),
+          createdAtMs: spec.createdAtMs,
+        });
+        return { resumed: false };
+      },
+      async listSessions() {
+        return [...sessions];
+      },
+    };
+    const first = new SessionRoutes(projectCfg, backend);
+    const second = new SessionRoutes(projectCfg, backend);
+    await first.adoptExisting();
+    await second.adoptExisting();
+    expect((await create(first, 'one')).status).toBe(201);
+    expect((await create(second, 'two')).status).toBe(429);
+    expect(sessions.map((s) => s.sessionId)).toEqual(['one']);
+  });
+
+  test('an instance that is not running yet occupies capacity even though it cannot be routed', async () => {
+    const routes = new SessionRoutes(projectCfg, {
+      ...fakeBackend,
+      kind: 'incus',
+      async listSessions() {
+        return [
+          {
+            ...mkBackendSession('starting-peer', 'org_peer'),
+            state: 'degraded' as const,
+            ended: false,
+          },
+        ];
+      },
+    });
+    await routes.adoptExisting();
+    expect(routes.sessionCount()).toBe(0);
+    expect((await create(routes, 'after')).status).toBe(429);
+    expect(created.size).toBe(0);
+  });
+
+  test('an ended instance frees room, but a project that cannot be listed does not', async () => {
+    let unreadable = true;
+    const routes = new SessionRoutes(projectCfg, {
+      ...fakeBackend,
+      kind: 'incus',
+      async listSessions() {
+        if (unreadable) throw new Error('incus temporarily unavailable');
+        return [{ ...mkBackendSession('ended', 'org_peer'), ended: true }];
+      },
+    });
+    expect((await create(routes, 'new-session')).status).toBe(503);
+    expect(created.size).toBe(0);
+    unreadable = false;
+    expect((await create(routes, 'new-session')).status).toBe(201);
+  });
+});
+
 function mkBackendSession(
   sessionId: string,
   organizationId: string,

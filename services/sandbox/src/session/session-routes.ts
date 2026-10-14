@@ -90,7 +90,8 @@ export function unavailableSessionResponse(): Response {
   });
 }
 
-/** Namespace compute occupancy is independent of runnerd routability. */
+/** Namespace (or Incus project) compute occupancy is independent of runnerd
+ * routability. */
 interface BackendOccupancy {
   sessionIds: ReadonlySet<string>;
   degradedSessionIds: ReadonlySet<string>;
@@ -732,7 +733,11 @@ export class SessionRoutes {
   private async admissionOccupancy(): Promise<
     BackendOccupancy | null | Response
   > {
-    if (this.backend.kind !== 'kubernetes') return null;
+    // A Docker spawner owns its host: its registry is the inventory. A
+    // Kubernetes namespace and an Incus project are shared with whatever else
+    // the API holds in them (a peer replica's create, compute adoption has not
+    // reached yet), so their listing is the authority.
+    if (this.backend.kind === 'docker') return null;
     const startedAtMs = Date.now();
     const creatingWhenListed = new Set(this.creating.keys());
     try {
@@ -1102,9 +1107,7 @@ export class SessionRoutes {
       docker ?? this.cfg.dockerInContainer,
     );
     const observed =
-      this.backend.kind === 'kubernetes'
-        ? await this.admissionOccupancy()
-        : null;
+      this.backend.kind !== 'docker' ? await this.admissionOccupancy() : null;
     if (observed instanceof Response) return observed;
     let occupancy = observed;
     let decision = await this.withAdmission(() =>
@@ -1122,9 +1125,7 @@ export class SessionRoutes {
       await this.reclaimOneIdle();
       if (short) await this.readHostMemory();
       const refreshed =
-        this.backend.kind === 'kubernetes'
-          ? await this.admissionOccupancy()
-          : null;
+        this.backend.kind !== 'docker' ? await this.admissionOccupancy() : null;
       if (refreshed instanceof Response) return refreshed;
       occupancy = refreshed;
       // An explicit destroy may have invalidated this ask while the probes

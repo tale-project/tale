@@ -1,11 +1,13 @@
 // Backend selection. Chosen once at boot from `cfg.backend` (env
-// SANDBOX_BACKEND, default 'docker'): the Docker Compose path or the native
-// Kubernetes Pod-per-session path.
+// SANDBOX_BACKEND, default 'docker'): the Docker Compose path, the native
+// Kubernetes Pod-per-session path, or the Incus instance-per-session path.
 //
 // The Kubernetes backends are imported only when selected: they pull in
 // @kubernetes/client-node, about 100 MiB resident and a few hundred
 // milliseconds of import that every Docker spawner and connected device would
-// otherwise carry for nothing.
+// otherwise carry for nothing. The Incus backends are imported only when
+// selected too, for the same reason of not loading what a deployment does not
+// run.
 
 import { DockerBackend } from './docker/docker-backend.ts';
 import { DockerSessionBackend } from './docker/docker-session-backend.ts';
@@ -28,6 +30,16 @@ export async function loadBackends(cfg: SpawnerConfig): Promise<Backends> {
     return {
       host: new KubernetesBackend(cfg),
       createSession: () => new KubernetesSessionBackend(cfg),
+    };
+  }
+  if (cfg.backend === 'incus') {
+    const [{ IncusBackend }, { IncusSessionBackend }] = await Promise.all([
+      import('./incus/incus-backend.ts'),
+      import('./incus/incus-session-backend.ts'),
+    ]);
+    return {
+      host: new IncusBackend(cfg),
+      createSession: () => new IncusSessionBackend(cfg),
     };
   }
   return {

@@ -63,6 +63,7 @@ capacity:
   refresh: Refresh
   hostSessions: Deployment sandboxes
   namespaceSessions: Deployment sandboxes (namespace)
+  projectSessions: Deployment sandboxes (project)
   organizationSessions: Your organization's sandboxes
   slots: '{used} / {limit}'
   sessionStates: '{running} running · {starting} starting'
@@ -82,6 +83,7 @@ capacity:
   scopes:
     host: Host scope
     namespace: Kubernetes namespace scope; host resource measurements unavailable
+    project: Incus project scope; host resource measurements unavailable
   notConfigured: Sandbox infrastructure is not configured for this deployment.
   unreachable: Couldn't refresh infrastructure data. Runtime state and resource usage are unknown.
 columns:

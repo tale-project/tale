@@ -4,7 +4,7 @@
 // sandbox network, so an unauthenticated drain let any tenant's sandboxed code
 // freeze session creation deployment-wide (and list every live session id).
 
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
 import {
   _resetNonceCacheForTests,
@@ -39,12 +39,16 @@ function signedRequest(
   });
 }
 
-function makeControl(sessionIds: string[] = []) {
+function makeControl(sessionIds: string[] = [], onDrain?: () => void) {
   const auth = createRequestAuth(TOKEN, 1024);
-  return new ControlRoutes(auth, () => ({
-    sessionCount: () => sessionIds.length,
-    sessionIds: () => sessionIds,
-  }));
+  return new ControlRoutes(
+    auth,
+    () => ({
+      sessionCount: () => sessionIds.length,
+      sessionIds: () => sessionIds,
+    }),
+    onDrain,
+  );
 }
 
 async function dispatch(
@@ -56,6 +60,49 @@ async function dispatch(
 
 beforeEach(() => {
   _resetNonceCacheForTests();
+});
+
+describe('control routes — the drain hook', () => {
+  test('tells the host backend once, when the spawner enters drain mode', async () => {
+    let told = 0;
+    const control = makeControl([], () => {
+      told += 1;
+    });
+    expect(told).toBe(0);
+    const first = await dispatch(control, signedRequest('POST', '/v1/drain'));
+    const second = await dispatch(control, signedRequest('POST', '/v1/drain'));
+    expect(first?.status).toBe(200);
+    expect(second?.status).toBe(200);
+    expect(told).toBe(1);
+  });
+
+  test('is not told by a request that fails the HMAC gate', async () => {
+    let told = 0;
+    const control = makeControl([], () => {
+      told += 1;
+    });
+    await dispatch(
+      control,
+      new Request(`${BASE}/v1/drain`, { method: 'POST' }),
+    );
+    expect(told).toBe(0);
+    expect(control.isDraining).toBe(false);
+  });
+
+  test('a hook that fails does not undo the drain', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const control = makeControl([], () => {
+        throw new Error('the pool would not stop');
+      });
+      const res = await dispatch(control, signedRequest('POST', '/v1/drain'));
+      expect(res?.status).toBe(200);
+      expect(control.isDraining).toBe(true);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('drain hook failed');
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe('control routes — HMAC gate', () => {

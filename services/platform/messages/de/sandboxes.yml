@@ -67,6 +67,7 @@ capacity:
   refresh: Aktualisieren
   hostSessions: Sandboxes der Bereitstellung
   namespaceSessions: Sandboxes der Bereitstellung (Namespace)
+  projectSessions: Sandboxes der Bereitstellung (Projekt)
   organizationSessions: Sandboxes deiner Organisation
   slots: '{used} / {limit}'
   sessionStates: '{running} laufen · {starting} starten'
@@ -87,6 +88,7 @@ capacity:
   scopes:
     host: Host gesamt
     namespace: Kubernetes-Namespace; Messwerte für Host-Ressourcen fehlen
+    project: Incus-Projekt; Messwerte für Host-Ressourcen fehlen
   notConfigured: Für diese Bereitstellung ist keine Sandbox-Infrastruktur eingerichtet.
   unreachable: Infrastrukturdaten konnten nicht aktualisiert werden. Laufzeitstatus und Ressourcennutzung sind unbekannt.
 columns:

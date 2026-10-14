@@ -171,8 +171,13 @@ export default {
         'src/devices/apply-cli.ts',
         // Public wire contract shared with the separately bundled runnerd.
         'src/session/runnerd-protocol.ts',
+        // The Incus end-to-end (e2e/incus/README.md): its suites are run by
+        // file name, and lab.sh runs operator-block.ts.
+        'e2e/**/*.e2e.ts',
+        'e2e/**/*.test.ts',
+        'e2e/incus/operator-block.ts',
       ],
-      project: ['src/**/*.ts'],
+      project: ['src/**/*.ts', 'e2e/**/*.ts'],
     },
     'services/sandbox-runtime/daemon': {
       // Bundled for Node and launched by entrypoint.sh; the transport fixture

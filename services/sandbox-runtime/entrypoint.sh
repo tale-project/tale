@@ -21,6 +21,9 @@
 # Env (set by the spawner):
 #   HTTPS_PROXY / HTTP_PROXY  -> http://sandbox-egress:3128
 #   TALE_DIND / TALE_TRANSPARENT_EGRESS  -> feature signals
+#   TALE_SHM_SIZE  -> size of a tmpfs mounted on /dev/shm while still root (Incus)
+#   TALE_END_WITH_RUNNERD  -> end the whole container when runnerd's supervisor
+#                     ends (Incus: its init waits for every orphan)
 #   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
 #   TALE_RUNNERD_INCARNATION  -> creation stamp runnerd names in its answers
 #
@@ -65,6 +68,8 @@ _IP=/usr/sbin/ip
 _GETENT=/usr/bin/getent
 _DOCKER=/usr/bin/docker
 _DOCKERD=/usr/bin/dockerd
+# util-linux `mount`, for the session's /dev/shm (see mount_session_shm).
+_MOUNT=/usr/bin/mount
 
 # The organization bridge attaches after readiness, so the spawner supplies its
 # inspected IPv4 subnets before startup. Legacy spawners already attached both
@@ -1066,6 +1071,33 @@ if [ "$1" = "egress-sidecar" ]; then
     /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}"
 fi
 
+# A /dev/shm bigger than the 64 MiB the image's OCI config gives it: Chromium
+# (Playwright) crashes on that. Docker and Kubernetes size it on the container
+# itself. An Incus project that admits only pool-backed disks cannot, so the
+# spawner names the size in TALE_SHM_SIZE and this mounts a tmpfs of it while
+# the entrypoint is still root, before anything drops to the session user.
+# Never fatal: a session without the room still runs, and says so. Unset (the
+# Docker and Kubernetes paths), it does nothing.
+mount_session_shm() {
+  [ -n "${TALE_SHM_SIZE:-}" ] || return 0
+  _shm_number="${TALE_SHM_SIZE%[kKmMgG]}"
+  case "$_shm_number" in
+    '' | *[!0-9]* | 0*)
+      echo "[entrypoint] WARN: TALE_SHM_SIZE='${TALE_SHM_SIZE}' is not a size (such as 512m); /dev/shm keeps the image's size" >&2
+      return 0
+      ;;
+  esac
+  if [ "$(id -u)" != 0 ]; then
+    echo "[entrypoint] WARN: TALE_SHM_SIZE is set but the entrypoint is not root; /dev/shm keeps the image's size" >&2
+    return 0
+  fi
+  if "$_MOUNT" -t tmpfs -o "size=${TALE_SHM_SIZE},mode=1777,nosuid,nodev,noexec" tmpfs /dev/shm; then
+    echo "[entrypoint] /dev/shm is a tmpfs of ${TALE_SHM_SIZE}"
+  else
+    echo "[entrypoint] WARN: could not mount a ${TALE_SHM_SIZE} tmpfs on /dev/shm; it keeps the image's size" >&2
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Session daemon dispatch (sessions plan). The spawner launches a long-lived
 # session container with a single positional arg `daemon` (see
@@ -1081,6 +1113,30 @@ fi
 # process group; runnerd passes it on to every live exec (each runs in a
 # group of its own) before it exits.
 # ---------------------------------------------------------------------------
+# The container ends with runnerd. On Docker and Kubernetes the process this
+# script finally execs (tini) is the container's PID 1, so when runnerd goes the
+# container goes, and the kernel ends everything else with it. Incus runs a
+# command that is not an init system under LXC's lxc-init as PID 1, which keeps
+# the container up for as long as ANY process of it lives (it waits until wait()
+# says it has no children left: lxc_container_init). An agent's `pkill node`
+# ends runnerd, being the same user; the daemons started below (redsocks, the
+# inner dockerd) would then keep an instance up that nobody answers for, and a
+# pinned session would never be recreated. So, under TALE_END_WITH_RUNNERD=1
+# (which the Incus backend sets), the dispatch below runs as a child of this
+# shell, and when it ends this shell ends every other process it may signal
+# (all of them: its own, or root's), and lxc-init with them. The variable is
+# gone from the child's environment, so it reaches neither runnerd nor an exec.
+if [ "$1" = "daemon" ] && [ "${TALE_END_WITH_RUNNERD:-}" = "1" ]; then
+  _daemon_status=0
+  (
+    unset TALE_END_WITH_RUNNERD
+    # By the shell, not by the file: it needs no execute bit to be run again.
+    exec /bin/sh "$0" "$@"
+  ) || _daemon_status=$?
+  kill -s KILL -- -1 2>/dev/null || true
+  exit "$_daemon_status"
+fi
+
 if [ "$1" = "daemon" ]; then
   # Both DinD and transparent egress boot the container as root (DinD to run the
   # inner dockerd; transparent egress so the entrypoint can install the iptables
@@ -1090,10 +1146,12 @@ if [ "$1" = "daemon" ]; then
   # --user, DROP is empty, and these run directly, exactly as before. DinD always
   # drops to 10001 (the agent profile); transparent egress drops to the profile
   # uid the spawner pinned (agent 10001 / default 65534) via TALE_DROP_UID/GID.
+  mount_session_shm
+
   DROP=""
   if [ "${TALE_DIND:-}" = "1" ]; then
     DROP="setpriv --reuid 10001 --regid 10001 --init-groups --"
-  elif [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ]; then
+  elif [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] || [ -n "${TALE_SHM_SIZE:-}" ]; then
     DROP="setpriv --reuid ${TALE_DROP_UID:-10001} --regid ${TALE_DROP_GID:-10001} --init-groups --"
   fi
 
@@ -1205,7 +1263,7 @@ if [ "$1" = "daemon" ]; then
   # for runnerd (tini itself stays root, exactly as on the DinD path: it only
   # reaps and forwards signals). Without transparent egress the container is
   # already at its --user, so tini runs unprivileged too.
-  if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ]; then
+  if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] || [ -n "${TALE_SHM_SIZE:-}" ]; then
     exec tini -g -- \
       setpriv --reuid "${TALE_DROP_UID:-10001}" --regid "${TALE_DROP_GID:-10001}" --init-groups -- \
       node /usr/local/lib/tale/runnerd.mjs

@@ -162,8 +162,8 @@ export type SandboxCapacity =
   | {
       status: 'available';
       observedAt: number;
-      backend: 'docker' | 'kubernetes';
-      scope: 'host' | 'namespace';
+      backend: 'docker' | 'kubernetes' | 'incus';
+      scope: 'host' | 'namespace' | 'project';
       sessions: {
         running: number;
         starting: number;

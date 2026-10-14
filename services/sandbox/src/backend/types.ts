@@ -1,13 +1,13 @@
 // Backend abstraction — the spawner's host lifecycle + persistent sessions.
 //
-// Every sandbox run is a session. The `HostBackend` (docker | k8s) owns the spawner's host-level lifecycle (boot init,
+// Every sandbox run is a session. The `HostBackend` (docker | k8s | incus) owns the spawner's host-level lifecycle (boot init,
 // image warm, /health, shutdown) + the legacy one-shot orphan sweep. The
 // `SessionBackend` owns the long-lived session container/Pod lifecycle. Both are
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
 import type { SessionDiskState } from '../host-disk.ts';
 import type { LargestWorkspaces } from '../session/workspace-usage.ts';
-import type { SpawnerConfig } from '../types.ts';
+import type { SandboxBackendKind, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
 export type HealthResult =
@@ -59,16 +59,22 @@ export interface SweepOptions {
  * KubernetesBackend = Helm).
  */
 export interface HostBackend {
-  readonly kind: 'docker' | 'kubernetes';
+  readonly kind: SandboxBackendKind;
 
   /**
    * Boot setup. DockerBackend acquires the host-session lock and runs the boot
-   * orphan sweep; KubernetesBackend verifies API/RBAC reachability. Throwing
-   * here is fatal (server exits).
+   * orphan sweep; KubernetesBackend verifies API/RBAC reachability;
+   * IncusBackend verifies the Incus project, profile, network and pool.
+   * Throwing here is fatal (server exits).
    */
   init(): Promise<void>;
   /** Graceful-shutdown hook (DockerBackend releases the host-session lock). */
   shutdown(): Promise<void>;
+  /** The spawner entered drain mode (`POST /v1/drain`): it refuses new sessions
+   * and its replacement takes over. Stop background work that must belong to
+   * the replacement alone (the Incus warm pool); work for sessions already
+   * admitted carries on. Called once. */
+  beginDrain?(): void;
 
   /** Liveness probe backing GET /health. */
   health(): Promise<HealthResult>;
@@ -229,7 +235,7 @@ export interface StopSessionOptions {
 }
 
 export interface SessionBackend {
-  readonly kind: 'docker' | 'kubernetes';
+  readonly kind: SandboxBackendKind;
   /**
    * Launch the session container/Pod and wait until runnerd's /healthz
    * answers (budget: cfg.session.createHealthTimeoutMs). On failure the

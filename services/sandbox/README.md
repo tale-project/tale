@@ -1,7 +1,7 @@
 # @tale/sandbox
 
 Tale sandbox spawner manages reusable `@tale/sandbox-runtime` sessions on
-Docker or Kubernetes. Each session runs runnerd, which starts commands, streams
+Docker, Kubernetes or Incus. Each session runs runnerd, which starts commands, streams
 output, and manages workspace files through the authenticated session API.
 Project agents reuse their workspace across tasks; workflow runs share a
 session across their agent and script nodes; crawler render sessions are
@@ -9,7 +9,11 @@ destroyed after their batch. See [the session contract](docs/sessions.md).
 
 The Docker backend mounts `/var/run/docker.sock` (host root — an accepted threat boundary) and
 writes session state under the host session root mounted at
-`/var/lib/tale-sandbox/sessions`.
+`/var/lib/tale-sandbox/sessions`. The Incus backend (`SANDBOX_BACKEND=incus`,
+off unless selected) holds no socket: it reaches one restricted project of an
+Incus node over the REST API with a restricted client certificate, and keeps a
+session's files in a quota'd storage volume (see
+[Incus session instances](#incus-session-instances)).
 
 ```bash
 bun run --filter @tale/sandbox dev    # bun --hot src/server.ts (local session root in /tmp)
@@ -25,9 +29,10 @@ bodies, cookies and credential headers or URL tokens are omitted or masked using
 the same privacy filter as the platform backend. Stack frames and error messages
 are sent unchanged. Unset `SENTRY_DSN` disables reporting, and the spawner
 then never loads the reporting SDK; likewise only `SANDBOX_BACKEND=kubernetes`
-loads the Kubernetes API client. Each would hold 60–100 MiB of memory for
-nothing, and `src/import-footprint.test.ts` keeps both out of a Docker
-spawner's (and a connected device's) boot.
+loads the Kubernetes API client, and only `SANDBOX_BACKEND=incus` the Incus
+backend. The first two would hold 60–100 MiB of memory for nothing, and
+`src/import-footprint.test.ts` keeps all three out of a Docker spawner's (and a
+connected device's) boot.
 
 Exec and attach streams bound their pending output to 8 MiB plus at most one
 event (a collected terminal result can be larger). A consumer that stays
@@ -86,8 +91,8 @@ docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining,
 ## Capacity observations
 
 `GET /v1/limits` uses the same HMAC authentication as session operations and
-returns the configured `maxSessions` without requiring a Docker or Kubernetes
-inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
+returns the configured `maxSessions` without requiring a Docker, Kubernetes or
+Incus inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
 organizations; unset, a Docker spawner that can read its host's memory sizes
 it from that memory (one session per 768 MiB beyond the reserve, or per
 1.5 GiB where agent sessions run Docker inside, at most two per CPU the
@@ -197,8 +202,10 @@ Local Linux hosts also report CPU deltas and used memory (`MemTotal` minus
 `MemAvailable`). Remote Docker endpoints retain known totals but leave usage
 unavailable; the spawner never substitutes its own machine's usage. CPU needs
 two observations no more than 30 seconds apart. Kubernetes reports namespace
-Pod counts with unavailable host measurements. Unknown Pod phases count as
-occupied until termination is confirmed. A container or Pod with malformed
+Pod counts with unavailable host measurements, and Incus project instance counts
+the same way (a restricted certificate does not see the node's CPU and memory).
+Unknown Pod phases count as occupied until termination is confirmed, and an Incus
+instance that is not yet running or on its way down still holds its slot. A container or Pod with malformed
 ownership labels still contributes to aggregate occupancy; only validated
 organization/session identities appear in that organization's session list.
 Failed or incomplete inventories return 503, never a successful zero count.
@@ -241,7 +248,8 @@ On Docker a destroy moves the workspace into the session root's `.trash/` and
 deletes it in the background, so it answers at once however much the workspace
 holds; the next start empties whatever a restart or crash left there. Every answer
 says how far the bytes came (`deletion`: `done`, `pending` or `failed`; on
-Kubernetes `handed_off`), and `?await_deletion=1` waits a bounded time for
+Kubernetes `handed_off`; on Incus the volume is deleted before the answer, so
+`done`), and `?await_deletion=1` waits a bounded time for
 them: the platform's cleanup and erasure settle a deletion only on an explicit
 `done` or `handed_off`, never on an answer without it (a spawner or device
 older than the contract). See
@@ -249,7 +257,10 @@ older than the contract). See
 
 Docker admission serializes creates and released-to-active acquisitions through the host's single spawner. Each idle-to-active transition reserves its expected working-set growth once.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
-basis; use ResourceQuota for hard namespace resource bounds.
+basis; use ResourceQuota for hard namespace resource bounds. Incus admission
+counts the project's listed session instances like a Kubernetes namespace and
+assumes one spawner per project; the warm pool and the sessions together never
+exceed `SANDBOX_MAX_SESSIONS`.
 
 ## Sandbox devices
 
@@ -417,6 +428,23 @@ tolerations) and `SANDBOX_K8S_PRIORITY_CLASS` place every session Pod,
 crawler renders included, on dedicated nodes and below the platform's
 priority; the spawner refuses to start on a value the apiserver would reject.
 See the [Kubernetes deployment contract](docs/kubernetes.md).
+
+## Incus session instances
+
+With `SANDBOX_BACKEND=incus` each session is an Incus OCI application
+container made from the runtime image, with its workspace in a custom volume
+with a quota that outlives the instance across stop and resume. The spawner
+talks to the node's REST API with a restricted client certificate and pins the
+node's server certificate; boot refuses a node that cannot run sessions safely
+(a network without an ACL, a project without its own storage volumes or with a
+limit that would refuse every create, a missing API extension) and says what
+to change. `SANDBOX_INCUS_POOL_SIZE` keeps
+that many started standby instances ready, which hides the instance's DHCP wait
+from a handout. The choice of an OCI container over a system container, the
+trust boundary, what the operator creates on the node (project, profile,
+network and ACL, pool, image alias, certificates), every `SANDBOX_INCUS_*`
+variable and the list of what only a real node can prove are in the
+[Incus deployment contract](docs/incus.md).
 
 ## Inner Docker networking
 

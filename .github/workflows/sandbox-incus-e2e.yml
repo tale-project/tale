@@ -1,0 +1,451 @@
+name: Sandbox Incus E2E
+
+# The sandbox spawner's Incus backend (SANDBOX_BACKEND=incus), judged against a
+# real Incus node. The unit tests run it against an in-memory imitation of the
+# Incus API; this workflow is what shows the imitation right. On a fresh runner
+# it builds the node services/sandbox/docs/incus.md describes (Incus from
+# Zabbly's stable channel, a ZFS pool, the sandbox bridge with its ACL, the
+# restricted project and certificate, Tale's own egress proxy), builds the
+# runtime and egress images from this checkout, starts the spawner from this
+# checkout, and drives its signed HTTP API through the session contract:
+# create (cold and from the warm pool), exec, files, env, stop and resume,
+# destroy, fencing, re-adoption, pins, reaping, quotas and limits, egress,
+# Docker inside, and the upgrade of the runtime image. A draft is held; to try
+# one, dispatch this workflow on its branch (a Ubicloud runner by default).
+# services/sandbox/e2e/incus/README.md says what each suite proves and what
+# only production can.
+#
+# Not a required check (it takes 22 to 24 minutes and depends on a third
+# party's package index); the README says how to make it one.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+    # Everything that decides whether the backend works on a node: the spawner,
+    # the image its sessions run and the proxy they go out through.
+    paths:
+      - 'services/sandbox/**'
+      - 'services/sandbox-runtime/**'
+      - 'services/sandbox-egress/**'
+      - '.github/workflows/sandbox-incus-e2e.yml'
+  # A draft is held, as the other heavy workflows hold it (e2e.yml): to try a
+  # draft of the backend, dispatch this workflow on its branch.
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'The runner label the node is built on'
+        type: choice
+        options:
+          - ubicloud-standard-4
+          - ubicloud-standard-8
+          - ubuntu-latest
+        default: ubicloud-standard-4
+      suites:
+        description: 'The suites to run: all, or a comma-separated choice of boot, lifecycle, fencing, network, pool, reaping, adoption, failures, limits, docker, upgrade, soak'
+        type: string
+        default: all
+      soak_rounds:
+        description: 'Rounds of creates at once in the soak suite (raise it to hunt for something rare)'
+        type: string
+        default: '6'
+
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes its run; dispatches are each their
+# own (one of suite A must not cancel one of suite B).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  incus:
+    name: Sandbox on Incus
+    # A draft is held, and so is a fork's pull request (its token cannot read
+    # the layer caches, and it is not trusted with a root-owned lab).
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true) }}
+    # A pull request runs on GitHub's own runner; a dispatch names its runner.
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      # The shared layer cache of the image builds, read, never written.
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Name the lab's files and images
+        run: bash services/sandbox/e2e/incus/lab.sh env >> "$GITHUB_ENV"
+
+      - name: Choose the suites
+        id: pick
+        env:
+          SUITES: ${{ inputs.suites }}
+        run: bash services/sandbox/e2e/incus/lab.sh suites "$SUITES" | tee -a "$GITHUB_OUTPUT"
+
+      # The image builds need the room the Build workflow's runtime build does.
+      - name: Reclaim disk space
+        env:
+          MIN_FREE_GIB: '40'
+        run: |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
+          sudo docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # The cheap, risky steps first: whether this runner can be the node at
+      # all is known before the images are built.
+      - name: Install Incus, skopeo and ZFS
+        run: bash services/sandbox/e2e/incus/lab.sh install
+
+      - name: Create the ZFS pool and the Incus storage pool
+        run: bash services/sandbox/e2e/incus/lab.sh storage
+
+      - name: Give Incus the server certificate Bun can pin, and bind its API
+        run: bash services/sandbox/e2e/incus/lab.sh api
+
+      - name: Start the local registry
+        run: bash services/sandbox/e2e/incus/lab.sh registry
+
+      - name: Set up the Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
+          # The builder shares the host's network, so that it pushes to the
+          # registry on the loopback.
+          driver-opts: network=host
+
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Built as a release builds it (zstd layers, OCI media types), so that
+      # what Incus unpacks here is what it unpacks in production. Build's own
+      # layer caches are read, never written.
+      - name: Build the sandbox runtime image from this checkout
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-runtime/Dockerfile
+          platforms: linux/amd64
+          push: true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          tags: ${{ env.E2E_RUNTIME_IMAGE }}
+          build-args: VERSION=e2e
+          cache-from: |
+            type=gha,scope=sandbox-runtime
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime-buildcache:amd64
+          provenance: false
+
+      - name: Build the sandbox egress image from this checkout
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-egress/Dockerfile
+          platforms: linux/amd64
+          push: true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          tags: ${{ env.E2E_EGRESS_IMAGE }}
+          build-args: VERSION=e2e
+          cache-from: |
+            type=gha,scope=sandbox-egress
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-egress-buildcache:amd64
+          provenance: false
+
+      # The upgrade suite's "next version": the current runtime image and one
+      # file more, a layer on layers the local registry already holds.
+      - name: Prepare the next version's build context
+        if: ${{ steps.pick.outputs.upgrade == 'true' }}
+        run: bash services/sandbox/e2e/incus/lab.sh next-context
+
+      - name: Build the next sandbox runtime version
+        if: ${{ steps.pick.outputs.upgrade == 'true' }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: ${{ env.INCUS_E2E_NEXT_CONTEXT }}
+          platforms: linux/amd64
+          push: true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          tags: ${{ env.E2E_RUNTIME_IMAGE_NEXT }}
+          build-args: BASE=${{ env.E2E_RUNTIME_IMAGE }}
+          provenance: false
+
+      - name: Run the operator's setup from docs/incus.md
+        run: bash services/sandbox/e2e/incus/lab.sh operator
+
+      - name: Start the egress proxy on the sandbox bridge
+        run: bash services/sandbox/e2e/incus/lab.sh egress
+
+      # Who created, started, stopped and deleted what, as the node reports it:
+      # the artifact of a run that hung or lost an instance can say who did it.
+      - name: Record the node's lifecycle events
+        run: bash services/sandbox/e2e/incus/lab.sh events
+
+      - name: Write the lab file
+        id: lab
+        run: bash services/sandbox/e2e/incus/lab.sh lab-file
+
+      # Each suite starts its own spawner(s) from this checkout and leaves the
+      # node clean. They run whatever came before, so one finding does not hide
+      # the next, but only on a lab that came up. Each leaves its output behind
+      # as an artifact the moment it ends, so a run in progress can be read.
+
+      - name: Boot refusals and the restricted certificate
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.boot == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/boot.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/boot.log"
+
+      - name: Keep the output of boot refusals and the restricted certificate
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.boot == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-boot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: The session contract
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.lifecycle == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/lifecycle.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/lifecycle.log"
+
+      - name: Keep the output of the session contract
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.lifecycle == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-lifecycle-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: The fence and the ETag
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.fencing == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/fencing.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/fencing.log"
+
+      - name: Keep the output of the fence and the ETag
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.fencing == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-fencing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Network containment
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.network == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/network.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/network.log"
+
+      - name: Keep the output of network containment
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.network == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-network-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: The warm pool
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.pool == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/pool.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/pool.log"
+
+      - name: Keep the output of the warm pool
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.pool == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-pool-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Reaping
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.reaping == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/reaping.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/reaping.log"
+
+      - name: Keep the output of reaping
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.reaping == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-reaping-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Re-adoption and a peer that replaced a session
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.adoption == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/adoption.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/adoption.log"
+
+      - name: Keep the output of re-adoption and a peer that replaced a session
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.adoption == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-adoption-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Endings that are not a clean destroy
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.failures == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/failures.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/failures.log"
+
+      - name: Keep the output of endings that are not a clean destroy
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.failures == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Capacity and project limits
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.limits == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/limits.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/limits.log"
+
+      - name: Keep the output of capacity and project limits
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.limits == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-limits-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Docker inside a session
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.docker == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/docker.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/docker.log"
+
+      - name: Keep the output of docker inside a session
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.docker == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-docker-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upgrading the runtime image
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.upgrade == 'true' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/upgrade.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/upgrade.log"
+
+      - name: Keep the output of upgrading the runtime image
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.upgrade == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-upgrade-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Creates at once, over and over
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.soak == 'true' }}
+        working-directory: services/sandbox
+        env:
+          INCUS_E2E_SOAK_ROUNDS: ${{ inputs.soak_rounds }}
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/soak.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/soak.log"
+
+      - name: Keep the output of creates at once, over and over
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' && steps.pick.outputs.soak == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-soak-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Collect diagnostics
+        if: always()
+        run: bash services/sandbox/e2e/incus/lab.sh diagnose
+
+      - name: Summarize
+        if: always()
+        run: bash services/sandbox/e2e/incus/lab.sh facts >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the logs and the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sandbox-incus-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.INCUS_E2E_DIR }}/logs
+            ${{ env.INCUS_E2E_DIR }}/report
+            ${{ env.INCUS_E2E_DIR }}/phases.tsv
+            ${{ env.INCUS_E2E_DIR }}/lab.json
+          retention-days: 14
+          if-no-files-found: warn

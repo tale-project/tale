@@ -23,7 +23,7 @@ import {
   dockerRuntimeFor,
   transparentEgressSupported,
 } from '../runtime-tier.ts';
-import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
+import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { RUNNERD_INCARNATION_ENV } from './runnerd-protocol.ts';
 import {
@@ -32,7 +32,9 @@ import {
   sessionContainerName,
 } from './session-naming.ts';
 import {
+  DEFAULT_SESSION_PROFILE,
   isAgentSessionProfile,
+  SESSION_NO_PROXY,
   sessionAgentProfile,
   sessionDindEnabled,
   sessionSharesPackageCaches,
@@ -89,23 +91,9 @@ interface DockerSessionRunInput {
   egressAddress?: string;
 }
 
-/**
- * Does a session resolve the egress proxy's address once at boot and keep
- * it? Transparent egress relays the session's public connections and its DNS
- * to that address, and Docker-in-sandbox relays its nested containers' and
- * hands the inner engine the address as their DNS server. A session that does
- * neither reaches the proxy only by name through its proxy environment, and
- * so follows the proxy wherever it moves.
- */
-export function sessionPinsEgressAddress(
-  cfg: Pick<SpawnerConfig, 'transparentEgress' | 'runtimeTier'>,
-  dind: boolean,
-): boolean {
-  return (
-    dind ||
-    (cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier))
-  );
-}
+// Shared with the Incus launcher; the Docker backend and its tests import it
+// from here.
+export { sessionPinsEgressAddress } from './session-profile.ts';
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -133,36 +121,6 @@ function assertSafe(name: string, value: string, re: RegExp): void {
   }
 }
 
-/** Resource caps + user for the `default` profile (the one-shot limits in
- * docker-args.ts; uid 65534). Kept here so both profiles flow through one
- * argv builder.
- *
- * The pids cap is the exception to "one-shot limits": the platform's website
- * crawler renders pages in a `default` session, and a headless Chromium
- * beside node and the session daemon runs 160 tasks and more on an ordinary
- * content page. Under the one-shot cap of 128 the browser could not start
- * another renderer after two or three such pages: every later navigation of
- * the batch died `net::ERR_ABORTED` and the site's pages were recorded as
- * render failures. 512 — the agent profile's default — leaves the browser
- * room and is still a fork-bomb guard.
- *
- * Its CPU weight is half an agent's: a page render or a run_code call is
- * background work that yields first, to agents and to the control plane. */
-const DEFAULT_PROFILE: SessionAgentProfileConfig = {
-  cpus: 1,
-  cpuShares: 128,
-  memory: '1500m',
-  pidsLimit: 512,
-  nofileSoft: 1024,
-  nofileHard: 4096,
-  fsizeBytes: 104857600,
-  tmpfsSize: '128m',
-  shmSize: '64m',
-  user: '65534:65534',
-  uid: 65534,
-  gid: 65534,
-};
-
 export function buildDockerSessionRunArgs(
   cfg: SpawnerConfig,
   inp: DockerSessionRunInput,
@@ -185,7 +143,7 @@ export function buildDockerSessionRunArgs(
   const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile = isAgentSessionProfile(inp.profile)
     ? sessionAgentProfile(cfg, dind)
-    : DEFAULT_PROFILE;
+    : DEFAULT_SESSION_PROFILE;
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
@@ -502,9 +460,9 @@ export function buildDockerSessionRunArgs(
     // and the bridge calls http://backend-api:3005, so both must be in
     // NO_PROXY or the CONNECT would be denied. If
     // EXTERNAL_AGENT_CONNECTORS_URL overrides the host, this list must
-    // match.
+    // match (SESSION_NO_PROXY, shared with the Incus launcher).
     '--env',
-    `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay`,
+    `NO_PROXY=${SESSION_NO_PROXY}`,
     // Per-org shared dep caches (empty under DinD and for the untrusted
     // `default` profile — see cacheEnv above).
     ...cacheEnv,

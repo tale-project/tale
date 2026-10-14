@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
+import { FakeIncus } from './backend/incus/fake-incus.ts';
+import { LABEL } from './backend/incus/incus-naming.ts';
+import { incusTestConfig } from './backend/incus/incus-test-config.ts';
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
 import { CapacityReader } from './capacity.ts';
 import { loadConfig } from './config.ts';
@@ -566,5 +569,110 @@ describe('infrastructure capacity observations', () => {
     ]) {
       expect(kubernetesReader(response).forOrganization('a')).rejects.toThrow();
     }
+  });
+});
+
+describe('Incus project capacity', () => {
+  const labels = (
+    sessionId: string,
+    organizationId: string,
+    extra: Record<string, string> = {},
+  ) => ({
+    [LABEL.sandboxSession]: '1',
+    [LABEL.session]: sessionId,
+    [LABEL.organization]: organizationId,
+    ...extra,
+  });
+
+  function incusReader(
+    fake: FakeIncus,
+    creating: ReadonlyMap<string, string> = new Map(),
+  ) {
+    return new CapacityReader(incusTestConfig(), () => creating, {
+      incus: fake.client(),
+    });
+  }
+
+  test('counts the session instances of the project by organization, as a project scope', async () => {
+    const fake = new FakeIncus();
+    fake.seedInstance('tale-sbx-ses-1', labels('a-live', 'a'));
+    fake.seedInstance('tale-sbx-ses-2', labels('b-live', 'b'));
+    fake.seedInstance('tale-sbx-ses-3', labels('a-warm', 'a'), {
+      status: 'Starting',
+    });
+    fake.seedInstance('tale-sbx-ses-4', labels('a-old', 'a'), {
+      status: 'Stopped',
+      ephemeral: false,
+    });
+    const result = await incusReader(fake).forOrganization('a');
+    expect(result).toMatchObject({
+      status: 'available',
+      backend: 'incus',
+      scope: 'project',
+      sessions: {
+        running: 2,
+        starting: 1,
+        organizationRunning: 1,
+        organizationStarting: 1,
+        limit: 10,
+      },
+    });
+    expect(result.runtimeSessions).toEqual(
+      expect.arrayContaining([
+        { sessionId: 'a-live', state: 'running' },
+        { sessionId: 'a-warm', state: 'starting' },
+        { sessionId: 'a-old', state: 'stopped' },
+      ]),
+    );
+    expect(JSON.stringify(result)).not.toContain('b-live');
+  });
+
+  test('leaves out standbys, strangers and another spawner’s sessions', async () => {
+    const fake = new FakeIncus();
+    fake.seedInstance('tale-sbx-pool-x', { [LABEL.pool]: 'fingerprint' });
+    fake.seedInstance('somebody-elses', {});
+    fake.seedInstance(
+      'tale-sbx-ses-device',
+      labels('dev', 'a', { [LABEL.spawnerInstance]: 'device' }),
+    );
+    fake.seedInstance('tale-sbx-ses-mine', labels('mine', 'a'));
+    const result = await incusReader(fake).forOrganization('a');
+    expect(result.sessions.running).toBe(1);
+    expect(result.runtimeSessions).toEqual([
+      { sessionId: 'mine', state: 'running' },
+    ]);
+  });
+
+  test('knows nothing of the node’s CPU and memory, and says so', async () => {
+    const result = await incusReader(new FakeIncus()).forOrganization('a');
+    expect(result.resources).toEqual({
+      cpu: { totalCores: null, usedCores: null },
+      memory: { totalBytes: null, usedBytes: null },
+    });
+  });
+
+  test('counts a create that has no instance yet once, and an instance with a broken label as occupied', async () => {
+    const fake = new FakeIncus();
+    fake.seedInstance('tale-sbx-ses-1', labels('bad/id', 'a'));
+    fake.seedInstance('tale-sbx-ses-2', labels('pending', 'a'));
+    const reader = incusReader(fake, new Map([['pending', 'a']]));
+    const result = await reader.forOrganization('a');
+    expect(result.sessions).toMatchObject({ running: 1, starting: 1 });
+    // The broken identity keeps its slot and names no session.
+    expect(result.runtimeSessions).toEqual([
+      { sessionId: 'pending', state: 'starting' },
+    ]);
+  });
+
+  test('a failed listing does not become an empty project', async () => {
+    const fake = new FakeIncus();
+    fake.fail({
+      match: 'GET /1.0/instances',
+      status: 500,
+      message: 'database is locked',
+      times: 5,
+    });
+    const reader = incusReader(fake);
+    expect(reader.forOrganization('a')).rejects.toThrow('database is locked');
   });
 });

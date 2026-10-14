@@ -40,7 +40,9 @@ export function SandboxCapacitySection({
       label: t(
         snapshot?.scope === 'namespace'
           ? 'capacity.namespaceSessions'
-          : 'capacity.hostSessions',
+          : snapshot?.scope === 'project'
+            ? 'capacity.projectSessions'
+            : 'capacity.hostSessions',
       ),
       value: slots
         ? t('capacity.slots', {

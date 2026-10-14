@@ -29,6 +29,15 @@ import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
  *
  * Operators wanting stronger isolation set SANDBOX_RUNTIME=runsc and
  * install gVisor on the host; the spawner picks the runtime via env.
+ *
+ * INCUS BACKEND: with SANDBOX_BACKEND=incus (services/sandbox/docs/incus.md)
+ * the spawner needs neither the docker socket nor the session root below. It
+ * reaches one restricted project of an Incus node with a restricted client
+ * certificate, pinned to the node's server certificate, and sessions are Incus
+ * instances, not sibling containers. This generator keeps the Docker shape
+ * (compose.yml says the same); an Incus deployment overrides this service to
+ * drop the socket mount, mount the three PEM files (SANDBOX_INCUS_*_FILE)
+ * read-only and join a network the node's API is reachable from.
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {
   // Opt-in: a Linux daemon data-root path is not a valid host bind on every

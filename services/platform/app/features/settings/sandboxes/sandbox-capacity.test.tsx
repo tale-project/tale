@@ -111,6 +111,25 @@ describe('SandboxCapacitySection', () => {
     expect(screen.getAllByText('Unavailable')).toHaveLength(2);
   });
 
+  it('labels Incus counts as project scope without fabricating hardware', () => {
+    render(
+      capacityView({
+        ...snapshot,
+        backend: 'incus',
+        scope: 'project',
+        resources: {
+          cpu: { totalCores: null, usedCores: null },
+          memory: { totalBytes: null, usedBytes: null },
+        },
+      }),
+    );
+    expect(
+      screen.getByText('Deployment sandboxes (project)'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Incus project scope/)).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+  });
+
   it('refreshes on request and disables repeated refresh while fetching', async () => {
     const refresh = vi.fn();
     const { user, rerender } = render(
