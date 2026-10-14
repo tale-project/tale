@@ -3419,6 +3419,33 @@ export const SHOTS: readonly Shot[] = [
         await days.fill(unusedDays);
         changed = true;
       }
+      // And the disk and size rules it starts with: disk space freed when
+      // it runs short, no size cap, the default idle hours.
+      const diskSwitch = page.getByRole('switch', {
+        name: t('sandboxes.cleanup.reclaimOnDiskPressure'),
+        exact: true,
+      });
+      if ((await diskSwitch.getAttribute('aria-checked')) !== 'true') {
+        await diskSwitch.click();
+        changed = true;
+      }
+      const capSwitch = page.getByRole('switch', {
+        name: t('sandboxes.cleanup.limitSize'),
+        exact: true,
+      });
+      if ((await capSwitch.getAttribute('aria-checked')) === 'true') {
+        await capSwitch.click();
+        changed = true;
+      }
+      const hours = page.getByRole('spinbutton', {
+        name: t('sandboxes.cleanup.reclaimMinIdleHours'),
+        exact: true,
+      });
+      const idleHours = String(DEFAULT_SANDBOX_WORKSPACES.reclaimMinIdleHours);
+      if ((await hours.inputValue()) !== idleHours) {
+        await hours.fill(idleHours);
+        changed = true;
+      }
       if (changed) {
         const save = page.getByRole('button', {
           name: t('common.actions.save'),
