@@ -80,7 +80,7 @@ describe('rewriteActions', () => {
       { rules: [rewriteActions] },
     );
     expect(text).toContain(
-      `uses: forgejo/upload-artifact@${UPLOAD_ARTIFACT.sha} # v6, patched for Forgejo`,
+      `uses: forgejo/upload-artifact@${UPLOAD_ARTIFACT.sha} # v5, patched for Forgejo`,
     );
     expect(text).toContain(
       `uses: forgejo/download-artifact@${DOWNLOAD_ARTIFACT.sha} # v7, patched for Forgejo`,
