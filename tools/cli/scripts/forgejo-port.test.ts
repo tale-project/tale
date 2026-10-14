@@ -343,6 +343,21 @@ describe("Tale's own workflows", () => {
       expect(readme, edit.file).toContain(`\`${edit.file}\``);
   });
 
+  test('are held to the README’s list of the actions the node mirrors', () => {
+    const readme = readFileSync(
+      join(ROOT, 'tools/cli/scripts/forgejo-port/README.md'),
+      'utf8',
+    );
+    const table = /\| Mirrors[^\n]*\n/.exec(readme)?.[0] ?? '';
+    const named = new Set(
+      [...table.matchAll(/`([a-z0-9-]+\/[a-z0-9._-]+)`/g)].map(
+        (match) => match[1],
+      ),
+    );
+    for (const name of generate(sources).actions.keys())
+      expect(named.has(name), name).toBe(true);
+  });
+
   test('is either ported or given a reason, and the files the manifest names exist', () => {
     const generated = generate(sources);
     expect(

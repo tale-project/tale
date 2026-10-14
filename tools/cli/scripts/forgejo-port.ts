@@ -126,6 +126,9 @@ export function describe(generated: Generated): string[] {
   }
   lines.push('', 'Checks the merge train declares');
   for (const check of generated.checks) lines.push(`  ${check}`);
+  lines.push('', 'Actions the node mirrors');
+  for (const [name, refs] of generated.actions)
+    lines.push(`  ${name}: ${refs.map((ref) => ref.slice(0, 12)).join(', ')}`);
   if (generated.report.warnings.length > 0) {
     lines.push('', 'Warnings');
     for (const warning of generated.report.warnings)

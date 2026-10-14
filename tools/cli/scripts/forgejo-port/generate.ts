@@ -9,7 +9,12 @@
 
 import { isMap } from 'yaml';
 
-import { rewriteActions, rewriteLocalActions, registryLogin } from './actions';
+import {
+  externalActions,
+  registryLogin,
+  rewriteActions,
+  rewriteLocalActions,
+} from './actions';
 import { buildCache } from './cache';
 import type { Rule, Tier } from './context';
 import {
@@ -74,6 +79,8 @@ export interface Generated {
   readonly report: Report;
   /** What Forgejo would refuse in the files above. Empty when the port is sound. */
   readonly problems: readonly Problem[];
+  /** The external actions the files use, by `owner/name`, with the refs they pin: what the node must mirror. */
+  readonly actions: ReadonlyMap<string, readonly string[]>;
 }
 
 export const WORKFLOW_DIR = '.forgejo/workflows';
@@ -203,5 +210,29 @@ export function generate(
     files.set(script.to, text);
   }
 
-  return { files, outcomes, checks: checks.toSorted(), report, problems };
+  return {
+    files,
+    outcomes,
+    checks: checks.toSorted(),
+    report,
+    problems,
+    actions: usedActions(files),
+  };
+}
+
+/** The external actions of the generated workflows and composite actions. */
+function usedActions(
+  files: ReadonlyMap<string, string>,
+): Map<string, string[]> {
+  const found = new Map<string, Set<string>>();
+  for (const [path, text] of files) {
+    if (!path.endsWith('.yml')) continue;
+    for (const { name, ref } of externalActions(readWorkflow(text, path)))
+      found.set(name, (found.get(name) ?? new Set()).add(ref));
+  }
+  return new Map(
+    [...found]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([name, refs]) => [name, [...refs].toSorted()]),
+  );
 }
