@@ -15,15 +15,17 @@ import { parseUses, stepLists, stringOf } from './workflow';
 
 /**
  * Forgejo's own builds of the artifact actions. The upstream v4+ clients refuse every
- * server that is not github.com (`isGhes()`), and the 6.x client sends fields the server's
- * artifact service rejects; these are upstream's v6 and v7 with that check removed, at the
- * commits Forgejo tags (code.forgejo.org/forgejo/upload-artifact `branch-v6`,
- * code.forgejo.org/forgejo/download-artifact `v7`). Read 2026-10-13 from the sources.
+ * server that is not github.com (`isGhes()`); these are upstream's v5 and v7 with that
+ * check removed, at the commits Forgejo tags (code.forgejo.org/forgejo/upload-artifact
+ * `v5`, code.forgejo.org/forgejo/download-artifact `v7`). Measured on a Forgejo 15.0.9 with
+ * a runner 13.2.0 (2026-10-14): upload `v5`, `v4` and `v3-node20` upload, and download `v5`,
+ * `v6` and `v7` download by name, by id and by pattern; upload `branch-v6` is refused at the
+ * upload itself, because its client drops the padding of the signature in the signed URL.
  */
 export const UPLOAD_ARTIFACT = {
   name: 'forgejo/upload-artifact',
-  sha: 'c2e51b3bcc9f52a52d7f3906ea6e95d263689d19',
-  comment: ' v6, patched for Forgejo',
+  sha: 'cb8afe72b42edc798abfb8fcb556cf660d894245',
+  comment: ' v5, patched for Forgejo',
 } as const;
 export const DOWNLOAD_ARTIFACT = {
   name: 'forgejo/download-artifact',
