@@ -61,6 +61,7 @@ Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen.
 | `forEach`                    | Läuft einmal pro Element einer Sammlung, mit `item` und `index` im Zugriff              |
 | `repeatUntil` / `maxRepeats` | Wiederholt, bis der Ausdruck wahr ist, mit Deckel (Standard 5, Maximum 20)              |
 | `onError`                    | `fail` bricht den Lauf ab; `continue` notiert den Fehler und überspringt Abhängige      |
+| `onItemError`                | Mit `forEach`: `continue` setzt das Ergebnis eines fehlgeschlagenen Elements auf null und macht mit dem nächsten weiter; die Node scheitert nur, wenn jedes Element scheiterte |
 
 ### Node-Typen
 
@@ -80,7 +81,9 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 
 **`task.create`** erstellt eine Aufgabe in einem Projekt, in dem die Automatisierung installiert ist, einmal pro Ausführung des Schritts. Siehe [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks).
 
-**`task.list`** listet die Aufgaben eines Projekts auf, die neueste zuerst, eingegrenzt auf Status und einen Erstellungszeitpunkt, damit ein späterer Schritt darüber berichtet. Es liest das Projekt so, wie ein Erstellen dort es darf. Siehe [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks#die-aufgaben-eines-projekts-auflisten).
+**`task.list`** listet die Aufgaben eines Projekts auf, die neueste oder die älteste zuerst, eingegrenzt auf Status und ein Zeitfenster der Erstellung, damit ein späterer Schritt darüber berichtet. Es liest das Projekt so, wie ein Erstellen dort es darf. Siehe [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks#die-aufgaben-eines-projekts-auflisten).
+
+**`automation.read_position`** und **`automation.save_position`** halten die Stelle fest, an der eine geplante Automatisierung zwischen ihren Läufen weitermacht — das Zeitfenster einer Übersicht, die letzte Änderung, die eine Sichtung gelesen hat — unter einem Schlüssel des Schritts. Ein Lauf liest die Stelle zu Beginn und speichert die nächste am Ende, sodass ein Lauf, der vorher scheitert, sie lässt, wo sie war; ein Speichern aus einem Lauf, der sich mit einem anderen überschnitt, ändert nichts. Die Stelle gehört der Automatisierung und dem Projekt des Laufs: Wird die Automatisierung gelöscht, ist sie weg, und das Entfernen von Läufen lässt sie, wie sie ist.
 
 **`notify.member`** teilt Mitgliedern der Organisation etwas mit — Titel, Text und Link — in ihren Benachrichtigungen und per E-Mail, einmal pro Ausführung des Schritts. Siehe [Mitglieder aus einer Automatisierung benachrichtigen](/de/platform/automations/notify-members).
 
@@ -197,7 +200,7 @@ Der Status `waiting` kann auch bedeuten, dass ein Agent noch arbeitet, dass ein 
 | Ein geprüftes Ergebnis mit Zuständigkeit erstellen | Eine Projektaufgabe, bei Bedarf einem Agenten zugewiesen |
 | Abhängige Schritte ausführen oder auf Zeitplan, Webhook oder Ereignis reagieren | Eine Automatisierung |
 
-Prüfe vor dem Erstellen die [mitgelieferten Automatisierungen](/de/platform/automations/builtin). Ein Webhook startet eine Automatisierung; er ist keine eigene Art von Projektagent.
+Prüfe vor dem Erstellen die [Vorlagen für Automatisierungen](/de/platform/automations/templates). Ein Webhook startet eine Automatisierung; er ist keine eigene Art von Projektagent.
 
 ## Das Modell in die Praxis bringen
 

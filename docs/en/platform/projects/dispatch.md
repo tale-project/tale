@@ -7,6 +7,12 @@ Dispatch starts a project's ready tasks on the agents you put in its pool, as so
 
 Dispatch decides when and where work starts. What is worth doing stays a person's or a manager agent's decision: set priorities, order the board and move tasks between columns, and dispatch takes the work in that order.
 
+<Frame caption="The Dispatch tab shows whether dispatch is on, how many runs its pool holds, and why each agent of the pool is idle.">
+
+![The Dispatch tab of the Website relaunch project: dispatch is off, no run is held, both agents of the pool are idle because dispatch is off, and no pass has run yet.](/images/platform/project-dispatch.webp)
+
+</Frame>
+
 ## Choose what dispatch takes and who works on it
 
 Open the project, choose **Dispatch**, then **Edit**, or **Set up dispatch** while the project has none.

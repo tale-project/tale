@@ -5,7 +5,7 @@ description: Run an automation on a schedule, from a webhook or on a platform ev
 
 Use the **Trigger** section on the automation’s **General** tab when work should start on a schedule, when another system sends a request, or when something happens in Tale. Every trigger starts the deployed version in live mode. Before you turn one on, check what its runs will receive and that the workflow’s external actions are ready.
 
-<Frame caption="A shipped package’s trigger arrives switched off: its schedule is set and its next runs are listed, but nothing starts until you turn it on.">
+<Frame caption="A trigger that arrives switched off, as it does for a template created without starting it: its schedule is set and its next runs are listed, but nothing starts until you turn it on.">
 
 ![The General tab of Triage the Gmail inbox with Enabled switched off, Schedule as the trigger type, the Repeat format with a schedule of every 6 hours, the UTC timezone, Start the latest one when Tale is back under Missed runs, and the next runs listed under Would run at.](/images/platform/automation-general-trigger.webp)
 
@@ -229,9 +229,9 @@ When the deployed version requires fields the trigger doesn’t send, the sectio
 
 ## Turn on the trigger after deploy
 
-A new trigger starts switched off, and so does the trigger of a shipped package. When you deploy a version, in the editor or by uploading a package, and its trigger is off, a notice says **Its trigger is off**. **Turn on the trigger** switches on the saved trigger exactly as it is, and the notice then reads **The trigger is on.**
+A new trigger starts switched off, and so does the trigger of an automation you create from a template without **Start it now**. When you deploy a version, in the editor or by uploading a package, and its trigger is off, a notice says **Its trigger is off**. **Turn on the trigger** switches on the saved trigger exactly as it is, and the notice then reads **The trigger is on.**
 
-When the deployed version would refuse what the trigger sends, or a webhook has no URL yet, the notice offers **Review the trigger** instead. It opens the **Trigger** section on the **General** tab, where you can add the fixed input or create the URL first. The shipped GitHub packages are an example: their schedules need a repository, as [Built-in automations](/platform/automations/builtin) explains.
+When the deployed version would refuse what the trigger sends, or a webhook has no URL yet, the notice offers **Review the trigger** instead. It opens the **Trigger** section on the **General** tab, where you can add the fixed input or create the URL first. A template asks for such values when you use it, as [Automation templates](/platform/automations/templates) explains.
 
 ## Start a project agent on a schedule
 
@@ -269,38 +269,27 @@ A retryable failure can be retried automatically while the task keeps its origin
 
 A schedule that runs a project's standing role, such as a manager that hands out work, can also fire as soon as an agent of its project finishes and one of its standing workers is free, instead of waiting for its next cron minute. Turn this on with `wakeOnSlotFreed: true` in the schedule's managed configuration, applied with the Tale CLI; only one enabled schedule per project can have it — a second one is refused, and so is installing its automation in a project another schedule already wakes — and the app has no switch for it. Each wake is one ordinary occurrence with the usual input `{ trigger: "schedule", firedAt }`, so the answers above still apply. Agents that finish while a wake is pending add up to one wake. A wake waits while the manager's own card has a live run or an armed retry, the card would refuse the start or is no longer assigned to the agent, until `retryAfter` when the task took three starts within the hour, and, after an occurrence that did not serve, for one minute, doubling up to an hour, with no limit on attempts. Other tasks of the same agent do not hold the wake; the manager's new run takes its own worker or waits for capacity as usual. It counts as served only once the agent's run it started has launched and settled. While the schedule is paused after failures, switched off or no longer opted in, the wake waits and fires once the schedule is saved again.
 
-### Import every issue on a schedule
+### Sync issues on a schedule
 
-An issue import reads at most one batch per run, up to 500 issues, and answers where the next batch starts. A person continues it with **Continue import**; a schedule keeps the position between its occurrences instead, so each occurrence imports one batch from where the last one stopped until every open issue has been read, and the occurrence after that starts the next pass. Read the position with `task.get_import_cursor`, pass it to the importer, and save the importer's `nextCursor` with `task.save_import_cursor`:
+The issue sync keeps a project's tasks in step with GitHub repositories and GlitchTip projects. One `task.sync_issues` step lists the sources, and every run reads each source's next batch of open issues from where the last run stopped. The [Sync GitHub issues](/platform/automations/templates#github-sync-issues) and [Sync GlitchTip issues](/platform/automations/templates#glitchtip-sync-issues) templates set it up for one source. To sync several in one automation, list them in the step:
 
 ```yaml
 nodes:
-  - id: position
-    type: task.get_import_cursor
-    onError: continue
-    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
-  - id: issues
-    type: subautomation
-    automation: github-import-issues
-    onError: continue
+  - id: sync
+    type: task.sync_issues
     input:
       projectId: <the project's ID>
-      owner: owner
-      repo: repo
-      limit: 500
-      cursor: '{{ nodes.position.output.cursor }}'
-  - id: progress
-    type: task.save_import_cursor
-    onError: continue
-    input:
-      projectId: <the project's ID>
-      externalSystem: github
-      source: owner/repo
-      revision: '{{ nodes.position.output.revision }}'
-      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+      sources:
+        - { kind: github, owner: tale-project, repo: tale, labels: bug }
+        - { kind: github, owner: tale-project, repo: docs, credential: GitHub docs }
+        - { kind: glitchtip, organization: tale, project: web, query: 'is:unresolved environment:production' }
+      limit: 100
+      refreshLimit: 50
 ```
 
-`source` is your name for the listing; automations that name the same source share one pass. The read also answers `revision`, the position's compare token, and the save hands it back: the position advances only while it is still at that revision. Every saved batch, every drain and every restart moves the revision on, and a revision never repeats, even when the cursor text does. An import that fails saves nothing, so the next occurrence retries the same batch. A save from any earlier revision is refused (`conflict`) and writes nothing, whether it comes from an overlapping run, from a run delayed past the end of its pass, or from a run that still holds a position from before a restart. After three reads of one position without a save, the next read starts the pass over (`restarted`) instead of retrying a position the source keeps refusing, for example after the repository was renamed. The save answers `batch` and `drained`, which a receipt can report. Each run also refreshes up to 500 issues imported earlier, the longest-unchecked first, so a large collection is refreshed over several occurrences.
+The platform keeps each source's position per project, source name (`owner/repo`, `organization/project`) and filter: automations that name the same source under the same filter in the same project share one pass, a source narrowed by `labels` or a `query` keeps a pass of its own, and a source without a filter carries on a pass that a hand-built chain of `task.get_import_cursor` and `task.save_import_cursor` started. Each run reads up to `limit` new open issues per source (100 when left out, at most 500), makes a task in **Backlog** for each issue the project does not have yet, and saves where it stopped; after the last issue, the next run starts the next pass from the first. It also reads up to `refreshLimit` issues imported earlier again (50 when left out, 0 for none), the longest-unchecked first, and updates their tasks' source cards; a task's own title, description, status and assignee stay as they are, closed upstream or not. `credential` names the stored credentials a source is read with; empty or left out, the default ones.
+
+The step answers one receipt per source, in the order listed: its `source` and `filter`; `ok` and `error`, with the tracker's HTTP `status` when the failure was its answer; the `batch` of the pass it read, and whether it `resumed`, `restarted` or `drained` the pass; whether the position was `saved`, or another run saved it first (`conflict`); how many issues it `discovered`, `created`, `refreshed`, left `unchanged` and `skipped`; and how many closed, reopened or became unavailable upstream. Each source is read on its own. One that fails does not stop the others and saves nothing, so the next run reads the same batch; after three failed batches in a row, the next run starts the pass over, and a position saved under another label filter or search starts over at once. An issue the tracker will not show again, or that its task refuses, is skipped and tried again later (`skippedIssues` names the first ones). When a tracker rate-limits the sync, that source stops for the run and keeps what it did, and the runs before the time the tracker named (`retryAfter`) leave it alone. The step fails only when every source failed, with the cause they share, so the schedule counts the failure; a source that waits out a rate limit has not failed. `error` is one of `credential`, `unauthorized`, `not_found`, `rate_limited`, `unavailable`, `invalid_response` and `failed`.
 
 ## Diagnose a missing start
 

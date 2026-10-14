@@ -47,7 +47,7 @@ La tâche est créée avec les droits de la personne qui a lancé l’exécution
 
 ## Lister les tâches d’un projet
 
-Une étape `task.list` lit les tâches d’un projet, la plus récente d’abord, pour en rendre compte — un récapitulatif quotidien, le nombre de tâches qui attendent une relecture. Elle lit un projet comme une création y est permise, et ne change rien : elle n’attend donc jamais d’approbation.
+Une étape `task.list` lit les tâches d’un projet, la plus récente ou la plus ancienne d’abord, pour en rendre compte — un récapitulatif quotidien, le nombre de tâches qui attendent une relecture. Elle lit un projet comme une création y est permise, et ne change rien : elle n’attend donc jamais d’approbation.
 
 ```yaml
 nodes:
@@ -65,9 +65,12 @@ nodes:
 | `projectId`    | Le projet à lire.                                                                                                                                     |
 | `status`       | Seulement les tâches dans ces statuts — `backlog`, `todo`, `in_progress`, `in_review`, `done` et `cancelled` ; tous les statuts s’il est omis.        |
 | `createdSince` | Seulement les tâches créées à partir de ce moment : des millisecondes epoch, une date comme `2026-10-17` (son début, en UTC) ou une date et heure ISO. |
+| `createdBefore` | Seulement les tâches créées avant ce moment, écrit de la même façon. Avec `createdSince`, cela forme une fenêtre : une fenêtre qui commence là où la précédente s’est arrêtée ne liste jamais une tâche deux fois. |
+| `order` | `newest`, les plus récentes d’abord, comme s’il est omis, ou `oldest`, les plus anciennes d’abord. |
+| `after` | Avec `order: oldest`, seulement les tâches après cet endroit : le `next` qu’une liste précédente a renvoyé. Vide, la liste part de la première. |
 | `limit`        | Au plus ce nombre de tâches, jusqu’à 200 ; 50 s’il est omis.                                                                                          |
 
-L’étape renvoie `{ tasks, hasMore }`. Chaque tâche porte son `taskId`, `number`, `title`, `status`, `priority`, `assignee` (son `type`, `id` et `name`), `dueDate`, `createdAt` et l’`url` qui l’ouvre. Les tâches archivées sont omises, et `hasMore` indique que plus de tâches correspondent que `limit` n’en a renvoyé. Le [modèle d’automatisation](/fr/platform/automations/starters) **Récapitulatif quotidien des tâches** repose dessus.
+L’étape renvoie `{ tasks, hasMore, next }`. Chaque tâche porte son `taskId`, `number`, `title`, `status`, `priority`, `assignee` (son `type`, `id` et `name`), `dueDate`, `createdAt` et l’`url` qui l’ouvre. Les tâches archivées sont omises, et `hasMore` indique que plus de tâches correspondent que `limit` n’en a renvoyé. Les plus anciennes d’abord, `next` nomme alors la dernière tâche listée : passe-la comme `after`, et la liste suivante reprend derrière elle, même au-delà de tâches créées dans la même milliseconde. Le [modèle d’automatisation](/fr/platform/automations/templates#task-digest) **Récapitulatif quotidien des tâches** repose dessus.
 
 <Frame caption="L’exécution de Daily task digest, avec son étape Tasks sélectionnée : le projet et le moment à partir duquel elle a lu, et les sept tâches qu’elle a renvoyées.">
 

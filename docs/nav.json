@@ -145,8 +145,7 @@
           "pages": [
             "platform/automations/concepts",
             "platform/automations/catalog",
-            "platform/automations/starters",
-            "platform/automations/builtin",
+            "platform/automations/templates",
             "platform/automations/editor",
             "platform/automations/testing",
             "platform/automations/triggers",

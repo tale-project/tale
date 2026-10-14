@@ -492,14 +492,6 @@
       "description": "Ändere Workflows direkt im visuellen Editor oder lass deinen Coding-Agent Automatisierungen über den MCP-Endpoint von Tale bearbeiten."
     }
   },
-  "de:platform/automations/builtin": {
-    "slug": "platform/automations/builtin",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Mitgelieferte Automatisierungen",
-      "description": "Wähle einen mitgelieferten Mail-, GitHub- oder GlitchTip-Workflow, prüfe Eingaben und Verbindungen und erfahre vor dem Deployment, was er liest oder schreibt."
-    }
-  },
   "de:platform/automations/catalog": {
     "slug": "platform/automations/catalog",
     "locale": "de",
@@ -556,12 +548,12 @@
       "description": "Teile Mitgliedern mit dem Schritt notify.member etwas aus einer Automatisierung mit — Titel, Text und Link, in ihren Benachrichtigungen und per E-Mail — und erfahre, wer übersprungen und was abgelehnt wird."
     }
   },
-  "de:platform/automations/starters": {
-    "slug": "platform/automations/starters",
+  "de:platform/automations/templates": {
+    "slug": "platform/automations/templates",
     "locale": "de",
     "frontmatter": {
-      "title": "Mit einer Vorlage beginnen",
-      "description": "Lege aus einer Vorlage eine fertige Automatisierung an, indem du ein paar Fragen beantwortest, starte sie sofort und sieh, was jede Vorlage tut."
+      "title": "Vorlagen für Automatisierungen",
+      "description": "Sieh dir die Automatisierungen an, die Tale mitliefert, prüfe in der Vorschau, was eine tut und braucht, und mach sie mit ein paar Antworten zu deiner eigenen — als Entwurf oder gleich gestartet."
     }
   },
   "de:platform/automations/testing": {
@@ -1732,14 +1724,6 @@
       "description": "Use the visual editor for direct changes, or have your coding agent edit automations through Tale’s MCP endpoint."
     }
   },
-  "en:platform/automations/builtin": {
-    "slug": "platform/automations/builtin",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Built-in automations",
-      "description": "Choose a shipped mail, GitHub or GlitchTip workflow, check its inputs and connections, and understand what it reads or writes before deployment."
-    }
-  },
   "en:platform/automations/catalog": {
     "slug": "platform/automations/catalog",
     "locale": "en",
@@ -1796,12 +1780,12 @@
       "description": "Tell members something from an automation with the notify.member step — a title, words and a link, in their notifications and by email — and know who is skipped and what is refused."
     }
   },
-  "en:platform/automations/starters": {
-    "slug": "platform/automations/starters",
+  "en:platform/automations/templates": {
+    "slug": "platform/automations/templates",
     "locale": "en",
     "frontmatter": {
-      "title": "Start from a starter",
-      "description": "Create a working automation from a starter by answering a few questions, start it at once, and see what each starter does."
+      "title": "Automation templates",
+      "description": "Browse the automations Tale ships, preview what each one does and needs, and make one your own in a few questions, as a draft or started at once."
     }
   },
   "en:platform/automations/testing": {
@@ -2340,7 +2324,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Your first automation: a daily task digest",
-      "description": "Create an automation from the Daily task digest starter, run it once by hand, and find the digest it sent in your notifications."
+      "description": "Create an automation from the Daily task digest template, run it once by hand, and find the digest it sent in your notifications."
     }
   },
   "en:tutorials/developer/trigger-automation-via-webhook": {
@@ -2972,14 +2956,6 @@
       "description": "Modifie directement le workflow dans l’éditeur visuel ou laisse ton agent de code modifier les automatisations par l’endpoint MCP de Tale."
     }
   },
-  "fr:platform/automations/builtin": {
-    "slug": "platform/automations/builtin",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Automatisations livrées",
-      "description": "Choisis un workflow fourni pour les e-mails, GitHub ou GlitchTip, vérifie ses entrées et connexions et découvre ce qu’il lit ou écrit avant le déploiement."
-    }
-  },
   "fr:platform/automations/catalog": {
     "slug": "platform/automations/catalog",
     "locale": "fr",
@@ -3036,12 +3012,12 @@
       "description": "Fais savoir quelque chose à des membres depuis une automatisation avec l’étape notify.member — un titre, un texte et un lien, dans leurs notifications et par e-mail — et sache qui est ignoré et ce qui est refusé."
     }
   },
-  "fr:platform/automations/starters": {
-    "slug": "platform/automations/starters",
+  "fr:platform/automations/templates": {
+    "slug": "platform/automations/templates",
     "locale": "fr",
     "frontmatter": {
-      "title": "Partir d’un modèle",
-      "description": "Crée une automatisation prête à l’emploi à partir d’un modèle en répondant à quelques questions, démarre-la tout de suite et vois ce que fait chaque modèle."
+      "title": "Modèles d’automatisation",
+      "description": "Parcours les automatisations fournies par Tale, vois dans l’aperçu ce que chacune fait et ce dont elle a besoin, puis fais-en la tienne en quelques réponses, en brouillon ou démarrée tout de suite."
     }
   },
   "fr:platform/automations/testing": {

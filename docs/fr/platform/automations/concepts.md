@@ -61,6 +61,7 @@ Brancher et répéter sont des champs du nœud plutôt que des types d’étape 
 | `forEach`                    | S’exécute une fois par élément d’une collection, avec `item` et `index` disponibles           |
 | `repeatUntil` / `maxRepeats` | Relance jusqu’à ce que l’expression soit vraie, avec un plafond (5 par défaut, 20 au maximum) |
 | `onError`                    | `fail` arrête l’exécution ; `continue` note l’erreur et ignore les dépendants                 |
+| `onItemError`                | Avec `forEach`, `continue` laisse null comme résultat d’un élément en échec et passe au suivant ; le nœud n’échoue que si tous les éléments ont échoué |
 
 ### Les types de nœud
 
@@ -80,7 +81,9 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 
 **`task.create`** crée une tâche dans un projet où l’automatisation est installée, une fois à chaque exécution de l’étape. Voir [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks).
 
-**`task.list`** liste les tâches d’un projet, la plus récente d’abord, filtrées par statut et par moment de création, pour qu’une étape suivante en rende compte. Elle lit le projet comme une création y est permise. Voir [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks#lister-les-taches-dun-projet).
+**`task.list`** liste les tâches d’un projet, la plus récente ou la plus ancienne d’abord, filtrées par statut et par une fenêtre de création, pour qu’une étape suivante en rende compte. Elle lit le projet comme une création y est permise. Voir [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks#lister-les-taches-dun-projet).
+
+**`automation.read_position`** et **`automation.save_position`** gardent l’endroit où une automatisation planifiée reprend entre ses exécutions — la fenêtre d’un récapitulatif, la dernière modification lue par un tri — sous une clé propre à l’étape. Une exécution lit l’endroit au début et enregistre le suivant à la fin, de sorte qu’une exécution qui échoue avant la fin le laisse où il était ; un enregistrement venu d’une exécution qui en chevauchait une autre ne change rien. L’endroit appartient à l’automatisation et au projet de l’exécution : supprimer l’automatisation le supprime, et retirer des exécutions le laisse tel quel.
 
 **`notify.member`** fait savoir quelque chose à des membres de l’organisation — un titre, un texte et un lien — dans leurs notifications et par e-mail, une fois à chaque exécution de l’étape. Voir [Notifier des membres depuis une automatisation](/fr/platform/automations/notify-members).
 
@@ -197,7 +200,7 @@ Le statut `waiting` peut également indiquer qu’un agent travaille encore, qu�
 | Produire un résultat relu avec un responsable | Une tâche de projet, éventuellement assignée à un agent |
 | Enchaîner des étapes ou réagir à un horaire, webhook ou événement | Une automatisation |
 
-Consulte les [automatisations fournies](/fr/platform/automations/builtin) avant de créer la tienne. Un webhook démarre une automatisation ; ce n’est pas un type distinct d’agent de projet.
+Consulte les [modèles d’automatisation](/fr/platform/automations/templates) avant de créer la tienne. Un webhook démarre une automatisation ; ce n’est pas un type distinct d’agent de projet.
 
 ## Mettre le modèle en pratique
 

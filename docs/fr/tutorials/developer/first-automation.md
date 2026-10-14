@@ -9,19 +9,14 @@ Il te faut le rôle Propriétaire, Admin ou Développeur, et un projet que tu pe
 
 ## Créer l’automatisation
 
-1. Ouvre **Automatisations** et choisis **Créer une automatisation** › **À partir d’un modèle**.
-2. Choisis **Récapitulatif quotidien des tâches**.
-3. Sous **Projet**, choisis ton projet. Sous **Envoyer à**, choisis-toi.
-4. Laisse **Quand** sur chaque jour à 09:00 dans ton fuseau horaire, et laisse **Démarrer maintenant** coché.
-5. Choisis **Créer l’automatisation**.
+1. Ouvre **Automatisations** et choisis **Créer une automatisation** › **À partir d’un modèle**. Tant que ton organisation n’a aucune automatisation, choisis plutôt **Parcourir les modèles**.
+2. Choisis **Récapitulatif quotidien des tâches** ; la catégorie **Notifications** restreint le catalogue à lui et à ses voisins. Son aperçu dit ce qu’il fait et quand il s’exécute.
+3. Choisis **Utiliser ce modèle**.
+4. Sous **Projet**, choisis ton projet. Sous **Envoyer à**, choisis-toi.
+5. Laisse **Quand** sur chaque jour à 09:00 dans ton fuseau horaire, et laisse **Démarrer maintenant** coché.
+6. Choisis **Créer l’automatisation**.
 
 L’automatisation s’ouvre dans l’éditeur. Sa version 1 est en service et son horaire est activé.
-
-<Frame caption="Daily task digest est l’un des modèles de la galerie.">
-
-![La boîte de dialogue Choose a starter avec un champ de recherche et six modèles, dont Daily task digest, qui envoie chaque matin à un membre les tâches créées la veille dans un projet.](/images/platform/automation-starter-gallery.webp)
-
-</Frame>
 
 ## L’exécuter une fois maintenant
 
@@ -29,7 +24,7 @@ Tu n’as pas besoin d’attendre 09:00. Dans l’en-tête de l’éditeur, choi
 
 Ouvre **Exécutions** pour la suivre. Quand l’exécution indique **Réussie**, choisis-la, puis son étape **Tasks** : **Returned** liste les tâches qu’elle a lues.
 
-<Frame caption="L’exécution, avec son étape Tasks sélectionnée : les tâches lues, la plus récente d’abord.">
+<Frame caption="L’exécution, avec son étape Tasks sélectionnée : les tâches lues, la plus ancienne d’abord.">
 
 ![La page d’une exécution réussie en direct de Daily task digest avec l’étape Tasks sélectionnée, une étape Tasks · List tasks ; sous Returned figure une liste de 7 tâches.](/images/platform/automation-task-list-run.webp)
 
@@ -44,5 +39,5 @@ Un jour sans nouvelle tâche n’envoie rien, et l’exécution réussit quand m
 ## Pour aller plus loin
 
 - Change quand elle s’exécute dans l’onglet **Général**, sous **Déclencheur**.
-- Vois ce que font les autres modèles dans [Partir d’un modèle](/fr/platform/automations/starters).
+- Vois ce que font les autres modèles dans [Modèles d’automatisation](/fr/platform/automations/templates).
 - Modifie ses étapes dans l’[éditeur](/fr/platform/automations/editor) ; [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks) explique l’étape `task.list` qu’elle utilise.

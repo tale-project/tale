@@ -66,7 +66,7 @@ When inspecting a result contract, read the live implementation too. For example
 
 Credentials are selected at call time: the one named by the caller, otherwise the connector's default. Changing a default can therefore change which account a later run uses. Name the credential explicitly when the account is part of your integration's contract.
 
-Mailbox discovery has a deliberate exception: `conversation.sync_mailbox` and `conversation.list_mailbox_messages` enumerate every active credential for the connector. They cover all connected mailboxes instead of limiting themselves to the default.
+Mailbox discovery has a deliberate exception: `conversation.sync_mailbox` and `conversation.list_mailbox_messages` enumerate every active credential for the connector. They cover all connected mailboxes instead of limiting themselves to the default, unless the `mailbox` input of `sync_mailbox` names one, which it then reads alone.
 
 ## The authentication methods
 

@@ -66,7 +66,7 @@ Lies bei Ergebnisverträgen auch die Live-Implementierung. Tavily beschreibt bei
 
 Der Zugang wird beim Aufruf bestimmt: der ausdrücklich benannte, sonst der Standardzugang des Connectors. Ein geänderter Standard kann daher beeinflussen, welches Konto ein späterer Lauf nutzt. Benenne den Zugang ausdrücklich, wenn das Konto Teil deines Integrationsvertrags ist.
 
-Für Postfächer gilt eine gezielte Ausnahme: `conversation.sync_mailbox` und `conversation.list_mailbox_messages` durchlaufen alle aktiven Zugänge des Connectors. So werden sämtliche verbundenen Postfächer berücksichtigt, nicht nur das Standardkonto.
+Für Postfächer gilt eine gezielte Ausnahme: `conversation.sync_mailbox` und `conversation.list_mailbox_messages` durchlaufen alle aktiven Zugänge des Connectors. So werden sämtliche verbundenen Postfächer berücksichtigt, nicht nur das Standardkonto — es sei denn, die Eingabe `mailbox` von `sync_mailbox` nennt eines; dann liest es nur dieses.
 
 ## Die Authentifizierungsmethoden
 

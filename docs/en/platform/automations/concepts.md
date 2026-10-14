@@ -61,6 +61,7 @@ Branching and looping are fields on a node rather than separate step types. The 
 | `forEach`                    | Run once per item of a collection, with `item` and `index` in scope      |
 | `repeatUntil` / `maxRepeats` | Re-run until the expression is truthy, capped (default 5, maximum 20)    |
 | `onError`                    | `fail` halts the run; `continue` records the error and skips dependents  |
+| `onItemError`                | With `forEach`: `continue` leaves a failed item's result null and runs the next item; the node fails only when every item failed |
 
 ### Node types
 
@@ -80,7 +81,9 @@ Four types are built in, and every connector action and platform native — know
 
 **`task.create`** creates a task in a project the automation is installed in, once each time the step runs. See [Add tasks from an automation](/platform/automations/add-tasks).
 
-**`task.list`** lists a project's tasks, newest first, narrowed to statuses and a creation moment, for a later step to report on. It reads the project as a create there may. See [Add tasks from an automation](/platform/automations/add-tasks#list-a-projects-tasks).
+**`task.list`** lists a project's tasks, newest or oldest first, narrowed to statuses and a window of creation moments, for a later step to report on. It reads the project as a create there may. See [Add tasks from an automation](/platform/automations/add-tasks#list-a-projects-tasks).
+
+**`automation.read_position`** and **`automation.save_position`** keep the place a scheduled automation carries on from between its runs — a digest's window, the last change a triage read — under a key of the step's own. A run reads the place at its start and saves the next one at its end, so a run that fails before its end leaves it where it was; a save from a run that overlapped another changes nothing. The place belongs to the automation and the run's project: deleting the automation deletes it, and removing runs leaves it as it is.
 
 **`notify.member`** tells members of the organization something — a title, words and a link — in their notifications and by email, once each time the step runs. See [Notify members from an automation](/platform/automations/notify-members).
 
@@ -197,7 +200,7 @@ A `waiting` status can also mean that an agent is still working, that an agent s
 | Produce a reviewed result with an owner | A project task, optionally assigned to an agent |
 | Run several dependent steps or react to a schedule, webhook, or event | An automation |
 
-Check the [built-in automations](/platform/automations/builtin) before building. A webhook starts an automation; it is not a separate kind of project agent.
+Check the [automation templates](/platform/automations/templates) before building. A webhook starts an automation; it is not a separate kind of project agent.
 
 ## Putting the model to work
 

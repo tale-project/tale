@@ -3,9 +3,9 @@ title: Automatisierungen erstellen oder importieren
 description: Wähle einen Ausgangspunkt, importiere ein geprüftes Paket und bereite Skills, Einstellungen und Ergebnisse für den Einsatz vor.
 ---
 
-Unter **Automatisierungen** findest du die Workflows deiner Organisation. Nur Inhaber, Admins und Entwickler sehen diesen Bereich und verwalten seine Automatisierungen. Prüfe zuerst, ob eine [mitgelieferte Automatisierung](/de/platform/automations/builtin) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
+Unter **Automatisierungen** findest du die Workflows deiner Organisation. Nur Inhaber, Admins und Entwickler sehen diesen Bereich und verwalten seine Automatisierungen. Prüfe zuerst, ob eine [Vorlage](/de/platform/automations/templates) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
 
-Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitgelieferten Triage-Workflows zu vergleichen.
+Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um deine Triage-Automatisierungen zu vergleichen.
 
 <Frame caption="Die nach Triage gefilterte Liste zeigt vier mitgelieferte Beispiele mit Versionsanzahl und Bereitstellungsstatus.">
 
@@ -21,12 +21,12 @@ Das Menü **Automatisierung erstellen** bietet vier Wege:
 
 | Auswahl | Geeignet, wenn … | Danach |
 | --- | --- | --- |
-| **Aus einer Vorlage** | eine mitgelieferte Vorlage tut, was du brauchst: neue Aufgaben einordnen, einen Reviewer benachrichtigen, Webhook-Lieferungen in Aufgaben verwandeln, Fragen aus deinen Dokumenten beantworten oder den Posteingang zusammenfassen. | Beantworte ihre wenigen Fragen. **Jetzt starten** (standardmäßig an) schaltet Version 1 live und ihren Trigger ein. Siehe [Mit einer Vorlage beginnen](/de/platform/automations/starters). |
+| **Aus einer Vorlage** | eine Vorlage, die Tale mitliefert, tut, was du brauchst: ein Postfach in die Inbox synchronisieren und sichten, Issues importieren, Pull Requests prüfen, eine Übersicht senden, einen Reviewer benachrichtigen oder Webhook-Lieferungen in Aufgaben verwandeln. | Sieh in der Vorschau, was sie tut und braucht, und beantworte dann ihre wenigen Fragen. **Jetzt starten** (standardmäßig an) schaltet Version 1 live und ihren Trigger im selben Schritt ein. Siehe [Vorlagen für Automatisierungen](/de/platform/automations/templates). |
 | **Mit deinem Coding-Agent** | du eine eigene Automatisierung brauchst, die keine Vorlage abdeckt, oder ohnehin in einem Agent wie Claude Code oder Codex arbeitest. | Ein Dialog nennt die Befehle, die deinen Agent verbinden, und einen Prompt, der ihn bittet, die Automatisierung anzulegen. Der Agent liest die Referenz, schreibt sie, prüft und testet sie und speichert ihre erste Version, die dann in dieser Liste erscheint; der Prompt sagt ihm, dass er vor dem Live-Schalten nachfragt. Siehe [Mit deinem Coding-Agent ändern](/de/platform/automations/assistant). |
 | **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. **v1 jetzt live schalten** (standardmäßig an) schaltet die erste Version sofort live; sonst bleibt sie ein Entwurf, den du im Editor live schaltest. Was der Trigger sendet, erhält der Agent als seine Eingabe. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
 | **Paket hochladen** | eine Workflow-Datei oder ein wiederverwendbares Pack vorliegt. | Tale prüft die Dateien und speichert eine Entwurfsversion. |
 
-Mitgelieferte Automatisierungen werden beim Erstellen der Organisation eingerichtet. Für den automatischen Einsatz brauchen sie dennoch ihre Konfiguration und eine Live-Version. Der [Workflow-Editor](/de/platform/automations/editor) führt durch Eingaben, Test, Ergebnisprüfung und Live-Schaltung.
+Eine neue Organisation hat keine Automatisierungen: Was Tale mitliefert, sind Vorlagen, aus denen du wählst. Eine als Entwurf angelegte Automatisierung braucht für den automatischen Einsatz noch eine Live-Version. Der [Workflow-Editor](/de/platform/automations/editor) führt durch Eingaben, Test, Ergebnisprüfung und Live-Schaltung.
 
 ## Ein Paket importieren
 

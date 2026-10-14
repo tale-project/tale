@@ -5,7 +5,7 @@ description: Starte eine Automatisierung nach Zeitplan, per Webhook oder bei ein
 
 Im Abschnitt **Trigger** im Tab **Allgemein** einer Automatisierung legst du fest, wann sie selbstständig startet: nach Zeitplan, wenn ein anderes System eine Anfrage sendet, oder wenn in Tale etwas passiert. Jeder Trigger führt die Live-Version im Live-Modus aus. Bevor du einen Trigger einschaltest, prüfe, was seine Läufe erhalten und ob die externen Aktionen des Workflows bereit sind.
 
-<Frame caption="Der Trigger eines mitgelieferten Pakets kommt ausgeschaltet an: Sein Zeitplan steht und die nächsten Läufe sind aufgelistet, aber es startet nichts, bis du ihn einschaltest.">
+<Frame caption="Ein Trigger, der ausgeschaltet ankommt, wie bei einer Vorlage, die ohne Start angelegt wurde: Sein Zeitplan steht und die nächsten Läufe sind aufgelistet, aber es startet nichts, bis du ihn einschaltest.">
 
 ![Der Tab Allgemein von Triage the Gmail inbox mit ausgeschaltetem Schalter Enabled, Schedule als Trigger-Typ, dem Format Repeat mit einem Zeitplan alle 6 Stunden, der Zeitzone UTC, Start the latest one when Tale is back unter Missed runs und den nächsten Läufen unter Would run at.](/images/platform/automation-general-trigger.webp)
 
@@ -229,9 +229,9 @@ Verlangt die Live-Version Felder, die der Trigger nicht sendet, ist der Abschnit
 
 ## Den Trigger nach dem Live-Schalten einschalten
 
-Ein neuer Trigger ist zunächst ausgeschaltet, ebenso der Trigger eines mitgelieferten Pakets. Schaltest du eine Version live, im Editor oder durch das Hochladen eines Pakets, und ihr Trigger ist aus, meldet ein Hinweis **Ihr Trigger ist ausgeschaltet**. **Trigger einschalten** schaltet den gespeicherten Trigger unverändert ein, und der Hinweis lautet dann **Der Trigger ist eingeschaltet.**
+Ein neuer Trigger ist zunächst ausgeschaltet, ebenso der Trigger einer Automatisierung, die du ohne **Jetzt starten** aus einer Vorlage anlegst. Schaltest du eine Version live, im Editor oder durch das Hochladen eines Pakets, und ihr Trigger ist aus, meldet ein Hinweis **Ihr Trigger ist ausgeschaltet**. **Trigger einschalten** schaltet den gespeicherten Trigger unverändert ein, und der Hinweis lautet dann **Der Trigger ist eingeschaltet.**
 
-Würde die Live-Version ablehnen, was der Trigger sendet, oder hat ein Webhook noch keine URL, bietet der Hinweis stattdessen **Trigger prüfen** an. Das öffnet den Abschnitt **Trigger** im Tab **Allgemein**, wo du zuerst die feste Eingabe ergänzt oder die URL erzeugst. Die mitgelieferten GitHub-Pakete sind ein Beispiel: Ihre Zeitpläne brauchen ein Repository, wie [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) erklärt.
+Würde die Live-Version ablehnen, was der Trigger sendet, oder hat ein Webhook noch keine URL, bietet der Hinweis stattdessen **Trigger prüfen** an. Das öffnet den Abschnitt **Trigger** im Tab **Allgemein**, wo du zuerst die feste Eingabe ergänzt oder die URL erzeugst. Eine Vorlage fragt solche Werte ab, wenn du sie verwendest, wie [Vorlagen für Automatisierungen](/de/platform/automations/templates) erklärt.
 
 ## Einen Projektagenten nach Zeitplan starten
 
@@ -269,38 +269,27 @@ Bei dafür geeigneten Fehlern kann der Lauf automatisch wiederholt werden, solan
 
 Ein Zeitplan, der die Dauerrolle eines Projekts ausführt, etwa einen Manager, der Arbeit verteilt, kann zusätzlich auslösen, sobald ein Agent seines Projekts fertig ist und einer seiner regulären Worker frei wird, statt auf die nächste Cron-Minute zu warten. Du schaltest das mit `wakeOnSlotFreed: true` in der verwalteten Konfiguration des Zeitplans ein, die du mit der Tale CLI anwendest; nur ein aktivierter Zeitplan pro Projekt kann es haben – ein zweiter wird abgelehnt, ebenso die Installation seiner Automatisierung in einem Projekt, das bereits ein anderer Zeitplan weckt –, und die App hat dafür keinen Schalter. Jedes Wecken ist ein gewöhnlicher Termin mit der üblichen Eingabe `{ trigger: "schedule", firedAt }`, daher gelten die Antworten oben weiterhin. Mehrere Agenten, die fertig werden, während ein Wecken aussteht, ergeben zusammen ein Wecken. Ein Wecken wartet, solange auf der eigenen Karte des Managers noch ein Lauf aktiv ist oder automatisch wiederholt werden soll, die Karte den Start ablehnen würde oder nicht mehr dem Agenten zugewiesen ist, bis `retryAfter`, wenn die Aufgabe innerhalb der Stunde drei Starts hatte, und nach einem Termin, der nichts bewirkt hat, eine Minute, die sich bis zu einer Stunde verdoppelt, ohne Grenze für die Versuche. Andere Aufgaben desselben Agenten halten das Wecken nicht auf; der neue Lauf des Managers bekommt einen eigenen Worker oder wartet wie üblich auf Kapazität. Es gilt erst als erledigt, wenn der dadurch gestartete Lauf des Agenten begonnen und abgeschlossen hat. Solange der Zeitplan nach Fehlern pausiert, ausgeschaltet oder ohne `wakeOnSlotFreed` ist, wartet das Wecken und löst einmal aus, sobald der Zeitplan erneut gespeichert wird.
 
-### Jedes Issue nach Zeitplan importieren
+### Issues nach Zeitplan synchronisieren
 
-Ein Issue-Import liest pro Lauf höchstens einen Stapel mit bis zu 500 Issues und meldet, wo der nächste Stapel beginnt. Eine Person setzt ihn mit **Import fortsetzen** fort; ein Zeitplan merkt sich die Position stattdessen zwischen seinen Terminen. So importiert jeder Termin einen Stapel ab der Stelle, an der der vorherige aufgehört hat, bis alle offenen Issues gelesen sind, und der Termin danach beginnt den nächsten Durchgang. Lies die Position mit `task.get_import_cursor`, gib sie an den Import weiter und speichere dessen `nextCursor` mit `task.save_import_cursor`:
+Die Issue-Synchronisierung hält die Aufgaben eines Projekts mit GitHub-Repositorys und GlitchTip-Projekten auf dem gleichen Stand. Ein einziger Schritt `task.sync_issues` nennt die Quellen, und jeder Lauf liest für jede Quelle den nächsten Stapel offener Issues ab der Stelle, an der der letzte Lauf aufgehört hat. Die Vorlagen [GitHub-Issues synchronisieren](/de/platform/automations/templates#github-sync-issues) und [GlitchTip-Issues synchronisieren](/de/platform/automations/templates#glitchtip-sync-issues) richten das für eine Quelle ein. Um mehrere Quellen in einer Automatisierung zu synchronisieren, nenne sie im Schritt:
 
 ```yaml
 nodes:
-  - id: position
-    type: task.get_import_cursor
-    onError: continue
-    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
-  - id: issues
-    type: subautomation
-    automation: github-import-issues
-    onError: continue
+  - id: sync
+    type: task.sync_issues
     input:
       projectId: <the project's ID>
-      owner: owner
-      repo: repo
-      limit: 500
-      cursor: '{{ nodes.position.output.cursor }}'
-  - id: progress
-    type: task.save_import_cursor
-    onError: continue
-    input:
-      projectId: <the project's ID>
-      externalSystem: github
-      source: owner/repo
-      revision: '{{ nodes.position.output.revision }}'
-      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+      sources:
+        - { kind: github, owner: tale-project, repo: tale, labels: bug }
+        - { kind: github, owner: tale-project, repo: docs, credential: GitHub docs }
+        - { kind: glitchtip, organization: tale, project: web, query: 'is:unresolved environment:production' }
+      limit: 100
+      refreshLimit: 50
 ```
 
-`source` ist dein Name für die Liste; Automatisierungen, die dieselbe Quelle nennen, teilen sich einen Durchgang. Das Lesen liefert außerdem `revision`, das Vergleichsmerkmal der Position, und das Speichern gibt es zurück: Die Position rückt nur vor, solange sie noch auf dieser Revision steht. Jeder gespeicherte Stapel, jeder Abschluss eines Durchgangs und jeder Neubeginn setzt eine neue Revision, und keine Revision wiederholt sich, auch wenn der Cursor-Text es tut. Ein fehlgeschlagener Import speichert nichts, also wiederholt der nächste Termin denselben Stapel. Ein Speichern mit einer früheren Revision wird abgelehnt (`conflict`) und schreibt nichts, ob es von einem überlappenden Lauf stammt, von einem Lauf, der sich über das Ende seines Durchgangs hinaus verspätet hat, oder von einem Lauf, der noch eine Position von vor einem Neubeginn hält. Nach drei Lesevorgängen einer Position ohne Speichern beginnt der nächste den Durchgang neu (`restarted`), statt eine Position zu wiederholen, die die Quelle immer wieder ablehnt, etwa nach der Umbenennung des Repositorys. Das Speichern meldet `batch` und `drained`, die ein Beleg angeben kann. Jeder Lauf aktualisiert außerdem bis zu 500 früher importierte Issues, die am längsten ungeprüften zuerst, sodass eine große Sammlung über mehrere Termine aktualisiert wird.
+Die Plattform merkt sich die Position jeder Quelle pro Projekt, Quellname (`owner/repo`, `organization/project`) und Filter: Automatisierungen, die im selben Projekt dieselbe Quelle mit demselben Filter nennen, teilen sich einen Durchgang, eine Quelle, die `labels` oder eine `query` eingrenzen, hat einen eigenen Durchgang, und eine Quelle ohne Filter setzt einen Durchgang fort, den eine selbst gebaute Kette aus `task.get_import_cursor` und `task.save_import_cursor` begonnen hat. Jeder Lauf liest pro Quelle bis zu `limit` neue offene Issues (ohne Angabe 100, höchstens 500), legt für jedes Issue, das das Projekt noch nicht hat, eine Aufgabe im **Backlog** an und speichert, wo er aufgehört hat; nach dem letzten Issue beginnt der nächste Lauf den nächsten Durchgang beim ersten. Außerdem liest er bis zu `refreshLimit` früher importierte Issues erneut (ohne Angabe 50, 0 für keine), die am längsten nicht geprüften zuerst, und aktualisiert die Quellenkarten ihrer Aufgaben; Titel, Beschreibung, Status und Zuständigkeit einer Aufgabe bleiben, wie sie sind, ob das Issue an der Quelle geschlossen wurde oder nicht. `credential` nennt die gespeicherten Zugangsdaten, mit denen eine Quelle gelesen wird; leer oder ohne Angabe die Standard-Zugangsdaten.
+
+Der Schritt antwortet mit einem Beleg pro Quelle, in der angegebenen Reihenfolge: ihre `source` und ihr `filter`; `ok` und `error`, dazu der HTTP-Status der Quelle (`status`), wenn der Fehler ihre Antwort war; der `batch` des Durchgangs, den er gelesen hat, und ob er den Durchgang fortgesetzt (`resumed`), neu begonnen (`restarted`) oder abgeschlossen (`drained`) hat; ob die Position gespeichert wurde (`saved`) oder ein anderer Lauf sie zuerst gespeichert hat (`conflict`); wie viele Issues er gefunden (`discovered`), angelegt (`created`), aktualisiert (`refreshed`), unverändert gelassen (`unchanged`) und übersprungen (`skipped`) hat; und wie viele an der Quelle geschlossen, wieder geöffnet oder nicht mehr verfügbar sind. Jede Quelle wird für sich gelesen. Eine, die scheitert, hält die anderen nicht auf und speichert nichts, also liest der nächste Lauf denselben Stapel; nach drei gescheiterten Stapeln in Folge beginnt der nächste Lauf den Durchgang neu, und eine Position, die unter einem anderen Label-Filter oder einer anderen Suche gespeichert wurde, beginnt sofort neu. Ein Issue, das die Quelle nicht mehr zeigen will oder das seine Aufgabe ablehnt, wird übersprungen und später erneut versucht (`skippedIssues` nennt die ersten). Begrenzt eine Quelle die Synchronisierung mit einem Rate-Limit, hält diese Quelle für den Lauf an und behält, was sie geschafft hat, und die Läufe vor dem Zeitpunkt, den die Quelle genannt hat (`retryAfter`), lassen sie in Ruhe. Der Schritt scheitert nur, wenn jede Quelle gescheitert ist, mit der Ursache, die sie teilen, sodass der Zeitplan den Fehlschlag zählt; eine Quelle, die ein Rate-Limit abwartet, ist nicht gescheitert. `error` ist einer der Werte `credential`, `unauthorized`, `not_found`, `rate_limited`, `unavailable`, `invalid_response` und `failed`.
 
 ## Einen ausgebliebenen Start untersuchen
 

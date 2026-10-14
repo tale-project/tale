@@ -9,19 +9,14 @@ Du brauchst die Rolle Inhaber, Admin oder Entwickler und ein Projekt, das du öf
 
 ## Die Automatisierung anlegen
 
-1. Öffne **Automatisierungen** und wähle **Automatisierung erstellen** › **Aus einer Vorlage**.
-2. Wähle **Tägliche Aufgabenübersicht**.
-3. Wähle unter **Projekt** dein Projekt und unter **Senden an** dich selbst.
-4. Lass **Wann** auf jeden Tag um 09:00 in deiner Zeitzone und **Jetzt starten** an.
-5. Wähle **Automatisierung erstellen**.
+1. Öffne **Automatisierungen** und wähle **Automatisierung erstellen** › **Aus einer Vorlage**. Solange deine Organisation keine Automatisierung hat, wähle stattdessen **Vorlagen ansehen**.
+2. Wähle **Tägliche Aufgabenübersicht**; die Kategorie **Benachrichtigungen** grenzt den Katalog auf sie und ihre Nachbarn ein. Ihre Vorschau sagt, was sie tut und wann sie läuft.
+3. Wähle **Vorlage verwenden**.
+4. Wähle unter **Projekt** dein Projekt und unter **Senden an** dich selbst.
+5. Lass **Wann** auf jeden Tag um 09:00 in deiner Zeitzone und **Jetzt starten** an.
+6. Wähle **Automatisierung erstellen**.
 
 Die Automatisierung öffnet sich im Editor. Ihre Version 1 ist live, und ihr Zeitplan ist eingeschaltet.
-
-<Frame caption="Daily task digest ist eine der Vorlagen in der Galerie.">
-
-![Der Dialog Choose a starter mit einem Suchfeld und sechs Vorlagen, darunter Daily task digest, die einem Mitglied jeden Morgen die Aufgaben schickt, die am letzten Tag in einem Projekt erstellt wurden.](/images/platform/automation-starter-gallery.webp)
-
-</Frame>
 
 ## Sie jetzt einmal ausführen
 
@@ -29,7 +24,7 @@ Du musst nicht bis 09:00 warten. Wähle im Kopf des Editors **Live ausführen** 
 
 Unter **Läufe** verfolgst du ihn. Zeigt der Lauf **Erfolgreich**, wähle ihn und dann seinen Schritt **Tasks**: **Returned** listet die Aufgaben, die er gelesen hat.
 
-<Frame caption="Der Lauf mit ausgewähltem Schritt Tasks: die gelesenen Aufgaben, die neueste zuerst.">
+<Frame caption="Der Lauf mit ausgewähltem Schritt Tasks: die gelesenen Aufgaben, die älteste zuerst.">
 
 ![Die Seite eines erfolgreichen Live-Laufs von Daily task digest mit ausgewähltem Schritt Tasks, einem Schritt Tasks · List tasks; unter Returned steht eine Liste mit 7 Aufgaben.](/images/platform/automation-task-list-run.webp)
 
@@ -44,5 +39,5 @@ Ein Tag ohne neue Aufgaben sendet nichts, und der Lauf ist trotzdem erfolgreich.
 ## Wie es weitergeht
 
 - Ändere unter **Allgemein** im Abschnitt **Trigger**, wann sie läuft.
-- Unter [Mit einer Vorlage beginnen](/de/platform/automations/starters) siehst du, was die anderen Vorlagen tun.
+- Unter [Vorlagen für Automatisierungen](/de/platform/automations/templates) siehst du, was die anderen Vorlagen tun.
 - Ändere ihre Schritte im [Editor](/de/platform/automations/editor); [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks) erklärt den Schritt `task.list`, den sie nutzt.
