@@ -6,14 +6,17 @@ import {
   drainSessionExecResilient,
   sessionCancelExec,
   sessionListFiles,
+  SessionNotFoundError,
   sessionReadFile,
   sessionStageFiles,
+  SpawnerUnreachableError,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { stageUrlForBlobRef } from '../../core/node_only/sandbox/helpers/stage_url.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import {
   acquireLightSession,
   LightSandboxBusyError,
+  LightSandboxUnavailableError,
   touchLightSession,
 } from '../sandbox/light-sessions.ts';
 import { prewarmLightSandbox, runRunCode } from './run-code.ts';
@@ -21,8 +24,12 @@ import { FULL_LOADOUT, testScope } from './test-helpers.ts';
 
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => {
   class SessionFileTooLargeError extends Error {}
+  class MockSessionNotFoundError extends Error {}
+  class MockSpawnerUnreachableError extends Error {}
   return {
     SessionFileTooLargeError,
+    SessionNotFoundError: MockSessionNotFoundError,
+    SpawnerUnreachableError: MockSpawnerUnreachableError,
     drainSessionExecResilient: vi.fn(),
     sessionCancelExec: vi.fn(() => Promise.resolve(true)),
     sessionListFiles: vi.fn(),
@@ -39,9 +46,29 @@ vi.mock('../../core/skills/file_actions.ts', () => ({
   readSkillBundleForViewer: vi.fn(),
 }));
 vi.mock('../sandbox/light-sessions.ts', () => {
-  class MockLightSandboxBusyError extends Error {}
+  class MockLightSandboxBusyError extends Error {
+    readonly kind: 'budget' | 'host';
+    constructor(message: string, _retryAfterMs?: number, kind?: 'host') {
+      super(message);
+      this.kind = kind ?? 'budget';
+    }
+  }
+  class MockLightSandboxUnavailableError extends Error {
+    readonly kind: string;
+    readonly retryAfterMs: number | undefined;
+    constructor(
+      kind: string,
+      message: string,
+      options?: { retryAfterMs?: number },
+    ) {
+      super(message);
+      this.kind = kind;
+      this.retryAfterMs = options?.retryAfterMs;
+    }
+  }
   return {
     LightSandboxBusyError: MockLightSandboxBusyError,
+    LightSandboxUnavailableError: MockLightSandboxUnavailableError,
     acquireLightSession: vi.fn(() =>
       Promise.resolve({ sessionId: 'lt-1', created: true }),
     ),
@@ -85,23 +112,34 @@ function fakeSandbox() {
   const output = new Map<string, { text: string; mtimeMs: number }>();
   const dirs = new Set<string>();
   const staged = new Map<string, string>();
+  /** Files at the top of the working directory, by name. */
+  const workspace = new Map<string, number>();
   vi.mocked(sessionListFiles)
     .mockReset()
-    .mockImplementation(() =>
-      Promise.resolve([
-        ...[...output].map(([name, file]) => ({
-          name,
-          type: 'file' as const,
-          size: Buffer.byteLength(file.text),
-          mtimeMs: file.mtimeMs,
-        })),
-        ...[...dirs].map((name) => ({
-          name,
-          type: 'dir' as const,
-          size: 0,
-          mtimeMs: 0,
-        })),
-      ]),
+    .mockImplementation((_sessionId, dirPath) =>
+      Promise.resolve(
+        dirPath === '/agent/workspace'
+          ? [...workspace].map(([name, mtimeMs]) => ({
+              name,
+              type: 'file' as const,
+              size: 1,
+              mtimeMs,
+            }))
+          : [
+              ...[...output].map(([name, file]) => ({
+                name,
+                type: 'file' as const,
+                size: Buffer.byteLength(file.text),
+                mtimeMs: file.mtimeMs,
+              })),
+              ...[...dirs].map((name) => ({
+                name,
+                type: 'dir' as const,
+                size: 0,
+                mtimeMs: 0,
+              })),
+            ],
+      ),
     );
   vi.mocked(sessionReadFile)
     .mockReset()
@@ -134,6 +172,7 @@ function fakeSandbox() {
   return {
     dirs,
     output,
+    workspace,
     write(name: string, text: string, mtimeMs: number) {
       output.set(name, { text, mtimeMs });
     },
@@ -200,6 +239,7 @@ describe('run_code', () => {
         size: Buffer.byteLength('PK…'),
         mtimeMs: 1_000,
         sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        ref: 's3:acme/out-1',
       },
     });
     expect(touchLightSession).toHaveBeenCalledOnce();
@@ -247,6 +287,97 @@ describe('run_code', () => {
       'a,b\n1,2\n3,4\n',
     ]);
     expect(sandbox.output.has('report.csv')).toBe(true);
+  });
+
+  it('delivers a version again when the conversation no longer shows it — a reply tried again [CHAT-R24]', async () => {
+    const { scope, stored } = testScope();
+    const run = (shownFiles?: ReadonlySet<string>) =>
+      runRunCode(
+        scope,
+        { language: 'python', code: 'print(1)' },
+        shownFiles === undefined ? {} : { shownFiles },
+      );
+
+    sandbox.write('chart.png', 'png-bytes', 1_000);
+    const first = await run(new Set());
+    expect(first).toMatchObject({ artifacts: [{ name: 'chart.png' }] });
+    const ref = 's3:acme/out-1';
+
+    // The reply that got it is still shown: the same bytes stay delivered.
+    await expect(run(new Set([ref]))).resolves.toMatchObject({
+      artifacts: [],
+    });
+    sandbox.write('chart.png', 'png-bytes', 2_000);
+    await expect(run(new Set([ref]))).resolves.toMatchObject({
+      artifacts: [],
+    });
+
+    // Tried again: the program writes the same bytes again, and the shown
+    // version of the conversation does not have them, so they come again —
+    // once.
+    sandbox.write('chart.png', 'png-bytes', 3_000);
+    await expect(run(new Set())).resolves.toMatchObject({
+      artifacts: [{ name: 'chart.png' }],
+    });
+    sandbox.write('chart.png', 'png-bytes', 4_000);
+    await expect(run(new Set(['s3:acme/out-2']))).resolves.toMatchObject({
+      artifacts: [],
+    });
+    expect(stored.map((file) => file.text)).toEqual(['png-bytes', 'png-bytes']);
+  });
+
+  it('never attaches again a file the program left alone, whichever reply it came on [CHAT-R24]', async () => {
+    const { scope, stored } = testScope();
+    const run = () =>
+      runRunCode(
+        scope,
+        { language: 'python', code: 'print(1)' },
+        { shownFiles: new Set() },
+      );
+
+    sandbox.write('their.xlsx', 'b-bytes', 1_000);
+    await run();
+    // Another version of the chat (an edited message, the other column of
+    // a comparison) runs a program that writes only its own file.
+    sandbox.write('mine.csv', 'a,b', 2_000);
+    await expect(run()).resolves.toMatchObject({
+      artifacts: [{ name: 'mine.csv' }],
+    });
+    expect(stored.map((file) => file.text)).toEqual(['b-bytes', 'a,b']);
+  });
+
+  it('trusts a delivery recorded before deliveries named their file', async () => {
+    const { scope, stored } = testScope();
+    sandbox.write('notes.md', '# Notes', 1_000);
+    vi.mocked(sessionStageFiles).mockClear();
+    await runRunCode(
+      scope,
+      { language: 'python', code: 'print(1)' },
+      { shownFiles: new Set() },
+    );
+    const record = sandbox.delivered() as Record<
+      string,
+      Record<string, unknown>
+    >;
+    // A record without the ref, as an older platform wrote it.
+    const { ref: _ref, ...legacy } = record['notes.md'] ?? {};
+    await sessionStageFiles('lt-1', [
+      {
+        path: 'code/.delivered.json',
+        contentBase64: Buffer.from(
+          JSON.stringify({ 'notes.md': legacy }),
+        ).toString('base64'),
+      },
+    ]);
+
+    await expect(
+      runRunCode(
+        scope,
+        { language: 'python', code: 'print(1)' },
+        { shownFiles: new Set() },
+      ),
+    ).resolves.toMatchObject({ artifacts: [] });
+    expect(stored).toHaveLength(1);
   });
 
   it('forgets a file that left the output box, and delivers it anew when it is back', async () => {
@@ -373,6 +504,7 @@ describe('run_code', () => {
     });
     expect(result).toMatchObject({
       status: 'error',
+      reason: 'program_failed',
       exitCode: 1,
       stderr: "ModuleNotFoundError: No module named 'docx'",
     });
@@ -389,7 +521,7 @@ describe('run_code', () => {
       code: 'sleep 999',
       timeoutSeconds: 5,
     });
-    expect(result).toMatchObject({ status: 'error' });
+    expect(result).toMatchObject({ status: 'error', reason: 'timed_out' });
     expect(JSON.stringify(result)).toContain('5-second deadline');
     expect(
       vi.mocked(drainSessionExecResilient).mock.calls[0]?.[1],
@@ -406,7 +538,119 @@ describe('run_code', () => {
     const { scope } = testScope();
     await expect(
       runRunCode(scope, { language: 'python', code: 'print(1)' }),
-    ).resolves.toMatchObject({ status: 'busy' });
+    ).resolves.toMatchObject({ status: 'busy', reason: 'sandboxes_busy' });
+  });
+
+  it('tells a busy sandbox host from a full budget [CHAT-R30]', async () => {
+    vi.mocked(acquireLightSession).mockRejectedValueOnce(
+      new LightSandboxBusyError(
+        'The sandbox host is busy right now.',
+        5_000,
+        'host',
+      ),
+    );
+    const { scope } = testScope();
+    await expect(
+      runRunCode(scope, { language: 'python', code: 'print(1)' }),
+    ).resolves.toMatchObject({ status: 'busy', reason: 'sandbox_host_busy' });
+  });
+
+  describe('when no light sandbox can start [CHAT-R30]', () => {
+    it.each([
+      ['not_ready', 'sandbox_not_ready', /try again in a few minutes/],
+      ['unreachable', 'sandbox_unreachable', /do not call run_code again/],
+      ['failed', 'sandbox_failed', /call run_code once more/],
+    ] as const)(
+      'answers unavailable with the reason when the host is %s',
+      async (kind, reason, advice) => {
+        vi.mocked(acquireLightSession).mockRejectedValueOnce(
+          new LightSandboxUnavailableError(kind, 'spawner said no'),
+        );
+        const { scope } = testScope();
+        const result = await runRunCode(scope, {
+          language: 'python',
+          code: 'print(1)',
+        });
+        expect(result).toMatchObject({ status: 'unavailable', reason });
+        expect((result as { message: string }).message).toMatch(advice);
+        // The spawner's own words stay in the log, never with the model.
+        expect(JSON.stringify(result)).not.toContain('spawner said no');
+      },
+    );
+
+    it('answers unavailable when the sandbox service stops answering during the run', async () => {
+      vi.mocked(drainSessionExecResilient).mockRejectedValueOnce(
+        new SpawnerUnreachableError(
+          'GET',
+          '/v1/sessions/lt-1/exec',
+          'http://sandbox:8003',
+          new Error('connect ECONNREFUSED'),
+        ),
+      );
+      const { scope } = testScope();
+      await expect(
+        runRunCode(scope, { language: 'python', code: 'print(1)' }),
+      ).resolves.toMatchObject({
+        status: 'unavailable',
+        reason: 'sandbox_unreachable',
+      });
+    });
+
+    it('asks for a fresh run when the sandbox was gone under the call', async () => {
+      vi.mocked(sessionStageFiles).mockRejectedValueOnce(
+        new SessionNotFoundError('session lt-1 not found'),
+      );
+      const { scope } = testScope();
+      const result = await runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      expect(result).toMatchObject({
+        status: 'unavailable',
+        reason: 'sandbox_failed',
+      });
+      expect((result as { message: string }).message).toMatch(
+        /fresh sandbox starts/,
+      );
+    });
+
+    it('leaves any other fault to the executor', async () => {
+      vi.mocked(drainSessionExecResilient).mockRejectedValueOnce(
+        new Error('a bug'),
+      );
+      const { scope } = testScope();
+      await expect(
+        runRunCode(scope, { language: 'python', code: 'print(1)' }),
+      ).rejects.toThrow('a bug');
+    });
+  });
+
+  it('cuts off a program whose sandbox stopped answering about it, and says it ran out of time', async () => {
+    const deadline = new AbortController();
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(deadline.signal);
+    vi.mocked(drainSessionExecResilient).mockImplementationOnce(
+      (_sessionId, _request, signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            reject(new Error('aborted'));
+          });
+          deadline.abort();
+        }),
+    );
+    const { scope } = testScope();
+    const result = await runRunCode(scope, {
+      language: 'python',
+      code: 'import time; time.sleep(999)',
+      timeoutSeconds: 30,
+    });
+    timeout.mockRestore();
+    expect(result).toMatchObject({ status: 'error', reason: 'timed_out' });
+    expect((result as { message: string }).message).toMatch(
+      /30-second deadline/,
+    );
+    expect(sessionCancelExec).toHaveBeenCalled();
   });
 
   describe('when every light sandbox is running code', () => {
@@ -468,6 +712,27 @@ describe('run_code', () => {
       expect(vi.mocked(acquireLightSession).mock.calls.length).toBeGreaterThan(
         2,
       );
+    });
+
+    it('waits for a host that is still preparing its image [CHAT-R30]', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession)
+        .mockRejectedValueOnce(
+          new LightSandboxUnavailableError('not_ready', 'image', {
+            retryAfterMs: 5_000,
+          }),
+        )
+        .mockResolvedValueOnce({ sessionId: 'lt-1', created: true });
+      const { scope } = testScope({ lightSandboxWaitMs: 90_000 });
+
+      const running = runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'ok' });
+      expect(acquireLightSession).toHaveBeenCalledTimes(2);
     });
 
     it('does not wait out a failure that is not a busy host', async () => {
@@ -777,6 +1042,36 @@ describe('run_code', () => {
     });
     expect(result).toMatchObject({ status: 'ok', artifacts: [] });
     expect(JSON.stringify(result)).toContain('/agent/output/');
+  });
+
+  it('names the files a program left in its working directory instead of the output box', async () => {
+    sandbox.workspace.set('notes.txt', 1_000);
+    sandbox.workspace.set('output.xlsx', 2_000);
+    sandbox.workspace.set('.hidden', 3_000);
+    const { scope } = testScope();
+    const result = await runRunCode(scope, {
+      language: 'python',
+      code: "wb.save('output.xlsx')",
+    });
+    expect(result).toMatchObject({ status: 'ok', artifacts: [] });
+    expect((result as { note: string }).note).toContain(
+      '/agent/workspace/ holds output.xlsx, notes.txt: write or copy the files the user should get to /agent/output/.',
+    );
+  });
+
+  it('leaves the note out when the run says why its files were not attached', async () => {
+    sandbox.dirs.add('charts');
+    const { scope } = testScope();
+    const result = await runRunCode(scope, {
+      language: 'python',
+      code: 'print(1)',
+    });
+    expect(result).toMatchObject({
+      status: 'ok',
+      artifacts: [],
+      skippedOutputs: [{ name: 'charts' }],
+    });
+    expect(result).not.toHaveProperty('note');
   });
 });
 

@@ -80,6 +80,21 @@ describe('appendMessageRow — naming a new conversation', () => {
     );
   });
 
+  it('names the conversation from the words after the skills its message chose [CHAT-R29]', async () => {
+    await appendMessageRow(untitledThread(null), {
+      ...OPENING,
+      parts: [{ type: 'text', text: '/xlsx Plan the launch' }],
+      text: '/xlsx Plan the launch',
+      titleText: 'Plan the launch',
+    });
+
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'chat.generate_title',
+      expect.objectContaining({ firstMessage: 'Plan the launch' }),
+    );
+  });
+
   it('queues none for the hidden column, which takes its partner’s name when it wins', async () => {
     await appendMessageRow(untitledThread('b'), OPENING);
 

@@ -52,7 +52,7 @@ import {
   type ThinkingAnchor,
 } from '../hooks/use-thinking-timer';
 import type { ChatMessageUsage, MessagePart } from '../types';
-import { stepActivityLabel } from '../utils/activity-label';
+import { stepActivityLabel, stepOutcomeLabel } from '../utils/activity-label';
 
 /** The retrieval tools get their own glyphs; anything unknown keeps the
  * generic wrench. */
@@ -83,6 +83,16 @@ function toolCallDetail(input: unknown): string | undefined {
     if (typeof value === 'string' && value.length > 0) return value;
   }
   return undefined;
+}
+
+/** The outcome line of a failed step, as a prop — none for any other. */
+function stepOutcome(
+  t: Parameters<typeof stepOutcomeLabel>[0],
+  entry: Extract<TimelineEntry, { kind: 'step' }>,
+): { outcome?: string } {
+  if (entry.state !== 'failed') return {};
+  const outcome = stepOutcomeLabel(t, entry.output);
+  return outcome === undefined ? {} : { outcome };
 }
 
 /** True when a structured tool result reports anything but success. */
@@ -334,15 +344,23 @@ function toolOutputText(output: unknown): string | undefined {
  * chevron-led toggle: expanding reveals the call's full input and output in
  * scrollable monospace blocks (the failure detail folds in while expanded,
  * since the output block carries it in full).
+ *
+ * A failed step says what became of it on the line below its title — no
+ * light sandbox free, the program ran out of time — in words, not only in
+ * the warning icon's colour, and the row's button is described by it.
  */
 function TimelineStepRow({
   entry,
   title,
+  outcome,
 }: {
   entry: Extract<TimelineEntry, { kind: 'step' }>;
   title: string;
+  /** What became of a failed step, for the line below its title. */
+  outcome?: string;
 }) {
   const bodyId = useId();
+  const outcomeId = useId();
   const [expanded, setExpanded] = useState(false);
   const Icon = TOOL_ICONS[entry.tool] ?? Wrench;
   const failed = entry.state === 'failed';
@@ -370,7 +388,15 @@ function TimelineStepRow({
               controls: bodyId,
             }
           : {})}
+        {...(outcome !== undefined ? { describedBy: outcomeId } : {})}
       />
+      {outcome !== undefined && (
+        // Flush with the title: past the icon, the disclosure slot and
+        // their gaps (`TimelineRow`).
+        <span id={outcomeId} className="text-destructive pl-11 text-xs">
+          {outcome}
+        </span>
+      )}
       <span className="flex min-w-0 flex-col">
         {expanded && hasDetail && (
           <div id={bodyId} className="mt-1 ml-4 flex flex-col gap-1.5">
@@ -516,6 +542,7 @@ export function ThoughtTimeline({
                 key={entry.key}
                 entry={entry}
                 title={stepActivityLabel(t, entry)}
+                {...stepOutcome(t, entry)}
               />
             ),
           )}
@@ -529,6 +556,7 @@ export function ThoughtTimeline({
               key={entry.key}
               entry={entry}
               title={stepActivityLabel(t, entry)}
+              {...stepOutcome(t, entry)}
             />
           ))}
         </div>

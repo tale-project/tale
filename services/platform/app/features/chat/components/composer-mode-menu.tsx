@@ -1,19 +1,22 @@
 'use client';
 
 /**
- * The composer's `+` menu — the modes a message can be sent in.
+ * The composer's `+` menu — what a message can carry, and the modes it can
+ * be sent in: files, a skill (it opens the `/` typeahead in the field, the
+ * way to choose one without knowing to type `/`), Arena.
  *
  * A MODE is a property of the message you are about to send, not a stored
  * preference. "Read replies aloud" is the exception that proves it: its
  * state must be legible at a glance, so it lives as the dedicated toggle
  * beside the mic (`VoiceModeToggle`), not behind this menu. There is no
- * entry for choosing where a turn runs either — chat runs direct turns
- * only; work that needs a sandbox belongs to a Task.
+ * entry for choosing where a turn runs either: the assistant starts a light
+ * sandbox itself when code must run, and work that needs the full
+ * workspace belongs to a Task.
  */
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { Paperclip, Plus, Swords } from 'lucide-react';
+import { BookOpen, Paperclip, Plus, Swords } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -25,6 +28,8 @@ interface ComposerModeMenuProps {
   arenaActive?: boolean;
   onArenaChange?: (next: boolean) => void;
   onAttachFiles?: () => void;
+  /** Start choosing a skill for the message; absent hides the entry. */
+  onUseSkill?: () => void;
   disabled?: boolean;
 }
 
@@ -32,6 +37,7 @@ export function ComposerModeMenu({
   arenaActive,
   onArenaChange,
   onAttachFiles,
+  onUseSkill,
   disabled,
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
@@ -47,6 +53,14 @@ export function ComposerModeMenu({
         label: t('addFiles'),
         icon: Paperclip,
         onClick: onAttachFiles,
+      });
+    }
+    if (onUseSkill) {
+      actions.push({
+        type: 'item',
+        label: t('useSkill'),
+        icon: BookOpen,
+        onClick: onUseSkill,
       });
     }
     if (actions.length > 0) groups.push(actions);
@@ -66,7 +80,7 @@ export function ComposerModeMenu({
     }
 
     return groups;
-  }, [onAttachFiles, arenaActive, onArenaChange, t, tChat]);
+  }, [onAttachFiles, onUseSkill, arenaActive, onArenaChange, t, tChat]);
 
   // "Read replies aloud" moved back to its own always-visible toggle beside
   // the mic; with no attach entry either, the menu can be entirely empty —

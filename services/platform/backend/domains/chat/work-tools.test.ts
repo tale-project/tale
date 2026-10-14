@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { findActingMember } from '../../auth/membership.ts';
+import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import { resolveImageGenerationModel } from '../../core/lib/providers/resolve_image_model.ts';
 import {
@@ -11,7 +12,8 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { listSkillCatalog } from '../agent_tools/skills.ts';
-import { chatWorkTools } from './work-tools.ts';
+import { readConversationSkills } from './threads.ts';
+import { chatWorkTools, listChatSkillChoices } from './work-tools.ts';
 
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn(),
@@ -31,6 +33,9 @@ vi.mock('../agent_tools/skills.ts', async (importOriginal) => ({
   ),
 }));
 vi.mock('./shim.ts', () => ({ chatShimHandlers: () => ({}) }));
+vi.mock('./threads.ts', () => ({
+  readConversationSkills: vi.fn(() => Promise.resolve([])),
+}));
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the builder only hands the pool on
 const sql = {} as unknown as Sql;
@@ -57,6 +62,14 @@ function policies(
   );
 }
 
+/** The tools the turn is offered, whether or not some could not be. */
+async function offeredTools(): Promise<TurnWorkTools | undefined> {
+  const answer = await chatWorkTools(sql, TURN);
+  return answer !== undefined && 'unavailable' in answer
+    ? answer.tools
+    : answer;
+}
+
 beforeEach(() => {
   vi.mocked(resolveImageGenerationModel).mockReset().mockResolvedValue(null);
   vi.mocked(listSkillCatalog).mockClear();
@@ -65,7 +78,7 @@ beforeEach(() => {
 
 describe('chatWorkTools', () => {
   it('offers files, skills and code by default — no file, every switch on', async () => {
-    const tools = await chatWorkTools(sql, TURN);
+    const tools = await offeredTools();
     expect(tools?.executor.wireTools.map((tool) => tool.name)).toEqual([
       'load_skill',
       'read_skill_file',
@@ -92,7 +105,7 @@ describe('chatWorkTools', () => {
 
   it('drops what the policy switches off, and the catalog with the skills [CHAT-R18]', async () => {
     policies({ files: true, skills: false, code: false });
-    const tools = await chatWorkTools(sql, TURN);
+    const tools = await offeredTools();
     expect(tools?.executor.wireTools.map((tool) => tool.name)).toEqual([
       'create_file',
     ]);
@@ -143,14 +156,16 @@ describe('chatWorkTools', () => {
           ),
       ],
     ])(
-      'offers no tool for %s, rather than the defaults an admin may have switched off',
+      'offers no tool for %s, rather than the defaults an admin may have switched off, and says why',
       async (_cause, makeError) => {
         const warn = vi
           .spyOn(console, 'warn')
           .mockImplementation(() => undefined);
         unreadable(makeError());
 
-        await expect(chatWorkTools(sql, TURN)).resolves.toBeUndefined();
+        await expect(chatWorkTools(sql, TURN)).resolves.toEqual({
+          unavailable: 'policy_unreadable',
+        });
 
         expect(warn).toHaveBeenCalledWith(
           expect.stringContaining('chat_tools policy of org_1 cannot be read'),
@@ -167,8 +182,10 @@ describe('chatWorkTools', () => {
         { providerSlug: 'openrouter', modelId: 'img' } as never,
       );
 
-      const tools = await chatWorkTools(sql, TURN);
+      const answer = await chatWorkTools(sql, TURN);
+      const tools = await offeredTools();
 
+      expect(answer).toMatchObject({ unavailable: 'policy_unreadable' });
       expect(tools?.executor.wireTools.map((tool) => tool.name)).toEqual([
         'generate_image',
       ]);
@@ -194,7 +211,7 @@ describe('chatWorkTools', () => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a resolved model's shape is all the builder hands on
       { providerSlug: 'openrouter', modelId: 'img' } as never,
     );
-    const on = await chatWorkTools(sql, TURN);
+    const on = await offeredTools();
     expect(on?.executor.wireTools.map((tool) => tool.name)).toContain(
       'generate_image',
     );
@@ -203,17 +220,86 @@ describe('chatWorkTools', () => {
       new Error('NO_IMAGE_GENERATION_MODEL'),
     );
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const unserved = await chatWorkTools(sql, TURN);
+    const unserved = await offeredTools();
     expect(unserved?.executor.wireTools.map((tool) => tool.name)).not.toContain(
       'generate_image',
     );
     warn.mockRestore();
   });
 
-  it('offers nothing to a caller who is not a member', async () => {
+  it('carries the skills the conversation uses, read from its root [CHAT-R29]', async () => {
+    vi.mocked(readConversationSkills).mockResolvedValueOnce(['docx']);
+    const tools = await offeredTools();
+    expect(tools?.conversationSkills).toEqual(['docx']);
+    expect(readConversationSkills).toHaveBeenCalledWith(sql, 'org_1', 'root_1');
+  });
+
+  it('reads no conversation skills where skills are switched off', async () => {
+    vi.mocked(readConversationSkills).mockClear();
+    policies({ files: true, skills: false, code: true });
+    const tools = await offeredTools();
+    expect(tools).not.toHaveProperty('conversationSkills');
+    expect(readConversationSkills).not.toHaveBeenCalled();
+  });
+
+  it('offers nothing to a caller who is not a member, and says the setup failed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.mocked(findActingMember).mockResolvedValueOnce(null);
-    await expect(chatWorkTools(sql, TURN)).resolves.toBeUndefined();
+    await expect(chatWorkTools(sql, TURN)).resolves.toEqual({
+      unavailable: 'setup_failed',
+    });
     vi.mocked(resolveOrgSlug).mockResolvedValueOnce(null);
-    await expect(chatWorkTools(sql, TURN)).resolves.toBeUndefined();
+    await expect(chatWorkTools(sql, TURN)).resolves.toEqual({
+      unavailable: 'setup_failed',
+    });
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+});
+
+describe('listChatSkillChoices — what the composer offers to choose [CHAT-R29]', () => {
+  const WHO = { organizationId: 'org_1', userId: 'user_1' };
+
+  it('lists the person’s skills while the Skills switch is on', async () => {
+    await expect(listChatSkillChoices(sql, WHO)).resolves.toEqual({
+      enabled: true,
+      skills: [{ slug: 'docx', description: 'Word documents' }],
+    });
+    expect(listSkillCatalog).toHaveBeenCalledWith('acme', {
+      kind: 'user',
+      userId: 'user_1',
+      teamIds: ['team_1'],
+      isOrgAdmin: false,
+    });
+  });
+
+  it('offers no choice where skills are switched off, or the policy cannot be read', async () => {
+    policies({ files: true, skills: false, code: true });
+    await expect(listChatSkillChoices(sql, WHO)).resolves.toEqual({
+      enabled: false,
+      skills: [],
+    });
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(readGovernancePolicyForOrg).mockRejectedValue(
+      new ConfigurationError(
+        'GOVERNANCE_POLICY_INVALID',
+        'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+        400,
+      ),
+    );
+    await expect(listChatSkillChoices(sql, WHO)).resolves.toEqual({
+      enabled: false,
+      skills: [],
+    });
+    warn.mockRestore();
+  });
+
+  it('offers no choice to a caller who is not a member', async () => {
+    vi.mocked(findActingMember).mockResolvedValueOnce(null);
+    await expect(listChatSkillChoices(sql, WHO)).resolves.toEqual({
+      enabled: false,
+      skills: [],
+    });
   });
 });

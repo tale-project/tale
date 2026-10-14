@@ -17,7 +17,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ShieldQuestion, Wrench } from 'lucide-react';
-import { useState, type ComponentType, type ReactNode } from 'react';
+import { Fragment, useState, type ComponentType, type ReactNode } from 'react';
 
 import { AttachmentFileChip } from '@/app/features/shared/files/attachment-file-chip';
 import { formatFileSize } from '@/app/features/shared/files/file-displays';
@@ -29,6 +29,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useAttachmentPreviews } from '../hooks/attachment-preview-context';
 import type { MessagePart } from '../types';
+import { ChosenSkillChips, splitChosenSkills } from './chosen-skill-chips';
 
 /** An attachment part that can render as pixels: an image with a live blob
  * reference to resolve a URL from. */
@@ -100,11 +101,15 @@ function PartRow({
 export function MessageParts({
   parts,
   markdown = false,
+  skillNames,
 }: {
   parts: readonly MessagePart[];
   /** Render text parts as markdown (assistant answers) instead of the plain
    * pre-wrapped text a user's own words keep. */
   markdown?: boolean;
+  /** The skills the person can use: a user message that starts with
+   * `/name` for one shows it as a chip before its words. */
+  skillNames?: ReadonlySet<string>;
 }) {
   const { t } = useT('chat');
   // Image attachments render as pixels: one batched query resolves every
@@ -137,17 +142,30 @@ export function MessageParts({
     <Stack gap={2} className="min-w-0">
       {parts.map((part, index) => {
         switch (part.type) {
-          case 'text':
-            return markdown ? (
-              <MarkdownContent key={`text:${index}`} content={part.text} />
-            ) : (
-              <p
-                key={`text:${index}`}
-                className="text-foreground text-sm leading-6 whitespace-pre-wrap"
-              >
-                {part.text}
-              </p>
+          case 'text': {
+            if (markdown) {
+              return (
+                <MarkdownContent key={`text:${index}`} content={part.text} />
+              );
+            }
+            // The skills a message chose lead its first words, as chips.
+            const chosen =
+              skillNames !== undefined &&
+              parts.findIndex((candidate) => candidate.type === 'text') ===
+                index
+                ? splitChosenSkills(part.text, skillNames)
+                : null;
+            return (
+              <Fragment key={`text:${index}`}>
+                {chosen !== null && <ChosenSkillChips skills={chosen.skills} />}
+                {(chosen === null || chosen.rest.length > 0) && (
+                  <p className="text-foreground text-sm leading-6 whitespace-pre-wrap">
+                    {chosen === null ? part.text : chosen.rest}
+                  </p>
+                )}
+              </Fragment>
             );
+          }
           case 'attachment': {
             // All of a message's images render as ONE wrapping row, anchored
             // where the first image part sits; the later image parts have

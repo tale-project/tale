@@ -1,9 +1,8 @@
 'use client';
 
-import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
-import { Text } from '@tale/ui/text';
 import { Textarea, type TextareaProps } from '@tale/ui/textarea';
+import { TypeaheadListbox } from '@tale/ui/typeahead-listbox';
 import {
   type ClipboardEvent,
   type CSSProperties,
@@ -295,7 +294,6 @@ export function MentionTextarea<Kind extends string>({
 }: MentionTextareaProps<Kind>) {
   const { t } = useT('mentions');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
   const read = useCallback(
     (stored: string) =>
       parseMentionDoc(stored, { kinds, nameOf, resolvePlain }),
@@ -597,11 +595,6 @@ export function MentionTextarea<Kind extends string>({
   }, [commitText, announce, t]);
 
   // Keep the highlighted option in view while moving with the keyboard.
-  useEffect(() => {
-    const active = listRef.current?.querySelector('[aria-selected="true"]');
-    active?.scrollIntoView({ block: 'nearest' });
-  }, [clampedHighlight]);
-
   const handleChange = (event: FormEvent<HTMLTextAreaElement>) => {
     const textarea = event.currentTarget;
     const native = event.nativeEvent;
@@ -755,76 +748,27 @@ export function MentionTextarea<Kind extends string>({
         {announcement}
       </span>
       {open && (
-        <div
-          className={cn(
-            'border-border bg-popover text-popover-foreground absolute right-0 left-0 z-50 overflow-hidden rounded-xl border shadow-lg',
-            placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2',
-          )}
-        >
-          {results.length === 0 ? (
-            <Text
-              as="div"
-              variant="caption"
-              className="text-muted-foreground px-3 py-2.5"
-            >
-              {emptyLabel ?? t('empty')}
-            </Text>
-          ) : (
-            <div
-              ref={listRef}
-              id={listboxId}
-              role="listbox"
-              aria-label={listboxLabel ?? t('listboxLabel')}
-              className="max-h-56 overflow-y-auto py-1"
-            >
-              {results.map((option, index) => {
-                const active = index === clampedHighlight;
-                return (
-                  <div
-                    key={`${option.kind}:${option.id}`}
-                    id={optionId(index)}
-                    role="option"
-                    // The keyboard stays in the field and moves through the
-                    // options by aria-activedescendant.
-                    tabIndex={-1}
-                    aria-selected={active}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-2.5 px-3 py-1.5',
-                      active && 'bg-accent text-accent-foreground',
-                    )}
-                    // Picks on mousedown, before the field would blur and
-                    // close the picker.
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      selectOption(option);
-                    }}
-                    onMouseEnter={() => setHighlight(index)}
-                  >
-                    {option.avatar}
-                    <span className="min-w-0 flex-1">
-                      <Text
-                        as="span"
-                        variant="label"
-                        className="block truncate"
-                      >
-                        {option.name}
-                      </Text>
-                      {option.caption !== undefined && (
-                        <Text
-                          as="span"
-                          variant="caption"
-                          className="text-muted-foreground block truncate"
-                        >
-                          {option.caption}
-                        </Text>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <TypeaheadListbox
+          listboxId={listboxId}
+          optionId={optionId}
+          label={listboxLabel ?? t('listboxLabel')}
+          emptyLabel={emptyLabel ?? t('empty')}
+          options={results.map((option) => ({
+            key: `${option.kind}:${option.id}`,
+            name: option.name,
+            ...(option.caption !== undefined
+              ? { caption: option.caption }
+              : {}),
+            ...(option.avatar !== undefined ? { leading: option.avatar } : {}),
+          }))}
+          highlight={clampedHighlight}
+          placement={placement}
+          onPick={(index) => {
+            const picked = results[index];
+            if (picked !== undefined) selectOption(picked);
+          }}
+          onHighlight={setHighlight}
+        />
       )}
     </div>
   );

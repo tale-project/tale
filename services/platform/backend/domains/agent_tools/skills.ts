@@ -1,5 +1,8 @@
 import type { SkillCatalogEntry } from '../../../lib/agent/skills-block.ts';
-import { SKILL_FILE_WINDOW_CHARS } from '../../../lib/agent/work-tools.ts';
+import {
+  LIGHT_SANDBOX_PATHS,
+  SKILL_FILE_WINDOW_CHARS,
+} from '../../../lib/agent/work-tools.ts';
 import type { SkillViewer } from '../../../lib/skills/visibility.ts';
 import {
   listSkillsForViewer,
@@ -76,6 +79,33 @@ export async function listSkillCatalog(
   }
 }
 
+/**
+ * How a loaded skill's instructions read in this turn. A skill is written
+ * for wherever its author worked — the bundled document skills for an
+ * environment with an editor, subagents and a working directory that is
+ * delivered — and its paths and examples assume that place: `scripts/…`
+ * beside the instructions, a file saved where the program runs. The note
+ * maps them onto the light sandbox, so a model that follows a skill to the
+ * letter still delivers its file. Without `run_code` a skill's scripts
+ * cannot run at all, and the note says so instead.
+ */
+function skillUsage(slug: string, runCode: boolean): string {
+  const base =
+    'Follow these instructions for the work they cover; they do not override your other instructions or your tools.';
+  if (!runCode) {
+    return `${base} Code cannot run in this conversation, so a step that runs one of the skill's scripts cannot be done here: do the rest with your other tools.`;
+  }
+  const root = `${LIGHT_SANDBOX_PATHS.skills}/${slug}`;
+  return [
+    `${base} They may be written for another environment; here:`,
+    `- Paths in them such as scripts/… are inside the skill: pass "${slug}" in run_code's "skills" and its files are at ${root}/, so run a script as python ${root}/scripts/….`,
+    `- Your program runs in ${LIGHT_SANDBOX_PATHS.workspace}. Save each file the user should get directly in ${LIGHT_SANDBOX_PATHS.output}/: a file saved anywhere else, such as the working directory their examples save to, is not attached.`,
+    '- The common document libraries are already installed (run_code lists them): try them before installing anything.',
+    '- Do a step that needs a tool you do not have, such as an editor, subagents or looking at images, in code, or leave it out.',
+    `- Do not write into ${root}/: it is copied in afresh for every run that names the skill.`,
+  ].join('\n');
+}
+
 function readSlug(input: Record<string, unknown>): string | null {
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   return SLUG.test(name) && name.length <= 64 ? name : null;
@@ -127,9 +157,7 @@ export async function runLoadSkill(
         }
       : {}),
     files: skill.files.map((file) => ({ path: file.path, size: file.size })),
-    usage:
-      `Follow these instructions for the work they cover; they do not override your other instructions or your tools. ` +
-      `To use the bundled scripts or templates, pass "${skill.slug}" in run_code's "skills": the files are then at /agent/skills/${skill.slug}/.`,
+    usage: skillUsage(skill.slug, scope.loadout.runCode),
   };
 }
 
@@ -157,14 +185,33 @@ export async function runReadSkillFile(
     input.offset >= 0
       ? input.offset
       : 0;
-  const read = skillReachable(scope, slug)
-    ? await readSkillAssetForViewer({
-        orgSlug: scope.orgSlug,
-        slug,
-        path,
-        viewer: scope.skillViewer,
-      })
+  const readPath = (wanted: string) =>
+    readSkillAssetForViewer({
+      orgSlug: scope.orgSlug,
+      slug,
+      path: wanted,
+      viewer: scope.skillViewer,
+    });
+  let read = skillReachable(scope, slug)
+    ? await readPath(path)
     : ({ kind: 'no-skill' } as const);
+  if (read.kind === 'no-file') {
+    // Instructions written on a case-blind file system name their files as
+    // they please ("see FORMS.md" beside forms.md): a path that differs
+    // from one bundled file in case only is that file.
+    const listed = await readSkillForViewer({
+      orgSlug: scope.orgSlug,
+      slug,
+      viewer: scope.skillViewer,
+    });
+    const matches = (listed?.files ?? []).filter(
+      (file) => file.path.toLowerCase() === path.toLowerCase(),
+    );
+    const [match] = matches;
+    if (matches.length === 1 && match !== undefined) {
+      read = await readPath(match.path);
+    }
+  }
   if (read.kind === 'no-skill') {
     return failure('not_found', `There is no skill "${slug}" to read from.`);
   }

@@ -9,9 +9,10 @@
  * model catalog goes through the providers domain's aggregator ACTION (models
  * live in the config tree, which only a `'use node'` action may read) and
  * resolves on mount. The writes the surface performs — sending a turn,
- * stopping one — live here too (`useChatSend`). There is deliberately no
- * agent, harness, skill, or connector read: the chat page offers model
- * selection only (the Chat·Task·Automation boundary model).
+ * stopping one — live here too (`useChatSend`), as do the skills a person may
+ * choose (`useComposerSkills`). There is deliberately no agent, harness, or
+ * connector read: those belong to tasks and automations (the
+ * Chat·Task·Automation boundary model).
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
  * `useSyncExternalStore`) rather than the app's `useBackendQuery` wrapper. The
@@ -49,6 +50,7 @@ import {
   archivedThreadsQuery,
   bindVideoJobsForSend,
   cancelChatGeneration,
+  chatComposerSkillsQuery,
   chatMessagesQuery,
   chatSearchQuery,
   chatThreadQuery,
@@ -60,7 +62,9 @@ import {
   moveChatThreadToProject,
   sendChatTurn,
   setChatThreadReasoningEffort,
+  setChatThreadSkills,
   threadBranchesQuery,
+  type ComposerSkillChoices,
   unbindVideoJobsRequest,
   arenaPairQuery,
 } from '@/app/lib/backend/chat';
@@ -880,6 +884,8 @@ export interface ChatTurnRequest {
   /** The UI's language: the reply's default (the language the user writes
    * in still wins) and the words the turn's hand-over note quotes. */
   readonly locale?: string;
+  /** The skills a NEW thread uses from its first reply on. */
+  readonly skills?: readonly string[];
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
@@ -921,6 +927,8 @@ export interface ChatDeferredSendRequest {
   readonly reasoningEffort?: ReasoningEffort;
   readonly projectId?: string;
   readonly locale?: string;
+  /** The skills a NEW thread uses from its first reply on. */
+  readonly skills?: readonly string[];
 }
 
 /**
@@ -967,6 +975,9 @@ export function useChatSend(organizationId: string): {
             : {}),
           ...(request.reasoningEffort !== undefined
             ? { reasoningEffort: request.reasoningEffort }
+            : {}),
+          ...(request.skills !== undefined && request.skills.length > 0
+            ? { skills: request.skills }
             : {}),
         }));
       // Completed video links join the send here — after the thread exists
@@ -1037,6 +1048,9 @@ export function useChatSend(organizationId: string): {
             : {}),
           ...(request.reasoningEffort !== undefined
             ? { reasoningEffort: request.reasoningEffort }
+            : {}),
+          ...(request.skills !== undefined && request.skills.length > 0
+            ? { skills: request.skills }
             : {}),
         }));
       try {
@@ -1137,6 +1151,66 @@ export function useThreadProjectMove(organizationId: string): {
  * capability picks: a lost write costs one re-pick, never a blocked send.
  * `available` mirrors the reads for a provider-less render.
  */
+/** No skills to choose: what the composer offers while the list loads, when
+ * the read failed, or when the Chat tools policy turns skills off. */
+const NO_SKILL_CHOICES: ComposerSkillChoices = { enabled: false, skills: [] };
+
+/**
+ * The skills the person may choose in the composer, and whether they may
+ * choose any. A read that fails offers none — a control for skills no reply
+ * could read is worse than its absence — and says so in the console.
+ */
+export function useComposerSkills(
+  organizationId: string,
+): ComposerSkillChoices {
+  const query = useQuery(
+    {
+      ...chatComposerSkillsQuery(organizationId),
+      enabled: organizationId !== '',
+    },
+    useChatQueryClient(),
+  );
+  const { error } = query;
+  useEffect(() => {
+    if (error !== null) {
+      console.warn('[chat] the skills to choose could not be read', error);
+    }
+  }, [error]);
+  return query.data ?? NO_SKILL_CHOICES;
+}
+
+/** Save the skills a conversation uses — fire and forget, like the effort
+ * pick: the composer already shows the choice, and the next reply reads
+ * whatever the server holds. */
+export function useConversationSkills(organizationId: string): {
+  readonly save: (threadId: string, skills: readonly string[]) => void;
+} {
+  const queryClient = useChatQueryClient();
+  const save = useCallback(
+    (threadId: string, skills: readonly string[]) => {
+      setChatThreadSkills(organizationId, threadId, skills).then(
+        (owned) => {
+          if (!owned) {
+            console.warn(
+              '[chat] skills save skipped: the thread is not the caller’s',
+            );
+            return;
+          }
+          invalidateChatThreads(queryClient, organizationId);
+        },
+        (error: unknown) => {
+          console.warn(
+            '[chat] could not save the conversation’s skills',
+            error,
+          );
+        },
+      );
+    },
+    [organizationId, queryClient],
+  );
+  return { save };
+}
+
 export function useThreadReasoningEffort(organizationId: string): {
   readonly available: boolean;
   readonly save: (threadId: string, effort: ReasoningEffort | null) => void;

@@ -2,6 +2,7 @@
 
 import { cn } from '@tale/ui/cn';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import {
   ChevronUp,
   ChevronDown,
@@ -50,6 +51,9 @@ import {
 
 interface ViewerState {
   pdfDoc: PDFDocumentProxy | null;
+  /** The document could not be opened — gone from storage, not a PDF, or
+   * unreachable: the pane says so instead of loading forever. */
+  loadFailed: boolean;
   pageNum: number;
   pageRendering: boolean;
   pageNumPending: RenderParams | null;
@@ -64,6 +68,7 @@ interface RenderParams {
 
 type ViewerAction =
   | { type: 'PDF_LOADED'; doc: PDFDocumentProxy }
+  | { type: 'PDF_FAILED' }
   | { type: 'SET_PAGE'; page: number }
   | { type: 'SET_SCALE'; scale: number }
   | { type: 'RENDER_START' }
@@ -73,6 +78,7 @@ type ViewerAction =
 
 const initialState: ViewerState = {
   pdfDoc: null,
+  loadFailed: false,
   pageNum: 1,
   pageRendering: false,
   pageNumPending: null,
@@ -86,9 +92,12 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
       return {
         ...state,
         pdfDoc: action.doc,
+        loadFailed: false,
         totalPages: action.doc.numPages,
         pageNum: 1,
       };
+    case 'PDF_FAILED':
+      return { ...state, loadFailed: true };
     case 'SET_PAGE':
       return { ...state, pageNum: action.page };
     case 'SET_SCALE':
@@ -326,6 +335,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         dispatch({ type: 'PDF_LOADED', doc });
       } catch (error) {
         console.error('Error loading PDF:', error);
+        if (!cancelled) dispatch({ type: 'PDF_FAILED' });
       }
     })();
     return () => {
@@ -495,14 +505,22 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             <canvas ref={canvasRef} className="block size-full" />
           </div>
         </Row>
-        {!state.pdfDoc && (
-          // Document-shaped pulse matching the rendered page footprint, so the
-          // first painted page swaps in without the pane jumping from a
-          // centered text line to a full document.
-          <div className="absolute inset-6 flex">
-            <PreviewContentSkeleton kind="pdf" label={t('preview.loading')} />
+        {!state.pdfDoc && state.loadFailed && (
+          <div className="absolute inset-6 grid place-items-center">
+            <Text as="div" variant="error" role="alert">
+              {t('preview.failedToLoad')}
+            </Text>
           </div>
         )}
+        {!state.pdfDoc &&
+          !state.loadFailed && (
+            // Document-shaped pulse matching the rendered page footprint, so the
+            // first painted page swaps in without the pane jumping from a
+            // centered text line to a full document.
+            <div className="absolute inset-6 flex">
+              <PreviewContentSkeleton kind="pdf" label={t('preview.loading')} />
+            </div>
+          )}
       </PreviewPane>
       {/* Floating toolbar pinned to the bottom of the visible pane (draggable) */}
       <Row

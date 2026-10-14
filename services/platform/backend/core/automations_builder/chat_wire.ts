@@ -98,6 +98,16 @@ export interface ChatWireArgs {
    * a tool-free body is byte-identical to what it was before tools existed
    * (the prompt-cache prefix must not move). */
   tools?: readonly WireTool[];
+  /**
+   * The round may call no tool — its budget is spent and the model must
+   * answer — while its transcript still carries the earlier rounds' calls.
+   * The Anthropic wire refuses tool blocks without tool definitions (400
+   * "Requests must define tools when including 'tool_use' or 'tool_result'
+   * blocks"), so it keeps `tools` and forbids calls with `tool_choice:
+   * none`; the OpenAI-format wires accept such a transcript without tools
+   * and leave them out, as before.
+   */
+  toolsWithheld?: boolean;
   /** Absent OMITS the parameter from the body — a thinking-enabled request
    * must not carry a custom temperature. */
   temperature?: number;
@@ -426,7 +436,9 @@ function buildResponsesRequest(
       max_output_tokens: args.maxTokens,
       ...(sendTemperature ? { temperature: args.temperature } : {}),
       ...reasoningParameter('responses', args.reasoning, args.modelId),
-      ...(args.tools !== undefined && args.tools.length > 0
+      ...(args.tools !== undefined &&
+      args.tools.length > 0 &&
+      args.toolsWithheld !== true
         ? {
             tools: args.tools.map((tool) => ({
               type: 'function',
@@ -508,6 +520,9 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
                 description: tool.description,
                 input_schema: tool.parameters,
               })),
+              ...(args.toolsWithheld === true
+                ? { tool_choice: { type: 'none' } }
+                : {}),
             }
           : {}),
         messages: turns,
@@ -586,7 +601,9 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
         : { max_tokens: args.maxTokens }),
       ...(sendTemperature ? { temperature: args.temperature } : {}),
       ...reasoningParameter('openai', args.reasoning, args.modelId),
-      ...(args.tools !== undefined && args.tools.length > 0
+      ...(args.tools !== undefined &&
+      args.tools.length > 0 &&
+      args.toolsWithheld !== true
         ? {
             tools: args.tools.map((tool) => ({
               type: 'function',

@@ -48,6 +48,30 @@ export const WORK_TOOL_FAILURE_STATUSES = [
 
 export type WorkToolFailureStatus = (typeof WORK_TOOL_FAILURE_STATUSES)[number];
 
+/** Why a call failed, where its status alone does not say it to a person:
+ * the light sandbox's state, or what became of the program. Rides the
+ * failure beside its status, and the reply's step names it. */
+export const WORK_TOOL_FAILURE_REASONS = [
+  /** Every light sandbox of the organization is running code (`busy`). */
+  'sandboxes_busy',
+  /** The sandbox host is at its capacity (`busy`). */
+  'sandbox_host_busy',
+  /** The sandbox host has no runtime image yet, so nothing starts
+   * (`unavailable`). */
+  'sandbox_not_ready',
+  /** The sandbox service did not answer (`unavailable`). */
+  'sandbox_unreachable',
+  /** The sandbox failed to start, or stopped under the program
+   * (`unavailable`). */
+  'sandbox_failed',
+  /** The program ended with an error (`error`). */
+  'program_failed',
+  /** The program, or the step it ran in, ran out of time (`error`). */
+  'timed_out',
+] as const;
+
+export type WorkToolFailureReason = (typeof WORK_TOOL_FAILURE_REASONS)[number];
+
 // ------------------------------------------------------------------ limits
 
 /** The largest file `create_file` stores, in UTF-8 bytes. */
@@ -261,15 +285,15 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
     'structured result (hundreds of table rows, a whole document) serves ' +
     'better as a file than in your reply. The extension of "name" decides ' +
     'the type; binary formats (DOCX, XLSX, PPTX, PDF, PNG, ZIP) cannot be ' +
-    'typed out — make those with run_code. Write the whole content in one ' +
+    'typed out{binary}. Write the whole content in one ' +
     `call, at most ${CREATE_FILE_MAX_BYTES / (1024 * 1024)} MB. Answers ` +
     "with the file's ref. Afterwards, tell the user the file is attached " +
     'rather than repeating its content.',
   generate_image:
     "Create images with the organization's image model and attach them " +
     'to the conversation. For pictures: illustrations, photographs, ' +
-    'artwork, logos, mock-ups. Not for charts, diagrams or documents — ' +
-    'draw those with run_code, or write an SVG with create_file. No ' +
+    'artwork, logos, mock-ups. Not for charts, diagrams or documents' +
+    '{drawing}. No ' +
     'sandbox starts, but generation can take a minute. Answers with each ' +
     "image's ref and its size in pixels — report those, not the size you " +
     'asked for.',
@@ -279,14 +303,13 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
     'kind of work — a document format, a house style, a checklist; the ' +
     'skills available are listed in your instructions. Load the matching ' +
     'skill before doing work it covers, and follow it. Loading runs ' +
-    'nothing: to use a skill’s scripts or templates, name the skill in ' +
-    'run_code’s "skills" and its files are at /agent/skills/<name>/.',
+    'nothing{scripts}.',
   read_skill_file:
     'Read one text file bundled with a skill — a reference, an example, a ' +
     `template — as a window of up to ${SKILL_FILE_WINDOW_CHARS} characters; ` +
     '"offset" continues a truncated read. Use the paths load_skill listed. ' +
-    'Binary files (images, archives, Office files) cannot be read here: use ' +
-    'them from run_code with the skill in "skills".',
+    'Binary files (images, archives, Office files) cannot be read here' +
+    '{binaryFiles}.',
   run_code:
     'Run Python, Node.js or Bash in a light sandbox — an isolated Linux ' +
     'machine that starts in about a second — to make files and compute ' +
@@ -355,11 +378,48 @@ export function workToolTier(name: WorkToolName): ExecutionTier {
   return TIERS[name];
 }
 
-/** The provider-wire definition of one work tool. */
-export function workWireTool(name: WorkToolName): WireTool {
+/** The other work tools a turn offers, as far as a description points at
+ * them: a description never sends the model to a tool it does not have. */
+export interface WorkToolPeers {
+  readonly createFile: boolean;
+  readonly runCode: boolean;
+}
+
+const ALL_PEERS: WorkToolPeers = { createFile: true, runCode: true };
+
+/** The words each description's `{slot}` takes, for the peers offered. */
+function peerPhrases(peers: WorkToolPeers): Record<string, string> {
+  const drawing = [
+    ...(peers.runCode ? ['draw those with run_code'] : []),
+    ...(peers.createFile ? ['write an SVG with create_file'] : []),
+  ].join(', or ');
+  return {
+    binary: peers.runCode ? ' — make those with run_code' : '',
+    drawing: drawing === '' ? '' : ` — ${drawing}`,
+    scripts: peers.runCode
+      ? ': to use a skill’s scripts or templates, name the skill in ' +
+        'run_code’s "skills" and its files are at /agent/skills/<name>/'
+      : ', and a skill’s scripts cannot run here: follow its instructions ' +
+        'with your other tools',
+    binaryFiles: peers.runCode
+      ? ': use them from run_code with the skill in "skills"'
+      : '',
+  };
+}
+
+/** The provider-wire definition of one work tool, its description written
+ * for the other work tools the turn offers. */
+export function workWireTool(
+  name: WorkToolName,
+  peers: WorkToolPeers = ALL_PEERS,
+): WireTool {
+  const phrases = peerPhrases(peers);
   return {
     name,
-    description: DESCRIPTIONS[name],
+    description: DESCRIPTIONS[name].replace(
+      /\{(\w+)\}/g,
+      (slot: string, key: string) => phrases[key] ?? slot,
+    ),
     parameters: SCHEMAS[name],
   };
 }

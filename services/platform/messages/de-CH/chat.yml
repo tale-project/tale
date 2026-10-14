@@ -1,2 +1,4 @@
 fileSizeExceededMultiple: '{names} überschreitet das Dateigrössenlimit von {maxSize} MB.'
 budgetWarningDismiss: Schliessen
+skillPicker:
+  empty: Kein Skill heisst "{query}". Die Nachricht wird so gesendet, wie sie ist.

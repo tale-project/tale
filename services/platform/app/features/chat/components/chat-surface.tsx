@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import {
   type ComponentProps,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -101,6 +102,8 @@ import {
   useThreadBranches,
   useThreadHolds,
   useThreadReasoningEffort,
+  useComposerSkills,
+  useConversationSkills,
   useThreadFeedback,
   useVoiceMode,
   type ChatTurnAttachment,
@@ -129,6 +132,7 @@ import {
   VoiceOutputProvider,
 } from '../hooks/voice-output-context';
 import { chatDraftKey } from '../lib/draft-key';
+import { conversationSkillsOf } from '../lib/skill-picks';
 import type {
   ChatMessageView,
   ComposerModelOption,
@@ -154,6 +158,7 @@ import { BudgetBanner } from './budget-banner';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatTaskTray } from './chat-task-tray';
 import { ChatTranscript } from './chat-transcript';
+import { ChatSkillNamesContext } from './chosen-skill-chips';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
@@ -372,6 +377,14 @@ function ChatSurfaceInner({
   const composerOptions = useComposerModels(organizationId);
   const chatSend = useChatSend(organizationId);
   const threadReasoningEffort = useThreadReasoningEffort(organizationId);
+  // The skills the person may choose, and the conversation's own: every
+  // reply reads those before the model answers.
+  const skillChoices = useComposerSkills(organizationId);
+  const conversationSkills = useConversationSkills(organizationId);
+  const skillNames = useMemo(
+    () => new Set(skillChoices.skills.map((skill) => skill.slug)),
+    [skillChoices.skills],
+  );
   const branchActions = useBranchActions(organizationId);
   const modelPreference = useChatModelPreference(organizationId);
 
@@ -763,6 +776,31 @@ function ChatSurfaceInner({
     }));
   }, [threadId, activeThread]);
 
+  // The conversation's skills hydrate from its row the way the effort pick
+  // does, once per thread: the list's row, or the thread's own read for a
+  // chat the list does not hold. Until one answers the picker shows none,
+  // never the last chat's; a new chat starts with none; and a pick in this
+  // session is left alone — a chat made here is stamped with its own.
+  const skillsHydratedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (threadId !== undefined && skillsHydratedFor.current === threadId) {
+      return;
+    }
+    if (threadId === undefined || headerThread === undefined) {
+      if (skillsHydratedFor.current === undefined) return;
+      skillsHydratedFor.current = undefined;
+      setSelection((previous) =>
+        previous.skills === undefined
+          ? previous
+          : { ...previous, skills: undefined },
+      );
+      return;
+    }
+    skillsHydratedFor.current = threadId;
+    const stored = conversationSkillsOf(headerThread.capabilities);
+    setSelection((previous) => ({ ...previous, skills: stored }));
+  }, [threadId, headerThread]);
+
   const handleArenaSettle = async (verdict?: ArenaVerdict) => {
     if (viewThreadId === undefined) return;
     const result = await arenaActions.settle(viewThreadId, verdict);
@@ -835,6 +873,7 @@ function ChatSurfaceInner({
         const created = await arenaActions.createThread(
           projectId,
           selection.reasoningEffort,
+          selection.skills,
         );
         if (created === null) {
           toast({ title: t('arena.startFailed'), variant: 'destructive' });
@@ -842,6 +881,7 @@ function ChatSurfaceInner({
         }
         target = created;
         effortHydratedFor.current = created;
+        skillsHydratedFor.current = created;
         void navigate({
           to: '/dashboard/$id/chat/$threadId',
           params: { id: organizationId, threadId: created },
@@ -928,6 +968,15 @@ function ChatSurfaceInner({
       selection.modelSelection !== 'auto'
     ) {
       modelPreference.save(undefined);
+    }
+    if (
+      threadId !== undefined &&
+      (next.skills ?? []).join(' ') !== (selection.skills ?? []).join(' ')
+    ) {
+      // The conversation's skills live on it: a new chat carries them into
+      // the thread its first message creates instead.
+      skillsHydratedFor.current = threadId;
+      conversationSkills.save(threadId, next.skills ?? []);
     }
     if (next.reasoningEffort !== selection.reasoningEffort) {
       // An explicit pick seeds future chats and persists on the conversation
@@ -1411,10 +1460,16 @@ function ChatSurfaceInner({
             ...(threadId === undefined && projectId !== undefined
               ? { projectId }
               : {}),
+            ...(threadId === undefined &&
+            selection.skills !== undefined &&
+            selection.skills.length > 0
+              ? { skills: selection.skills }
+              : {}),
             locale,
           });
           if (threadId === undefined) {
             effortHydratedFor.current = parkedThreadId;
+            skillsHydratedFor.current = parkedThreadId;
             void navigate({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: parkedThreadId },
@@ -1485,6 +1540,12 @@ function ChatSurfaceInner({
           // keeps the link it was created with.
           ...(threadId === undefined && projectId !== undefined
             ? { projectId }
+            : {}),
+          // A new conversation starts with the skills chosen for it.
+          ...(threadId === undefined &&
+          selection.skills !== undefined &&
+          selection.skills.length > 0
+            ? { skills: selection.skills }
             : {}),
           locale,
         });
@@ -1567,6 +1628,7 @@ function ChatSurfaceInner({
         );
         if (threadId === undefined) {
           effortHydratedFor.current = turn.threadId;
+          skillsHydratedFor.current = turn.threadId;
           void navigate({
             to: '/dashboard/$id/chat/$threadId',
             params: { id: organizationId, threadId: turn.threadId },
@@ -1903,9 +1965,10 @@ function ChatSurfaceInner({
       : undefined;
 
   return (
-    // The preview map's identity never changes — the provider re-renders
-    // nothing; rows read the map during their own renders.
-    <AttachmentPreviewProvider value={sentPreviewsRef.current}>
+    <MessageRowContext
+      previews={sentPreviewsRef.current}
+      skillNames={skillNames}
+    >
       <div className="flex min-h-0 flex-1 flex-row">
         {/* The page's skip link lands on `main`, which begins with the
             sidebar — every chat and project row a Tab stop. This one skips
@@ -2272,6 +2335,7 @@ function ChatSurfaceInner({
                   subscriptionProviders={subscriptionProviders}
                   selection={selection}
                   onSelectionChange={stableSelectionChange}
+                  skillChoices={skillChoices}
                   onSend={stableSend}
                   onStop={stableStop}
                   generating={generationInFlight}
@@ -2434,6 +2498,31 @@ function ChatSurfaceInner({
         {/* One polite live region narrating voice playback transitions. */}
         <VoiceOutputAnnouncer />
       </div>
+    </MessageRowContext>
+  );
+}
+
+/**
+ * What a message row reads from the surface around it: the previews of the
+ * images this session sent, and the names of the skills the person can use —
+ * a message that chose one shows it as a chip.
+ */
+function MessageRowContext({
+  previews,
+  skillNames,
+  children,
+}: {
+  previews: Map<string, string>;
+  skillNames: ReadonlySet<string>;
+  children: ReactNode;
+}) {
+  return (
+    // The preview map's identity never changes — the provider re-renders
+    // nothing; rows read the map during their own renders.
+    <AttachmentPreviewProvider value={previews}>
+      <ChatSkillNamesContext.Provider value={skillNames}>
+        {children}
+      </ChatSkillNamesContext.Provider>
     </AttachmentPreviewProvider>
   );
 }

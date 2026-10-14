@@ -144,6 +144,9 @@ export async function appendMessageRow(
     /** A guardrail refused the user message: the thread it opens is named
      * from its own words, with no model call. */
     nameWithoutModel?: boolean;
+    /** What names the thread this message opens, where that is not its
+     * text: the words after the skills it chose. */
+    titleText?: string;
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
@@ -225,7 +228,7 @@ export async function appendMessageRow(
     meta[0] !== undefined &&
     meta[0].arenaRole !== 'b'
   ) {
-    const firstMessage = (message.text ?? '').trim();
+    const firstMessage = (message.titleText ?? message.text ?? '').trim();
     if (firstMessage.length > 0) {
       const untitled = await sql<{ id: string }[]>`
         SELECT id FROM app.threads
@@ -569,6 +572,9 @@ function pgTurnStore(
               : {}),
             ...(setup.spend?.apiKeyId !== undefined
               ? { apiKeyId: setup.spend.apiKeyId }
+              : {}),
+            ...(setup.titleText !== undefined
+              ? { titleText: setup.titleText }
               : {}),
           });
         }

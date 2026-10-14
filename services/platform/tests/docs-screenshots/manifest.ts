@@ -1341,6 +1341,29 @@ export const SHOTS: readonly Shot[] = [
       messageLog(page).getByText('It opens in Excel and Google Sheets.'),
   },
   {
+    // A "/" at the start of a message lists the person's skills, to choose
+    // one for that message.
+    name: 'chat-skill-picker',
+    section: 'platform',
+    route: FRESH_CHAT_ROUTE,
+    prepare: async (page) => {
+      // Hydration first: a key pressed before React attaches never reaches
+      // state.
+      await page
+        .getByText('Help me write a clear, professional email')
+        .first()
+        .waitFor({ timeout: 30_000 });
+      const input = page.getByRole('textbox', {
+        name: t('chat.aria.chatInput'),
+      });
+      await input.click();
+      await input.pressSequentially('/');
+    },
+    // The list opens once the skills have loaded.
+    readyWhen: (page) =>
+      page.getByRole('listbox', { name: t('chat.skillPicker.listLabel') }),
+  },
+  {
     // The empty new-chat screen with the Assistant's conversation starters.
     name: 'chat-starters-empty',
     section: 'platform',

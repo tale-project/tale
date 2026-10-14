@@ -150,6 +150,54 @@ const CODE_LANGUAGE_NAMES: Record<string, string> = {
   bash: 'Bash',
 };
 
+/** A failed step's outcome by the cause its result names — literal keys, so
+ * the i18n usage scan sees every one. */
+const FAILURE_REASON_KEYS: Record<string, string> = {
+  sandboxes_busy: 'thinking.outcome.sandboxesBusy',
+  sandbox_host_busy: 'thinking.outcome.sandboxHostBusy',
+  sandbox_not_ready: 'thinking.outcome.sandboxNotReady',
+  sandbox_unreachable: 'thinking.outcome.sandboxUnreachable',
+  sandbox_failed: 'thinking.outcome.sandboxFailed',
+  program_failed: 'thinking.outcome.programFailed',
+  timed_out: 'thinking.outcome.timedOut',
+};
+
+/** …and, for a result that names no cause, by its status. */
+const FAILURE_STATUS_KEYS: Record<string, string> = {
+  cancelled: 'thinking.outcome.stopped',
+  not_found: 'thinking.outcome.notFound',
+  invalid_args: 'thinking.outcome.invalidArgs',
+  unavailable: 'thinking.outcome.unavailable',
+  busy: 'thinking.outcome.busy',
+};
+
+/**
+ * What became of a step that did not succeed, in words: the cause its result
+ * names (no light sandbox free, the program ran out of time), else what its
+ * status says, else that it failed. `undefined` for a step that answered
+ * `ok` or no structured result — those read as done. The model's own message
+ * stays in the step's detail; this is the person's line.
+ */
+export function stepOutcomeLabel(
+  t: TFunction,
+  output: unknown,
+): string | undefined {
+  if (
+    !isRecord(output) ||
+    typeof output.status !== 'string' ||
+    output.status === 'ok'
+  ) {
+    return undefined;
+  }
+  const byReason =
+    typeof output.reason === 'string'
+      ? FAILURE_REASON_KEYS[output.reason]
+      : undefined;
+  return t(
+    byReason ?? FAILURE_STATUS_KEYS[output.status] ?? 'thinking.outcome.failed',
+  );
+}
+
 /** A stored-blob reference (`s3:<key>`) or an email ref (`msg:<id>`) — an
  * address, never a title. */
 function isAddressRef(value: string): boolean {

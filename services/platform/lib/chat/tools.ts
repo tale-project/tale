@@ -1,14 +1,14 @@
 /**
- * The chat assistant's tool loadout — three read-only tools, fixed.
+ * The chat assistant's retrieval tools — three read-only tools, fixed.
  *
- * This is a deliberate product boundary (the Chat·Task·Automation model), not
- * a default waiting for configuration: Chat is for questions and retrieval,
- * so its assistant may search the organization's knowledge (`rag_search`),
+ * Every chat turn may search the organization's knowledge (`rag_search`),
  * load full content it found (`rag_fetch`), and fetch a public page
- * (`web_fetch`) — and nothing else. Deliverables (a PPT, a translated file, a
- * document) are produced on a Task assigned to an agent, never inline in
- * chat; execution, connectors, and skills live in the task and automation
- * lanes.
+ * (`web_fetch`). The work tools — writing a file, generating an image,
+ * reading a skill, running code in a light sandbox — ride beside them when
+ * the organization's policies allow them (`lib/agent/work-tools.ts`); a
+ * connector's actions and work that needs an owner, a review or the full
+ * workspace stay in the task and automation lanes (the Chat·Task·Automation
+ * model).
  *
  * A fourth tool, `ask_question`, was proposed and declined (2026-08-14):
  * putting a tool on this wire is a product decision. A chat turn never
@@ -107,6 +107,13 @@ export interface ToolCallOptions {
    * limit). A tool that waits or works for long honours it and answers a
    * structured result; one that finishes in moments may ignore it. */
   readonly signal?: AbortSignal;
+  /** The refs of the files the conversation already shows: those its loaded
+   * history carries and those this reply attached in earlier steps. A tool
+   * that remembers what it delivered delivers a file again when its earlier
+   * delivery is not among them — a reply that was tried again, or a message
+   * that was edited, left it on a version no longer shown. Absent, the tool
+   * trusts its own memory. */
+  readonly shownFiles?: ReadonlySet<string>;
 }
 
 /**

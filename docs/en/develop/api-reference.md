@@ -930,7 +930,9 @@ An optional `Idempotency-Key` must contain 1–255 printable ASCII characters af
 
 ### Understand assistant behavior and token limits
 
-A turn is the complete handling of one accepted message, including model rounds and tool calls. REST chat uses the built-in workspace assistant with its instructions, safety rules, and three retrieval tools. These add roughly 3,000 prompt tokens per model round, included in `usage.inputTokens`. A tool-using turn can take up to five rounds, each billing its full prompt. Requests for deliverables such as documents or reports are directed to Tasks.
+A turn is the complete handling of one accepted message, including model rounds and tool calls. REST chat uses the built-in workspace assistant with its instructions, safety rules, and tools: three retrieval tools, and the work tools your organization’s Chat tools policy allows, with which it makes the files it is asked for and returns them as `artifact` parts. These add roughly 3,000 prompt tokens per model round, more with the work tools, included in `usage.inputTokens`. A tool-using turn can take up to five rounds, thirteen with the work tools, each billing its full prompt.
+
+To choose skills for a message, start `content` with `/` and a skill’s name, such as `"content": "/docx Write the cover letter"`: the turn reads the skill before the model answers, and the reply’s parts begin with that `load_skill` call and its result. Up to four names may lead the content (`/xlsx /brand-voice …`). Only skills the key holder can use count, and `GET /api/v1/skills` lists them; any other name, and a `/` later in the text, is part of the message as written. Skills a conversation uses for every reply are chosen in the app, and a thread continued here reads them too.
 
 Project threads can retrieve that project's files and the organization's knowledge hub, but not another project's files. Threads without a project can retrieve the hub only. The assistant chooses whether to search based on the question; naming a file or explicitly asking it to search helps express your intent, but no request field forces a retrieval call.
 

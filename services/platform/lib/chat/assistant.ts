@@ -4,9 +4,10 @@
  * This used to be an org-config JSON file (`builtin-configs/agents/chat/
  * assistant.json` on 0.3) carrying fifteen tool names and a long guide. The
  * Chat·Task·Automation boundary model retired that: the chat assistant is not
- * configurable per org, its loadout is exactly the three retrieval tools in
- * `tools.ts`, and its guide lives here in code where a config edit cannot
- * widen it. Org voice still applies through the governance mandatory
+ * configurable per org, its loadout is the three retrieval tools in
+ * `tools.ts` plus the work tools its organization's Chat tools policy allows
+ * (`lib/agent/work-tools.ts`), and its guide lives here in code where a
+ * config edit cannot widen it. Org voice still applies through the governance mandatory
  * instructions; personas with their own instructions, skills and allowlists
  * are project agents working tasks (`backend/domains/projects/`) and
  * automation agent nodes.
@@ -37,8 +38,9 @@ export const TALE_DOCS_INDEX_URL = 'https://docs.tale.dev/llms.txt';
 /**
  * The guide. Descended from the 0.3 assistant's `systemInstructions`,
  * rewritten twice: once for the three-tool boundary (everything about
- * `file_write`, `run_code`, canvas output, workers, and document writes
- * belongs to tasks and automations now), and once SUBTRACTIVELY — the
+ * `file_write`, `run_code`, canvas output, workers, and document writes went
+ * to tasks and automations; the work tools brought files and code back, see
+ * {@link chatAssistantFor}), and once SUBTRACTIVELY — the
  * when-to-search / when-to-fetch policy moved onto the wire tool
  * descriptions (`tools.ts`), where the model actually reads it, and the
  * numbered RULES that fought those descriptions (search-before-answering,
@@ -71,6 +73,9 @@ const DELIVERABLES_GO_TO_TASKS =
 
 const TASK_WORK =
   '**TASK WORK** — make the files the person asks for here, with your tools. Hand work to a task only when it needs an owner and a review, or more than a reply can do — a repository, a browser session, hours of work: then give the steps exactly as the hand-over note below states, and never invent menus, projects or roles.';
+
+const FILE_TOOLS_UNAVAILABLE =
+  '**FILE TOOLS UNAVAILABLE** — the tools for making files could not be set up for this reply. When the user asks for a file, give what fits in a reply (a draft, a table), and say plainly that files cannot be made in this reply and that asking again later may work. Never say that chat cannot make files, and do not send the work to a task for that reason alone.';
 
 const QUESTIONS_ABOUT_TALE = `**QUESTIONS ABOUT TALE** — this workspace runs on Tale. For how to use Tale itself, never guess a docs URL: read the index ${TALE_DOCS_INDEX_URL}, then a page it lists (German: /de/ after the host, French: /fr/). The docs describe the latest release; this workspace may differ.`;
 
@@ -109,9 +114,32 @@ export const CHAT_ASSISTANT: ResolvedAgent = {
  * task is for work that needs an owner, a review, or more than a reply can
  * do. The text changes only with the organization's policy, never per
  * person, so it stays in the cached prefix.
+ *
+ * `toolsUnavailable` is the turn whose tools could not be set up — its
+ * policy could not be read, or the setup failed. Its persona must not
+ * repeat the deliverables rule, which says chat does not make files at
+ * all: it says these files cannot be made in this reply.
  */
-export function chatAssistantFor(loadout: WorkLoadout): ResolvedAgent {
-  const ladder = renderWorkLadder(loadout);
+export function chatAssistantFor(
+  loadout: WorkLoadout | undefined,
+  options: { toolsUnavailable?: boolean } = {},
+): ResolvedAgent {
+  const ladder = loadout === undefined ? undefined : renderWorkLadder(loadout);
+  if (options.toolsUnavailable === true) {
+    return {
+      slug: CHAT_ASSISTANT_SLUG,
+      instructions: [
+        INTRO,
+        NO_FABRICATION,
+        WORK_LIVES_HERE,
+        ...(ladder !== undefined ? [ladder] : []),
+        FILE_TOOLS_UNAVAILABLE,
+        QUESTIONS_ABOUT_TALE,
+        NO_RAW_CONTEXT,
+        RESPONSE_STYLE,
+      ].join('\n\n'),
+    };
+  }
   if (ladder === undefined) return CHAT_ASSISTANT;
   return {
     slug: CHAT_ASSISTANT_SLUG,

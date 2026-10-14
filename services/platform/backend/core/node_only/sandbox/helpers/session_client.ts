@@ -108,15 +108,25 @@ export interface SpawnerQueuePlace {
  * no compute. A spawner that keeps a first-come line for host room says
  * where the create stands in it (`queue`), and its hint is then the moment
  * that place comes up: a waiter that asks later loses its turn to the ones
- * behind it, so it comes back exactly then. */
+ * behind it, so it comes back exactly then. `refusal` is the code the
+ * spawner gave (`session_quota`, `host_memory`, …, or `runtime_image` while
+ * the host has no runtime image to start a session from). */
 export class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
   readonly queue: SpawnerQueuePlace | undefined;
-  constructor(retryAfterMs: number | undefined, queue?: SpawnerQueuePlace) {
-    super('sandbox spawner at host capacity (429)');
+  readonly refusal: string | undefined;
+  constructor(
+    retryAfterMs: number | undefined,
+    queue?: SpawnerQueuePlace,
+    refusal?: string,
+  ) {
+    super(
+      `sandbox spawner at host capacity (429${refusal !== undefined ? ` ${refusal}` : ''})`,
+    );
     this.name = 'SpawnerBusyError';
     this.retryAfterMs = retryAfterMs;
     this.queue = queue;
+    this.refusal = refusal;
   }
 }
 
@@ -223,8 +233,10 @@ const spawnerQueueBodySchema = z.object({
   }),
 });
 
+const spawnerRefusalBodySchema = z.object({ error: z.string().min(1) });
+
 /** The refusal a 429 to a create is, with its place in the spawner's line
- * when the body names one. */
+ * and its refusal code when the body names them. */
 async function spawnerBusyErrorOf(res: Response): Promise<SpawnerBusyError> {
   const retryAfterMs = parseRetryAfterMs(res);
   const text = await safeText(res);
@@ -235,9 +247,11 @@ async function spawnerBusyErrorOf(res: Response): Promise<SpawnerBusyError> {
     return new SpawnerBusyError(retryAfterMs);
   }
   const parsed = spawnerQueueBodySchema.safeParse(body);
+  const refusal = spawnerRefusalBodySchema.safeParse(body);
   return new SpawnerBusyError(
     retryAfterMs,
     parsed.success ? parsed.data.queue : undefined,
+    refusal.success ? refusal.data.error : undefined,
   );
 }
 

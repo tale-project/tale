@@ -62,6 +62,23 @@ describe('DocumentPreviewPDF pdfjs bootstrap', () => {
     expect(globalThis.pdfjsLib).toBeDefined();
   });
 
+  // A file whose bytes are gone, or that is no PDF, used to leave the pane
+  // on its loading pulse for good: the failure was only logged.
+  it('says the document could not be loaded instead of loading forever', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    getDocument.mockImplementationOnce(() => ({
+      promise: Promise.reject(new Error('Missing PDF')),
+    }));
+
+    render(<DocumentPreviewPDF url="https://example.com/gone.pdf" />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'preview.failedToLoad',
+    );
+    expect(screen.queryByText('preview.loading')).toBeNull();
+    error.mockRestore();
+  });
+
   // Regression (2026-09-26 evaluation, B-08): the page-number box was a bare
   // `<input type="number">` with no name.
   it('names the page-number input', async () => {

@@ -78,6 +78,36 @@ describe('load_skill', () => {
     expect(JSON.stringify(result)).toContain('/agent/skills/docx/');
   });
 
+  it('maps the skill onto the light sandbox, so a file made by its examples is still delivered', async () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+    vi.mocked(readSkillForViewer).mockResolvedValue(skill() as never);
+    const { scope } = testScope();
+
+    const result = await runLoadSkill(scope, { name: 'docx' });
+    const usage = (result as { usage: string }).usage;
+
+    expect(usage).toContain('python /agent/skills/docx/scripts/');
+    expect(usage).toContain(
+      'Save each file the user should get directly in /agent/output/',
+    );
+    expect(usage).toContain('Do not write into /agent/skills/docx/');
+  });
+
+  it('says a skill’s scripts cannot run where code cannot', async () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+    vi.mocked(readSkillForViewer).mockResolvedValue(skill() as never);
+    const { scope } = testScope({
+      loadout: { ...FULL_LOADOUT, runCode: false },
+    });
+
+    const usage = (
+      (await runLoadSkill(scope, { name: 'docx' })) as { usage: string }
+    ).usage;
+
+    expect(usage).toContain('Code cannot run in this conversation');
+    expect(usage).not.toContain('run_code');
+  });
+
   it('starts the light sandbox early for a skill with scripts, not for one of words alone', async () => {
     const { scope } = testScope();
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
@@ -185,6 +215,68 @@ describe('read_skill_file', () => {
     });
     const result = await runReadSkillFile(scope, { name: 'pdf', path: 'b.md' });
     expect(JSON.stringify(result)).toContain('has no file');
+  });
+
+  it('reads the one bundled file a path names in another case', async () => {
+    const { scope } = testScope();
+    vi.mocked(readSkillAssetForViewer)
+      .mockReset()
+      .mockResolvedValueOnce({ kind: 'no-file' })
+      .mockResolvedValueOnce({
+        kind: 'asset',
+        path: 'forms.md',
+        content: Buffer.from('# Filling a form'),
+        mtimeMs: 0,
+      });
+    vi.mocked(readSkillForViewer).mockResolvedValueOnce(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+      skill({
+        slug: 'pdf',
+        files: [
+          { path: 'SKILL.md', size: 10 },
+          { path: 'forms.md', size: 16 },
+        ],
+      }) as never,
+    );
+
+    const result = await runReadSkillFile(scope, {
+      name: 'pdf',
+      path: 'FORMS.md',
+    });
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      path: 'forms.md',
+      content: '# Filling a form',
+    });
+    expect(readSkillAssetForViewer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ path: 'forms.md' }),
+    );
+  });
+
+  it('does not guess between two files that differ in case only', async () => {
+    const { scope } = testScope();
+    vi.mocked(readSkillAssetForViewer)
+      .mockReset()
+      .mockResolvedValue({ kind: 'no-file' });
+    vi.mocked(readSkillForViewer).mockResolvedValueOnce(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+      skill({
+        slug: 'pdf',
+        files: [
+          { path: 'Notes.md', size: 1 },
+          { path: 'notes.MD', size: 1 },
+        ],
+      }) as never,
+    );
+
+    const result = await runReadSkillFile(scope, {
+      name: 'pdf',
+      path: 'NOTES.md',
+    });
+
+    expect(result).toMatchObject({ status: 'not_found' });
+    expect(readSkillAssetForViewer).toHaveBeenCalledTimes(1);
   });
 });
 

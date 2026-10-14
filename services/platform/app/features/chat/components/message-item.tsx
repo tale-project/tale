@@ -54,6 +54,7 @@ import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { BlockedNotice } from './blocked-notice';
 import { BranchNavigator } from './branch-navigator';
 import { ChatErrorDisplay } from './chat-error-display';
+import { useChatSkillNames } from './chosen-skill-chips';
 import {
   GenerationIncompleteNotice,
   isGenerationIncomplete,
@@ -67,6 +68,10 @@ import { SourceCards } from './source-cards';
 import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
 import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
+import {
+  WorkToolsUnavailableNotice,
+  workToolsUnavailable,
+} from './work-tools-unavailable-notice';
 
 /** The row's region relative to the last user message (see message-thread):
  * history rows rasterize lazily, the response rows opt out of scroll
@@ -337,6 +342,7 @@ function UserBubble({
 }) {
   const { t } = useT('chat');
   const { formatDateHeader, formatDate } = useFormatDate();
+  const skillNames = useChatSkillNames();
   const [editing, setEditing] = useState(false);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(false);
@@ -420,7 +426,7 @@ function UserBubble({
           }
         : {})}
     >
-      <MessageParts parts={message.parts} />
+      <MessageParts parts={message.parts} skillNames={skillNames} />
     </ThreadMessage>
   );
 }
@@ -504,6 +510,7 @@ function AssistantBody({
   // the notice below says why; left to the shell, a finished turn kept its
   // dots and its ticking timer for as long as the conversation stayed open.
   const unanswered = isGenerationIncomplete(message);
+  const unavailableTools = workToolsUnavailable(message.usage);
   const inGapShell =
     watchingAnswer &&
     !firstPainted &&
@@ -617,6 +624,11 @@ function AssistantBody({
       {/* The tool loop spent its round budget — the answer below was forced
           with the investigation cut short; say so. */}
       {stepLimitHit(message.usage) && <StepLimitNotice />}
+      {/* The reply ran without the file tools it was meant to have — say
+          why, so a missing file is not left unexplained. */}
+      {unavailableTools !== undefined && (
+        <WorkToolsUnavailableNotice reason={unavailableTools} />
+      )}
       {/* One persistent wrapper across the dots → text transition, so the
           swap never collapses the row's box. */}
       <div className="min-h-5 w-full min-w-0">

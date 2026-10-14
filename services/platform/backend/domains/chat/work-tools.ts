@@ -5,11 +5,15 @@ import {
 import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
+import type { SkillCatalogEntry } from '../../../lib/agent/skills-block.ts';
 import { CHAT_ASSISTANT_SLUG } from '../../../lib/chat/assistant.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { UserSkillViewer } from '../../../lib/skills/visibility.ts';
 import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
-import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
+import type {
+  TurnWorkTools,
+  WorkToolsUnavailable,
+} from '../../core/chat/turn_action.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import {
   readGovernancePolicyForOrg,
@@ -24,6 +28,7 @@ import { turnImageBilling } from '../agent_tools/image-billing.ts';
 import { offeredImageModel } from '../agent_tools/image-model.ts';
 import type { WorkToolScope } from '../agent_tools/scope.ts';
 import { listSkillCatalog } from '../agent_tools/skills.ts';
+import { readConversationSkills } from './threads.ts';
 
 /**
  * The chat assistant's work tools for one turn — what lets a chat make the
@@ -70,47 +75,56 @@ const NO_CHAT_TOOLS: ChatToolsConfig = {
 async function readChatToolSwitches(
   sql: Sql,
   organizationId: string,
-): Promise<ChatToolsConfig> {
+): Promise<{ switches: ChatToolsConfig; unreadable: boolean }> {
   try {
-    return (
-      (await readGovernancePolicyForOrg(sql, organizationId, 'chat_tools', {
-        strict: true,
-      })) ?? DEFAULT_CHAT_TOOLS
-    );
+    return {
+      switches:
+        (await readGovernancePolicyForOrg(sql, organizationId, 'chat_tools', {
+          strict: true,
+        })) ?? DEFAULT_CHAT_TOOLS,
+      unreadable: false,
+    };
   } catch (error) {
     if (!(error instanceof ConfigurationError)) throw error;
     console.warn(
       `[chat] the chat_tools policy of ${organizationId} cannot be read, so no chat tool is offered until it is repaired:`,
       error.message,
     );
-    return NO_CHAT_TOOLS;
+    return { switches: NO_CHAT_TOOLS, unreadable: true };
   }
 }
 
+/**
+ * The turn's work tools: what the policy allows, built for the person. A
+ * policy that cannot be read still offers images, which it does not
+ * govern, and says why the rest is missing; so does a turn whose
+ * organization or member cannot be resolved, which offers nothing.
+ */
 export async function chatWorkTools(
   sql: Sql,
   turn: ChatWorkTurn,
-): Promise<TurnWorkTools | undefined> {
-  const [switches, orgSlug, member, teamIds, imageModel] = await Promise.all([
+): Promise<TurnWorkTools | WorkToolsUnavailable | undefined> {
+  const [policy, orgSlug, member, teamIds, imageModel] = await Promise.all([
     readChatToolSwitches(sql, turn.organizationId),
     resolveOrgSlug(sql, turn.organizationId),
     findActingMember(sql, turn.organizationId, turn.userId),
     getUserTeamIds(sql, turn.organizationId, turn.userId),
     offeredImageModel(sql, turn.organizationId),
   ]);
-  if (orgSlug === null || member === null) return undefined;
+  if (orgSlug === null || member === null) {
+    console.warn(
+      `[chat] work tools for ${turn.organizationId} were not set up: ${orgSlug === null ? 'the organization has no slug' : 'the person is not a member'}`,
+    );
+    return { unavailable: 'setup_failed' };
+  }
+  const switches = policy.switches;
   const loadout: WorkLoadout = {
     createFile: switches.files,
     generateImage: imageModel !== undefined,
     skills: switches.skills,
     runCode: switches.code,
   };
-  const skillViewer: UserSkillViewer = {
-    kind: 'user',
-    userId: turn.userId,
-    teamIds,
-    isOrgAdmin: defineAbilityFor(member.role).can('write', 'orgSettings'),
-  };
+  const skillViewer = memberSkillViewer(turn.userId, teamIds, member.role);
   const projectIds = turn.projectId !== null ? [turn.projectId] : [];
   const scope: WorkToolScope = {
     sql,
@@ -160,8 +174,61 @@ export async function chatWorkTools(
         }
       : {}),
   };
-  return turnWorkToolsFor(
-    scope,
-    loadout.skills ? await listSkillCatalog(orgSlug, skillViewer) : [],
-  );
+  const [catalog, conversationSkills] = loadout.skills
+    ? await Promise.all([
+        listSkillCatalog(orgSlug, skillViewer),
+        readConversationSkills(sql, turn.organizationId, turn.rootThreadId),
+      ])
+    : [[], []];
+  const built = turnWorkToolsFor(scope, catalog);
+  // The skills the conversation uses ride with the tools that can read them.
+  const tools =
+    built === undefined || conversationSkills.length === 0
+      ? built
+      : { ...built, conversationSkills };
+  if (!policy.unreadable) return tools;
+  return tools === undefined
+    ? { unavailable: 'policy_unreadable' }
+    : { unavailable: 'policy_unreadable', tools };
+}
+
+/** The person's own view of the skill library: their teams, their role. */
+function memberSkillViewer(
+  userId: string,
+  teamIds: string[],
+  role: string,
+): UserSkillViewer {
+  return {
+    kind: 'user',
+    userId,
+    teamIds,
+    isOrgAdmin: defineAbilityFor(role).can('write', 'orgSettings'),
+  };
+}
+
+/** What the composer offers to choose: whether the person may choose skills
+ * at all — the Chat tools policy's Skills switch, read as a turn reads it —
+ * and the skills they may use, by name, description and explicit-only flag.
+ * Nothing when the switch is off or the policy cannot be read: no control
+ * may remain for a tool no reply would offer. */
+export async function listChatSkillChoices(
+  sql: Sql,
+  who: { organizationId: string; userId: string },
+): Promise<{ enabled: boolean; skills: SkillCatalogEntry[] }> {
+  const [policy, orgSlug, member, teamIds] = await Promise.all([
+    readChatToolSwitches(sql, who.organizationId),
+    resolveOrgSlug(sql, who.organizationId),
+    findActingMember(sql, who.organizationId, who.userId),
+    getUserTeamIds(sql, who.organizationId, who.userId),
+  ]);
+  if (!policy.switches.skills || orgSlug === null || member === null) {
+    return { enabled: false, skills: [] };
+  }
+  return {
+    enabled: true,
+    skills: await listSkillCatalog(
+      orgSlug,
+      memberSkillViewer(who.userId, teamIds, member.role),
+    ),
+  };
 }

@@ -43,6 +43,7 @@ import {
   type HarnessTable,
 } from '../shared/providers/resolve_execution';
 import { languageDisplayName } from '../shared/utils/language-name';
+import { withoutLeadingSkillNames } from '../skills/slash';
 import {
   assembleContext,
   type AssembledContext,
@@ -80,6 +81,7 @@ import {
   type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
+  type WorkToolsUnavailableReason,
 } from './types';
 
 /** The pipeline, in order. A step is recorded when it runs, so the result
@@ -187,9 +189,12 @@ export interface ModelCallRequest {
   readonly system: string;
   readonly messages: readonly ChatMessage[];
   /** The tool definitions to put on the wire. Absent means the model is not
-   * offered tools for this call — the loop's final round withholds them so
-   * the model must answer. */
+   * offered tools for this call. */
   readonly tools?: readonly WireTool[];
+  /** The loop's final round, after the round budget is spent: the model may
+   * call none of `tools` and must answer. They are still listed for a wire
+   * that refuses a transcript of tool calls without their definitions. */
+  readonly toolsWithheld?: boolean;
   /** How the turn runs — direct API call, or the harness in a sandbox. */
   readonly execution: ExecutionResolution;
   /** The turn's resolved sampling — maxTokens, temperature (absent while
@@ -330,6 +335,9 @@ export interface TurnStore {
      * refuses the open when a cap that binds the sender is already reached,
      * counting what every other live turn holds. */
     spend?: TurnSpend;
+    /** What names the conversation when this message opens it, where that
+     * is not the message as written: its words after the skills it chose. */
+    titleText?: string;
   }): Promise<{
     userMessage?: { id: string; sequence: number };
     /** The placeholder the turn streams into. */
@@ -473,6 +481,12 @@ export interface TurnRequest {
   /** The skills the turn may load (`ContextInput.skillCatalog`); only a
    * turn that offers the skill tools passes any. */
   readonly skillCatalog?: readonly SkillCatalogEntry[];
+  /** The skills the person chose for this reply (`lib/skills/slash.ts`),
+   * already kept to what the catalog holds. Each is read with `load_skill`
+   * before the model's first round — a step on the reply like any other,
+   * which costs no round of the model's — unless the conversation already
+   * shows it read; the context then names the choice. */
+  readonly chosenSkills?: readonly string[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary
    * server-side). Absent for an unbound thread. */
@@ -517,6 +531,9 @@ export interface TurnRequest {
    * truncation notice. */
   readonly historyOmittedCount?: number;
   readonly signal?: AbortSignal;
+  /** The host meant to offer work tools and could not (`TurnUsage`): the
+   * settled reply carries the reason. */
+  readonly workToolsUnavailable?: WorkToolsUnavailableReason;
 }
 
 export interface TurnDeps {
@@ -640,6 +657,9 @@ function assembleTurnContext(
   request: TurnRequest,
   filteredUserText: string,
   now: Date,
+  /** Input the first round carries beside the context: the history gives
+   * it room. */
+  reservedTokens = 0,
 ): AssembledContext {
   const appendix =
     (request.audioTranscriptAppendix ?? '') +
@@ -672,25 +692,38 @@ function assembleTurnContext(
     ...(request.skillCatalog !== undefined
       ? { skillCatalog: request.skillCatalog }
       : {}),
+    ...(request.chosenSkills !== undefined && request.chosenSkills.length > 0
+      ? { chosenSkills: request.chosenSkills }
+      : {}),
     now,
     history,
     ...(request.historyOmittedCount !== undefined
       ? { historyOmittedCount: request.historyOmittedCount }
       : {}),
-    budget: request.budget ?? {
-      maxTokens: request.model.contextWindow,
-      // The reserve mirrors what the wire will actually request, so budget
-      // and reality can never disagree.
-      reserveOutputTokens: fitSamplingToWindow(
-        resolveTurnSampling(
-          request.model,
-          request.reasoningEffort,
-          outputCap(request.maxOutputTokens),
-        ),
-        request.model.contextWindow,
-      ).maxTokens,
-    },
+    budget: lessInput(
+      request.budget ?? {
+        maxTokens: request.model.contextWindow,
+        // The reserve mirrors what the wire will actually request, so budget
+        // and reality can never disagree.
+        reserveOutputTokens: fitSamplingToWindow(
+          resolveTurnSampling(
+            request.model,
+            request.reasoningEffort,
+            outputCap(request.maxOutputTokens),
+          ),
+          request.model.contextWindow,
+        ).maxTokens,
+      },
+      reservedTokens,
+    ),
   });
+}
+
+/** `budget` with `tokens` of its window already spoken for. */
+function lessInput(budget: ContextBudget, tokens: number): ContextBudget {
+  return tokens === 0
+    ? budget
+    : { ...budget, maxTokens: Math.max(0, budget.maxTokens - tokens) };
 }
 
 /** The caller's reply ceiling as `resolveTurnSampling` takes it — an empty
@@ -709,6 +742,9 @@ interface StreamRoundOptions {
    * history; later rounds append the turn's settled parts. */
   readonly messages: readonly ChatMessage[];
   readonly tools?: readonly WireTool[];
+  /** `tools` are listed but may not be called ({@link
+   * ModelCallRequest.toolsWithheld}). */
+  readonly toolsWithheld?: boolean;
   readonly signal?: AbortSignal;
   /** Invoked once when the store reports a user cancel; the caller aborts
    * the round's signal in response. */
@@ -882,6 +918,7 @@ async function streamWithOutputGuardrails(
       system: context.system,
       messages: round.messages,
       ...(round.tools !== undefined ? { tools: round.tools } : {}),
+      ...(round.toolsWithheld === true ? { toolsWithheld: true } : {}),
       execution,
       sampling,
       // The catalog's own capability flag decides whether image attachments
@@ -1271,6 +1308,81 @@ async function recordUsage(
 // ----------------------------------------------------------------- the turn
 
 /**
+ * The call id of the turn's own read of a chosen skill: nine letters and
+ * digits — the strictest spelling a provider accepts — from the reply's id
+ * and the skill's place, so the turn's ids never meet another reply's.
+ */
+export function chosenSkillCallId(replyId: string, index: number): string {
+  const tail = replyId
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(-6)
+    .padStart(6, '0');
+  return `sk${tail}${index % 10}`;
+}
+
+/** What the read of a chosen skill answered, kept until the reply exists
+ * to carry it. */
+interface ChosenSkillRead {
+  readonly name: string;
+  readonly output: unknown;
+}
+
+/**
+ * Read each chosen skill. Every reply reads them again: a read earlier in
+ * the conversation reaches the model only as the short copy the history
+ * keeps of a tool result, too little to work from. A skill gone since it
+ * was chosen answers not found, as any read would.
+ */
+async function readChosenSkills(
+  names: readonly string[],
+  executor: ChatToolExecutor,
+  signal: AbortSignal | undefined,
+): Promise<ChosenSkillRead[]> {
+  const reads: ChosenSkillRead[] = [];
+  for (const [index, name] of names.entries()) {
+    const output = await executor.execute(
+      { id: chosenSkillCallId('', index), name: 'load_skill', input: { name } },
+      signal !== undefined ? { signal } : {},
+    );
+    reads.push({ name, output });
+  }
+  return reads;
+}
+
+/** The reads as the parts of the reply's opening step: a `load_skill` call
+ * and its result per skill, with ids from the reply's own. */
+function chosenSkillParts(
+  reads: readonly ChosenSkillRead[],
+  replyId: string,
+): MessagePart[] {
+  return reads.flatMap(({ name, output }, index): MessagePart[] => {
+    const callId = chosenSkillCallId(replyId, index);
+    return [
+      {
+        type: 'tool-call',
+        callId,
+        capabilityId: 'load_skill',
+        input: { name },
+      },
+      {
+        type: 'tool-result',
+        callId,
+        capabilityId: 'load_skill',
+        output,
+        structured: true,
+      },
+    ];
+  });
+}
+
+/** The refs of the files `parts` show. */
+function artifactRefs(parts: readonly MessagePart[]): string[] {
+  return parts.flatMap((part) =>
+    part.type === 'artifact' ? [part.fileId] : [],
+  );
+}
+
+/**
  * Put a produced file on the reply. A document the reply already carries
  * under the same name was revised by a later call: the new version takes
  * the earlier one's place, so the person gets the file once, as it ended
@@ -1375,8 +1487,27 @@ export async function runTurn(
     return refuse('resolve-execution', execution.reason, input.text);
   }
 
+  // The skills the person chose are read before the context is fitted:
+  // their instructions ride the first round, so the history makes room for
+  // them and the round's hold counts them.
+  const chosenReads =
+    deps.tools !== undefined
+      ? await readChosenSkills(
+          request.chosenSkills ?? [],
+          deps.tools,
+          request.signal,
+        )
+      : [];
+  const chosenTokens =
+    chosenReads.length === 0
+      ? 0
+      : estimateMessageTokens({
+          role: 'assistant',
+          parts: chosenSkillParts(chosenReads, ''),
+        });
+
   steps.push('assemble-context');
-  const context = assembleTurnContext(request, input.text, now());
+  const context = assembleTurnContext(request, input.text, now(), chosenTokens);
 
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
@@ -1384,11 +1515,20 @@ export async function runTurn(
   // User message, placeholder, and generation row commit as ONE transaction —
   // the setup wait is a single authenticated round-trip, and no partial
   // combination of the three can survive a failure.
+  // The skills a message chose say how to make the reply, not what the
+  // conversation is about: its name comes from the words after them.
+  const titleText = withoutLeadingSkillNames(
+    input.text,
+    new Set(request.chosenSkills ?? []),
+  );
   const opened = await deps.store.beginTurn({
     organizationId: request.organizationId,
     threadId: request.threadId,
     ...(request.appendUserMessage !== false
       ? { userParts: userTurnParts(input.text, request.attachments) }
+      : {}),
+    ...(request.appendUserMessage !== false && titleText !== input.text
+      ? { titleText }
       : {}),
     // Silent observability: the reply records that its context was fitted
     // by dropping history. Never rendered — telemetry and debugging only.
@@ -1403,9 +1543,11 @@ export async function runTurn(
       projectIds: request.projectId !== undefined ? [request.projectId] : [],
       ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
       tokens:
-        context.estimatedTokens + (request.budget?.reserveOutputTokens ?? 0),
+        context.estimatedTokens +
+        chosenTokens +
+        (request.budget?.reserveOutputTokens ?? 0),
       costCents: estimateCostCents(
-        context.estimatedTokens,
+        context.estimatedTokens + chosenTokens,
         request.budget?.reserveOutputTokens ?? 0,
         request.model.pricing,
       ),
@@ -1502,6 +1644,13 @@ export async function runTurn(
 
     const executor = deps.tools;
     const maxToolRounds = deps.maxToolRounds ?? MAX_TOOL_ROUNDS;
+    /** The files the turn's history already shows, by ref — known only
+     * when the history holds the whole conversation: a trimmed window leaves
+     * out replies that may still show a file above it. */
+    const historyFileRefs =
+      (request.historyOmittedCount ?? 0) > 0
+        ? undefined
+        : request.history.flatMap((message) => artifactRefs(message.parts));
     /** Parts settled by finished tool rounds, in authored order. */
     const settledParts: MessagePart[] = [];
     /** The TTFT anchor is the FIRST round's first provider text SSE;
@@ -1518,6 +1667,14 @@ export async function runTurn(
         parts: [...settledParts],
       });
     };
+
+    // The chosen skills' reads open the reply: a `load_skill` the turn made
+    // for each, on the reply like the model's own, so the first round reads
+    // their instructions and the step shows it.
+    if (chosenReads.length > 0) {
+      settledParts.push(...chosenSkillParts(chosenReads, placeholder.id));
+      await persistSettledParts();
+    }
 
     // The tool loop. Each pass is one model round: a round that ends in tool
     // calls settles its parts on the placeholder, executes the calls, and
@@ -1555,6 +1712,14 @@ export async function runTurn(
         executor !== undefined && toolRounds < maxToolRounds
           ? executor.wireTools
           : undefined;
+      // The round after the budget is spent may call nothing. Its transcript
+      // still holds the earlier calls, and a wire that refuses those without
+      // their definitions keeps them listed, with calls forbidden.
+      const withheldTools =
+        executor !== undefined && toolRounds >= maxToolRounds
+          ? executor.wireTools
+          : undefined;
+      const toolsWithheld = withheldTools !== undefined;
       // The notice rides the wire only, never the store: the transcript
       // shows the answer, not the host steering the model toward it.
       const budgetNotice =
@@ -1597,6 +1762,9 @@ export async function runTurn(
         {
           messages: roundMessages,
           ...(offeredTools !== undefined ? { tools: offeredTools } : {}),
+          ...(withheldTools !== undefined
+            ? { tools: withheldTools, toolsWithheld: true }
+            : {}),
           signal: roundSignal,
           onCancelRequested: () => cancel.abort(),
           observed,
@@ -1611,11 +1779,19 @@ export async function runTurn(
       serving.add(streamed.servedBy);
 
       const calls = streamed.toolCalls ?? [];
+      if (toolsWithheld && calls.length > 0) {
+        // A provider that ignored the withheld tools still gets no call run:
+        // the budget is spent, and the reply ends with what it wrote.
+        console.warn(
+          `[chat] ${calls.length} tool call(s) after the tool budget was spent were not run`,
+        );
+      }
       if (
         streamed.refusal !== undefined ||
         streamed.cancelled === true ||
         calls.length === 0 ||
-        executor === undefined
+        executor === undefined ||
+        toolsWithheld
       ) {
         break;
       }
@@ -1688,9 +1864,20 @@ export async function runTurn(
       // round follows.
       let stoppedByBatch = false;
       const runBatch = async (): Promise<readonly unknown[]> => {
+        // What the conversation shows at this step: the files its history
+        // carries and those earlier steps of this reply attached. Unknown
+        // past a trimmed history, where a tool keeps to what it delivered.
+        const shownFiles =
+          historyFileRefs === undefined
+            ? undefined
+            : new Set([...historyFileRefs, ...artifactRefs(settledParts)]);
         const batch = await runToolBatch({
           calls,
-          execute: (call, options) => executor.execute(call, options),
+          execute: (call, options) =>
+            executor.execute(
+              call,
+              shownFiles === undefined ? options : { ...options, shownFiles },
+            ),
           signal: request.signal,
           poll: async () => {
             // The same write that keeps a streaming reply alive and reads
@@ -1844,6 +2031,9 @@ export async function runTurn(
     const usage: TurnUsage = {
       ...summedUsage(summed, request.model.pricing),
       ...(toolRounds >= maxToolRounds ? { stepLimitHit: true } : {}),
+      ...(request.workToolsUnavailable !== undefined
+        ? { workToolsUnavailable: request.workToolsUnavailable }
+        : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
       ...servingStamp(),
