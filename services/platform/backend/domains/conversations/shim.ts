@@ -2,6 +2,7 @@ import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { mailSyncEdgesSchema } from '../../core/conversations/mail_sync_plan.ts';
 import { isUniqueViolation, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
@@ -558,6 +559,7 @@ export function conversationShimHandlers(
           config: row.config,
           mailSyncInboundSince: row.mailSyncInboundSince,
           mailSyncOutboundSince: row.mailSyncOutboundSince,
+          mailSyncEdges: row.mailSyncEdges,
         }),
       );
     },
@@ -575,6 +577,7 @@ export function conversationShimHandlers(
           credentialId: z.string(),
           mailSyncInboundSince: epochMsSchema.optional(),
           mailSyncOutboundSince: epochMsSchema.optional(),
+          mailSyncEdges: mailSyncEdgesSchema.optional(),
           config: z
             .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
             .optional(),
@@ -591,7 +594,8 @@ export function conversationShimHandlers(
       }
       if (
         args.mailSyncInboundSince !== undefined ||
-        args.mailSyncOutboundSince !== undefined
+        args.mailSyncOutboundSince !== undefined ||
+        args.mailSyncEdges !== undefined
       ) {
         await patchMailSyncWatermarks(
           sql,
@@ -603,6 +607,9 @@ export function conversationShimHandlers(
               : {}),
             ...(args.mailSyncOutboundSince !== undefined
               ? { outboundSince: args.mailSyncOutboundSince }
+              : {}),
+            ...(args.mailSyncEdges !== undefined
+              ? { edges: args.mailSyncEdges }
               : {}),
           },
         );

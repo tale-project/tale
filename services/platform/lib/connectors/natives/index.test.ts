@@ -300,6 +300,7 @@ const transport: MailTransport = {
             from: 'sender@example.com',
             subject: 'Quarterly numbers',
             sentAt: 1_700_000_000_000,
+            receivedAt: 1_700_000_060_000,
           },
         ]),
       getMessage: (uid) =>
@@ -560,6 +561,19 @@ const conversationStore: WorkflowConversationStore = {
         skippedCount: 0,
         conversationIds: ['conv_mock'],
       },
+      mailboxes: [
+        {
+          mailbox: 'default',
+          ok: true,
+          listed: 1,
+          fetched: 1,
+          ingested: 1,
+          duplicates: 0,
+          skipped: 0,
+          vanished: 0,
+          capped: false,
+        },
+      ],
     }),
   listMailboxMessages: () =>
     Promise.resolve({

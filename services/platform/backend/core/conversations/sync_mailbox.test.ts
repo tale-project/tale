@@ -6,7 +6,7 @@
  * is captured so a provider's parameter names cannot drift silently.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { isRecord } from '../../../lib/utils/type-utils';
@@ -72,7 +72,8 @@ type Reply = (call: ConnectorCall) => unknown;
 
 interface HarnessOptions {
   outcome?: { status: 'ok' } | { status: 'error'; message: string };
-  /** Active credentials listActiveCredentialsInternal returns (default: none). */
+  /** Active credentials listActiveCredentialsInternal returns (default: the
+   * one mailbox `DESK`). */
   credentials?: Array<{
     id: string;
     name: string;
@@ -95,6 +96,17 @@ interface HarnessOptions {
   existingMessages?: Record<string, { metadata?: unknown }>;
 }
 
+/** The one connected mailbox a test reads unless it names others: its Inbox
+ * read up to 5 s, its Sent folder up to 7 s — distinct, so a swapped
+ * position shows. */
+const DESK = {
+  id: 'cred_desk',
+  name: 'Desk',
+  isDefault: true,
+  mailSyncInboundSince: 5000,
+  mailSyncOutboundSince: 7000,
+};
+
 /** A ctx whose only capability is the nested connector action + credential list. */
 function harness(
   reply: Reply,
@@ -106,7 +118,7 @@ function harness(
   trace: string[];
 } {
   const outcome = options.outcome ?? { status: 'ok' };
-  const credentials = options.credentials ?? [];
+  const credentials = options.credentials ?? [DESK];
   const failCredentials = options.failCredentials ?? {};
   const failMessages = options.failMessages ?? {};
   const existingMessages = options.existingMessages ?? {};
@@ -246,9 +258,12 @@ beforeEach(() => {
 });
 
 describe('syncMailbox over IMAP', () => {
-  it('walks both folders from their own cursor and ingests the fetched bodies', async () => {
+  it('lists each folder after its own position and reads both in one order', async () => {
     const { ctx, calls, cursorPatches } = harness(
-      mailbox([{ uid: '11' }], [{ uid: 99 }]),
+      mailbox(
+        [{ uid: '11', receivedAt: 6000 }],
+        [{ uid: 99, receivedAt: 8000 }],
+      ),
     );
 
     const result = await syncMailbox(ctx, {
@@ -259,10 +274,12 @@ describe('syncMailbox over IMAP', () => {
       mode: 'live',
     });
 
+    // One more than the pass reads, to tell whether more is waiting; the
+    // email the Inbox received first is read first, whichever folder holds it.
     expect(calls.map((call) => [call.action, call.input])).toEqual([
-      ['list_messages', { limit: 25, since: 5000 }],
+      ['list_messages', { limit: 26, after: 7000, mailbox: 'sent' }],
+      ['list_messages', { limit: 26, after: 5000 }],
       ['get_message', { uid: '11' }],
-      ['list_messages', { limit: 25, since: 7000, mailbox: 'sent' }],
       ['get_message', { uid: '99', mailbox: 'sent' }],
     ]);
     expect(calls.every((call) => call.mode === 'live')).toBe(true);
@@ -272,10 +289,18 @@ describe('syncMailbox over IMAP', () => {
       connectorName: 'imap-smtp',
       accountEmail: 'desk@example.com',
       status: 'open',
+      credentialId: 'cred_desk',
       emails: [{ messageId: '<body-11@example.com>' }],
     });
-    // No credential rows: nothing to stamp a per-mailbox watermark onto.
-    expect(cursorPatches).toEqual([]);
+    // Each folder's position moves to the arrival of the email it read.
+    expect(cursorPatches).toEqual([
+      {
+        organizationId: 'org',
+        credentialId: 'cred_desk',
+        mailSyncInboundSince: 6000,
+        mailSyncOutboundSince: 8000,
+      },
+    ]);
     expect(createConversationFromSentEmail).toHaveBeenCalledWith(
       ctx,
       expect.objectContaining({
@@ -286,54 +311,93 @@ describe('syncMailbox over IMAP', () => {
       listed: 2,
       inbound: INGESTED,
       sent: { ...INGESTED, created: false },
+      mailboxes: [
+        {
+          mailbox: 'Desk',
+          ok: true,
+          listed: 2,
+          fetched: 2,
+          ingested: 2,
+          duplicates: 0,
+          skipped: 0,
+          vanished: 0,
+          capped: false,
+          resumeFrom: {
+            inbox: new Date(6000).toISOString(),
+            sent: new Date(8000).toISOString(),
+          },
+        },
+      ],
     });
   });
 
-  it('omits the cursor entirely on a first pass and skips the Sent folder when asked', async () => {
-    queryLatestMessageByDeliveryState.mockResolvedValue({ message: null });
-    const { ctx, calls } = harness(mailbox([{ uid: '1' }]));
+  it('starts a first pass at its window and skips the Sent folder when asked', async () => {
+    const now = Date.parse('2026-10-14T12:00:00.000Z');
+    vi.useFakeTimers({ now, toFake: ['Date'] });
+    try {
+      const { ctx, calls } = harness(
+        mailbox([{ uid: '1', receivedAt: now - 60_000 }]),
+        { credentials: [{ id: 'cred_desk', name: 'Desk', isDefault: true }] },
+      );
 
-    const result = await syncMailbox(ctx, {
-      organizationId: 'org',
-      connectorSlug: 'imap-smtp',
-      limit: 10,
-      includeSent: false,
-      mode: 'live',
-    });
+      const result = await syncMailbox(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'imap-smtp',
+        limit: 10,
+        includeSent: false,
+        mode: 'live',
+        backfillDays: 3,
+      });
 
-    expect(inputsFor(calls, 'list_messages')).toEqual([{ limit: 10 }]);
-    expect(createConversationFromSentEmail).not.toHaveBeenCalled();
-    expect(result.sent).toBeUndefined();
-    expect(queryLatestOutboundMessageForEmailSync).not.toHaveBeenCalled();
+      expect(inputsFor(calls, 'list_messages')).toEqual([
+        { limit: 11, after: now - 3 * 86_400_000 },
+      ]);
+      expect(createConversationFromSentEmail).not.toHaveBeenCalled();
+      expect(result.sent).toBeUndefined();
+      expect(queryLatestOutboundMessageForEmailSync).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('skips an envelope with no UID rather than fetching a bad message', async () => {
-    const { ctx, calls } = harness(
-      mailbox([{ subject: 'no uid' }, { uid: 7 }]),
-    );
+  it('leaves out an envelope with no UID rather than fetching a bad message', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { ctx, calls } = harness(
+        mailbox([
+          { subject: 'no uid', receivedAt: 6000 },
+          { uid: 7, receivedAt: 6500 },
+        ]),
+      );
 
-    const result = await syncMailbox(ctx, {
-      organizationId: 'org',
-      connectorSlug: 'imap-smtp',
-      limit: 25,
-      includeSent: false,
-      mode: 'live',
-    });
+      const result = await syncMailbox(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'imap-smtp',
+        limit: 25,
+        includeSent: false,
+        mode: 'live',
+      });
 
-    expect(inputsFor(calls, 'get_message')).toEqual([{ uid: '7' }]);
-    // Both envelopes were listed; only the addressable one reached ingest.
-    expect(result.listed).toBe(2);
-    expect(createConversationFromEmail).toHaveBeenCalledWith(
-      ctx,
-      expect.objectContaining({
-        emails: [{ messageId: '<body-7@example.com>' }],
-      }),
-    );
+      expect(inputsFor(calls, 'get_message')).toEqual([{ uid: '7' }]);
+      // Only the addressable envelope is listed for the pass and ingested.
+      expect(result.listed).toBe(1);
+      expect(createConversationFromEmail).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          emails: [{ messageId: '<body-7@example.com>' }],
+        }),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('carries no id or arrival time'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
 describe('syncMailbox over Gmail', () => {
-  it('turns the cursor into an epoch-second search and reads each folder by label', async () => {
+  it('searches each folder by label from the second its position falls in', async () => {
     const { ctx, calls } = harness(
       mailbox([{ id: 'g1', threadId: 't1' }], [{ id: 'g2', threadId: 't1' }]),
     );
@@ -346,12 +410,12 @@ describe('syncMailbox over Gmail', () => {
       mode: 'live',
     });
 
-    // INBOX is named, never implied: an unlabelled `users.messages.list`
-    // answers Sent too, and the mailbox's own mail opened conversations with
-    // the mailbox as the customer.
+    // INBOX and SENT are named, never implied: an unlabelled
+    // `users.messages.list` answers every folder, and the mailbox's own mail
+    // opened conversations with the mailbox as the customer.
     expect(inputsFor(calls, 'list_messages')).toEqual([
-      { maxResults: 50, q: 'after:5', labelIds: 'INBOX' },
-      { maxResults: 50, q: 'after:7', labelIds: 'SENT' },
+      { maxResults: 51, q: 'after:7', labelIds: 'SENT' },
+      { maxResults: 51, q: 'after:5', labelIds: 'INBOX' },
     ]);
     expect(inputsFor(calls, 'get_message')).toEqual([
       { messageId: 'g1' },
@@ -368,8 +432,13 @@ describe('syncMailbox over Gmail', () => {
 });
 
 describe('syncMailbox over Outlook', () => {
-  it('addresses each folder by name and filters Sent Items by sentDateTime', async () => {
-    const { ctx, calls } = harness(mailbox([{ id: 'o1' }], [{ id: 'o2' }]));
+  it('addresses each folder by name and filters it by its own date, from the next second', async () => {
+    const { ctx, calls } = harness(
+      mailbox(
+        [{ id: 'o1', receivedDateTime: '1970-01-01T00:00:06Z' }],
+        [{ id: 'o2', sentDateTime: '1970-01-01T00:00:08Z' }],
+      ),
+    );
 
     await syncMailbox(ctx, {
       organizationId: 'org',
@@ -380,23 +449,24 @@ describe('syncMailbox over Outlook', () => {
     });
 
     // Graph resolves `sentitems` as a path segment only, and rejects a filter
-    // on one date field ordered by another — so the folder rides `folder` while
-    // the cursor and the sort both switch to sentDateTime. Both folders sort
-    // ASC so a backlog drains forward from the watermark.
-    // The Inbox is a folder too: `/me/messages` spans every folder, Sent
-    // Items included — the same hole as Gmail's unlabelled listing.
+    // on one date field ordered by another — so each folder is filtered and
+    // sorted on its own field, oldest first. Graph keeps whole seconds and a
+    // position never splits one, so the listing starts at the next second.
+    // The Inbox is a folder too: `/me/messages` spans every folder.
     expect(inputsFor(calls, 'list_messages')).toEqual([
       {
-        top: 25,
-        folder: 'inbox',
-        orderby: 'receivedDateTime asc',
-        filter: 'receivedDateTime ge 1970-01-01T00:00:05.000Z',
-      },
-      {
-        top: 25,
+        top: 26,
         folder: 'sentitems',
         orderby: 'sentDateTime asc',
-        filter: 'sentDateTime ge 1970-01-01T00:00:07.000Z',
+        filter: 'sentDateTime ge 1970-01-01T00:00:08.000Z',
+        select: 'id,internetMessageId,receivedDateTime,sentDateTime',
+      },
+      {
+        top: 26,
+        folder: 'inbox',
+        orderby: 'receivedDateTime asc',
+        filter: 'receivedDateTime ge 1970-01-01T00:00:06.000Z',
+        select: 'id,internetMessageId,receivedDateTime,sentDateTime',
       },
     ]);
   });
@@ -409,7 +479,12 @@ describe('syncMailbox attachment handling', () => {
     // action at once; storing per message keeps one body’s bytes resident.
     const reply: Reply = (call) => {
       if (call.action === 'list_messages') {
-        return { messages: [{ uid: '1' }, { uid: '2' }] };
+        return {
+          messages: [
+            { uid: '1', receivedAt: 6000 },
+            { uid: '2', receivedAt: 6001 },
+          ],
+        };
       }
       const uid = String(call.input.uid);
       return {
@@ -457,7 +532,7 @@ describe('syncMailbox attachment handling', () => {
   it('stores nothing again when re-fetching a message it already ingested', async () => {
     const reply: Reply = (call) =>
       call.action === 'list_messages'
-        ? { messages: [{ uid: '1' }] }
+        ? { messages: [{ uid: '1', receivedAt: 6000 }] }
         : {
             uid: '1',
             email: {
@@ -518,7 +593,7 @@ describe('syncMailbox attachment handling', () => {
     // mistaken for "already stored".
     const reply: Reply = (call) =>
       call.action === 'list_messages'
-        ? { messages: [{ uid: '1' }] }
+        ? { messages: [{ uid: '1', receivedAt: 6000 }] }
         : {
             uid: '1',
             email: {
@@ -566,7 +641,7 @@ describe('syncMailbox attachment handling', () => {
   it('hands ingest the stored reference, never the wire bytes', async () => {
     const reply: Reply = (call) =>
       call.action === 'list_messages'
-        ? { messages: [{ uid: '1' }] }
+        ? { messages: [{ uid: '1', receivedAt: 6000 }] }
         : {
             uid: '1',
             email: {
@@ -838,7 +913,11 @@ describe('syncMailbox connector-stored attachments (Gmail, Outlook)', () => {
       body: { contentType: 'text', content: 'See attached' },
     };
     const { ctx, calls } = harness((call) => {
-      if (call.action === 'list_messages') return { messages: [{ id: 'o1' }] };
+      if (call.action === 'list_messages') {
+        return {
+          messages: [{ id: 'o1', receivedDateTime: '1970-01-01T00:00:06Z' }],
+        };
+      }
       if (call.input.includeAttachments !== true) {
         return { message: outlookMessage, attachments: [] };
       }
@@ -877,26 +956,32 @@ describe('syncMailbox connector-stored attachments (Gmail, Outlook)', () => {
 });
 
 describe('syncMailbox over multiple credentials', () => {
-  it('fans out each active credential from its own watermark (null = first tail)', async () => {
+  const NOW = Date.parse('2026-10-14T12:00:00.000Z');
+  const DAY = 86_400_000;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** One IMAP body per UID, dated by its sender. */
+  function imapBody(uid: string, date = '2025-01-01T00:00:00.000Z') {
+    return {
+      uid,
+      email: { messageId: `<body-${uid}@example.com>`, date },
+    };
+  }
+
+  it('reads each active mailbox from its own position, a new one from its window [CONV-R23]', async () => {
     const reply: Reply = (call) => {
       if (call.action === 'list_messages') {
-        const uid =
-          call.credentialRef === 'cred_primary' ? 'primary-1' : 'secondary-1';
-        const sentAt = call.credentialRef === 'cred_primary' ? 9000 : 4000;
-        return {
-          messages: [{ uid, sentAt }],
-        };
+        return call.credentialRef === 'cred_primary'
+          ? { messages: [{ uid: 'primary-1', receivedAt: NOW - 1000 }] }
+          : { messages: [{ uid: 'secondary-1', receivedAt: NOW - 2 * DAY }] };
       }
-      const id = String(call.input.uid);
-      // The watermark comes from the BODY's date, so the body carries one.
-      const date = id === 'primary-1' ? 9000 : 4000;
-      return {
-        uid: id,
-        email: {
-          messageId: `<body-${id}@example.com>`,
-          date: new Date(date).toISOString(),
-        },
-      };
+      return imapBody(String(call.input.uid));
     };
     const { ctx, calls, cursorPatches } = harness(reply, {
       credentials: [
@@ -904,15 +989,11 @@ describe('syncMailbox over multiple credentials', () => {
           id: 'cred_primary',
           name: 'Primary',
           isDefault: true,
-          // Already synced once — keep walking from its watermark.
-          mailSyncInboundSince: 8000,
+          // Already synced — keep walking from its position.
+          mailSyncInboundSince: NOW - 3_600_000,
         },
-        {
-          id: 'cred_secondary',
-          name: 'Secondary',
-          isDefault: false,
-          // Never synced — must NOT inherit Primary's Inbox tip.
-        },
+        // Never synced — must NOT inherit Primary's position.
+        { id: 'cred_secondary', name: 'Secondary', isDefault: false },
       ],
     });
 
@@ -929,9 +1010,9 @@ describe('syncMailbox over multiple credentials', () => {
         .filter((call) => call.action === 'list_messages')
         .map((call) => [call.credentialRef, call.input]),
     ).toEqual([
-      ['cred_primary', { limit: 25, since: 8000 }],
-      // No `since` — first pass reads the newest `limit` from Secondary.
-      ['cred_secondary', { limit: 25 }],
+      ['cred_primary', { limit: 26, after: NOW - 3_600_000 }],
+      // No position: the first pass reads back seven days.
+      ['cred_secondary', { limit: 26, after: NOW - 7 * DAY }],
     ]);
     expect(resolveConnectorAccountEmail).toHaveBeenCalledWith(
       ctx,
@@ -943,160 +1024,171 @@ describe('syncMailbox over multiple credentials', () => {
     );
     expect(result.listed).toBe(2);
     expect(result.inbound.processedCount).toBe(2);
-    expect(result.inbound.conversationIds).toEqual(['conv_1', 'conv_1']);
-    // Shared message-table cursor is not consulted once credentials exist.
+    expect(result.inbound.conversationIds).toEqual(['conv_1']);
+    // The Inbox's newest message is not consulted once credentials exist.
     expect(queryLatestMessageByDeliveryState).not.toHaveBeenCalled();
     expect(cursorPatches).toEqual([
       {
         organizationId: 'org',
         credentialId: 'cred_primary',
-        mailSyncInboundSince: 9000,
+        mailSyncInboundSince: NOW - 1000,
       },
       {
         organizationId: 'org',
         credentialId: 'cred_secondary',
-        mailSyncInboundSince: 4000,
+        mailSyncInboundSince: NOW - 2 * DAY,
       },
     ]);
   });
 
-  it('advances a Gmail watermark, whose envelopes carry no timestamp at all', async () => {
-    // Gmail's list_messages returns `{ id, threadId }` and Graph returns
-    // `receivedDateTime` — neither has the `sentAt` IMAP envelopes carry. A
-    // watermark read off the envelope would stay unset here forever and
-    // re-fetch the same newest `limit` bodies on every scheduled pass.
-    const reply: Reply = (call) =>
-      call.action === 'list_messages'
-        ? { messages: [{ id: 'g1', threadId: 't1' }, { id: 'g2' }] }
-        : {
-            message: {
-              messageId: `<${String(call.input.messageId)}@example.com>`,
-              date:
-                call.input.messageId === 'g2'
-                  ? '2025-03-04T10:00:00.000Z'
-                  : '2025-03-01T10:00:00.000Z',
-            },
-            attachments: [],
-          };
-    const { ctx, cursorPatches } = harness(reply, {
-      credentials: [{ id: 'cred_gmail', name: 'Gmail', isDefault: true }],
-    });
-
-    await syncMailbox(ctx, {
-      organizationId: 'org',
-      connectorSlug: 'gmail',
-      limit: 25,
-      includeSent: false,
-      mode: 'live',
-    });
-
-    expect(cursorPatches).toEqual([
-      {
-        organizationId: 'org',
-        credentialId: 'cred_gmail',
-        // The NEWEST of the two bodies, not the first one fetched.
-        mailSyncInboundSince: Date.parse('2025-03-04T10:00:00.000Z'),
-      },
-    ]);
-  });
-
-  it("reads Gmail's epoch-ms internalDate string as a timestamp", async () => {
-    // `internalDate` is the fallback when a message carries no Date header;
-    // it is epoch ms as a STRING, which `new Date(...)` cannot parse.
-    const reply: Reply = (call) =>
-      call.action === 'list_messages'
-        ? { messages: [{ id: 'g1' }] }
-        : { message: { messageId: '<g1@example.com>', date: '1700000000000' } };
-    const { ctx, cursorPatches } = harness(reply, {
-      credentials: [{ id: 'cred_gmail', name: 'Gmail', isDefault: true }],
-    });
-
-    await syncMailbox(ctx, {
-      organizationId: 'org',
-      connectorSlug: 'gmail',
-      limit: 25,
-      includeSent: false,
-      mode: 'live',
-    });
-
-    expect(cursorPatches).toEqual([
-      {
-        organizationId: 'org',
-        credentialId: 'cred_gmail',
-        mailSyncInboundSince: 1700000000000,
-      },
-    ]);
-  });
-
-  it('advances the watermark only to what ingest COVERED, never past a fetched-but-unpersisted message', async () => {
-    // The permanent-loss bug: the pass fetched more than it ingested, yet the
-    // watermark jumped to the newest FETCHED body — stepping over the surplus
-    // forever. Here g_new is fetched but NOT ingested (a truncated page), so the
-    // watermark must stop at the ingested tip and leave g_new re-fetchable.
-    const ingestedTip = Date.parse('2025-05-02T00:00:00.000Z');
-    const fetchedTip = Date.parse('2025-05-09T00:00:00.000Z');
-    createConversationFromEmail
-      .mockReset()
-      .mockResolvedValue({ ...INGESTED, ingestedTip });
-    const reply: Reply = (call) =>
-      call.action === 'list_messages'
-        ? { messages: [{ id: 'g_old' }, { id: 'g_new' }] }
-        : {
-            message: {
-              messageId: `<${String(call.input.messageId)}@example.com>`,
-              date:
-                call.input.messageId === 'g_new'
-                  ? '2025-05-09T00:00:00.000Z'
-                  : '2025-05-01T00:00:00.000Z',
-            },
-            attachments: [],
-          };
-    const { ctx, cursorPatches } = harness(reply, {
-      credentials: [{ id: 'cred_gmail', name: 'Gmail', isDefault: true }],
-    });
-
-    await syncMailbox(ctx, {
-      organizationId: 'org',
-      connectorSlug: 'gmail',
-      limit: 25,
-      includeSent: false,
-      mode: 'live',
-    });
-
-    expect(cursorPatches).toEqual([
-      {
-        organizationId: 'org',
-        credentialId: 'cred_gmail',
-        mailSyncInboundSince: ingestedTip,
-      },
-    ]);
-    // The newest FETCHED message is strictly beyond the new watermark, so it is
-    // re-listed next pass rather than skipped.
-    const patched = cursorPatches[0]?.mailSyncInboundSince;
-    expect(typeof patched === 'number' && patched < fetchedTip).toBe(true);
-  });
-
-  it('tracks the Sent watermark separately from the Inbox one', async () => {
+  it('keeps a Gmail position on Gmail’s clock, never the date a sender wrote [CONV-R17]', async () => {
+    const internal: Record<string, number> = {
+      g1: NOW - 20 * 60_000,
+      g2: NOW - 10 * 60_000,
+    };
     const reply: Reply = (call) => {
       if (call.action === 'list_messages') {
-        return {
-          messages: wantsSent(call.input) ? [{ uid: '90' }] : [{ uid: '10' }],
-        };
+        // Newest first, ids only: Gmail lists no instant.
+        return { messages: [{ id: 'g2' }, { id: 'g1', threadId: 't1' }] };
       }
-      const uid = String(call.input.uid);
+      const id = String(call.input.messageId);
       return {
-        uid,
-        email: {
-          messageId: `<body-${uid}@example.com>`,
-          date:
-            uid === '90'
-              ? '2025-02-02T00:00:00.000Z'
-              : '2025-01-01T00:00:00.000Z',
+        message: {
+          id,
+          // Epoch ms as a string, as Gmail sends it.
+          internalDate: String(internal[id]),
+          payload: {
+            mimeType: 'text/plain',
+            headers: [
+              { name: 'Message-ID', value: `<${id}@example.com>` },
+              { name: 'From', value: 'Ada <ada@example.com>' },
+              {
+                name: 'Date',
+                // A sender whose clock runs years ahead.
+                value:
+                  id === 'g2'
+                    ? 'Tue, 01 Jan 2030 00:00:00 +0000'
+                    : 'Wed, 14 Oct 2026 11:40:00 +0000',
+              },
+            ],
+          },
         },
+        attachments: [],
       };
     };
     const { ctx, cursorPatches } = harness(reply, {
-      credentials: [{ id: 'cred_imap', name: 'Desk', isDefault: true }],
+      credentials: [
+        {
+          id: 'cred_gmail',
+          name: 'Gmail',
+          isDefault: true,
+          mailSyncInboundSince: NOW - DAY,
+        },
+      ],
+    });
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'gmail',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    expect(cursorPatches).toEqual([
+      {
+        organizationId: 'org',
+        credentialId: 'cred_gmail',
+        mailSyncInboundSince: NOW - 10 * 60_000,
+        // Gmail lists the position's own second again: what was read in it
+        // is kept with the position, left out of the next listing.
+        mailSyncEdges: { inbox: { at: NOW - 10 * 60_000, ids: ['g2'] } },
+      },
+    ]);
+  });
+
+  it('holds the position before an email the Inbox could not store [CONV-R17]', async () => {
+    createConversationFromEmail
+      .mockReset()
+      .mockImplementationOnce((_ctx: unknown, args: unknown) =>
+        Promise.resolve({ ...INGESTED, ingestedTip: ingestedTipFor(args) }),
+      )
+      .mockRejectedValueOnce(new Error('database unavailable'));
+    const reply: Reply = (call) =>
+      call.action === 'list_messages'
+        ? {
+            messages: [
+              { uid: '1', receivedAt: NOW - 3000 },
+              { uid: '2', receivedAt: NOW - 2000 },
+              { uid: '3', receivedAt: NOW - 1000 },
+            ],
+          }
+        : imapBody(String(call.input.uid));
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const { ctx, calls, cursorPatches } = harness(reply, {
+        credentials: [
+          {
+            id: 'cred_imap',
+            name: 'Desk',
+            isDefault: true,
+            mailSyncInboundSince: NOW - DAY,
+          },
+        ],
+      });
+
+      await expect(
+        syncMailbox(ctx, {
+          organizationId: 'org',
+          connectorSlug: 'imap-smtp',
+          limit: 25,
+          includeSent: false,
+          mode: 'live',
+        }),
+      ).rejects.toThrow(
+        /every imap-smtp mailbox failed \(Desk: database unavailable\)/,
+      );
+      // The pass stopped at the second email: the third was never read, and
+      // the position stands at the first, so the next pass reads the second.
+      expect(inputsFor(calls, 'get_message')).toEqual([
+        { uid: '1' },
+        { uid: '2' },
+      ]);
+      expect(cursorPatches).toEqual([
+        {
+          organizationId: 'org',
+          credentialId: 'cred_imap',
+          mailSyncInboundSince: NOW - 3000,
+        },
+      ]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it('keeps the Sent position apart from the Inbox one', async () => {
+    const reply: Reply = (call) => {
+      if (call.action === 'list_messages') {
+        return {
+          messages: wantsSent(call.input)
+            ? [{ uid: '90', receivedAt: NOW - 1000 }]
+            : [{ uid: '10', receivedAt: NOW - 2000 }],
+        };
+      }
+      return imapBody(String(call.input.uid));
+    };
+    const { ctx, cursorPatches } = harness(reply, {
+      credentials: [
+        {
+          id: 'cred_imap',
+          name: 'Desk',
+          isDefault: true,
+          mailSyncInboundSince: NOW - DAY,
+          mailSyncOutboundSince: NOW - DAY,
+        },
+      ],
     });
 
     await syncMailbox(ctx, {
@@ -1111,86 +1203,116 @@ describe('syncMailbox over multiple credentials', () => {
       {
         organizationId: 'org',
         credentialId: 'cred_imap',
-        mailSyncInboundSince: Date.parse('2025-01-01T00:00:00.000Z'),
-        mailSyncOutboundSince: Date.parse('2025-02-02T00:00:00.000Z'),
+        mailSyncInboundSince: NOW - 2000,
+        mailSyncOutboundSince: NOW - 1000,
       },
     ]);
   });
 
-  it('keeps syncing the other mailboxes when one credential fails', async () => {
+  it('keeps syncing the other mailboxes when one credential fails [CONV-R21]', async () => {
     // A single expired password must not starve every mailbox behind it in
     // the fan-out — otherwise one bad row silently stops the whole org's mail.
     const reply: Reply = (call) =>
       call.action === 'list_messages'
-        ? { messages: [{ uid: '5' }] }
-        : {
-            uid: '5',
-            email: {
-              messageId: '<body-5@example.com>',
-              date: '2025-05-05T00:00:00.000Z',
-            },
-          };
-    const { ctx, calls, cursorPatches } = harness(reply, {
-      credentials: [
-        // Default sorts first, so the failure happens BEFORE the good mailbox.
-        { id: 'cred_bad', name: 'Broken', isDefault: true },
-        { id: 'cred_good', name: 'Working', isDefault: false },
-      ],
-      failCredentials: { cred_bad: 'authentication expired' },
-    });
+        ? { messages: [{ uid: '5', receivedAt: NOW - 1000 }] }
+        : imapBody('5', '2025-05-05T00:00:00.000Z');
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const { ctx, calls, cursorPatches } = harness(reply, {
+        credentials: [
+          // Default sorts first, so the failure happens BEFORE the good one.
+          {
+            id: 'cred_bad',
+            name: 'Broken',
+            isDefault: true,
+            mailSyncInboundSince: NOW - DAY,
+          },
+          {
+            id: 'cred_good',
+            name: 'Working',
+            isDefault: false,
+            mailSyncInboundSince: NOW - DAY,
+          },
+        ],
+        failCredentials: { cred_bad: 'authentication expired' },
+      });
 
-    const result = await syncMailbox(ctx, {
-      organizationId: 'org',
-      connectorSlug: 'imap-smtp',
-      limit: 25,
-      includeSent: false,
-      mode: 'live',
-    });
-
-    expect(
-      calls
-        .filter((call) => call.action === 'list_messages')
-        .map((call) => call.credentialRef),
-    ).toEqual(['cred_bad', 'cred_good']);
-    expect(result.inbound.processedCount).toBe(1);
-    expect(result.inbound.reason).toContain('Broken');
-    expect(result.inbound.reason).toContain('authentication expired');
-    // Only the mailbox that succeeded moves its watermark.
-    expect(cursorPatches).toEqual([
-      {
-        organizationId: 'org',
-        credentialId: 'cred_good',
-        mailSyncInboundSince: Date.parse('2025-05-05T00:00:00.000Z'),
-      },
-    ]);
-  });
-
-  it('throws when every credential fails, rather than reporting a quiet zero', async () => {
-    const { ctx } = harness(mailbox([{ uid: '1' }]), {
-      credentials: [
-        { id: 'cred_a', name: 'Alpha', isDefault: true },
-        { id: 'cred_b', name: 'Beta', isDefault: false },
-      ],
-      failCredentials: { cred_a: 'host unreachable', cred_b: 'login denied' },
-    });
-
-    await expect(
-      syncMailbox(ctx, {
+      const result = await syncMailbox(ctx, {
         organizationId: 'org',
         connectorSlug: 'imap-smtp',
         limit: 25,
         includeSent: false,
         mode: 'live',
-      }),
-    ).rejects.toThrow(/every imap-smtp mailbox failed/);
+      });
+
+      expect(
+        calls
+          .filter((call) => call.action === 'list_messages')
+          .map((call) => call.credentialRef),
+      ).toEqual(['cred_bad', 'cred_good']);
+      expect(result.inbound.processedCount).toBe(1);
+      expect(result.inbound.reason).toContain('Broken');
+      expect(result.inbound.reason).toContain('authentication expired');
+      expect(result.mailboxes).toEqual([
+        expect.objectContaining({
+          mailbox: 'Broken',
+          ok: false,
+          error: expect.stringContaining('authentication expired'),
+        }),
+        expect.objectContaining({ mailbox: 'Working', ok: true, ingested: 1 }),
+      ]);
+      // Only the mailbox that succeeded moves its position.
+      expect(cursorPatches).toEqual([
+        {
+          organizationId: 'org',
+          credentialId: 'cred_good',
+          mailSyncInboundSince: NOW - 1000,
+        },
+      ]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it('throws when every credential fails, rather than reporting a quiet zero [CONV-R21]', async () => {
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const { ctx } = harness(mailbox([{ uid: '1', receivedAt: NOW - 1000 }]), {
+        credentials: [
+          { id: 'cred_a', name: 'Alpha', isDefault: true },
+          { id: 'cred_b', name: 'Beta', isDefault: false },
+        ],
+        failCredentials: {
+          cred_a: 'host unreachable',
+          cred_b: 'login denied',
+        },
+      });
+
+      await expect(
+        syncMailbox(ctx, {
+          organizationId: 'org',
+          connectorSlug: 'imap-smtp',
+          limit: 25,
+          includeSent: false,
+          mode: 'live',
+        }),
+      ).rejects.toThrow(/every imap-smtp mailbox failed/);
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it('skips disabled credentials by only receiving the active list', async () => {
     // listActiveCredentialsInternal already filters to status=active; the
     // sync host must not invent a pass for anything outside that list.
-    const { ctx, calls } = harness(mailbox([{ uid: '1', sentAt: 100 }]), {
-      credentials: [{ id: 'cred_only', name: 'Only', isDefault: true }],
-    });
+    const { ctx, calls } = harness(
+      mailbox([{ uid: '1', receivedAt: NOW - 1000 }]),
+      { credentials: [{ id: 'cred_only', name: 'Only', isDefault: true }] },
+    );
 
     await syncMailbox(ctx, {
       organizationId: 'org',
@@ -1204,8 +1326,8 @@ describe('syncMailbox over multiple credentials', () => {
       calls.filter((call) => call.action === 'list_messages'),
     ).toHaveLength(1);
     expect(calls[0]?.credentialRef).toBe('cred_only');
-    // No watermark yet → first-pass tail (no since).
-    expect(calls[0]?.input).toEqual({ limit: 10 });
+    // No position yet: a first pass from its seven-day window.
+    expect(calls[0]?.input).toEqual({ limit: 11, after: NOW - 7 * DAY });
   });
 });
 
@@ -1363,7 +1485,9 @@ describe('listMailboxMessages', () => {
   }
 
   it('reads Gmail envelopes with one metadata fetch per listed id', async () => {
-    const { ctx, calls } = harness(gmailInbox(['g1', 'g2']));
+    const { ctx, calls } = harness(gmailInbox(['g1', 'g2']), {
+      credentials: [],
+    });
 
     const result = await listMailboxMessages(ctx, {
       organizationId: 'org',
@@ -1542,7 +1666,9 @@ describe("syncMailbox learns an OAuth mailbox's own address", () => {
     resolveConnectorAccountEmail.mockResolvedValue(undefined);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
-      const inbox = mailbox([{ id: 'o1' }]);
+      const inbox = mailbox([
+        { id: 'o1', receivedDateTime: new Date(Date.now()).toISOString() },
+      ]);
       const { ctx, calls, cursorPatches } = harness(
         (call) => {
           if (call.action === 'get_profile') {

@@ -116,6 +116,7 @@ interface TransportOptions {
     from: string;
     subject: string;
     sentAt: number;
+    receivedAt?: number;
   }>;
 }
 
@@ -273,7 +274,7 @@ describe('list_messages', () => {
     await impls['imap-smtp.list_messages']({ limit: 0 }, context());
 
     expect(transport.log.queries.map((query) => query.limit)).toEqual([
-      25, 100, 1,
+      25, 1000, 1,
     ]);
   });
 
@@ -1150,5 +1151,274 @@ describe('fetchSummaries drain order', () => {
     // would strand everything older than it behind the advancing watermark.
     expect(summaries.map((s) => s.uid)).toEqual(['1', '2']);
     expect(summaries.map((s) => s.sentAt)).toEqual([1000, 2000]);
+  });
+});
+
+/** An ImapFlow-shaped client whose messages carry a sender's Date and the
+ * server's own arrival time (INTERNALDATE) apart. SEARCH answers every UID,
+ * ascending, as a day-granular SINCE would for the whole fixture. */
+function stubDatedImapClient(
+  messages: Record<number, { date: number; internal: number }>,
+) {
+  const allUids = Object.keys(messages)
+    .map(Number)
+    .sort((a, b) => a - b);
+  const fetched: Array<{ uids: number[]; envelope: boolean }> = [];
+  async function* fetch(
+    range: number[] | string,
+    query: { envelope?: boolean },
+  ) {
+    const wanted = Array.isArray(range) ? range : allUids;
+    fetched.push({ uids: [...wanted], envelope: query.envelope === true });
+    for (const uid of wanted) {
+      const message = messages[uid];
+      if (message === undefined) continue;
+      yield {
+        uid,
+        ...(query.envelope === true && {
+          envelope: { date: new Date(message.date), subject: `Mail ${uid}` },
+        }),
+        internalDate: new Date(message.internal),
+      };
+    }
+  }
+  return {
+    client: {
+      mailbox: { exists: allUids.length },
+      search: () => Promise.resolve(allUids),
+      fetch,
+    } as unknown as Parameters<typeof fetchSummaries>[0],
+    fetched,
+  };
+}
+
+/** A busy morning: 30 messages before the position, 5 after it. */
+function busyMorning(): Record<number, { date: number; internal: number }> {
+  const start = Date.parse('2026-10-14T06:00:00.000Z');
+  const messages: Record<number, { date: number; internal: number }> = {};
+  for (let uid = 1; uid <= 35; uid++) {
+    const at = start + uid * 60_000;
+    messages[uid] = { date: at, internal: at };
+  }
+  return messages;
+}
+
+const BUSY_POSITION = Date.parse('2026-10-14T06:30:00.000Z');
+
+describe('fetchSummaries reads after a position on the server clock', () => {
+  it('takes the oldest messages strictly after the position, however busy the day before it', async () => {
+    const { client } = stubDatedImapClient(busyMorning());
+
+    const summaries = await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      after: BUSY_POSITION,
+      limit: 25,
+    });
+
+    expect(summaries.map((summary) => summary.uid)).toEqual([
+      '31',
+      '32',
+      '33',
+      '34',
+      '35',
+    ]);
+    expect(summaries[0]?.receivedAt).toBe(BUSY_POSITION + 60_000);
+  });
+
+  it('does not stall a cursor behind more messages earlier that day than one window holds', async () => {
+    const { client } = stubDatedImapClient(busyMorning());
+
+    const summaries = await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      since: BUSY_POSITION,
+      limit: 25,
+    });
+
+    expect(summaries.map((summary) => summary.uid)).toEqual([
+      '30',
+      '31',
+      '32',
+      '33',
+      '34',
+      '35',
+    ]);
+  });
+
+  it('orders and filters by the arrival time, not by the date a sender wrote', async () => {
+    const position = Date.parse('2026-10-14T08:00:00.000Z');
+    const { client } = stubDatedImapClient({
+      // Its sender's clock runs a day behind; the server took it in after
+      // the position.
+      1: { date: position - 86_400_000, internal: position + 120_000 },
+      2: { date: position + 60_000, internal: position + 60_000 },
+      3: { date: position - 60_000, internal: position - 60_000 },
+    });
+
+    const summaries = await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      after: position,
+      limit: 25,
+    });
+
+    expect(summaries.map((summary) => summary.uid)).toEqual(['2', '1']);
+  });
+
+  it('reads envelopes only for the messages it returns', async () => {
+    const { client, fetched } = stubDatedImapClient(busyMorning());
+
+    await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      after: BUSY_POSITION,
+      limit: 2,
+    });
+
+    const withEnvelopes = fetched.filter((call) => call.envelope);
+    expect(withEnvelopes.flatMap((call) => call.uids)).toEqual([31, 32]);
+  });
+});
+
+describe('list_messages carries the position', () => {
+  it('passes `after` to the transport and returns each arrival time', async () => {
+    const transport = stubTransport({
+      messages: [
+        {
+          uid: '40',
+          from: 'sender@example.com',
+          subject: 'Late',
+          sentAt: 1_700_000_000_000,
+          receivedAt: 1_700_000_060_000,
+        },
+      ],
+    });
+
+    const output = await natives(transport)['imap-smtp.list_messages'](
+      { after: 1_699_999_999_000, limit: 30 },
+      context(),
+    );
+
+    expect(transport.log.queries[0]).toMatchObject({
+      after: 1_699_999_999_000,
+      limit: 30,
+    });
+    expect(output).toEqual({
+      messages: [
+        {
+          uid: '40',
+          from: 'sender@example.com',
+          subject: 'Late',
+          sentAt: 1_700_000_000_000,
+          receivedAt: 1_700_000_060_000,
+        },
+      ],
+    });
+  });
+
+  it('lets one listing look one message past a full pass', async () => {
+    const transport = stubTransport();
+    await natives(transport)['imap-smtp.list_messages'](
+      { limit: 101 },
+      context(),
+    );
+
+    expect(transport.log.queries[0]?.limit).toBe(101);
+  });
+});
+
+/** A server that answers SEARCH SINCE/BEFORE on the arrival day (UTC), as
+ * RFC 3501 compares dates, and counts the arrival times a pass reads. */
+function stubCalendarImapClient(arrivals: Record<number, number>) {
+  const DAY = 86_400_000;
+  const day = (ms: number) => Math.floor(ms / DAY) * DAY;
+  const allUids = Object.keys(arrivals)
+    .map(Number)
+    .sort((a, b) => a - b);
+  let arrivalReads = 0;
+  async function* fetch(
+    range: number[] | string,
+    query: { envelope?: boolean },
+  ) {
+    const wanted = Array.isArray(range) ? range : allUids;
+    if (query.envelope !== true) arrivalReads += wanted.length;
+    for (const uid of wanted) {
+      const at = arrivals[uid];
+      if (at === undefined) continue;
+      yield {
+        uid,
+        ...(query.envelope === true && {
+          envelope: { date: new Date(at), subject: `Mail ${uid}` },
+        }),
+        internalDate: new Date(at),
+      };
+    }
+  }
+  const search = (query: { since?: Date; before?: Date }) =>
+    Promise.resolve(
+      allUids.filter((uid) => {
+        const at = arrivals[uid] ?? 0;
+        if (query.since !== undefined && day(at) < day(query.since.getTime()))
+          return false;
+        if (
+          query.before !== undefined &&
+          day(at) >= day(query.before.getTime())
+        )
+          return false;
+        return true;
+      }),
+    );
+  return {
+    client: {
+      mailbox: { exists: allUids.length },
+      search,
+      fetch,
+    } as unknown as Parameters<typeof fetchSummaries>[0],
+    arrivalReads: () => arrivalReads,
+  };
+}
+
+describe('fetchSummaries reads a bounded stretch after a position', () => {
+  it('reads the arrival times of a few days, not of a whole year of backlog', async () => {
+    const start = Date.parse('2025-10-14T00:00:00.000Z');
+    const arrivals: Record<number, number> = {};
+    // A year of mail, twenty a day.
+    for (let uid = 1; uid <= 365 * 20; uid++) {
+      arrivals[uid] = start + uid * 72 * 60_000;
+    }
+    const position = start + 60 * 60_000;
+    const { client, arrivalReads } = stubCalendarImapClient(arrivals);
+
+    const summaries = await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      after: position,
+      limit: 25,
+    });
+
+    // The 25 oldest after the position, as a full read would find them.
+    const expected = Object.entries(arrivals)
+      .filter(([, at]) => at > position)
+      .sort(([, a], [, b]) => a - b)
+      .slice(0, 25)
+      .map(([uid]) => uid);
+    expect(summaries.map((summary) => summary.uid)).toEqual(expected);
+    expect(arrivalReads()).toBeLessThan(400);
+  });
+
+  it('still finds the oldest messages when the days after the position are quiet', async () => {
+    const start = Date.parse('2025-10-14T00:00:00.000Z');
+    // Nothing for three months, then three messages.
+    const arrivals: Record<number, number> = {
+      1: start - 86_400_000,
+      2: start + 90 * 86_400_000,
+      3: start + 90 * 86_400_000 + 1000,
+      4: start + 91 * 86_400_000,
+    };
+    const { client } = stubCalendarImapClient(arrivals);
+
+    const summaries = await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      after: start,
+      limit: 2,
+    });
+
+    expect(summaries.map((summary) => summary.uid)).toEqual(['2', '3']);
   });
 });

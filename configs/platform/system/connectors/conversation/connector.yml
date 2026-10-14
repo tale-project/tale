@@ -26,10 +26,15 @@ actions:
       fr:
         title: Synchroniser les boîtes mail
     description: >-
-      List new messages from every active credential on the named mail
-      connector, fetch each body, and ingest them into conversations (inbound
-      and, for IMAP, Sent). Each credential walks from its own watermark, so a
-      mailbox added later is not clipped by another mailbox's progress.
+      Read the new email of every active mailbox on the named mail connector,
+      or of the one mailbox named, into conversations: the Inbox and, unless
+      turned off, the Sent folder, oldest first in one order. Each mailbox
+      continues from its own position on the provider's clock and moves it
+      only past what it read, so a backlog larger than one pass drains over
+      several; a mailbox's first pass reads back the given number of days. A
+      provider that rate-limits stops that mailbox's pass with what it read
+      kept. Answers one receipt per mailbox; fails only when every mailbox
+      failed.
     effects: write
     input:
       type: object
@@ -39,13 +44,19 @@ actions:
         connectorSlug:
           type: string
           description: Mail connector to sync (gmail, outlook, or imap-smtp).
+        mailbox:
+          type: string
+          description: The name of one connected mailbox to read; blank reads every active mailbox of the connector.
         limit:
           type: number
-          description: Max messages to ingest per folder per credential (default 25).
+          description: Max emails one pass reads from each mailbox, Inbox and Sent together (default 50, at most 100).
+        backfillDays:
+          type: number
+          description: Days a mailbox's first pass reads back (default 7, 0 for only new email, at most 365).
         includeSent:
           type: boolean
-          description: Also sync the Sent folder (default true for imap-smtp).
-    output: '{ listed: number, inbound: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, sent?: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] } }'
+          description: Also read the Sent folder, so a thread holds both sides (default true).
+    output: '{ listed: number, inbound: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, sent?: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, mailboxes: Array<{ mailbox: string, ok: boolean, listed: number, fetched: number, ingested: number, duplicates: number, skipped: number, vanished: number, capped: boolean, rateLimited?: boolean, retryAfter?: string, error?: string, resumeFrom?: { inbox?: string, sent?: string } }> }'
     mock: |
       return {
         listed: 1,
@@ -55,11 +66,24 @@ actions:
           skippedCount: 0,
           conversationIds: ['conv_mock'],
         },
+        mailboxes: [
+          {
+            mailbox: 'default',
+            ok: true,
+            listed: 1,
+            fetched: 1,
+            ingested: 1,
+            duplicates: 0,
+            skipped: 0,
+            vanished: 0,
+            capped: false,
+          },
+        ],
       };
     backend:
       kind: native
       impl: conversation.sync_mailbox
-    exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
+    exampleInput: { connectorSlug: 'imap-smtp', limit: 50, backfillDays: 7 }
   - name: list_mailbox_messages
     title: List mailbox messages
     i18n:

@@ -6,10 +6,11 @@ A conversation is a thread with someone outside the organization: an email excha
 from a connected mailbox, or a thread that another system mirrors in over the REST API. The
 members of the organization work these threads in the shared Inbox. These rules cover who can
 read a conversation, who can change and assign one, what the chat assistant finds, how an
-incoming email reaches its conversation and its contact, how routing assigns a new
-conversation, what sending a reply guarantees, what marking as spam and deleting do, and what
-a mirrored conversation can do. The mailbox sync itself, Inbox triage, the delivery of replies
-to a mirroring system and the trash are not covered; see Not yet.
+incoming email reaches its conversation and its contact, what the mailbox sync reads and
+where it resumes, how routing assigns a new conversation, what sending a reply guarantees,
+what marking as spam and deleting do, and what a mirrored conversation can do. How the sync
+stores attachments, Inbox triage, the delivery of replies to a mirroring system and the trash
+are not covered; see Not yet.
 
 ## Who can read a conversation
 
@@ -144,6 +145,90 @@ address to be known; see Not yet.
 - **Example**: Noah answers her from his mail program instead of the Inbox, and the sync
   picks his answer up → it joins the conversation as an outgoing message, and the customer
   stays the contact.
+
+## The mailbox sync
+
+A sync automation reads, on its schedule, every connected mailbox of its mail connector or
+the one it names. For each mailbox and folder it keeps a point up to which every email has
+been read, on the mail provider's own clock: when Gmail or the IMAP server took the email
+in, when Exchange received it (Inbox) or sent it (Sent Items).
+
+### CONV-R17 · A sync reads every email once, oldest first, and skips none
+
+A pass reads what arrived after a folder's point, oldest first and up to its limit, and
+moves the point only past what it read: an email it could not store holds the point before
+it, and a second that holds more email than one pass is read whole. What one pass cannot
+read is read by the next ones. The point is never the date the sender wrote, which a wrong
+clock sets days behind or years ahead.
+
+- **Example**: The support mailbox receives 300 emails while the sync is switched off → the
+  passes after it read them oldest first, 50 a pass, and each one reaches the Inbox once.
+- **Example**: A customer's mail program dates her email in 2030 → the sync keeps reading
+  the emails that arrive after it.
+
+### CONV-R18 · A mailbox's first pass reads back the days its sync is set to
+
+A mailbox the sync has never read starts that many days back, seven unless the automation
+says otherwise or none to read only new email, and works forward over the next passes.
+Older email is not read. The start is kept from the first pass on, even when that pass finds
+nothing. A point far in the future, which earlier versions took from a sender's date, counts
+as none, so that mailbox reads back the same way.
+
+- **Example**: Noah connects the support mailbox and starts the sync with seven days → the
+  last week's threads appear over the first passes, oldest first, and a thread from last
+  month does not.
+
+### CONV-R19 · The sync reads the Sent folder too, so a thread holds both sides
+
+Unless the automation turns it off, a pass reads a mailbox's Sent folder with its Inbox, in
+the order the emails happened, so what the mailbox sent lands before the answer to it. An
+email sent from the Inbox is stored once (`CONV-R6`): reading it from the Sent folder updates
+it.
+
+- **Example**: Noah writes to a customer from Gmail itself, and she answers within minutes →
+  both emails land in one conversation, his first.
+
+### CONV-R20 · A mail provider that asks the sync to slow down costs no email
+
+When the provider rate-limits a pass, that mailbox's pass stops, keeps what it read and says
+when the provider allows the next try, when it said; the next pass continues from there. It
+is not a failure of the mailbox. An email deleted or moved after the pass listed it is
+skipped.
+
+- **Example**: Gmail rate-limits the sync halfway through a backlog → the emails read are in
+  the Inbox, the run succeeds and names the wait, and the next run continues the backlog.
+
+### CONV-R21 · One failing mailbox does not stop the others; all failing fails the run
+
+A mailbox whose pass fails (a revoked login, an unreachable server, a dropped connection)
+keeps what it read and is named in the run's output with the error, and the other mailboxes
+are read. When every mailbox of the pass fails, the run fails, so the automation's failure
+notices go out.
+
+- **Example**: The password of the sales mailbox expired → the support mailbox is still read,
+  and the run names the sales mailbox with the error.
+
+### CONV-R22 · Every pass says per mailbox what it read, stored and left for later
+
+The run's output holds one entry per mailbox: the emails listed, read, stored for the first
+time, stored already, unstorable (no Message-ID, or no one to file them under) and gone
+before they could be read; whether more is waiting; whether the provider asked to slow down,
+and until when; the error that stopped the pass; and where the next pass starts in each
+folder.
+
+- **Example**: Ada opens a run of the Outlook sync → it lists the support mailbox with 50
+  emails stored and more waiting, and the sales mailbox with nothing new.
+
+### CONV-R23 · A sync reads the one mailbox it names, or every mailbox of its connector
+
+A sync that names a mailbox by its connection name reads only that one, and fails when no
+active connection carries the name. A sync that names none reads every active mailbox of the
+connector, each from its own point, so a mailbox connected later is not clipped by another's
+progress; with no active mailbox at all, it fails and names the connector.
+
+- **Example**: Ada sets the Gmail sync to the support mailbox → the sales mailbox is not
+  read; once the support mailbox is disconnected, the run fails and says no active Gmail
+  mailbox carries its name.
 
 ## Routing
 
@@ -288,6 +373,8 @@ closed it.
 | One file on an email | 100 MB; audio and video up to the total | `CONV-R11` |
 | A drafted reply | 1 to 25,000 characters, after trimming spaces | `CONV-R12` |
 | The wait before a reply is sent | 10 seconds | `CONV-R9` |
+| Emails one sync pass reads from one mailbox | 50 unless the automation sets 1 to 100 | `CONV-R17` |
+| How far back a mailbox's first sync pass reads | 7 days unless the automation sets 0 to 365 | `CONV-R18` |
 | What the chat assistant's search looks at | the 300 most recently active conversations, the 400 newest messages | `CONV-R2` |
 
 ### CONV-R16 · A bulk action takes at most 200 conversations in one request
@@ -301,11 +388,18 @@ selection has to be sent in parts.
 
 ## Not yet
 
-- **The mailbox sync**: which folders a run reads, where the next run resumes, what one
-  failing mailbox does to the others, and how attachments are stored
-  (`backend/core/conversations/sync_mailbox.ts`, and `materialize_email_attachments.ts`,
+- **How the mailbox sync stores attachments** (`materialize_email_attachments.ts`,
   `reuse_stored_attachments.ts` and `bind_email_attachments.ts` under
   `backend/core/conversations/ingest/`).
+- **What the mailbox sync does not follow** (`CONV-R17`): an email moved into the Inbox
+  after the sync's point passed its arrival keeps that arrival and is not read; nothing of
+  what happens to an email in the mailbox after it was read (read, deleted, moved) reaches
+  the Inbox; and an email the provider fails to hand over on every try, without saying it is
+  gone, holds its folder's point there, a failure each pass names
+  (`backend/core/conversations/sync_mailbox.ts`).
+- **An email sent from the Inbox can be stored twice** when the Sent folder's pass reads it
+  between its delivery and the moment the send records its Message-ID: the send then
+  settles without the ID (`settleSent` in `send.ts`). No test holds it.
 - **The mailbox's own address** behind `CONV-R7`: how the sync learns it
   (`resolve_connector_account_email.ts` under `backend/core/conversations/ingest/`), and
   which direction an email gets while it is not known (`create_conversation_from_email.ts`

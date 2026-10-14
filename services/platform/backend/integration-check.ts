@@ -30656,6 +30656,8 @@ async function checkMailboxSyncLane(
   // --- the fake transport (phased inbox) -----------------------------------
   let phase: 1 | 2 = 1;
   const smtpSends: Array<{ to: string; subject: string }> = [];
+  // What each pass asked the transport for: the position it continues from.
+  const listQueries: Array<{ after?: number }> = [];
   interface FakeBody {
     uid: string;
     messageId: string;
@@ -30738,8 +30740,14 @@ async function checkMailboxSyncLane(
   };
   setMailTransportForTesting({
     openImap: async () => ({
-      listMessages: async (query: { mailbox: { kind: string } }) => {
+      listMessages: async (query: {
+        mailbox: { kind: string };
+        after?: number;
+      }) => {
         if (query.mailbox.kind !== 'inbox') return [];
+        listQueries.push(
+          query.after !== undefined ? { after: query.after } : {},
+        );
         return phase === 1
           ? [summaryOf('101'), summaryOf('102')]
           : [summaryOf('103')];
@@ -30770,6 +30778,7 @@ async function checkMailboxSyncLane(
         caller: system,
       });
 
+    const firstPassAt = Date.now();
     const first = await sync();
     const firstOut = z
       .object({
@@ -30778,6 +30787,7 @@ async function checkMailboxSyncLane(
           skippedCount: z.number(),
         }),
         listed: z.number(),
+        mailboxes: z.array(z.looseObject({ ingested: z.number() })),
       })
       .loose()
       .safeParse(first.status === 'ok' ? first.output : {});
@@ -30798,9 +30808,9 @@ async function checkMailboxSyncLane(
         AND status = 'active' AND is_default = true
     `;
 
-    // Idempotency: the same window again UPDATES in place (the 0.4
-    // semantics count an already-ingested message as processed) — the row
-    // counts must not move.
+    // Idempotency: the same listing again. The position already stands past
+    // both emails, so the pass reads neither again — the row counts must not
+    // move.
     const again = await sync();
     const againOut = z
       .object({ inbound: z.looseObject({ processedCount: z.number() }) })
@@ -30827,6 +30837,69 @@ async function checkMailboxSyncLane(
       JOIN app.contacts ct ON ct.id = c.contact_id
       WHERE c.org_id = ${orgId} AND ct.email = 'alice@ext.test'
     `;
+    // Positions on the credential row: the first pass started at its
+    // seven-day window, and each later one continued strictly after the
+    // newest email read — Bob's — which the identical repeat did not move.
+    const sevenDays = 7 * 86_400_000;
+    const firstAfter = listQueries[0]?.after;
+    const bobArrived = summaryOf('102').sentAt;
+    record(
+      'mailbox sync: the first pass reads back seven days, then each pass continues strictly after the newest email read, kept on the credential row',
+      listQueries.length === 3 &&
+        typeof firstAfter === 'number' &&
+        Math.abs(firstAfter - (firstPassAt - sevenDays)) < 60_000 &&
+        watermark[0]?.inbound === bobArrived &&
+        listQueries[1]?.after === bobArrived &&
+        listQueries[2]?.after === bobArrived &&
+        firstOut.success &&
+        firstOut.data.mailboxes[0]?.ingested === 2,
+      `queries=${JSON.stringify(listQueries)} position=${watermark[0]?.inbound ?? 'null'} (want ${bobArrived}) firstAfter=${firstAfter ?? 'none'} (want ≈${firstPassAt - sevenDays}) receipt=${firstOut.success ? JSON.stringify(firstOut.data.mailboxes[0]) : 'ERR'}`,
+    );
+    // The emails read at a position ride beside it (0214): written and read
+    // back through the very credential seams the sync uses.
+    const { conversationShimHandlers } =
+      await import('./domains/conversations/shim.ts');
+    const credentialSeams = conversationShimHandlers(sql, () => {
+      throw new Error('the edges probe dispatches no connector calls');
+    });
+    const syncedCredential = await sql<{ id: string }[]>`
+      SELECT id FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+        AND status = 'active' AND is_default = true
+    `;
+    const edges = { inbox: { at: bobArrived, ids: ['itest-edge-1'] } };
+    await credentialSeams[
+      'connector_credentials/mutations:patchCredentialInternal'
+    ]?.({
+      organizationId: orgId,
+      credentialId: syncedCredential[0]?.id ?? '',
+      mailSyncEdges: edges,
+    });
+    const listedCredentials = z
+      .array(
+        z.looseObject({
+          id: z.string(),
+          mailSyncEdges: z.unknown().optional(),
+        }),
+      )
+      .parse(
+        await credentialSeams[
+          'connector_credentials/queries:listActiveCredentialsInternal'
+        ]?.({ organizationId: orgId, connectorSlug: 'imap-smtp' }),
+      );
+    const keptEdges = z
+      .object({ inbox: z.object({ at: z.number(), ids: z.array(z.string()) }) })
+      .safeParse(
+        listedCredentials.find((row) => row.id === syncedCredential[0]?.id)
+          ?.mailSyncEdges,
+      );
+    record(
+      'mailbox sync keeps the emails read at a position beside it, on the credential row',
+      keptEdges.success &&
+        keptEdges.data.inbox.at === bobArrived &&
+        keptEdges.data.inbox.ids.join() === 'itest-edge-1',
+      `edges=${JSON.stringify(keptEdges.success ? keptEdges.data : 'unreadable')}`,
+    );
     const conversationsFinal = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
@@ -31001,7 +31074,7 @@ async function checkMailboxSyncLane(
         (watermark[0]?.inbound ?? 0) > 0 &&
         again.status === 'ok' &&
         againOut.success &&
-        againOut.data.inbound.processedCount === 2 &&
+        againOut.data.inbound.processedCount === 0 &&
         countAfterRepeat[0]?.count === '2' &&
         messagesAfterRepeat[0]?.count === '2' &&
         aliceThread[0]?.count === '2' &&
@@ -31015,7 +31088,7 @@ async function checkMailboxSyncLane(
         retried.status === 'ok' &&
         smtpSends.length === 2 &&
         approvalAfter[0]?.status === 'completed',
-      `sync1=${first.status}/${firstOut.success ? `${firstOut.data.inbound.processedCount} listed=${firstOut.data.listed}` : 'ERR'} conv=${conversationsAfterFirst.length} contacts=${conversationsAfterFirst.map((r) => r.contactEmail).join('|')}, watermark=${(watermark[0]?.inbound ?? 0) > 0}, repeat=${againOut.success ? againOut.data.inbound.processedCount : 'ERR'} conv=${countAfterRepeat[0]?.count} msgs=${messagesAfterRepeat[0]?.count} (want 2/2), aliceThread=${aliceThread[0]?.count} (want 2) totalConv=${conversationsFinal[0]?.count} (want 2), send=${sent.status} smtp=${smtpAfterSystemSend} audit=${sendAudit[0]?.count}, gate=${gated.status}/${approvalRows[0]?.status}→retry=${retried.status}/${approvalAfter[0]?.status} smtpAfter=${smtpSends.length}`,
+      `sync1=${first.status}/${firstOut.success ? `${firstOut.data.inbound.processedCount} listed=${firstOut.data.listed}` : 'ERR'} conv=${conversationsAfterFirst.length} contacts=${conversationsAfterFirst.map((r) => r.contactEmail).join('|')}, watermark=${(watermark[0]?.inbound ?? 0) > 0}, repeat=${againOut.success ? againOut.data.inbound.processedCount : 'ERR'} (want 0) conv=${countAfterRepeat[0]?.count} msgs=${messagesAfterRepeat[0]?.count} (want 2/2), aliceThread=${aliceThread[0]?.count} (want 2) totalConv=${conversationsFinal[0]?.count} (want 2), send=${sent.status} smtp=${smtpAfterSystemSend} audit=${sendAudit[0]?.count}, gate=${gated.status}/${approvalRows[0]?.status}→retry=${retried.status}/${approvalAfter[0]?.status} smtpAfter=${smtpSends.length}`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);

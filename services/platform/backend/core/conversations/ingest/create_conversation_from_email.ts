@@ -139,6 +139,8 @@ export async function createConversationFromEmail(
   let anyCreated = false;
   let processedCount = 0;
   let skippedCount = 0;
+  /** Emails this batch found stored already (`CONV-R6`): read again, not new. */
+  let alreadyStoredCount = 0;
 
   for (const email of emailsArray) {
     if (!email.messageId) {
@@ -161,6 +163,7 @@ export async function createConversationFromEmail(
       lastConversationId = existingMessage.conversationId;
       conversationIds.add(existingMessage.conversationId);
       processedCount++;
+      alreadyStoredCount++;
       registerInBatch(
         inBatchMap,
         email.messageId,
@@ -187,6 +190,7 @@ export async function createConversationFromEmail(
       lastConversationId = existingRootConversation._id;
       conversationIds.add(existingRootConversation._id);
       processedCount++;
+      alreadyStoredCount++;
       registerInBatch(
         inBatchMap,
         email.messageId,
@@ -335,6 +339,7 @@ export async function createConversationFromEmail(
       reason: 'no_message_id',
       processedCount,
       skippedCount,
+      alreadyStoredCount,
       conversationIds: [],
       ingestedTip,
     };
@@ -366,6 +371,7 @@ export async function createConversationFromEmail(
     messageCount: processedCount,
     processedCount,
     skippedCount,
+    alreadyStoredCount,
     ingestedTip,
   };
 }

@@ -39,7 +39,7 @@ actions:
       properties:
         top:
           type: number
-          description: 'Number of messages to return (max 100, default 25).'
+          description: 'Number of messages to return (max 1000, default 25).'
         skip:
           type: number
           description: 'Number of messages to skip for pagination.'
@@ -103,7 +103,8 @@ actions:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/json' };
-        const top = Math.min(Number(input.top) || 25, 100);
+        // Graph's own ceiling for a page of messages.
+        const top = Math.min(Number(input.top) || 25, 1000);
         const orderby = input.orderby ? String(input.orderby) : 'receivedDateTime desc';
         const filter = input.filter ? String(input.filter) : '';
         const draftFilter = 'isDraft eq false';
@@ -126,7 +127,8 @@ actions:
         const r = await ctx.http.get(`${base}?${q.join('&')}`, { headers: h });
         if (r.status === 401) throw new Error('Outlook list_messages failed: authentication expired — re-authorize the connection.');
         if (r.status === 403) throw new Error('Outlook list_messages failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 429) throw new Error('Outlook list_messages failed: rate limited by Microsoft Graph — retry later.');
+        // The wait Graph names (Retry-After, in seconds) rides in the sentence, so a sync can report it.
+        if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); throw new Error(`Outlook list_messages failed: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
         if (!r.status || r.status >= 400) throw new Error(`Outlook list_messages failed (${r.status}): ${r.text()}`);
         const j = r.json();
         let messages = j.value || [];
@@ -218,7 +220,7 @@ actions:
         if (r.status === 401) throw new Error('Outlook get_message failed: authentication expired — re-authorize the connection.');
         if (r.status === 403) throw new Error('Outlook get_message failed: permission denied — verify the app has the required Microsoft Graph scopes.');
         if (r.status === 404) throw new Error(`Outlook get_message failed: message ${input.messageId} not found.`);
-        if (r.status === 429) throw new Error('Outlook get_message failed: rate limited by Microsoft Graph — retry later.');
+        if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); throw new Error(`Outlook get_message failed: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
         if (!r.status || r.status >= 400) throw new Error(`Outlook get_message failed (${r.status}): ${r.text()}`);
         const message = r.json();
         const attachments = [];

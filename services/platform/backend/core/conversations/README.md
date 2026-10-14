@@ -12,6 +12,8 @@ Start with [`sync_mailbox.ts`](sync_mailbox.ts) and the helpers in [`ingest/`](i
 
 | Job | Source to inspect |
 | --- | --- |
+| Decide what one sync pass reads and where each folder's position moves | `mail_sync_plan.ts` |
+| Tell a provider's rate limit from a vanished message or a failure | `mail_sync_failure.ts` |
 | Normalize a Message-ID for storage and lookup | `ingest/normalize_external_message_id.ts` |
 | Find a stored message | `ingest/check_message_exists.ts` |
 | Resolve replies and references to a conversation | `ingest/resolve_email_conversation_target.ts` |
@@ -19,6 +21,14 @@ Start with [`sync_mailbox.ts`](sync_mailbox.ts) and the helpers in [`ingest/`](i
 | Create an inbound or sent-email conversation | `ingest/create_conversation_from_email.ts`, `ingest/create_conversation_from_sent_email.ts` |
 | Reuse, materialize and bind attachments | `ingest/reuse_stored_attachments.ts`, `ingest/materialize_email_attachments.ts`, `ingest/bind_email_attachments.ts` |
 | Index an inbound email's body for retrieval | `addMessageToConversation` in the [domain service](../../domains/conversations/service.ts) queues `rag.index_message`; [`domains/knowledge/message-index.ts`](../../domains/knowledge/message-index.ts) indexes it |
+
+A mailbox's position is an instant on the provider's own clock — Gmail's
+arrival, Exchange's received or sent stamp, the IMAP server's INTERNALDATE —
+kept per folder on its credential row; never derive it from an email's
+`Date` header, which its sender sets. Gmail's search reads whole seconds, so
+the ids already read in a Gmail position's second ride beside it
+(`mail_sync_edges`, see `edgeAt`) and stay out of the next listing. The rules
+are the conversations spec's "The mailbox sync" (`CONV-R17` to `CONV-R23`).
 
 Pass the organization through every lookup. Normalize external message IDs with
 the existing helper: it trims surrounding whitespace and removes surrounding
