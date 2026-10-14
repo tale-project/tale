@@ -24,9 +24,9 @@ reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
 connectors all work offline with no API keys and no cost. A new org is
 **not** wired to the mock provider: wire it once per org before any chat box
 (**Wire the mock provider** below).
-(The fixture dir's automation fixtures are in the retired pre-rewrite
-format, so a mode-A org seeds **zero** automation packs — the Automations
-list opens on its empty state; see automations.md Prerequisites.)
+(A new org starts with **no** automation in every mode, so the Automations
+list opens on its empty state; the fixture dir's automation fixtures are in
+the retired pre-rewrite format besides — see automations.md Prerequisites.)
 
 ```bash
 # Terminal 1 — the mock gateway (chat SSE + AI + connector APIs on :4141)

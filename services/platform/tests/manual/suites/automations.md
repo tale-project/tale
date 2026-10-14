@@ -60,28 +60,23 @@ developer-settings capability, mirroring the backend guard; any other member
 has no Automations navigation. Member and Editor seats work a task's run
 through its task panel (`AUTO-F53`, `AUTO-B11`).
 
-**Seeding.** The builtin packs are provisioned from the builtin catalog
+**Seeding.** Nothing seeds automations: a new organization starts with
+**no** automation, so the list opens on its empty state, and `tale migrate`
+adds none and changes none an organization has (PROVN-R9, PROVN-R10).
+The shipped packs live in the builtin catalog
 (`configs/platform/custom/automations/` when `TALE_CONFIG_BUILTIN_DIR` is
-unset) at org creation and on deploy — and they always arrive as **Not
-deployed drafts** (`automations.list.notDeployed`) whose triggers are switched
-off; nothing runs until someone deploys a version and turns its trigger on. The eight org-scope packs are `gmail-sync-emails`,
-`gmail-triage-inbox`, `outlook-sync-emails`, `outlook-triage-inbox`,
-`imap-smtp-sync-emails`, `imap-smtp-triage-inbox`, `github-triage-issues`,
-`github-review-pull-requests`. Two catches:
+unset) and reach an organization only when someone adds one from the
+template catalog, or zips its folder and uploads it (AUTO-F9). The eight
+org-scope packs are `gmail-sync-emails`, `gmail-triage-inbox`,
+`outlook-sync-emails`, `outlook-triage-inbox`, `imap-smtp-sync-emails`,
+`imap-smtp-triage-inbox`, `github-triage-issues`,
+`github-review-pull-requests`. An organization an earlier release created
+may still hold them, as that release's provisioning left them. One catch:
 
 - The SETUP.md **mode A** stack pins `TALE_CONFIG_BUILTIN_DIR` to the e2e
   fixture dir, whose automation fixtures are in the retired pre-rewrite format
-  (no pack manifest the loader reads) — a mode-A org therefore seeds **zero**
-  packs and the list opens on the empty state. Author or upload your material
+  (no pack manifest the loader reads). Author or upload your material
   (AUTO-F8–AUTO-F11), or run mode B for the shipped packs.
-- An org created before a pack existed is missing it, not hiding it. Seed an
-  existing org (idempotent, drafts only, own edits untouched):
-
-  ```bash
-  cd services/platform
-  bunx convex run provisioning/provision_default_automations:provisionDefaultAutomations \
-    '{"organizationId":"<ORG-ID>","orgSlug":"<org-slug>"}'
-  ```
 
 **Runs.** A **Test run** (`automations.detail.runMock`) executes the version
 on screen against mock connectors — offline, mode A friendly, works on an
@@ -178,11 +173,10 @@ output:
       **Enabled** on and **Save** → the first tab's row reads **Enabled**
       without a reload; leave it failing until it pauses again → **Paused**,
       again without a reload.
-- [ ] `AUTO-F3` · **Seed packs into an org** — Run the provisioning command
-      (Prerequisites) against an org missing the packs → reload
-      `/dashboard/{org}/automations` → The eight org-scope packs appear, every one
-      **Not deployed**; re-running the command changes nothing (idempotent); an
-      org's own edits/triggers are untouched.
+- [ ] `AUTO-F3` · **~~Seed packs into an org~~ (retired)** → Provisioning
+      seeds no pack any more: a new organization starts with no automation and
+      `tale migrate` adds none (PROVN-R9, PROVN-R10); add a shipped pack
+      from the template catalog, or upload it (AUTO-F9).
 - [ ] `AUTO-F4` · **Row routing** — Click an org-level row, then a row bound
       to exactly one project → Org-level →
       `/dashboard/{org}/automations/{slug}/editor`; single-project-bound →
@@ -192,8 +186,8 @@ output:
       (fallback `automations.list.projectBound`)
 - [ ] `AUTO-F5` · **Create menu** — **Create automation**
       (`automations.list.createButton`) on the org and project lists → A dropdown
-      with four lanes, in this order: **From a starter**
-      (`automations.createMenu.starter`), **With your coding agent**
+      with four lanes, in this order: **From a template**
+      (`automations.createMenu.template`), **With your coding agent**
       (`automations.createMenu.withAgent`, `AUTO-F183`), **Blank (trigger +
       agent)** (`automations.createMenu.blank`), and **Upload package**
       (`automations.upload.trigger`); absent entirely without the developer
@@ -232,7 +226,7 @@ output:
       shows the binding (`automations.bindings.countBadge`), and the list row carries the
       project chip; bindings stay editable afterwards (AUTO-F30)
 - [ ] `AUTO-F12` · **Detail workbench renders** —
-      `/dashboard/{org}/automations/{slug}` for a seeded pack → The URL lands on
+      `/dashboard/{org}/automations/{slug}` for a shipped pack → The URL lands on
       `…/{slug}/editor`. Title row: display name (breadcrumb leaf) on the left
       with a **Live** badge (`automations.versions.deployed`) beside the name
       when looking === live (no version number in the badge); the row draws no
@@ -861,20 +855,20 @@ output:
       next run, the state badge while it is not live
       (`automations.canvas.start.notLive`), then **By hand, the API or MCP**
       (`automations.canvas.start.manual`); under **Input** (`flow.node.inputs`)
-      owner and repo as required, trigger and firedAt as from the trigger
-      (`automations.canvas.start.fromTrigger`); a notice says the schedule
-      starts runs without owner and repo
-      (`automationIssues.codes.TRIGGER_INPUT_MISMATCH.cause`). **End** (`flow.node.exit`) at the
-      bottom says **The output of Report** (`automations.canvas.end.returnsNode`),
-      its shape once the check has answered, and the three ways a run ends
+      owner and repo as required, limit, and trigger and firedAt as from the
+      trigger (`automations.canvas.start.fromTrigger`). **End**
+      (`flow.node.exit`) at the bottom lists what a run returns — triaged,
+      actionable, issues, failed, caughtUp and position — each from Report
+      (`automations.canvas.end.fieldFrom`), and the three ways a run ends
       under **Ends** (`flow.node.outcomes`).
-- [ ] `AUTO-F71` · **Follow the line from Open issues to Report** → it runs
+- [ ] `AUTO-F71` · **Follow the line from Batch to Report** → it runs
       beside Score's frame, never through it; no line on the canvas crosses a
       box, a condition pill, a frame header or a Yes / No label.
 - [ ] `AUTO-F72` · **Read the node boxes of Triage GitHub issues** → each shows
-      an icon, a title from its ID (**Open issues**), its catalog line
+      an icon, a title from its ID (**Issues**, **Batch**), its catalog line
       (**GitHub · List issues**, `automations.canvas.node.catalog.connector`;
-      **Transform**, **Language model · …**), what it returns once the check
+      **Automation · Get the previous successful run**; **Transform**,
+      **Language model · …**), what it returns once the check
       has answered, and what it reads in its bottom strip
       (`flow.list.reads`); no raw `{{ }}` and no raw type name such as
       github.list_issues on any box. In Deutsch and Français the action titles are translated
@@ -1023,7 +1017,7 @@ output:
       an agent to sign in — and a prompt that asks the agent to create one
       (`codingAgent.prompt.create`) with **[Describe what it should do.]**
       marked and the hint to replace it. The item is second in the menu, after
-      **From a starter**, on the organization's list and on a project's. With
+      **From a template**, on the organization's list and on a project's. With
       agent sign-in switched off (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
       `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) the dialog shows **Set
       up MCP** and **How to connect a coding agent** and no name to copy. Give
@@ -1441,9 +1435,10 @@ output:
       `automations.allowances.readOnly`. Add an `approval_policy` rule
       `slack.send_message: require_approval` → the run waits again.
 - [ ] `AUTO-F136` · **As an owner, open Create automation › From a
-      starter (`automations.createMenu.starter`), pick Tell the reviewer,
-      answer it for a project with yourself as the reviewer, keep Start it
-      now on (`automations.starters.startNow`) and create** → the automation
+      template (`automations.createMenu.template`), open Tell the reviewer,
+      select Use this template (`automations.templates.use`), answer it for a
+      project with yourself as the reviewer, keep Start it now on
+      (`automations.templates.startNow`) and create** → the automation
       opens in the editor with version 1 live and its event trigger on. Move a
       task of that project to In review → your notifications show the task's
       title with the message, and its link opens the task. Create it again
@@ -1451,15 +1446,16 @@ output:
       nothing is created.
 - [ ] `AUTO-F137` · **From a project's Automations list, create Create tasks
       from a webhook** → its Project question starts on that project; after
-      Create, `automations.starters.webhookTitle` shows the project's webhook
+      Create, `automations.templates.webhookTitle` shows the project's webhook
       address once. POST `{"title":"Server down"}` to it → a task Server down
       appears in the project. A POST without a title starts no run, and the
       trigger's last start on the General tab says it was refused.
-- [ ] `AUTO-F138` · **Create Daily task digest from a starter for a
+- [ ] `AUTO-F138` · **Create Daily task digest from a template for a
       project with a task created today, sending it to yourself, then Run
       live from the editor** → the run succeeds, and its Tasks step
-      (`task.list`) returns the project's tasks of the last 24 hours, newest
-      first, archived ones left out. Your notifications show the message
+      (`task.list`) returns the project's tasks created since the last digest
+      that was sent — the day before, for the first one — oldest first,
+      archived ones left out. Your notifications show the message
       title (`New tasks`) with a line per task and the automation's name, and
       it opens the project's tasks. Run it for a project with no new task →
       the run succeeds and nothing is sent.
@@ -1740,6 +1736,215 @@ output:
       bar (`flow.playback.label`) holds its buttons, the time and the speed
       in one row and the scrubber in a row under them, with nothing cut off
       at either edge.
+- [ ] `AUTO-F200` · **Use Sync GitHub issues for a project, a repository the
+      GitHub connection can read and the label `bug`, with Start it now
+      (`automations.templates.startNow`)** → the automation is installed in
+      that project, version 1 is live and its schedule is on, every 15
+      minutes in your time zone; its one step, the issue sync, names the
+      owner, the repository and `bug`, with `credential` empty. After the
+      first run the project's Backlog holds a task for each open issue
+      carrying `bug`, at most 100, oldest first, and none for a pull request.
+- [ ] `AUTO-F201` · **Open that first run, then select Run now twice** → the
+      run's output holds one receipt for `owner/repo` with `ok: true`,
+      `batch: 1`, `saved: true` and `created` equal to the new tasks; while
+      open issues remain, each later run reads the next batch (`batch: 2`,
+      `resumed: true`), and once the last issue is read (`drained: true`) the
+      run after it starts again at `batch: 1`. No issue gets a second task.
+- [ ] `AUTO-F202` · **Close one of the synced issues on GitHub, move its task
+      to In progress in Tale, and run the sync again** → the task stays In
+      progress with its title, description and assignee, its source card
+      reads **Closed at source** (`tasks.sourceIssue.state.closed`), and the
+      run's receipt counts `closedUpstream: 1`; the issue on GitHub has no
+      new comment, label or state.
+- [ ] `AUTO-F203` · **Use Sync GlitchTip issues with a GlitchTip connection,
+      its organization and project slugs and an empty search, then resolve
+      one issue in GlitchTip and run it again** → the first run makes a
+      Backlog task for each unresolved issue, the first seen first, at most
+      100; after the second run that issue's source card reads **Resolved at
+      source** (`tasks.sourceIssue.state.resolved`) and the task stays where
+      it was.
+- [ ] `AUTO-F204` · **In the editor, add a second repository and a GlitchTip
+      project to the sync step's `sources`, deploy, and select Run now** →
+      the run's output holds one receipt per source in the order listed, each
+      source's tasks land in the project, and the run shows one step on the
+      canvas.
+- [ ] `AUTO-F184` · **Create a new organization, open Automations, then
+      run `tale migrate`** → the list is empty
+      (`automations.list.empty.title`) with **Browse templates**
+      (`automations.list.empty.browseTemplates`) in the empty state, Home has
+      no Inbox view, and the starter project is there; after `tale migrate`
+      the list is still empty (PROVN-R9, PROVN-R10).
+- [ ] `AUTO-F185` · **Open Create automation › From a template
+      (`automations.createMenu.template`), then the catalog's tabs and its
+      search** → `automations.templates.title` lists every template Tale
+      ships: a tab per category (`automations.templates.all`,
+      `automations.templates.categories.inbox`,
+      `automations.templates.categories.issues`,
+      `automations.templates.categories.codeReview`,
+      `automations.templates.categories.tasks`,
+      `automations.templates.categories.notifications`,
+      `automations.templates.categories.webhooks`) narrows it, and the search
+      (`automations.templates.search`) finds a template by its name in your
+      language and in English. Each card shows its product's own logo
+      (Gmail, Outlook, the IMAP mail server, GitHub, GlitchTip — a lucide
+      glyph only for Tale's own templates), its name, when it runs and one
+      line; a template whose connector is not connected says
+      `automations.templates.connectFirst`, one you already used says
+      `automations.templates.inUse` with the count.
+- [ ] `AUTO-F186` · **Open Triage the Gmail inbox's preview, then a template
+      it works with** → `automations.templates.preview.howItWorks` numbers
+      its steps; `automations.templates.preview.whatItChanges` gives each
+      line its icon and ends with what it never does;
+      `automations.templates.preview.whenItRuns` names the schedule in your
+      own time zone; `automations.templates.preview.whatItNeeds` lists Gmail
+      as `automations.templates.preview.connected` or
+      `automations.templates.preview.notConnected` with
+      `automations.templates.preview.connect` opening Settings › Connectors;
+      `automations.templates.preview.worksWith` opens Sync Gmail emails'
+      preview; `automations.templates.preview.workflow` draws its workflow
+      read-only, connector steps wearing their products' icons, and clicking
+      a box opens nothing. A template of Tale's own data says
+      `automations.templates.preview.needsNothing`.
+- [ ] `AUTO-F187` · **Use Daily task digest for a project, sending it to
+      yourself, at 09:00, with Start it now (`automations.templates.startNow`)
+      on** → one create opens the automation with version 1 live and its
+      schedule on at 09:00 in your time zone (the General tab names it, not
+      UTC); the list shows it under the name you gave with its icon, and the
+      template's card in the catalog now reads `automations.templates.inUse`.
+- [ ] `AUTO-F188` · **Use Tell the reviewer with Start it now off** → the
+      automation is created as a draft: no version is live and its trigger is
+      off; deploying it from the editor offers to turn the trigger on.
+- [ ] `AUTO-F189` · **Use Sync Gmail emails while Gmail is not connected** →
+      the questions open with `automations.templates.needsConnection` and
+      **Open Settings › Connectors** (`automations.templates.connectInSettings`);
+      Start it now is off and cannot be switched on, saying
+      `automations.templates.startNowNeedsConnection` and
+      `automations.templates.startLater`; Create makes a draft.
+      Connect Gmail, use the template again → Start it now is on.
+- [ ] `AUTO-F190` · **Answer every kind of question: Sync GitHub issues and
+      Triage GitHub issues** → a number question steps between its bounds and
+      says them (`automations.templates.numberRange`), its field wide enough
+      for its largest number; a toggle switches; a
+      list takes one item a line (`automations.templates.onePerLine`); a
+      credential question lists the credentials in service for its connector
+      (`automations.templates.credentialPlaceholder`), picked already when
+      there is exactly one; a text question shows an example in its empty
+      input. Every answer lands where the template says: the repository in
+      the trigger's fixed input on the General tab.
+- [ ] `AUTO-F238` · **In the catalog, pick the Notifications tab, search
+      "review", scroll down and open Tell the reviewer; select Use this
+      template, type a name, go back to the preview, use it again, then go
+      back to the catalog** → each step opens at its top; the questions keep
+      the name you typed; the catalog is on Notifications with "review" in
+      its search, and the Tell the reviewer card has focus.
+- [ ] `AUTO-F239` · **With no mail sync deployed, open the Inbox and select
+      Browse email templates (`conversations.activate.browseTemplates`)** →
+      Automations opens with the template catalog on its Inbox tab
+      (`automations.templates.categories.inbox`); the address drops
+      `?templates=inbox`, so a reload shows the list.
+- [ ] `AUTO-F240` · **Open Summarize the inbox's preview, then use it** →
+      What it needs says `automations.templates.preview.needsPartner` above
+      the three mail syncs under Works with; the Mailbox question starts empty
+      (`automations.templates.choicePlaceholder`), and Create waits until you
+      pick the mailbox.
+- [ ] `AUTO-F215` · **Use Sync Gmail emails with a connected Gmail mailbox,
+      the questions left as they come, and Start it now
+      (`automations.templates.startNow`)** → version 1 is live and its
+      schedule is on, every five minutes in your time zone; its one step, the
+      mailbox sync, reads `backfillDays: 7`, `includeSent: true`,
+      `limit: 50` and in `mailbox` the connection picked, or `''` for the
+      first choice, Every connected Gmail mailbox, which the question starts
+      on. After the first run Home shows the
+      **Inbox** view (`home.views.inbox`), the threads of the last seven days
+      appear oldest first, an email from before that window does not, and the
+      run's output holds one entry under `mailboxes` per connected Gmail
+      mailbox.
+- [ ] `AUTO-F216` · **Open the first run of a mailbox that received more than
+      50 emails in those seven days, then select Run now until a run stores
+      nothing new** → the first entry reads `capped: true`, `ingested` at
+      most 50 and `resumeFrom` at the newest email it read; each later
+      run continues from there, oldest first, and the last one reads
+      `capped: false`. The Inbox holds every email once.
+- [ ] `AUTO-F217` · **From Gmail itself, write to a customer, let her answer
+      and run the sync** → one conversation holds your email as sent by the
+      mailbox, followed by her answer. **Reply to her from the Inbox, wait
+      for the send and run the sync again** → the reply is in the thread
+      once, and the run's entry counts it under `duplicates`.
+- [ ] `AUTO-F218` · **With two Gmail connections, use the template again with
+      Mailbox set to the second one** → its runs read that mailbox only: one
+      entry under `mailboxes`, named after the connection. **Disable that
+      connection under Settings › Connectors and select Run now** → the run
+      fails at the sync step, its error reading
+      `no active gmail mailbox is named "<that name>"`.
+- [ ] `AUTO-F219` · **Use the template with Days to read back at 0 and Read
+      Sent too off** → the first run lists nothing and its entry's
+      `resumeFrom` names the Inbox only; an email arriving after it appears
+      on the next run, and nothing older than the first run ever does.
+- [ ] `AUTO-F220` · **Use Sync Outlook emails with a connected Outlook
+      mailbox and Start it now, then answer a customer from Outlook itself**
+      → as `AUTO-F215`, with Sent Items read too: the answer you sent from
+      Outlook sits in the customer's conversation before her reply.
+- [ ] `AUTO-F221` · **Use Sync emails via SMTP/IMAP with a mailbox connected
+      over IMAP and SMTP, and Start it now** → as `AUTO-F215`; the server's
+      Sent folder (the one it flags as Sent, else the one the connection
+      names) is read too, and the emails the sync read stay unread in a mail
+      program on that mailbox.
+- [ ] `AUTO-F222` · **Preview each of the three mail syncs in English, German
+      and French** → each shows its product's logo, four steps under **How it
+      works** (`automations.templates.preview.howItWorks`), three lines under
+      **What it changes** (`automations.templates.preview.whatItChanges`) and
+      five questions, all in that language; while its mail connector is not
+      connected, the card reads **Connect first**
+      (`automations.templates.connectFirst`).
+- [ ] `AUTO-F230` · **Use Review GitHub pull requests on a repository with
+      three open pull requests — one a draft, one opened by the connected
+      account — Pull requests per run at 1, and Start it now
+      (`automations.templates.startNow`)** → the first run posts one review
+      comment, on the third pull request, pinned to its newest commit and
+      opening with **Looks ready** or **Changes suggested**; nothing is
+      approved or merged. The run's output names it under `reviewed` and
+      counts the draft and the account's own under `skipped`. Each later run
+      posts nothing until something changes.
+- [ ] `AUTO-F231` · **Push a new commit to that pull request, then select
+      Run now twice** → the first run reviews it again, pinned to the new
+      commit; the second run posts nothing (`skipped` counts it as
+      reviewed).
+- [ ] `AUTO-F232` · **Set Diff size read to 1000 and push a change of a few
+      thousand characters** → the review ends by saying it read the first
+      characters of the diff and not the rest. A pull request too large for
+      GitHub to show its diff gets the short note that a person reviews it,
+      and is not tried again until its next push.
+- [ ] `AUTO-F233` · **Use Triage GitHub issues on a repository, sending it
+      to yourself, with Issues per run at 3 and Start it now** → the first
+      run scores the three most recently changed open issues and, when one is
+      ready, sends you one message in Tale with a line per ready issue, most
+      urgent first, and a link to the repository's issues; nothing changes
+      on GitHub. **Select Run now** → nothing changed, so nothing is scored
+      and nothing is sent. **Comment on one issue on GitHub and Run now** →
+      only that issue is scored again.
+- [ ] `AUTO-F234` · **Use Triage the Gmail inbox with Conversations per run
+      at 2 while five threads wait on the team, and Run now three times** →
+      each run judges at most two threads; after the third, every thread is
+      judged once, each that needs an answer holds one Suggested reply and
+      never a second, and a priority a person set stayed as it was.
+- [ ] `AUTO-F235` · **Use Daily task digest sending it to yourself, select
+      Run now, create two tasks, then move its schedule to the next full
+      hour and wait for it** → the first digest lists the tasks of the day
+      before; the scheduled one lists exactly the two new tasks, each once,
+      oldest first. **Create 55 tasks and select Run now twice** → the first
+      digest lists 50 and ends with …, the second lists the other 5, and no
+      task is in both.
+- [ ] `AUTO-F236` · **Use Create tasks from a webhook, post a JSON body with
+      an id and a title twice with a different Idempotency-Key each time,
+      the second time with another title** → the project holds one task, now
+      with the second title, and the second run's output reads `created:
+      false`. **Post a body without an id twice, its keys in another order
+      the second time** → still one task for it.
+- [ ] `AUTO-F237` · **In the editor, give a For each step whose second item
+      fails `onItemError: continue`, and run it** → the step reads as
+      succeeded with one of its three items failed, its output holds null in
+      that item's place, and the steps after it ran. **Make every item fail**
+      → the run fails at that step.
 
 ## Boundary & error tests
 
@@ -1909,6 +2114,100 @@ output:
       empty list or "No version is live yet."; retrying with Enter reloads
       only that part.
 
+- [ ] `AUTO-B30` · **Point one of two sources of a sync at a repository that
+      does not exist, and run it; then point both at missing repositories and
+      run it again** → the first run succeeds: the missing repository's
+      receipt reads `ok: false`, `error: not_found`, `saved: false`, and the
+      other source's tasks are made. The second run fails at the sync step,
+      named as a missing resource, and the trigger counts the failure.
+- [ ] `AUTO-B31` · **Name a GitHub connection that does not exist in the sync's
+      only source, run it, then empty the name and run it again** → the
+      first run fails, its receipt reads `error: credential`; the second run
+      reads with the default GitHub connection and continues from the batch
+      the source last saved.
+- [ ] `AUTO-B32` · **Change the label filter of a sync that is in the middle
+      of a pass, deploy, and run it; then put the old filter back, deploy,
+      and run it again** → the first run's receipt names the new `filter`
+      with `batch: 1` and `resumed: false`, and reads from the first issue
+      matching it; the second continues the old filter's pass where it
+      stopped (`resumed: true`). No issue gets a second task.
+- [ ] `AUTO-B26` · **Use a template under a name another automation has,
+      with Start it now on** → `automations.blank.nameTaken` under Name;
+      nothing is created, the other automation keeps its versions and its
+      trigger, and the template's in-use count does not move.
+- [ ] `AUTO-B27` · **Answer a template badly: a repository owner with a
+      space, a number past its maximum typed into the field, a list longer
+      than it takes** → each question says why in its own words
+      (`automations.templates.errors.form`,
+      `automations.templates.errors.number`,
+      `automations.templates.errors.listTooLong`), and nothing is created
+      until they are fixed. The number stays as you typed it, even after you
+      leave the field, and Create says why it waits
+      (`automations.templates.numberOutOfRange`).
+- [ ] `AUTO-B28` · **In an organization an earlier release provisioned (it
+      has the shipped mail and GitHub automations), open the catalog** → the
+      templates whose automations it has read `automations.templates.inUse`;
+      the GitHub and GlitchTip issue importers of that release are not
+      counted for Sync GitHub issues or Sync GlitchTip issues, and every one
+      of its automations is as it was.
+- [ ] `AUTO-B42` · **From a project, open Create tasks from a webhook,
+      double-click Use this template; go back, then press Enter twice on it**
+      → the questions open with the Name field focused and nothing is
+      created either time; only a click or an Enter of its own on Create
+      automation (`automations.templates.create`) creates it.
+- [ ] `AUTO-B43` · **Use Sync GitHub issues while no GitHub credential is in
+      service** → the questions say
+      `automations.templates.needsConnectionToCreate`; Start it now says
+      `automations.templates.startNowNeedsConnection` and offers no draft
+      (no `automations.templates.startLater`); Create stays disabled with
+      the same reason as the notice.
+- [ ] `AUTO-B44` · **Stop the backend, open a template's preview, start the
+      backend again and select Try again** → the workflow's place says
+      `automations.templates.loadTemplateFailed` with Try again, never a
+      skeleton left loading; Use this template is disabled with the same
+      reason; after Try again the workflow is drawn.
+- [ ] `AUTO-B45` · **Use Create tasks from a webhook and press Escape while
+      Create automation is busy** → the dialog stays, with no Close button
+      while it creates, and shows the webhook address
+      (`automations.templates.webhookTitle`) once the create answers.
+- [ ] `AUTO-B34` · **With two Gmail connections in the sync, revoke the
+      second one's access in its Google account and select Run now; then
+      revoke the first one too and run again** → the first run succeeds: the
+      second mailbox's entry reads `ok: false` with the provider's error, and
+      the first mailbox is read. The second run fails at the sync step, names
+      both mailboxes, and the trigger counts the failure.
+- [ ] `AUTO-B35` · **Send the mailbox an email whose Date header lies in 2030
+      (a mail program with its clock set ahead), then a normal one, and run
+      the sync after each** → both appear in the Inbox, the first dated 2030;
+      the entry's `resumeFrom` stays at today, and the normal email is
+      read on its run.
+- [ ] `AUTO-B36` · **Set Emails per pass to 10, let 25 emails arrive, and
+      select Run now until a run reads `capped: false`** → each run stores at
+      most 10 emails (a second holding more is read whole), the earlier
+      entries read `capped: true`, and no email appears twice.
+- [ ] `AUTO-B37` · **Drive a Gmail sync into Gmail's rate limit (a backlog of
+      thousands, Emails per pass at 100, Run now in quick succession)** → the
+      limited run succeeds; its entry reads `rateLimited: true` (with
+      `retryAfter` when Gmail named a wait), the emails it read are in the
+      Inbox, and the next run continues without a gap or a duplicate.
+- [ ] `AUTO-B38` · **Start Review GitHub pull requests by hand with a limit
+      of 11 in its input, then Triage GitHub issues and Triage the Gmail inbox
+      with 41** → each start is refused before a run exists, its message
+      naming the limit's maximum; the same numbers set on the trigger's fixed
+      input make the trigger warn when it is saved.
+- [ ] `AUTO-B39` · **Give Review GitHub pull requests a token that can read
+      the repository but not comment on it, and select Run now** → the
+      reviews are written but none can be posted: the run fails at its post
+      step and posts nothing, and the next run reviews the same pull requests
+      again; after five such runs in a row the schedule turns itself off.
+- [ ] `AUTO-B40` · **Give Review GitHub pull requests a token that cannot
+      read the repository's pull requests** → the first run fails at its
+      first step with GitHub's own refusal, and nothing is reviewed.
+- [ ] `AUTO-B41` · **Set Create tasks from a webhook's Delivery key to a
+      field the sender never sends, and post two different bodies, then the
+      first again** → two tasks: the bodies are told apart by their whole
+      content, and the repeated one updates its task.
+
 ## Run liveness — chaos recovery (backend, scripted)
 
 Proves on a real backend that a parked run whose scheduled wakes are all lost
@@ -2055,12 +2354,15 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       is; the retry dialog and Run again's confirm trap focus and Escape
       closes them; condition verdicts and compare rows are words, not
       colours.
-- [ ] `AUTO-A20` · **Starter gallery by keyboard and on a phone** → Tab
-      from the search box reaches each starter row; Enter opens its
-      questions, every question is reachable and labelled, and the back
-      control (`automations.starters.backToGallery`) returns to the gallery.
-      At 375 px the dialog is a sheet whose Create button stays in view, with
-      no sideways scroll.
+- [ ] `AUTO-A20` · **Template catalog by keyboard and on a phone** → Tab
+      from the category tabs and the search box reaches each template card;
+      Enter opens its preview and **Use this template**
+      (`automations.templates.use`) its questions; every question is
+      reachable and labelled, and the back controls
+      (`automations.templates.backToPreview`,
+      `automations.templates.backToCatalog`) return a step. At 375 px the
+      dialog is a sheet whose Create button stays in view, with no sideways
+      scroll.
 - [ ] `AUTO-A21` · **Versions by keyboard and on a phone** → Tab reaches the
       card's button, the Versions/Deployments switch (arrow keys switch) and
       each row's menu (`automations.versions.actions.menu`); the restore
@@ -2121,13 +2423,31 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       Tab shows an outline round every control that takes focus, the test
       rows and the dock's tabs included. Every label stays readable, and a
       diff's added and removed lines keep their signs.
+- [ ] `AUTO-A31` · **The template catalog with a screen reader, by
+      keyboard, in both themes** → the tabs are a tab list, each card is one
+      button named by its template's name and line, and the product logos
+      are silent; in a preview each part is a heading
+      (`automations.templates.preview.howItWorks` …), the steps are an
+      ordered list and each change is read with what it does first
+      (`automations.templates.outcomeKinds.creates`); the workflow is one Tab
+      stop; **Use this template** (`automations.templates.use`) and the back
+      controls are reachable, the questions open with focus in their Name
+      field, the way back to the catalog puts focus on the card you opened,
+      focus returns to the opener when the dialog closes, and every text and
+      product logo (GlitchTip's included) keeps AA contrast in light and
+      dark.
+- [ ] `AUTO-A32` · **The template catalog at 375 px and at 200 % zoom** → the
+      dialog is a sheet, the cards stack in one column, the tabs scroll
+      sideways inside their strip, a preview stacks its parts with the
+      workflow last, and the footer's buttons stay in view with no page
+      scrolling sideways.
 
 ## Performance
 
 - [ ] `AUTO-P1` · **List first render** → Rows or EmptyState visible < 1.5 s
       after navigation (local stack)
 - [ ] `AUTO-P2` · **Workbench interaction** → Canvas + panels visible < 2 s on
-      a seeded pack; node select → inspector update and live run-status overlays
+      a shipped pack; node select → inspector update and live run-status overlays
       feel instant (< 100 ms, no layout jank while a run streams)
 - [ ] `AUTO-P3` · **One organization's burst leaves room for another** — With
       one backend worker at the default `WORKER_CONCURRENCY` (5), set
