@@ -596,6 +596,7 @@ dispatch:
       pacing: Wartet zwischen Starts
       gated: Eine Schranke hält die bereite Arbeit zurück
       budget: Seine Zeit war abgelaufen; der nächste Durchlauf folgt sofort
+      model_ramp: Ein Modell, das wieder antwortet, nimmt Arbeit in Wellen an
       started: Er hat Arbeit gestartet
       held: Jeder Start wurde abgelehnt
   editor:

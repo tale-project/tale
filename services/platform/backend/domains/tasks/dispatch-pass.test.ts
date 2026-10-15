@@ -70,6 +70,7 @@ function run(
       recheckSeconds: [60, 120, 240],
       lastStartAt: null,
       recheckIndex: 0,
+      rampUntil: null,
       ...args,
     },
     effects,
@@ -174,5 +175,44 @@ describe('dispatch asks the sandbox host before each start and spaces its starts
     });
     expect(result).toMatchObject({ stop: 'pacing', nextPassAt: 30_000 });
     expect(effects.askHost).not.toHaveBeenCalled();
+  });
+});
+
+describe('a model that answers again takes new work only as its ramp lets it through [TASK-R43]', () => {
+  it('having started what the ramp let through, asks again at its next wave', async () => {
+    const { effects } = world();
+    const result = await run(effects, { picks: picks(1), rampUntil: 15_000 });
+    expect(result).toMatchObject({ stop: 'model_ramp', nextPassAt: 15_000 });
+    expect(result.started).toHaveLength(1);
+  });
+
+  it('asks again at the next wave when the ramp let nothing through', async () => {
+    const { effects } = world();
+    const result = await run(effects, {
+      picks: [],
+      stop: 'model_ramp',
+      rampUntil: 15_000,
+    });
+    expect(result).toMatchObject({ stop: 'model_ramp', nextPassAt: 15_000 });
+  });
+
+  it('keeps a held host, a spacing and a pass out of time before the next wave', async () => {
+    const held = await run(world({ host: PRESSURE }).effects, {
+      picks: picks(1),
+      rampUntil: 15_000,
+    });
+    expect(held).toMatchObject({ stop: 'host_pressure', nextPassAt: 60_000 });
+    const paced = await run(world().effects, {
+      picks: picks(2),
+      spacingMs: 30_000,
+      rampUntil: 15_000,
+    });
+    expect(paced).toMatchObject({ stop: 'pacing', nextPassAt: 31_000 });
+    const outOfTime = await run(world().effects, {
+      picks: picks(2),
+      budgetMs: 0,
+      rampUntil: 15_000,
+    });
+    expect(outOfTime).toMatchObject({ stop: 'budget', nextPassAt: 1_000 });
   });
 });

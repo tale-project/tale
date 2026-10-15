@@ -568,6 +568,7 @@ dispatch:
       pacing: Waiting between starts
       gated: A gate holds the ready work
       budget: It ran out of time; the next pass goes on at once
+      model_ramp: A model that answered again takes work in waves
       started: It started work
       held: Every start was refused
   editor:

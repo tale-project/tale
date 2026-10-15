@@ -20,7 +20,9 @@ import {
  * the pool waits for that agent; with `rebalance`, a task that never started
  * moves to the idle agent that has the most room. With `assignment: pool`, a
  * task nobody is assigned goes to that agent too. An agent whose model the
- * provider called at capacity takes nothing until the model answers again.
+ * provider called at capacity takes nothing until the model answers again,
+ * and then no more than the model's ramp lets through: the agents on one
+ * model share it.
  */
 
 export interface DispatchCandidate {
@@ -46,6 +48,17 @@ export interface DispatchAgent {
   live: number;
   /** The provider called the agent's model at capacity: it takes nothing. */
   modelHeld: boolean;
+  /** The agent's model, keyed as the plan's `modelRamps` are: the agents on
+   * one model share its ramp. */
+  modelKey?: string;
+}
+
+/** A model that answered again after it was at capacity and still ramps
+ * up: dispatch starts at most `room` more runs on it now, and may start
+ * more once its next wave comes. */
+export interface DispatchModelRamp {
+  room: number;
+  nextWaveAtMs: number;
 }
 
 export interface DispatchPick {
@@ -56,7 +69,13 @@ export interface DispatchPick {
   via: 'assigned' | 'pool' | 'rebalance';
 }
 
-export type DispatchHoldReason = 'agent_busy' | 'model_capacity' | 'no_agent';
+export type DispatchHoldReason =
+  | 'agent_busy'
+  | 'model_capacity'
+  /** The agent's model answered again and has taken as many new runs as
+   * its ramp lets through for now. */
+  | 'model_ramp'
+  | 'no_agent';
 
 export interface DispatchHold {
   taskId: string;
@@ -76,7 +95,10 @@ export type DispatchPlanStop =
   /** Ready tasks wait for agents that are all busy. */
   | 'agents_busy'
   /** Ready tasks wait for agents whose model is at capacity. */
-  | 'model_capacity';
+  | 'model_capacity'
+  /** Ready tasks wait for the next wave of a model that answered again (or
+   * for one at capacity). */
+  | 'model_ramp';
 
 export interface DispatchPlan {
   /** The runs the pool may hold now. */
@@ -86,6 +108,9 @@ export interface DispatchPlan {
   picks: DispatchPick[];
   holds: DispatchHold[];
   stop: DispatchPlanStop;
+  /** When the earliest model whose ramp held work back lets its next wave
+   * through: the pass asks again then. Null when no ramp held anything. */
+  rampUntil: number | null;
 }
 
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
@@ -119,6 +144,9 @@ export function planDispatch(input: {
   candidates: readonly DispatchCandidate[];
   /** Agent-worker slots the organization has left; null when unknown. */
   workerRoom: number | null;
+  /** The models of the pool that still ramp up after a hold, by
+   * `modelKey`; a model missing here takes any number of runs. */
+  modelRamps?: ReadonlyMap<string, DispatchModelRamp>;
 }): DispatchPlan {
   const { config } = input;
   const perAgent =
@@ -131,17 +159,38 @@ export function planDispatch(input: {
   const picks: DispatchPick[] = [];
   let free = Math.max(0, capacity - occupied);
   if (free === 0) {
-    return { capacity, occupied, picks, holds, stop: 'pool_full' };
+    return {
+      capacity,
+      occupied,
+      picks,
+      holds,
+      stop: 'pool_full',
+      rampUntil: null,
+    };
   }
   if (input.workerRoom !== null) {
     if (input.workerRoom <= 0) {
-      return { capacity, occupied, picks, holds, stop: 'org_limit' };
+      return {
+        capacity,
+        occupied,
+        picks,
+        holds,
+        stop: 'org_limit',
+        rampUntil: null,
+      };
     }
     free = Math.min(free, input.workerRoom);
   }
   const ranked = rankCandidates(input.candidates, config.statuses);
   if (ranked.length === 0) {
-    return { capacity, occupied, picks, holds, stop: 'no_ready_work' };
+    return {
+      capacity,
+      occupied,
+      picks,
+      holds,
+      stop: 'no_ready_work',
+      rampUntil: null,
+    };
   }
   const room = new Map(
     agents.map((agent) => [agent.agentId, perAgent - agent.live]),
@@ -149,12 +198,35 @@ export function planDispatch(input: {
   const held = new Set(
     agents.filter((agent) => agent.modelHeld).map((agent) => agent.agentId),
   );
+  const modelOf = new Map(
+    agents.flatMap((agent) =>
+      agent.modelKey === undefined ? [] : [[agent.agentId, agent.modelKey]],
+    ),
+  );
+  // What each ramping model may still take in this plan; the models whose
+  // ramp held work back.
+  const rampRoom = new Map(
+    [...(input.modelRamps ?? [])].map(([key, ramp]) => [
+      key,
+      Math.max(0, ramp.room),
+    ]),
+  );
+  const rampHeld = new Set<string>();
+  /** The agent's model has taken all its ramp lets through for now. */
+  const ramped = (agentId: string): boolean => {
+    const key = modelOf.get(agentId);
+    return key !== undefined && rampRoom.get(key) === 0;
+  };
+  const noteRamped = (agentId: string) => {
+    const key = modelOf.get(agentId);
+    if (key !== undefined) rampHeld.add(key);
+  };
   // The idle agent with the most room, in pool order among equals.
   const roomiest = (): string | null => {
     let best: string | null = null;
     let bestRoom = 0;
     for (const agentId of config.agents) {
-      if (held.has(agentId)) continue;
+      if (held.has(agentId) || ramped(agentId)) continue;
       const left = room.get(agentId) ?? 0;
       if (left > bestRoom) {
         best = agentId;
@@ -166,13 +238,16 @@ export function planDispatch(input: {
   const take = (taskId: string, agentId: string, via: DispatchPick['via']) => {
     picks.push({ taskId, agentId, via });
     room.set(agentId, (room.get(agentId) ?? 0) - 1);
+    const key = modelOf.get(agentId);
+    const left = key === undefined ? undefined : rampRoom.get(key);
+    if (key !== undefined && left !== undefined) rampRoom.set(key, left - 1);
     free -= 1;
   };
   for (const candidate of ranked) {
     if (free === 0) break;
     const own = candidate.assigneeAgentId;
     if (own !== null && pool.has(own)) {
-      if (!held.has(own) && (room.get(own) ?? 0) > 0) {
+      if (!held.has(own) && !ramped(own) && (room.get(own) ?? 0) > 0) {
         take(candidate.taskId, own, 'assigned');
         continue;
       }
@@ -183,11 +258,13 @@ export function planDispatch(input: {
           continue;
         }
       }
-      holds.push({
-        taskId: candidate.taskId,
-        agentId: own,
-        reason: held.has(own) ? 'model_capacity' : 'agent_busy',
-      });
+      const reason: DispatchHoldReason = held.has(own)
+        ? 'model_capacity'
+        : (room.get(own) ?? 0) > 0
+          ? 'model_ramp'
+          : 'agent_busy';
+      if (reason === 'model_ramp') noteRamped(own);
+      holds.push({ taskId: candidate.taskId, agentId: own, reason });
       continue;
     }
     if (own === null && config.assignment === 'pool') {
@@ -196,27 +273,47 @@ export function planDispatch(input: {
         take(candidate.taskId, other, 'pool');
         continue;
       }
+      // Nobody took it: agents with room left wait only for their model's
+      // ramp; else every agent whose model answers is busy.
+      const answering = agents.filter((agent) => !held.has(agent.agentId));
+      const waitingForRamp = answering.filter(
+        (agent) => (room.get(agent.agentId) ?? 0) > 0,
+      );
+      for (const agent of waitingForRamp) noteRamped(agent.agentId);
       holds.push({
         taskId: candidate.taskId,
         agentId: null,
-        reason: agents.some((agent) => !agent.modelHeld)
-          ? 'agent_busy'
-          : agents.length === 0
+        reason:
+          agents.length === 0
             ? 'no_agent'
-            : 'model_capacity',
+            : answering.length === 0
+              ? 'model_capacity'
+              : waitingForRamp.length > 0
+                ? 'model_ramp'
+                : 'agent_busy',
       });
     }
   }
+  const nextWaves = [...rampHeld].flatMap((key) => {
+    const ramp = input.modelRamps?.get(key);
+    return ramp === undefined ? [] : [ramp.nextWaveAtMs];
+  });
+  const rampUntil = nextWaves.length === 0 ? null : Math.min(...nextWaves);
   if (picks.length > 0) {
-    return { capacity, occupied, picks, holds, stop: 'picked' };
+    return { capacity, occupied, picks, holds, stop: 'picked', rampUntil };
   }
+  const waitsForModels = holds.every(
+    (hold) => hold.reason === 'model_capacity' || hold.reason === 'model_ramp',
+  );
   const stop: DispatchPlanStop =
     holds.length === 0
       ? 'no_ready_work'
       : holds.every((hold) => hold.reason === 'model_capacity')
         ? 'model_capacity'
-        : 'agents_busy';
-  return { capacity, occupied, picks, holds, stop };
+        : waitsForModels
+          ? 'model_ramp'
+          : 'agents_busy';
+  return { capacity, occupied, picks, holds, stop, rampUntil };
 }
 
 /**

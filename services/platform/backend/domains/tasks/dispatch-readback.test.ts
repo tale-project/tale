@@ -24,10 +24,11 @@ describe('the readback says why an idle agent of the pool is idle [TASK-R46]', (
     expect(reasonAfter(null)).toBe('unknown');
   });
 
-  it('reads a pass out of time as waiting between starts: the next goes on at once', () => {
-    expect(
-      idleReason({ enabled: true, heldUntil: null, lastStopReason: 'budget' }),
-    ).toBe('pacing');
+  it('reads a pass that waits for the next start as waiting between starts: a ramping model, a pass out of time', () => {
+    const reasonAfter = (lastStopReason: string) =>
+      idleReason({ enabled: true, heldUntil: null, lastStopReason });
+    expect(reasonAfter('model_ramp')).toBe('pacing');
+    expect(reasonAfter('budget')).toBe('pacing');
   });
 });
 

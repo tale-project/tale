@@ -75,6 +75,7 @@ const STOP_KEYS = {
   pacing: 'dispatch.passes.stop.pacing',
   gated: 'dispatch.passes.stop.gated',
   budget: 'dispatch.passes.stop.budget',
+  model_ramp: 'dispatch.passes.stop.model_ramp',
   started: 'dispatch.passes.stop.started',
   held: 'dispatch.passes.stop.held',
 } as const;

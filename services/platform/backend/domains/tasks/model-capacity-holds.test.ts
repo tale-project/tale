@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   MODEL_CAPACITY_MAX_WAIT_MS,
   MODEL_CAPACITY_PROBE_PROOF_MS,
+  MODEL_CAPACITY_RAMP_MS,
   MODEL_CAPACITY_WAKE_SPACING_MS,
   modelCapacityBackoffMs,
+  modelCapacityKey,
+  modelCapacityRamp,
   modelCapacityWakeDelaysMs,
 } from './model-capacity-holds.ts';
 
@@ -71,5 +74,56 @@ describe('a model that answers again wakes its waiters in waves [TASK-R40]', () 
   it('reads a malformed count as none', () => {
     expect(modelCapacityWakeDelaysMs(Number.NaN)).toEqual([]);
     expect(modelCapacityWakeDelaysMs(-3)).toEqual([]);
+  });
+});
+
+describe('new work on a model that answers again ramps up in the same waves [TASK-R43]', () => {
+  const clearedAt = 1_000_000;
+  /** The new runs the ramp has let through `seconds` after the clear. */
+  const allowedAt = (seconds: number) =>
+    modelCapacityRamp(clearedAt, clearedAt + seconds * 1000)?.allowed ?? null;
+
+  it('lets one run through at once, then twice as many each wave, then 32 every 15 seconds', () => {
+    expect([0, 14, 15, 30, 45, 60, 75, 90, 105].map(allowedAt)).toEqual([
+      1, 1, 3, 7, 15, 31, 63, 95, 127,
+    ]);
+  });
+
+  it('names when its next wave comes', () => {
+    expect(modelCapacityRamp(clearedAt, clearedAt)).toEqual({
+      allowed: 1,
+      nextWaveAtMs: clearedAt + MODEL_CAPACITY_WAKE_SPACING_MS,
+    });
+    expect(modelCapacityRamp(clearedAt, clearedAt + 20_000)).toEqual({
+      allowed: 3,
+      nextWaveAtMs: clearedAt + 30_000,
+    });
+  });
+
+  it('is over once its last wave came, within five minutes of the clear', () => {
+    // The waves of 500 runs: the last at 4 min 45 s lets the rest through.
+    expect(allowedAt(284)).toBe(479);
+    expect(allowedAt(285)).toBeNull();
+    expect(MODEL_CAPACITY_RAMP_MS).toBe(5 * 60_000);
+    expect(
+      modelCapacityRamp(clearedAt, clearedAt + MODEL_CAPACITY_RAMP_MS),
+    ).toBeNull();
+  });
+
+  it('reads a clock behind the clear as the first wave, and a broken one as no ramp', () => {
+    expect(modelCapacityRamp(clearedAt, clearedAt - 5_000)).toEqual({
+      allowed: 1,
+      nextWaveAtMs: clearedAt + MODEL_CAPACITY_WAKE_SPACING_MS,
+    });
+    expect(modelCapacityRamp(clearedAt, Number.NaN)).toBeNull();
+  });
+
+  it('keys a model by its provider, an absent provider being one of its own', () => {
+    expect(modelCapacityKey({ modelProvider: null, model: 'm' })).toBe(
+      modelCapacityKey({ modelProvider: '', model: 'm' }),
+    );
+    expect(modelCapacityKey({ modelProvider: 'a', model: 'm' })).not.toBe(
+      modelCapacityKey({ modelProvider: 'b', model: 'm' }),
+    );
   });
 });

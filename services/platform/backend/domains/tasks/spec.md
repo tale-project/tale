@@ -403,7 +403,8 @@ model capacity". The wait lasts 1 minute, then 2, 4, 8 and 15 minutes as the ref
 When it ends one run goes first; the others follow once that run has worked for two minutes,
 or as soon as any run on the model finishes. They then start in waves 15 seconds apart: one run,
 then two, four and so on, never more than a sixteenth of them at once, so even 500 waiting runs
-have all started within five minutes. A model at capacity for twelve hours is no longer
+have all started within five minutes; new work dispatch starts on the model follows the same
+waves (`TASK-R43`). A model at capacity for twelve hours is no longer
 waited for: its next refusal ends the run, and a run that waited that long fails as having
 waited too long.
 
@@ -459,10 +460,19 @@ and files stay where they are.
 
 While the provider holds its model at capacity (`TASK-R40`), the agent's ready work waits, and
 unassigned work goes to an agent whose model answers. When the model answers again, dispatch
-looks for work at once.
+looks for work at once, and for five minutes starts no more new runs on the model than the waves
+of `TASK-R40` let through: one at once, then two more 15 seconds later, four, eight, sixteen, then
+up to 32 every 15 seconds, counting every run started on the model since it answered, whoever
+started it. The agents on that model share those runs; work for an agent on another model goes
+on. A dispatch the waves hold back looks again at the next wave, so no spacing of its own lets a
+pool start its whole room on a model that has just answered.
 
 - **Example**: Scribe's model is at capacity; Lector's is not. "Sitemap" is assigned to nobody →
   Lector takes it, and Scribe's own ready work waits.
+- **Example**: Coder alone holds a pool of 256 with no time between starts. Its model went to
+  capacity when 56 of its runs had started, and 200 ready tasks wait. At 10:00 the model answers →
+  dispatch starts one run at 10:00, two at 10:00:15, then four, eight, sixteen, then 32 every 15
+  seconds; the 200 have all started by 10:02:30.
 
 ### TASK-R44 · Dispatch asks the sandbox host before each start and spaces its starts
 
@@ -507,8 +517,8 @@ is in the pool counts toward the pool.
 
 For every agent of the pool it names the runs it holds, and for an idle one why: dispatch is off,
 its model is at capacity, the host held the last start, the agent workers are all in use, the
-next start waits (for the spacing, or for the pass that follows one that ran out of time), or no
-work is ready for it. It counts an agent's runs by what they do
+next start waits (for the spacing, for the next wave of a model that answered again, or for the
+pass that follows one that ran out of time), or no work is ready for it. It counts an agent's runs by what they do
 (running, queued, and waiting by why) and lists its 50 oldest, so an agent on hundreds of tasks
 still reads in one answer; the page shows the first five and the rest of the list on request. It
 reads the run ledger and the passes, never where cards stand on the board.

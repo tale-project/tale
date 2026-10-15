@@ -586,6 +586,7 @@ dispatch:
       pacing: Attend entre deux démarrages
       gated: Une barrière retient le travail prêt
       budget: Son temps était écoulé ; le passage suivant a lieu aussitôt
+      model_ramp: Un modèle qui répond de nouveau prend le travail par vagues
       started: Il a lancé du travail
       held: Chaque démarrage a été refusé
   editor:

@@ -39,7 +39,7 @@ Die Arbeitsverteilung macht einen Durchlauf, sobald sich etwas ändert: Ein Lauf
 
 1. startet die ständigen Rollen, die fällig sind;
 2. zählt die Läufe, die die Agenten des Pools halten, egal wer sie gestartet hat;
-3. lässt einen Agenten in Ruhe, solange das KI-Modell, das er nutzt, [ausgelastet](/de/platform/projects/task-automation#handle-waiting-and-failed-runs) ist;
+3. lässt einen Agenten in Ruhe, solange das KI-Modell, das er nutzt, [ausgelastet](/de/platform/projects/task-automation#handle-waiting-and-failed-runs) ist, und startet Arbeit auf diesem Modell in Wellen, sobald es wieder antwortet;
 4. fragt vor jedem Start den Sandbox-Host und hört auf, wenn der Host ausgelastet ist;
 5. startet die am besten eingeordnete bereite Aufgabe auf ihrem eigenen freien Agenten.
 
@@ -66,7 +66,7 @@ Darf ein Agent mehr Läufe halten als **Läufe gleichzeitig**, wird das Speicher
 
 Wie schnell sich ein großer Pool füllt, hängt von **Zeit zwischen Starts (Sekunden)** ab. Ist eine Zeit gesetzt, startet jeder Durchlauf eine Aufgabe, und der nächste Durchlauf folgt um diese Zeit später. Der 256. Lauf startet also 255-mal diese Zeit nach dem ersten: bei den standardmäßigen 30 Sekunden nach 2 Stunden, 7 Minuten und 30 Sekunden, bei 5 Sekunden nach 21 Minuten und 15 Sekunden. Bei 0 startet ein Durchlauf jede bereite Aufgabe, die der Sandbox-Host zulässt, höchstens zwei Minuten lang, und der nächste Durchlauf macht sofort weiter; ist der Host ausgelastet, bremsen ihn seine Wartezeiten bis zur nächsten Frage. Ein Durchlauf liest bis zu 500 bereite Aufgaben – genug, um den größten Pool zu füllen.
 
-Antwortet ein KI-Modell wieder, nachdem es ausgelastet war, starten die Läufe, die darauf gewartet haben, in Wellen im Abstand von 15 Sekunden: erst ein Lauf, dann zwei, dann vier und so weiter, höchstens ein Sechzehntel von ihnen auf einmal. Auch 256 wartende Läufe haben so nach spätestens fünf Minuten begonnen.
+Antwortet ein KI-Modell wieder, nachdem es ausgelastet war, starten die Läufe, die darauf gewartet haben, in Wellen im Abstand von 15 Sekunden: erst ein Lauf, dann zwei, dann vier und so weiter, höchstens ein Sechzehntel von ihnen auf einmal. Auch 256 wartende Läufe haben so nach spätestens fünf Minuten begonnen. Neue Arbeit, die die Arbeitsverteilung auf diesem Modell startet, nimmt genauso zu, damit die bereite Arbeit, die sie zurückgehalten hat, solange das Modell ausgelastet war, das Modell nicht auf einmal erreicht: ein Lauf, sobald das Modell wieder antwortet, zwei weitere 15 Sekunden später, dann vier, acht und sechzehn und danach bis zu 32 alle 15 Sekunden. Dabei zählt jeder Lauf, der seither auf dem Modell gestartet wurde, egal wer ihn gestartet hat. Ein Pool von 256 Läufen auf diesem Modell ist so nach spätestens drei Minuten gefüllt; nach fünf Minuten ist der Anlauf vorbei. Ist **Zeit zwischen Starts (Sekunden)** langsamer als dieser Anlauf, gilt sie weiterhin.
 
 ## Ständige Rollen nach Zeitplan ausführen
 
@@ -97,7 +97,7 @@ Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/dev
 | **Sein Modell ist ausgelastet**                  | Der Anbieter hat das Modell des Agenten als ausgelastet gemeldet; der Agent nimmt wieder Arbeit an, sobald das Modell antwortet. |
 | **Der Sandbox-Host ist ausgelastet**             | Der Host hat den letzten Start zurückgehalten; die Arbeitsverteilung fragt nach ihren Wartezeiten erneut.                        |
 | **Alle Agenten-Worker sind belegt**              | Jeder Agenten-Worker deiner Organisation ist beschäftigt.                                                                        |
-| **Wartet zwischen Starts**                       | Der nächste Start wartet: auf die Zeit zwischen Starts oder auf den nächsten Durchlauf, der sofort folgt, wenn einem Durchlauf die Zeit ausging. |
+| **Wartet zwischen Starts**                       | Der nächste Start wartet: auf die Zeit zwischen Starts, auf die nächste Welle eines Modells, das wieder antwortet, oder auf den nächsten Durchlauf, der sofort folgt, wenn einem Durchlauf die Zeit ausging. |
 | **Eine Schranke hält die bereite Arbeit zurück** | Die Arbeit, die für diesen Agenten übrig ist, hält eine Schranke zurück.                                                         |
 | **Keine bereite Arbeit**                         | Keine Aufgabe in den gewählten Spalten ist für diesen Agenten bereit.                                                            |
 | **Arbeitsverteilung ist aus**                    | Die Arbeitsverteilung oder die Aufgabenautomatisierung deiner Organisation ist ausgeschaltet.                                    |

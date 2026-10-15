@@ -39,7 +39,7 @@ La répartition fait un passage dès que quelque chose change : une exécution 
 
 1. lance les rôles permanents qui sont dus ;
 2. compte les exécutions que tiennent les agents du pool, quelle que soit la personne qui les a lancées ;
-3. laisse un agent de côté tant que le modèle d’IA qu’il utilise est [saturé](/fr/platform/projects/task-automation#handle-waiting-and-failed-runs) ;
+3. laisse un agent de côté tant que le modèle d’IA qu’il utilise est [saturé](/fr/platform/projects/task-automation#handle-waiting-and-failed-runs), et lance le travail sur ce modèle par vagues dès qu’il répond de nouveau ;
 4. interroge l’hôte des sandbox avant chaque démarrage, et s’arrête quand l’hôte est occupé ;
 5. lance la tâche prête la mieux classée sur son propre agent libre.
 
@@ -66,7 +66,7 @@ Un enregistrement qui permettrait à un agent de tenir plus d’exécutions que 
 
 La vitesse à laquelle un grand pool se remplit dépend de **Délai entre deux démarrages (secondes)**. Avec un délai, chaque passage lance une tâche et le passage suivant vient ce délai plus tard : la 256e exécution démarre donc 255 fois ce délai après la première, soit 2 heures 7 minutes 30 secondes avec les 30 secondes par défaut, et 21 minutes 15 secondes avec 5 secondes. Avec 0, un passage lance chaque tâche prête que l’hôte des sandbox admet, pendant deux minutes au plus, et le passage suivant prend aussitôt le relais ; quand l’hôte est occupé, ses délais avant de redemander ralentissent le démarrage. Un passage lit jusqu’à 500 tâches prêtes, assez pour remplir le plus grand pool.
 
-Quand un modèle d’IA répond de nouveau après avoir été saturé, les exécutions qui l’attendaient démarrent par vagues espacées de 15 secondes : une exécution, puis deux, puis quatre, et ainsi de suite, jamais plus d’un seizième d’entre elles à la fois. Même 256 exécutions en attente ont ainsi toutes démarré en cinq minutes au plus.
+Quand un modèle d’IA répond de nouveau après avoir été saturé, les exécutions qui l’attendaient démarrent par vagues espacées de 15 secondes : une exécution, puis deux, puis quatre, et ainsi de suite, jamais plus d’un seizième d’entre elles à la fois. Même 256 exécutions en attente ont ainsi toutes démarré en cinq minutes au plus. Le nouveau travail que la répartition lance sur ce modèle monte en charge de la même façon, pour que le travail prêt qu’elle a retenu pendant la saturation n’atteigne pas le modèle d’un coup : une exécution dès que le modèle répond, deux de plus 15 secondes plus tard, puis quatre, huit et seize, et ensuite jusqu’à 32 toutes les 15 secondes. Chaque exécution lancée sur le modèle depuis qu’il répond compte, d’où qu’elle vienne. Un pool de 256 exécutions sur ce modèle est ainsi rempli en trois minutes au plus ; au bout de cinq minutes, la montée en charge est terminée. Un **Délai entre deux démarrages (secondes)** plus lent que cette montée en charge s’applique toujours.
 
 ## Exécuter des rôles permanents selon un horaire
 
@@ -97,7 +97,7 @@ Un système externe signale l’état de la barrière par l’[API REST](/fr/dev
 | **Son modèle est saturé** | Le fournisseur a déclaré le modèle de l’agent saturé ; l’agent reprend du travail dès que le modèle répond. |
 | **L’hôte des sandbox est occupé** | L’hôte a retenu le dernier démarrage ; la répartition redemande après ses délais. |
 | **Tous les workers d’agent sont occupés** | Chaque worker d’agent de ton organisation est occupé. |
-| **Attend entre deux démarrages** | Le prochain démarrage attend le délai entre deux démarrages, ou le passage suivant, qui suit aussitôt quand un passage a manqué de temps. |
+| **Attend entre deux démarrages** | Le prochain démarrage attend le délai entre deux démarrages, la prochaine vague d’un modèle qui répond de nouveau, ou le passage suivant, qui suit aussitôt quand un passage a manqué de temps. |
 | **Une barrière retient le travail prêt** | Le travail restant pour cet agent est retenu par une barrière. |
 | **Aucun travail prêt** | Aucune tâche des colonnes choisies n’est prête pour cet agent. |
 | **La répartition est désactivée** | La répartition, ou l’automatisation des tâches de ton organisation, est désactivée. |

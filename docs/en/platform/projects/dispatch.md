@@ -39,7 +39,7 @@ Dispatch makes a pass whenever something changes: a run of the project ends, a m
 
 1. starts the standing roles that are due;
 2. counts the runs the pool's agents hold, whoever started them;
-3. leaves an agent alone while the AI model it uses is [at capacity](/platform/projects/task-automation#handle-waiting-and-failed-runs);
+3. leaves an agent alone while the AI model it uses is [at capacity](/platform/projects/task-automation#handle-waiting-and-failed-runs), and starts work on that model in waves once it answers again;
 4. asks the sandbox host before each start, and stops when the host is busy;
 5. starts the best-ranked ready task on its own idle agent.
 
@@ -66,7 +66,7 @@ A save that lets one agent hold more runs than **Runs at once** is refused under
 
 How fast a large pool fills depends on **Time between starts (seconds)**. With a time set, each pass starts one task and the next pass comes that much later, so the 256th run starts 255 times that time after the first: 2 hours 7 minutes 30 seconds at the default 30 seconds, 21 minutes 15 seconds at 5. With 0, a pass starts every ready task the sandbox host admits, for at most two minutes, and the next pass carries on at once; when the host is busy, its recheck delays slow the start. A pass reads up to 500 ready tasks, enough to fill the largest pool.
 
-When an AI model answers again after it was at capacity, the runs waiting for it start in waves 15 seconds apart: one run, then two, then four, and so on, up to a sixteenth of them at a time. Even 256 waiting runs have all started within five minutes.
+When an AI model answers again after it was at capacity, the runs waiting for it start in waves 15 seconds apart: one run, then two, then four, and so on, up to a sixteenth of them at a time. Even 256 waiting runs have all started within five minutes. New work dispatch starts on that model ramps up the same way, so the ready work it held back while the model was at capacity does not reach the model at once: one run as soon as the model answers, two more 15 seconds later, then four, eight and sixteen, and from then on up to 32 every 15 seconds, counting every run started on the model since it answered, whoever started it. A pool of 256 on that model fills within three minutes; after five minutes the ramp is over. A **Time between starts (seconds)** slower than the ramp still applies.
 
 ## Run standing roles on a schedule
 
@@ -97,7 +97,7 @@ An external system reports on the gate through the [REST API](/develop/api-refer
 | **Its model is at capacity**     | The provider called the agent's model at capacity; the agent takes work again once the model answers. |
 | **The sandbox host is busy**     | The host held the last start; dispatch asks again after its delays.                                   |
 | **All agent workers are in use** | Every agent worker of your organization is busy.                                                      |
-| **Waiting between starts**       | The next start waits for the time between starts, or for the next pass, which follows at once when a pass ran out of time. |
+| **Waiting between starts**       | The next start waits for the time between starts, for the next wave of a model that answered again, or for the next pass, which follows at once when a pass ran out of time. |
 | **A gate holds the ready work**  | The work left for this agent is held by a gate.                                                       |
 | **No ready work**                | No task in the chosen columns is ready for this agent.                                                |
 | **Dispatch is off**              | Dispatch, or task automation for your organization, is switched off.                                  |

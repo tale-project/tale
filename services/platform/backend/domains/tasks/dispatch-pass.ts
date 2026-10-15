@@ -34,6 +34,7 @@ import {
   startPacedUntil,
   type DispatchAgent,
   type DispatchCandidate,
+  type DispatchModelRamp,
   type DispatchPick,
 } from './dispatch-plan.ts';
 import {
@@ -47,6 +48,10 @@ import {
 } from './dispatch-roles.ts';
 import { readStoredDispatch } from './dispatch-store.ts';
 import { TaskError } from './errors.ts';
+import {
+  modelCapacityKey,
+  readModelCapacityRamps,
+} from './model-capacity-holds.ts';
 import { assertTaskAutomationEnabled } from './run-start.ts';
 
 /**
@@ -67,9 +72,11 @@ import { assertTaskAutomationEnabled } from './run-start.ts';
  * makes one start of ready work and the next pass comes that much later, so
  * a pool of N runs fills in (N - 1) times the spacing. Without one, a pass
  * starts every pick the host admits, for at most `PASS_BUDGET_MS`; a pass
- * that runs out of time asks for the next at once. What the pass saw
- * and did is recorded (`project_dispatch_passes`): the readback of why an
- * agent is idle.
+ * that runs out of time asks for the next at once. A model that answered
+ * again after it was at capacity takes no more new runs than its ramp lets
+ * through (`readModelCapacityRamps`); a pass it held asks for the next at
+ * the ramp's next wave. What the pass saw and did is recorded
+ * (`project_dispatch_passes`): the readback of why an agent is idle.
  */
 
 /** When a pass finds another under way, it asks again this much later. */
@@ -96,6 +103,9 @@ export type DispatchStopReason =
   /** The pass started work for as long as it may; the next goes on at
    * once. */
   | 'budget'
+  /** A model that answered again took as many new runs as its ramp lets
+   * through for now; the next pass comes at its next wave. */
+  | 'model_ramp'
   | 'started'
   | 'held';
 
@@ -165,8 +175,9 @@ async function readState(sql: Sql, projectId: string): Promise<DispatchState> {
   return rows[0] ?? { lastStartAt: null, recheckIndex: 0 };
 }
 
-/** The pool's occupancy, its agents' models on hold, the organization's
- * agent-worker room and the ready work, as one pass sees them. */
+/** The pool's occupancy, its agents' models on hold or ramping up after
+ * one, the organization's agent-worker room and the ready work, as one pass
+ * sees them. */
 async function readDispatchFacts(
   sql: Sql,
   args: {
@@ -179,6 +190,7 @@ async function readDispatchFacts(
   agents: DispatchAgent[];
   candidates: DispatchCandidate[];
   workerRoom: number;
+  modelRamps: Map<string, DispatchModelRamp>;
 }> {
   const { organizationId, projectId, config } = args;
   const pool = config.agents;
@@ -203,25 +215,44 @@ async function readDispatchFacts(
           GROUP BY agent_id
         `;
   const live = new Map(occupancy.map((row) => [row.agentId, row.live]));
-  const held =
+  const models =
     pool.length === 0
       ? []
-      : await sql<{ agentId: string }[]>`
-          SELECT a.id AS "agentId"
+      : await sql<
+          {
+            agentId: string;
+            modelProvider: string | null;
+            model: string;
+            held: boolean;
+          }[]
+        >`
+          SELECT a.id AS "agentId", a.model_provider AS "modelProvider",
+                 a.model,
+                 EXISTS (
+                   SELECT 1 FROM app.model_capacity_holds h
+                   WHERE h.org_id = a.org_id
+                     AND h.model_provider = coalesce(a.model_provider, '')
+                     AND h.model = a.model
+                     AND (h.held_until_ms > ${args.now}
+                       OR h.probe_run_id IS NOT NULL)
+                 ) AS held
           FROM app.project_agents a
-          JOIN app.model_capacity_holds h
-            ON h.org_id = a.org_id
-           AND h.model_provider = coalesce(a.model_provider, '')
-           AND h.model = a.model
           WHERE a.org_id = ${organizationId} AND a.id = ANY(${pool})
-            AND (h.held_until_ms > ${args.now} OR h.probe_run_id IS NOT NULL)
         `;
-  const heldAgents = new Set(held.map((row) => row.agentId));
-  const agents: DispatchAgent[] = pool.map((agentId) => ({
-    agentId,
-    live: live.get(agentId) ?? 0,
-    modelHeld: heldAgents.has(agentId),
-  }));
+  const modelOf = new Map(models.map((row) => [row.agentId, row]));
+  const agents: DispatchAgent[] = pool.map((agentId) => {
+    const model = modelOf.get(agentId);
+    return {
+      agentId,
+      live: live.get(agentId) ?? 0,
+      modelHeld: model?.held === true,
+      ...(model === undefined ? {} : { modelKey: modelCapacityKey(model) }),
+    };
+  });
+  const modelRamps =
+    pool.length === 0
+      ? new Map<string, DispatchModelRamp>()
+      : await readModelCapacityRamps(sql, { organizationId, now: args.now });
 
   const { cap, inFlight } = await projectSessionRoom(sql, organizationId);
   const pending = await sql<{ queued: number }[]>`
@@ -303,7 +334,7 @@ async function readDispatchFacts(
                    t.rank, t.created_at_ms, t.id
           LIMIT ${CANDIDATES_PER_PASS}
         `;
-  return { agents, candidates, workerRoom };
+  return { agents, candidates, workerRoom, modelRamps };
 }
 
 /** The project's labels by lower-cased name: a name the board shows twice
@@ -695,7 +726,8 @@ export interface PickRun {
  * spacing does not allow yet (`pacing`, the next pass when it does); the
  * host holding (`host_pressure`, the next pass after the recheck delays);
  * a start made with a spacing to keep (`pacing`). A start the task refuses
- * is held and the next pick goes on.
+ * is held and the next pick goes on. Having started every pick, a pass
+ * whose plan held work for a model's ramp asks again at its next wave.
  */
 export async function startPicks(
   args: {
@@ -708,6 +740,8 @@ export async function startPicks(
     recheckSeconds: readonly number[];
     lastStartAt: number | null;
     recheckIndex: number;
+    /** The plan's `rampUntil`. */
+    rampUntil: number | null;
   },
   effects: PickEffects,
 ): Promise<PickRun> {
@@ -789,6 +823,11 @@ export async function startPicks(
       nextPassAt = lastStartAt + args.spacingMs;
       break;
     }
+  }
+  if (nextPassAt === null && args.rampUntil !== null) {
+    // A model's ramp held work back: the next pass comes with its next wave.
+    nextPassAt = args.rampUntil;
+    if (stop === 'started') stop = 'model_ramp';
   }
   return {
     stop,
@@ -935,6 +974,7 @@ export async function runDispatchPass(
       agents: facts.agents,
       candidates: open,
       workerRoom: facts.workerRoom,
+      modelRamps: facts.modelRamps,
     });
     for (const hold of plan.holds) {
       held.push({
@@ -958,6 +998,7 @@ export async function runDispatchPass(
         recheckSeconds: admission.recheckSeconds,
         lastStartAt,
         recheckIndex,
+        rampUntil: plan.rampUntil,
       },
       {
         now: () => Date.now(),
