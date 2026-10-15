@@ -34,7 +34,8 @@ Un connector dont le nom est fait de mots courants, comme `task` (Tasks), décla
 | `endpointMode: fixed` | Valeur par défaut. Les appels HTTP réels utilisent des URL fixes ; `allowedHosts` contient les hôtes exacts |
 | `endpointMode: per-credential` | Chaque identifiant fournit une `endpointUrl` HTTPS ; les actions lisent son origine sans barre oblique finale via `ctx.endpoint` |
 | `allowedHosts` en mode per-credential | Suffixes d'hôtes : `atlassian.net` autorise ses sous-domaines |
-| `configFields` | Valeurs non secrètes propres à l'identifiant : hôte, port, région ou version d'API ; le `label` et la `description` d'un champ prennent des traductions sous `i18n.de` et `i18n.fr` pour le formulaire des identifiants |
+| `configFields` | Valeurs non secrètes propres à l'identifiant : hôte, port, région ou version d'API ; le `label` et la `description` d'un champ prennent des traductions sous `i18n.de` et `i18n.fr` pour le formulaire des identifiants. `required` rend un champ obligatoire pour tous les identifiants ; `requiredFor` liste les méthodes d'authentification pour lesquelles il l'est, comme le `mailbox` d'Outlook pour `client-credentials` |
+| `livePrelude` | JavaScript facultatif par lequel commence chaque corps `yaml-js` du connector, dans la portée du corps : des fonctions que les actions partagent, comme la racine Graph et les messages d'erreur d'Outlook |
 
 Confluence, Forgejo, GlitchTip et Shopify utilisent des origines propres à chaque identifiant. Les secrets n'ont pas leur place dans `configFields` : conserve-les dans les données d'identification chiffrées. Pour les actions JavaScript, `ctx.http` applique la restriction des destinations HTTP. Les backends natifs, comme les protocoles de messagerie, appliquent leurs propres contrôles ; une liste HTTP ne décrit pas toute leur sécurité réseau.
 
@@ -78,6 +79,9 @@ Un connector peut accepter plusieurs méthodes ; un identifiant enregistré en u
 | `bearer`  | Jeton                             | Un jeton envoyé dans l’en-tête Authorization, sous le schéma que le connector nomme.                                          |
 | `basic`   | Nom d’utilisateur et mot de passe | Un nom d’utilisateur et un mot de passe en HTTP Basic, la forme que prend aussi un login de boîte mail.                        |
 | `oauth2`  | OAuth                             | Une autorisation par code : jeton d’accès, jeton de rafraîchissement, expiration et portées accordées.                         |
+| `client-credentials` | Connexion de l'app | L’enregistrement d’application de l’organisation : ID client et secret client, plus l’ID d’annuaire (tenant) quand l’URL de jeton contient `{tenantId}`. Tale demande le jeton d’accès pour les `scopes` déclarées et le renouvelle avant son expiration. |
+
+Une méthode `oauth2` peut déclarer `configScopes` : des portées supplémentaires que le consentement ne demande que si les identifiants reconnectés renseignent la clé `configFields` indiquée. Outlook demande ainsi ses autorisations sur les boîtes partagées, car un compte Microsoft personnel ne peut pas les accorder.
 
 La méthode interne `platform` n'a pas d'identifiant enregistré et ne peut pas être combinée avec les méthodes de fournisseurs. Elle est réservée aux capacités natives de Tale, comme les actions sur les tâches ou les documents.
 
@@ -90,9 +94,9 @@ Le connector déclare les URL d'autorisation et de jeton, ainsi que les permissi
 | Source | Priorité et configuration |
 | --- | --- |
 | Application d'organisation | Prioritaire. Un administrateur renseigne ID client et secret dans **Paramètres > Connectors > Apps OAuth** |
-| Application de déploiement | Défaut sans application d'organisation : `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` et `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
+| Application de déploiement | Défaut sans application d'organisation : `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` et `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, plus `CONNECTOR_OAUTH_<SLUG>_TENANT_ID` pour une application Microsoft à locataire unique |
 
-Dans les variables d'environnement, mets le slug en majuscules et remplace ses tirets par des traits de soulignement. Pour une application Microsoft à locataire unique, configure aussi l'ID d'annuaire afin de cibler ce locataire plutôt que `/common`. Les secrets d'organisation sont chiffrés et ne sont plus affichés ensuite.
+Dans les variables d'environnement, mets le slug en majuscules et remplace ses tirets par des traits de soulignement. Pour une application Microsoft à locataire unique, configure aussi l'ID d'annuaire (dans l'application d'organisation ou avec `CONNECTOR_OAUTH_<SLUG>_TENANT_ID`) afin de cibler ce locataire plutôt que `/common`. Les secrets d'organisation sont chiffrés et ne sont plus affichés ensuite.
 
 ### Enregistrer exactement l'URL de retour
 

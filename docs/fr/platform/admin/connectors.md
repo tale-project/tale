@@ -22,6 +22,7 @@ Le connector détermine les champs. Utilise les identifiants du compte externe, 
 | Token | Un jeton du service, comme un token d’accès personnel GitHub, un token d’accès Forgejo avec `read:repository` et `read:issue` (`write:issue` pour modifier des issues), un token de bot Discord ou un token d’API GlitchTip avec `project:read` et `event:read`. Un token GitHub qui synchronise des alertes de sécurité doit aussi pouvoir lire les alertes de code scanning, Dependabot et secret scanning du dépôt. |
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
+| Connexion de l'app | L’enregistrement d’application propre à ton organisation chez le fournisseur : son ID d’annuaire (tenant), son ID d’application (client) et son secret client. L’application se connecte elle-même, sans personne ; Tale obtient et renouvelle son jeton d’accès. Outlook s’en sert pour accéder à une [boîte aux lettres partagée](#connecter-une-boite-aux-lettres-outlook-partagee). |
 
 Certains connectors demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour Forgejo, utilise l’origine de l’instance sans chemin, par exemple `https://codeberg.org`, et pour GlitchTip l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance Forgejo ou GlitchTip auto-hébergée doit aussi être autorisée par la politique des hôtes du connector. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
@@ -55,6 +56,31 @@ L’application Google Drive sert aussi à l’import dans la base de connaissan
 
 Pour OneDrive/SharePoint, **Utiliser l'app SSO Entra ID** peut copier une inscription SSO existante dans la configuration d’import. Cette copie est ponctuelle : après le renouvellement du secret SSO, refais-la et vérifie l’URI de redirection et les permissions déléguées indiquées dans la confirmation.
 
+## Connecter une boîte aux lettres Outlook partagée
+
+Une boîte aux lettres partagée, comme `promotion@example.com`, n’a pas de connexion propre. Tale y accède de deux façons : l’application Microsoft de ton organisation se connecte elle-même et n’a accès qu’à cette boîte, ou une personne qui dispose déjà d’un accès complet à la boîte connecte son propre compte. Dans les deux cas, le champ **Boîte aux lettres** des identifiants indique l’adresse partagée. Toutes les actions Outlook, la synchronisation de la boîte et la boîte de réception travaillent alors dans cette boîte et utilisent son adresse comme expéditeur.
+
+Pour une boîte d’équipe, la connexion de l’app convient mieux : elle ne dépend pas du compte d’une seule personne, et Exchange limite l’application aux boîtes que tu choisis.
+
+1. Dans Microsoft Entra ID, enregistre une application monolocataire dédiée et ajoute-lui un secret client. Note l’**ID de l’annuaire (locataire)** et l’**ID d’application (client)** sur sa page de présentation. Ne lui accorde pas d’autorisations Microsoft Graph de messagerie dans Entra ID : elles s’appliqueraient à toutes les boîtes de ton organisation.
+2. Dans Exchange Online PowerShell, en tant qu’administrateur Exchange, limite l’application à la boîte avec RBAC for Applications. Prends les ID dans l’entrée **Applications d’entreprise** de l’application, pas dans **Inscriptions d’applications** :
+
+   ```powershell
+   New-ServicePrincipal -AppId <application-id> -ObjectId <enterprise-app-object-id> -DisplayName "Tale promotion mailbox"
+   New-ManagementScope -Name "Tale promotion mailbox" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'promotion@example.com'"
+   New-ManagementRoleAssignment -App <application-id> -Role "Application Mail.ReadWrite" -CustomResourceScope "Tale promotion mailbox"
+   New-ManagementRoleAssignment -App <application-id> -Role "Application Mail.Send" -CustomResourceScope "Tale promotion mailbox"
+   Test-ServicePrincipalAuthorization -Identity <application-id> -Resource promotion@example.com
+   ```
+
+   `Application Mail.ReadWrite` permet à Tale de lire la boîte et d’y écrire des brouillons de réponse ; `Application Mail.Send` lui permet d’envoyer. Si des automatisations utilisent le calendrier ou les contacts de la boîte, attribue de la même façon `Application Calendars.ReadWrite` ou `Application Contacts.Read`. Exchange peut mettre jusqu’à deux heures à appliquer une nouvelle attribution.
+3. Dans Tale, sélectionne **Ajouter des identifiants**, puis **Microsoft Outlook**. Dans le formulaire, saisis l’ID d’annuaire (tenant), l’ID d’application (client), le secret client et, sous **Boîte aux lettres**, l’adresse partagée, puis ajoute les identifiants. Leur ligne affiche **Connexion de l'app**.
+4. Envoie un message de test à l’adresse partagée et vérifie qu’il apparaît dans la boîte de réception. Pour confier ses conversations à l’équipe qui s’en occupe, ajoute pour cette boîte une règle de [routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations).
+
+Quand le secret client expire, remplace-le avec **Remplacer les identifiants de l'app** dans le menu de la ligne ; les identifiants gardent leur nom, leur boîte et leurs références.
+
+Si c’est une personne qui gère la boîte, connecte Outlook avec **Connecter** en tant que cette personne. Ouvre ensuite **Modifier les identifiants**, saisis l’adresse partagée sous **Boîte aux lettres**, enregistre, puis choisis **Reconnecter**. Le nouvel écran de consentement demande l’accès aux boîtes que ce compte peut ouvrir. La personne a besoin d’un accès complet à la boîte et, pour envoyer, de l’autorisation « Envoyer en tant que ».
+
 ## Rétablir une connexion
 
 **Reconnexion requise** signifie que l’autorisation OAuth enregistrée ne peut plus être renouvelée. Sélectionne **Reconnecter** dans le menu de cette ligne et autorise à nouveau le même compte. Tale renouvelle exactement ces identifiants : leur nom, le choix par défaut et les références restent les mêmes, et aucun autre identifiant ne change. **Reconnecter** ne réactive pas des identifiants volontairement désactivés ; **Activer** les remet en service.
@@ -62,5 +88,7 @@ Pour OneDrive/SharePoint, **Utiliser l'app SSO Entra ID** peut copier une inscri
 Si les identifiants sont supprimés avant la fin de l’autorisation, ou si ton rôle ne te permet plus de gérer les identifiants, Tale n’enregistre rien et en indique la raison. Pour Slack, autorise l’espace que ces identifiants connectent déjà. Tale refuse un autre espace ; connecte-le plutôt avec **Ajouter des identifiants**.
 
 Si la connexion ne démarre pas, vérifie l’application OAuth. Si le fournisseur refuse le retour vers Tale, compare son URI de redirection enregistrée à celle que Tale affiche. Si une action échoue après la connexion, vérifie les droits du compte et les permissions requises pour cette action.
+
+Une connexion de l’app n’a pas de **Reconnecter**. Si le fournisseur refuse l’application, l’action échoue avec `CREDENTIAL_APP_REFUSED` et la raison du fournisseur, par exemple `invalid_client` pour un secret client erroné ou expiré : vérifie l’ID d’annuaire, l’ID d’application et le secret client, puis remplace-les. Si Microsoft Graph refuse l’accès à une boîte partagée, l’erreur nomme la boîte et le rôle Exchange dont l’action a besoin, par exemple `Application Mail.Send` pour l’envoi.
 
 Pour les services sans connector intégré, consulte [MCP et les intégrations personnalisées](/fr/platform/connectors/mcp-servers). Cette page d’identifiants ne permet pas d’enregistrer n’importe quel serveur MCP sortant.

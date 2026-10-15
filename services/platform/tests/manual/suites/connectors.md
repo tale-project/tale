@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 45 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -275,6 +275,28 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   (`settings.connectors.credential.deleteDefaultLeavesNone`), and after the
   delete **Paused bot** stays **Disabled** and not the default. Deleting a
   credential that is not the default says nothing about the default.
+- [ ] `CONN-F24` · **A shared mailbox through an app sign-in** — Mode B, a
+  Microsoft 365 test tenant with a shared mailbox and a single-tenant app
+  scoped to it by RBAC for Applications (`Application Mail.ReadWrite` and
+  `Application Mail.Send`; the steps in the Connector credentials guide).
+  Picker → **Microsoft Outlook** → the form under the OAuth card asks for
+  **Directory (tenant) ID** (`settings.connectors.dialog.tenantId`),
+  **Application (client) ID**, **Client secret** and **Mailbox**, all
+  required; Submit stays disabled until each is filled. Save with the shared
+  address → the row shows **App sign-in**
+  (`settings.connectors.authMethod.clientCredentials`) and the client secret's
+  excerpt.
+  Send a message to the shared address → it reaches the Inbox under that
+  mailbox's name; a reply from it leaves from the shared address and lands in
+  the shared mailbox's **Sent Items**, not in any person's.
+- [ ] `CONN-F25` · **A shared mailbox through a person's sign-in** — Mode B,
+  an Outlook account with Full Access and Send As on a shared mailbox →
+  **Connect** as that account; consent asks for its own mailbox only. **Edit
+  credential** → **Mailbox** = the shared address → save → **Reconnect** → the
+  consent now also asks for access to mailboxes the account can open. The
+  Inbox then lists the shared mailbox's mail, and a reply leaves from the
+  shared address. Clearing **Mailbox** again returns the credential to the
+  account's own mailbox and its own address.
 
 ## Boundary & error tests
 
@@ -349,6 +371,15 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   this connector — pick a different name.`) with the name and token still
   filled. Once settled, the back control returns to the picker, and a
   re-picked **GitHub** starts over with an empty token.
+- [ ] `CONN-B13` · **An app sign-in Exchange or Entra refuses** — On
+  CONN-F24's row: **Replace app credentials**
+  (`settings.connectors.replace.clientCredentialsTitle`) with a wrong client
+  secret → the next mail sync or Outlook action fails with
+  `CREDENTIAL_APP_REFUSED`, naming `invalid_client` and the three values to
+  check, and the row stays active; the right secret restores it. Then name a
+  mailbox outside the app's management scope → the action fails naming that
+  mailbox and the Exchange role it lacks (`Application Mail.Read`), never a
+  bare 403.
 
 ## Accessibility (WCAG 2.1 AA)
 

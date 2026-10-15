@@ -34,7 +34,8 @@ A connector named with ordinary words, such as `task` (Tasks), also declares `i1
 | `endpointMode: fixed` | Default. Live HTTP calls use fixed vendor URLs; `allowedHosts` contains exact hosts |
 | `endpointMode: per-credential` | Each credential supplies an HTTPS `endpointUrl`; actions read its origin as `ctx.endpoint`, without a trailing slash |
 | `allowedHosts` in per-credential mode | Host suffixes: `atlassian.net` allows its subdomains |
-| `configFields` | Non-secret per-credential values such as server host, port, region, or API version; a field's `label` and `description` take `i18n.de` and `i18n.fr` overrides for the credential form |
+| `configFields` | Non-secret per-credential values such as server host, port, region, or API version; a field's `label` and `description` take `i18n.de` and `i18n.fr` overrides for the credential form. `required` makes a field mandatory for every credential; `requiredFor` lists the authentication methods it is mandatory for, such as Outlook's `mailbox` for `client-credentials` |
+| `livePrelude` | Optional JavaScript every `yaml-js` live body of the connector starts with, in the body's scope: helpers the actions share, such as Outlook's Graph root and refusal messages |
 
 Confluence, Forgejo, GlitchTip and Shopify use per-credential origins. Keep secrets out of `configFields`; use the encrypted credential payload. For JavaScript actions, `ctx.http` enforces the declared HTTP destination boundary. Native backends, such as mailbox protocols, implement their own transport checks; an HTTP allowlist alone does not describe their whole security boundary.
 
@@ -78,6 +79,9 @@ A connector can support several methods; a stored credential uses exactly one.
 | `bearer`  | Token               | A token sent as the Authorization header, under the scheme the connector names.                  |
 | `basic`   | Username & password | A username and password sent as HTTP Basic, which is also the shape a mailbox login takes.       |
 | `oauth2`  | OAuth               | An authorization-code grant: access token, refresh token, expiry, and the granted scopes.        |
+| `client-credentials` | App sign-in | The organization's own app registration: client ID and secret, plus the directory (tenant) ID when the token URL names `{tenantId}`. Tale requests the access token for the declared `scopes` and renews it before it expires. |
+
+An `oauth2` method can declare `configScopes`: extra scopes the consent asks for only when the credential being reconnected sets the named `configFields` key. Outlook asks for its shared-mailbox permissions this way, because a personal Microsoft account cannot grant them.
 
 The internal `platform` method has no stored credential and cannot be combined with vendor methods. It is reserved for native platform capabilities such as task and document actions.
 
@@ -90,9 +94,9 @@ The connector declares authorization/token URLs and requested scopes. Configure 
 | Source | Precedence and configuration |
 | --- | --- |
 | Organization app | Takes precedence. An administrator supplies client ID and secret in **Settings > Connectors > OAuth apps** |
-| Deployment app | Default when no organization app is configured: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
+| Deployment app | Default when no organization app is configured: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, plus `CONNECTOR_OAUTH_<SLUG>_TENANT_ID` for a single-tenant Microsoft app |
 
-In environment variable names, uppercase the slug and replace dashes with underscores. For a single-tenant Microsoft app, also configure its directory ID so authorization uses that tenant rather than `/common`. Organization app secrets are encrypted and not revealed again.
+In environment variable names, uppercase the slug and replace dashes with underscores. For a single-tenant Microsoft app, also configure its directory ID (in the organization app, or `CONNECTOR_OAUTH_<SLUG>_TENANT_ID`) so authorization uses that tenant rather than `/common`. Organization app secrets are encrypted and not revealed again.
 
 ### Register the callback exactly
 

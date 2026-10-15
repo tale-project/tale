@@ -23,7 +23,7 @@ Utilise un connector lorsque Tale doit lire ou modifier les données d’un serv
 | HTTP | Appeler n’importe quelle API HTTPS depuis une étape d’automatisation ; voir [Appeler une API depuis une automatisation](/fr/platform/automations/http). | Jeton Bearer, clé d’API ou nom d’utilisateur et mot de passe, avec une URL de base — ou aucun. |
 | IMAP / SMTP Mailbox | Lire ou envoyer du courrier via un service privé. | Nom d’utilisateur et mot de passe. |
 | Jev decisions | Répondre à des questions typées sur les données d’un workflow avec des probabilités calibrées, pour décider s’il faut agir. | Clé API (une clé OpenRouter). |
-| Microsoft Outlook | Travailler avec courrier, calendriers et contacts. | OAuth. |
+| Microsoft Outlook | Travailler avec courrier, calendriers et contacts, dans ta propre boîte ou une [boîte partagée](/fr/platform/admin/connectors#connecter-une-boite-aux-lettres-outlook-partagee). | OAuth, ou une connexion de l’app pour une boîte partagée. |
 | Shopify | Travailler avec produits, clients et commandes. | Clé API. |
 | Slack | Travailler avec les messages et canaux. | OAuth. |
 | Tavily | Rechercher sur le web et extraire des pages. | Clé API. |

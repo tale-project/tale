@@ -34,7 +34,8 @@ Ein Connector, dessen Name aus gewöhnlichen Wörtern besteht, etwa `task` (Task
 | `endpointMode: fixed` | Standard. Live-HTTP-Aufrufe verwenden feste Anbieter-URLs; `allowedHosts` enthält genaue Hostnamen |
 | `endpointMode: per-credential` | Jeder Zugang enthält eine HTTPS-`endpointUrl`; Aktionen lesen den Ursprung ohne abschließenden Schrägstrich über `ctx.endpoint` |
 | `allowedHosts` bei per-credential | Hostsuffixe: `atlassian.net` erlaubt seine Subdomains |
-| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version; `label` und `description` eines Felds nehmen für das Formular der Zugangsdaten Übersetzungen unter `i18n.de` und `i18n.fr` |
+| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version; `label` und `description` eines Felds nehmen für das Formular der Zugangsdaten Übersetzungen unter `i18n.de` und `i18n.fr`. `required` macht ein Feld für alle Zugangsdaten zur Pflicht; `requiredFor` nennt die Authentifizierungsmethoden, für die es Pflicht ist, etwa Outlooks `mailbox` für `client-credentials` |
+| `livePrelude` | Optionales JavaScript, mit dem jeder `yaml-js`-Live-Body des Connectors beginnt, im Scope des Bodys: Hilfsfunktionen, die sich die Aktionen teilen, etwa Outlooks Graph-Wurzel und Fehlermeldungen |
 
 Confluence, Forgejo, GlitchTip und Shopify verwenden Ursprünge je Zugang. Geheimnisse gehören nicht in `configFields`, sondern in die verschlüsselten Zugangsdaten. Bei JavaScript-Aktionen setzt `ctx.http` die erlaubten HTTP-Ziele durch. Native Backends, etwa für Mailprotokolle, prüfen ihren Transport selbst; eine HTTP-Freigabeliste beschreibt nicht ihre gesamte Sicherheitsgrenze.
 
@@ -78,6 +79,9 @@ Ein Connector kann mehrere Verfahren unterstützen; ein gespeicherter Zugang ver
 | `bearer`  | Token                         | Ein Token, gesendet als Authorization-Header unter dem Schema, das der Connector nennt.                                    |
 | `basic`   | Benutzername & Passwort       | Benutzername und Passwort als HTTP Basic — dieselbe Form, die auch ein Postfach-Login annimmt.                             |
 | `oauth2`  | OAuth                         | Ein Authorization-Code-Grant: Access Token, Refresh Token, Ablauf und die erteilten Scopes.                                |
+| `client-credentials` | App-Anmeldung | Die eigene App-Registrierung der Organisation: Client-ID und Client-Secret, dazu die Verzeichnis-ID (Tenant), wenn die Token-URL `{tenantId}` enthält. Tale fordert das Access Token für die deklarierten `scopes` an und erneuert es, bevor es abläuft. |
+
+Eine `oauth2`-Methode kann `configScopes` deklarieren: zusätzliche Scopes, nach denen die Freigabe nur fragt, wenn die neu verbundenen Zugangsdaten den genannten Schlüssel aus `configFields` gesetzt haben. So fragt Outlook nach seinen Berechtigungen für freigegebene Postfächer, denn ein privates Microsoft-Konto kann sie nicht erteilen.
 
 Das interne Verfahren `platform` hat keine gespeicherten Zugangsdaten und lässt sich nicht mit Anbieter-Verfahren kombinieren. Es ist nativen Plattformfunktionen wie Aufgaben- und Dokumentaktionen vorbehalten.
 
@@ -90,9 +94,9 @@ Der Connector deklariert Autorisierungs- und Token-URLs sowie angeforderte Berec
 | Quelle | Vorrang und Einrichtung |
 | --- | --- |
 | Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectors > OAuth-Apps** |
-| Deployment-App | Standard ohne Organisations-App: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
+| Deployment-App | Standard ohne Organisations-App: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, bei einer Microsoft-App für einen einzelnen Mandanten dazu `CONNECTOR_OAUTH_<SLUG>_TENANT_ID` |
 
-Schreibe den Slug in Umgebungsvariablen groß und ersetze Bindestriche durch Unterstriche. Bei einer Microsoft-App für einen einzelnen Mandanten gehört die Verzeichnis-ID dazu, damit die Autorisierung diesen Mandanten statt `/common` nutzt. Organisationsgeheimnisse werden verschlüsselt und nicht erneut angezeigt.
+Schreibe den Slug in Umgebungsvariablen groß und ersetze Bindestriche durch Unterstriche. Bei einer Microsoft-App für einen einzelnen Mandanten gehört die Verzeichnis-ID dazu (in der Organisations-App oder als `CONNECTOR_OAUTH_<SLUG>_TENANT_ID`), damit die Autorisierung diesen Mandanten statt `/common` nutzt. Organisationsgeheimnisse werden verschlüsselt und nicht erneut angezeigt.
 
 ### Die Callback-URL exakt registrieren
 

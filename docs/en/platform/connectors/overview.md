@@ -23,7 +23,7 @@ Use a connector when Tale needs to read or change data in an external service. T
 | HTTP | Call any HTTPS API from an automation step; see [Call an API from an automation](/platform/automations/http). | Bearer token, API key or username and password, with a base URL — or none. |
 | IMAP / SMTP Mailbox | Read or send mail through a private mail service. | Username and password. |
 | Jev decisions | Answer typed questions about a workflow's data with calibrated probabilities, to decide whether to act. | API key (an OpenRouter key). |
-| Microsoft Outlook | Work with mail, calendars and contacts. | OAuth. |
+| Microsoft Outlook | Work with mail, calendars and contacts, in your own mailbox or a [shared one](/platform/admin/connectors#connect-a-shared-outlook-mailbox). | OAuth, or an app sign-in for a shared mailbox. |
 | Shopify | Work with products, customers and orders. | API key. |
 | Slack | Work with messages and channels. | OAuth. |
 | Tavily | Search the web and extract pages. | API key. |

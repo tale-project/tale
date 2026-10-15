@@ -23,7 +23,7 @@ Nutze einen Connector, wenn Tale Daten in einem externen Dienst lesen oder ände
 | HTTP | Jede HTTPS-API aus einem Automatisierungsschritt aufrufen; siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http). | Bearer-Token, API-Key oder Benutzername und Passwort, mit einer Basis-URL — oder keine. |
 | IMAP / SMTP Mailbox | E-Mails über einen eigenen Maildienst lesen oder senden. | Benutzername und Passwort. |
 | Jev decisions | Typisierte Fragen zu den Daten eines Workflows mit kalibrierten Wahrscheinlichkeiten beantworten, damit der Workflow entscheiden kann, ob er handelt. | API-Schlüssel (ein OpenRouter-Schlüssel). |
-| Microsoft Outlook | Mit E-Mails, Kalendern und Kontakten arbeiten. | OAuth. |
+| Microsoft Outlook | Mit E-Mails, Kalendern und Kontakten arbeiten, im eigenen oder einem [freigegebenen Postfach](/de/platform/admin/connectors#ein-freigegebenes-outlook-postfach-verbinden). | OAuth oder eine App-Anmeldung für ein freigegebenes Postfach. |
 | Shopify | Mit Produkten, Kunden und Bestellungen arbeiten. | API-Schlüssel. |
 | Slack | Mit Nachrichten und Kanälen arbeiten. | OAuth. |
 | Tavily | Im Web suchen und Seiten auslesen. | API-Schlüssel. |
