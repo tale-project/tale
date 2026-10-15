@@ -38,6 +38,14 @@ import { syncRagDocumentScopes } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import { ensureDefaultProjectLabels } from '../tasks/service.ts';
 import {
+  managedProjectAgentWriteSchema,
+  managedProjectWriteSchema,
+  readManagedProject,
+  readManagedProjectAgent,
+  writeManagedProject,
+  writeManagedProjectAgent,
+} from './managed-entities.ts';
+import {
   deleteProjectSecret,
   listProjectSecrets,
   setProjectSecret,
@@ -197,6 +205,115 @@ export function createProjectRoutes(deps: {
           body.data.config.instructions,
           body.data.expectedHash,
         ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** The opt-in a managed read sends when its declaration may create the
+   * resource: an absent one then reads as `null` instead of not found. */
+  const createIfMissingQuery = (c: Context<OrgEnv>) =>
+    z.literal('true').optional().safeParse(c.req.query('createIfMissing'));
+
+  // A project as managed configuration declares it (`project`): read in the
+  // declaration's shape, and created under its stable UUID or brought in
+  // line through the project's own writers.
+  app.get('/:id/configuration/project', async (c) => {
+    const creation = createIfMissingQuery(c);
+    if (!creation.success) return invalidBodyResponse(c, creation.error);
+    try {
+      return c.json(
+        await readManagedProject(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          creation.data === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/configuration/project', async (c) => {
+    const body = managedProjectWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.config.projectId !== c.req.param('id'))
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    if (
+      body.data.createIfMissing === true &&
+      !z.uuid().safeParse(body.data.config.projectId).success
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'projectId',
+          message: 'Creation requires a stable UUID project ID',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        writeManagedProject(tx, auth, body.data),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // A project agent as managed configuration declares it (`project-agent`).
+  app.get('/:id/agents/:agentId/configuration/agent', async (c) => {
+    const creation = createIfMissingQuery(c);
+    if (!creation.success) return invalidBodyResponse(c, creation.error);
+    try {
+      return c.json(
+        await readManagedProjectAgent(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+          creation.data === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/agent', async (c) => {
+    const body = managedProjectAgentWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    if (
+      body.data.createIfMissing === true &&
+      !z.uuid().safeParse(body.data.config.agentId).success
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'agentId',
+          message: 'Creation requires a stable UUID agent ID',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        writeManagedProjectAgent(tx, auth, body.data),
       );
       return c.json({ ok: true });
     } catch (error) {

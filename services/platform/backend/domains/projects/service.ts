@@ -19,6 +19,7 @@ import {
   PROJECT_KEY_MAX,
 } from '@tale/shared/utils/project-key';
 import type { Sql, TransactionSql } from 'postgres';
+import { z } from 'zod';
 
 import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import {
@@ -717,7 +718,16 @@ export async function createProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: CreateProjectArgs,
+  options: {
+    /** Managed configuration's caller-chosen stable UUID; no other door
+     * names a new project's id. */
+    readonly projectId?: string;
+  } = {},
 ): Promise<string> {
+  const explicitId =
+    options.projectId === undefined
+      ? undefined
+      : z.uuid().parse(options.projectId);
   const name = validateName(args.name);
   const description = validateDescription(args.description);
   const externalItemId = await resolveExternalItemId(
@@ -741,12 +751,13 @@ export async function createProject(
     INSERT INTO app.projects (
       org_id, name, key, external_item_id, description, icon, color,
       team_ids, team_id, shared_with_team_ids, created_by, created_at_ms,
-      updated_at_ms
+      updated_at_ms, id
     ) VALUES (
       ${auth.organizationId}, ${name}, ${key ?? null},
       ${externalItemId ?? null}, ${description ?? null}, ${args.icon ?? null},
       ${args.color ?? null}, ${teamIds}, ${mirror.teamId},
-      ${mirror.sharedWithTeamIds}, ${auth.userId}, ${now}, ${now}
+      ${mirror.sharedWithTeamIds}, ${auth.userId}, ${now}, ${now},
+      ${explicitId === undefined ? tx`DEFAULT` : explicitId}
     )
     RETURNING id
   `;
@@ -2314,7 +2325,14 @@ export async function createProjectAgent(
     /** Default `prune` — the app dialog's rule. */
     unknownSecrets?: UnknownSecretsPolicy;
   },
+  options: {
+    /** Managed configuration's caller-chosen stable UUID; no other door
+     * names a new agent's id. */
+    readonly agentId?: string;
+  } = {},
 ): Promise<string> {
+  const explicitId =
+    options.agentId === undefined ? undefined : z.uuid().parse(options.agentId);
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
@@ -2363,13 +2381,14 @@ export async function createProjectAgent(
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.project_agents (
         org_id, project_id, name, harness, model, model_provider, skills,
-        connectors, tools, secrets, instructions, created_by, created_at_ms,
-        updated_at_ms, handle, legacy_handles
+        connectors, tools, secrets, instructions, id, created_by,
+        created_at_ms, updated_at_ms, handle, legacy_handles
       ) VALUES (
         ${auth.organizationId}, ${args.projectId}, ${fields.name},
         ${fields.harness}, ${fields.model}, ${fields.modelProvider ?? null},
         ${fields.skills}, ${fields.connectors}, ${fields.tools},
-        ${fields.secrets}, ${fields.instructions ?? null}, ${auth.userId},
+        ${fields.secrets}, ${fields.instructions ?? null},
+        ${explicitId === undefined ? tx`DEFAULT` : explicitId}, ${auth.userId},
         ${now}, ${now}, ${handle}, ${[]}::text[]
       )
       ON CONFLICT DO NOTHING
@@ -2377,6 +2396,22 @@ export async function createProjectAgent(
     `;
     agentId = inserted[0]?.id;
     if (agentId !== undefined) break;
+    // A chosen id another agent already holds is a conflict no other
+    // handle resolves.
+    if (
+      explicitId !== undefined &&
+      (
+        await tx<{ id: string }[]>`
+          SELECT id FROM app.project_agents WHERE id = ${explicitId}
+        `
+      ).length > 0
+    ) {
+      throw new ProjectError(
+        'PROJECT_AGENT_ID_TAKEN',
+        'The declared agent identity is unavailable',
+        409,
+      );
+    }
     taken.add(handle);
     handle = nextAgentHandle(base, taken);
   }

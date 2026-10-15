@@ -213,6 +213,36 @@ and their hash, including an existing unpinned provider.
   → that task keeps its original provider and model; the next admission uses the
   new pair, and the worker's private secret grants remain unchanged.
 
+## Managed projects and agents
+
+A deployment's declaration may create a project and its agents under ids it chooses, or adopt
+ones that exist, through the same writers as the app. Leaving a resource out of a declaration
+never deletes it.
+
+### PROJ-R21 · A declaration creates a project under the id it chooses, or changes that one
+
+A declaration that may create a project names a stable UUID for it. Nothing holding that id, the
+project is created there by someone who may create projects, with the labels every new project
+gets and the key the declaration chooses; a project holding it in another organization is not
+found. An existing project's name, description and teams change through their own writers, only
+against the version its plan read; a field the declaration leaves out keeps what is stored.
+
+- **Example**: The Fleet declaration names project `6f1c…3b11` with key `FLT` → the first apply
+  creates it with the labels bug, feature and improvement; the next apply, after Ada renamed it
+  "Fleet ops" by hand, renames it back to "Fleet".
+
+### PROJ-R22 · A declared agent is created with the runtime and model its declaration names
+
+An agent a declaration creates starts with the runtime and model of its declared `agent-model`,
+and the instructions and tools its declaration names, so it never runs on anything else. A
+secret it is granted must be one the organization holds; a missing one is refused, never
+dropped. Afterwards the declaration changes only its name and equipment, keeping its runtime,
+model, instructions and tools for their own declarations. The standard agent is never changed.
+
+- **Example**: The Fleet declaration creates the Manager agent on `codex` with secret
+  `GITHUB_TOKEN`, which the organization lacks → the apply stops at the agent and creates
+  nothing for it; once the secret exists the agent is created on `codex`, granted it.
+
 ## Not yet
 
 - **Tasks**: see the tasks spec.

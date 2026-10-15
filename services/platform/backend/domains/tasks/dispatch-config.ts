@@ -1,9 +1,12 @@
+import type { ManagedDispatchPlan } from '@tale/shared/schemas/managed-configuration';
 import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { scheduleOfTrigger } from '../../../lib/automations/schedule/occurrences.ts';
+import { PREDEFINED_TASK_LABELS } from '../../../lib/shared/task-label-colors.ts';
 import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -73,55 +76,61 @@ export interface DispatchIssue {
   message: string;
 }
 
-/**
- * What a dispatch names that the database must confirm: every agent of the
- * pool and of a standing role is an agent of this project, every standing
- * role's task is an open task of this project, and every cron expression
- * reads in its zone. Empty when the document is sound.
- */
-export async function checkProjectDispatch(
-  sql: Sql | TransactionSql,
-  args: {
-    organizationId: string;
-    projectId: string;
-    dispatch: ProjectDispatch;
-  },
-): Promise<DispatchIssue[]> {
+/** What a declaration about to be applied will have created in a project
+ * beside what it holds now (`ManagedDispatchPlan`): read only by a check,
+ * never by a save. */
+export type DispatchPlannedState = ManagedDispatchPlan;
+
+/** What a project has that a dispatch may name: its agents, its tasks
+ * (archived or not) and its labels by their case-folded name. */
+interface DispatchFacts {
+  agents: ReadonlySet<string>;
+  tasks: ReadonlyMap<string, { archived: boolean }>;
+  labels: ReadonlySet<string>;
+}
+
+/** The label references a dispatch makes, each with the field it sits in. */
+function dispatchLabelRefs(dispatch: ProjectDispatch) {
+  return [
+    ...(dispatch.labels?.include ?? []).map((name, index) => ({
+      name,
+      path: `labels.include.${index}`,
+    })),
+    ...(dispatch.labels?.exclude ?? []).map((name, index) => ({
+      name,
+      path: `labels.exclude.${index}`,
+    })),
+    ...(dispatch.gates ?? []).flatMap((gate, gateIndex) =>
+      (gate.labels ?? []).map((name, index) => ({
+        name,
+        path: `gates.${gateIndex}.labels.${index}`,
+      })),
+    ),
+  ];
+}
+
+/** Every issue of a dispatch against what its project has. */
+function judgeDispatch(
+  dispatch: ProjectDispatch,
+  facts: DispatchFacts,
+): DispatchIssue[] {
   const issues: DispatchIssue[] = [];
-  const agents = await sql<{ id: string }[]>`
-    SELECT id FROM app.project_agents
-    WHERE project_id = ${args.projectId} AND org_id = ${args.organizationId}
-  `;
-  const known = new Set(agents.map((agent) => agent.id));
-  for (const [index, agentId] of args.dispatch.agents.entries()) {
-    if (!known.has(agentId)) {
+  for (const [index, agentId] of dispatch.agents.entries()) {
+    if (!facts.agents.has(agentId)) {
       issues.push({
         path: `agents.${index}`,
         message: `No agent with the id "${agentId}" works in this project.`,
       });
     }
   }
-  const roles = args.dispatch.standingRoles ?? [];
-  const taskIds = [...new Set(roles.map((role) => role.taskId))];
-  const tasks =
-    taskIds.length === 0
-      ? []
-      : await sql<{ id: string; archived: boolean }[]>`
-          SELECT id, archived_at_ms IS NOT NULL AS archived
-          FROM app.tasks
-          WHERE org_id = ${args.organizationId}
-            AND project_id = ${args.projectId}
-            AND id = ANY(${taskIds})
-        `;
-  const taskById = new Map(tasks.map((task) => [task.id, task]));
-  for (const [index, role] of roles.entries()) {
-    if (!known.has(role.agentId)) {
+  for (const [index, role] of (dispatch.standingRoles ?? []).entries()) {
+    if (!facts.agents.has(role.agentId)) {
       issues.push({
         path: `standingRoles.${index}.agentId`,
         message: `No agent with the id "${role.agentId}" works in this project.`,
       });
     }
-    const task = taskById.get(role.taskId);
+    const task = facts.tasks.get(role.taskId);
     if (task === undefined) {
       issues.push({
         path: `standingRoles.${index}.taskId`,
@@ -147,44 +156,132 @@ export async function checkProjectDispatch(
   }
   // A label filter or a gate naming a label the project lacks would match
   // nothing, silently: name it instead.
-  const labelRefs = [
-    ...(args.dispatch.labels?.include ?? []).map((name, index) => ({
-      name,
-      path: `labels.include.${index}`,
-    })),
-    ...(args.dispatch.labels?.exclude ?? []).map((name, index) => ({
-      name,
-      path: `labels.exclude.${index}`,
-    })),
-    ...(args.dispatch.gates ?? []).flatMap((gate, gateIndex) =>
-      (gate.labels ?? []).map((name, index) => ({
-        name,
-        path: `gates.${gateIndex}.labels.${index}`,
-      })),
-    ),
-  ];
-  if (labelRefs.length > 0) {
-    const labels = await sql<{ name: string }[]>`
-      SELECT lower(name) AS name FROM app.task_labels
-      WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
-        AND lower(name) = ANY(${labelRefs.map((ref) => ref.name.toLowerCase())})
-    `;
-    const knownLabels = new Set(labels.map((label) => label.name));
-    for (const ref of labelRefs) {
-      if (!knownLabels.has(ref.name.toLowerCase())) {
-        issues.push({
-          path: ref.path,
-          message: `No label named "${ref.name}" is in this project.`,
-        });
-      }
+  for (const ref of dispatchLabelRefs(dispatch)) {
+    if (!facts.labels.has(ref.name.toLowerCase())) {
+      issues.push({
+        path: ref.path,
+        message: `No label named "${ref.name}" is in this project.`,
+      });
     }
   }
   return issues;
 }
 
+/**
+ * What a dispatch names that the database must confirm: every agent of the
+ * pool and of a standing role is an agent of this project, every standing
+ * role's task is an open task of this project, every label it filters or
+ * gates on is the project's, and every cron expression reads in its zone.
+ * Empty when the document is sound. A check may add what a declaration
+ * about to be applied creates (`planned`): agents, tasks — new, so never
+ * archived — and labels counted as the project's.
+ */
+export async function checkProjectDispatch(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    dispatch: ProjectDispatch;
+    planned?: DispatchPlannedState;
+  },
+): Promise<DispatchIssue[]> {
+  const agents = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agents
+    WHERE project_id = ${args.projectId} AND org_id = ${args.organizationId}
+  `;
+  const taskIds = [
+    ...new Set((args.dispatch.standingRoles ?? []).map((role) => role.taskId)),
+  ];
+  const tasks =
+    taskIds.length === 0
+      ? []
+      : await sql<{ id: string; archived: boolean }[]>`
+          SELECT id, archived_at_ms IS NOT NULL AS archived
+          FROM app.tasks
+          WHERE org_id = ${args.organizationId}
+            AND project_id = ${args.projectId}
+            AND id = ANY(${taskIds})
+        `;
+  const labelRefs = dispatchLabelRefs(args.dispatch);
+  const labels =
+    labelRefs.length === 0
+      ? []
+      : await sql<{ name: string }[]>`
+          SELECT lower(name) AS name FROM app.task_labels
+          WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+            AND lower(name) = ANY(${labelRefs.map((ref) => ref.name.toLowerCase())})
+        `;
+  const planned = args.planned;
+  return judgeDispatch(args.dispatch, {
+    agents: new Set([
+      ...agents.map((agent) => agent.id),
+      ...(planned?.agents ?? []),
+    ]),
+    tasks: new Map([
+      ...(planned?.tasks ?? []).map((id) => [id, { archived: false }] as const),
+      ...tasks.map((task) => [task.id, { archived: task.archived }] as const),
+    ]),
+    labels: new Set([
+      ...labels.map((label) => label.name),
+      ...(planned?.labels ?? []).map((name) => name.toLowerCase()),
+    ]),
+  });
+}
+
+/**
+ * A dispatch checked for a project a declaration is about to create, before
+ * anything is written: it names only what the same declaration creates —
+ * the project's agents, its tasks, its labels and the labels every new
+ * project starts with — and only who may administer a new project, an
+ * organization's Owner or Admin, may declare one. The save, once the
+ * project exists, checks it again against what it then holds.
+ */
+export function checkPlannedProjectDispatch(
+  auth: ProjectAuthContext,
+  args: {
+    projectId: string;
+    dispatch: ProjectDispatch;
+    expectedHash?: string | null;
+    planned: DispatchPlannedState;
+  },
+):
+  | { ok: true; changed: boolean; hash: string }
+  | { ok: false; issues: DispatchIssue[] } {
+  if (
+    !checkProjectAccess({ teamIds: [] }, auth.teamIds, auth.role).canAdminister
+  )
+    throw new TaskError(
+      'PROJECT_FORBIDDEN',
+      'Only who may administer the project changes its dispatch',
+      403,
+    );
+  assertExpectedHash(null, args.expectedHash);
+  const issues = judgeDispatch(args.dispatch, {
+    agents: new Set(args.planned.agents),
+    tasks: new Map(
+      args.planned.tasks.map((id) => [id, { archived: false }] as const),
+    ),
+    labels: new Set([
+      ...PREDEFINED_TASK_LABELS.map((label) => label.name.toLowerCase()),
+      ...args.planned.labels.map((name) => name.toLowerCase()),
+    ]),
+  });
+  if (issues.length > 0) return { ok: false, issues };
+  return {
+    ok: true,
+    changed: true,
+    hash:
+      managedConfigurationHash(
+        dispatchConfigurationValue(args.projectId, args.dispatch),
+      ) ?? '',
+  };
+}
+
 interface DispatchSaveArgs {
   projectId: string;
   dispatch: ProjectDispatch;
+  /** A check's alone: what a declaration about to be applied creates. */
+  planned?: DispatchPlannedState;
   /** The hash of the document the caller reviewed; undefined skips the
    * comparison (the app's own form, which always saves what it read). */
   expectedHash?: string | null;
@@ -219,6 +316,7 @@ async function prepareDispatchSave(
     organizationId: auth.organizationId,
     projectId: args.projectId,
     dispatch: args.dispatch,
+    ...(args.planned !== undefined ? { planned: args.planned } : {}),
   });
   const next = dispatchConfigurationValue(args.projectId, args.dispatch);
   const hash = managedConfigurationHash(next) ?? '';
@@ -263,10 +361,11 @@ export async function saveProjectDispatch(
   auth: ProjectAuthContext,
   args: DispatchSaveArgs,
 ): Promise<{ changed: boolean; hash: string }> {
+  const { planned: _planned, ...saved } = args;
   const { project, stored, issues, hash, changed } = await prepareDispatchSave(
     tx,
     auth,
-    args,
+    saved,
   );
   if (issues.length > 0) {
     throw new TaskError('DISPATCH_INVALID', DISPATCH_INVALID_SENTENCE, 400, {

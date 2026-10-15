@@ -42,6 +42,19 @@ preview at all.
 
 - **Example**: Ada saves the token `ghp_abcdefghijklmnop` → the list shows `ghp_••••nop`.
 
+## Declared secrets
+
+### ASEC-R5 · A declared secret is read back as a digest of its value, never the value
+
+A deployment's declaration names the environment variable a secret's value is read from, never
+the value. What managed configuration reads back of a secret is its name and a slow, salted
+digest of the value stored, so a value replaced in Tale reads as differing and the next apply
+writes the declared one. The value is written on the version the plan read, through the same
+save as in Tale, and no readback, plan, journal, audit row or refusal holds it.
+
+- **Example**: Ada replaces `GITHUB_TOKEN` in Tale by hand → the Fleet declaration's next plan
+  shows the secret changed, and its apply writes the value of `TALE_CONFIG_SECRET_GITHUB` again.
+
 ## Not yet
 
 - **Who can manage secrets**: saving and deleting need the admin or developer role, and

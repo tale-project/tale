@@ -11,6 +11,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  checkPlannedProjectDispatch,
   checkProjectDispatch,
   checkProjectDispatchSave,
   readProjectDispatchConfiguration,
@@ -443,5 +444,122 @@ describe('a dispatch holds up to 500 runs, one agent at most as many as the pool
       updatedAt: 1,
       updatedBy: 'ada',
     });
+  });
+});
+
+describe('a dispatch check counts what its declaration creates; its save, only what exists [TASK-R69]', () => {
+  const ada = {
+    organizationId: 'org-1',
+    userId: 'ada',
+    role: 'admin',
+    teamIds: [],
+  };
+  const labelled: ProjectDispatch = {
+    ...dispatch,
+    labels: { include: ['Release'] },
+  };
+  /** The declaration creates the second agent, the standing role's task and
+   * the label; the project holds the first agent alone. */
+  const planned = {
+    agents: ['lector'],
+    tasks: ['task-manager'],
+    labels: ['release'],
+  };
+  function holding(agents: string[]) {
+    const query = (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      if (text.includes('FROM app.project_agents'))
+        return Promise.resolve(agents.map((id) => ({ id })));
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the check and the save use only the tagged template here
+    const sql = query as unknown as TransactionSql;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the save serializes its JSON column through the transaction
+    Object.assign(sql, { json: (value: unknown) => value });
+    return sql;
+  }
+
+  it('passes a dispatch naming the agents, tasks and labels the declaration creates', async () => {
+    await expect(
+      checkProjectDispatch(holding(['scribe']), {
+        organizationId: 'org-1',
+        projectId: 'p-1',
+        dispatch: labelled,
+        planned,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      checkProjectDispatchSave(holding(['scribe']), ada, {
+        projectId: 'p-1',
+        dispatch: labelled,
+        expectedHash: null,
+        planned,
+      }),
+    ).resolves.toMatchObject({ ok: true, changed: true });
+  });
+
+  it('still names what neither the project nor the declaration has', async () => {
+    const issues = await checkProjectDispatch(holding(['scribe']), {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      dispatch: labelled,
+      planned: { agents: [], tasks: [], labels: [] },
+    });
+    expect(issues.map((issue) => issue.path)).toEqual([
+      'agents.1',
+      'standingRoles.0.taskId',
+      'labels.include.0',
+    ]);
+  });
+
+  it('saves against what exists alone, whatever a caller says it planned', async () => {
+    await expect(
+      saveProjectDispatch(holding(['scribe']), ada, {
+        projectId: 'p-1',
+        dispatch: labelled,
+        expectedHash: null,
+        planned,
+      }),
+    ).rejects.toMatchObject({ code: 'DISPATCH_INVALID' });
+  });
+
+  it('checks a project the declaration creates against the declaration alone, for who may administer it', () => {
+    expect(
+      checkPlannedProjectDispatch(ada, {
+        projectId: 'p-new',
+        dispatch: {
+          ...labelled,
+          // Every new project starts with these labels.
+          labels: { include: ['Release', 'bug'] },
+        },
+        expectedHash: null,
+        planned: { ...planned, agents: ['scribe', 'lector'], project: true },
+      }),
+    ).toMatchObject({ ok: true, changed: true });
+    expect(
+      checkPlannedProjectDispatch(ada, {
+        projectId: 'p-new',
+        dispatch: labelled,
+        expectedHash: null,
+        planned: { ...planned, project: true },
+      }),
+    ).toMatchObject({
+      ok: false,
+      issues: [
+        expect.objectContaining({ path: 'agents.0' }),
+        expect.objectContaining({ path: 'standingRoles.0.agentId' }),
+      ],
+    });
+    expect(() =>
+      checkPlannedProjectDispatch(
+        { ...ada, role: 'editor' },
+        {
+          projectId: 'p-new',
+          dispatch: labelled,
+          expectedHash: null,
+          planned: { ...planned, project: true },
+        },
+      ),
+    ).toThrow(expect.objectContaining({ code: 'PROJECT_FORBIDDEN' }));
   });
 });
