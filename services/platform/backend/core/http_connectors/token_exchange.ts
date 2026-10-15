@@ -54,7 +54,8 @@ export type TokenExchangeResult =
    * `reason` is the only thing that escapes this module:
    *  - `vendor_rejected` — the vendor refused the code (expired, replayed,
    *    wrong client, redirect mismatch);
-   *  - `vendor_unreachable` — transport failure or timeout;
+   *  - `vendor_unreachable` — transport failure, timeout, or an endpoint
+   *    that answered it is down or throttling (5xx, 429);
    *  - `malformed_response` — a 2xx that carried no usable access token.
    * `code` is the vendor's symbolic error, present only when it passed the
    * shape check above, and is for the SERVER LOG only.
@@ -150,6 +151,26 @@ async function postTokenGrant(
       error instanceof Error ? error.message : String(error),
     );
     return { ok: false, reason: 'vendor_unreachable' };
+  }
+
+  // An endpoint that is down or throttling says nothing about the grant or
+  // the app: a refresh or an app's sign-in it answers that way is retried,
+  // never read as a refusal that only a person can fix.
+  if (response.status >= 500 || response.status === 429) {
+    let code: string | undefined;
+    try {
+      code = vendorErrorCode(await response.json());
+    } catch (error) {
+      console.warn(
+        `[connectors:oauth2] token endpoint unavailable (status ${response.status}) with a non-JSON body:`,
+        error instanceof Error ? error.name : 'unknown error',
+      );
+    }
+    return {
+      ok: false,
+      reason: 'vendor_unreachable',
+      ...(code !== undefined && { code }),
+    };
   }
 
   let payload: unknown;

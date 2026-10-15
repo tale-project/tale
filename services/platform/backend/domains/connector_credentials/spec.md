@@ -62,8 +62,9 @@ until a person reconnects it. A sign-in an admin renewed in the meantime is not 
 
 ### CCRED-R6 · An outage of the outside system does not mark a sign-in as broken
 
-When the outside system cannot be reached, the use is refused as something to try again
-(`CREDENTIAL_REFRESH_FAILED`), and the credential stays active.
+When the outside system cannot be reached, or answers that it is down or too busy, the use
+is refused as something to try again (`CREDENTIAL_REFRESH_FAILED`), and the credential stays
+active.
 
 - **Example**: The outside system is down for ten minutes while an automation runs → the step
   fails with an error that can be retried, and the credential is still active afterwards.
@@ -87,7 +88,8 @@ When the outside system refuses the app's sign-in, for example because its clien
 expired, using the credential is refused (`CREDENTIAL_APP_REFUSED`), naming the outside
 system's reason and the directory ID, client ID and client secret to check. The credential
 stays active, so replacing the secret is all it takes. An outside system that cannot be
-reached is a retryable refusal, as for a renewable sign-in (`CCRED-R6`).
+reached, or is down or too busy, is a retryable refusal, as for a renewable sign-in
+(`CCRED-R6`).
 
 - **Example**: The app's client secret expired over the weekend → Monday's mail sync fails
   with `invalid_client` and the advice to replace the secret; Ada replaces it and the next

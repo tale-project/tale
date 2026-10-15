@@ -235,6 +235,21 @@ describe('refreshAccessToken', () => {
     expect(JSON.stringify(result)).not.toContain('secret-echo');
   });
 
+  it('reports an endpoint that is down or throttling as unreachable, never as a dead grant [CCRED-R6]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const response of [
+      jsonResponse({ error: 'temporarily_unavailable' }, 503),
+      jsonResponse({ error: 'invalid_grant' }, 502),
+      new Response('<html>Too many requests</html>', { status: 429 }),
+      new Response('<html>Service unavailable</html>', { status: 500 }),
+    ]) {
+      const fetchImpl = vi.fn().mockResolvedValue(response);
+      const result = await refreshAccessToken(REFRESH, fetchImpl);
+      expect(result).toMatchObject({ ok: false, reason: 'vendor_unreachable' });
+    }
+    warn.mockRestore();
+  });
+
   it('refuses a plaintext token endpoint without contacting it', async () => {
     const fetchImpl = vi.fn();
     const result = await refreshAccessToken(

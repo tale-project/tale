@@ -310,6 +310,25 @@ describe('resolveConnectorCredential — a refused app sign-in [CCRED-R10]', () 
     ).rejects.toMatchObject({ code: 'CREDENTIAL_REFRESH_FAILED' });
     expect(store.row.status).toBe('active');
   });
+
+  it('refuses a token endpoint that is down or throttling as retryable, never as a refused app [CCRED-R6]', async () => {
+    for (const status of [503, 429]) {
+      const store: Store = { row: row(APP) };
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: 'temporarily_unavailable' }, status),
+        );
+
+      const refusal = await resolveConnectorCredential(fakeSql(store), ARGS, {
+        fetchImpl,
+      }).catch((error: unknown) => error);
+
+      expect(refusal).toMatchObject({ code: 'CREDENTIAL_REFRESH_FAILED' });
+      expect((refusal as Error).message).not.toContain('client secret');
+      expect(store.row.status).toBe('active');
+    }
+  });
 });
 
 describe('resolveCredentialRowForShim — an app signing in as itself', () => {
