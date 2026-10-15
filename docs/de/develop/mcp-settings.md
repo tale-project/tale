@@ -34,6 +34,7 @@ Manche Änderungen bleiben in Tale:
 - Die Aufbewahrungsrichtlinie und die Richtlinie für Anfragen betroffener Personen ändern sich nur über ihre eigenen, gestuften Abläufe.
 - Branding-Bilder werden in Tale hochgeladen. Ein Dateiname, den ein Agent setzt, muss ein bereits hochgeladenes Bild nennen.
 - Über MCP ändert sich das Embedding-Modell selbst nur, solange das Wissen der Organisation kein Dokument und keine Website enthält. So treffen Vektoren zweier Modelle nie in einer Suche aufeinander. Ähnlichkeitsschwelle und Nutzungsgrenzen ändern sich jederzeit; sind Dokumente indexiert, ändert eine Person das Modell in Tale.
+- Ein Agent legt über MCP weder Projekte, Labels, Projektagenten noch Aufgaben an und gibt keinem Agenten Connectors, Secrets oder Skills. Das tut eine Person in Tale oder die [Deklaration eines verwalteten Deployments](/de/self-hosted/install/cli-install#plattform-konfigurieren), die Agent-Secrets und Connector-Zugangsdaten auch aus ihrer eigenen Umgebung liest.
 - Der Standard-Agent eines Projekts folgt der Richtlinie `standard_agent`, die die Art `governance` ändert; seine eigenen Anweisungen, Tools und sein Modell sind keine Einstellungen.
 - Mitglieder, Teams, Connectors, Skills, Kompetenzen, Legal Holds, die Audit-Logs, Metriken und persönliche Einstellungen deckt keine Art ab. `get_settings` ohne Argumente zeigt, was jede Art abdeckt.
 

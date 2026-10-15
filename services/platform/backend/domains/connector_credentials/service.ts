@@ -695,6 +695,30 @@ function prepareCredential(args: CreateCredentialArgs): PreparedCredential {
   };
 }
 
+/**
+ * What refuses a credential before its secret is at hand: the connector,
+ * the sign-in method it takes, its endpoint and — for a new credential — the
+ * per-credential settings the connector requires, none given. For a caller
+ * that checks a credential it writes later (managed configuration's plan),
+ * by the rules the write applies: {@link prepareCredential} for a new one,
+ * {@link updateCredentialInTransaction} for an existing one, which keeps its
+ * settings and checks an endpoint only when one is given.
+ */
+export function checkCredentialTarget(args: {
+  connectorSlug: string;
+  authMethod: AuthMethod;
+  endpointUrl?: string;
+  creating: boolean;
+}): void {
+  const connector = requireConnectorAuthMethod(
+    args.connectorSlug,
+    args.authMethod,
+  );
+  if (args.creating || args.endpointUrl !== undefined)
+    normalizeEndpointUrl(connector, args.endpointUrl);
+  if (args.creating) normalizeConfig(connector, undefined);
+}
+
 async function insertPreparedCredential(
   tx: TransactionSql,
   args: CreateCredentialArgs,
@@ -1183,6 +1207,40 @@ function openRowEnvelope(row: CredentialRow): ConnectorSecretPayload {
     }
     throw err;
   }
+}
+
+/** The pair's credential by its name, matched as the pair's names are unique:
+ * whatever the case. `lock` holds the row for the caller's transaction. */
+export async function findCredentialByName(
+  db: Db,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    name: string;
+    lock?: boolean;
+  },
+): Promise<CredentialRow | null> {
+  const rows = await db<CredentialRow[]>`
+    SELECT ${db.unsafe(CREDENTIAL_COLUMNS)} FROM app.connector_credentials
+    WHERE org_id = ${args.organizationId}
+      AND connector_slug = ${args.connectorSlug}
+      AND lower(name) = lower(${args.name.trim()})
+    LIMIT 1 ${args.lock === true ? db`FOR UPDATE` : db``}
+  `;
+  return rows[0] ?? null;
+}
+
+/** A credential's stored secret fields by name, decrypted — for managed
+ * configuration, which compares their digest and never returns them. */
+export function credentialSecretFields(
+  row: CredentialRow,
+): Record<string, string> {
+  const { authMethod: _method, ...payload } = openRowEnvelope(row);
+  return Object.fromEntries(
+    Object.entries(payload).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
 }
 
 /** How long before its declared expiry an access token counts as expired —

@@ -339,6 +339,42 @@ export const SETTINGS_KINDS_NOT_OVER_MCP = [
     reason:
       'set_trigger binds what starts an automation, a schedule among them.',
   },
+  {
+    kind: 'project',
+    cli: true,
+    reason:
+      'A project is created in Tale, or under an id a reviewed declaration chooses; an agent finds projects with list_projects and changes their instructions and dispatch as settings.',
+  },
+  {
+    kind: 'project-label',
+    cli: true,
+    reason:
+      'A label is created where tasks are written, or by a reviewed declaration that keeps a project’s catalog.',
+  },
+  {
+    kind: 'project-agent',
+    cli: true,
+    reason:
+      'Creating a project agent and granting it connectors, secrets and skills is a person’s decision or a reviewed declaration’s, never an agent’s: an agent could otherwise hand another agent the organization’s secrets.',
+  },
+  {
+    kind: 'task',
+    cli: true,
+    reason:
+      'An agent creates and edits tasks with its task tools, behind each task’s own rules; a standing task under a chosen id is a reviewed declaration’s.',
+  },
+  {
+    kind: 'agent-secret',
+    cli: true,
+    reason:
+      'A secret’s value is read from the environment of the CLI that applies a declaration, and a person enters one in Tale; an agent never carries a secret.',
+  },
+  {
+    kind: 'connector-credential',
+    cli: true,
+    reason:
+      'Its secret fields are read from the environment of the CLI that applies a declaration, and a person connects an account in Tale; an agent never carries a secret.',
+  },
 ] as const satisfies ReadonlyArray<{
   kind: string;
   cli: boolean;

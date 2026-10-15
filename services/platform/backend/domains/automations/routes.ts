@@ -1165,10 +1165,16 @@ export function createAutomationRoutes(deps: {
     if (denied) return denied;
     const body = managedAutomationWriteSchema.safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
-    const { config, kind } = body.data.resource;
+    const { resource } = body.data;
     const name = nameFrom(c, 'configuration');
-    if (!('name' in config) || config.name !== name)
+    if (
+      (resource.kind !== 'automation-definition' &&
+        resource.kind !== 'automation-deployment' &&
+        resource.kind !== 'automation-schedule') ||
+      resource.config.name !== name
+    )
       return c.json({ error: 'AUTOMATION_NAME_INVALID' }, 400);
+    const { config, kind } = resource;
     try {
       const auth = await projectAuth(c);
       const project = await readableProject(deps.sql, auth, config.projectId);

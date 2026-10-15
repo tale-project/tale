@@ -341,6 +341,24 @@ describe('documented general platform configuration', () => {
         expect(
           spec.configuration?.resources.map((resource) => resource.kind),
         ).toEqual(['provider', 'provider-credential']);
+        // The fleet example parses as the declaration it teaches: a created
+        // project, secret, agent with its model, and standing task.
+        const fleet = examples.find((example) =>
+          example.resources?.some(
+            (resource: { kind?: string }) => resource.kind === 'project-agent',
+          ),
+        );
+        expect(
+          parsePlatformConfiguration(fleet).resources.map(
+            (resource) => resource.kind,
+          ),
+        ).toEqual([
+          'project',
+          'agent-secret',
+          'project-agent',
+          'agent-model',
+          'task',
+        ]);
       });
     }
   }

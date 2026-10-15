@@ -9,9 +9,19 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveOauthAppCredentials } from '../../core/http_connectors/deployment_config.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import {
+  invalidBodyIssuesResponse,
+  invalidBodyResponse,
+} from '../../lib/invalid-body-response.ts';
 import { isConfigurableOauthAppSlug } from '../connectors/oauth-app-routes.ts';
 import { listOauthApps } from '../connectors/oauth-apps.ts';
+import {
+  checkManagedConnectorCredential,
+  managedConnectorCredentialCheckSchema,
+  managedConnectorCredentialWriteSchema,
+  readManagedConnectorCredential,
+  writeManagedConnectorCredential,
+} from './managed.ts';
 import {
   ConnectorCredentialError,
   createCredential,
@@ -129,6 +139,104 @@ export function createConnectorCredentialRoutes(deps: {
         connectorSlug,
       ),
     });
+  });
+
+  // A credential as managed configuration declares it
+  // (`connector-credential`), named in the query: its identity, its secret
+  // fields by name and the digest of their values, never the values. Behind
+  // the developer capability, as every write here is.
+  app.get('/configuration', async (c) => {
+    const refused = requireDeveloper(c);
+    if (refused) return refused;
+    const target = z
+      .strictObject({
+        connector: z.string().min(1).max(128),
+        name: z.string().min(1).max(200),
+        createIfMissing: z.literal('true').optional(),
+      })
+      .safeParse({
+        connector: c.req.query('connector'),
+        name: c.req.query('name'),
+        createIfMissing: c.req.query('createIfMissing'),
+      });
+    if (!target.success) return invalidBodyResponse(c, target.error);
+    try {
+      return c.json(
+        await readManagedConnectorCredential(
+          deps.sql,
+          c.get('orgId'),
+          target.data.connector,
+          target.data.name,
+          target.data.createIfMissing === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Whether the declared credential could be written, asked by a plan
+  // before anything of its declaration is: no secret travels, nothing is
+  // written.
+  app.post('/configuration/check', async (c) => {
+    const refused = requireDeveloper(c);
+    if (refused) return refused;
+    const body = managedConnectorCredentialCheckSchema.safeParse(
+      await c.req.json(),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.connector !== c.req.query('connector') ||
+      body.data.config.name.toLowerCase() !==
+        (c.req.query('name') ?? '').toLowerCase()
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the credential in the query',
+        },
+      ]);
+    try {
+      return c.json(
+        await checkManagedConnectorCredential(
+          deps.sql,
+          c.get('orgId'),
+          body.data.config,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/configuration', async (c) => {
+    const refused = requireDeveloper(c);
+    if (refused) return refused;
+    const body = managedConnectorCredentialWriteSchema.safeParse(
+      await c.req.json(),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.connector !== c.req.query('connector') ||
+      body.data.config.name.toLowerCase() !==
+        (c.req.query('name') ?? '').toLowerCase()
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the credential in the query',
+        },
+      ]);
+    try {
+      await writeManagedConnectorCredential(deps.sql, {
+        ...body.data,
+        organizationId: c.get('orgId'),
+        actor: actorOf(c),
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.get('/:id', async (c) => {

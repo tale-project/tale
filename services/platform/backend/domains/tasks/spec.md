@@ -573,6 +573,18 @@ never the platform's words.
   `ci` gate holds the label `optional-ci`, which the project lacks → the plan is refused at
   `gates.0.labels.0`, and all six automations keep running.
 
+### TASK-R69 · A dispatch check counts what its declaration creates; its save, only what exists
+
+A declaration may create the agents, standing tasks and labels its dispatch names, or the whole
+project. Its check before anything is written counts what the declaration creates as the
+project's — a project it creates holds only that and the labels every new project starts with,
+and only an organization's Owner or Admin may declare one. The save, written last, checks the
+dispatch again against what then exists.
+
+- **Example**: The Fleet declaration creates project `FLT`, its Manager agent, a standing task
+  and the label Release, and a dispatch naming all four → the plan passes before any of them
+  exists; one naming an agent nothing declares is refused at `agents.1`.
+
 ### TASK-R50 · Every switched-on dispatch reports when it last passed
 
 The backend's metrics name, per project, when its switched-on dispatch last completed a pass —
@@ -597,6 +609,34 @@ at once. Who may edit the project reports through the API; who may administer it
 - **Example**: The CI watcher reports 23 queued jobs on the gate `ci` (hold at 20) → "Changelog",
   labelled `ci`, waits and "Press kit" starts. It reports 14 → `ci` still holds; 9 → it opens, and
   "Changelog" starts within the minute.
+
+## Managed tasks and labels
+
+A deployment's declaration may create standing tasks and labels in a project, or adopt ones
+that exist, through the board's writers. Leaving a resource out of a declaration never deletes
+it.
+
+### TASK-R67 · A declared task starts in the column its declaration names, never moved after
+
+A declaration that may create a task names a stable UUID for it, the column it starts in —
+backlog or todo — and its title, labels, priority and agent; its description comes from its
+declared `task-instructions`. Afterwards its status is the work's own: the declaration never
+reads or moves it. It changes the title, labels, priority and agent only against the version
+its plan read, a field it leaves out keeping what is stored; a person holding the task keeps it
+until the declaration names an agent. A task names its labels whatever their case, and reads
+them back case-folded: their spelling is the project's, which a declared label sets.
+
+- **Example**: The Fleet declaration creates "Manage the fleet" in todo; its agent moves it to
+  done → the next plan reads it unchanged and leaves it done.
+
+### TASK-R68 · A declared label is created or respelled, never deleted
+
+A declaration names a project's label by its name, whatever its case: a project lacking it gets
+it, and one spelled otherwise is respelled the declaration's way. A label left out of a
+declaration stays, and so does every task wearing it.
+
+- **Example**: The Fleet project holds the label `release`; its declaration names `Release` →
+  the label is respelled `Release`, and its tasks keep it.
 
 ## What a run is handed
 

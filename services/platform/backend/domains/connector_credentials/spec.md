@@ -80,6 +80,25 @@ recorded as the system's.
 - **Example**: Ada replaces a connector's API key → the audit log says that Ada changed the
   secret of that connector's credential, and contains neither the old nor the new key.
 
+## Declared credentials
+
+### CCRED-R8 · A declared credential reads back as a digest; a renewed one is never declared
+
+A deployment's declaration names the environment variables a credential's secret fields are
+read from, never the values. Managed configuration reads back the credential's name, sign-in
+method, endpoint, default, the names of its secret fields and a slow, salted digest of their
+values, so a value changed in the environment or in Tale reads as differing and the next apply
+writes the declared ones. A credential keeps the sign-in method it was created with, and a
+sign-in the outside system renews is connected in Tale, never declared
+(`CREDENTIAL_NOT_DECLARABLE`). Before anything of the declaration is written, its plan asks
+whether the connector takes the credential — the connector, its sign-in method, its endpoint —
+without sending a value. A declaration states none of a connector's per-credential settings,
+so a new credential for a connector that requires some, such as an IMAP/SMTP mailbox or HTTP, is
+refused there (`CREDENTIAL_CONFIG_REQUIRED`) and connected in Tale instead.
+
+- **Example**: Ada rotates the Jira token in the deployment's environment → the next plan shows
+  the Ops credential changed, and its apply seals the new token; nothing records the token.
+
 ## Not yet
 
 - **Who can manage a connector's credentials** (`routes.ts`).

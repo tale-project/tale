@@ -156,7 +156,11 @@ export async function writeManagedAutomation(
   body: z.infer<typeof managedAutomationWriteSchema>,
 ) {
   const resource: ManagedPlatformResource = body.resource;
-  if (!('name' in resource.config))
+  if (
+    resource.kind !== 'automation-definition' &&
+    resource.kind !== 'automation-deployment' &&
+    resource.kind !== 'automation-schedule'
+  )
     throw new AutomationError(
       'AUTOMATION_TRIGGER_INVALID',
       'Invalid managed automation resource.',

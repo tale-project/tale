@@ -4,11 +4,14 @@ import {
   managedPlatformResourceSchema,
   managedAgentModelObservationSchema,
   managedProjectDispatchObservationSchema,
+  managedObservationSchemas,
+  type ManagedDispatchPlan,
   type ManagedPlatformResource,
 } from '@tale/shared/schemas/managed-configuration';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
+import type { DeclaredSecrets } from './declared-secrets';
 import type { PlatformConfigurationClient } from './platform-client';
 import { valueHash } from './releases/identity';
 
@@ -25,15 +28,46 @@ export function isManagedResource(
     resource.kind === 'automation-definition' ||
     resource.kind === 'automation-deployment' ||
     resource.kind === 'automation-schedule' ||
-    resource.kind === 'project-dispatch'
+    resource.kind === 'project-dispatch' ||
+    resource.kind === 'project' ||
+    resource.kind === 'project-label' ||
+    resource.kind === 'project-agent' ||
+    resource.kind === 'task' ||
+    resource.kind === 'agent-secret' ||
+    resource.kind === 'connector-credential'
   );
+}
+
+/** The kinds a declaration names by an identity it may create
+ * (`createIfMissing`), whose readback answers `null` for one that does not
+ * exist yet. */
+type CreatableResource = Extract<
+  ManagedPlatformResource,
+  {
+    kind:
+      | 'project'
+      | 'project-label'
+      | 'project-agent'
+      | 'task'
+      | 'agent-secret'
+      | 'connector-credential';
+  }
+>;
+
+function isCreatableResource(
+  resource: ManagedPlatformResource,
+): resource is CreatableResource {
+  return resource.kind in managedObservationSchemas;
 }
 
 /** The kinds a declaration may create: their native readback answers `null`
  * for a resource that does not exist yet, which planning shows as `create`.
  * Every other managed kind adopts an existing native target, so a `null`
- * readback there means a missing or retargeted identity. */
+ * readback there means a missing or retargeted identity. A kind that names
+ * its identity explicitly creates only when its declaration says so
+ * (`createIfMissing`). */
 function createsWhenAbsent(resource: ManagedPlatformResource): boolean {
+  if (isCreatableResource(resource)) return resource.createIfMissing === true;
   return (
     resource.kind.startsWith('automation-') ||
     resource.kind === 'task-review-context' ||
@@ -41,26 +75,131 @@ function createsWhenAbsent(resource: ManagedPlatformResource): boolean {
   );
 }
 
-function resourcePath(resource: ManagedPlatformResource, read = false): string {
-  const { projectId } = resource.config;
+/** The creation, by resource id, that leaves a resource of an adopting kind
+ * in place to write: a project its instructions, an agent the runtime,
+ * model, instructions and tools it is created with ({@link creationSeed}),
+ * a task its description and the review context written onto it. */
+function createdWith(resource: ManagedPlatformResource): string | undefined {
   switch (resource.kind) {
     case 'project-instructions':
-      return `/api/app/projects/${encodeURIComponent(projectId)}/configuration/instructions`;
-    case 'project-dispatch':
-      return `/api/app/tasks/dispatch/by-project/${encodeURIComponent(projectId)}/configuration`;
+      return `project/${resource.config.projectId}`;
     case 'agent-instructions':
-      return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/instructions`;
-    case 'agent-model':
-      return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/model`;
     case 'agent-tools':
-      return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/tools`;
+    case 'agent-model':
+      return `project-agent/${resource.config.projectId}/${resource.config.agentId}`;
     case 'task-instructions':
-      return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/instructions?projectId=${encodeURIComponent(projectId)}`;
     case 'task-review-context':
-      return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/review-context?projectId=${encodeURIComponent(projectId)}${read && resource.createIfMissing === true ? '&createIfMissing=true' : ''}`;
+      return `task/${resource.config.projectId}/${resource.config.taskId}`;
     default:
-      return `/api/app/automations/${encodeURIComponent(resource.config.name)}/configuration${read ? `?projectId=${encodeURIComponent(projectId)}&kind=${resource.kind}` : ''}`;
+      return undefined;
   }
+}
+
+/**
+ * Whether a resource can be written inside a project, agent or task the same
+ * declaration creates (`created`: the ids of those that do not exist yet).
+ * It can when it creates itself — `createIfMissing`, an automation, a
+ * dispatch — or when what is created leaves it there to write. Anything
+ * else there only adopts, and would find nothing to adopt: an agent's model
+ * in a new project whose agent nobody declares, a label or agent declared
+ * without `createIfMissing`. Planning refuses it, before anything is
+ * written, rather than letting an apply stop half-way at it.
+ */
+export function writableInsideCreation(
+  resource: ManagedPlatformResource,
+  created: ReadonlySet<string>,
+): boolean {
+  if (
+    resource.kind.startsWith('automation-') ||
+    resource.kind === 'project-dispatch' ||
+    ('createIfMissing' in resource && resource.createIfMissing === true)
+  )
+    return true;
+  const home = createdWith(resource);
+  return home !== undefined && created.has(home);
+}
+
+const encode = encodeURIComponent;
+
+function resourcePath(resource: ManagedPlatformResource, read = false): string {
+  // A read of a resource the declaration may create says so: the platform
+  // then answers `null` for an identity nothing holds instead of not found.
+  const creating =
+    read && 'createIfMissing' in resource && resource.createIfMissing === true;
+  const opt = (separator: '?' | '&') =>
+    creating ? `${separator}createIfMissing=true` : '';
+  switch (resource.kind) {
+    case 'agent-secret':
+      return `/api/app/agent-secrets/configuration?name=${encode(resource.config.name)}${opt('&')}`;
+    case 'connector-credential':
+      return `/api/app/connector-credentials/configuration?connector=${encode(resource.config.connector)}&name=${encode(resource.config.name)}${opt('&')}`;
+    default:
+      break;
+  }
+  const projectId = encode(resource.config.projectId);
+  switch (resource.kind) {
+    case 'project':
+      return `/api/app/projects/${projectId}/configuration/project${opt('?')}`;
+    case 'project-label':
+      return `/api/app/tasks/labels/by-project/${projectId}/configuration?name=${encode(resource.config.name)}${opt('&')}`;
+    case 'project-agent':
+      return `/api/app/projects/${projectId}/agents/${encode(resource.config.agentId)}/configuration/agent${opt('?')}`;
+    case 'task':
+      return `/api/app/tasks/${encode(resource.config.taskId)}/configuration/task?projectId=${projectId}${opt('&')}`;
+    case 'project-instructions':
+      return `/api/app/projects/${projectId}/configuration/instructions`;
+    case 'project-dispatch':
+      return `/api/app/tasks/dispatch/by-project/${projectId}/configuration`;
+    case 'agent-instructions':
+      return `/api/app/projects/${projectId}/agents/${encode(resource.config.agentId)}/configuration/instructions`;
+    case 'agent-model':
+      return `/api/app/projects/${projectId}/agents/${encode(resource.config.agentId)}/configuration/model`;
+    case 'agent-tools':
+      return `/api/app/projects/${projectId}/agents/${encode(resource.config.agentId)}/configuration/tools`;
+    case 'task-instructions':
+      return `/api/app/tasks/${encode(resource.config.taskId)}/configuration/instructions?projectId=${projectId}`;
+    case 'task-review-context':
+      return `/api/app/tasks/${encode(resource.config.taskId)}/configuration/review-context?projectId=${projectId}${read && resource.createIfMissing === true ? '&createIfMissing=true' : ''}`;
+    default:
+      return `/api/app/automations/${encode(resource.config.name)}/configuration${read ? `?projectId=${projectId}&kind=${resource.kind}` : ''}`;
+  }
+}
+
+/** A creatable resource's readback, held to the identity it was read by:
+ * the same project, agent, task, label, secret or credential — a label and
+ * a credential whatever their name's case, as the platform matches them. */
+function observeCreatable(
+  resource: CreatableResource,
+  config: unknown,
+): Record<string, unknown> {
+  const observed: Record<string, unknown> =
+    managedObservationSchemas[resource.kind].parse(config);
+  const declared: Record<string, unknown> = resource.config;
+  const sameName = (left: unknown, right: unknown, folded: boolean) =>
+    typeof left === 'string' &&
+    typeof right === 'string' &&
+    (folded ? left.toLowerCase() === right.toLowerCase() : left === right);
+  const identity: Record<CreatableResource['kind'], readonly string[]> = {
+    project: ['projectId'],
+    'project-label': ['projectId'],
+    'project-agent': ['projectId', 'agentId'],
+    task: ['projectId', 'taskId'],
+    'agent-secret': ['name'],
+    'connector-credential': ['connector'],
+  };
+  const folded =
+    resource.kind === 'project-label' ||
+    resource.kind === 'connector-credential';
+  if (
+    identity[resource.kind].some(
+      (key) => !sameName(observed[key], declared[key], false),
+    ) ||
+    (folded && !sameName(observed.name, declared.name, true))
+  )
+    throw preconditionError(
+      'Managed configuration readback names another resource.',
+    );
+  return observed;
 }
 
 export async function readManagedResource(
@@ -76,6 +215,14 @@ export async function readManagedResource(
         'Managed configuration target is missing or inconsistent.',
       );
     return { config: null, revision: null };
+  }
+  if (isCreatableResource(resource)) {
+    const config = observeCreatable(resource, view.config);
+    if (valueHash(config) !== view.hash)
+      throw preconditionError(
+        'Managed configuration readback differs from its native identity or hash.',
+      );
+    return { config, revision: view.hash };
   }
   const observed =
     resource.kind === 'agent-model'
@@ -107,6 +254,7 @@ export async function readManagedResource(
         }
       : observed.config;
   if (
+    !('projectId' in observed.config) ||
     observed.config.projectId !== resource.config.projectId ||
     valueHash(observedConfig) !== view.hash
   )
@@ -144,12 +292,18 @@ export async function readManagedResource(
   return { config: observedConfig, revision: view.hash };
 }
 
-const dispatchCheckSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), changed: z.boolean(), hash: z.string() }),
+const checkSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
   z.object({
     ok: z.literal(false),
     issues: z
-      .array(z.object({ path: z.string(), message: z.string() }))
+      .array(
+        z.object({
+          path: z.string(),
+          code: z.string().optional(),
+          message: z.string(),
+        }),
+      )
       .min(1)
       .max(1_000),
   }),
@@ -158,35 +312,176 @@ const dispatchCheckSchema = z.discriminatedUnion('ok', [
 /** A field of the declared dispatch, such as `gates.0.labels.1`. */
 const declaredPath = /^[A-Za-z]+(?:\.(?:[A-Za-z]+|\d+))*$/;
 
-/** A dispatch is the last resource a declaration writes, and the platform
- * checks what it names (the project's agents, tasks, labels and schedules)
- * only when it saves it. Ask before anything is written, so a dispatch it
- * would refuse leaves the declaration unapplied. Only the refused fields'
- * paths are named: native text never becomes a diagnostic. */
+/** A platform error code, such as `CREDENTIAL_CONFIG_REQUIRED`. */
+const errorCode = /^[A-Z][A-Z0-9_]{0,63}$/;
+
+/** Where a refused declaration is wrong: each field once, with the code the
+ * platform refuses it by when it names one. Only fields and codes are named:
+ * native text never becomes a diagnostic. */
+function refusedAt(issues: ReadonlyArray<{ path: string; code?: string }>) {
+  const places = [
+    ...new Set(
+      issues
+        .filter(({ path }) => path.length <= 120 && declaredPath.test(path))
+        .map(({ path, code }) =>
+          code !== undefined && errorCode.test(code)
+            ? `${path} (${code})`
+            : path,
+        ),
+    ),
+  ];
+  return places.length > 0 ? ` at ${places.join(', ')}` : '';
+}
+
+/** A path with `/check` appended before its query. */
+function checkPath(path: string): string {
+  const query = path.indexOf('?');
+  return query === -1
+    ? `${path}/check`
+    : `${path.slice(0, query)}/check${path.slice(query)}`;
+}
+
+/**
+ * Ask the platform, before anything is written, whether it would take a
+ * resource that it checks only when it saves it — so one it would refuse
+ * leaves the declaration unapplied instead of stopping an apply half-way.
+ * A dispatch is the last resource a declaration writes, and the platform
+ * checks what it names (the project's agents, tasks, labels and schedules);
+ * a connector credential must suit its connector (its sign-in method, its
+ * endpoint, the settings it requires). No secret value is sent.
+ */
 export async function checkManagedResource(
   client: PlatformConfigurationClient,
   resource: ManagedPlatformResource,
   expectedHash: string | null,
+  /** What the same declaration creates in the dispatch's project, which the
+   * check counts as the project's: a dispatch may name agents, tasks and
+   * labels — and a project — that exist only once the declaration is
+   * applied. The save that writes it checks again what then exists. */
+  planned?: ManagedDispatchPlan,
 ): Promise<void> {
+  if (resource.kind === 'connector-credential') {
+    const { fields: _sources, ...config } = resource.config;
+    const verdict = checkSchema.parse(
+      await client.request(checkPath(resourcePath(resource)), 'POST', {
+        config,
+      }),
+    );
+    if (verdict.ok) return;
+    throw preconditionError(
+      `The platform refuses the connector credential declared as ${resource.config.connector}/${resource.config.name}${refusedAt(verdict.issues)}.`,
+      'Declare a connector Tale has, a sign-in method it takes and an endpoint exactly when it takes one per credential; a credential keeps the sign-in method it was created with. A connector that needs per-credential settings, such as an IMAP/SMTP mailbox or HTTP, is connected in Tale.',
+    );
+  }
   if (resource.kind !== 'project-dispatch') return;
-  const verdict = dispatchCheckSchema.parse(
-    await client.request(`${resourcePath(resource)}/check`, 'POST', {
+  const verdict = checkSchema.parse(
+    await client.request(checkPath(resourcePath(resource)), 'POST', {
       config: resource.config,
       expectedHash,
+      ...(planned !== undefined ? { planned } : {}),
     }),
   );
   if (verdict.ok) return;
-  const paths = [
-    ...new Set(
-      verdict.issues
-        .map((issue) => issue.path)
-        .filter((path) => path.length <= 120 && declaredPath.test(path)),
-    ),
-  ];
   throw preconditionError(
-    `The platform refuses the dispatch declared for project ${resource.config.projectId}${paths.length > 0 ? ` at ${paths.join(', ')}` : ''}.`,
+    `The platform refuses the dispatch declared for project ${resource.config.projectId}${refusedAt(verdict.issues)}.`,
     'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates), or change the declaration, then plan again.',
   );
+}
+
+/** What a created resource starts with that other kinds of the same
+ * declaration own: an agent's runtime, model, instructions and tools, a
+ * task's description. It is created whole, so it never runs a moment on
+ * anything else, and those kinds read back as declared at once. */
+function creationSeed(
+  resource: CreatableResource,
+  declared: readonly PlatformResource[],
+): Record<string, unknown> {
+  if (resource.kind === 'project-agent') {
+    const { projectId, agentId } = resource.config;
+    const owned = <K extends PlatformResource['kind']>(kind: K) =>
+      declared.find(
+        (entry): entry is Extract<PlatformResource, { kind: K }> =>
+          entry.kind === kind &&
+          'agentId' in entry.config &&
+          entry.config.projectId === projectId &&
+          entry.config.agentId === agentId,
+      );
+    const model = owned('agent-model');
+    if (!model)
+      throw preconditionError(
+        'A created project agent requires its declared agent-model.',
+      );
+    const instructions = owned('agent-instructions');
+    const tools = owned('agent-tools');
+    return {
+      seed: {
+        harness: model.config.harness,
+        model: model.config.model,
+        modelProvider: model.config.modelProvider,
+        ...(instructions
+          ? { instructions: instructions.config.instructions }
+          : {}),
+        ...(tools ? { tools: tools.config.tools } : {}),
+      },
+    };
+  }
+  if (resource.kind === 'task') {
+    const { projectId, taskId } = resource.config;
+    const instructions = declared.find(
+      (entry) =>
+        entry.kind === 'task-instructions' &&
+        entry.config.projectId === projectId &&
+        entry.config.taskId === taskId,
+    );
+    return instructions?.kind === 'task-instructions'
+      ? { description: instructions.config.description }
+      : {};
+  }
+  return {};
+}
+
+/** Write a resource a declaration may create. A secret's values travel in
+ * this one request body alone. */
+async function writeCreatableResource(
+  client: PlatformConfigurationClient,
+  resource: CreatableResource,
+  expectedHash: string | null,
+  declared: readonly PlatformResource[],
+  secrets: DeclaredSecrets,
+) {
+  const creation = {
+    expectedHash,
+    ...(resource.createIfMissing === true ? { createIfMissing: true } : {}),
+  };
+  const path = resourcePath(resource);
+  if (resource.kind === 'agent-secret') {
+    await client.request(path, 'POST', {
+      name: resource.config.name,
+      value: secrets.agentSecretValue(resource),
+      ...creation,
+    });
+    return;
+  }
+  if (resource.kind === 'connector-credential') {
+    const { fields: _sources, ...config } = resource.config;
+    await client.request(path, 'POST', {
+      config,
+      secret: secrets.connectorCredentialValues(resource),
+      ...creation,
+    });
+    return;
+  }
+  await client.request(path, 'POST', {
+    config: resource.config,
+    ...creation,
+    ...(resource.kind === 'project' && resource.key !== undefined
+      ? { key: resource.key }
+      : {}),
+    ...(resource.kind === 'task' && resource.initialStatus !== undefined
+      ? { initialStatus: resource.initialStatus }
+      : {}),
+    ...(expectedHash === null ? creationSeed(resource, declared) : {}),
+  });
 }
 
 export async function writeManagedResource(
@@ -194,7 +489,18 @@ export async function writeManagedResource(
   resource: ManagedPlatformResource,
   expectedHash: string | null,
   declared: readonly PlatformResource[],
+  secrets: DeclaredSecrets,
 ) {
+  if (isCreatableResource(resource)) {
+    await writeCreatableResource(
+      client,
+      resource,
+      expectedHash,
+      declared,
+      secrets,
+    );
+    return;
+  }
   if (!resource.kind.startsWith('automation-')) {
     await client.request(resourcePath(resource), 'POST', {
       config: resource.config,

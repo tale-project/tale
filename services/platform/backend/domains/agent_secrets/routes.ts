@@ -6,7 +6,15 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import {
+  invalidBodyIssuesResponse,
+  invalidBodyResponse,
+} from '../../lib/invalid-body-response.ts';
+import {
+  managedAgentSecretWriteSchema,
+  readManagedAgentSecret,
+  writeManagedAgentSecret,
+} from './managed.ts';
 import {
   AgentSecretError,
   deleteAgentSecret,
@@ -76,6 +84,53 @@ export function createAgentSecretRoutes(deps: {
             : {}),
         }),
       );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // A secret as managed configuration declares it (`agent-secret`), named
+  // in the query: its name and the digest of its value, never the value.
+  app.get('/configuration', async (c) => {
+    const target = z
+      .strictObject({
+        name: z.string().min(1).max(200),
+        createIfMissing: z.literal('true').optional(),
+      })
+      .safeParse({
+        name: c.req.query('name'),
+        createIfMissing: c.req.query('createIfMissing'),
+      });
+    if (!target.success) return invalidBodyResponse(c, target.error);
+    try {
+      return c.json(
+        await readManagedAgentSecret(
+          deps.sql,
+          c.get('orgId'),
+          target.data.name,
+          target.data.createIfMissing === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/configuration', async (c) => {
+    const body = managedAgentSecretWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.name !== c.req.query('name'))
+      return invalidBodyIssuesResponse(c, [
+        { path: 'name', message: 'must name the secret in the query' },
+      ]);
+    try {
+      await writeManagedAgentSecret(deps.sql, {
+        ...body.data,
+        organizationId: c.get('orgId'),
+        actorId: c.get('sessionBundle').user.id,
+        actorEmail: c.get('sessionBundle').user.email,
+      });
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }

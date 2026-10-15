@@ -1,5 +1,5 @@
 import {
-  resourceConverged,
+  PLATFORM_RESOURCES_MAX,
   resourceConvergedWithHash,
   resourceId,
   sameConfiguration,
@@ -10,6 +10,8 @@ import { z } from 'zod';
 
 import { CliError, preconditionError } from '../../utils/fail';
 import { readOptionalJson, writePrivateJson } from '../state/private-files';
+import { DeclaredSecrets, isSecretResource } from './declared-secrets';
+import { isManagedResource, writableInsideCreation } from './managed-resources';
 import type { PlatformConfigurationClient } from './platform-client';
 import {
   configurationPlanSchema,
@@ -18,6 +20,7 @@ import {
 } from './platform-model';
 import {
   checkResourceChange,
+  converged,
   readResource,
   verifyResource,
   writeResource,
@@ -35,11 +38,125 @@ const operationSchema = z.strictObject({
   schemaVersion: z.literal(1),
   phase: z.enum(['pending', 'ready']),
   plan: configurationPlanSchema,
-  verified: z.array(resultSchema).max(128),
+  verified: z.array(resultSchema).max(PLATFORM_RESOURCES_MAX),
 });
 const journalSchema = operationSchema.extend({
   superseded: z.array(operationSchema).max(64).optional(),
 });
+
+/** Where a run reads what a declaration takes from its environment: the
+ * values of its secrets. The process's own environment unless a caller
+ * names another. */
+export interface EnvironmentOptions {
+  environment?: Readonly<Record<string, string | undefined>>;
+}
+
+function declaredSecrets(
+  client: PlatformConfigurationClient,
+  options: EnvironmentOptions,
+) {
+  return new DeclaredSecrets(
+    options.environment ?? process.env,
+    client.target.organizationId,
+  );
+}
+
+/** The kinds a declaration may create other resources inside of. */
+const CREATORS: ReadonlySet<PlatformResource['kind']> = new Set([
+  'project',
+  'project-agent',
+  'task',
+]);
+
+/** The resources one exists inside of, by id: its project, and its agent or
+ * its task. A declaration may create them in the same run. */
+function creationParents(resource: PlatformResource): string[] {
+  if (
+    !isManagedResource(resource) ||
+    isSecretResource(resource) ||
+    resource.kind === 'project'
+  )
+    return [];
+  const { config } = resource;
+  const parents = [`project/${config.projectId}`];
+  if ('agentId' in config && resource.kind !== 'project-agent')
+    parents.push(`project-agent/${config.projectId}/${config.agentId}`);
+  if ('taskId' in config && resource.kind !== 'task')
+    parents.push(`task/${config.projectId}/${config.taskId}`);
+  return parents;
+}
+
+/** The hash of an absent resource's state. */
+const ABSENT_SHA256 = valueHash(null);
+
+/**
+ * Refuse, before anything is written, what cannot be written inside the
+ * project, agent or task `parent` this declaration creates: a resource that
+ * only adopts finds nothing there to adopt, and a task in a new project can
+ * be assigned only to an agent the declaration creates there.
+ */
+function assertWritableInside(
+  resource: PlatformResource,
+  parent: string,
+  absent: ReadonlySet<string>,
+) {
+  if (!isManagedResource(resource)) return;
+  if (!writableInsideCreation(resource, absent))
+    throw preconditionError(
+      `${resourceId(resource)} adopts a resource inside ${parent}, which this declaration creates: nothing exists there to adopt.`,
+      'Give it `createIfMissing: true`, declare the agent or task it belongs to with `createIfMissing: true`, or remove it, then plan again.',
+    );
+  if (
+    resource.kind === 'task' &&
+    typeof resource.config.assigneeAgentId === 'string' &&
+    absent.has(`project/${resource.config.projectId}`) &&
+    !absent.has(
+      `project-agent/${resource.config.projectId}/${resource.config.assigneeAgentId}`,
+    )
+  )
+    throw preconditionError(
+      `${resourceId(resource)} is assigned to agent ${resource.config.assigneeAgentId}, which nothing creates in project ${resource.config.projectId}: this declaration creates that project.`,
+      'Declare that agent in the project with `createIfMissing: true`, or assign the task to one the declaration creates, then plan again.',
+    );
+}
+
+/**
+ * Read a resource unless what it exists inside of does not exist yet: a
+ * project, agent or task this declaration creates (`absent`, which this
+ * read adds to). Nothing inside it can exist either, so it reads as absent
+ * — and its dispatch, its agents' instructions, its tasks' descriptions are
+ * planned as created — once it is one that can be written there.
+ */
+async function observe(
+  client: PlatformConfigurationClient,
+  resource: PlatformResource,
+  absent: Set<string>,
+): Promise<ResourceObservation> {
+  const parent = creationParents(resource).find((id) => absent.has(id));
+  if (parent !== undefined) {
+    assertWritableInside(resource, parent, absent);
+    if (CREATORS.has(resource.kind)) absent.add(resourceId(resource));
+    return { config: null, revision: null };
+  }
+  const current = await readResource(client, resource);
+  if (CREATORS.has(resource.kind) && current.config === null)
+    absent.add(resourceId(resource));
+  return current;
+}
+
+/** The ids of the projects, agents and tasks a reviewed plan creates. */
+function plannedCreations(
+  selected: readonly PlatformResource[],
+  plan: ConfigurationPlan,
+): ReadonlySet<string> {
+  return new Set(
+    selected.flatMap((resource, index) =>
+      CREATORS.has(resource.kind) && plan.resources[index]?.action === 'create'
+        ? [resourceId(resource)]
+        : [],
+    ),
+  );
+}
 
 /** A reviewed replacement may only adopt states the retained operation could
  * have produced. Unknown edits and omitted resources still require recovery. */
@@ -47,8 +164,10 @@ async function checkSupersededOperation(
   configuration: PlatformConfiguration,
   previous: z.infer<typeof journalSchema>,
   client: PlatformConfigurationClient,
+  secrets: DeclaredSecrets,
 ) {
   const selected = ordered(configuration);
+  const absent = new Set<string>();
   if (
     !sameConfiguration(
       selected.map(resourceId).sort(),
@@ -67,17 +186,20 @@ async function checkSupersededOperation(
         'A replacement resource has no retained preimage.',
       );
     const verified = previous.verified.find(({ id }) => id === planned.id);
-    const current = await readResource(client, resource);
+    const current = await observe(client, resource, absent);
     const currentHash = valueHash(current.config);
     if (
       !(
         (currentHash === planned.currentSha256 &&
           current.revision === planned.revision) ||
-        resourceConvergedWithHash(
-          resource,
-          current.config,
-          planned.desiredSha256,
-        ) ||
+        (isSecretResource(resource)
+          ? planned.desiredSha256 === valueHash(resource.config) &&
+            converged(resource, current, secrets)
+          : resourceConvergedWithHash(
+              resource,
+              current.config,
+              planned.desiredSha256,
+            )) ||
         (verified &&
           currentHash === verified.configurationSha256 &&
           current.revision === verified.revision)
@@ -94,16 +216,25 @@ function ordered(configuration: PlatformConfiguration) {
     if (resource.kind === 'provider') return 0;
     if (resource.kind === 'provider-credential')
       return resource.config.isDefault ? 2 : 1;
-    if (resource.kind === 'deployment') return 4;
-    if (resource.kind === 'automation-definition') return 5;
-    if (resource.kind === 'automation-deployment') return 6;
-    if (resource.kind === 'automation-schedule') return 7;
+    // What a resource refers to exists before it: a project before its
+    // labels, the secrets and credentials an agent is equipped with before
+    // the agent, the agent a standing task is assigned to before the task.
+    if (resource.kind === 'project') return 3;
+    if (resource.kind === 'project-label') return 4;
+    if (resource.kind === 'agent-secret') return 5;
+    if (resource.kind === 'connector-credential') return 6;
+    if (resource.kind === 'project-agent') return 7;
+    if (resource.kind === 'task') return 8;
+    if (resource.kind === 'deployment') return 10;
+    if (resource.kind === 'automation-definition') return 11;
+    if (resource.kind === 'automation-deployment') return 12;
+    if (resource.kind === 'automation-schedule') return 13;
     // A dispatch names the project's agents and tasks by id and starts work
     // as soon as it is saved switched on, so it goes last: after the
     // instructions, tools, models and review contexts its runs read, and
     // after schedules that the same declaration may be switching off.
-    if (resource.kind === 'project-dispatch') return 8;
-    return 3;
+    if (resource.kind === 'project-dispatch') return 14;
+    return 9;
   };
   return [...configuration.resources].sort(
     (left, right) => rank(left) - rank(right),
@@ -115,18 +246,20 @@ function ordered(configuration: PlatformConfiguration) {
 export async function planPlatformConfiguration(
   input: unknown,
   client: PlatformConfigurationClient,
+  options: EnvironmentOptions = {},
 ): Promise<ConfigurationPlan> {
   const configuration = parsePlatformConfiguration(input);
+  const secrets = declaredSecrets(client, options);
   const resources: ConfigurationPlan['resources'] = [];
+  const absent = new Set<string>();
   for (const resource of ordered(configuration)) {
-    const current = await readResource(client, resource);
-    await checkResourceChange(
-      client,
-      resource,
-      current,
-      configuration.resources,
-    );
-    const same = resourceConverged(resource, current.config);
+    const current = await observe(client, resource, absent);
+    await checkResourceChange(client, resource, current, {
+      secrets,
+      declared: configuration.resources,
+      absent,
+    });
+    const same = converged(resource, current, secrets);
     resources.push({
       id: resourceId(resource),
       scope: resource.kind === 'deployment' ? 'instance' : 'organization',
@@ -180,13 +313,24 @@ function assertUnchanged(
   resource: PlatformResource,
   observed: ResourceObservation,
   planned: ConfigurationPlan['resources'][number],
+  secrets: DeclaredSecrets,
+  creations: ReadonlySet<string>,
 ) {
+  if (converged(resource, observed, secrets)) return;
+  // Inside a project, agent or task the plan creates there was nothing to
+  // review: the plan read it as absent, and what the creation left there —
+  // in this run or one that stopped — is what the write replaces.
+  if (
+    planned.currentSha256 === ABSENT_SHA256 &&
+    planned.revision === null &&
+    creationParents(resource).some((id) => creations.has(id))
+  )
+    return;
   // An exact completed write can be adopted after its response was lost. A
   // different concurrent edit cannot be adopted just to make a retry succeed.
   if (
-    !resourceConverged(resource, observed.config) &&
-    (valueHash(observed.config) !== planned.currentSha256 ||
-      observed.revision !== planned.revision)
+    valueHash(observed.config) !== planned.currentSha256 ||
+    observed.revision !== planned.revision
   )
     throw preconditionError(
       `Native configuration changed since planning: ${resourceId(resource)}. Create and review a new plan.`,
@@ -201,11 +345,15 @@ export async function applyPlatformConfiguration(
   rawPlan: unknown,
   client: PlatformConfigurationClient,
   receiptPath: string,
-  options: { migrateOriginFrom?: string; supersedesPendingPlan?: string } = {},
+  options: {
+    migrateOriginFrom?: string;
+    supersedesPendingPlan?: string;
+  } & EnvironmentOptions = {},
 ) {
   const configuration = parsePlatformConfiguration(input);
   const plan = configurationPlanSchema.parse(rawPlan);
   checkPlan(configuration, plan, client);
+  const secrets = declaredSecrets(client, options);
   const rawPrevious = await readOptionalJson(receiptPath);
   const previous =
     rawPrevious === undefined ? undefined : journalSchema.parse(rawPrevious);
@@ -246,17 +394,24 @@ export async function applyPlatformConfiguration(
       'A different native configuration operation is retained in this receipt. Recover its reviewed plan first.',
     );
   const selected = ordered(configuration);
+  const creations = plannedCreations(selected, plan);
   if (superseding)
-    await checkSupersededOperation(configuration, previous, client);
+    await checkSupersededOperation(configuration, previous, client, secrets);
+  const absent = new Set<string>();
   for (const [index, resource] of selected.entries()) {
-    const current = await readResource(client, resource);
-    assertUnchanged(resource, current, plan.resources[index]);
-    await checkResourceChange(
-      client,
+    const current = await observe(client, resource, absent);
+    assertUnchanged(
       resource,
       current,
-      configuration.resources,
+      plan.resources[index],
+      secrets,
+      creations,
     );
+    await checkResourceChange(client, resource, current, {
+      secrets,
+      declared: configuration.resources,
+      absent,
+    });
   }
   const journal = journalSchema.parse({
     schemaVersion: 1,
@@ -286,13 +441,25 @@ export async function applyPlatformConfiguration(
   for (const [index, resource] of selected.entries()) {
     try {
       const current = await readResource(client, resource);
-      assertUnchanged(resource, current, plan.resources[index]);
-      if (!resourceConverged(resource, current.config)) {
-        await checkResourceChange(client, resource, current);
-        await writeResource(client, resource, current, configuration.resources);
+      assertUnchanged(
+        resource,
+        current,
+        plan.resources[index],
+        secrets,
+        creations,
+      );
+      if (!converged(resource, current, secrets)) {
+        await checkResourceChange(client, resource, current, { secrets });
+        await writeResource(
+          client,
+          resource,
+          current,
+          configuration.resources,
+          secrets,
+        );
         changed = true;
       }
-      const observed = await verifyResource(client, resource);
+      const observed = await verifyResource(client, resource, secrets);
       journal.verified.push({
         id: resourceId(resource),
         configurationSha256: valueHash(observed.config),
@@ -312,7 +479,8 @@ export async function applyPlatformConfiguration(
   }
   // Re-read the complete set: a later write may have a native side effect on
   // an earlier resource (for example selecting another default credential).
-  for (const resource of selected) await verifyResource(client, resource);
+  for (const resource of selected)
+    await verifyResource(client, resource, secrets);
   journal.phase = 'ready';
   await writePrivateJson(receiptPath, journal);
   return {
@@ -334,20 +502,49 @@ export async function applyPlatformConfiguration(
   };
 }
 
+/** What `read` shows of a resource's native state. A declared secret's
+ * digest is a verifier of its value — anyone holding it can test guesses
+ * offline — so instead of it, `read` shows whether the stored value is the
+ * one the environment holds now. */
+function shownState(
+  resource: PlatformResource,
+  config: unknown,
+  secrets: DeclaredSecrets,
+): unknown {
+  if (
+    !isSecretResource(resource) ||
+    typeof config !== 'object' ||
+    config === null
+  )
+    return config;
+  const valueDigest: unknown = Reflect.get(config, 'valueDigest');
+  return {
+    ...Object.fromEntries(
+      Object.entries(config).filter(([key]) => key !== 'valueDigest'),
+    ),
+    valueMatches:
+      typeof valueDigest === 'string' &&
+      valueDigest === secrets.desired(resource).valueDigest,
+  };
+}
+
 export async function readPlatformConfiguration(
   input: unknown,
   client: PlatformConfigurationClient,
+  options: EnvironmentOptions = {},
 ) {
   const configuration = parsePlatformConfiguration(input);
+  const secrets = declaredSecrets(client, options);
   const resources = [];
+  const absent = new Set<string>();
   for (const resource of ordered(configuration)) {
-    const actual = await readResource(client, resource);
+    const actual = await observe(client, resource, absent);
     resources.push({
       id: resourceId(resource),
       scope: resource.kind === 'deployment' ? 'instance' : 'organization',
-      config: actual.config,
+      config: shownState(resource, actual.config, secrets),
       revision: actual.revision,
-      matches: resourceConverged(resource, actual.config),
+      matches: converged(resource, actual, secrets),
     });
   }
   return { target: client.target, resources };

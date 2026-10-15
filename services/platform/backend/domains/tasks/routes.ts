@@ -5,6 +5,7 @@ import {
 } from '@tale/shared/schemas/configuration';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import {
+  managedDispatchPlanSchema,
   managedProjectDispatchSchema,
   managedTaskInstructionsSchema,
   managedTaskReviewContextSchema,
@@ -72,6 +73,7 @@ import {
   taskCommentCursorSchema,
 } from './comments.ts';
 import {
+  checkPlannedProjectDispatch,
   checkProjectDispatchSave,
   readProjectDispatchConfiguration,
   saveProjectDispatch,
@@ -92,6 +94,14 @@ import {
   readTaskStatusSnapshot,
   requestExternalTaskStatus,
 } from './external-status.ts';
+import {
+  managedProjectLabelWriteSchema,
+  managedTaskWriteSchema,
+  readManagedProjectLabel,
+  readManagedTask,
+  writeManagedProjectLabel,
+  writeManagedTask,
+} from './managed-entities.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
 import { readNativeRunOp } from './native-runs.ts';
 import { stopTaskRepeat, type TaskRepeatCopy } from './repeat.ts';
@@ -257,21 +267,28 @@ const managedDispatchBodySchema = z.strictObject({
   config: managedProjectDispatchSchema,
   expectedHash: expectedConfigurationHashSchema,
 });
+const managedDispatchCheckBodySchema = managedDispatchBodySchema.extend({
+  planned: managedDispatchPlanSchema.optional(),
+});
 
 /** The body of a managed dispatch save or check, for the project in the
- * path: its dispatch and the hash the caller reviewed, or the 400 that
- * refuses it. */
+ * path: its dispatch and the hash the caller reviewed — and, for a check
+ * alone, what its declaration creates — or the 400 that refuses it. */
 async function managedDispatchBody<E extends OrgEnv>(
   c: Context<E>,
   projectId: string,
+  check = false,
 ): Promise<
   | { refused: Response }
   | {
       dispatch: Omit<z.infer<typeof managedProjectDispatchSchema>, 'projectId'>;
       expectedHash: z.infer<typeof expectedConfigurationHashSchema>;
+      planned?: z.infer<typeof managedDispatchPlanSchema>;
     }
 > {
-  const body = managedDispatchBodySchema.safeParse(await c.req.json());
+  const body = (
+    check ? managedDispatchCheckBodySchema : managedDispatchBodySchema
+  ).safeParse(await c.req.json());
   if (!body.success) return { refused: invalidBodyResponse(c, body.error) };
   if (body.data.config.projectId !== projectId)
     return {
@@ -283,7 +300,16 @@ async function managedDispatchBody<E extends OrgEnv>(
       ]),
     };
   const { projectId: _projectId, ...dispatch } = body.data.config;
-  return { dispatch, expectedHash: body.data.expectedHash };
+  const planned = check
+    ? managedDispatchCheckBodySchema.shape.planned.parse(
+        Reflect.get(body.data, 'planned'),
+      )
+    : undefined;
+  return {
+    dispatch,
+    expectedHash: body.data.expectedHash,
+    ...(planned !== undefined ? { planned } : {}),
+  };
 }
 
 /** A start or due date: an instant a `Date` can hold, which a safe integer
@@ -579,6 +605,119 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  // A standing task as managed configuration declares it (`task`): read in
+  // the declaration's shape, and created under its stable UUID or brought
+  // in line through the board's writers.
+  app.get('/:taskId/configuration/task', async (c) => {
+    const target = z
+      .strictObject({
+        projectId: z.string().min(1).max(128),
+        createIfMissing: z.literal('true').optional(),
+      })
+      .safeParse({
+        projectId: c.req.query('projectId'),
+        createIfMissing: c.req.query('createIfMissing'),
+      });
+    if (!target.success) return invalidBodyResponse(c, target.error);
+    try {
+      return c.json(
+        await readManagedTask(
+          deps.sql,
+          await authCtx(c),
+          target.data.projectId,
+          c.req.param('taskId'),
+          target.data.createIfMissing === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/configuration/task', async (c) => {
+    const body = managedTaskWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.query('projectId') ||
+      body.data.config.taskId !== c.req.param('taskId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    if (
+      body.data.createIfMissing === true &&
+      !z.uuid().safeParse(body.data.config.taskId).success
+    )
+      return invalidBodyIssuesResponse(c, [
+        { path: 'taskId', message: 'Creation requires a stable UUID task ID' },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        writeManagedTask(tx, auth, body.data),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // A project's label as managed configuration declares it
+  // (`project-label`), named in the query: a label name may hold a slash.
+  app.get('/labels/by-project/:projectId/configuration', async (c) => {
+    const target = z
+      .strictObject({
+        name: z.string().min(1).max(200),
+        createIfMissing: z.literal('true').optional(),
+      })
+      .safeParse({
+        name: c.req.query('name'),
+        createIfMissing: c.req.query('createIfMissing'),
+      });
+    if (!target.success) return invalidBodyResponse(c, target.error);
+    try {
+      return c.json(
+        await readManagedProjectLabel(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('projectId'),
+          target.data.name,
+          target.data.createIfMissing === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/labels/by-project/:projectId/configuration', async (c) => {
+    const body = managedProjectLabelWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('projectId') ||
+      body.data.config.name.toLowerCase() !==
+        (c.req.query('name') ?? '').toLowerCase()
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        writeManagedProjectLabel(tx, auth, body.data),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   // What an UNPINNED project-agent model pick would run on RIGHT NOW — the
   // task resolver's direct-only walk (it intentionally differs from the
   // workflow lane's). A resolution failure is a RESULT, not an error.
@@ -722,13 +861,27 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   // What the save above would do, writing nothing: managed configuration
-  // asks it for every changed dispatch before it writes any resource.
+  // asks it for every changed dispatch before it writes any resource. It
+  // may name what its declaration creates (`planned`), counted as the
+  // project's — or, for a project the declaration creates, alone.
   app.post('/dispatch/by-project/:projectId/configuration/check', async (c) => {
     const projectId = c.req.param('projectId');
-    const body = await managedDispatchBody(c, projectId);
+    const body = await managedDispatchBody(c, projectId, true);
     if ('refused' in body) return body.refused;
     try {
       const auth = await authCtx(c);
+      const { planned } = body;
+      if (
+        planned?.project === true &&
+        (
+          await deps.sql<{ id: string }[]>`
+            SELECT id FROM app.projects WHERE id = ${projectId}
+          `
+        ).length === 0
+      )
+        return c.json(
+          checkPlannedProjectDispatch(auth, { projectId, ...body, planned }),
+        );
       return c.json(
         await transactSerializable(deps.sql, (tx) =>
           checkProjectDispatchSave(tx, auth, { projectId, ...body }),

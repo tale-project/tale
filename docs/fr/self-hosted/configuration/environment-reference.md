@@ -154,6 +154,8 @@ Sans clé age, le module SOPS écrit les fichiers compatibles en clair avec les 
 
 Les identifiants de fournisseurs peuvent référencer une variable préfixée par `TALE_PROVIDER_KEY_` (40 caractères maximum). Les courtiers d’abonnement utilisent le préfixe distinct `TALE_TOKEN_SOURCE_` (60 maximum). Ces champs contiennent des noms de variables, pas les secrets. Injecte les valeurs dans les processus backend et recrée les conteneurs concernés après modification. [Fournisseurs](/fr/self-hosted/configuration/providers) décrit ce fonctionnement.
 
+Une [configuration de la plateforme](/fr/self-hosted/install/cli-install#configurer-la-plateforme) lit les valeurs des secrets d’agent et des identifiants de connector qu’elle déclare dans des variables préfixées par `TALE_CONFIG_SECRET_` (80 caractères maximum), dans l’environnement de la CLI qui l’applique ; dans un déploiement géré, c’est l’environnement du conteneur backend. La déclaration contient les noms des variables, et la plateforme les valeurs qu’elle a reçues ; une valeur modifiée est écrite à l’application suivante.
+
 ## Applications OAuth des connectors {#applications-oauth-des-connecteurs}
 
 Les connectors OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) résolvent leur application fournisseur d’abord par organisation : une app configurée sous **Paramètres > Connectors > Apps OAuth** gagne pour cette organisation. L’environnement fournit la valeur par défaut du déploiement en dessous (et reste la seule source pour Slack, dont la vérification de signature des événements s’exécute avant qu’aucune organisation ne soit connue). Pour chaque slug de connector :

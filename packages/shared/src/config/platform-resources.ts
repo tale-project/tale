@@ -105,6 +105,18 @@ export function resourceId(resource: PlatformResource): string {
       return `${resource.kind}/${resource.config.projectId}/${resource.config.name}`;
     case 'project-dispatch':
       return `project-dispatch/${resource.config.projectId}`;
+    case 'project':
+      return `project/${resource.config.projectId}`;
+    case 'project-label':
+      return `project-label/${resource.config.projectId}/${encodeURIComponent(resource.config.name)}`;
+    case 'project-agent':
+      return `project-agent/${resource.config.projectId}/${resource.config.agentId}`;
+    case 'task':
+      return `task/${resource.config.projectId}/${resource.config.taskId}`;
+    case 'agent-secret':
+      return `agent-secret/${resource.config.name}`;
+    case 'connector-credential':
+      return `connector-credential/${resource.config.connector}/${encodeURIComponent(resource.config.name)}`;
     case 'governance':
       return `governance/${resource.key}`;
     case 'provider':
@@ -116,10 +128,17 @@ export function resourceId(resource: PlatformResource): string {
   }
 }
 
+/** The most resources one declaration holds, its included files' among
+ * them. A plan, its journal and a deployment's receipt hold as many. */
+export const PLATFORM_RESOURCES_MAX = 512;
+
 const declarationSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
-    resources: z.array(platformResourceSchema).min(1).max(128),
+    resources: z
+      .array(platformResourceSchema)
+      .min(1)
+      .max(PLATFORM_RESOURCES_MAX),
   })
   .superRefine((configuration, context) => {
     const ids = configuration.resources.map(resourceId);
@@ -127,6 +146,41 @@ const declarationSchema = z
       context.addIssue({ code: 'custom', message });
     if (new Set(ids).size !== ids.length)
       fail('Duplicate native configuration resource');
+    // A label and a connector credential are one whatever their name's case.
+    const folded = configuration.resources.flatMap((resource) =>
+      resource.kind === 'project-label'
+        ? [
+            `label/${resource.config.projectId}/${resource.config.name.toLowerCase()}`,
+          ]
+        : resource.kind === 'connector-credential'
+          ? [
+              `credential/${resource.config.connector}/${resource.config.name.toLowerCase()}`,
+            ]
+          : [],
+    );
+    if (new Set(folded).size !== folded.length)
+      fail('Duplicate native configuration resource');
+    for (const resource of configuration.resources) {
+      // An agent is created with its runtime and model, which `agent-model`
+      // owns: creating one takes its declared serving.
+      if (
+        resource.kind === 'project-agent' &&
+        resource.createIfMissing === true &&
+        !configuration.resources.some(
+          (candidate) =>
+            candidate.kind === 'agent-model' &&
+            candidate.config.projectId === resource.config.projectId &&
+            candidate.config.agentId === resource.config.agentId,
+        )
+      )
+        fail('A created project agent requires its declared agent-model');
+    }
+    const connectorDefaults = configuration.resources
+      .filter((resource) => resource.kind === 'connector-credential')
+      .filter((resource) => resource.config.isDefault === true)
+      .map((resource) => resource.config.connector);
+    if (new Set(connectorDefaults).size !== connectorDefaults.length)
+      fail('A connector cannot have two declared default credentials');
     for (const resource of configuration.resources) {
       if (
         resource.kind !== 'automation-deployment' &&
@@ -324,13 +378,47 @@ function isObject(value: unknown): value is object {
 
 const keptSettings: readonly string[] = KNOWLEDGE_EMBEDDING_KEPT_KEYS;
 
+/**
+ * The fields a declaration of each kind may leave out to keep what is
+ * stored. The platform keeps such a field when a write omits it and clears
+ * it on an explicit `null` where the field takes one, so a declaration that
+ * omits one converges with ANY stored value, one that declares `null`
+ * converges only once none is stored, and a declared value must match
+ * exactly — each field on its own. Every other field compares whole.
+ */
+const KEPT_WHEN_OMITTED: Readonly<
+  Partial<Record<PlatformResource['kind'], readonly string[]>>
+> = {
+  'knowledge-embedding': keptSettings,
+  project: ['description', 'teamIds'],
+  'project-agent': ['connectors', 'secrets', 'skills'],
+  task: ['labels', 'assigneeAgentId', 'priority'],
+  'connector-credential': ['endpoint', 'isDefault'],
+};
+
+/** The fields a declaration of `kind` may leave out to keep what is
+ * stored; empty for a kind that compares whole. */
+export function keptWhenOmitted(
+  kind: PlatformResource['kind'],
+): readonly string[] {
+  return KEPT_WHEN_OMITTED[kind] ?? [];
+}
+
+/** A config without the given fields. */
+function without(
+  value: object,
+  keys: readonly string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => !keys.includes(key)),
+  );
+}
+
 /** An embedding config without the settings a write keeps when it omits
  * them: what remains names the model — provider, credential, tag, width and
  * endpoint. */
 function embeddingModelOf(value: object): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(value).filter(([key]) => !keptSettings.includes(key)),
-  );
+  return without(value, keptSettings);
 }
 
 /** Whether a declared embedding names the model already stored, so that it
@@ -350,13 +438,11 @@ export function sameEmbeddingModel(declared: object, current: unknown) {
  * write semantics are not "replace the whole object" converges on the
  * platform's own terms rather than never at all.
  *
- * Every resource compares whole, except the embedding's kept settings
- * (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`,
- * `maxTokensPerMinute`, `maxRequestsPerMinute`): the
- * platform keeps a stored one when the write omits it and clears it on an
- * explicit null, so a declaration that omits one converges with ANY stored
- * value, one that declares `null` converges only once none is stored, and a
- * declared value must match exactly — each setting on its own.
+ * Every resource compares whole, except the fields its kind keeps when a
+ * declaration omits them ({@link keptWhenOmitted}): the embedding's
+ * similarity floor and serving limits, a project's description and teams,
+ * a project agent's equipment, a task's labels, assignee and priority, a
+ * connector credential's endpoint and default.
  */
 export function resourceConverged(
   resource: PlatformResource,
@@ -371,19 +457,29 @@ export function resourceConverged(
 
 /** A retained plan holds the declaration hash, not its original secret-free
  * object. Compare that hash with precisely the declarations native readback
- * satisfies, including the kept settings' preserve/clear semantics. */
+ * satisfies, including the kept fields' preserve/clear semantics. */
 export function resourceConvergedWithHash(
   resource: PlatformResource,
   current: unknown,
   desiredSha256: string,
 ): boolean {
-  if (resource.kind !== 'knowledge-embedding' || !isObject(current))
+  return convergedWithHash(resource.kind, current, desiredSha256);
+}
+
+/** Whether `current` satisfies the declaration of `kind` whose hash is
+ * `desiredSha256`: every declaration this state satisfies, each kept field
+ * either omitted (whatever is stored stays) or stated as what is stored —
+ * `null` when nothing is. */
+export function convergedWithHash(
+  kind: PlatformResource['kind'],
+  current: unknown,
+  desiredSha256: string,
+): boolean {
+  const kept = keptWhenOmitted(kind);
+  if (kept.length === 0 || !isObject(current))
     return configurationHash(current) === desiredSha256;
-  // Every declaration this state satisfies: each kept setting either
-  // omitted (whatever is stored stays) or stated as what is stored — `null`
-  // when nothing is.
-  let readings = [embeddingModelOf(current)];
-  for (const key of keptSettings) {
+  let readings = [without(current, kept)];
+  for (const key of kept) {
     const stored: unknown = Reflect.get(current, key);
     readings = readings.flatMap((reading) => [
       reading,

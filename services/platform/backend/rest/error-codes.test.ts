@@ -168,6 +168,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // credential admin surface is the app's (`/api/app/provider-credentials`);
   // REST has no credential door.
   'CREDENTIAL_IN_USE',
+  // A managed declaration creates an agent under the id it chooses
+  // (`/api/app/projects/{id}/agents/{agentId}/configuration/agent`); a REST
+  // create never names an agent's id, so another agent never holds it.
+  'PROJECT_AGENT_ID_TAKEN',
   // The MCP dispatch store's own gates — answered as JSON-RPC results —
   // and the platform tools' refusal of a tool they do not serve.
   'FORBIDDEN_DEVELOPER_SETTINGS',

@@ -540,6 +540,59 @@ test('configuration recovery requires an exact plan hash and a native declaratio
   ).toBe(false);
 });
 
+test('a declared secret reads its value from a required deployment environment reference', () => {
+  const configuration = {
+    schemaVersion: 1,
+    resources: [
+      {
+        kind: 'agent-secret',
+        config: { name: 'GITHUB_TOKEN', envName: 'TALE_CONFIG_SECRET_GITHUB' },
+      },
+      {
+        kind: 'connector-credential',
+        config: {
+          connector: 'jira',
+          name: 'Ops',
+          authMethod: 'basic',
+          fields: {
+            username: { env: 'TALE_CONFIG_SECRET_JIRA_USER' },
+            password: { env: 'TALE_CONFIG_SECRET_JIRA_PASSWORD' },
+          },
+        },
+      },
+    ],
+  };
+  const environment: Record<string, { env: string; optional?: boolean }> = {
+    TALE_CONFIG_SECRET_GITHUB: { env: 'FLEET_GITHUB_TOKEN' },
+    TALE_CONFIG_SECRET_JIRA_USER: { env: 'FLEET_JIRA_USER' },
+    TALE_CONFIG_SECRET_JIRA_PASSWORD: { env: 'FLEET_JIRA_PASSWORD' },
+  };
+  expect(
+    deploymentSpecSchema.safeParse({ ...spec(), configuration, environment })
+      .success,
+  ).toBe(true);
+  // Each variable a declared secret names must reach the backend, where
+  // the apply reads it: a missing or optional reference is refused.
+  for (const missing of Object.keys(environment)) {
+    const { [missing]: _dropped, ...rest } = environment;
+    for (const variant of [
+      rest,
+      { ...rest, [missing]: { env: 'ELSEWHERE', optional: true } },
+    ]) {
+      const parsed = deploymentSpecSchema.safeParse({
+        ...spec(),
+        configuration,
+        environment: variant,
+      });
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((issue) => issue.path)).toContainEqual([
+        'environment',
+        missing,
+      ]);
+    }
+  }
+});
+
 test('resolves organization creators from literals and environment references', () => {
   const input = spec();
   const resolved = resolveDeploymentSpec(

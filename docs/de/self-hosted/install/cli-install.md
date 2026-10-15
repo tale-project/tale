@@ -426,7 +426,83 @@ Mit `agent-model` legst du die Ausführungskonfiguration für künftige Starts e
 
 Mit `task-review-context` registrierst du eine unbenutzte operative Aufgabe für genau einen Prüfer. `config` enthält `projectId`, `taskId`, `reviewerAgentId` und `enabled`. Standardmäßig muss die Aufgabe bereits existieren und darf keinen Ausführungs- oder Prüfverlauf und keine Umsetzungsarbeit enthalten. Zum Erstellen ergänzt du `createIfMissing: true` neben `kind` und `config` und wählst eine feste UUID für `taskId`. Mit Bearbeitungsrechten für das Projekt kannst du die Backlog-Aufgabe dann in einer Transaktion erstellen und registrieren. Scheitert die Registrierung, bleiben weder Aufgabe noch Änderungen an Zählern oder Audit-Protokoll zurück. Der Prüfer benötigt bereits `task_review`; die Registrierung vergibt keine Tools und startet keine Arbeit. Bestehende Aufgaben müssen weiterhin die Prüfungen für unbenutzte Aufgaben bestehen; belegte Identitäten werden nie überschrieben. Behalte bei einer Unterbrechung dieselbe ID und den ausstehenden Beleg. Beim Deaktivieren bleiben Prüfer und Zweck erhalten.
 
-Mit `project-dispatch` deklarierst du die [Arbeitsverteilung](/de/platform/projects/dispatch) eines Projekts mit ihren ständigen Rollen und Schranken: welche Agenten die bereite Arbeit des Projekts starten und wie viele Läufe sie gleichzeitig halten. `config` enthält die exakte `projectId` und die Felder der Arbeitsverteilung: `enabled`, `agents`, `maxConcurrentRuns`, `statuses` und `assignment`, optional außerdem `perAgentConcurrency`, `rebalance`, `labels`, `admission`, `standingRoles` und `gates`. Ein Projekt hat genau eine Arbeitsverteilung. Hat es noch keine, legt die Deklaration sie an, je nach `enabled` ein- oder ausgeschaltet. Jedes Anwenden ersetzt das ganze Dokument: Ein weggelassenes Feld gilt mit seinem Standardwert, und eine Änderung in der App wird überschrieben. Anwenden dürfen Projektadministratoren sowie Inhaber und Admins der Organisation, und nur auf einem aktiven Projekt. Die Plattform lehnt eine Arbeitsverteilung ab, die einen Agenten oder eine Aufgabe außerhalb des Projekts nennt, eine ständige Rolle auf einer archivierten Aufgabe, einen ungültigen Cron-Ausdruck oder ein Label, das das Projekt nicht hat. Lege die Labels deshalb zuerst an. Eine eingeschaltete Arbeitsverteilung startet sofort Arbeit, deshalb wendet die CLI sie nach allen anderen Ressourcen der Deklaration an. Deklariere jede Schranke unter `gates`. Was ein externes System über `POST /api/v1/projects/{id}/dispatch/gates/{key}` zu einer Schranke meldet, ist Laufzeitzustand und taucht weder in der Deklaration noch im Plan noch beim Zurücklesen auf. Kann die Runtime eine gespeicherte Arbeitsverteilung nicht lesen, etwa weil eine neuere Tale-Version sie geschrieben hat, wird sie beim Planen abgelehnt, statt als neue geplant zu werden.
+Mit `project-dispatch` deklarierst du die [Arbeitsverteilung](/de/platform/projects/dispatch) eines Projekts mit ihren ständigen Rollen und Schranken: welche Agenten die bereite Arbeit des Projekts starten und wie viele Läufe sie gleichzeitig halten. `config` enthält die exakte `projectId` und die Felder der Arbeitsverteilung: `enabled`, `agents`, `maxConcurrentRuns`, `statuses` und `assignment`, optional außerdem `perAgentConcurrency`, `rebalance`, `labels`, `admission`, `standingRoles` und `gates`. Ein Projekt hat genau eine Arbeitsverteilung. Hat es noch keine, legt die Deklaration sie an, je nach `enabled` ein- oder ausgeschaltet. Jedes Anwenden ersetzt das ganze Dokument: Ein weggelassenes Feld gilt mit seinem Standardwert, und eine Änderung in der App wird überschrieben. Anwenden dürfen Projektadministratoren sowie Inhaber und Admins der Organisation, und nur auf einem aktiven Projekt. Die Plattform lehnt eine Arbeitsverteilung ab, die einen Agenten oder eine Aufgabe außerhalb des Projekts nennt, eine ständige Rolle auf einer archivierten Aufgabe, einen ungültigen Cron-Ausdruck oder ein Label, das das Projekt nicht hat. Deklariere die Labels deshalb mit `project-label` oder lege sie zuerst an. Eine eingeschaltete Arbeitsverteilung startet sofort Arbeit, deshalb wendet die CLI sie nach allen anderen Ressourcen der Deklaration an. Deklariere jede Schranke unter `gates`. Was ein externes System über `POST /api/v1/projects/{id}/dispatch/gates/{key}` zu einer Schranke meldet, ist Laufzeitzustand und taucht weder in der Deklaration noch im Plan noch beim Zurücklesen auf. Kann die Runtime eine gespeicherte Arbeitsverteilung nicht lesen, etwa weil eine neuere Tale-Version sie geschrieben hat, wird sie beim Planen abgelehnt, statt als neue geplant zu werden.
+
+Eine Deklaration kann auch anlegen, womit eine Gruppe von Agenten arbeitet: ihr Projekt, dessen Labels, ihre Agenten und Daueraufgaben sowie die Agent-Secrets und Connector-Zugangsdaten, die sie nutzen. Jede dieser Arten übernimmt die Ressource, die ihre Identität nennt. Soll eine noch nicht vorhandene angelegt werden, ergänzt du `createIfMissing: true` neben `kind` und `config`; ein Projekt, ein Agent und eine Aufgabe brauchen dann eine feste UUID, die du wählst, damit ein wiederholtes Anwenden findet, was ein unterbrochenes schon angelegt hat. Ein weggelassenes Feld behält, was Tale gespeichert hat; ein angegebenes Feld wird bei jedem Anwenden auf den deklarierten Wert zurückgesetzt.
+
+| Art                    | Identität                                         | Konfiguration                                                                                                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project`              | `projectId`                                       | `name`, optional `description` (`null` löscht sie) und `teamIds` (`[]` gibt das Projekt für die ganze Organisation frei). Ein `key` neben `createIfMissing` wählt das Projektkürzel, das danach fest bleibt.                                                                |
+| `project-label`        | `projectId` und `name`, unabhängig von der Schreibweise | Sonst nichts: Tale leitet die Farbe eines Labels aus seinem Namen ab. Ein anders geschriebenes Label wird so geschrieben, wie die Deklaration es nennt.                                                                                                                 |
+| `project-agent`        | `projectId` und `agentId`                         | `name`, optional `connectors`, `secrets` (Namen von Agent-Secrets) und `skills`. Ein Agent lässt sich nur mit seinem `agent-model` in derselben Deklaration anlegen; seine deklarierten `agent-instructions` und `agent-tools` werden gleich mit angelegt.                   |
+| `task`                 | `projectId` und `taskId`                          | `title`, optional `labels`, `assigneeAgentId` (`null` für keinen Agenten) und `priority` (`p0` bis `p3`, `null` für keine). Ein `initialStatus` neben `createIfMissing` wählt `backlog` (Standard) oder `todo`. Die Beschreibung kommt aus `task-instructions`.            |
+| `agent-secret`         | `name`                                            | `envName`, die Umgebungsvariable, aus der der Wert gelesen wird.                                                                                                                                                                                                        |
+| `connector-credential` | `connector` und `name`, unabhängig von der Schreibweise | `authMethod` (`api-key`, `bearer` oder `basic`) und `fields`, das jedes geheime Feld einem `{ "env": "<Variable>" }` zuordnet: `token`, oder `username` und `password`. Optional `endpoint` und `isDefault`.               |
+
+Der Status einer Aufgabe gehört zu ihrer Arbeit: Eine Deklaration legt nur fest, in welcher Spalte eine von ihr angelegte Aufgabe beginnt, und liest oder verschiebt ihn danach nie. Laufzeit, Modell, Anweisungen und Tools eines Agenten bleiben bei `agent-model`, `agent-instructions` und `agent-tools`, damit kein Feld zwei Arten gehört. Eine Person, der eine Aufgabe zugewiesen ist, behält sie, bis die Deklaration einen Agenten nennt. Eine Aufgabe nennt ihre Labels unabhängig von der Schreibweise und liest sie kleingeschrieben zurück: `Bug` in einem Projekt mit dem Label `bug` ist dasselbe Label; wie ein Label geschrieben wird, bestimmt sein `project-label`. Der `endpoint` von Connector-Zugangsdaten ist der HTTPS-Ursprung eines Connectors, der einen pro Zugangsdaten verlangt. Eine Deklaration enthält keine Einstellungen pro Zugangsdaten eines Connectors. Einen Connector, der solche verlangt, etwa ein IMAP-/SMTP-Postfach oder HTTP, verbindest du deshalb in Tale: Das Planen lehnt neue Zugangsdaten dafür ab.
+
+Der Wert eines Secrets steht nie in der Deklaration, im Plan oder im Beleg. Die CLI liest ihn beim Planen und Anwenden aus einer Umgebungsvariablen, deren Name mit `TALE_CONFIG_SECRET_` beginnt — in einem verwalteten Deployment aus der Umgebung der Plattform selbst — und lehnt das Planen ab, solange die Variable fehlt. Tale gibt nur einen gesalzenen Digest des gespeicherten Werts zurück. Ein in der Umgebung ausgetauschter oder von einer Person in Tale ersetzter Wert erscheint deshalb im Plan als Änderung, während der Hash der Deklaration gleich bleibt; `tale config platform read` zeigt statt des Digests `valueMatches`. Der Digest ist absichtlich langsam zu berechnen, bestätigt den Wert aber trotzdem: Wer ihn hat oder die Hashes, die ein Plan oder Beleg für eine Secret-Ressource festhält, kann Vermutungen offline prüfen. Behandle Pläne und Belege einer Deklaration mit Secrets als vertraulich und gib Secrets lange Zufallswerte. Eine Anmeldung, die das externe System erneuert (OAuth), verbindest du in Tale; sie wird nie deklariert. Deklarierte Zugangsdaten behalten die Anmeldemethode, mit der sie angelegt wurden.
+
+Das Anwenden legt zuerst an, worauf andere Ressourcen verweisen: Projekte, Labels, Agent-Secrets, Connector-Zugangsdaten, Agenten und dann Aufgaben, vor Anweisungen, Tools, Modellen, Prüfkontexten, Automatisierungen und zuletzt der Arbeitsverteilung. Innerhalb eines Projekts, Agenten oder einer Aufgabe, die die Deklaration anlegt, wird beim Planen nichts gelesen: Diese Ressourcen stehen im Plan als `create`, und das Anwenden schreibt sie über das, was das Anlegen hinterlassen hat. Geplant wird dort nur, was sich dort schreiben lässt: eine Ressource, die sich selbst anlegt (mit `createIfMissing`, eine Automatisierung, eine Arbeitsverteilung), die Anweisungen des Projekts, Modell, Anweisungen und Tools eines Agenten, den die Deklaration anlegt, sowie Beschreibung und Prüfkontext einer Aufgabe, die sie anlegt. Alles andere dort lehnt das Planen ab, bevor etwas geschrieben wird, etwa ein Label oder einen Agenten ohne `createIfMissing` oder das Modell eines Agenten, den nichts deklariert, und ebenso eine Aufgabe in einem neuen Projekt, die einem Agenten zugewiesen ist, den die Deklaration dort nicht anlegt. Beim Planen fragt die CLI Tale außerdem, ob alle Connector-Zugangsdaten zu ihrem Connector passen (Anmeldemethode und Endpoint), ohne die Werte zu senden, und nennt das abgelehnte Feld. Die Prüfung der Arbeitsverteilung zählt die Agenten, Daueraufgaben und Labels mit, die dieselbe Deklaration anlegt; eine Arbeitsverteilung für ein Projekt, das die Deklaration anlegt, erfordert Inhaber oder Admins der Organisation. Ein Deployment mit `--configuration-only` akzeptiert alle diese Arten, doch das Backend liest den Wert eines Secrets aus seiner Umgebung: Ein neues Secret zu deklarieren oder einen Wert zu rotieren ändert die Laufzeit-Eingaben des Deployments und erfordert ein vollständiges Deployment, das `--configuration-only` ablehnt. Alle anderen Änderungen an diesen Arten gehen mit `--configuration-only`. Diese Deklaration legt zum Beispiel ein Projekt mit einem Agenten auf einer Daueraufgabe an:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "project",
+      "createIfMissing": true,
+      "key": "FLT",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "name": "Fleet"
+      }
+    },
+    {
+      "kind": "agent-secret",
+      "createIfMissing": true,
+      "config": {
+        "name": "GITHUB_TOKEN",
+        "envName": "TALE_CONFIG_SECRET_GITHUB"
+      }
+    },
+    {
+      "kind": "project-agent",
+      "createIfMissing": true,
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "agentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50",
+        "name": "Manager",
+        "secrets": ["GITHUB_TOKEN"]
+      }
+    },
+    {
+      "kind": "agent-model",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "agentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50",
+        "harness": "codex",
+        "model": "example-model",
+        "modelProvider": "example"
+      }
+    },
+    {
+      "kind": "task",
+      "createIfMissing": true,
+      "initialStatus": "todo",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "taskId": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+        "title": "Manage the fleet",
+        "assigneeAgentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50"
+      }
+    }
+  ]
+}
+```
+
+
+Ersetze Modell und Anbieter durch solche, die deine Organisation bereitstellt, und setze `TALE_CONFIG_SECRET_GITHUB` dort, wo die CLI läuft; ein verwaltetes Deployment deklariert jede solche Variable als verpflichtende `environment`-Referenz, wie die von Anbieter-Zugangsdaten. Gelöscht wird nie etwas: Fehlt eine Ressource in der Deklaration, wird sie nicht mehr verwaltet und bleibt, wie sie ist. Um einen Teil der Gruppe stillzulegen, wendest du zuerst eine Deklaration an, die ihn ausschaltet — etwa `enabled: false` für die Arbeitsverteilung —, entfernst ihn dann aus der Deklaration und löschst in Tale, was du nicht mehr brauchst.
 
 Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du das Embedding-Modell wechselst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht ein Modellwechsel eine separate native Indexmigration. Eine Änderung, die nur `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` oder `maxRequestsPerMinute` betrifft, lässt die vorhandenen Vektoren gültig; für sie entfällt diese Prüfung. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
 
@@ -488,6 +564,8 @@ Verwaltete Deployments nutzen denselben Ablauf über `configuration`. Ergänze d
 Für `envName` gelten das native Präfix `TALE_PROVIDER_KEY_` und die Grenze von 40 Zeichen. Jeder Alias braucht eine verpflichtende `environment`-Referenz. Private Endpunkte erfordern zusätzlich eine explizite Referenz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` mit dem Wert `1`; native Host-Regeln gelten weiter. `expectedModels` prüft Tales frisch aufgelösten Katalog beim Rücklesen. Das belegt weder Inferenzkapazität und Latenz noch fachliche Ergebnisse.
 
 Die Bildmodellauswahl nutzt `governance` mit `key: "vision_model"` und den nativen Feldern `providerSlug`/`modelId`. Embedding nutzt `knowledge-embedding` mit `providerSlug`, `model`, `dimensions` und `baseUrl`, dazu die optionalen Einstellungen, die die Plattform neben dem Modell in [`embedding.json`](/de/self-hosted/configuration/data-residency#das-embedding-modell-der-organisation) hält: `minSimilarity`, die Kosinus-Untergrenze des Assistenten für dieses Modell, sowie die Servergrenzen `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` und `maxRequestsPerMinute` ([Anfragen an einen selbst betriebenen Embedding-Server dosieren](/de/self-hosted/configuration/data-residency#kapazitaet-des-embedding-servers)). Für jede gilt die Regel der Plattform selbst: Ein Wert setzt sie, ein weggelassener Schlüssel lässt stehen, was die Datei hält (ein von Hand gesetzter Wert überlebt ein Release, das ihn nicht erwähnt), und `null` löscht sie — `"minSimilarity": null` etwa ist der einzige Weg, eine Untergrenze über die CLI zu entfernen. Wenn du Standardzugangsdaten ersetzt, deklariere auch die bisherigen Umgebungszugangsdaten mit `isDefault: false`; die CLI wendet diese explizite Änderung zuerst an. Schlüsselwerte stehen weder in der Deklaration noch im Beleg.
+
+Ein verwaltetes Deployment kann seine Deklarationsdatei mit `configurationSource` nennen statt mit `configuration` direkt. Diese Datei kann unter `include` weitere Deklarationsdateien relativ zu ihr aufführen; sie werden zu einer Deklaration zusammengeführt, bevor diese geprüft wird. Eine zweimal eingebundene Deklarationsdatei wird abgelehnt, während eine Anweisungs- oder Workflow-Datei, die mehrere Ressourcen nennen, nur einmal gelesen wird. Eine Deklaration enthält über alle ihre Dateien höchstens 512 Ressourcen.
 
 Die native Einrichtung folgt auf die Identitätsprüfung und läuft vor den Konfigurations-Releases. Der Beleg `native.configuration` bindet Deklarations- und Bundle-Hashes, Organisation, Ressourcen-Hashes und native Revisionen. Vor der ersten Änderung entsteht ein ausstehender Beleg. Scheitert eine spätere Ressource, können frühere Änderungen bestehen bleiben. Lies den nativen Zustand und den Beleg, bevor du denselben geprüften Plan erneut ausführst. Natives Compare-and-set schützt jede Ressource vor konkurrierenden Admin-Änderungen; eine ressourcenübergreifende Transaktion gibt es nicht. Bewahre Deployment-Zustand, Snapshots und Belege für die Wiederherstellung auf.
 

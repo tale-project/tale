@@ -426,7 +426,82 @@ Use `agent-model` to select the serving configuration for future starts of an ex
 
 Use `task-review-context` to enroll a pristine operational task for one reviewer. Its `config` contains `projectId`, `taskId`, `reviewerAgentId` and `enabled`. By default the task must already exist, with no execution, review or source-work history. To create it, add `createIfMissing: true` beside `kind` and `config`, and choose a stable UUID for `taskId`. A project editor can then create and enroll the backlog task in one transaction; failed enrollment leaves no task or counter/audit changes. The reviewer must already have `task_review`; enrollment grants no tools and starts no work. Existing tasks still pass the pristine checks, and occupied identities are never overwritten. Keep the same ID and pending receipt after an interruption. Disabling the context preserves its reviewer and purpose.
 
-Use `project-dispatch` to declare a project’s [dispatch](/platform/projects/dispatch): which agents start its ready work, how many runs they hold, its standing roles and its gates. Its `config` holds the exact `projectId` and the dispatch’s fields: `enabled`, `agents`, `maxConcurrentRuns`, `statuses` and `assignment`, and optionally `perAgentConcurrency`, `rebalance`, `labels`, `admission`, `standingRoles` and `gates`. A project has one dispatch, and a declaration creates it when the project has none, switched on or off as `enabled` says. Each apply replaces the whole document: a field you leave out reads as its default, and a change made in the app is overwritten. Applying requires a project administrator, or an organization Owner or Admin, on an active project. The platform refuses a dispatch that names an agent or task outside the project, a standing role on an archived task, a cron expression that does not parse, or a label the project lacks, so create the labels first. A dispatch switched on starts work at once, so the CLI applies it after every other resource in the declaration. Declare each gate under `gates`; what an external system reports on a gate through `POST /api/v1/projects/{id}/dispatch/gates/{key}` is runtime state and never part of the declaration, plan or readback. A stored dispatch the runtime cannot read, such as one a newer Tale version wrote, is refused when you plan instead of being planned as a new one.
+Use `project-dispatch` to declare a project’s [dispatch](/platform/projects/dispatch): which agents start its ready work, how many runs they hold, its standing roles and its gates. Its `config` holds the exact `projectId` and the dispatch’s fields: `enabled`, `agents`, `maxConcurrentRuns`, `statuses` and `assignment`, and optionally `perAgentConcurrency`, `rebalance`, `labels`, `admission`, `standingRoles` and `gates`. A project has one dispatch, and a declaration creates it when the project has none, switched on or off as `enabled` says. Each apply replaces the whole document: a field you leave out reads as its default, and a change made in the app is overwritten. Applying requires a project administrator, or an organization Owner or Admin, on an active project. The platform refuses a dispatch that names an agent or task outside the project, a standing role on an archived task, a cron expression that does not parse, or a label the project lacks, so declare its labels with `project-label` or create them first. A dispatch switched on starts work at once, so the CLI applies it after every other resource in the declaration. Declare each gate under `gates`; what an external system reports on a gate through `POST /api/v1/projects/{id}/dispatch/gates/{key}` is runtime state and never part of the declaration, plan or readback. A stored dispatch the runtime cannot read, such as one a newer Tale version wrote, is refused when you plan instead of being planned as a new one.
+
+A declaration can also create what a fleet of agents works with: its project, the project's labels, its agents and standing tasks, and the agent secrets and connector credentials they use. Each of these kinds adopts the resource its identity names. To create one that does not exist yet, add `createIfMissing: true` beside `kind` and `config`; a project, an agent and a task then need a stable UUID you choose, so a retried apply finds what an interrupted one created. A field you leave out keeps what Tale stores; a field you state is set back to the declared value at every apply.
+
+| Kind                   | Identity                                  | Configuration                                                                                                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project`              | `projectId`                               | `name`, and optionally `description` (`null` clears it) and `teamIds` (`[]` shares it with the whole organization). A `key` beside `createIfMissing` chooses the project's task key, which stays fixed afterwards.                                             |
+| `project-label`        | `projectId` and `name`, whatever its case | Nothing else: Tale derives a label's color from its name. A label spelled otherwise is respelled the declared way.                                                                                                                                             |
+| `project-agent`        | `projectId` and `agentId`                 | `name`, and optionally `connectors`, `secrets` (agent secret names) and `skills`. Creating an agent requires its `agent-model` in the same declaration; its declared `agent-instructions` and `agent-tools` are created with it.                                 |
+| `task`                 | `projectId` and `taskId`                  | `title`, and optionally `labels`, `assigneeAgentId` (`null` for no agent) and `priority` (`p0` to `p3`, `null` for none). An `initialStatus` beside `createIfMissing` chooses `backlog` (the default) or `todo`. Its description comes from `task-instructions`. |
+| `agent-secret`         | `name`                                    | `envName`, the environment variable the value is read from.                                                                                                                                                                                                   |
+| `connector-credential` | `connector` and `name`, whatever its case | `authMethod` (`api-key`, `bearer` or `basic`) and `fields`, mapping each secret field to `{ "env": "<variable>" }`: `token`, or `username` and `password`. Optionally `endpoint` and `isDefault`.               |
+
+A task's status belongs to its work: a declaration sets only the column a task it creates starts in, and never reads or moves it afterwards. An agent's runtime, model, instructions and tools stay with `agent-model`, `agent-instructions` and `agent-tools`, so no two kinds own the same field. A person assigned to a task keeps it until the declaration names an agent. A task names its labels whatever their case and reads them back in lower case, so `Bug` on a project whose label is `bug` is the same label; a label's spelling is its `project-label`'s. A connector credential's `endpoint` is the HTTPS origin of a connector that takes one per credential. A declaration carries none of a connector's per-credential settings, so a connector that requires some, such as an IMAP/SMTP mailbox or HTTP, is connected in Tale: planning refuses a new credential for it.
+
+A secret's value never enters the declaration, the plan or the receipt. The CLI reads it when it plans and applies, from an environment variable whose name starts with `TALE_CONFIG_SECRET_` — inside a managed deployment, the platform's own environment — and refuses to plan while the variable is unset. Tale answers only a salted digest of the stored value, so a value rotated in the environment, or replaced by a person in Tale, plans as a change while the declaration's hash stays the same; `tale config platform read` shows `valueMatches` instead of the digest. The digest is slow to compute on purpose, but it still verifies the value: whoever holds it, or the hashes a plan or receipt records for a secret resource, can test guesses offline. Treat plans and receipts of a declaration with secrets as sensitive, and give secrets long random values. A sign-in the outside system renews (OAuth) is connected in Tale and never declared, and a declared credential keeps the sign-in method it was created with.
+
+Apply creates what other resources refer to first: projects, labels, agent secrets, connector credentials, agents, then tasks, before instructions, tools, models, review contexts, automations and, last, dispatch. Nothing inside a project, agent or task the declaration creates is read while planning: those resources plan as `create`, and apply writes them over whatever the creation left. Only what can be written there plans: a resource that creates itself (with `createIfMissing`, an automation, a dispatch), the project's instructions, the model, instructions and tools of an agent the declaration creates, and the description and review context of a task it creates. Planning refuses anything else there before writing anything, such as a label or agent without `createIfMissing` or the model of an agent nothing declares, and also a task in a new project assigned to an agent the declaration does not create there. Planning also asks Tale whether each connector credential suits its connector (its sign-in method and endpoint), without sending the values, and names the refused field. The dispatch check counts the agents, standing tasks and labels the same declaration creates; a dispatch for a project the declaration creates needs an organization Owner or Admin. A `--configuration-only` deployment accepts all of these kinds, but the backend reads a secret's value from its environment: declaring a new secret or rotating a value changes the deployment's runtime inputs and needs a full deployment, which `--configuration-only` refuses. Every other change to these kinds applies with `--configuration-only`. For example, this declaration creates a project with one agent on a standing task:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "project",
+      "createIfMissing": true,
+      "key": "FLT",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "name": "Fleet"
+      }
+    },
+    {
+      "kind": "agent-secret",
+      "createIfMissing": true,
+      "config": {
+        "name": "GITHUB_TOKEN",
+        "envName": "TALE_CONFIG_SECRET_GITHUB"
+      }
+    },
+    {
+      "kind": "project-agent",
+      "createIfMissing": true,
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "agentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50",
+        "name": "Manager",
+        "secrets": ["GITHUB_TOKEN"]
+      }
+    },
+    {
+      "kind": "agent-model",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "agentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50",
+        "harness": "codex",
+        "model": "example-model",
+        "modelProvider": "example"
+      }
+    },
+    {
+      "kind": "task",
+      "createIfMissing": true,
+      "initialStatus": "todo",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "taskId": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+        "title": "Manage the fleet",
+        "assigneeAgentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50"
+      }
+    }
+  ]
+}
+```
+
+Replace the model and provider with ones your organization serves, and set `TALE_CONFIG_SECRET_GITHUB` where the CLI runs; a managed deployment declares each such variable as a required `environment` reference, as it does a provider credential’s. Nothing is ever deleted: dropping a resource from the declaration stops managing it and leaves it as it is. To retire part of a fleet, first apply a declaration that switches it off — `enabled: false` on its dispatch, for example — then drop it from the declaration, and remove what you no longer need in Tale.
 
 Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing the embedding model. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. For an organization with documents or registered websites, a model change requires a separate native indexing migration. A change limited to `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` or `maxRequestsPerMinute` keeps existing vectors valid, so it skips this check. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
 
@@ -488,6 +563,8 @@ Managed deployments use the same engine through `configuration`. Merge this exam
 `envName` uses the native `TALE_PROVIDER_KEY_` prefix and 40-character limit. Each alias needs a required `environment` reference. Private endpoints additionally require an explicit `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` reference whose value is `1`; native host restrictions still apply. `expectedModels` checks Tale’s freshly resolved catalog during readback. It does not prove inference capacity, latency or business output.
 
 Use `governance` with `key: "vision_model"` and native `providerSlug`/`modelId` fields for vision selection. Embedding uses `knowledge-embedding` with `providerSlug`, `model`, `dimensions` and `baseUrl`, plus the optional settings the platform keeps next to the model in [`embedding.json`](/self-hosted/configuration/data-residency#the-organizations-embedding-model): `minSimilarity`, the assistant's cosine floor for this model, and the server limits `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` and `maxRequestsPerMinute` ([Pace requests to a self-hosted embedding server](/self-hosted/configuration/data-residency#embedding-server-capacity)). Each follows the platform's own rule: a value sets it, an omitted key leaves whatever the file holds (a hand-set value survives a release that does not mention it), and `null` clears it — `"minSimilarity": null`, for example, is the only way to remove a floor through the CLI. To replace a default credential, also declare the existing environment credential with `isDefault: false`; the CLI applies that explicit change first. Credential values never enter the declaration or receipt.
+
+A managed deployment may name its declaration file with `configurationSource` instead of inline `configuration`. That file may list other declaration files, relative to it, under `include`; they are merged into one declaration before it is validated. A declaration file included twice is refused, while an instruction or workflow file that several resources name is read once. One declaration holds at most 512 resources across its files.
 
 Native provisioning runs after identity and before configuration releases. The `native.configuration` receipt binds the declaration and bundle hashes, organization, resource hashes and native revisions. Writes retain a pending receipt before the first change; if a later resource fails, earlier changes may remain. Read the native state and retained receipt, then retry the same reviewed plan. Native compare-and-set protects each resource against concurrent admin changes; there is no cross-resource transaction. Keep deployment state, snapshots and receipts for recovery.
 
