@@ -14,6 +14,8 @@ Ajoute des identifiants de connector pour que Tale utilise une messagerie, un es
 
 Slack associe un seul jeu d’identifiants à chaque espace Slack. Si tu autorises à nouveau un espace déjà connecté, Tale renouvelle ses identifiants au lieu d’en ajouter d’autres.
 
+Lance chaque connexion avec **Connecter** dans Tale. Tale refuse un lien de connexion ouvert depuis un autre site web. Un lien que quelqu’un t’envoie ne peut donc pas connecter un compte ou une boîte aux lettres en ton nom.
+
 Le connector détermine les champs. Utilise les identifiants du compte externe, pas une clé API Tale.
 
 | Méthode | Informations nécessaires |

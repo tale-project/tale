@@ -33,7 +33,9 @@ const CREDENTIAL_ID_MAX = 128;
  *
  * `start` is session-gated: it must know WHO is asking and that their role
  * may add credentials to the named organization — connecting a connector IS
- * a credential write, just spelled as a consent flow. It also takes the
+ * a credential write, just spelled as a consent flow — and it refuses a
+ * navigation from another site (`Sec-Fetch-Site: cross-site`), so a link
+ * elsewhere cannot start one with settings of its choosing. It also takes the
  * consent's intent (`lib/shared/connector-consent.ts`): no `credentialId`
  * adds a new credential, with the settings `config` carries, a
  * `credentialId` reconnects that one (an OAuth grant of this organization
@@ -120,6 +122,23 @@ export function createConnectorOauthRoutes(deps: {
     // The consent flow returns to the domain it started on: the session
     // cookie the callback needs lives there, not on the canonical origin.
     const origin = publicOrigin(c.req.raw);
+    // A connection starts from Tale's own pages, which navigate here from
+    // the same origin; a typed address carries no Sec-Fetch-Site at all.
+    // A link on another site still carries the Lax session cookie, and
+    // would otherwise start an Add with the settings the link chose — a
+    // mailbox the member can open, sent to the vendor in one click. The
+    // callback is never guarded: the vendor sends the browser back to it.
+    if (c.req.header('sec-fetch-site') === 'cross-site') {
+      console.warn(
+        `[connectors:oauth2] refused a "${connectorSlug}" start opened from another site (organization ${organizationId})`,
+      );
+      return errorPage(
+        'cross_site_start',
+        organizationId,
+        resolvePublicBaseUrl(origin),
+        c.req.header('accept-language'),
+      );
+    }
     if (
       credentialId !== undefined &&
       (credentialId.length === 0 || credentialId.length > CREDENTIAL_ID_MAX)

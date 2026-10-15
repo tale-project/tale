@@ -14,6 +14,8 @@ Add connector credentials so Tale can use services such as a mailbox, file store
 
 Slack connects one credential per workspace. Authorizing a workspace that is already connected renews that workspace's credential instead of adding a second one.
 
+Start every connection with **Connect** in Tale. Tale refuses a connection link opened from another website, so a link someone sends you cannot connect an account or a mailbox on your behalf.
+
 The connector determines which fields appear. Use the account's actual credentials, not a Tale API key.
 
 | Method | Required information |

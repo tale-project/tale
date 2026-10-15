@@ -28227,6 +28227,25 @@ async function checkConnectorOauth(
     const afterRefusedSettings = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.connector_oauth_states
     `;
+    // A start link opened from another site carries the session cookie
+    // (SameSite=Lax) but starts nothing: no pending row, no vendor.
+    const crossSite = await fetch(
+      `${base}/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+      {
+        redirect: 'manual',
+        headers: { cookie, origin: base, 'sec-fetch-site': 'cross-site' },
+      },
+    );
+    const afterCrossSite = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    record(
+      'connector oauth: a start opened from another site is refused before anything is minted',
+      crossSite.status === 403 &&
+        crossSite.headers.get('location') === null &&
+        afterCrossSite[0]?.count === '0',
+      `crossSite=${crossSite.status} (want 403), location=${crossSite.headers.get('location') ?? 'none'}, pending=${afterCrossSite[0]?.count} (want 0)`,
+    );
     const { hashStateToken: hashConfigState } =
       await import('./core/http_connectors/oauth_state.ts');
     const configStateHash = await hashConfigState('itest-oauth-config-state');

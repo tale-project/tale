@@ -101,6 +101,19 @@ workspace.
 - **Example**: Ada connects the same Slack workspace a second time through **Add** → the
   existing credential is renewed, and no duplicate appears.
 
+### CONN-R32 · A connection starts only from Tale's own pages
+
+A link to start a connection that is opened from another website is refused
+(`cross_site_start`) before anything is kept or the browser is sent to the outside system,
+whatever account or settings it names; a reconnect link is refused the same way. Started from
+Tale, from another domain of the same site, or from an address typed into the browser, it
+goes ahead. The return from the outside system is never refused for coming from another site.
+
+- **Example**: Noah may read the Inbox but not manage connectors. He sends Ada, an admin, a
+  link that would connect the `hr@example.com` mailbox. Ada opens it from her mail → Tale
+  refuses it and nothing is connected; to connect a mailbox, Ada uses **Connect** in her
+  connector settings.
+
 ## Importing tasks
 
 ### CONN-R11 · An import of tasks writes only into the project of the run that does it

@@ -14,6 +14,8 @@ Hinterlege Connector-Zugangsdaten, damit Tale Dienste wie Postfächer, Dateiabla
 
 Slack verbindet pro Workspace genau einen Satz Zugangsdaten. Gibst du einen bereits verbundenen Workspace erneut frei, erneuert Tale dessen Zugangsdaten, statt weitere anzulegen.
 
+Starte jede Verbindung mit **Verbinden** in Tale. Einen Verbindungslink, der von einer anderen Website aus geöffnet wird, lehnt Tale ab. So kann ein Link, den dir jemand schickt, kein Konto und kein Postfach in deinem Namen verbinden.
+
 Der Connector bestimmt die Felder. Verwende die tatsächlichen Zugangsdaten des Dienstkontos, keinen Tale-API-Schlüssel.
 
 | Methode | Benötigte Angaben |

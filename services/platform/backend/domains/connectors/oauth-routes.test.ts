@@ -173,6 +173,83 @@ describe('the consent intent', () => {
     },
   );
 
+  describe('a start opened from another site [CONN-R32]', () => {
+    const config = encodeURIComponent(
+      JSON.stringify({ mailbox: 'hr@example.com' }),
+    );
+
+    it('is refused with the fixed page, and nothing is minted', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const response = await app(SIGNED_IN).request(
+        `/start?connector=outlook&organizationId=org-1&config=${config}`,
+        {
+          headers: {
+            'sec-fetch-site': 'cross-site',
+            'accept-language': 'de',
+          },
+        },
+      );
+      expect(response.status).toBe(403);
+      expect(response.headers.get('location')).toBeNull();
+      const html = await response.text();
+      expect(html).toContain('<h1>Starte diese Verbindung in Tale</h1>');
+      expect(html).toContain(
+        'href="https://tale.example/dashboard/org-1/settings/connectors"',
+      );
+      // The pending authorization is minted by startOauth2 alone.
+      expect(startOauth2).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('opened from another site'),
+      );
+      warn.mockRestore();
+    });
+
+    it('refuses a Reconnect link from another site too', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const response = await app(SIGNED_IN).request(
+        '/start?connector=gmail&organizationId=org-1&credentialId=cred-sales',
+        { headers: { 'sec-fetch-site': 'cross-site' } },
+      );
+      expect(response.status).toBe(403);
+      expect(startOauth2).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it.each([
+      ['a navigation from Tale itself', 'same-origin'],
+      ['a navigation from a sibling domain', 'same-site'],
+      ['a typed or bookmarked address', 'none'],
+      ['a browser that sends no fetch metadata', undefined],
+    ])('still starts %s', async (_what, site) => {
+      const response = await app(SIGNED_IN).request(
+        `/start?connector=outlook&organizationId=org-1&config=${config}`,
+        site === undefined ? {} : { headers: { 'sec-fetch-site': site } },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe(
+        'https://vendor.example/authorize?state=s',
+      );
+      expect(startOauth2).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ config: { mailbox: 'hr@example.com' } }),
+      );
+    });
+
+    it('never guards the callback, which the vendor sends the browser back to', async () => {
+      completeOauth2.mockResolvedValue({
+        kind: 'connected',
+        settingsUrl: 'https://tale.example/dashboard/org-1/settings/connectors',
+        connectorSlug: 'outlook',
+      });
+      const response = await app(SIGNED_IN).request(
+        '/callback?state=s&code=c',
+        { headers: { 'sec-fetch-site': 'cross-site' } },
+      );
+      expect(response.status).toBe(302);
+      expect(completeOauth2).toHaveBeenCalled();
+    });
+  });
+
   it('answers a Reconnect the service refused with the fixed page, before the vendor', async () => {
     startOauth2.mockResolvedValue({
       kind: 'error',
@@ -262,6 +339,9 @@ describe('localized consent intent errors', () => {
     ['forbidden', 'en', 'You can no longer connect connectors here', 403],
     ['forbidden', 'de', 'Du kannst hier keine Connectors mehr verbinden', 403],
     ['forbidden', 'fr', 'Tu ne peux plus connecter de connecteurs ici', 403],
+    ['cross_site_start', 'en', 'Start this connection in Tale', 403],
+    ['cross_site_start', 'de', 'Starte diese Verbindung in Tale', 403],
+    ['cross_site_start', 'fr', 'Lance cette connexion depuis Tale', 403],
   ] as const)('renders %s in %s', async (kind, locale, title, status) => {
     const response = renderConnectorErrorPage(
       kind,

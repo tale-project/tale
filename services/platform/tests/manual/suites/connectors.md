@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 47 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 48 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -401,6 +401,15 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   (German with a German browser), 400, a link back to connector settings; no
   consent screen opens, and nothing is saved. A Slack start link carrying any
   `config` answers the same.
+- [ ] `CONN-B16` · **A start link opened from another site** — Signed in as
+  an Admin, put the start URL **Connect** opens for Outlook with a mailbox
+  into a link on a page of another site (an HTML file served from
+  `http://127.0.0.1:8000` while Tale runs on `localhost`, or a webmail
+  message) and click it → the server page **Start this connection in Tale**
+  (German with a German browser), 403, a link back to connector settings; no
+  consent screen opens, and nothing is saved. A row's **Reconnect** URL
+  answers the same. The same URL pasted into the address bar opens the
+  consent screen, and **Connect** in Tale still does.
 
 ## Accessibility (WCAG 2.1 AA)
 
