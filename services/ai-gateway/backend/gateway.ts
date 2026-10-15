@@ -54,7 +54,12 @@ export function createGateway(options: CreateGatewayOptions = {}): Gateway {
     usageMinIntervalSeconds: config.usageMinIntervalSeconds,
   });
 
-  const api = createApi({ accounts, providers, apiKey: config.apiKey });
+  const api = createApi({
+    accounts,
+    providers,
+    apiKey: config.apiKey,
+    adminApiKey: config.adminApiKey,
+  });
 
   return {
     config,

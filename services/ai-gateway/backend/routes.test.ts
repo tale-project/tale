@@ -76,7 +76,10 @@ const chatgpt: TokenHandout = {
 
 const pool = [claude, chatgpt];
 
-function build(overrides: Partial<AccountService> = {}) {
+function build(
+  overrides: Partial<AccountService> = {},
+  adminApiKey: string | null = null,
+) {
   // Held as a local so assertions never reference the method off the object
   // (an unbound method reference), and so an override cannot make it stale.
   const handOutTokens = vi.fn((provider?: ProviderId) =>
@@ -87,25 +90,32 @@ function build(overrides: Partial<AccountService> = {}) {
     ),
   );
 
+  // The calls a refusal must not reach, held the same way.
+  const list = vi.fn(() => Promise.resolve([view]));
+  const beginAuthorization = vi.fn(() =>
+    Promise.resolve({
+      state: 'state-1',
+      flow: 'paste' as const,
+      authorizeUrl: 'https://example.test/authorize',
+      pasteStyle: 'code' as const,
+    }),
+  );
+  const completeAuthorization = vi.fn(() => Promise.resolve(view));
+  const authorizationStatus = vi.fn(() =>
+    Promise.resolve({ status: 'pending' as const }),
+  );
+  const remove = vi.fn(() => Promise.resolve(true));
+
   const accounts: AccountService = {
-    list: vi.fn(() => Promise.resolve([view])),
+    list,
     get: vi.fn((id: string) => Promise.resolve(id === view.id ? view : null)),
-    beginAuthorization: vi.fn(() =>
-      Promise.resolve({
-        state: 'state-1',
-        flow: 'paste' as const,
-        authorizeUrl: 'https://example.test/authorize',
-        pasteStyle: 'code' as const,
-      }),
-    ),
-    completeAuthorization: vi.fn(() => Promise.resolve(view)),
+    beginAuthorization,
+    completeAuthorization,
     completeRedirect: vi.fn(() =>
       Promise.resolve({ status: 'connected' as const, account: view }),
     ),
-    authorizationStatus: vi.fn(() =>
-      Promise.resolve({ status: 'pending' as const }),
-    ),
-    remove: vi.fn(() => Promise.resolve(true)),
+    authorizationStatus,
+    remove,
     cliCommand: vi.fn(() => Promise.resolve('FAKE_TOKEN=access-1 fake')),
     refreshAll: vi.fn(() => Promise.resolve()),
     handOutTokens,
@@ -115,15 +125,28 @@ function build(overrides: Partial<AccountService> = {}) {
   // The real registry: building it touches no network, and the catalog the
   // panel reads should be the one the gateway would actually offer.
   const providers = createProviderRegistry();
-  const api = createApi({ accounts, providers, apiKey: API_KEY });
+  const api = createApi({ accounts, providers, apiKey: API_KEY, adminApiKey });
 
   const call = (path: string, init?: RequestInit) =>
     api.fetch(new Request(`http://gateway.test${path}`, init));
 
-  return { api, call, handOutTokens };
+  return {
+    api,
+    call,
+    handOutTokens,
+    calls: {
+      list,
+      beginAuthorization,
+      completeAuthorization,
+      authorizationStatus,
+      remove,
+    },
+  };
 }
 
 const withKey = { authorization: `Bearer ${API_KEY}` };
+const ADMIN_KEY = 'the-admin-key';
+const withAdminKey = { authorization: `Bearer ${ADMIN_KEY}` };
 
 describe('the panel routes', () => {
   const paths = [
@@ -578,6 +601,598 @@ describe('the token endpoints', () => {
   });
 });
 
+describe('the accounts API', () => {
+  const json = { 'content-type': 'application/json' };
+
+  const limited: AccountView = {
+    ...view,
+    id: 'account-9',
+    state: 'limited',
+    limitedUntil: '2026-09-24T10:00:00.000Z',
+    subscription: { plan: 'max', tier: '20x' },
+    usage: {
+      checkedAt: '2026-09-21T10:00:00.000Z',
+      stale: false,
+      limited: null,
+      windows: [
+        {
+          kind: 'session',
+          label: null,
+          utilization: 100,
+          resetsAt: '2026-09-21T10:05:00.000Z',
+          windowSeconds: 18_000,
+          blocking: true,
+        },
+        {
+          kind: 'weekly',
+          label: null,
+          utilization: 100,
+          resetsAt: '2026-09-24T10:00:00.000Z',
+          windowSeconds: 604_800,
+          blocking: true,
+        },
+      ],
+    },
+  };
+
+  const reads = [
+    ['GET', '/api/v1/accounts'],
+    ['GET', '/api/v1/accounts/account-1'],
+  ] as const;
+
+  const changes = [
+    ['POST', '/api/v1/authorizations', { provider: 'anthropic' }],
+    ['GET', '/api/v1/authorizations/state-1', undefined],
+    ['POST', '/api/v1/authorizations/state-1/complete', { pasted: 'code-1' }],
+    ['DELETE', '/api/v1/accounts/account-1', undefined],
+  ] as const;
+
+  const all = [
+    ...reads.map(([method, path]) => [method, path, undefined] as const),
+    ...changes,
+  ];
+
+  function send(
+    call: ReturnType<typeof build>['call'],
+    method: string,
+    path: string,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ) {
+    return call(path, {
+      method,
+      headers: body === undefined ? headers : { ...json, ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
+  describe('who may ask', () => {
+    it.each(all)('refuses %s %s with no key', async (method, path, body) => {
+      const { call } = build({}, ADMIN_KEY);
+      const response = await send(call, method, path, body);
+      expect(response.status).toBe(401);
+      expect(response.headers.get('www-authenticate')).toBe('Bearer');
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toMatchObject({
+        error: { code: 'invalid_api_key' },
+      });
+    });
+
+    it.each(all)(
+      'refuses %s %s with a key that is neither',
+      async (method, path, body) => {
+        const { call } = build({}, ADMIN_KEY);
+        const response = await send(call, method, path, body, {
+          authorization: 'Bearer wrong',
+        });
+        expect(response.status).toBe(401);
+      },
+    );
+
+    it.each(reads)('lets the token key read: %s %s', async (method, path) => {
+      const { call } = build({}, ADMIN_KEY);
+      expect((await send(call, method, path, undefined, withKey)).status).toBe(
+        200,
+      );
+    });
+
+    it.each(reads)('lets the admin key read: %s %s', async (method, path) => {
+      const { call } = build({}, ADMIN_KEY);
+      expect(
+        (await send(call, method, path, undefined, withAdminKey)).status,
+      ).toBe(200);
+    });
+
+    it.each(changes)(
+      'keeps %s %s from the token key, which may only read',
+      async (method, path, body) => {
+        const { call, calls } = build({}, ADMIN_KEY);
+        const response = await send(call, method, path, body, withKey);
+        expect(response.status).toBe(403);
+        expect(await response.json()).toMatchObject({
+          error: { code: 'admin_key_required' },
+        });
+        // Refused before the service heard of it.
+        expect(calls.beginAuthorization).not.toHaveBeenCalled();
+        expect(calls.completeAuthorization).not.toHaveBeenCalled();
+        expect(calls.authorizationStatus).not.toHaveBeenCalled();
+        expect(calls.remove).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(changes)(
+      'says %s %s is switched off while the gateway has no admin key',
+      async (method, path, body) => {
+        const { call, calls } = build({}, null);
+        const response = await send(call, method, path, body, withKey);
+        expect(response.status).toBe(403);
+        expect(await response.json()).toMatchObject({
+          error: { code: 'control_disabled' },
+        });
+        expect(calls.remove).not.toHaveBeenCalled();
+      },
+    );
+
+    it('still lets the token key read while changing is switched off', async () => {
+      const { call } = build({}, null);
+      expect(
+        (await call('/api/v1/accounts', { headers: withKey })).status,
+      ).toBe(200);
+    });
+
+    it('does not let a missing admin key be matched by an empty one', async () => {
+      const { call } = build({}, null);
+      const response = await call('/api/v1/accounts/account-1', {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer ' },
+      });
+      expect(response.status).toBe(401);
+    });
+
+    it.each(changes)(
+      'lets the admin key through to %s %s',
+      async (method, path, body) => {
+        const { call } = build({}, ADMIN_KEY);
+        const response = await send(call, method, path, body, withAdminKey);
+        expect(response.status).toBeLessThan(300);
+      },
+    );
+
+    it('is one key when both are the same value', async () => {
+      const api = build({}, API_KEY);
+      const response = await send(
+        api.call,
+        'DELETE',
+        '/api/v1/accounts/account-1',
+        undefined,
+        withKey,
+      );
+      expect(response.status).toBe(204);
+    });
+
+    it('takes the key in either spelling', async () => {
+      const { call } = build({}, ADMIN_KEY);
+      expect(
+        (await call('/api/v1/accounts', { headers: { 'x-api-key': API_KEY } }))
+          .status,
+      ).toBe(200);
+      expect(
+        (
+          await call('/api/v1/accounts/account-1', {
+            method: 'DELETE',
+            headers: { 'x-api-key': ADMIN_KEY },
+          })
+        ).status,
+      ).toBe(204);
+    });
+
+    it('opens no panel route to a key, and no key route to a browser', async () => {
+      const { call } = build({}, ADMIN_KEY);
+      // The panel's routes still ask nothing…
+      expect((await call('/api/accounts')).status).toBe(200);
+      // …and the machine door's twin of the same list asks for a key.
+      expect((await call('/api/v1/accounts')).status).toBe(401);
+    });
+  });
+
+  describe('reading', () => {
+    it('lists the pool without a credential, in the token door’s names', async () => {
+      const { call } = build({ list: vi.fn(() => Promise.resolve([limited])) });
+      const response = await call('/api/v1/accounts', { headers: withKey });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({
+        accounts: [
+          {
+            id: 'account-9',
+            provider: 'anthropic',
+            label: 'you@example.com',
+            account_email: 'you@example.com',
+            subscription: { plan: 'max', tier: '20x' },
+            status: 'active',
+            state: 'limited',
+            limited_until: '2026-09-24T10:00:00.000Z',
+            expires_at: null,
+            scopes: null,
+            created_at: '2026-09-21T10:00:00.000Z',
+            last_refreshed_at: null,
+            usage: {
+              checked_at: '2026-09-21T10:00:00.000Z',
+              stale: false,
+              limited: null,
+              windows: [
+                {
+                  kind: 'session',
+                  label: null,
+                  utilization: 100,
+                  resets_at: '2026-09-21T10:05:00.000Z',
+                  window_seconds: 18_000,
+                  blocking: true,
+                },
+                {
+                  kind: 'weekly',
+                  label: null,
+                  utilization: 100,
+                  resets_at: '2026-09-24T10:00:00.000Z',
+                  window_seconds: 604_800,
+                  blocking: true,
+                },
+              ],
+            },
+          },
+        ],
+      });
+    });
+
+    it('never puts a token, a refresh token or a secret on the wire', async () => {
+      const { call } = build({ list: vi.fn(() => Promise.resolve([limited])) });
+      const text = await (
+        await call('/api/v1/accounts', { headers: withAdminKey })
+      ).text();
+      expect(text).not.toMatch(/access_token|refresh_token|accessToken/);
+    });
+
+    it('narrows the list by provider and by state', async () => {
+      const claudeLimited = limited;
+      const chatgptAvailable: AccountView = {
+        ...view,
+        id: 'account-2',
+        provider: 'openai',
+      };
+      const { call } = build(
+        {
+          list: vi.fn(() =>
+            Promise.resolve([claudeLimited, chatgptAvailable, view]),
+          ),
+        },
+        ADMIN_KEY,
+      );
+      const ids = async (query: string) =>
+        z
+          .object({ accounts: z.array(z.object({ id: z.string() })) })
+          .parse(
+            await (
+              await call(`/api/v1/accounts${query}`, { headers: withKey })
+            ).json(),
+          )
+          .accounts.map((account) => account.id);
+
+      expect(await ids('')).toEqual(['account-9', 'account-2', 'account-1']);
+      expect(await ids('?provider=openai')).toEqual(['account-2']);
+      expect(await ids('?state=limited')).toEqual(['account-9']);
+      expect(await ids('?provider=anthropic&state=available')).toEqual([
+        'account-1',
+      ]);
+    });
+
+    it('refuses a provider or a state it does not know', async () => {
+      const { call, calls } = build();
+      for (const query of ['?provider=gemini', '?state=asleep']) {
+        const response = await call(`/api/v1/accounts${query}`, {
+          headers: withKey,
+        });
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({
+          error: { code: 'invalid_request' },
+        });
+      }
+      expect(calls.list).not.toHaveBeenCalled();
+    });
+
+    it('answers one account, and 404 for one that is gone', async () => {
+      const { call } = build();
+      const found = await call('/api/v1/accounts/account-1', {
+        headers: withKey,
+      });
+      expect(await found.json()).toMatchObject({
+        account: { id: 'account-1', state: 'available', limited_until: null },
+      });
+      const gone = await call('/api/v1/accounts/gone', { headers: withKey });
+      expect(gone.status).toBe(404);
+      expect(await gone.json()).toMatchObject({
+        error: { code: 'unknown_account' },
+      });
+    });
+  });
+
+  describe('changing', () => {
+    it('starts an authorization that needs no browser on the gateway’s own machine', async () => {
+      const beginAuthorization = vi.fn(() =>
+        Promise.resolve({
+          state: 'state-7',
+          flow: 'device' as const,
+          verificationUrl: 'https://auth.example.test/device',
+          userCode: 'ABCD-1234',
+          expiresAt: '2026-09-21T10:15:00.000Z',
+          pollIntervalSeconds: 5,
+        }),
+      );
+      const { call } = build({ beginAuthorization }, ADMIN_KEY);
+      const response = await send(
+        call,
+        'POST',
+        '/api/v1/authorizations',
+        {
+          provider: 'openai',
+          label: 'work',
+          method: 'browser',
+          account_id: 'account-2',
+          // Not read: a script has no `Origin`, and the body cannot name one.
+          loopbackOrigin: 'http://localhost:9999',
+        },
+        // Even a browser-like caller does not get a redirect flow from here.
+        { ...withAdminKey, origin: 'http://localhost:3004' },
+      );
+      expect(response.status).toBe(201);
+      expect(await response.json()).toEqual({
+        authorization: {
+          state: 'state-7',
+          flow: 'device',
+          verification_url: 'https://auth.example.test/device',
+          user_code: 'ABCD-1234',
+          expires_at: '2026-09-21T10:15:00.000Z',
+          poll_interval_seconds: 5,
+        },
+      });
+      expect(beginAuthorization).toHaveBeenCalledWith({
+        provider: 'openai',
+        accountId: 'account-2',
+        label: 'work',
+        loopbackOrigin: null,
+        preferBrowser: true,
+      });
+    });
+
+    it('tells a script how to finish a paste flow', async () => {
+      const { call } = build({}, ADMIN_KEY);
+      const response = await send(
+        call,
+        'POST',
+        '/api/v1/authorizations',
+        { provider: 'anthropic' },
+        withAdminKey,
+      );
+      expect(await response.json()).toEqual({
+        authorization: {
+          state: 'state-1',
+          flow: 'paste',
+          authorize_url: 'https://example.test/authorize',
+          paste_style: 'code',
+        },
+      });
+    });
+
+    it('refuses to start an authorization for a provider it does not hold', async () => {
+      const { call, calls } = build({}, ADMIN_KEY);
+      for (const body of [{ provider: 'gemini' }, {}, null]) {
+        const response = await send(
+          call,
+          'POST',
+          '/api/v1/authorizations',
+          body,
+          withAdminKey,
+        );
+        expect(response.status).toBe(400);
+      }
+      expect(calls.beginAuthorization).not.toHaveBeenCalled();
+    });
+
+    it('says where an authorization stands, and what it connected', async () => {
+      const authorizationStatus = vi
+        .fn<AccountService['authorizationStatus']>()
+        .mockResolvedValueOnce({ status: 'pending' })
+        .mockResolvedValueOnce({ status: 'connected', account: limited })
+        .mockResolvedValueOnce({ status: 'failed', code: 'denied' });
+      const { call } = build({ authorizationStatus }, ADMIN_KEY);
+      const read = async () =>
+        (
+          await call('/api/v1/authorizations/state-1', {
+            headers: withAdminKey,
+          })
+        ).json();
+
+      expect(await read()).toEqual({
+        authorization: { state: 'state-1', status: 'pending' },
+      });
+      expect(await read()).toMatchObject({
+        authorization: {
+          state: 'state-1',
+          status: 'connected',
+          account: { id: 'account-9', state: 'limited' },
+        },
+      });
+      expect(await read()).toEqual({
+        authorization: { state: 'state-1', status: 'failed', code: 'denied' },
+      });
+    });
+
+    it('completes a paste flow with what the person copied', async () => {
+      const completeAuthorization = vi.fn(() => Promise.resolve(limited));
+      const { call } = build({ completeAuthorization }, ADMIN_KEY);
+      const response = await send(
+        call,
+        'POST',
+        '/api/v1/authorizations/state-1/complete',
+        { pasted: 'code-1#state-1' },
+        withAdminKey,
+      );
+      expect(response.status).toBe(201);
+      expect(await response.json()).toMatchObject({
+        account: { id: 'account-9', state: 'limited' },
+      });
+      expect(completeAuthorization).toHaveBeenCalledWith({
+        state: 'state-1',
+        pasted: 'code-1#state-1',
+      });
+
+      const empty = await send(
+        call,
+        'POST',
+        '/api/v1/authorizations/state-1/complete',
+        { pasted: '' },
+        withAdminKey,
+      );
+      expect(empty.status).toBe(400);
+    });
+
+    it('answers a refused authorization with its own code, as the panel does', async () => {
+      const { call } = build(
+        {
+          completeAuthorization: vi.fn(() =>
+            Promise.reject(
+              new AccountError('unknown_state', 'That authorization expired.'),
+            ),
+          ),
+          beginAuthorization: vi.fn(() =>
+            Promise.reject(new AccountError('unavailable', 'OpenAI is down.')),
+          ),
+        },
+        ADMIN_KEY,
+      );
+      const complete = await send(
+        call,
+        'POST',
+        '/api/v1/authorizations/state-1/complete',
+        { pasted: 'x' },
+        withAdminKey,
+      );
+      expect(complete.status).toBe(400);
+      expect(await complete.json()).toMatchObject({
+        error: { code: 'unknown_state' },
+      });
+      const start = await send(
+        call,
+        'POST',
+        '/api/v1/authorizations',
+        { provider: 'openai' },
+        withAdminKey,
+      );
+      expect(start.status).toBe(502);
+    });
+
+    it('leaves one line for every change that went through and none for a refusal', async () => {
+      const info = vi
+        .spyOn(console, 'info')
+        .mockImplementation(() => undefined);
+      try {
+        const { call } = build(
+          {
+            // A device code connects its account in a status read.
+            authorizationStatus: vi.fn(() =>
+              Promise.resolve({ status: 'connected' as const, account: view }),
+            ),
+          },
+          ADMIN_KEY,
+        );
+        await send(
+          call,
+          'POST',
+          '/api/v1/authorizations',
+          { provider: 'anthropic', label: 'work\n[ai-gateway] forged line' },
+          withAdminKey,
+        );
+        await send(
+          call,
+          'POST',
+          '/api/v1/authorizations',
+          { provider: 'anthropic', account_id: 'account-1' },
+          withAdminKey,
+        );
+        await send(
+          call,
+          'POST',
+          '/api/v1/authorizations/state-1/complete',
+          { pasted: 'code-1' },
+          withAdminKey,
+        );
+        await call('/api/v1/authorizations/state-1', { headers: withAdminKey });
+        await call('/api/v1/accounts/account-1', {
+          method: 'DELETE',
+          headers: withAdminKey,
+        });
+
+        // Refused: the wrong key, or an account that is not there.
+        await call('/api/v1/accounts/account-1', {
+          method: 'DELETE',
+          headers: withKey,
+        });
+        await call('/api/v1/accounts/account-1', { method: 'DELETE' });
+
+        expect(info.mock.calls.map(([line]) => line)).toEqual([
+          '[ai-gateway] accounts API: started adding an account for anthropic',
+          '[ai-gateway] accounts API: started signing account account-1 in again',
+          // Finished by a paste, then seen connected by a status read.
+          '[ai-gateway] accounts API: connected account account-1',
+          '[ai-gateway] accounts API: connected account account-1',
+          '[ai-gateway] accounts API: removed account account-1',
+        ]);
+      } finally {
+        info.mockRestore();
+      }
+    });
+
+    it('does not log an account the gateway could not find', async () => {
+      const info = vi
+        .spyOn(console, 'info')
+        .mockImplementation(() => undefined);
+      try {
+        const { call } = build(
+          { remove: vi.fn(() => Promise.resolve(false)) },
+          ADMIN_KEY,
+        );
+        const response = await call('/api/v1/accounts/not-there\nforged', {
+          method: 'DELETE',
+          headers: withAdminKey,
+        });
+        expect(response.status).toBe(404);
+        expect(info).not.toHaveBeenCalled();
+      } finally {
+        info.mockRestore();
+      }
+    });
+
+    it('removes an account, and 404s one that is gone', async () => {
+      const remove = vi
+        .fn<AccountService['remove']>()
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      const { call } = build({ remove }, ADMIN_KEY);
+      const first = await call('/api/v1/accounts/account-1', {
+        method: 'DELETE',
+        headers: withAdminKey,
+      });
+      expect(first.status).toBe(204);
+      expect(first.headers.get('cache-control')).toBe('no-store');
+      const second = await call('/api/v1/accounts/account-1', {
+        method: 'DELETE',
+        headers: withAdminKey,
+      });
+      expect(second.status).toBe(404);
+      expect(remove).toHaveBeenCalledWith('account-1');
+    });
+  });
+});
+
 describe('createApiDispatcher', () => {
   it('claims the gateway routes and leaves everything else alone', () => {
     const { api } = build();
@@ -590,6 +1205,7 @@ describe('createApiDispatcher', () => {
 
     expect(at('/api/accounts')).not.toBeNull();
     expect(at('/api/tokens/anthropic')).not.toBeNull();
+    expect(at('/api/v1/accounts')).not.toBeNull();
     // Where a vendor's loopback redirect lands, outside `/api`.
     expect(at('/callback?state=state-1&code=code-1')).not.toBeNull();
     // The shared React server owns the health probe and the SPA.

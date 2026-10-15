@@ -73,3 +73,24 @@ test('every token endpoint refuses a request with no API key', async ({
     expect(response.headers()['www-authenticate']).toBe('Bearer');
   }
 });
+
+test('every accounts-API route refuses a request with no API key', async ({
+  request,
+}) => {
+  // The panel's routes ask a browser for nothing; the machine door beside
+  // them asks everyone for a key, reads and changes alike.
+  const calls = [
+    request.get('/api/v1/accounts'),
+    request.get('/api/v1/accounts/account-1'),
+    request.post('/api/v1/authorizations', { data: { provider: 'openai' } }),
+    request.get('/api/v1/authorizations/state-1'),
+    request.post('/api/v1/authorizations/state-1/complete', {
+      data: { pasted: 'code' },
+    }),
+    request.delete('/api/v1/accounts/account-1'),
+  ];
+  for (const response of await Promise.all(calls)) {
+    expect(response.status()).toBe(401);
+    expect(response.headers()['www-authenticate']).toBe('Bearer');
+  }
+});
