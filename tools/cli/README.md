@@ -618,34 +618,57 @@ and `teamIds`, an agent's `connectors`, `secrets` and `skills`, a task's
 - `task` declares `title`; `initialStatus` (`backlog` or `todo`) beside
   `createIfMissing` chooses its first column, and its description comes from
   `task-instructions`. Its status is never read or reconciled afterwards; a person
-  assigned to it keeps it until the declaration names an agent.
+  assigned to it keeps it until the declaration names an agent. Its `labels` name
+  existing or declared labels whatever their case and read back case-folded
+  (`Bug` and `bug` are one label); their spelling is the `project-label`'s.
 - `agent-secret` declares `name` and `envName`; `connector-credential` declares
   `connector`, `name`, `authMethod` (`api-key`, `bearer` or `basic`) and `fields`
-  mapping each secret field to `{ "env": "<variable>" }`. A sign-in the outside
-  system renews (`oauth2`) is never declared, and a credential keeps its sign-in
-  method.
+  mapping each secret field to `{ "env": "<variable>" }`: `token`, or
+  `username` and `password`. A sign-in the outside system renews (`oauth2`) is
+  never declared, and a credential keeps its sign-in method. A declaration
+  carries none of a connector's per-credential settings, so a new credential for
+  a connector that requires some (`imap-smtp`, `http`) is refused at planning;
+  connect it in Tale. Planning asks the platform whether the connector takes each
+  credential (connector, sign-in method, endpoint), without the values, and names
+  the refused field and code.
 
 Secret values never enter the declaration, plan, receipt or logs. Variables must
 start with `TALE_CONFIG_SECRET_`, so a declaration cannot reach the platform's own
 variables; inside a managed deployment they are read from the platform's
-environment. The platform answers a salted PBKDF2 digest of the stored value,
-never the value, and the CLI compares it with the digest of the value it would
-write: a value rotated in the environment, or replaced in Tale, plans as `update`
-while the declaration's hash stays the same. Planning refuses an unset variable,
-and a managed deployment refuses a declared secret whose variable is not a
-required `environment` reference, as it does a provider credential's.
+environment. The platform answers a salted PBKDF2-SHA-256 digest of the stored
+value (600,000 iterations), never the value, and the CLI compares it with the
+digest of the value it would write: a value rotated in the environment, or
+replaced in Tale, plans as `update` while the declaration's hash stays the same.
+`tale config platform read` shows `valueMatches` instead of the digest. The
+digest is still a verifier of the value: anyone holding it, or a plan's or
+receipt's hashes of a secret resource, can test guesses offline, so treat plans,
+receipts and journals of declarations with secrets as sensitive and give secrets
+high-entropy values. Planning refuses an unset variable, and a managed deployment
+refuses a declared secret whose variable is not a required `environment`
+reference, as it does a provider credential's.
 
 Apply order is projects, labels, agent secrets, connector credentials, agents,
 tasks, the instruction/tool/model/review kinds, automations, then dispatch.
 Nothing inside a project, agent or task the declaration creates is read while
 planning: such resources plan as `create`, and apply writes them on the state
-the creation left, also when retrying the same plan. The dispatch check sends
+the creation left, also when retrying the same plan. Only what can be written
+there plans: a resource that creates itself (`createIfMissing`, an automation,
+a dispatch), a project's instructions, an agent's model, instructions and tools
+when the declaration creates the agent, a task's description and review context
+when it creates the task. Planning refuses, before anything is written, any
+other resource there — a label or agent without `createIfMissing`, the model of
+an agent nothing declares — and a task in a created project assigned to an agent
+the declaration does not create there. The dispatch check sends
 the agents, standing tasks and labels the dispatch names that the declaration
 creates in the project (and whether it creates the project) as `planned`; the
 platform counts them for the check only, and the dispatch save checks what then
 exists. Declaring a dispatch for a project the declaration creates requires an
 organization Owner or Admin. Configuration-only deployments accept all six
-kinds.
+kinds, but a secret's value reaches the backend through its environment:
+declaring a new secret (a new `TALE_CONFIG_SECRET_` reference) or rotating a
+value changes the deployment's runtime inputs and needs a full deployment, which
+a configuration-only one refuses. Every other change to these kinds applies
+configuration-only.
 
 Nothing is deleted. Dropping a resource from a declaration stops managing it.
 Retire in two phases: apply a declaration that switches the part off (for
