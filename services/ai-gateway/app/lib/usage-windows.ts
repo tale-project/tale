@@ -4,14 +4,14 @@
  *
  * A row's plan is drawn twice — how much of each window is spent, and how long
  * that window still has to run — in two table cells that must stay line for
- * line; and a plan that is spent greys the whole row. Anything more than one
- * of them decides lives here rather than in any one.
+ * line; and the account's state, which the gateway derives from those windows,
+ * decides which of the clocks matters. Anything more than one of them decides
+ * lives here rather than in any one.
  */
 
 import type { TFunction } from 'i18next';
 
 import type { UsageWindow } from '@/app/lib/api';
-import { isSpent, spentPercent } from '@/app/lib/usage-tint';
 
 /**
  * The windows the panel draws.
@@ -22,23 +22,6 @@ import { isSpent, spentPercent } from '@/app/lib/usage-tint';
  */
 export function readableWindows(windows: UsageWindow[]): UsageWindow[] {
   return windows.filter((window) => window.utilization !== null);
-}
-
-/**
- * Whether an account's reading says its plan is used up for now: its session
- * or its weekly window stands at the ceiling.
- *
- * Only those two stop the account as a whole. A scoped window caps one model,
- * and the account still answers for every other one — so a spent per-model
- * week leaves its row alone. The figure is the one the bar prints, rounded
- * down against the same ceiling, so a row reads as spent exactly when one of
- * those two bars is red.
- */
-export function planSpent(windows: UsageWindow[]): boolean {
-  return readableWindows(windows).some(
-    (window) =>
-      window.kind !== 'scoped' && isSpent(spentPercent(window.utilization)),
-  );
 }
 
 /**
@@ -63,23 +46,61 @@ export function windowName(window: UsageWindow, t: TFunction): string {
   return t(window.kind === 'session' ? 'session' : 'weekly');
 }
 
-/** Within this of its rollover, a window's reset is close enough to point out. */
+/** Within this of its rollover, a reset is close enough to point out. */
 const RESET_SOON_MS = 60 * 60 * 1000;
 
+/** A rollover as an instant, or NaN when there is none to read. */
+function instant(value: string | null): number {
+  return value === null ? Number.NaN : Date.parse(value);
+}
+
 /**
- * Whether a window rolls over within the hour.
+ * Whether an instant lies within the hour ahead.
  *
- * The one reset worth a second look: a spent window that comes back in twenty
- * minutes is an account about to be usable again. A rollover already behind
- * `now` is not "soon" — the reading predates it, and the next read replaces
- * it.
+ * The one reset worth a second look: a limited account that comes back in
+ * twenty minutes is about to be usable again. One already behind `now` is not
+ * "soon" — it is past, and the next read replaces the reading.
  */
-export function resetsSoon(window: UsageWindow, now: number): boolean {
-  if (!window.resetsAt) return false;
-  const remaining = new Date(window.resetsAt).getTime() - now;
+export function resetsSoon(resetsAt: string | null, now: number): boolean {
+  const remaining = instant(resetsAt) - now;
   return (
     Number.isFinite(remaining) && remaining > 0 && remaining < RESET_SOON_MS
   );
+}
+
+/** Whether a rollover has come: the figure it belonged to is out of date. */
+export function hasRolledOver(resetsAt: string | null, now: number): boolean {
+  const rollover = instant(resetsAt);
+  return Number.isFinite(rollover) && rollover <= now;
+}
+
+/**
+ * How one window's rollover bears on the account.
+ *
+ * - `return`: the account is limited, and this is the clock it waits for —
+ *   the spent window that rolls over last.
+ * - `waiting`: spent too, but it rolls over before the account is free, so
+ *   its clock decides nothing yet.
+ * - `running`: not what holds the account back; an ordinary countdown.
+ *
+ * A session that resets in five minutes beside a spent week is `waiting`, and
+ * the week is the `return`: the account is not back in five minutes, and the
+ * column says which clock to read.
+ */
+export type ResetRole = 'return' | 'waiting' | 'running';
+
+export function resetRole(
+  window: UsageWindow,
+  limitedUntil: string | null,
+): ResetRole {
+  if (!window.blocking) return 'running';
+  // Compared as instants: the account's own return is normalised, a window's
+  // is whatever spelling its vendor used.
+  const same =
+    limitedUntil === null || window.resetsAt === null
+      ? limitedUntil === window.resetsAt
+      : instant(window.resetsAt) === instant(limitedUntil);
+  return same ? 'return' : 'waiting';
 }
 
 /**

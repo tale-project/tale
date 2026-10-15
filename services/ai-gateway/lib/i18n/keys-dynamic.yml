@@ -10,7 +10,7 @@
 entries:
   # One key per provider id, chosen by the row's `provider` field.
   - providers
-  # One key per account status, chosen by the row's `status` field.
+  # One key per account state, chosen by the row's `state` field.
   - status
   # One key per usage-window kind the providers normalize onto.
   - usage.session

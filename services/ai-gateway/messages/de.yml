@@ -43,7 +43,8 @@ accounts:
   removed: '{label} ist nicht mehr im Pool.'
   removeFailed: Dieses Konto konnte nicht entfernt werden.
 status:
-  active: Aktiv
+  available: Verfügbar
+  limited: Limit erreicht
   expired: Neue Anmeldung nötig
   error: Letzter Aufruf fehlgeschlagen
 providers:
@@ -56,6 +57,9 @@ usage:
   spent: '{percent} % verbraucht'
   spentAsOf: '{percent} % verbraucht, gelesen {when}'
   resets: Setzt sich {when} zurück
+  resetsNow: Setzt sich jetzt zurück
+  resetUnknown: 'Zurücksetzung: Zeitpunkt unbekannt'
+  rolledOver: Jetzt
   untilReset: '{window}: verbleibende Zeit bis zur Zurücksetzung'
 addAccount:
   title: Konto hinzufügen

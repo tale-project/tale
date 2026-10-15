@@ -33,7 +33,18 @@ import { useT } from '@/lib/i18n/client';
  * read. What it must not do is pass for current: weekly figures only climb
  * during a week, so an old one silently shown reads as simply wrong.
  */
-export function UsageCell({ usage }: { usage: AccountView['usage'] }) {
+export function UsageCell({
+  usage,
+  limited = false,
+}: {
+  usage: AccountView['usage'];
+  /**
+   * The row is already receded for hitting its limit. A reading that is also
+   * stale then keeps its tooltip but not a second dim: two of them stack to
+   * a third of full strength, which leaves 100 % unreadable.
+   */
+  limited?: boolean;
+}) {
   const { t } = useT('usage');
   const { formatRelative } = useFormatDate();
 
@@ -47,7 +58,7 @@ export function UsageCell({ usage }: { usage: AccountView['usage'] }) {
     <div
       className={cn(
         'grid grid-cols-[4rem_auto] items-center justify-start gap-x-2 gap-y-1.5 py-1',
-        readWhen && 'opacity-60',
+        readWhen && !limited && 'opacity-60',
       )}
     >
       {readable.map((window, index) => {

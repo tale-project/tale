@@ -22,6 +22,20 @@ export function isProviderId(value: string): value is ProviderId {
 
 export type AccountStatus = 'active' | 'expired' | 'error';
 
+/**
+ * What an account is right now, from best to worst — the order the panel
+ * sorts and filters in. `status` is the credential's own; `state` refines it
+ * with the quota: an `active` account is `available` or `limited`.
+ */
+export const ACCOUNT_STATES = [
+  'available',
+  'limited',
+  'expired',
+  'error',
+] as const;
+
+export type AccountState = (typeof ACCOUNT_STATES)[number];
+
 export type CallbackStyle = 'code' | 'redirect-url';
 
 export interface UsageWindow {
@@ -31,6 +45,8 @@ export interface UsageWindow {
   resetsAt: string | null;
   /** How long the window runs; what the countdown bar is a fraction of. */
   windowSeconds: number | null;
+  /** This window is why the account is limited: spent, and not yet rolled over. */
+  blocking: boolean;
 }
 
 /**
@@ -49,19 +65,26 @@ export interface AccountView {
   accountEmail: string | null;
   subscription: Subscription | null;
   status: AccountStatus;
+  state: AccountState;
+  /**
+   * When a limited account comes back — the latest rollover among the windows
+   * that are spent. Null when it is not limited, or when no reset is known.
+   */
+  limitedUntil: string | null;
   expiresAt: string | null;
   scopes: string | null;
   createdAt: string;
   lastRefreshedAt: string | null;
   /**
-   * `stale`: the latest attempt to read the figures failed, or the account
-   * cannot be read until it is signed in again — they are shown, dimmed,
-   * with the time they were read.
+   * `stale`: the latest attempt to read the figures failed, the account
+   * cannot be read until it is signed in again, or a window rolled over since
+   * they were read — they are shown, dimmed, with the time they were read.
    */
   usage: {
     windows: UsageWindow[];
     checkedAt: string;
     stale: boolean;
+    limited: boolean | null;
   } | null;
 }
 

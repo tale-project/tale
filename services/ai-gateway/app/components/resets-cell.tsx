@@ -7,7 +7,9 @@ import { Fragment } from 'react';
 
 import type { UsageWindow } from '@/app/lib/api';
 import {
+  hasRolledOver,
   readableWindows,
+  resetRole,
   resetsSoon,
   windowElapsedPercent,
   windowKey,
@@ -18,6 +20,16 @@ import { useT } from '@/lib/i18n/client';
 
 /** Stands in for a window the vendor reported no rollover for. */
 const NO_ROLLOVER = '—';
+
+/**
+ * The fill of a clock bar: the success tint inside the hour of the account's
+ * return, a darker grey for the clock that decides it, the ordinary grey for
+ * every other.
+ */
+function clockTint(decisive: boolean, soon: boolean): string {
+  if (soon) return 'bg-success';
+  return decisive ? 'bg-foreground/70' : 'bg-muted-foreground/70';
+}
 
 /**
  * How long each of an account's windows still has to run.
@@ -33,12 +45,23 @@ const NO_ROLLOVER = '—';
  * so it is a fraction of the usage bar's length. Grey on purpose: a window
  * running out is not a warning, it is a clock.
  *
- * The one reset that does get colour is one within the hour: a spent window
- * coming back in twenty minutes is an account about to be usable again. Its
- * bar and distance turn to the success tint, the distance is set in medium
- * weight, and a timer glyph leads it — so the cue does not rest on colour.
+ * The rows stay line for line with the usage column, so a clock sits beside
+ * its own spend. What changes with the account is which clock is the one that
+ * counts. An account whose quota is spent comes back when its LAST spent
+ * window rolls over — a session that resets in five minutes beside a spent
+ * week is not back in five minutes — so that window's row is the one read in
+ * full strength, with a timer glyph, and the rows that only wait on it step
+ * back. Inside the hour the row takes the success tint: the account is about
+ * to be usable again. A window that is not holding the account back is an
+ * ordinary countdown and never gets the tint, whatever its distance.
  */
-export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
+export function ResetsCell({
+  windows,
+  limitedUntil,
+}: {
+  windows: UsageWindow[];
+  limitedUntil: string | null;
+}) {
   const { t } = useT('usage');
   const { formatDate, formatRelative } = useFormatDate();
   // One reading for the whole cell, so its rows cannot disagree about "now" —
@@ -52,11 +75,17 @@ export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
     <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5 py-1">
       {readable.map((window, index) => {
         const name = windowName(window, t);
+        const role = resetRole(window, limitedUntil);
+        const decisive = role === 'return' && window.resetsAt !== null;
+        const soon = decisive && resetsSoon(window.resetsAt, now);
         const elapsed = windowElapsedPercent(window, now);
-        const soon = resetsSoon(window, now);
-        const until = window.resetsAt
-          ? formatRelative(window.resetsAt, { withoutSuffix: true })
-          : null;
+        const rolledOver = hasRolledOver(window.resetsAt, now);
+        let until: string | null = null;
+        if (window.resetsAt) {
+          until = rolledOver
+            ? t('rolledOver')
+            : formatRelative(window.resetsAt, { withoutSuffix: true });
+        }
         const exact = window.resetsAt
           ? t('resets', { when: formatDate(window.resetsAt, 'long') })
           : null;
@@ -69,9 +98,7 @@ export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
             ) : (
               <ProgressBar
                 className="w-10"
-                indicatorClassName={
-                  soon ? 'bg-success' : 'bg-muted-foreground/70'
-                }
+                indicatorClassName={clockTint(decisive, soon)}
                 label={t('untilReset', { window: name })}
                 max={100}
                 tooltipContent={exact}
@@ -82,12 +109,13 @@ export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
             <Text
               className={cn(
                 'flex min-w-0 items-center gap-1',
-                soon && 'text-success font-medium',
+                decisive && 'text-foreground font-medium',
+                soon && 'text-success',
               )}
               title={exact ?? undefined}
               variant="caption"
             >
-              {soon ? (
+              {decisive ? (
                 <TimerReset aria-hidden className="size-3 shrink-0" />
               ) : null}
               <span className="truncate">{until ?? NO_ROLLOVER}</span>

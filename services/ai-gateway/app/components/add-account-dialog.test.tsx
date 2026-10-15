@@ -27,6 +27,8 @@ const account: AccountView = {
   accountEmail: 'you@example.com',
   subscription: { plan: 'plus', tier: null },
   status: 'active',
+  state: 'available',
+  limitedUntil: null,
   expiresAt: null,
   scopes: null,
   createdAt: '2026-09-24T10:00:00.000Z',
