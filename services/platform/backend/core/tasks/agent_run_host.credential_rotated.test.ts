@@ -3,7 +3,7 @@
  * REAL drive host, drain, parser and end classification, with only external
  * I/O replaced.
  *
- * Observed live (2026-09-28): the AI gateway refreshed every Anthropic
+ * Observed live (2026-09-28): the token broker refreshed every Anthropic
  * account at 11:00:58, Anthropic revoked the tokens those refreshes
  * replaced, and a Claude Code run two minutes into its turn died on "401
  * OAuth access token has been revoked". It settled `harness_error`: the

@@ -111,7 +111,7 @@ export interface TokenMappingDiagnostics {
   usableAccounts: BrokerPoolAccount[];
   /**
    * Accounts the broker holds back only for a coming token refresh
-   * (`hold: "refresh"` — Tale AI gateway's hand-out floor) that pass every
+   * (`hold: "refresh"` — a broker's hand-out floor) that pass every
    * other filter, de-duplicated with the usable ones, the one whose hold
    * lifts last first. The broker judged that another account can take the
    * work without knowing this platform's cooldowns or account-id rule, so
@@ -314,8 +314,8 @@ export function diagnoseTokenMapping(
     }
   }
   // A refresh hold lifts when the refresh lands, so the hold that lifts last
-  // — Tale AI gateway's `available_at` is then its `refresh_at` — is the
-  // token with the most life left: the one the gateway itself hands out
+  // — such a broker's `available_at` is then its `refresh_at` — is the
+  // token with the most life left: the one the broker itself would hand out
   // when nothing else can serve. An unknown lift (a refresh already due)
   // goes last; a stable sort keeps the broker's order among equals.
   const liftsAt = (entry: (typeof held)[number]) =>
@@ -372,7 +372,7 @@ export function describeEmptyPool(
     );
   }
   // The broker says why an account waits, not the flag: an exhausted quota,
-  // or — Tale AI gateway — a token about to be refreshed.
+  // or — a broker that refreshes tokens itself — a token about to be refreshed.
   if (diagnostics.unavailableCount > 0)
     parts.push(
       `${diagnostics.unavailableCount} account(s) are temporarily unavailable — the broker reports their quota exhausted or their token about to be refreshed`,

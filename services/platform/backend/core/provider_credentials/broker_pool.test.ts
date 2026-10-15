@@ -303,9 +303,9 @@ describe('diagnoseTokenMapping', () => {
     });
   });
 
-  it('drops a Tale AI gateway token inside the hand-out floor when refresh_at is the mapped expiry', () => {
+  it('drops a token inside the broker hand-out floor when refresh_at is the mapped expiry', () => {
     // The strict mapping the broker reference describes: `refresh_at` —
-    // when the gateway's refresh revokes the token — with an hour's safety
+    // when the broker's refresh revokes the token — with an hour's safety
     // margin. The vendor's later `expires_at` no longer decides.
     const HOUR = 3_600_000;
     const diagnostics = diagnoseTokenMapping(
@@ -440,7 +440,7 @@ describe('describeEmptyPool', () => {
       SKEW,
     );
     const message = describeEmptyPool(diagnostics, MAPPING);
-    // A spent quota, or — Tale AI gateway's hand-out floor — a refresh due.
+    // A spent quota, or — a broker's hand-out floor — a refresh due.
     expect(message).toContain('quota exhausted');
     expect(message).toContain('about to be refreshed');
   });

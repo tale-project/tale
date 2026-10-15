@@ -46,8 +46,8 @@ accepts. The due-date scan runs every five minutes, so TASK-F40, TASK-F44,
 TASK-B22 and TASK-B24 wait up to five minutes for each next task it creates.
 TASK-B17 and TASK-B29 need a deployed automation with a task contract bound to
 the project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
-whose credential is a subscription broker on a local Tale AI gateway
-(`services/ai-gateway`) holding one Claude account. The member boxes
+whose credential is a subscription broker you operate, holding one Claude
+account whose token you can rotate on demand. The member boxes
 (TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
 **Member**, the default of **Add member** (SETUP.md extras); TASK-F50 also
 needs a project agent that can run, and TASK-B27 a team the member is not in.
@@ -300,12 +300,10 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
 - [ ] `TASK-F47` · **A token refresh resumes the run, and says so** — With
-  the gateway-served agent from the preconditions, **Start agent**
+  the broker-served agent from the preconditions, **Start agent**
   (`tasks.agentRun.start`) on a task that asks for ten minutes of work; while
-  it works, restart the gateway with
-  `AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS=86400`, give its start-up pass ten
-  seconds to refresh the account, then restart it without the setting → at
-  its next model call the run fails on the vendor's 401 (`OAuth access token
+  it works, rotate the account's token at the broker so the vendor revokes
+  the one the run holds → at its next model call the run fails on the vendor's 401 (`OAuth access token
   has been revoked`) and its retry starts at once, continuing the same
   conversation; while the retry works, its **Run** field
   (`tasks.agentRun.label`) reads **Resumed after a token refresh**
@@ -315,7 +313,7 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   the caption is translated in both places, and where it wraps (German, on
   the task page) its second line stays inside the field, clear of **Cancel
   run** (`tasks.agentRun.cancel`) below it — env-gated: mark **ENVIRONMENT**
-  without a gateway account.
+  without a broker account.
 - [ ] `TASK-F36` · **A connector on the agent runs for the run's starter** —
   Give the organization an active credential for a connector with a read
   action (GlitchTip or GitHub) under **Settings > Connectors**
