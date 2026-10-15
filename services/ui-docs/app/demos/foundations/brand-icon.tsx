@@ -4,6 +4,7 @@ import { Webhook } from 'lucide-react';
 const PRODUCTS = [
   { brand: 'github', name: 'GitHub' },
   { brand: 'glitchtip', name: 'GlitchTip' },
+  { brand: 'forgejo', name: 'Forgejo' },
   { brand: 'gmail', name: 'Gmail' },
   { brand: 'outlook', name: 'Outlook' },
   { brand: 'imap-smtp', name: 'IMAP / SMTP' },

@@ -70,6 +70,7 @@ export const automationTriggerSchema = triggerWriteSchema.superRefine(
 export const AUTOMATION_BRAND_ICONS = [
   'github',
   'glitchtip',
+  'forgejo',
   'gmail',
   'outlook',
   'imap-smtp',

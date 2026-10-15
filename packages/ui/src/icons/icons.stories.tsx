@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { ClaudeIcon } from './claude-icon';
 import { EnterKeyIcon } from './enter-key-icon';
+import { ForgejoIcon } from './forgejo-icon';
 import { GlitchTipIcon } from './glitchtip-icon';
 import { GmailIcon } from './gmail-icon';
 import { GoogleDriveIcon } from './google-drive-icon';
@@ -65,6 +66,11 @@ const icons = [
     name: 'GlitchTipIcon',
     component: GlitchTipIcon,
     description: 'GlitchTip error tracking',
+  },
+  {
+    name: 'ForgejoIcon',
+    component: ForgejoIcon,
+    description: 'Forgejo code hosting',
   },
   {
     name: 'MailServerIcon',
@@ -189,6 +195,7 @@ export const BrandIcons: StoryObj = {
         GoogleDriveIcon,
         SlackIcon,
         GlitchTipIcon,
+        ForgejoIcon,
         MailServerIcon,
       ].map((Icon, i) => (
         <div
