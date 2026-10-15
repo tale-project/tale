@@ -50435,8 +50435,13 @@ async function checkTurnEquipmentBroker(
   const helperPair = gitConfigPairs.find(
     ([key]) => key === 'credential.helper',
   );
-  const audit = await sql<{ slug: string; kind: string }[]>`
-    SELECT slug, kind FROM app.sandbox_credential_access
+  // The audit row names which of the organization's credentials reached the
+  // sandbox, not only the connector.
+  const audit = await sql<
+    { slug: string; kind: string; credentialId: string | null }[]
+  >`
+    SELECT slug, kind, credential_id AS "credentialId"
+    FROM app.sandbox_credential_access
     WHERE session_id = ${sessionId}
   `;
   record(
@@ -50450,8 +50455,9 @@ async function checkTurnEquipmentBroker(
       gitConfigPairs.some(([key]) => key === 'user.email') &&
       audit.length === 1 &&
       audit[0]?.slug === 'github' &&
-      audit[0]?.kind === 'git',
-    `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}`).join(',') || 'none'}`,
+      audit[0]?.kind === 'git' &&
+      audit[0]?.credentialId === created.data.credentialId,
+    `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}:${row.credentialId ?? 'null'}`).join(',') || 'none'} (want github:git:${created.success ? created.data.credentialId : '?'})`,
   );
 
   // An ungranted turn resolves the same owner's non-secret author identity,
