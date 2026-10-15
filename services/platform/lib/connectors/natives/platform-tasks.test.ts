@@ -1281,7 +1281,7 @@ describe('task.sync_issues as an automation step', () => {
     });
   });
 
-  it('fails as soon as one source failed when the step asks to, naming that source alone [TASK-R62]', async () => {
+  it('fails as soon as one source failed when the step asks to, naming that source alone [TASK-R77]', async () => {
     const refused = receipt({
       kind: 'glitchtip',
       ok: false,
@@ -1310,7 +1310,7 @@ describe('task.sync_issues as an automation step', () => {
     expect(syncIssues.mock.calls[0]?.[0]).not.toHaveProperty('failOn');
   });
 
-  it('succeeds when the step asks to fail on any source and only a rate limit held one back [TASK-R62]', async () => {
+  it('succeeds when the step asks to fail on any source and only a rate limit held one back [TASK-R77]', async () => {
     const result = answer([
       receipt(),
       receipt({

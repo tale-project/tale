@@ -788,7 +788,7 @@ The failed source saves nothing, and reads the same batch on the next run.
 While some sources succeed, the step succeeds, with the failed sources' errors in their receipts.
 When every source failed, the step fails with the cause they share, so the schedule counts the
 failure like any other. A source that waits out a rate limit has not failed. A step can ask to
-fail sooner (`TASK-R62`).
+fail sooner (`TASK-R77`).
 
 - **Example**: Both of Mia's repositories refuse the token → the step fails, named as refused
   credentials, and the schedule counts a failed run.
@@ -860,7 +860,7 @@ they were last read. The tracker itself is only ever read.
 - **Example**: Noah closes an issue on GitHub while its task is In progress in Tale → after the
   next run the task's source card shows Closed, and the task stays In progress.
 
-### TASK-R62 · An issue sync that asks to fails as soon as one of its sources failed
+### TASK-R77 · An issue sync that asks to fails as soon as one of its sources failed
 
 A step that sets `failOn: any` fails when one source failed, naming the failed sources alone and
 the cause they share. Every other source has still read, written and saved its batch. A source
@@ -870,7 +870,7 @@ that waits out a rate limit has not failed here either.
   token → GitHub's new issues become tasks, the step fails naming GlitchTip, and the schedule
   counts a failed run.
 
-### TASK-R63 · A task an issue sync creates wears its source's labels
+### TASK-R78 · A task an issue sync creates wears its source's labels
 
 A source can name labels (`taskLabels`) that every task it creates is given, so a board several
 sources fill shows where each task came from. A label the project does not have yet is added

@@ -1025,7 +1025,7 @@ describe('task.sync_issues sources', () => {
 });
 
 describe('task.sync_issues task labels', () => {
-  it('gives a task its source creates the source’s labels, and the other sources’ tasks none [TASK-R63]', async () => {
+  it('gives a task its source creates the source’s labels, and the other sources’ tasks none [TASK-R78]', async () => {
     const harness = fakes({
       list: {
         github: listing([issue('1')], null),
@@ -1061,7 +1061,7 @@ describe('task.sync_issues task labels', () => {
     ]);
   });
 
-  it('refuses a task label that is no label name [TASK-R63]', () => {
+  it('refuses a task label that is no label name [TASK-R78]', () => {
     for (const taskLabels of [
       [''],
       ['x'.repeat(51)],
@@ -1442,13 +1442,13 @@ describe('when the step fails', () => {
     expect(issueSyncFails(result(1, 2), 'all')).toBe(false);
   });
 
-  it('fails as soon as one source failed when the step asks to [TASK-R62]', () => {
+  it('fails as soon as one source failed when the step asks to [TASK-R77]', () => {
     expect(issueSyncFails(result(0, 2), 'any')).toBe(false);
     expect(issueSyncFails(result(1, 2), 'any')).toBe(true);
     expect(issueSyncFails(result(2, 2), 'any')).toBe(true);
   });
 
-  it('counts a source waiting out a rate limit as no failure, either way [TASK-R62]', async () => {
+  it('counts a source waiting out a rate limit as no failure, either way [TASK-R77]', async () => {
     const harness = fakes({
       list: {
         github: listing([], null),

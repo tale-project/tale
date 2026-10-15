@@ -1807,7 +1807,7 @@ output:
       issues become tasks wearing `source:glitchtip` (the label is added to
       the project), the run fails naming the GitHub source alone, and its
       GlitchTip receipt reads `saved: true`; remove the label from one task
-      and run again → it stays off (TASK-R62, TASK-R63).
+      and run again → it stays off (TASK-R77, TASK-R78).
 - [ ] `AUTO-F184` · **Create a new organization, open Automations, then
       run `tale migrate`** → the list is empty
       (`automations.list.empty.title`) with **Browse templates**

@@ -240,7 +240,7 @@ describe('pgTaskStore.syncIssues', () => {
     });
   });
 
-  it('hands the source’s task labels to the task domain with each issue it writes [TASK-R63]', async () => {
+  it('hands the source’s task labels to the task domain with each issue it writes [TASK-R78]', async () => {
     const runConnector = vi.fn().mockResolvedValue({
       status: 'ok',
       output: {
