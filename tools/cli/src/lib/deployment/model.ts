@@ -304,6 +304,29 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
           path: ['environment', resource.config.envName],
         });
     }
+    // A declared secret's value is read inside the backend, from the
+    // environment the deployment gives it: each variable it names is a
+    // required reference, or the apply could never find the value.
+    for (const resource of spec.configuration?.resources ?? []) {
+      const envNames =
+        resource.kind === 'agent-secret'
+          ? [resource.config.envName]
+          : resource.kind === 'connector-credential'
+            ? Object.values(resource.config.fields).flatMap((source) =>
+                source === undefined ? [] : [source.env],
+              )
+            : [];
+      for (const envName of envNames) {
+        const reference = spec.environment[envName];
+        if (!reference || reference.optional)
+          context.addIssue({
+            code: 'custom',
+            message:
+              'Declared secret needs an explicit required deployment environment reference',
+            path: ['environment', envName],
+          });
+      }
+    }
     if (spec.identity?.ssoEnabled)
       for (const field of ['tenantId', 'clientId', 'clientSecret'] as const)
         if (!spec.identity[field])

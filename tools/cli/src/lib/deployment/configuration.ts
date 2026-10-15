@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
+  PLATFORM_RESOURCES_MAX,
   resourceId,
   type PlatformConfiguration,
 } from '@tale/shared/config/platform-resources';
@@ -77,7 +78,7 @@ export async function provisionDeploymentConfiguration(
       )
     )
       throw preconditionError(
-        'Configuration-only deployment may change managed instructions, agent tools and models, review contexts, automations and project dispatch only. Use a full deployment for other native configuration.',
+        'Configuration-only deployment may change managed projects, labels, agents, standing tasks, agent secrets, connector credentials, instructions, agent tools and models, review contexts, automations and project dispatch only. Use a full deployment for other native configuration.',
       );
   }
   const result = await applyPlatformConfiguration(
@@ -113,7 +114,7 @@ const proofSchema = z.object({
       }),
     )
     .min(1)
-    .max(128),
+    .max(PLATFORM_RESOURCES_MAX),
   unchanged: z.boolean(),
   restartRequired: z.boolean(),
 });

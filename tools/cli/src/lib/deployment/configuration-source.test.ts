@@ -193,3 +193,112 @@ test('keeps existing inline deployment input unchanged', async () => {
     input,
   );
 });
+
+test('merges included declaration files, each resolving its own references, before validating the whole', async () => {
+  const f = await fixture();
+  await mkdir(join(f.root, 'cycle', 'agents'));
+  await writeFile(
+    join(f.root, 'cycle', 'agents', 'reviewer.md'),
+    'Review closely.\n',
+  );
+  await writeFile(
+    join(f.root, 'cycle', 'agents', 'agents.yml'),
+    stringify({
+      schemaVersion: 1,
+      resources: [
+        {
+          kind: 'agent-instructions',
+          config: {
+            projectId: 'project-1',
+            agentId: 'agent-1',
+            instructions: { file: 'reviewer.md' },
+          },
+        },
+      ],
+    }),
+  );
+  await writeFile(
+    f.source,
+    JSON.stringify({ ...f.declaration, include: ['agents/agents.yml'] }),
+  );
+  const result = (await resolveConfigurationSource(f.spec, f.specPath)) as {
+    configuration: { resources: { kind: string; config: object }[] };
+  };
+  expect(result.configuration.resources.map(({ kind }) => kind)).toEqual([
+    'project-instructions',
+    'automation-definition',
+    'automation-deployment',
+    'agent-tools',
+    'agent-instructions',
+  ]);
+  expect(result.configuration.resources[4]?.config).toEqual({
+    projectId: 'project-1',
+    agentId: 'agent-1',
+    instructions: 'Review closely.',
+  });
+  // The bundle holds the merged declaration: no include survives.
+  expect(JSON.stringify(result)).not.toContain('include');
+});
+
+test('refuses a file included twice, an include cycle and an include outside its directory', async () => {
+  const f = await fixture();
+  const part = { schemaVersion: 1, include: ['configuration.json'] };
+  await writeFile(join(f.root, 'cycle', 'part.json'), JSON.stringify(part));
+  for (const [include, refusal] of [
+    [['part.json'], 'included more than once'],
+    [['other.json', 'other.json'], 'included more than once'],
+    [['../outside.json'], 'is not a declaration'],
+    [['policy.md'], 'must be JSON or YAML'],
+  ] as const) {
+    await writeFile(
+      join(f.root, 'cycle', 'other.json'),
+      JSON.stringify({ schemaVersion: 1 }),
+    );
+    await writeFile(f.source, JSON.stringify({ ...f.declaration, include }));
+    await expect(
+      resolveConfigurationSource(f.spec, f.specPath),
+      JSON.stringify(include),
+    ).rejects.toThrow(refusal);
+  }
+});
+
+test('reads a file several resources name once, and holds 512 resources across its files', async () => {
+  const f = await fixture();
+  const instructions = (count: number, from = 0) =>
+    Array.from({ length: count }, (_, index) => ({
+      kind: 'project-instructions',
+      config: {
+        projectId: `project-${from + index}`,
+        instructions: { file: 'policy.md' },
+      },
+    }));
+  // 512 references to one file: counted once against the file limit.
+  await writeFile(
+    join(f.root, 'cycle', 'more.json'),
+    JSON.stringify({ schemaVersion: 1, resources: instructions(312, 200) }),
+  );
+  await writeFile(
+    f.source,
+    JSON.stringify({
+      schemaVersion: 1,
+      resources: instructions(200),
+      include: ['more.json'],
+    }),
+  );
+  const result = (await resolveConfigurationSource(f.spec, f.specPath)) as {
+    configuration: { resources: { config: { instructions: string } }[] };
+  };
+  expect(result.configuration.resources).toHaveLength(512);
+  expect(
+    new Set(
+      result.configuration.resources.map(({ config }) => config.instructions),
+    ),
+  ).toEqual(new Set(['Review the complete scope.\n']));
+  await writeFile(
+    join(f.root, 'cycle', 'more.json'),
+    JSON.stringify({ schemaVersion: 1, resources: instructions(313, 200) }),
+  );
+  await expect(resolveConfigurationSource(f.spec, f.specPath)).rejects.toThrow(
+    'more than 512 resources',
+  );
+});

@@ -1,4 +1,5 @@
 import {
+  PLATFORM_RESOURCES_MAX,
   platformConfigurationSchema,
   type PlatformConfiguration,
 } from '@tale/shared/config/platform-resources';
@@ -49,6 +50,6 @@ export const configurationPlanSchema = z.strictObject({
       }),
     )
     .min(1)
-    .max(128),
+    .max(PLATFORM_RESOURCES_MAX),
 });
 export type ConfigurationPlan = z.infer<typeof configurationPlanSchema>;

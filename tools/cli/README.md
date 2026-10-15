@@ -581,7 +581,8 @@ document: an omitted field reads as its default, and an edit made in the app is
 overwritten. Applying requires a project administrator, or an organization Owner or
 Admin, on an active project. The platform refuses a dispatch that names an agent or
 task outside the project, a standing role on an archived task, a cron expression
-that does not parse, or a label the project lacks; create labels first. A dispatch
+that does not parse, or a label the project lacks; declare labels with
+`project-label`, or create them first. A dispatch
 switched on starts work at once, so application writes it after every other
 resource. Gates are configuration: what an external system reports on a gate through
 `POST /api/v1/projects/{id}/dispatch/gates/{key}` is runtime state and never enters
@@ -589,12 +590,78 @@ the declaration, plan or readback, so a report never makes a plan differ. A stor
 dispatch the runtime cannot read, such as one a newer version wrote, is refused at
 planning instead of planned as a new one.
 
+### Create a fleet: projects, labels, agents, tasks and secrets
+
+Six kinds create what a fleet of agents works with, or adopt what exists:
+`project`, `project-label`, `project-agent`, `task`, `agent-secret` and
+`connector-credential`. Without a policy each adopts the resource its identity
+names and refuses a missing one. With `createIfMissing: true` beside `kind` and
+`config` it creates an absent one; a project, agent or task then needs a stable
+UUID as its `projectId`, `agentId` or `taskId`, so a retried apply finds what an
+interrupted one created and an id another organization holds is refused. A
+field a declaration leaves out keeps what is stored (a project's `description`
+and `teamIds`, an agent's `connectors`, `secrets` and `skills`, a task's
+`labels`, `assigneeAgentId` and `priority`, a credential's `endpoint` and
+`isDefault`); a stated field is reset to the declared value at every apply.
+
+- `project` declares `name`; `key` beside `createIfMissing` chooses its task key
+  once. A created project gets the default labels a project created in Tale gets.
+- `project-label` declares `projectId` and `name`. Names compare case-insensitively
+  and a different spelling is respelled; the color is derived from the name.
+- `project-agent` declares `name` and its equipment. Its harness, model,
+  instructions and tools stay with `agent-model`, `agent-instructions` and
+  `agent-tools`: creating an agent requires its `agent-model` in the same
+  declaration, and the agent is created with the declared serving, instructions
+  and tools, so those resources read back as declared at once. A granted secret
+  the organization lacks is refused, never dropped. The standard agent is never
+  changed.
+- `task` declares `title`; `initialStatus` (`backlog` or `todo`) beside
+  `createIfMissing` chooses its first column, and its description comes from
+  `task-instructions`. Its status is never read or reconciled afterwards; a person
+  assigned to it keeps it until the declaration names an agent.
+- `agent-secret` declares `name` and `envName`; `connector-credential` declares
+  `connector`, `name`, `authMethod` (`api-key`, `bearer` or `basic`) and `fields`
+  mapping each secret field to `{ "env": "<variable>" }`. A sign-in the outside
+  system renews (`oauth2`) is never declared, and a credential keeps its sign-in
+  method.
+
+Secret values never enter the declaration, plan, receipt or logs. Variables must
+start with `TALE_CONFIG_SECRET_`, so a declaration cannot reach the platform's own
+variables; inside a managed deployment they are read from the platform's
+environment. The platform answers a salted PBKDF2 digest of the stored value,
+never the value, and the CLI compares it with the digest of the value it would
+write: a value rotated in the environment, or replaced in Tale, plans as `update`
+while the declaration's hash stays the same. Planning refuses an unset variable,
+and a managed deployment refuses a declared secret whose variable is not a
+required `environment` reference, as it does a provider credential's.
+
+Apply order is projects, labels, agent secrets, connector credentials, agents,
+tasks, the instruction/tool/model/review kinds, automations, then dispatch.
+Nothing inside a project, agent or task the declaration creates is read while
+planning: such resources plan as `create`, and apply writes them on the state
+the creation left, also when retrying the same plan. The dispatch check sends
+the agents, standing tasks and labels the dispatch names that the declaration
+creates in the project (and whether it creates the project) as `planned`; the
+platform counts them for the check only, and the dispatch save checks what then
+exists. Declaring a dispatch for a project the declaration creates requires an
+organization Owner or Admin. Configuration-only deployments accept all six
+kinds.
+
+Nothing is deleted. Dropping a resource from a declaration stops managing it.
+Retire in two phases: apply a declaration that switches the part off (for
+example `enabled: false` on its dispatch), then drop it and remove what is no
+longer needed in Tale.
+
 ### Capture configuration from owned source files
 
 A deployment specification may use
 `"configurationSource": "autonomous-cycle/configuration.json"` instead of inline
 `configuration`. The referenced JSON contains the same `schemaVersion: 1` and
-`resources` envelope. Keep all existing resources in that one declaration.
+`resources` envelope. It may also list other declaration files under `include`,
+each relative to the file that includes it and under the same source rules;
+they are merged, in the order listed, before the declaration is validated. A
+declaration file included twice (or in a cycle) is refused. One declaration
+holds at most 512 resources across all its files.
 
 Instruction values may be `{ "file": "roles/reviewer.md" }`; task descriptions use
 that reference in `description`. A definition's `document` may be
@@ -619,8 +686,9 @@ file. For example:
 Preparation captures expanded text and parsed YAML inside the immutable bundle;
 application never follows source paths. References must be owned regular files with
 relative paths, no traversal or symlinks: `.md` for instructions, `.yml` or `.yaml` for
-workflows. Duplicate YAML keys, invalid UTF-8, files larger than 512 KiB, more than
-128 referenced files, or a total above 8 MiB are refused. There is no templating,
+workflows. A file several resources name is read once. Duplicate YAML keys, invalid
+UTF-8, files larger than 512 KiB, more than 512 distinct files, or a total above 8 MiB
+are refused. There is no templating,
 environment interpolation or remote fetch. Calculate definition digests from the
 expanded configuration, not the file-reference objects or YAML bytes.
 

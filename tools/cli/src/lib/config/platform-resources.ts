@@ -1,4 +1,5 @@
 import {
+  convergedWithHash,
   resourceConverged,
   resourceId,
   sameConfiguration,
@@ -10,15 +11,18 @@ import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configurat
 import { deploymentConfigSchema } from '@tale/shared/schemas/deployment';
 import { POLICY_SCHEMAS } from '@tale/shared/schemas/governance';
 import { knowledgeEmbeddingSchema } from '@tale/shared/schemas/knowledge';
+import type { ManagedDispatchPlan } from '@tale/shared/schemas/managed-configuration';
 import {
   modelCatalogFileSchema,
   providerCredentialMetadataSchema,
   providerDefinitionSchema,
   providerEnvironmentCredentialSchema,
 } from '@tale/shared/schemas/providers';
+import { configurationHash } from '@tale/shared/utils/configuration-hash';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
+import { isSecretResource, type DeclaredSecrets } from './declared-secrets';
 import {
   checkManagedResource,
   isManagedResource,
@@ -133,18 +137,124 @@ export async function readResource(
   }
 }
 
+/**
+ * Whether the native state already IS what the declaration asks for. A
+ * declared secret compares what the platform reads back of it — its
+ * identity and the digest of the value it holds — with the same for the
+ * value its environment holds now, so a changed value reads as a change
+ * although the declaration, which names only where the value comes from,
+ * did not change. Every other kind compares its declaration
+ * (`resourceConverged`).
+ */
+export function converged(
+  resource: PlatformResource,
+  current: ResourceObservation,
+  secrets: DeclaredSecrets,
+): boolean {
+  if (isSecretResource(resource))
+    return convergedWithHash(
+      resource.kind,
+      current.config,
+      configurationHash(secrets.desired(resource)),
+    );
+  return resourceConverged(resource, current.config);
+}
+
+/** What a change is checked against besides the resource itself. */
+export interface ChangeContext {
+  secrets: DeclaredSecrets;
+  /** The whole declaration, while nothing of it is written yet: a check may
+   * then count what it creates. Left out once writing began, when what the
+   * declaration creates exists and is read as it is. */
+  declared?: readonly PlatformResource[];
+  /** The resources the declaration creates that do not exist yet, by id. */
+  absent?: ReadonlySet<string>;
+}
+
+/** What a declaration creates in a dispatch's project and the dispatch
+ * names, for the platform's check of the dispatch before any of it exists;
+ * undefined when it creates nothing there. Only what the dispatch names is
+ * sent, so the plan stays within the dispatch's own bounds however many
+ * agents, tasks and labels the declaration creates. */
+function plannedForDispatch(
+  dispatch: Extract<PlatformResource, { kind: 'project-dispatch' }>['config'],
+  context: ChangeContext,
+): ManagedDispatchPlan | undefined {
+  const { projectId } = dispatch;
+  const roles = dispatch.standingRoles ?? [];
+  const namedAgents = new Set([
+    ...dispatch.agents,
+    ...roles.map((role) => role.agentId),
+  ]);
+  const namedTasks = new Set(roles.map((role) => role.taskId));
+  const namedLabels = new Set(
+    [
+      ...(dispatch.labels?.include ?? []),
+      ...(dispatch.labels?.exclude ?? []),
+      ...(dispatch.gates ?? []).flatMap((gate) => gate.labels ?? []),
+    ].map((name) => name.toLowerCase()),
+  );
+  const created = (context.declared ?? []).filter(
+    (entry) =>
+      'createIfMissing' in entry &&
+      entry.createIfMissing === true &&
+      'projectId' in entry.config &&
+      entry.config.projectId === projectId,
+  );
+  const unique = (values: string[]) => [...new Set(values)];
+  const planned: ManagedDispatchPlan = {
+    agents: unique(
+      created.flatMap((entry) =>
+        entry.kind === 'project-agent' && namedAgents.has(entry.config.agentId)
+          ? [entry.config.agentId]
+          : [],
+      ),
+    ),
+    tasks: unique(
+      created.flatMap((entry) =>
+        (entry.kind === 'task' || entry.kind === 'task-review-context') &&
+        namedTasks.has(entry.config.taskId)
+          ? [entry.config.taskId]
+          : [],
+      ),
+    ),
+    labels: created.flatMap((entry) =>
+      entry.kind === 'project-label' &&
+      namedLabels.has(entry.config.name.toLowerCase())
+        ? [entry.config.name]
+        : [],
+    ),
+    ...(context.absent?.has(`project/${projectId}`) === true
+      ? { project: true as const }
+      : {}),
+  };
+  return planned.project === true ||
+    planned.agents.length + planned.tasks.length + planned.labels.length > 0
+    ? planned
+    : undefined;
+}
+
 /** Check side effects before any resource is written. A changed vector space
  * cannot be admitted merely because its new dimensions parse successfully,
- * and a changed dispatch is checked by the platform that would save it. */
+ * and a changed dispatch is checked by the platform that would save it —
+ * against what its declaration creates as well, while none of it exists. */
 export async function checkResourceChange(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
   current: ResourceObservation,
-  declaredResources: readonly PlatformResource[] = [],
+  context: ChangeContext,
 ) {
-  if (resourceConverged(resource, current.config)) return;
+  if (converged(resource, current, context.secrets)) return;
+  const declaredResources = context.declared ?? [];
   if (isManagedResource(resource)) {
-    await checkManagedResource(client, resource, current.revision);
+    await checkManagedResource(
+      client,
+      resource,
+      current.revision,
+      resource.kind === 'project-dispatch'
+        ? plannedForDispatch(resource.config, context)
+        : undefined,
+    );
     return;
   }
   if (resource.kind === 'provider-credential' && resource.config.isDefault) {
@@ -198,7 +308,8 @@ export async function writeResource(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
   current: ResourceObservation,
-  declaredResources: readonly PlatformResource[] = [],
+  declaredResources: readonly PlatformResource[],
+  secrets: DeclaredSecrets,
 ): Promise<void> {
   if (isManagedResource(resource)) {
     await writeManagedResource(
@@ -206,6 +317,7 @@ export async function writeResource(
       resource,
       current.revision,
       declaredResources,
+      secrets,
     );
     return;
   }
@@ -301,9 +413,10 @@ export async function writeResource(
 export async function verifyResource(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
+  secrets: DeclaredSecrets,
 ): Promise<ResourceObservation> {
   const actual = await readResource(client, resource);
-  if (!resourceConverged(resource, actual.config))
+  if (!converged(resource, actual, secrets))
     throw preconditionError(
       `Native configuration did not converge for ${resourceId(resource)}.`,
     );
