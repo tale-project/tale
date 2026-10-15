@@ -93,6 +93,8 @@ To walk a whole queue, use `order: "created"`. Tasks come oldest first and keep 
 
 Each listed task carries `pendingReview: null` or the captured `approvalId`, source `runId`, and typed `reviewer`. A reviewer finds its own queue with `status: "in_review"` and `reviewerAgentId` set to its agent ID; this matches the recorded review owner, not the implementation assignee or today’s project default. Keep that filter on every cursor request. The manager also scans all `in_review` tasks to find reviews whose agent has been deleted, then uses `task_get.pendingReview.agentReviewBlockedReason` to identify the recovery needed. Agent reviews stay in this task queue; a person’s Home review queue is for human requests.
 
+Each listed task, and the task **Read a task** returns, also carries `labels`: the names of its labels as the project spells them, sorted without regard to case, or `[]` for a task without labels. A team can steer its agents with labels, such as one that holds a task back or one that waits for a person. In the manager's instructions, name the labels it must respect.
+
 A pass can outlast one run. Before its run ends, the manager saves a checkpoint comment on its own task: the pass, its order and filters, the next `continueCursor` and the last task it examined. Its next run finds that checkpoint with **Read a task** and continues from it. When a pass ends, or its cursor is refused, the next pass starts at the first page. A read that fails is not an empty queue: the manager reports it and stops.
 
 ### Tell running, finished and waiting work apart
