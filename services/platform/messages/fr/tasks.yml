@@ -69,6 +69,7 @@ agentRun:
   alreadyRunning: L'agent de cette tâche tourne déjà.
   notStarted: L'exécution de l'agent n'a pas pu démarrer.
   agentMissing: L'agent assigné n'existe plus. Assigne un autre agent pour exécuter cette tâche.
+  agentOutOfReach: L'agent assigné appartient à un autre projet dont la répartition du travail ne dessert plus ce tableau. Assigne un autre agent pour exécuter cette tâche.
   noAgentAssignee: Aucun agent n'est assigné à cette tâche. Assignes-en un pour lancer une exécution.
   cancelled: L'exécution de l'agent a été annulée.
   cancelFailed: L'exécution de l'agent n'a pas pu être annulée.
@@ -388,6 +389,8 @@ assignee:
   liveAgentsOnlyReader: Seuls les agents de ce projet apparaissent ici — les éditeurs et les admins les ajoutent dans l’onglet Agents du projet.
   standardAgent: Agent standard
   standardAgentHint: L'agent de l'organisation pour les projets sans agent propre
+  servedFrom: De la répartition du travail de {project}
+  servedFromHidden: De la répartition du travail d’un autre projet
   standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
 activity:
   reviewResponded: "Décision de relecture"

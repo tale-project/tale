@@ -99,6 +99,7 @@ export function projectDispatchStatusQuery(
 const configurationAnswerSchema = z.object({
   config: managedProjectDispatchObservationSchema.nullable(),
   hash: z.string().nullable(),
+  servesAgain: z.literal(true).optional(),
 });
 
 /** The dispatch document as managed configuration reads it, and the hash a
@@ -107,6 +108,9 @@ export interface ProjectDispatchConfiguration {
   /** Null while the project has no dispatch. */
   dispatch: ProjectDispatch | null;
   hash: string | null;
+  /** Saving it again, even unchanged, serves a board it skips now: one
+   * whoever saved it last may no longer edit, and the reader may. */
+  servesAgain?: true;
 }
 
 /** The document the editor starts from. A stored dispatch this version
@@ -130,7 +134,11 @@ export function projectDispatchConfigurationQuery(
       );
       if (answer.config === null) return { dispatch: null, hash: answer.hash };
       const { projectId: _projectId, ...dispatch } = answer.config;
-      return { dispatch, hash: answer.hash };
+      return {
+        dispatch,
+        hash: answer.hash,
+        ...(answer.servesAgain === true ? { servesAgain: true as const } : {}),
+      };
     },
     retry: retryAdaptedRead,
     // Every opening of the editor reads the stored version again, whatever

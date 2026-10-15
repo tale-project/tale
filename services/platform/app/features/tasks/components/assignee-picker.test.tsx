@@ -270,6 +270,67 @@ describe('AssigneePicker', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('offers an agent another project’s dispatch puts to work on this board, saying whose it is', async () => {
+    mockDirectoryAgents = [
+      ...mockAgents,
+      {
+        type: 'agent',
+        id: 'coder',
+        name: 'Coder',
+        servedFrom: { projectId: 'development', projectName: 'Development' },
+      },
+    ];
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.getByText('Coder')).toBeInTheDocument();
+    expect(screen.getByText('tasks.assignee.servedFrom')).toBeInTheDocument();
+  });
+
+  it('still offers the standard agent and the way to add one on a served board with no agents of its own', async () => {
+    mockDirectoryAgents = [
+      {
+        type: 'agent',
+        id: 'coder',
+        name: 'Coder',
+        servedFrom: { projectId: 'development', projectName: 'Development' },
+      },
+    ];
+    mockStandardAgentAvailable = true;
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.getByText('Coder')).toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.standardAgent'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('tasks.assignee.createAgent')).toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.standardAgentFooter'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not name a serving project its reader may not read [TASK-R80]', async () => {
+    mockDirectoryAgents = [
+      {
+        type: 'agent',
+        id: 'coder',
+        name: 'Coder',
+        servedFrom: { projectId: 'development', projectName: null },
+      },
+    ];
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.getByText('Coder')).toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.servedFromHidden'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('tasks.assignee.servedFrom'),
+    ).not.toBeInTheDocument();
+  });
+
   it('lets an editor create an agent in place and assigns the agent it creates', async () => {
     mockDirectoryAgents = [];
     const { user, open, onAssign } = renderPicker();

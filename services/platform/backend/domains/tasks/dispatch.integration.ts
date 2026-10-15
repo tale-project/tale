@@ -764,7 +764,7 @@ export async function checkFleetDispatch(
 
 /** Give the organization `count` agent workers for a lane; the answer puts
  * back what it had. */
-async function raiseAgentWorkers(
+export async function raiseAgentWorkers(
   sql: Sql,
   orgId: string,
   count: number,

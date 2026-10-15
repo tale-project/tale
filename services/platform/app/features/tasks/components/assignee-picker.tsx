@@ -235,12 +235,14 @@ function AssigneePickerList({
   // Settled on "this project has no agent", so neither the create row nor
   // the reader's note flashes over a list or a role that is still loading.
   // A project the read could not return stays silent: who may add to it is
-  // unknown.
+  // unknown. Agents another project's dispatch puts on this board are not
+  // its own: a board they serve still offers the standard agent and the way
+  // to add one.
   const projectHasNoAgents =
     projectId !== undefined &&
     !agentsLoading &&
     projectResolved &&
-    assignableAgents.length === 0;
+    !assignableAgents.some((agent) => agent.servedFrom === undefined);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const offerStandardAgent = projectHasNoAgents && standardAgentAvailable;
   const automations = useTaskContractAutomations(organizationId, projectId);
@@ -322,12 +324,32 @@ function AssigneePickerList({
     ): SearchableSelectOption => ({
       value: `agent:${agent.id}`,
       label: agent.name,
+      // An agent of another project, whose dispatch serves this board; a
+      // project the viewer may not read goes unnamed.
+      ...(agent.servedFrom !== undefined
+        ? {
+            description:
+              agent.servedFrom.projectName === null
+                ? t('assignee.servedFromHidden')
+                : t('assignee.servedFrom', {
+                    project: agent.servedFrom.projectName,
+                  }),
+          }
+        : {}),
     });
 
     // One plain "Agents" section — the entries are the project's own created
-    // agents, not a third-party roster, so no platform/external split.
+    // agents (and those a serving dispatch puts on the board), not a
+    // third-party roster, so no platform/external split.
     const agentSections: SearchableSelectOption[] = [];
-    if (assignableAgents.length > 0) {
+    const offerCreateAgent = projectHasNoAgents && canAddAgents;
+    // A project with no agents of its own still shows the section: the
+    // organization's standard agent to everyone, and the way to add one to
+    // whoever may — otherwise the ability to hand tasks to an agent is
+    // invisible exactly when the user has never met it. Everyone else reads
+    // the facts in the footer, as text rather than as a row nothing can
+    // select.
+    if (assignableAgents.length > 0 || offerStandardAgent || offerCreateAgent) {
       agentSections.push({
         value: '__section:agents',
         label: t('assignee.agents'),
@@ -335,19 +357,6 @@ function AssigneePickerList({
         labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
       agentSections.push(...assignableAgents.map(agentOption));
-    } else if (offerStandardAgent || (projectHasNoAgents && canAddAgents)) {
-      // A project with no agents yet still shows the section: the
-      // organization's standard agent to everyone, and the way to add one
-      // to whoever may — otherwise the ability to hand tasks to an agent is
-      // invisible exactly when the user has never met it. Everyone else
-      // reads the facts in the footer, as text rather than as a row nothing
-      // can select.
-      agentSections.push({
-        value: '__section:agents',
-        label: t('assignee.agents'),
-        isSectionHeader: true,
-        labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
-      });
       if (offerStandardAgent) {
         agentSections.push({
           value: STANDARD_AGENT_ACTION,
@@ -355,7 +364,7 @@ function AssigneePickerList({
           description: t('assignee.standardAgentHint'),
         });
       }
-      if (canAddAgents) {
+      if (offerCreateAgent) {
         agentSections.push({
           value: CREATE_AGENT_ACTION,
           label: t('assignee.createAgent'),

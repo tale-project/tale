@@ -9,6 +9,7 @@ import { toJson } from '../../db/sql.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { liveReviewIssuer, type AgentReviewAuthority } from './agent-review.ts';
 import { queuedOnTask } from './comments.ts';
+import { authorityReaches } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 import { nativeReviewDelegation } from './review-delegation-receipt.ts';
 import { readTaskReviewSource } from './review-evidence.ts';
@@ -61,7 +62,7 @@ export async function delegateAgentTaskReview(
     );
   }
   const initial = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
-  if (initial.projectId !== auth.projectId)
+  if (!authorityReaches(auth, initial.projectId))
     throw new TaskError(
       'TASK_REVIEW_FORBIDDEN',
       'The task is outside this project',
@@ -70,7 +71,7 @@ export async function delegateAgentTaskReview(
   return queuedOnTask(tx, input.taskId, async () => {
     await lockTaskRunStart(tx, auth.organizationId, input.taskId);
     const task = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
-    if (task.projectId !== auth.projectId || task.status !== 'in_review')
+    if (task.projectId !== initial.projectId || task.status !== 'in_review')
       return stale();
     assertTaskNotArchived(task);
     const project = await loadProjectOrThrow(tx, task.projectId);
@@ -100,7 +101,7 @@ export async function delegateAgentTaskReview(
       captured?.kind !== 'agent' ||
       captured.agentId !== input.expected.reviewer.agentId ||
       approval.metadata?.runId !== input.expected.runId ||
-      approval.metadata.projectId !== auth.projectId
+      approval.metadata.projectId !== task.projectId
     )
       return stale();
     const source = await readTaskReviewSource(tx, {
@@ -163,7 +164,7 @@ export async function delegateAgentTaskReview(
         successor?.id !== receipt.approvalId ||
         successor.wfExecutionId !== null ||
         successor.metadata?.runId !== receipt.runId ||
-        successor.metadata.projectId !== auth.projectId ||
+        successor.metadata.projectId !== task.projectId ||
         recipient?.kind !== 'agent' ||
         recipient.agentId !== receipt.reviewer.agentId
       )

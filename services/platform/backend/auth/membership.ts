@@ -428,7 +428,7 @@ export async function removeMembershipCascade(
  * What one caller sees with in one organization: their teams, and — for a
  * project's own API key — the one project it reaches.
  */
-interface ActingAudience {
+export interface ActingAudience {
   teamIds: string[];
   /** The project a project's own key is confined to. */
   projectScope?: string;
@@ -487,6 +487,16 @@ async function readActingAudience(
     ],
     projectScope,
   };
+}
+
+/** What a caller sees with in one organization ({@link readActingAudience}):
+ * their teams, and the one project a project's own key is confined to. */
+export async function getActingAudience(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<ActingAudience> {
+  return readActingAudience(sql, organizationId, userId);
 }
 
 /** The team ids of {@link readActingAudience}. */

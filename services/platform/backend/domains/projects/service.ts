@@ -67,7 +67,10 @@ import {
   loadActiveHolds,
 } from '../legal_holds/service.ts';
 import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
-import { retireTasksInTx } from '../tasks/retire.ts';
+import {
+  cancelAgentRunsElsewhereInTx,
+  retireTasksInTx,
+} from '../tasks/retire.ts';
 import { agentReviewerEligibility } from '../tasks/reviews.ts';
 import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
@@ -1399,10 +1402,26 @@ export async function deleteProject(
     SELECT id FROM app.project_agents
     WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
   `;
+  const agentIds = agents.map((agent) => agent.id);
   await scheduleAgentWorkspaceRetirement(tx, {
     organizationId: auth.organizationId,
-    agentIds: agents.map((agent) => agent.id),
+    agentIds,
   });
+  // Its dispatch may have put them on other projects' boards: their runs
+  // there stop, and those cards lose them, as the project's own tasks do.
+  const cancelledElsewhere = await cancelAgentRunsElsewhereInTx(tx, {
+    organizationId: auth.organizationId,
+    projectId: args.projectId,
+    agentIds,
+  });
+  for (const agentId of agentIds) {
+    await clearAgentAssignmentsInTx(tx, {
+      organizationId: auth.organizationId,
+      agentId,
+      actorId: auth.userId,
+      exceptProjectId: args.projectId,
+    });
+  }
   // The project's own API keys reached nothing but the project.
   await retireApiKeysInTx(tx, {
     organizationId: auth.organizationId,
@@ -1418,7 +1437,7 @@ export async function deleteProject(
         mode: args.mode,
         ...counts,
         deletedTaskCount: taskRows.length,
-        cancelledRunCount: retired.cancelledRunCount,
+        cancelledRunCount: retired.cancelledRunCount + cancelledElsewhere,
         releasedBlobRefCount: retired.releasedRefs.length,
       },
     }),
@@ -2816,10 +2835,10 @@ export async function deleteProjectAgent(
   });
   // The docs' promise, kept in the same transaction: no task stays "assigned"
   // to a row that is gone (the board showed the raw id, Retry re-kicked an
-  // agent that could not exist). History — runs, comments, activity — stays.
+  // agent that could not exist) — on any board, its own project's or one its
+  // dispatch serves. History — runs, comments, activity — stays.
   const unassignedTaskIds = await clearAgentAssignmentsInTx(tx, {
     organizationId: auth.organizationId,
-    projectId: agent.projectId,
     agentId,
     actorId: auth.userId,
   });
@@ -2855,6 +2874,24 @@ function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
     return sql`(id = ${auth.projectScope} AND ${audienceClause(sql, 'project_team_ids', auth)})`;
   }
   return audienceClause(sql, 'project_team_ids', auth);
+}
+
+/** Which of the named projects the caller may read, archived ones
+ * included: the many-project form of {@link assertReadable}, for a read
+ * that names other projects only to who may read them. */
+export async function readableProjectsAmong(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectIds: readonly string[],
+): Promise<Set<string>> {
+  const ids = [...new Set(projectIds)];
+  if (ids.length === 0 || auth.role === 'disabled') return new Set();
+  const rows = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE org_id = ${auth.organizationId} AND id = ANY(${ids})
+      AND ${visibilityClause(sql, auth)}
+  `;
+  return new Set(rows.map((row) => row.id));
 }
 
 /** Every project visible to the caller (admins: all; else org-wide + team). */

@@ -32,6 +32,7 @@ function task(
 ): DispatchCandidate {
   return {
     taskId,
+    projectId: 'p-own',
     status: 'todo',
     priority: null,
     rank: 'm',
@@ -68,6 +69,70 @@ describe('ready work is ranked by column, priority, board order and age [TASK-R4
       'todo-none',
       'backlog-p0',
     ]);
+  });
+});
+
+describe('a dispatch takes ready work from every board it serves in one order [TASK-R71]', () => {
+  it('ranks the work of every board together, each column by its own board’s order', () => {
+    // Development takes To do; Billing is served for its Backlog first,
+    // then To do; Tale for To do.
+    const ranked = rankCandidates(
+      [
+        task('dev-todo-p1', { priority: 'p1', column: 0 }),
+        task('vat-backlog-p2', {
+          projectId: 'p-vat',
+          status: 'backlog',
+          priority: 'p2',
+          column: 0,
+        }),
+        task('vat-todo-p0', {
+          projectId: 'p-vat',
+          priority: 'p0',
+          column: 1,
+        }),
+        task('tale-todo-p0', {
+          projectId: 'p-tale',
+          priority: 'p0',
+          column: 0,
+          rank: 'b',
+        }),
+        task('dev-todo-p0', { priority: 'p0', column: 0, rank: 'a' }),
+      ],
+      ['todo'],
+    );
+    expect(ranked.map((candidate) => candidate.taskId)).toEqual([
+      'dev-todo-p0',
+      'tale-todo-p0',
+      'dev-todo-p1',
+      'vat-backlog-p2',
+      'vat-todo-p0',
+    ]);
+  });
+
+  it('starts the best-ranked work of any board, and counts an agent’s runs on every board against its limits', () => {
+    // The Coder holds 255 runs across Development, Tale and Billing: one
+    // more fits, and it goes to the best-ranked task, on whichever board.
+    const plan = planDispatch({
+      config: {
+        ...base,
+        agents: ['coder'],
+        assignment: 'pool',
+        maxConcurrentRuns: 256,
+        perAgentConcurrency: 256,
+      },
+      agents: [agent('coder', { live: 255 })],
+      candidates: [
+        task('dev-p2', { priority: 'p2', column: 0 }),
+        task('vat-p0', { projectId: 'p-vat', priority: 'p0', column: 0 }),
+      ],
+      workerRoom: null,
+    });
+    expect(plan.occupied).toBe(255);
+    expect(plan.picks).toEqual([
+      { taskId: 'vat-p0', agentId: 'coder', via: 'pool' },
+    ]);
+    // The pool is then full: the rest waits for the next pass.
+    expect(plan.holds).toEqual([]);
   });
 });
 

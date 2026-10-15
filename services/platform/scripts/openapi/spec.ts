@@ -3864,11 +3864,19 @@ export function buildSpec(): Json {
       summary: "Read a project's dispatch",
       description:
         "What the project's dispatch does: every agent of its pool with " +
-        'the runs it holds or why it is idle (`idle`), its standing roles ' +
-        'with their next and last occurrence, the models it waits on ' +
-        '(`holds`), its gates as a pass judges them now, the ' +
-        "organization's agent workers against the pool, and its last 20 " +
-        'passes. A project without a dispatch answers `configured: false`. ' +
+        'the runs it holds on every board it serves or why it is idle ' +
+        '(`idle`), its standing roles with their next and last occurrence, ' +
+        'the other boards it serves (`sources`, each reachable now or ' +
+        '`skipped`: `missing`, `archived`, `no_authority`) and its ' +
+        '`reviewers`, the models it waits on (`holds`), its gates as a pass ' +
+        "judges them now, the organization's agent workers against the " +
+        'pool, and its last 20 passes. `servedBy` names the dispatches of ' +
+        'other projects that list this one as a source, the other ' +
+        'direction. Another project is named only to a caller who may ' +
+        'read it: a run on a board the caller may not read is counted in ' +
+        '`runCounts` and not listed in `runs`, and such a source or ' +
+        'serving dispatch answers `name: null`. A project without a ' +
+        'dispatch answers `configured: false` (and still its `servedBy`). ' +
         'Project readers; the same answer as the project’s Dispatch page.',
       operationId: 'getProjectDispatch',
       security: sec,

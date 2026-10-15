@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  crossProjectInstructionsBlock,
   instructionsDigest,
   projectInstructionsBlock,
   RunInstructionsUnavailableError,
@@ -20,6 +21,9 @@ function databaseWith(
     projectKey: string | null;
     projectInstructions: string | null;
     description: string | null;
+    agentProjectName?: string | null;
+    agentProjectKey?: string | null;
+    agentProjectInstructions?: string | null;
   } | null,
 ) {
   const statements: Array<{ text: string; values: unknown[] }> = [];
@@ -111,5 +115,99 @@ describe('every task turn opens with its project’s current instructions, and i
     expect(
       statements.some((statement) => statement.text.includes('UPDATE')),
     ).toBe(false);
+  });
+});
+
+describe('a run on another board belongs to it and follows both projects’ instructions [TASK-R74]', () => {
+  const board = {
+    name: 'Billing',
+    key: 'BIL',
+    instructions: 'Every task names its customer.',
+  };
+  const home = {
+    name: 'Development',
+    key: 'DEV',
+    instructions: 'Open a draft pull request for every change.',
+  };
+
+  it('hands both projects’ instructions, the board’s for its conventions and the agent’s own for how it works', () => {
+    const block = crossProjectInstructionsBlock({ task: board, agent: home });
+    expect(block).toContain(
+      'This task is on the board of project "Billing (BIL)"; you are an agent of project "Development (DEV)"',
+    );
+    expect(block).toContain(
+      "the board's project decides about its board, and your own project decides about your way of working",
+    );
+    expect(block).toContain('Every task names its customer.');
+    expect(block).toContain('Open a draft pull request for every change.');
+    // The board's own block comes first.
+    expect(block?.indexOf('Every task names')).toBeLessThan(
+      block?.indexOf('Open a draft') ?? -1,
+    );
+  });
+
+  it('still says whose board it is when only one project has instructions, and nothing when neither has', () => {
+    expect(
+      crossProjectInstructionsBlock({
+        task: { ...board, instructions: null },
+        agent: home,
+      }),
+    ).toContain('Open a draft pull request for every change.');
+    expect(
+      crossProjectInstructionsBlock({
+        task: { ...board, instructions: null },
+        agent: { ...home, instructions: ' ' },
+      }),
+    ).toBeNull();
+  });
+
+  it('records the digest of the agent’s own project’s instructions beside the board’s', async () => {
+    const { sql } = databaseWith({
+      projectName: board.name,
+      projectKey: board.key,
+      projectInstructions: board.instructions,
+      description: 'File the quarterly return.',
+      agentProjectName: home.name,
+      agentProjectKey: home.key,
+      agentProjectInstructions: home.instructions,
+    });
+    const answer = await snapshotRunInstructions(sql, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      taskId: 'task-1',
+      execId: 'exec-1',
+      agentInstructions: null,
+      now: 5,
+    });
+    expect(answer.snapshot).toEqual({
+      project: sha(board.instructions),
+      agentProject: sha(home.instructions),
+      agent: null,
+      task: sha('File the quarterly return.'),
+      execId: 'exec-1',
+      takenAt: 5,
+    });
+    expect(answer.projectBlock).toContain('Development (DEV)');
+  });
+
+  it('records no agent project for a run on its agent’s own board', async () => {
+    const { sql } = databaseWith({
+      projectName: home.name,
+      projectKey: home.key,
+      projectInstructions: home.instructions,
+      description: null,
+      agentProjectName: null,
+      agentProjectKey: null,
+      agentProjectInstructions: null,
+    });
+    const answer = await snapshotRunInstructions(sql, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      taskId: 'task-1',
+      execId: 'exec-1',
+      agentInstructions: null,
+    });
+    expect('agentProject' in answer.snapshot).toBe(false);
+    expect(answer.projectBlock).not.toContain('you are an agent of project');
   });
 });

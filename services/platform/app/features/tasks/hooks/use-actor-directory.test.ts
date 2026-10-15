@@ -87,8 +87,26 @@ let accessScope: { orgWide: boolean; userIds: string[] } | undefined;
  * project is gone or out of reach. */
 let projectRead: { canEdit: boolean } | null | undefined;
 
+/** What `listServingAgents` answers: the agents other projects' dispatches
+ * put to work on this board. */
+let servingAgents:
+  | Array<{
+      agentId: string;
+      name: string;
+      tools: string[];
+      projectId: string;
+      projectName: string;
+    }>
+  | undefined;
+/** Whether `listServingAgents` is still being read. */
+let servingLoading = false;
+
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) => ({
+    isLoading:
+      args !== 'skip' &&
+      name === 'projects/queries:listServingAgents' &&
+      servingLoading,
     data:
       args === 'skip'
         ? undefined
@@ -96,7 +114,9 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
           ? accessScope
           : name === 'projects/queries:getProject'
             ? projectRead
-            : undefined,
+            : name === 'projects/queries:listServingAgents'
+              ? servingAgents
+              : undefined,
   }),
 }));
 
@@ -173,6 +193,52 @@ describe('useActorDirectory — members + project-agent instances', () => {
     expect(result.current.resolveActor('agent', 'dispatch').name).toBe(
       'timeline.dispatchActor',
     );
+  });
+
+  it('names and offers the agents another project’s dispatch puts to work on this board [TASK-R76]', () => {
+    servingAgents = [
+      {
+        agentId: 'coder',
+        name: 'Coder',
+        tools: ['task_comment'],
+        projectId: 'development',
+        projectName: 'Development',
+      },
+    ];
+    try {
+      const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+      expect(result.current.agents).toContainEqual({
+        type: 'agent',
+        id: 'coder',
+        name: 'Coder',
+        tools: ['task_comment'],
+        servedFrom: { projectId: 'development', projectName: 'Development' },
+      });
+      expect(result.current.resolveActor('agent', 'coder')).toMatchObject({
+        name: 'Coder',
+        isAgent: true,
+      });
+      expect(result.current.resolveAssigneeId('coder')).toBe('Coder');
+    } finally {
+      servingAgents = undefined;
+    }
+  });
+
+  it('counts the agents as loading until the agents serving the board are read too', () => {
+    const settled = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(settled.result.current.agentsLoading).toBe(false);
+    servingLoading = true;
+    try {
+      const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+      expect(result.current.agentsLoading).toBe(true);
+      // A mention names the project's own agents alone: it does not wait
+      // for the agents serving the board.
+      expect(result.current.mentionsPending).toBe(
+        settled.result.current.mentionsPending,
+      );
+    } finally {
+      servingLoading = false;
+    }
   });
 
   it('resolves assignee ids without a type for activity timeline rows', () => {

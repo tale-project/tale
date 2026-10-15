@@ -770,7 +770,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agenten mit der Arbeitsverteilung auslasten",
-      "description": "Lass Tale die bereiten Aufgaben eines Projekts auf freien Agenten starten, ständige Rollen nach Zeitplan ausführen, Arbeit hinter Signalen von außen zurückhalten und sehen, warum ein Agent untätig ist."
+      "description": "Lass Tale die bereiten Aufgaben eines Projekts auf freien Agenten starten, ständige Rollen nach Zeitplan ausführen, die Boards anderer Projekte bedienen, Arbeit hinter Signalen von außen zurückhalten und sehen, warum ein Agent untätig ist."
     }
   },
   "de:platform/projects/manage-files": {
@@ -2002,7 +2002,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Keep agents busy with dispatch",
-      "description": "Let Tale start a project's ready tasks on idle agents, run standing roles on a schedule, hold work behind outside signals, and see why an agent is idle."
+      "description": "Let Tale start a project's ready tasks on idle agents, run standing roles on a schedule, serve other projects' boards, hold work behind outside signals, and see why an agent is idle."
     }
   },
   "en:platform/projects/manage-files": {
@@ -3234,7 +3234,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Occuper les agents avec la répartition du travail",
-      "description": "Laisse Tale lancer les tâches prêtes d’un projet sur les agents libres, exécuter des rôles permanents selon un horaire, retenir du travail derrière des signaux extérieurs et voir pourquoi un agent est inactif."
+      "description": "Laisse Tale lancer les tâches prêtes d’un projet sur les agents libres, exécuter des rôles permanents selon un horaire, desservir les tableaux d’autres projets, retenir du travail derrière des signaux extérieurs et voir pourquoi un agent est inactif."
     }
   },
   "fr:platform/projects/manage-files": {

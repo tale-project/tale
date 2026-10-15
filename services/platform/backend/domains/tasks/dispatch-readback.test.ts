@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
+import type { Sql } from 'postgres';
+import { describe, expect, it, vi } from 'vitest';
 
-import { countRunsByAgent, idleReason } from './dispatch-readback.ts';
+import {
+  countRunsByAgent,
+  dispatchAsReadBy,
+  idleReason,
+  nameIfReadable,
+  readDispatchAsReader,
+} from './dispatch-readback.ts';
 
 describe('the readback says why an idle agent of the pool is idle [TASK-R46]', () => {
   it('names a switched-off dispatch first, then the model the agent waits on', () => {
@@ -37,6 +45,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
     const counts = countRunsByAgent([
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'running',
         parked: false,
         reason: null,
@@ -44,6 +53,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: false,
         reason: null,
@@ -51,6 +61,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: 'model_capacity',
@@ -58,6 +69,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: 'org_limit',
@@ -65,6 +77,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'scribe',
+        projectId: 'p-dev',
         status: 'running',
         parked: false,
         reason: null,
@@ -90,6 +103,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
     const counts = countRunsByAgent([
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: 'a_newer_reason',
@@ -97,6 +111,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: null,
@@ -104,5 +119,110 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
     ]);
     expect(counts.get('coder')?.waiting).toEqual({ unknown: 5 });
+  });
+});
+
+describe('the readback names another project only to who may read it [TASK-R80]', () => {
+  it('keeps the name of a project the reader may read, and withholds the rest', () => {
+    const readable = new Set(['p-dev', 'p-billing']);
+    expect(nameIfReadable(readable, 'p-billing', 'Billing')).toBe('Billing');
+    expect(nameIfReadable(readable, 'p-payroll', 'Payroll')).toBeNull();
+    // A project gone from the organization has no name to withhold.
+    expect(nameIfReadable(readable, 'p-dev', null)).toBeNull();
+  });
+});
+
+describe('the readback shows the labels of a board it serves only to who may read it [TASK-R80]', () => {
+  /** Development's dispatch serves Billing and Payroll; its deploy gate
+   * names Development's label "release", Billing's "invoices" and
+   * Payroll's "salaries"; its payroll gate names Payroll's alone. */
+  const config: ProjectDispatch = {
+    enabled: true,
+    agents: ['coder'],
+    maxConcurrentRuns: 2,
+    statuses: ['todo'],
+    assignment: 'pool',
+    labels: { include: ['release'] },
+    sources: [
+      { projectId: 'p-billing', labels: { include: ['Invoices'] } },
+      {
+        projectId: 'p-payroll',
+        labels: { include: ['Salaries'], exclude: ['Secret'] },
+      },
+    ],
+    gates: [
+      { key: 'deploy', labels: ['release', 'Invoices', 'Salaries'] },
+      { key: 'payroll', labels: ['Salaries'] },
+      { key: 'freeze' },
+    ],
+  };
+
+  it('withholds a hidden board’s labels, and the gate labels only it has, from who may not read it', () => {
+    // Noah reads Development and Billing, not Payroll.
+    expect(
+      dispatchAsReadBy(
+        config,
+        new Set(['p-dev', 'p-billing']),
+        new Set(['release', 'invoices']),
+      ),
+    ).toEqual({
+      ...config,
+      sources: [
+        { projectId: 'p-billing', labels: { include: ['Invoices'] } },
+        { projectId: 'p-payroll' },
+      ],
+      // A gate left with none of its labels governs only work he may not
+      // read: it is left out, not shown as holding every ready task.
+      gates: [
+        { key: 'deploy', labels: ['release', 'Invoices'] },
+        { key: 'freeze' },
+      ],
+    });
+  });
+
+  it('shows the whole dispatch to who reads every board it serves', () => {
+    expect(
+      dispatchAsReadBy(config, new Set(['p-billing', 'p-payroll']), new Set()),
+    ).toBe(config);
+  });
+
+  it('reads the labels of the projects the reader reads, and nothing for who administers the dispatch', async () => {
+    const queries: unknown[][] = [];
+    const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      queries.push(values);
+      expect(strings.join('?')).toContain('FROM app.task_labels');
+      return Promise.resolve([{ name: 'release' }, { name: 'invoices' }]);
+    }) as unknown as Sql;
+    const auth = {
+      organizationId: 'org-1',
+      userId: 'noah',
+      role: 'member',
+      teamIds: [],
+    };
+    const readable = new Set(['p-dev', 'p-billing']);
+    const shown = await readDispatchAsReader(sql, auth, {
+      projectId: 'p-dev',
+      config,
+      administers: false,
+      readable,
+    });
+    expect(shown.sources?.[1]).toEqual({ projectId: 'p-payroll' });
+    expect(shown.gates?.map((gate) => gate.key)).toEqual(['deploy', 'freeze']);
+    // Development's labels and Billing's, never Payroll's.
+    expect(queries[0]).toEqual([
+      'org-1',
+      ['p-dev', 'p-billing'],
+      ['release', 'invoices', 'salaries'],
+    ]);
+    const untouched = vi.fn();
+    expect(
+      await readDispatchAsReader(untouched as unknown as Sql, auth, {
+        projectId: 'p-dev',
+        config,
+        administers: true,
+        readable,
+      }),
+    ).toBe(config);
+    expect(untouched).not.toHaveBeenCalled();
   });
 });

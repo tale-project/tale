@@ -1,12 +1,14 @@
 import {
   DISPATCH_DEFAULTS,
   DISPATCH_RUNS_LISTED,
+  type DispatchServingAgent,
   type DispatchAgentRun,
   type DispatchAgentRunCounts,
   type DispatchIdleReason,
+  type ProjectDispatch,
   type ProjectDispatchStatus,
 } from '@tale/shared/schemas/project-dispatch';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { isAgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
@@ -14,6 +16,7 @@ import {
   assertReadable,
   checkProjectAdministrable,
   loadProjectOrThrow,
+  readableProjectsAmong,
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { projectSessionRoom } from '../sandbox/sessions.ts';
@@ -23,6 +26,12 @@ import {
   readGateStates,
   type GateState,
 } from './dispatch-gates.ts';
+import {
+  agentsServingProject,
+  dispatchesServing,
+  judgeDispatchSources,
+  sourceView,
+} from './dispatch-reach.ts';
 import { nextRoleOccurrence } from './dispatch-roles.ts';
 import {
   dispatchConfigurationValue,
@@ -32,12 +41,19 @@ import { listModelCapacityHolds } from './model-capacity-holds.ts';
 
 /**
  * What a project's dispatch is doing, for the people who read the project:
- * every agent of its pool with how many runs it holds by what they do, the
- * oldest of them (at most `DISPATCH_RUNS_LISTED`), or why it is idle, its
- * standing roles with their next and last occurrence, the models it waits
- * on, the organization's agent workers against the pool, and its recent
- * passes. The answer to "why is this agent idle" is read here, from the run
+ * every agent of its pool with how many runs it holds by what they do (on
+ * every board it serves), the oldest of them (at most
+ * `DISPATCH_RUNS_LISTED`), or why it is idle, its standing roles with their
+ * next and last occurrence, the other boards it serves (each reachable now
+ * or skipped with why) and its reviewers, the dispatches of other projects
+ * that serve this one, the models it waits on, the organization's agent
+ * workers against the pool, and its recent passes. The answer to "why is this agent idle" is read here, from the run
  * ledger and the passes, never from where the cards stand on the board.
+ *
+ * Another project is named only to a reader who may read it: a run on a
+ * board the reader may not read is counted, never listed (its task's title
+ * and number stay on that board), and a board it serves or a dispatch that
+ * serves it answers without its name ({@link nameIfReadable}).
  */
 
 /** Why an agent of the pool works on nothing now. */
@@ -46,6 +62,158 @@ export type DispatchPoolAgent = ProjectDispatchStatus['pool'][number];
 export type { DispatchAgentRun, ProjectDispatchStatus };
 
 const PASSES_SHOWN = 20;
+
+/** The agents other projects' dispatches put to work on this project's
+ * board now (`agentsServingProject`), for anyone who reads the project: the
+ * board names them and offers them to assign and to review. */
+export async function readAgentsServingProject(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<{ agents: DispatchServingAgent[] }> {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  const agents = await agentsServingProject(sql, {
+    organizationId: auth.organizationId,
+    projectId,
+  });
+  const readable = await readableProjectsAmong(
+    sql,
+    auth,
+    agents.map((agent) => agent.projectId),
+  );
+  return {
+    agents: agents.map((agent) =>
+      withReadableName(readable, agent, 'projectName'),
+    ),
+  };
+}
+
+/**
+ * The dispatch as a reader who may not administer it reads it: a board it
+ * serves that they may not read is listed without the labels that select
+ * its work, and each gate without the labels that name a label of none of
+ * the projects they read (`readLabels`, case-folded: the dispatch's own and
+ * the boards it serves they may read) — and without the gate itself once
+ * none of its labels is left, since it governs only work on boards they may
+ * not read. Whoever administers the dispatch reads it whole
+ * ({@link readDispatchAsReader}): a save names the version it read.
+ */
+export function dispatchAsReadBy(
+  config: ProjectDispatch,
+  readable: ReadonlySet<string>,
+  readLabels: ReadonlySet<string>,
+): ProjectDispatch {
+  const hidden = (config.sources ?? []).filter(
+    (source) => !readable.has(source.projectId),
+  );
+  if (hidden.length === 0) return config;
+  const { sources, gates, ...rest } = config;
+  const shownGates = (gates ?? []).flatMap((gate) => {
+    if (gate.labels === undefined) return [gate];
+    const labels = gate.labels.filter((name) =>
+      readLabels.has(name.toLowerCase()),
+    );
+    return labels.length === 0 ? [] : [{ ...gate, labels }];
+  });
+  return {
+    ...rest,
+    ...(sources !== undefined
+      ? {
+          sources: sources.map((source) => {
+            if (readable.has(source.projectId)) return source;
+            const { labels: _withheld, ...shown } = source;
+            return shown;
+          }),
+        }
+      : {}),
+    ...(gates !== undefined ? { gates: shownGates } : {}),
+  };
+}
+
+/**
+ * The dispatch of a project as the caller reads it: whole for whoever may
+ * administer it, else {@link dispatchAsReadBy} — reading the labels of the
+ * projects they may read only when a board it serves is hidden from them
+ * and a gate names labels.
+ */
+export async function readDispatchAsReader(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: {
+    projectId: string;
+    config: ProjectDispatch;
+    administers: boolean;
+    /** The projects the caller may read, when the caller already knows. */
+    readable?: ReadonlySet<string>;
+  },
+): Promise<ProjectDispatch> {
+  const sourceIds = (args.config.sources ?? []).map(
+    (source) => source.projectId,
+  );
+  if (args.administers || sourceIds.length === 0) return args.config;
+  const readable =
+    args.readable ?? (await readableProjectsAmong(sql, auth, sourceIds));
+  if (sourceIds.every((projectId) => readable.has(projectId))) {
+    return args.config;
+  }
+  const names = [
+    ...new Set(
+      (args.config.gates ?? []).flatMap((gate) =>
+        (gate.labels ?? []).map((name) => name.toLowerCase()),
+      ),
+    ),
+  ];
+  const readProjects = [
+    args.projectId,
+    ...sourceIds.filter((projectId) => readable.has(projectId)),
+  ];
+  const rows =
+    names.length === 0
+      ? []
+      : await sql<{ name: string }[]>`
+          SELECT DISTINCT lower(name) AS name FROM app.task_labels
+          WHERE org_id = ${auth.organizationId}
+            AND project_id = ANY(${readProjects})
+            AND lower(name) = ANY(${names})
+        `;
+  return dispatchAsReadBy(
+    args.config,
+    readable,
+    new Set(rows.map((row) => row.name)),
+  );
+}
+
+/** Another project's name, for a reader who may read that project; null
+ * otherwise, so nothing of it reaches who may not. */
+export function nameIfReadable(
+  readable: ReadonlySet<string>,
+  projectId: string,
+  name: string | null,
+): string | null {
+  return readable.has(projectId) ? name : null;
+}
+
+/** The row with its project's name under `key` kept for a reader who may
+ * read that project, and null for anyone else ({@link nameIfReadable}). */
+function withReadableName<
+  Row extends { projectId: string },
+  Key extends keyof Row & string,
+>(
+  readable: ReadonlySet<string>,
+  row: Row,
+  key: Key,
+): Omit<Row, Key> & Record<Key, string | null> {
+  const name = row[key];
+  return {
+    ...row,
+    [key]: nameIfReadable(
+      readable,
+      row.projectId,
+      typeof name === 'string' ? name : null,
+    ),
+  };
+}
 
 export async function readProjectDispatchStatus(
   sql: Sql,
@@ -66,7 +234,16 @@ export async function readProjectDispatchStatus(
   const holds = await listModelCapacityHolds(sql, organizationId);
   const now = Date.now();
   const activeHolds = holds.filter((hold) => hold.heldUntilMs > now);
+  const serving = await dispatchesServing(sql, { organizationId, projectId });
   if (stored === null) {
+    const readable = await readableProjectsAmong(
+      sql,
+      auth,
+      serving.map((row) => row.projectId),
+    );
+    const servedBy = serving.map((row) =>
+      withReadableName(readable, row, 'name'),
+    );
     return {
       configured: unreadable,
       unreadable,
@@ -76,6 +253,9 @@ export async function readProjectDispatchStatus(
       state: null,
       pool: [],
       standingRoles: [],
+      sources: [],
+      reviewers: [],
+      servedBy,
       holds: activeHolds.map(holdView),
       gates: [],
       workers: { limit: cap, inUse: inFlight },
@@ -101,7 +281,11 @@ export async function readProjectDispatchStatus(
   const state = states[0] ?? null;
   const roles = config.standingRoles ?? [];
   const agentIds = [
-    ...new Set([...config.agents, ...roles.map((role) => role.agentId)]),
+    ...new Set([
+      ...config.agents,
+      ...roles.map((role) => role.agentId),
+      ...(config.reviewers ?? []),
+    ]),
   ];
   const agents =
     agentIds.length === 0
@@ -120,24 +304,41 @@ export async function readProjectDispatchStatus(
             AND id = ANY(${agentIds})
         `;
   const agentById = new Map(agents.map((agent) => [agent.id, agent]));
-  // Every live run of the agents, counted by what it does; and the oldest
-  // of each agent's, listed: an agent kept on hundreds of tasks reads in one
-  // small answer.
+  // Every live run of the agents, on whichever board, counted by what it
+  // does; and the oldest of each agent's, listed: an agent kept on hundreds
+  // of tasks reads in one small answer.
   const tallies =
     agentIds.length === 0
       ? []
       : await sql<RunTally[]>`
-          SELECT r.agent_id AS "agentId", r.status,
+          SELECT r.agent_id AS "agentId", r.project_id AS "projectId",
+                 r.status,
                  r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
                  r.waiting_reason AS reason, count(*)::int AS count
           FROM app.project_agent_runs r
-          WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+          WHERE r.org_id = ${organizationId}
             AND r.agent_id = ANY(${agentIds})
             AND r.status IN ('queued', 'running')
-          GROUP BY r.agent_id, r.status, parked, r.waiting_reason
+          GROUP BY r.agent_id, r.project_id, r.status, parked, r.waiting_reason
         `;
+  // The other projects this answer would name — the boards of those runs,
+  // the boards it serves and the dispatches serving it — and which of them
+  // the reader may read.
+  const readable = await readableProjectsAmong(sql, auth, [
+    projectId,
+    ...tallies.map((tally) => tally.projectId),
+    ...(config.sources ?? []).map((source) => source.projectId),
+    ...serving.map((row) => row.projectId),
+  ]);
+  const listedBoards = [
+    ...new Set(
+      tallies
+        .map((tally) => tally.projectId)
+        .filter((board) => readable.has(board)),
+    ),
+  ];
   const runs =
-    agentIds.length === 0
+    listedBoards.length === 0
       ? []
       : await sql<
           (Omit<DispatchAgentRun, 'waitingReason'> & {
@@ -147,19 +348,22 @@ export async function readProjectDispatchStatus(
           })[]
         >`
           SELECT listed."runId", listed."taskId", listed."agentId",
+                 listed."projectId",
                  t.number AS "taskNumber", t.title AS "taskTitle",
                  listed.status, listed.parked, listed.reason
           FROM (
             SELECT r.id AS "runId", r.task_id AS "taskId",
-                   r.agent_id AS "agentId", r.status,
+                   r.agent_id AS "agentId", r.project_id AS "projectId",
+                   r.status,
                    r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
                    r.waiting_reason AS reason,
                    row_number() OVER (
                      PARTITION BY r.agent_id ORDER BY r.started_at_ms, r.id
                    ) AS place
             FROM app.project_agent_runs r
-            WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+            WHERE r.org_id = ${organizationId}
               AND r.agent_id = ANY(${agentIds})
+              AND r.project_id = ANY(${listedBoards})
               AND r.status IN ('queued', 'running')
           ) listed
           JOIN app.tasks t ON t.id = listed."taskId"
@@ -172,6 +376,7 @@ export async function readProjectDispatchStatus(
     list.push({
       runId: run.runId,
       taskId: run.taskId,
+      projectId: run.projectId,
       taskNumber: run.taskNumber,
       taskTitle: run.taskTitle,
       status: run.status,
@@ -269,11 +474,20 @@ export async function readProjectDispatchStatus(
     ORDER BY started_at_ms DESC
     LIMIT ${PASSES_SHOWN}
   `;
+  // What of the dispatch the reader reads: a board it serves that they may
+  // not read is listed without its labels, and so are the gates
+  // (`dispatchAsReadBy`).
+  const shown = await readDispatchAsReader(sql, auth, {
+    projectId,
+    config,
+    administers: canEdit,
+    readable,
+  });
   const gateStates =
-    (config.gates ?? []).length === 0
+    (shown.gates ?? []).length === 0
       ? new Map<string, GateState>()
       : await readGateStates(sql, projectId);
-  const gates = (config.gates ?? []).map((gate) => {
+  const gates = (shown.gates ?? []).map((gate) => {
     const gateState = gateStates.get(gate.key);
     const verdict = judgeGate(gate, gateState, now);
     return {
@@ -291,15 +505,28 @@ export async function readProjectDispatchStatus(
       spacedUntil: verdict.spacedUntil,
     };
   });
-  const configValue = dispatchConfigurationValue(projectId, config);
+  const sources = await judgeDispatchSources(sql, {
+    organizationId,
+    sources: shown.sources ?? [],
+    authorityUserId: stored.updatedBy,
+  });
+  const configValue = dispatchConfigurationValue(projectId, shown);
   return {
     configured: true,
     unreadable: false,
-    config,
+    config: shown,
     hash: managedConfigurationHash(configValue),
     canEdit,
     state,
     pool,
+    sources: sources.map((source) =>
+      withReadableName(readable, sourceView(shown, source), 'name'),
+    ),
+    reviewers: (config.reviewers ?? []).map((agentId) => ({
+      agentId,
+      name: agentById.get(agentId)?.name ?? null,
+    })),
+    servedBy: serving.map((row) => withReadableName(readable, row, 'name')),
     standingRoles: roles.map((role) => {
       const last = lastOf.get(role.key);
       return {
@@ -349,10 +576,11 @@ function holdView(hold: {
   };
 }
 
-/** One group of an agent's live runs: its status, whether it waits, why,
- * and how many runs share all three. */
+/** One group of an agent's live runs: the board they are on, their
+ * status, whether they wait, why, and how many runs share all four. */
 export interface RunTally {
   agentId: string;
+  projectId: string;
   status: 'queued' | 'running';
   parked: boolean;
   reason: string | null;

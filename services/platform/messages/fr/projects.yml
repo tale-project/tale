@@ -534,6 +534,35 @@ dispatch:
       blocked: 'Non lancée : un bloqueur ouvert retient la tâche'
       in_review: 'Non lancée : la tâche est en relecture'
       closed: 'Non lancée : la tâche est terminée'
+  sources:
+    title: Tableaux desservis
+    caption: Autres projets dont cette répartition du travail prend aussi les tâches prêtes
+    description: Son pool prend les tâches prêtes de ces projets en plus de celles de ce projet, dans un seul ordre. Tant qu’elle les dessert, son pool, les agents de ses rôles permanents et ses relecteurs peuvent se voir attribuer leurs tâches, y être lancés et y travailler.
+    project: Projet
+    state: État
+    columns: Prend le travail dans
+    labels: Libellés
+    served: Desservi
+    skipped:
+      missing: 'Ignoré : le projet n’existe plus'
+      archived: 'Ignoré : le projet est archivé'
+      no_authority: 'Ignoré : la dernière personne à avoir enregistré cette répartition ne peut plus modifier ce projet'
+    unknownProject: Un projet qui n’est plus dans cette organisation
+    hiddenProject: Un projet que tu ne peux pas ouvrir
+    allWork: Toutes les tâches prêtes
+    only: 'Seulement {labels}'
+    never: 'Jamais {labels}'
+    declared: La configuration gérée et les outils de paramètres déclarent ces tableaux et les relecteurs. Enregistrer ici les garde tels quels, et la répartition les dessert ensuite grâce à ton droit. Un tableau que tu ne peux pas modifier est ignoré.
+  reviewers:
+    title: Relecteurs
+    description: Ces agents relisent ce que le pool a produit, sur ce tableau et sur chaque tableau qu’il dessert. Le premier qui n’a pas produit le travail en prend la relecture, sauf si la tâche désigne son propre relecteur.
+    unknownAgent: Un agent qui n’est plus dans ce projet
+  servedBy:
+    title: '{count, plural, one {La répartition du travail d’un autre projet dessert ce tableau} other {Les répartitions du travail de # autres projets desservent ce tableau}}'
+    body: Leurs agents peuvent se voir attribuer les tâches prêtes de ce projet, y être lancés et y travailler.
+    item: 'Desservi par la répartition du travail de {project}'
+    hiddenItem: Desservi par la répartition du travail d’un autre projet
+    off: désactivée
   gates:
     title: Barrières
     caption: Barrières de la répartition du travail de ce projet
@@ -689,6 +718,9 @@ dispatch:
       roleTask: Choisis une tâche de ce projet qui n’est pas archivée.
       cron: Cette planification n’est pas lisible.
       label: 'Ce projet n’a pas d’étiquette nommée « {name} ».'
+      sourceProject: Le tableau {place} des Tableaux desservis doit être un autre projet actif de cette organisation que tu peux modifier.
+      sourceLabel: Le tableau {place} des Tableaux desservis nomme une étiquette que ce projet n’a pas.
+      reviewer: Le relecteur {place} doit être un agent de ce projet autorisé à relire des tâches.
       refusedTitle: La répartition du travail a été refusée
     saved: Répartition du travail enregistrée
     saveFailed: Impossible d’enregistrer la répartition du travail.
@@ -696,4 +728,6 @@ dispatch:
     conflict: Quelqu’un d’autre a enregistré cette répartition du travail pendant que tu la modifiais. Charge la version actuelle, puis refais ta modification.
     changedTitle: Cette répartition du travail a changé depuis son ouverture
     changedBody: Un enregistrement serait refusé maintenant. Charge la version actuelle pour repartir d’elle ; tes modifications ici sont abandonnées.
+    servesAgainTitle: Enregistrer pour desservir à nouveau un tableau ignoré
+    servesAgainBody: La dernière personne à avoir enregistré cette répartition ne peut plus modifier un tableau qu’elle dessert, elle l’ignore donc. Tu peux le modifier. Enregistrer, même sans modification, le dessert à nouveau grâce à ton droit.
     reload: Charger la version actuelle

@@ -26,6 +26,7 @@ import {
   startDelegatedAgentRun,
   withStartWait,
 } from '../tasks/delegated-start.ts';
+import { authorityReaches, readAgentReach } from '../tasks/dispatch-reach.ts';
 import { TaskError } from '../tasks/errors.ts';
 import {
   startAgentReviewBatch,
@@ -34,6 +35,7 @@ import {
 import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
   isTaskRunConfined,
+  runProjectScope,
   runStarterMayEditProject,
 } from '../tasks/run-authority.ts';
 import { getCurrentUser } from '../users/service.ts';
@@ -67,6 +69,9 @@ import { coded, workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 interface BindingResolution {
   kind: 'project' | 'org_run' | 'none';
   projectId?: string;
+  /** `project` with a project agent only: the other boards the agent's
+   * project's dispatch puts it to work on now (`tasks/dispatch-reach.ts`). */
+  reachedProjectIds?: string[];
   actorId?: string;
   /** Who the session belongs to: a project agent's session also answers to
    * the person who started each run on it. */
@@ -104,9 +109,14 @@ async function resolveSessionBinding(
         LIMIT 1
       `;
       if (projects.length > 0) {
+        const reach = await readAgentReach(sql, {
+          organizationId,
+          agentId: agent.id,
+        });
         return {
           kind: 'project',
           projectId: agent.projectId,
+          reachedProjectIds: reach?.reachedProjectIds ?? [],
           actorId: agent.id,
           ownerType: 'project_agent',
         };
@@ -151,6 +161,8 @@ async function taskRunConfinement(
     sessionId: string;
     agentId: string;
     projectId: string;
+    /** The other boards the agent reaches now (`BindingResolution`). */
+    reachedProjectIds?: readonly string[];
     execId?: string;
   },
 ): Promise<
@@ -159,11 +171,20 @@ async function taskRunConfinement(
   | {
       taskId?: string;
       currentExecution?: Omit<SessionCurrentExecution, 'observedAt'>;
+      /** Whether this run's task, document and knowledge tools reach the
+       * agent's own project: not for a run on another board whose starter
+       * may not read it (`tasks/run-authority.ts`, `runProjectScope`). */
+      ownProject: boolean;
+      /** The other boards this run's task tools reach: of the agent's, the
+       * ones its starter may act in, and its own task's while its starter
+       * may read it (`runProjectScope`). */
+      reachedProjectIds: string[];
     }
 > {
   if (args.execId === undefined) {
+    // No run to answer to: nobody's right reaches another board.
     return isStandingProjectAgentSession(args.agentId, args.sessionId)
-      ? {}
+      ? { ownProject: true, reachedProjectIds: [] }
       : 'ended';
   }
   const runs = await sql<
@@ -191,12 +212,10 @@ async function taskRunConfinement(
     LIMIT 1
   `;
   const run = runs[0];
-  if (
-    run === undefined ||
-    run.agentId !== args.agentId ||
-    run.projectId !== args.projectId
-  )
-    return 'ended';
+  if (run === undefined || run.agentId !== args.agentId) return 'ended';
+  // A run on another board acts only while the agent's project's dispatch
+  // still reaches that board; once it does not, its tools act for nobody.
+  if (!authorityReaches(args, run.projectId)) return 'revoked';
   if (
     ['trigger', 'dispatch'].includes(parseRunStarter(run.startedBy).kind) &&
     !(await runStarterMayEditProject(sql, {
@@ -210,6 +229,12 @@ async function taskRunConfinement(
   const confined = await isTaskRunConfined(sql, {
     organizationId: args.organizationId,
     ...run,
+  });
+  const scope = await runProjectScope(sql, {
+    organizationId: args.organizationId,
+    homeProjectId: args.projectId,
+    reachedProjectIds: args.reachedProjectIds ?? [],
+    run,
   });
   const execution =
     typeof run.runId === 'string' &&
@@ -231,7 +256,11 @@ async function taskRunConfinement(
           },
         }
       : {};
-  return { ...(confined ? { taskId: run.taskId } : {}), ...execution };
+  return {
+    ...(confined ? { taskId: run.taskId } : {}),
+    ...execution,
+    ...scope,
+  };
 }
 
 /** A fresh self read, bound to the token's live task exec, not its hint alone. */
@@ -257,6 +286,7 @@ export async function readSessionCurrentExecution(
     sessionId: args.sessionId,
     agentId: binding.actorId,
     projectId: binding.projectId,
+    reachedProjectIds: binding.reachedProjectIds ?? [],
     execId: args.taskRunExecId,
   });
   if (
@@ -277,7 +307,12 @@ async function requireProjectTaskRun(
     taskRunExecId?: string;
   },
   code: 'TASK_METADATA_FORBIDDEN' | 'TASK_REVIEW_FORBIDDEN',
-): Promise<{ projectId: string; agentId: string; execId: string }> {
+): Promise<{
+  projectId: string;
+  reachedProjectIds: string[];
+  agentId: string;
+  execId: string;
+}> {
   const binding = await resolveSessionBinding(
     tx,
     args.organizationId,
@@ -301,12 +336,14 @@ async function requireProjectTaskRun(
     sessionId: args.sessionId,
     agentId: binding.actorId,
     projectId: binding.projectId,
+    reachedProjectIds: binding.reachedProjectIds ?? [],
     execId: args.taskRunExecId,
   });
   if (
     confinement === 'ended' ||
     confinement === 'revoked' ||
-    confinement.taskId !== undefined
+    confinement.taskId !== undefined ||
+    !confinement.ownProject
   ) {
     throw new TaskError(
       code,
@@ -316,6 +353,7 @@ async function requireProjectTaskRun(
   }
   return {
     projectId: binding.projectId,
+    reachedProjectIds: confinement.reachedProjectIds,
     agentId: binding.actorId,
     execId: args.taskRunExecId,
   };
@@ -440,6 +478,8 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         sessionId: string;
         userId?: string;
+        /** The exec of the task run a task turn's token names. */
+        taskRunExecId?: string;
         subject: 'documents' | 'websites';
       };
       const binding = await resolveSessionBinding(
@@ -448,11 +488,37 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         args.sessionId,
       );
       if (binding.kind === 'project' && binding.projectId !== undefined) {
+        // A project agent's run reads its project's knowledge only while it
+        // may: not once it ended or was revoked, and not on another board
+        // for a starter who may not read the agent's own project
+        // (`tasks/run-authority.ts`) — the organization's shared knowledge
+        // alone then.
+        const confinement =
+          binding.ownerType === 'project_agent' && binding.actorId !== undefined
+            ? await taskRunConfinement(sql, {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                agentId: binding.actorId,
+                projectId: binding.projectId,
+                reachedProjectIds: binding.reachedProjectIds ?? [],
+                ...(args.taskRunExecId !== undefined
+                  ? { execId: args.taskRunExecId }
+                  : {}),
+              })
+            : { ownProject: true };
+        if (confinement === 'ended') {
+          return { allowed: false, reason: 'run_ended' };
+        }
+        if (confinement === 'revoked') {
+          return { allowed: false, reason: 'schedule_revoked' };
+        }
         return {
           allowed: true,
-          scope: await projectsKnowledgeScope(sql, args.organizationId, [
-            binding.projectId,
-          ]),
+          scope: await projectsKnowledgeScope(
+            sql,
+            args.organizationId,
+            confinement.ownProject ? [binding.projectId] : [],
+          ),
         };
       }
       if (binding.kind === 'org_run') {
@@ -512,21 +578,33 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
                 sessionId: args.sessionId,
                 agentId: binding.actorId,
                 projectId: binding.projectId,
+                reachedProjectIds: binding.reachedProjectIds ?? [],
                 ...(args.taskRunExecId !== undefined
                   ? { execId: args.taskRunExecId }
                   : {}),
               })
-            : {};
+            : { ownProject: true, reachedProjectIds: [] };
         if (confinement === 'ended') {
           return { allowed: false, reason: 'run_ended' };
         }
         if (confinement === 'revoked') {
           return { allowed: false, reason: 'schedule_revoked' };
         }
+        const reached = confinement.reachedProjectIds;
         return {
           allowed: true,
           actorId: binding.actorId,
-          scope: { kind: 'project', projectId: binding.projectId },
+          scope: {
+            kind: 'project',
+            projectId: binding.projectId,
+            // The boards its project's dispatch serves that this run's
+            // starter may act in: its task tools reach their tasks too
+            // (`tasks/dispatch-reach.ts`, `tasks/run-authority.ts`).
+            ...(reached.length > 0 ? { reachedProjectIds: reached } : {}),
+            // A run on another board whose starter may not read the agent's
+            // own project: its tools leave that project out.
+            ...(confinement.ownProject ? {} : { ownProjectExcluded: true }),
+          },
           ...(confinement.taskId !== undefined
             ? { confinedToTaskId: confinement.taskId }
             : {}),
@@ -588,6 +666,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
           return updateAgentTaskMetadata(tx, {
             organizationId: args.organizationId,
             projectId: authority.projectId,
+            reachedProjectIds: authority.reachedProjectIds,
             actorId: authority.agentId,
             patch: args.patch,
           });

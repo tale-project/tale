@@ -33,7 +33,19 @@ export interface WorkspaceActionAuthority {
    * org-level automation with no bindings) means the whole organization.
    */
   scope:
-    | { kind: 'project'; projectId: string }
+    | {
+        kind: 'project';
+        projectId: string;
+        /** The other boards the agent's project's dispatch puts it to work
+         * on: its task tools find, read and work their existing tasks too;
+         * it creates nothing there. Absent for most agents. */
+        reachedProjectIds?: string[];
+        /** Set for a run on a board another project's dispatch serves whose
+         * starter may not read the agent's own project (`projectId`): its
+         * task, document and knowledge tools leave that project out, and
+         * reach only `reachedProjectIds` (`tasks/run-authority.ts`). */
+        ownProjectExcluded?: true;
+      }
     | { kind: 'org'; allowedProjectIds?: string[] };
   /**
    * Set for a project agent's run that a member started — someone who may

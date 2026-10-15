@@ -97,6 +97,7 @@ import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
 import {
   agentRunWorkerNumber,
   cancelAgentRunInTx,
+  isAgentOutOfReach,
   isStandardAgentRefusal,
   kickAgentRun,
   parkedRunSql,
@@ -105,6 +106,7 @@ import {
 } from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
+import { agentReachesProject } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 import {
   assertTaskCanRepeat,
@@ -998,8 +1000,9 @@ function normalizeAssignee(args: {
 /**
  * Validate an assignee against the project. Humans need project read access
  * (self always allowed); agents must be a projectAgents instance of THIS
- * project; automations (`app`) are accepted with the deployment check
- * deferred to the automations domain (ledger).
+ * project, or an agent of another project whose dispatch serves this board
+ * (`dispatch-reach.ts`); automations (`app`) are accepted with the
+ * deployment check deferred to the automations domain (ledger).
  */
 export async function assertAssigneeValid(
   tx: TransactionSql,
@@ -1052,10 +1055,19 @@ export async function assertAssigneeValid(
       WHERE id = ${assignee.assigneeId} AND project_id = ${project.id}
       LIMIT 1
     `;
-    if (rows.length === 0) {
+    // An agent of this project, or one another project's dispatch puts to
+    // work on this board (`dispatch-reach.ts`).
+    if (
+      rows.length === 0 &&
+      !(await agentReachesProject(tx, {
+        organizationId: project.organizationId,
+        agentId: assignee.assigneeId,
+        projectId: project.id,
+      }))
+    ) {
       throw new TaskError(
         'AGENT_NOT_ALLOWED_IN_PROJECT',
-        'Agent is not an instance of this project',
+        'Agent is not an instance of this project, and no dispatch that serves it puts the agent to work here',
       );
     }
   }
@@ -2573,7 +2585,9 @@ export async function applyExternalTaskStatusProjection(
  * (the status picker, the drag, and a card CREATED straight into the column):
  * an agent-owned task gets its queued run + `task.agent_turn` job in the same
  * transaction as the status write, attributed to the person whose gesture it
- * was. A task with no agent assignee, or whose agent is gone, kicks nothing.
+ * was. A task with no agent assignee, whose agent is gone, or whose agent no
+ * longer works its board (another project's agent whose dispatch stopped
+ * serving it, `dispatch-reach.ts`) kicks nothing: the move itself stands.
  */
 async function kickAssignedAgentRun(
   tx: TransactionSql,
@@ -2596,20 +2610,29 @@ async function kickAssignedAgentRun(
   `;
   const agent = agents[0];
   if (!agent) return;
-  await kickAgentRun(tx, {
-    organizationId: auth.organizationId,
-    projectId: task.projectId,
-    taskId: task.id,
-    agentId: agent.id,
-    harness: agent.harness,
-    model: agent.model,
-    ...(agent.modelProvider !== null
-      ? { modelProvider: agent.modelProvider }
-      : {}),
-    startedBy: auth.userId,
-    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
-    trigger: 'manual',
-  });
+  try {
+    await kickAgentRun(tx, {
+      organizationId: auth.organizationId,
+      projectId: task.projectId,
+      taskId: task.id,
+      agentId: agent.id,
+      harness: agent.harness,
+      model: agent.model,
+      ...(agent.modelProvider !== null
+        ? { modelProvider: agent.modelProvider }
+        : {}),
+      startedBy: auth.userId,
+      ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
+      trigger: 'manual',
+    });
+  } catch (error) {
+    // A check made before the kick wrote anything: the transaction is still
+    // good, and the status write goes on without a run.
+    if (!isAgentOutOfReach(error)) throw error;
+    console.warn(
+      `[tasks] agent ${agent.id} no longer works the board of task ${task.id}; the move starts no run`,
+    );
+  }
 }
 
 /**
@@ -4976,6 +4999,18 @@ export async function startTaskAgentRunManual(
   const agent = agents[0];
   if (!agent) {
     return { started: false, reason: 'agent_missing' };
+  }
+  // Another project's agent works this board only while its project's
+  // dispatch serves it (`dispatch-reach.ts`): answered before the card
+  // moves, since the move alone would start nothing.
+  if (
+    !(await agentReachesProject(tx, {
+      organizationId: auth.organizationId,
+      agentId: agent.id,
+      projectId: task.projectId,
+    }))
+  ) {
+    return { started: false, reason: 'agent_out_of_reach' };
   }
   // The board verb IS the interface (the 0.4 rule): kicking the run moves
   // the card, and the move is the CALLER's own status write. A task not yet

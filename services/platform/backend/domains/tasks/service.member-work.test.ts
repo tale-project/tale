@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
+import { agentReachesProject } from './dispatch-reach.ts';
+import { TaskError } from './errors.ts';
 import { closePendingTaskReviewOnStatusLeave } from './reviews.ts';
 import {
   addTaskDependency,
@@ -43,12 +45,22 @@ vi.mock('./reviews.ts', () => ({
 }));
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
+  isAgentOutOfReach: (error: unknown) =>
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'AGENT_NOT_ALLOWED_IN_PROJECT',
   isStandardAgentRefusal: () => false,
   kickAgentRun: vi.fn(),
   withdrawWaitingAgentRunInTx: vi.fn(async () => false),
 }));
 vi.mock('./run-start.ts', () => ({
   mentionAutomationEnabled: vi.fn(() => Promise.resolve(true)),
+}));
+// Every agent here is its own project's: reach across boards is
+// `dispatch-reach.test.ts`'s.
+vi.mock('./dispatch-reach.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./dispatch-reach.ts')>()),
+  agentReachesProject: vi.fn(() => Promise.resolve(true)),
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn(() => Promise.resolve(null)),
@@ -658,6 +670,57 @@ describe('editors, as before', () => {
       expect.anything(),
       expect.objectContaining({ startedBy: 'u-editor' }),
     );
+  });
+});
+
+describe('an agent whose dispatch no longer serves the board', () => {
+  it('is refused by Start agent before the card moves or a run starts [TASK-R72]', async () => {
+    vi.mocked(agentReachesProject).mockResolvedValueOnce(false);
+    vi.mocked(kickAgentRun).mockClear();
+    const agentTask = taskRow({
+      id: 't-others',
+      createdBy: 'u-someone',
+      status: 'todo',
+      assigneeType: 'agent',
+      assigneeId: 'agent-1',
+    });
+
+    await expect(
+      startTaskAgentRunManual(fakeTx([agentTask]), editor, 't-others'),
+    ).resolves.toEqual({ started: false, reason: 'agent_out_of_reach' });
+    expect(agentReachesProject).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      agentId: 'agent-1',
+      projectId: 'p-1',
+    });
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(wrote('UPDATE app.tasks')).toBe(false);
+  });
+
+  it('still lets its task be put at In progress, which starts no run [TASK-R72]', async () => {
+    vi.mocked(kickAgentRun).mockRejectedValueOnce(
+      new TaskError(
+        'AGENT_NOT_ALLOWED_IN_PROJECT',
+        'The agent works neither in this project nor for a dispatch that serves it now',
+        409,
+      ),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await createTask(fakeTx([]), editor, {
+      projectId: 'p-1',
+      title: 'Fix the importer',
+      status: 'in_progress',
+      assigneeType: 'agent',
+      assigneeId: 'agent-1',
+    });
+
+    expect(wrote('INSERT INTO app.tasks')).toBe(true);
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('the move starts no run'),
+    );
+    warn.mockRestore();
   });
 });
 

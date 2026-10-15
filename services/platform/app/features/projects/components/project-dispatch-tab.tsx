@@ -2,21 +2,24 @@
 
 /**
  * The project's Dispatch tab: what its dispatch does — every agent of its
- * pool with the runs it holds or why it is idle, its standing roles, gates,
- * the models and agent workers it waits on, and its recent passes — for
- * anyone who reads the project. Who may administer the project sets it up,
+ * pool with the runs it holds or why it is idle, its standing roles, the
+ * other boards it serves and its reviewers, gates, the models and agent
+ * workers it waits on, and its recent passes — and which other projects'
+ * dispatches serve this board, for anyone who reads the project. Who may administer the project sets it up,
  * edits it, asks for a pass and holds or opens its gates. A read that failed
  * is named with Try again, never shown as a project without a dispatch; a
  * dispatch a newer version of Tale saved is named as such and offered for
  * no change.
  */
 
+import type { ProjectDispatchStatus } from '@tale/shared/schemas/project-dispatch';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Row } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { toast } from '@tale/ui/use-toast';
+import { Link } from '@tanstack/react-router';
 import { Pencil, Play, Plus, Waypoints } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -26,7 +29,10 @@ import { useT } from '@/lib/i18n/client';
 import { useProjectDispatch, useRequestDispatchPass } from '../hooks/dispatch';
 import { useProject, useProjectAgents } from '../hooks/queries';
 import { ProjectDispatchEditor } from './project-dispatch-editor';
-import { ProjectDispatchOverview } from './project-dispatch-overview';
+import {
+  ProjectDispatchOverview,
+  SOURCE_SKIPPED_KEYS,
+} from './project-dispatch-overview';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import {
   ProjectDispatchFrame,
@@ -143,6 +149,12 @@ export function ProjectDispatchTab({
             isRetrying={retrying}
           />
         ) : null}
+        {status !== undefined && status.servedBy.length > 0 ? (
+          <DispatchServedBy
+            organizationId={organizationId}
+            servedBy={status.servedBy}
+          />
+        ) : null}
         {status === undefined ? null : status.unreadable ? (
           <Alert
             variant="warning"
@@ -192,5 +204,59 @@ export function ProjectDispatchTab({
         />
       ) : null}
     </ProjectDispatchFrame>
+  );
+}
+
+/** The dispatches of other projects that serve this board: their agents
+ * may be assigned to, started on and work its ready tasks while they reach
+ * it. Each names its project, and says when it is switched off or skips
+ * this board, and why. */
+function DispatchServedBy({
+  organizationId,
+  servedBy,
+}: {
+  organizationId: string;
+  servedBy: ProjectDispatchStatus['servedBy'];
+}) {
+  const { t } = useT('projects');
+  return (
+    <Alert
+      variant="info"
+      icon={Waypoints}
+      live="off"
+      title={t('dispatch.servedBy.title', { count: servedBy.length })}
+      description={
+        <Stack gap={1}>
+          <p>{t('dispatch.servedBy.body')}</p>
+          <ul className="list-disc pl-5">
+            {servedBy.map((serving) => (
+              <li key={serving.projectId}>
+                {serving.name === null ? (
+                  // A project the reader may not read: unnamed, unlinked.
+                  <span className="font-medium">
+                    {t('dispatch.servedBy.hiddenItem')}
+                  </span>
+                ) : (
+                  <Link
+                    to="/dashboard/$id/projects/$projectId/dispatch"
+                    params={{
+                      id: organizationId,
+                      projectId: serving.projectId,
+                    }}
+                    className="focus-visible:ring-ring rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+                  >
+                    {t('dispatch.servedBy.item', { project: serving.name })}
+                  </Link>
+                )}
+                {!serving.enabled ? ` (${t('dispatch.servedBy.off')})` : null}
+                {serving.skipped !== null
+                  ? ` — ${t(SOURCE_SKIPPED_KEYS[serving.skipped])}`
+                  : null}
+              </li>
+            ))}
+          </ul>
+        </Stack>
+      }
+    />
   );
 }

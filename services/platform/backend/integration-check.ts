@@ -185,6 +185,7 @@ import {
 import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDependencyResolution } from './domains/tasks/dependencies.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
+import { checkDispatchAcrossProjects } from './domains/tasks/dispatch-across-projects.integration.ts';
 import {
   checkDispatchRampAndBudget,
   checkFleetDispatch,
@@ -65738,6 +65739,10 @@ async function main(): Promise<void> {
       [
         'checkDispatchRampAndBudget',
         () => checkDispatchRampAndBudget(sql, authCtx, record),
+      ],
+      [
+        'checkDispatchAcrossProjects',
+        () => checkDispatchAcrossProjects(sql, authCtx, record),
       ],
       [
         'checkHeavyPhaseLeases',

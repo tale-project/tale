@@ -133,6 +133,7 @@ describe('metadata session authority', () => {
     expect(updateAgentTaskMetadata).toHaveBeenCalledWith(f.tx, {
       organizationId: 'org',
       projectId: 'project',
+      reachedProjectIds: [],
       actorId: 'manager',
       patch: f.patch,
     });
@@ -202,6 +203,7 @@ describe('review session authority', () => {
       {
         organizationId: 'org',
         projectId: 'project',
+        reachedProjectIds: [],
         agentId: 'manager',
         sessionId: 'pa-manager',
         execId: 'issuer-exec',
@@ -243,6 +245,7 @@ describe('captured review delegation session authority', () => {
       {
         organizationId: 'org',
         projectId: 'project',
+        reachedProjectIds: [],
         agentId: 'manager',
         sessionId: 'pa-manager',
         execId: 'issuer-exec',

@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { agentReachesProject } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 
 /** New task work obeys the same master switch the mention preview shows.
@@ -108,7 +109,11 @@ export interface LockedAgent {
  * Share delegated admission's agent row fence with managed review-context
  * enrollment. A write invalidates an overlapping SERIALIZABLE snapshot too.
  * Callers that lock both take the agent before the task; worker capacity is
- * owned separately by agent-workers.ts. Null means no matching agent.
+ * owned separately by agent-workers.ts. Null means no matching agent: none
+ * of the organization has that id, or — with `projectId` — it neither
+ * belongs to that project nor reaches it through its own project's dispatch
+ * (`dispatch-reach.ts`). Reach is judged before another project's agent
+ * is locked, so a refused agent is never fenced.
  */
 export async function lockAgentForStart(
   tx: TransactionSql,
@@ -122,5 +127,24 @@ export async function lockAgentForStart(
     RETURNING id, project_id AS "projectId", harness, model,
               model_provider AS "modelProvider"
   `;
-  return agents[0] ?? null;
+  const own = agents[0];
+  if (own !== undefined || args.projectId === undefined) return own ?? null;
+  // Not the project's own agent: one its project's dispatch puts to work on
+  // this board, or none.
+  if (
+    !(await agentReachesProject(tx, {
+      organizationId: args.organizationId,
+      agentId: args.agentId,
+      projectId: args.projectId,
+    }))
+  ) {
+    return null;
+  }
+  const reaching = await tx<LockedAgent[]>`
+    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+    RETURNING id, project_id AS "projectId", harness, model,
+              model_provider AS "modelProvider"
+  `;
+  return reaching[0] ?? null;
 }

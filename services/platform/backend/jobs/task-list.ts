@@ -65,6 +65,7 @@ import {
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import {
   failAgentRun,
+  isAgentOutOfReach,
   isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
@@ -498,6 +499,12 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         if (isStandardAgentRefusal(error)) {
           await retire(true);
           return 'standard_agent_unavailable';
+        }
+        // Another project's agent whose dispatch stopped serving this board
+        // (`dispatch-reach.ts`): no retry brings that back either.
+        if (isAgentOutOfReach(error)) {
+          await retire(true);
+          return 'agent_out_of_reach';
         }
         throw error;
       }

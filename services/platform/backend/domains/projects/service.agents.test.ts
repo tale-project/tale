@@ -572,7 +572,6 @@ describe('deleteProjectAgent [PROJ-R12]', () => {
     await deleteProjectAgent(tx, auth, 'agent-1');
     expect(unassign.clearAgentAssignmentsInTx).toHaveBeenCalledWith(tx, {
       organizationId: 'org_1',
-      projectId: 'project-1',
       agentId: 'agent-1',
       actorId: 'user-1',
     });

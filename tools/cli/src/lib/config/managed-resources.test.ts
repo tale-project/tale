@@ -10,6 +10,7 @@ import {
 import type { ManagedProjectDispatch } from '@tale/shared/schemas/managed-configuration';
 
 import { managedConfigurationHash } from '../../../../../services/platform/backend/core/lib/config_store/value_hash';
+import { CliError } from '../../utils/fail';
 import { readManagedResource } from './managed-resources';
 import {
   applyPlatformConfiguration,
@@ -1038,6 +1039,41 @@ describe('managed project dispatch', () => {
     expect(api.writes).toEqual([]);
   });
 
+  test('stops a declaration whose dispatch serves a board the key may not edit, before anything is written', async () => {
+    const config = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [
+        {
+          kind: 'project-dispatch',
+          config: {
+            ...dispatch,
+            sources: [{ projectId: 'project-2' }],
+            reviewers: ['agent-1'],
+          },
+        },
+        ...declaration().resources,
+      ],
+    });
+    const api = native(config.resources);
+    api.refuse([
+      {
+        path: 'sources.0.projectId',
+        message:
+          'Serving that project’s board needs the right to edit it, which you do not have.',
+      },
+    ]);
+    const planning = planPlatformConfiguration(config, api.client);
+    await expect(planning).rejects.toThrow(
+      'The platform refuses the dispatch declared for project project-1 at sources.0.projectId.',
+    );
+    const error: unknown = await planning.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(CliError);
+    expect(String((error as CliError).info.next)).toContain(
+      'the right to edit every project the dispatch serves',
+    );
+    expect(api.writes).toEqual([]);
+  });
+
   test('writes nothing of a declaration whose dispatch the platform refuses at apply', async () => {
     const config = withDispatch();
     const api = native(config.resources);
@@ -1080,6 +1116,48 @@ describe('managed project dispatch', () => {
     const error: unknown = await planning.catch((caught: unknown) => caught);
     expect(String(error)).not.toContain('secret-looking words');
     expect(String(error)).not.toContain('rm -rf');
+  });
+
+  test('applies a dispatch again, unchanged, while it skips a board only this key could serve again [TASK-R72]', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    await applyPlatformConfiguration(
+      config,
+      await planPlatformConfiguration(config, api.client),
+      api.client,
+      await receipt(),
+    );
+    // Whoever saved the dispatch last lost the right to a board it serves,
+    // and this key has it: the platform says saving it again serves it.
+    let skipped = true;
+    const request = api.client.request.bind(api.client);
+    api.client.request = async (path, method, body) => {
+      const answer = await request(path, method, body);
+      if (path.endsWith('/dispatch/by-project/project-1/configuration')) {
+        if (method === 'POST') skipped = false;
+        else if (skipped) return { ...(answer as object), servesAgain: true };
+      }
+      return answer;
+    };
+    const before = api.writes.length;
+    const plan = await planPlatformConfiguration(config, api.client);
+    expect(plan.resources.find((change) => change.id === id)).toMatchObject({
+      action: 'update',
+      currentSha256: valueHash(dispatch),
+      desiredSha256: valueHash(dispatch),
+    });
+    await applyPlatformConfiguration(config, plan, api.client, await receipt());
+    expect(api.writes.slice(before)).toEqual([
+      expect.objectContaining({
+        kind: 'project-dispatch',
+        body: expect.objectContaining({ config: dispatch }),
+      }),
+    ]);
+    expect(
+      (await planPlatformConfiguration(config, api.client)).resources.every(
+        (change) => change.action === 'unchanged',
+      ),
+    ).toBe(true);
   });
 
   test('never asks about a dispatch that is already as declared', async () => {

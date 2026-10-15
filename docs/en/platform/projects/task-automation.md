@@ -39,7 +39,7 @@ Changing **Reviewer** while the task waits in **In review** transfers the record
 ## Set up an independent reviewer {#agent-review}
 
 1. Create a separate [project agent](/platform/projects/project-agents) for review. Under **Skills, connectors & tools**, grant **Find tasks**, **Read a task**, and **Review other agents’ task results**. The review grant is off initially and is not available to automation agent nodes.
-2. Select that agent as the project's [default reviewer](/platform/projects/tasks#review-default), or explicitly under **Reviewer** on a task. For a review already waiting, use the task's reviewer control to transfer it; changing the project default alone does not.
+2. Select that agent as the project's [default reviewer](/platform/projects/tasks#review-default), or explicitly under **Reviewer** on a task. For a review already waiting, use the task's reviewer control to transfer it; changing the project default alone does not. A project whose [dispatch](/platform/projects/dispatch#reviewers) names reviewers sends its pool's work to them first, on its own board and every board it serves, unless the task names its own reviewer.
 3. Give the reviewer its own task and instructions to inspect only reviews assigned to it. Start that task directly or through an existing [schedule](/platform/automations/triggers#start-a-project-agent-on-a-schedule). Do not start a new implementation run on the task being judged.
 4. Require the reviewer to read the current review, examine the actual report and deliverables, and record concrete check results and feedback. It must decide against the same completed run and evidence it read; a changed result requires another read and review.
 
@@ -61,7 +61,7 @@ The reviewer must be different from the agent that actually produced the result,
 
 ### Delegate a captured review {#delegate-review}
 
-A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent in the same project. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. The implementation agent cannot delegate the review of its own work. This permission is separate from deciding reviews and starts no work.
+A manager with **Delegate pending agent reviews** can transfer one waiting agent review to another eligible agent of the task's project, or to an agent that a dispatch serving that project puts to work there. The recipient must already have **Review other agents’ task results**, the access needed to inspect the work, and independence from the implementation agent. The manager cannot route the review to itself or convert a human or workflow review. The implementation agent cannot delegate the review of its own work. This permission is separate from deciding reviews and starts no work.
 
 The manager reads `task_get`, copies the full approval, source-run and captured reviewer IDs and `evidenceRevision`, and calls `task_delegate_review` with that expectation, the recipient’s full `reviewerAgentId`, and a reason. A changed source, evidence, permission or policy refuses the handoff. The implementation assignment, task status and future reviewer settings stay unchanged. If execution is needed, use ordinary admission on the recipient’s own review task, never on the implementation task being judged.
 

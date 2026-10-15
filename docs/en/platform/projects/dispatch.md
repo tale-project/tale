@@ -1,6 +1,6 @@
 ---
 title: Keep agents busy with dispatch
-description: Let Tale start a project's ready tasks on idle agents, run standing roles on a schedule, hold work behind outside signals, and see why an agent is idle.
+description: Let Tale start a project's ready tasks on idle agents, run standing roles on a schedule, serve other projects' boards, hold work behind outside signals, and see why an agent is idle.
 ---
 
 Dispatch starts a project's ready tasks on the agents you put in its pool, as soon as an agent is free, and starts standing roles — a manager's routing pass, a nightly check — on their schedules. Nobody has to start each run, and no automation or manager agent has to decide when an agent may start. Anyone who can read the project sees what dispatch does under **Dispatch** in the project; project administrators change it.
@@ -41,7 +41,7 @@ Dispatch makes a pass whenever something changes: a run of the project ends, a m
 2. counts the runs the pool's agents hold, whoever started them;
 3. leaves an agent alone while the AI model it uses is [at capacity](/platform/projects/task-automation#handle-waiting-and-failed-runs), and starts work on that model in waves once it answers again;
 4. asks the sandbox host before each start, and stops when the host is busy;
-5. starts the best-ranked ready task on its own idle agent.
+5. starts the best-ranked ready task — on this project's board or on a board it [serves](#sources) — on its own idle agent.
 
 Every start passes the same checks as a start from the board: a task with an open blocker waits, a task takes at most three automated starts an hour, and a task runs once at a time. A run dispatch started reads **Started by dispatch** in the task's timeline and answers to the project, not to a person.
 
@@ -61,6 +61,8 @@ Dispatch can keep one agent busy on as many tasks at once as your organization m
 | **Ask a busy host again after (seconds)**          | 1 to 10 delays, each from 10 to 3,600                  |
 | **Standing roles**                                 | Up to 20                                               |
 | **Gates**                                          | Up to 10                                               |
+| **Boards it serves**                               | Up to 20 other projects                                |
+| **Reviewers**                                      | Up to 10 agents                                        |
 
 A save that lets one agent hold more runs than **Runs at once** is refused under **Runs per agent**. A dispatch saved before that rule keeps working as it is; the next save corrects it.
 
@@ -88,6 +90,28 @@ A gate holds the ready work it governs while a signal from outside says so — f
 
 An external system reports on the gate through the [REST API](/develop/api-reference#dispatch); project administrators can also **Hold** and **Open** it under **Gates**. A gate nobody reports on within **Stale after (seconds)**, ten minutes by default, opens again, or holds when **When stale** says **Hold**. **Time between its starts (seconds)** lets one start of the gate's work through, then the next only after that time. Standing roles are never held by a gate.
 
+## Serve other projects' boards {#sources}
+
+One project's dispatch can work the boards of other projects of your organization. A Development project, for example, keeps a pool of coding agents that takes the ready work arriving on the boards of the Website, Billing and Mobile app projects. These other projects are the dispatch's sources. Declare them in the managed resource `project-dispatch` or with the [settings tools](/develop/mcp-settings): each source names the project's ID and, if you like, the columns its ready work comes from (the dispatch's own unless you set them) and that project's labels to take or leave out. **Edit** keeps the sources as they are; it does not change them.
+
+While a dispatch serves a project:
+
+- that project's ready work joins the dispatch's own in one order — column, priority, place on the board, age — and each agent's runs on every board count towards **Runs per agent** and **Runs at once**;
+- the agents of the pool, of the standing roles and the reviewers may be assigned that project's tasks and started on them, and they find, read, comment on, move and review those tasks with their task tools, as granted. They create no task there, start no other agent there and read nothing else of that project. That project's board shows them by name, and its assignee and reviewer lists offer them, marked with the project whose dispatch they come from; a mention there does not reach them;
+- a run on one of its tasks belongs to that task: it shows on that project's board and in the task's history, for the people who read that project. The agent reads both projects' instructions: the board's project decides how its tasks are written, labelled, moved, reviewed and reported, and the agent's own project how the agent works;
+- a run a person starts there — with **Start agent**, a comment, a move to **In progress**, a retry, or through a run of theirs that hands the task on — gets the agent's secrets, credentials and standing workspace only when that person may edit both that project and the dispatch's own. Anyone else's run works on its own task alone, in a workspace of their own, without the agent's secrets. Such a run also reads only what that person may read: if they cannot open the dispatch's own project, its tasks, documents and knowledge stay out of the run's reach. A run's task tools reach the other boards only as far as its starter may edit them;
+- a run the dispatch started there acts for whoever last saved the dispatch, on whose right to edit that project the dispatch serves it. It works with the agent's full equipment, reads the dispatch's own project as its own and reaches every board the dispatch serves. Whoever can put a ready task on such a board therefore writes the brief of a run with your agent's equipment: serve only boards whose people you would let brief your agents.
+
+To someone who cannot open one of these projects, the **Dispatch** page lists it as **A project you cannot open**, without the labels that select its work, and counts the runs on its board without listing them; its **Gates** show only the labels of projects that person can open, and a gate with none of them left is not shown. An assignee list marks the agents it sends only as **From another project's dispatch**. Whoever may administer the dispatch reads all of it: a save writes the whole dispatch back.
+
+Adding a source, or changing one, needs the right to edit that project, besides administering the dispatch's own project. A source kept as it is needs no such check, and switching dispatch off is never refused because of the projects it serves. Tale checks that right again at every pass, every start and every tool call, for whoever last saved the dispatch: a project that was deleted or archived, or that this person can no longer edit, is skipped. Dispatch then takes nothing from it, and its agents can no longer act on its tasks, until someone who may edit it saves the dispatch again. For such a person, **Edit** says so and offers **Save** even without a change, and applying an unchanged declaration with the CLI saves the dispatch again. Its tasks stay assigned to those agents until someone reassigns them, but **Start agent** on one of them is refused, and neither a move to **In progress**, a retry nor a comment starts them there. Deleting one of the dispatch's agents, or the dispatch's project, removes that agent from the tasks it holds on every board. **Boards it serves** on the **Dispatch** page shows each source as **Served** or skipped, and why. The **Dispatch** tab of a project another dispatch serves says so, with a link to that dispatch — whether or not the project has a dispatch of its own.
+
+Switched off, a dispatch serves none of these projects, whoever last saved it: their boards no longer offer its agents, nothing starts its agents there, their runs on those boards can no longer act, and the dispatch routes no review, on its own board either. The **Dispatch** tab of each project it lists still names it, marked **switched off**. Switched on again, it serves each project as Tale judges it then.
+
+### Review what the pool produced {#reviewers}
+
+The dispatch's **Reviewers** are agents of its own project, granted [task review](/platform/projects/task-automation#agent-review), that review what its pool produced on every board it serves. When an agent of the pool finishes a task, the review goes to the reviewer the task names, if it names one. Otherwise it goes to the first of the dispatch's reviewers that did not produce the work, before the project's default reviewer. A reviewer never reviews its own work.
+
 ## Read why an agent is idle
 
 **Agents** lists each agent of the pool with the runs it works on, and why it is idle when it has none:
@@ -103,10 +127,10 @@ An external system reports on the gate through the [REST API](/develop/api-refer
 | **Dispatch is off**              | Dispatch, or task automation for your organization, is switched off.                                  |
 | **No pass yet**                  | Dispatch has not made a pass since the agent joined the pool.                                         |
 
-An agent that holds more than five runs shows how many it holds — **Running**, **Queued**, and each reason its runs wait, such as **Waiting for model capacity** — and its first five runs, the oldest first. A button such as **Show 45 more runs** lists up to 50 of them; past that, the page says how many more are not listed here. The [REST API](/develop/api-reference#dispatch) counts and lists them the same way.
+A run on a board the dispatch serves names that board's project beside its task. An agent that holds more than five runs shows how many it holds — **Running**, **Queued**, and each reason its runs wait, such as **Waiting for model capacity** — and its first five runs, the oldest first. A button such as **Show 45 more runs** lists up to 50 of them; past that, the page says how many more are not listed here. The [REST API](/develop/api-reference#dispatch) counts and lists them the same way.
 
 **Recent passes** shows the last 20 passes: when, what asked for them, how many runs they started and held, and why they stopped. **Run a pass now** asks for one at once. A self-hosted deployment can alert when a dispatch stops passing; [Prometheus and Grafana](/self-hosted/operate/observability/prometheus-grafana) shows the rule.
 
 ## Manage dispatch as configuration
 
-A deployment that keeps its configuration in a repository declares a project's dispatch as the managed resource `project-dispatch`, applied with the [Tale CLI](/self-hosted/install/cli-install#configure-the-platform) like other [managed settings](/develop/mcp-settings). What it declares is what **Edit** shows; a change in the app is overwritten at the next apply. Before the CLI writes anything of a declaration, it asks Tale whether the declared dispatch would be saved. A dispatch that names an agent, a task, a label or a schedule the project cannot use stops the plan at that field, and nothing of the declaration is applied, not even the schedules it would switch off. The same declaration may create the project, its agents, standing tasks and labels: the check counts what it creates, and the dispatch is written once they exist.
+A deployment that keeps its configuration in a repository declares a project's dispatch as the managed resource `project-dispatch`, applied with the [Tale CLI](/self-hosted/install/cli-install#configure-the-platform) like other [managed settings](/develop/mcp-settings). What it declares is what **Edit** shows; a change in the app is overwritten at the next apply. Before the CLI writes anything of a declaration, it asks Tale whether the declared dispatch would be saved. A dispatch that names an agent, a task, a label or a schedule the project cannot use, a reviewer without task review, or a source the declaring key may not edit stops the plan at that field, and nothing of the declaration is applied, not even the schedules it would switch off. The same declaration may create the project, its agents, standing tasks and labels: the check counts what it creates, and the dispatch is written once they exist.

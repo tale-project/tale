@@ -163,6 +163,9 @@ function readback(
       poolAgent({ agentId: 'agent-lector', name: 'Lector' }),
     ],
     standingRoles: [],
+    sources: [],
+    reviewers: [],
+    servedBy: [],
     holds: [],
     gates: [],
     workers: { limit: 2, inUse: 0 },
@@ -346,6 +349,7 @@ describe('the Dispatch page of a configured dispatch', () => {
               {
                 runId: 'run-1',
                 taskId: 'task-changelog',
+                projectId: 'proj-1',
                 taskNumber: 12,
                 taskTitle: 'Changelog',
                 status: 'running',
@@ -354,6 +358,7 @@ describe('the Dispatch page of a configured dispatch', () => {
               {
                 runId: 'run-2',
                 taskId: 'task-press',
+                projectId: 'proj-1',
                 taskNumber: 13,
                 taskTitle: 'Press kit',
                 status: 'queued',
@@ -362,6 +367,7 @@ describe('the Dispatch page of a configured dispatch', () => {
               {
                 runId: 'run-3',
                 taskId: 'task-sitemap',
+                projectId: 'proj-1',
                 taskNumber: null,
                 taskTitle: 'Sitemap',
                 status: 'queued',
@@ -397,6 +403,7 @@ describe('the Dispatch page of a configured dispatch', () => {
     const listed = Array.from({ length: 50 }, (_, index): AgentRun => ({
       runId: `run-${index}`,
       taskId: `task-${index}`,
+      projectId: 'proj-1',
       taskNumber: index + 1,
       taskTitle: `Fleet task ${index + 1}`,
       status: index < 44 ? 'running' : 'queued',
@@ -723,6 +730,288 @@ describe('the Dispatch page of a configured dispatch', () => {
   });
 });
 
+describe('the Dispatch page of a dispatch that serves other boards', () => {
+  it('lists every board it serves, served or skipped with why, and its reviewers [TASK-R72]', async () => {
+    answer(
+      readback({
+        sources: [
+          {
+            projectId: 'proj-tale',
+            name: 'Tale',
+            reachable: true,
+            skipped: null,
+            statuses: ['backlog', 'todo'],
+            labels: { include: ['ready'], exclude: ['blocked'] },
+          },
+          {
+            projectId: 'proj-vat',
+            name: 'Billing',
+            reachable: false,
+            skipped: 'no_authority',
+            statuses: ['todo'],
+            labels: null,
+          },
+          {
+            projectId: 'proj-archive',
+            name: 'Archive',
+            reachable: false,
+            skipped: 'archived',
+            statuses: ['todo'],
+            labels: null,
+          },
+          {
+            projectId: 'proj-gone',
+            name: null,
+            reachable: false,
+            skipped: 'missing',
+            statuses: ['todo'],
+            labels: null,
+          },
+        ],
+        reviewers: [
+          { agentId: 'agent-reviewer', name: 'Reviewer agent' },
+          { agentId: 'agent-gone', name: null },
+        ],
+      }),
+    );
+    renderTab();
+    const sources = await table(t('dispatch.sources.caption'));
+    const tale = rowOf(sources, 'Tale');
+    expect(within(tale).getByRole('link', { name: 'Tale' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/projects/proj-tale/dispatch',
+    );
+    expect(
+      within(tale).getByText(t('dispatch.sources.served')),
+    ).toBeInTheDocument();
+    expect(
+      within(tale).getByText(
+        `${tTasks('status.backlog')}, ${tTasks('status.todo')}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(tale).getByText(t('dispatch.sources.only', { labels: 'ready' })),
+    ).toBeInTheDocument();
+    expect(
+      within(tale).getByText(
+        t('dispatch.sources.never', { labels: 'blocked' }),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf(sources, 'Billing')).getByText(
+        t('dispatch.sources.skipped.no_authority'),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf(sources, 'Archive')).getByText(
+        t('dispatch.sources.skipped.archived'),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf(sources, t('dispatch.sources.unknownProject'))).getByText(
+        t('dispatch.sources.skipped.missing'),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: t('dispatch.reviewers.title') }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Reviewer agent')).toBeInTheDocument();
+    expect(
+      screen.getByText(t('dispatch.reviewers.unknownAgent')),
+    ).toBeInTheDocument();
+  });
+
+  it('names the board of a run on another board instead of numbering it with this project’s key [TASK-R71]', async () => {
+    answer(
+      readback({
+        sources: [
+          {
+            projectId: 'proj-tale',
+            name: 'Tale',
+            reachable: true,
+            skipped: null,
+            statuses: ['todo'],
+            labels: null,
+          },
+        ],
+        pool: [
+          poolAgent({
+            agentId: 'agent-scribe',
+            name: 'Scribe',
+            idle: null,
+            runs: [
+              {
+                runId: 'run-own',
+                taskId: 'task-own',
+                projectId: 'proj-1',
+                taskNumber: 4,
+                taskTitle: 'Changelog',
+                status: 'running',
+                waitingReason: null,
+              },
+              {
+                runId: 'run-tale',
+                taskId: 'task-tale',
+                projectId: 'proj-tale',
+                taskNumber: 9,
+                taskTitle: 'Fix the importer',
+                status: 'running',
+                waitingReason: null,
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    renderTab();
+    const agents = await table(t('dispatch.agents.caption'));
+    const scribe = rowOf(agents, 'Scribe');
+    expect(
+      within(scribe).getByRole('link', { name: 'TAL-4 Changelog' }),
+    ).toBeInTheDocument();
+    expect(
+      within(scribe).getByRole('link', { name: 'Fix the importer' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/tasks/task-tale');
+    expect(within(scribe).getByText('Tale')).toBeInTheDocument();
+  });
+
+  it('shows neither section for a dispatch that serves no other board', async () => {
+    answer(readback());
+    renderTab();
+    await table(t('dispatch.agents.caption'));
+    expect(
+      screen.queryByRole('table', { name: t('dispatch.sources.caption') }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: t('dispatch.reviewers.title') }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('a board says which other projects’ dispatches serve it [TASK-R76]', () => {
+  it('names each serving dispatch on a board without one of its own, switched off or skipped with why', async () => {
+    answer({
+      ...NOT_SET_UP,
+      servedBy: [
+        {
+          projectId: 'proj-dev',
+          name: 'Development',
+          enabled: true,
+          reachable: true,
+          skipped: null,
+        },
+        {
+          projectId: 'proj-support',
+          name: 'Support',
+          enabled: false,
+          reachable: false,
+          skipped: 'no_authority',
+        },
+      ],
+    });
+    renderTab();
+    expect(
+      await screen.findByText(t('dispatch.servedBy.title', { count: 2 })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', {
+        name: t('dispatch.servedBy.item', { project: 'Development' }),
+      }),
+    ).toHaveAttribute('href', '/dashboard/org-1/projects/proj-dev/dispatch');
+    const support = screen
+      .getByRole('link', {
+        name: t('dispatch.servedBy.item', { project: 'Support' }),
+      })
+      .closest('li');
+    expect(support).toHaveTextContent(t('dispatch.servedBy.off'));
+    expect(support).toHaveTextContent(
+      t('dispatch.sources.skipped.no_authority'),
+    );
+    // Its own dispatch is still not set up.
+    expect(
+      screen.getByRole('heading', { name: t('dispatch.notSetUp.title') }),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing of it on a board nobody else serves', async () => {
+    answer(NOT_SET_UP);
+    renderTab();
+    await screen.findByRole('heading', { name: t('dispatch.notSetUp.title') });
+    expect(
+      screen.queryByText(t('dispatch.servedBy.body')),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('the Dispatch page names another project only to who may read it [TASK-R80]', () => {
+  it('lists a served board the reader may not read without its name, and tells it from one that is gone', async () => {
+    answer(
+      readback({
+        sources: [
+          {
+            projectId: 'proj-payroll',
+            name: null,
+            reachable: true,
+            skipped: null,
+            statuses: ['todo'],
+            labels: null,
+          },
+          {
+            projectId: 'proj-gone',
+            name: null,
+            reachable: false,
+            skipped: 'missing',
+            statuses: ['todo'],
+            labels: null,
+          },
+        ],
+      }),
+    );
+    renderTab();
+    const sources = await table(t('dispatch.sources.caption'));
+    const hidden = rowOf(sources, t('dispatch.sources.hiddenProject'));
+    expect(
+      within(hidden).getByText(t('dispatch.sources.served')),
+    ).toBeInTheDocument();
+    expect(within(hidden).queryByRole('link')).not.toBeInTheDocument();
+    // Its labels are withheld: the row claims none of them, not even that
+    // it takes every ready task.
+    expect(within(hidden).getByText('—')).toBeInTheDocument();
+    expect(
+      within(hidden).queryByText(t('dispatch.sources.allWork')),
+    ).not.toBeInTheDocument();
+    expect(
+      within(rowOf(sources, t('dispatch.sources.unknownProject'))).getByText(
+        t('dispatch.sources.skipped.missing'),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says a dispatch the reader may not read serves the board, without naming or linking it', async () => {
+    answer({
+      ...NOT_SET_UP,
+      servedBy: [
+        {
+          projectId: 'proj-dev',
+          name: null,
+          enabled: true,
+          reachable: true,
+          skipped: null,
+        },
+      ],
+    });
+    renderTab();
+    expect(
+      await screen.findByText(t('dispatch.servedBy.hiddenItem')),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', {
+        name: t('dispatch.servedBy.hiddenItem'),
+      }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('what an administrator does on the Dispatch page', () => {
   it('asks for a pass, once, and says so', async () => {
     answer(readback());
@@ -884,6 +1173,9 @@ describe('what an administrator does on the Dispatch page', () => {
  * drift apart. */
 const GUIDE_LABELS = {
   en: {
+    'projects:dispatch.sources.title': 'Boards it serves',
+    'projects:dispatch.sources.served': 'Served',
+    'projects:dispatch.reviewers.title': 'Reviewers',
     'projects:dispatch.title': 'Dispatch',
     'projects:dispatch.edit': 'Edit',
     'projects:dispatch.runPass': 'Run a pass now',
@@ -904,6 +1196,9 @@ const GUIDE_LABELS = {
     'tasks:agentRuns.trigger.dispatch': 'Started by dispatch',
   },
   de: {
+    'projects:dispatch.sources.title': 'Bediente Boards',
+    'projects:dispatch.sources.served': 'Bedient',
+    'projects:dispatch.reviewers.title': 'Reviewer',
     'projects:dispatch.title': 'Arbeitsverteilung',
     'projects:dispatch.edit': 'Bearbeiten',
     'projects:dispatch.runPass': 'Jetzt einen Durchlauf starten',
@@ -925,6 +1220,9 @@ const GUIDE_LABELS = {
     'tasks:agentRuns.trigger.dispatch': 'Von der Arbeitsverteilung gestartet',
   },
   fr: {
+    'projects:dispatch.sources.title': 'Tableaux desservis',
+    'projects:dispatch.sources.served': 'Desservi',
+    'projects:dispatch.reviewers.title': 'Relecteurs',
     'projects:dispatch.title': 'Répartition du travail',
     'projects:dispatch.edit': 'Modifier',
     'projects:dispatch.runPass': 'Lancer un passage maintenant',

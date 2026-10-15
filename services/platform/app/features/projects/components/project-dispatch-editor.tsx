@@ -319,6 +319,18 @@ function DispatchEditorDialog({
           return t('dispatch.editor.issues.cron');
         case 'label':
           return t('dispatch.editor.issues.label', { name: problem.name });
+        case 'sourceProject':
+          return t('dispatch.editor.issues.sourceProject', {
+            place: problem.place,
+          });
+        case 'sourceLabel':
+          return t('dispatch.editor.issues.sourceLabel', {
+            place: problem.place,
+          });
+        case 'reviewer':
+          return t('dispatch.editor.issues.reviewer', {
+            place: problem.place,
+          });
         default:
           return problem.message;
       }
@@ -371,6 +383,9 @@ function DispatchEditorDialog({
   // Until the stored version is read, the page's word decides the title.
   const isNew = snapshot === undefined ? settingUp : snapshot.dispatch === null;
   const editable = snapshot !== undefined && !unreadable;
+  // A board it skips because whoever saved it last lost the right to it is
+  // served again by this person's save, even an unchanged one.
+  const servesAgain = editable && snapshot.servesAgain === true;
   const refusedMessage = editor.form.formState.errors.root?.server?.message;
 
   return (
@@ -381,9 +396,11 @@ function DispatchEditorDialog({
       description={t('dispatch.editor.description')}
       size="3xl"
       isSubmitting={editor.isSaving}
-      // A new dispatch is saved as it stands, defaults and all.
-      isDirty={editable && (isNew || editor.isDirty)}
-      confirmDiscardOnDirty
+      // A new dispatch is saved as it stands, defaults and all, and so is one
+      // whose save serves a skipped board again.
+      isDirty={editable && (isNew || editor.isDirty || servesAgain)}
+      // Closing it unchanged discards nothing the person typed.
+      confirmDiscardOnDirty={isNew || editor.isDirty}
       onSubmit={editor.submit}
       {...(editable
         ? {}
@@ -449,6 +466,14 @@ function DispatchEditorDialog({
                 {t('dispatch.editor.reload')}
               </Button>
             </Alert>
+          ) : null}
+          {servesAgain ? (
+            <Alert
+              variant="info"
+              live="off"
+              title={t('dispatch.editor.servesAgainTitle')}
+              description={t('dispatch.editor.servesAgainBody')}
+            />
           ) : null}
           {refusedMessage !== undefined ? (
             <Alert

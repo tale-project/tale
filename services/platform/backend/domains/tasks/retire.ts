@@ -250,3 +250,37 @@ export async function releaseUnlistedTaskBlobRefs(
   }
   return releasedRefs;
 }
+
+/**
+ * The live runs a deleted project's agents hold on other projects' boards —
+ * ones its dispatch served (`dispatch-reach.ts`) — stopped through the same
+ * ledgered cancel door: the agents go with their project, so their work
+ * elsewhere stops with them, as the project's own tasks' runs do. Answers
+ * how many it stopped.
+ */
+export async function cancelAgentRunsElsewhereInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; projectId: string; agentIds: string[] },
+): Promise<number> {
+  if (args.agentIds.length === 0) return 0;
+  const live = await tx<{ id: string; taskId: string }[]>`
+    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId}
+      AND agent_id = ANY(${args.agentIds})
+      AND project_id <> ${args.projectId}
+      AND status IN ('queued', 'running')
+  `;
+  let cancelled = 0;
+  for (const run of live) {
+    if (
+      await cancelAgentRunInTx(tx, {
+        organizationId: args.organizationId,
+        runId: run.id,
+        taskId: run.taskId,
+      })
+    ) {
+      cancelled += 1;
+    }
+  }
+  return cancelled;
+}

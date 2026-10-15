@@ -1,11 +1,17 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getProjectAuthContext } from '../projects/service.ts';
+import {
+  getProjectAuthContext,
+  loadProjectOrThrow,
+} from '../projects/service.ts';
 import { addTaskComment, listTaskComments } from '../tasks/comments.ts';
 import { pgTaskStore } from './task-store.ts';
 
-vi.mock('../projects/service.ts', () => ({ getProjectAuthContext: vi.fn() }));
+vi.mock('../projects/service.ts', () => ({
+  getProjectAuthContext: vi.fn(),
+  loadProjectOrThrow: vi.fn(),
+}));
 vi.mock('../tasks/comments.ts', () => ({
   addTaskComment: vi.fn(),
   listTaskComments: vi.fn(),
@@ -386,5 +392,65 @@ it('reads each comment as stored and as text with current names [COLLAB-R10]', a
   expect(result.comments[0]).toMatchObject({
     body,
     bodyText: '@Ada Lovelace please check',
+  });
+});
+
+describe('pgTaskStore.list', () => {
+  it('names an agent another project’s dispatch put on the board [TASK-R76]', async () => {
+    vi.mocked(loadProjectOrThrow).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the listing reads only these fields of the project
+      {
+        id: 'p-billing',
+        organizationId: 'org-1',
+        archivedAt: null,
+      } as unknown as Awaited<ReturnType<typeof loadProjectOrThrow>>,
+    );
+    const statements: string[] = [];
+    const tx = Object.assign(
+      (strings: TemplateStringsArray) => {
+        const text = strings.join('?');
+        statements.push(text);
+        return Promise.resolve(
+          text.includes('FROM app.tasks t')
+            ? [
+                {
+                  taskId: 'task-1',
+                  number: 7,
+                  title: 'Fix the importer',
+                  status: 'todo',
+                  priority: null,
+                  assigneeType: 'agent',
+                  assigneeId: 'coder',
+                  assigneeName: 'Coder',
+                  dueDateMs: null,
+                  createdAtMs: 1,
+                },
+              ]
+            : [],
+        );
+      },
+      { unsafe: (text: string) => text },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the listing touches only `begin` and the transaction's tagged calls
+    const sql = {
+      begin: (work: (inner: typeof tx) => Promise<unknown>) => work(tx),
+    } as unknown as Sql;
+    const listed = await pgTaskStore(sql).list({
+      organizationId: 'org-1',
+      caller: { kind: 'system', reason: 'test' },
+      projectId: 'p-billing',
+      limit: 10,
+    });
+    expect(listed).toMatchObject({
+      ok: true,
+      tasks: [{ assignee: { type: 'agent', id: 'coder', name: 'Coder' } }],
+    });
+    // The agent is joined by its id in the organization, never by the
+    // board's project: the Coder is Development's.
+    const listing = statements.find((text) =>
+      text.includes('FROM app.tasks t'),
+    );
+    expect(listing).toContain('a.org_id = t.org_id');
+    expect(listing).not.toContain('a.project_id = t.project_id');
   });
 });

@@ -165,6 +165,39 @@ describe('the settled-run fallback of a steer', () => {
     );
     warn.mockRestore();
   });
+
+  it('answers a refusal, never a throw, when the agent’s dispatch no longer serves the board [TASK-R72]', async () => {
+    vi.mocked(kickAgentRun).mockClear();
+    vi.mocked(kickAgentRun).mockRejectedValueOnce(
+      new TaskError(
+        'AGENT_NOT_ALLOWED_IN_PROJECT',
+        'The agent works neither in this project nor for a dispatch that serves it now',
+        409,
+      ),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql } = fakeSql('editor');
+    const kick =
+      agentTurnShimHandlers(sql)[
+        'tasks/mutations:kickMentionRunAfterSteerMiss'
+      ];
+    if (kick === undefined) throw new Error('no handler');
+
+    expect(
+      await kick({
+        organizationId: 'org-1',
+        taskId: 't-1',
+        authorId: 'u-editor',
+        feedback: '@agent use the signed copies only',
+        mentionSource: 'comment',
+      }),
+    ).toEqual({ started: false, reason: 'agent_out_of_reach' });
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('refused: agent_out_of_reach'),
+    );
+    warn.mockRestore();
+  });
 });
 
 describe('a steer written with an API key [SBX-R14]', () => {

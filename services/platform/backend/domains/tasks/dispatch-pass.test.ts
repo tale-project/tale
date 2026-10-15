@@ -1,6 +1,8 @@
+import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  dispatchBoards,
   startPicks,
   type DispatchStopReason,
   type HostVerdict,
@@ -214,5 +216,51 @@ describe('a model that answers again takes new work only as its ramp lets it thr
       rampUntil: 15_000,
     });
     expect(outOfTime).toMatchObject({ stop: 'budget', nextPassAt: 1_000 });
+  });
+});
+
+describe('a pass reads every board its dispatch reaches [TASK-R71]', () => {
+  it('reads its own board first, then each reachable source with its own columns and labels', () => {
+    const config: ProjectDispatch = {
+      enabled: true,
+      agents: ['coder'],
+      maxConcurrentRuns: 4,
+      statuses: ['todo'],
+      assignment: 'pool',
+      labels: { exclude: ['blocked'] },
+      sources: [
+        { projectId: 'p-tale' },
+        {
+          projectId: 'p-vat',
+          statuses: ['backlog', 'todo'],
+          labels: { include: ['ready'] },
+        },
+      ],
+    };
+    const reachable = (config.sources ?? []).map((source) => ({
+      source,
+      projectId: source.projectId,
+      name: source.projectId,
+      skipped: null,
+    }));
+    expect(dispatchBoards('p-dev', config, reachable)).toEqual([
+      {
+        projectId: 'p-dev',
+        statuses: ['todo'],
+        labels: { exclude: ['blocked'] },
+      },
+      // A source takes the dispatch's columns unless it names its own, and
+      // only its own labels: the dispatch's are another board's names.
+      { projectId: 'p-tale', statuses: ['todo'], labels: undefined },
+      {
+        projectId: 'p-vat',
+        statuses: ['backlog', 'todo'],
+        labels: { include: ['ready'] },
+      },
+    ]);
+    // A source the pass skipped is no board of it.
+    expect(
+      dispatchBoards('p-dev', config, []).map((board) => board.projectId),
+    ).toEqual(['p-dev']);
   });
 });

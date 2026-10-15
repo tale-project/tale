@@ -207,7 +207,13 @@ export async function readManagedResource(
   resource: ManagedPlatformResource,
 ) {
   const view = z
-    .object({ config: z.unknown(), hash: expectedConfigurationHashSchema })
+    .object({
+      config: z.unknown(),
+      hash: expectedConfigurationHashSchema,
+      // A dispatch that skips a board its last writer may no longer edit,
+      // and which this caller may: saving it again serves the board.
+      servesAgain: z.literal(true).optional(),
+    })
     .parse(await client.request(resourcePath(resource, true)));
   if (view.config === null) {
     if (view.hash !== null || !createsWhenAbsent(resource))
@@ -289,7 +295,13 @@ export async function readManagedResource(
     throw preconditionError(
       'Managed review context readback names another reviewer.',
     );
-  return { config: observedConfig, revision: view.hash };
+  return {
+    config: observedConfig,
+    revision: view.hash,
+    ...(resource.kind === 'project-dispatch' && view.servesAgain === true
+      ? { servesAgain: true as const }
+      : {}),
+  };
 }
 
 const checkSchema = z.discriminatedUnion('ok', [
@@ -346,7 +358,8 @@ function checkPath(path: string): string {
  * resource that it checks only when it saves it — so one it would refuse
  * leaves the declaration unapplied instead of stopping an apply half-way.
  * A dispatch is the last resource a declaration writes, and the platform
- * checks what it names (the project's agents, tasks, labels and schedules);
+ * checks what it names (the project's agents, tasks, labels and schedules,
+ * and the other projects it serves, which the caller must be able to edit);
  * a connector credential must suit its connector (its sign-in method, its
  * endpoint, the settings it requires). No secret value is sent.
  */
@@ -384,7 +397,7 @@ export async function checkManagedResource(
   if (verdict.ok) return;
   throw preconditionError(
     `The platform refuses the dispatch declared for project ${resource.config.projectId}${refusedAt(verdict.issues)}.`,
-    'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates), or change the declaration, then plan again.',
+    'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates, its reviewers granted task review), give the declaring key the right to edit every project the dispatch serves (`sources`, each active and named once), or change the declaration, then plan again.',
   );
 }
 

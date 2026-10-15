@@ -27,6 +27,9 @@ vi.mock('../domains/tasks/agent-runs.ts', async () => {
       error instanceof errors.TaskError &&
       (error.code === 'STANDARD_AGENT_OFF' ||
         error.code === 'STANDARD_AGENT_UNAVAILABLE'),
+    isAgentOutOfReach: (error: unknown) =>
+      error instanceof errors.TaskError &&
+      error.code === 'AGENT_NOT_ALLOWED_IN_PROJECT',
   };
 });
 vi.mock('./enqueue.ts', () => ({ addJobInTx: vi.fn() }));
@@ -183,6 +186,19 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
                 modelProvider: null,
               },
             ],
+      );
+    }
+    // The agent's own project, as the run's authority reads it
+    // (`dispatch-reach.ts` readAgentHome): the task's, so no other
+    // project's dispatch is consulted.
+    if (
+      text.includes('FROM app.project_agents') &&
+      text.includes('AS archived')
+    ) {
+      return Promise.resolve(
+        world.agentGone === true
+          ? []
+          : [{ projectId: 'project-1', archived: false }],
       );
     }
     if (text.includes('FROM app.project_agents')) {
@@ -519,6 +535,23 @@ describe('task.agent_retry admission', () => {
       expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
     },
   );
+
+  it('retires the failed run once, and tells, when its agent’s dispatch no longer serves the board [TASK-R72]', async () => {
+    kickAgentRun.mockRejectedValueOnce(
+      new TaskError(
+        'AGENT_NOT_ALLOWED_IN_PROJECT',
+        'The agent works neither in this project nor for a dispatch that serves it now',
+        409,
+      ),
+    );
+    const lines = await deliver({});
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(lines).toEqual([
+      '[task-agent] auto-retry skipped: agent_out_of_reach',
+    ]);
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
+  });
 
   it('retires an explicitly disabled task policy without reviving it on later delivery', async () => {
     kickAgentRun.mockRejectedValueOnce(

@@ -16,6 +16,8 @@ function notStartedMessage(
     case 'agent_missing':
     case 'agent_unavailable':
       return t('agentRun.agentMissing');
+    case 'agent_out_of_reach':
+      return t('agentRun.agentOutOfReach');
     case 'no_agent_assignee':
       return t('agentRun.noAgentAssignee');
     default:

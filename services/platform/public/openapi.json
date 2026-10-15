@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.47.0",
+    "version": "3.48.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -14682,7 +14682,7 @@
       "get": {
         "tags": ["Projects"],
         "summary": "Read a project's dispatch",
-        "description": "What the project's dispatch does: every agent of its pool with the runs it holds or why it is idle (`idle`), its standing roles with their next and last occurrence, the models it waits on (`holds`), its gates as a pass judges them now, the organization's agent workers against the pool, and its last 20 passes. A project without a dispatch answers `configured: false`. Project readers; the same answer as the project’s Dispatch page.",
+        "description": "What the project's dispatch does: every agent of its pool with the runs it holds on every board it serves or why it is idle (`idle`), its standing roles with their next and last occurrence, the other boards it serves (`sources`, each reachable now or `skipped`: `missing`, `archived`, `no_authority`) and its `reviewers`, the models it waits on (`holds`), its gates as a pass judges them now, the organization's agent workers against the pool, and its last 20 passes. `servedBy` names the dispatches of other projects that list this one as a source, the other direction. Another project is named only to a caller who may read it: a run on a board the caller may not read is counted in `runCounts` and not listed in `runs`, and such a source or serving dispatch answers `name: null`. A project without a dispatch answers `configured: false` (and still its `servedBy`). Project readers; the same answer as the project’s Dispatch page.",
         "operationId": "getProjectDispatch",
         "security": [
           {
@@ -14796,6 +14796,64 @@
                                 "maxLength": 50
                               }
                             }
+                          }
+                        },
+                        "sources": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "projectId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128,
+                                "pattern": "^[^/\\\\\\x00-\\x20\\x7f]+$"
+                              },
+                              "statuses": {
+                                "minItems": 1,
+                                "maxItems": 2,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": ["todo", "backlog"]
+                                }
+                              },
+                              "labels": {
+                                "type": "object",
+                                "properties": {
+                                  "include": {
+                                    "maxItems": 20,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 50
+                                    }
+                                  },
+                                  "exclude": {
+                                    "maxItems": 20,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 50
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "required": ["projectId"]
+                          }
+                        },
+                        "reviewers": {
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "pattern": "^[^/\\\\\\x00-\\x20\\x7f]+$"
                           }
                         },
                         "admission": {
@@ -14993,6 +15051,9 @@
                                 "taskId": {
                                   "type": "string"
                                 },
+                                "projectId": {
+                                  "type": "string"
+                                },
                                 "taskNumber": {
                                   "type": "number",
                                   "nullable": true
@@ -15012,6 +15073,7 @@
                               "required": [
                                 "runId",
                                 "taskId",
+                                "projectId",
                                 "taskNumber",
                                 "taskTitle",
                                 "status",
@@ -15195,6 +15257,127 @@
                         ]
                       }
                     },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "reachable": {
+                            "type": "boolean"
+                          },
+                          "skipped": {
+                            "type": "string",
+                            "enum": [
+                              "missing",
+                              "archived",
+                              "no_authority",
+                              null
+                            ],
+                            "nullable": true
+                          },
+                          "statuses": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": ["todo", "backlog"]
+                            }
+                          },
+                          "labels": {
+                            "type": "object",
+                            "properties": {
+                              "include": {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 50
+                                }
+                              },
+                              "exclude": {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 50
+                                }
+                              }
+                            },
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "projectId",
+                          "name",
+                          "reachable",
+                          "skipped",
+                          "statuses",
+                          "labels"
+                        ]
+                      }
+                    },
+                    "reviewers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": ["agentId", "name"]
+                      }
+                    },
+                    "servedBy": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "reachable": {
+                            "type": "boolean"
+                          },
+                          "skipped": {
+                            "type": "string",
+                            "enum": [
+                              "missing",
+                              "archived",
+                              "no_authority",
+                              null
+                            ],
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "projectId",
+                          "name",
+                          "enabled",
+                          "reachable",
+                          "skipped"
+                        ]
+                      }
+                    },
                     "gates": {
                       "type": "array",
                       "items": {
@@ -15330,6 +15513,9 @@
                     "pool",
                     "standingRoles",
                     "holds",
+                    "sources",
+                    "reviewers",
+                    "servedBy",
                     "gates",
                     "workers",
                     "poolExceedsWorkers",
@@ -45774,7 +45960,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.47.0"
+          "example": "3.48.0"
         }
       },
       "Location": {

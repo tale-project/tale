@@ -1,3 +1,4 @@
+import type { DispatchServingAgent } from '@tale/shared/schemas/project-dispatch';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { createElement, useMemo, type ReactNode } from 'react';
 
@@ -66,11 +67,17 @@ export interface AssignableActor {
   /** The organization's standard agent, set up in the project by Tale (agents
    * only): it takes a task only while it can run for the viewer. */
   managed?: boolean;
+  /** An agent of another project whose dispatch serves this board (agents
+   * only): it may be assigned and review here, but it is not this
+   * project's to mention. Its project's name is null for a viewer who may
+   * not read that project. */
+  servedFrom?: { projectId: string; projectName: string | null };
 }
 
 // Shared frozen instances keep hook results referentially stable across
 // renders when a context has no project (and thus no agents) to draw from.
 const EMPTY_AGENT_LIST: AssignableActor[] = [];
+const EMPTY_SERVING: readonly DispatchServingAgent[] = [];
 const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
 
 /**
@@ -140,31 +147,64 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [members],
   );
 
-  const { agents: projectAgents, isLoading: agentsLoading } = useProjectAgents(
+  const { agents: projectAgents, isLoading: ownAgentsLoading } =
+    useProjectAgents(
+      projectId !== undefined && projectId !== ''
+        ? asProjectId(projectId)
+        : undefined,
+    );
+  // The agents other projects' dispatches put to work on this board: they
+  // are named here and may be assigned and review here, as the project's own.
+  const serving = useBackendQuery(
+    'projects/queries:listServingAgents',
     projectId !== undefined && projectId !== ''
-      ? asProjectId(projectId)
-      : undefined,
+      ? { organizationId, projectId }
+      : 'skip',
   );
-  const agentList = useMemo<AssignableActor[]>(
-    () =>
-      projectAgents.length === 0
-        ? EMPTY_AGENT_LIST
-        : projectAgents.map((row) => ({
-            type: 'agent' as const,
-            id: row._id,
-            name: row.name,
-            tools: row.tools,
-            ...(row.handle !== undefined ? { handle: row.handle } : {}),
-            ...(row.legacyHandles !== undefined
-              ? { legacyHandles: row.legacyHandles }
-              : {}),
-            ...(row.managed ? { managed: true } : {}),
-          })),
-    [projectAgents],
-  );
+  const servingAgents = serving.data ?? EMPTY_SERVING;
+  // An empty list is "no agent here" only once both reads settle: the
+  // board's own agents and those serving it.
+  const agentsLoading = ownAgentsLoading || serving.isLoading;
+  const agentList = useMemo<AssignableActor[]>(() => {
+    if (projectAgents.length === 0 && servingAgents.length === 0) {
+      return EMPTY_AGENT_LIST;
+    }
+    const own = projectAgents.map((row) => ({
+      type: 'agent' as const,
+      id: row._id,
+      name: row.name,
+      tools: row.tools,
+      ...(row.handle !== undefined ? { handle: row.handle } : {}),
+      ...(row.legacyHandles !== undefined
+        ? { legacyHandles: row.legacyHandles }
+        : {}),
+      ...(row.managed ? { managed: true } : {}),
+    }));
+    const ownIds = new Set(own.map((agent) => agent.id));
+    return [
+      ...own,
+      ...servingAgents
+        .filter((agent) => !ownIds.has(agent.agentId))
+        .map((agent) => ({
+          type: 'agent' as const,
+          id: agent.agentId,
+          name: agent.name,
+          tools: agent.tools,
+          servedFrom: {
+            projectId: agent.projectId,
+            projectName: agent.projectName,
+          },
+        })),
+    ];
+  }, [projectAgents, servingAgents]);
   const agentCatalog = useMemo(() => {
-    if (projectAgents.length === 0) return EMPTY_CATALOG;
+    if (projectAgents.length === 0 && servingAgents.length === 0) {
+      return EMPTY_CATALOG;
+    }
     const map = new Map<string, TaskActorCatalogEntry>();
+    for (const agent of servingAgents) {
+      map.set(agent.agentId, { name: agent.name });
+    }
     for (const row of projectAgents) {
       const instructions = row.instructions?.trim();
       map.set(row._id, {
@@ -176,7 +216,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       });
     }
     return map;
-  }, [projectAgents]);
+  }, [projectAgents, servingAgents]);
   const workflowCatalog = EMPTY_CATALOG;
 
   const memberMap = useMemo(() => {
@@ -342,14 +382,15 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       automations: automationList,
       /** The same automations as listed, for the task-contract surfaces. */
       contractAutomations: automations,
-      /** True while the project's agent list is still being fetched — an empty
+      /** True while the project's agent list, or the agents other projects'
+       * dispatches put on its board, are still being fetched — an empty
        * `agents` is only "this project HAS no agents" once this settles. */
       agentsLoading,
       /** True until the people, agents and automations a mention can name
        * have all arrived: a mention of someone not listed yet is not yet
-       * someone gone. */
+       * someone gone. A mention names the project's own agents alone. */
       mentionsPending:
-        members === undefined || agentsLoading || automationsPending,
+        members === undefined || ownAgentsLoading || automationsPending,
       currentUserId,
       organizationId,
       // `useActorDirectory` stays org-wide — it also resolves *historical* actors
@@ -369,6 +410,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       automationList,
       automations,
       agentsLoading,
+      ownAgentsLoading,
       members,
       automationsPending,
       currentUserId,

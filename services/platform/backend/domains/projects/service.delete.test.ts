@@ -16,7 +16,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAuditLog } from '../audit_logs/service.ts';
 import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
-import { retireTasksInTx } from '../tasks/retire.ts';
+import {
+  cancelAgentRunsElsewhereInTx,
+  retireTasksInTx,
+} from '../tasks/retire.ts';
+import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import { deleteProject, ProjectError } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
@@ -27,6 +31,10 @@ vi.mock('../tasks/retire.ts', () => ({
   retireTasksInTx: vi
     .fn()
     .mockResolvedValue({ cancelledRunCount: 0, releasedRefs: [] }),
+  cancelAgentRunsElsewhereInTx: vi.fn().mockResolvedValue(0),
+}));
+vi.mock('../tasks/unassign.ts', () => ({
+  clearAgentAssignmentsInTx: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../sandbox/retirement-schedule.ts', () => ({
@@ -262,6 +270,35 @@ describe('deleteProject (cascade)', () => {
           s.text.startsWith('DELETE FROM app.projects'),
         ),
       );
+    },
+  );
+
+  it.each(['detach', 'cascade'] as const)(
+    'stops its agents’ runs on the boards its dispatch served, and takes them off those cards (%s) [PROJ-R16]',
+    async (mode) => {
+      vi.mocked(cancelAgentRunsElsewhereInTx).mockResolvedValueOnce(1);
+      const { tx } = fakeTx([], [], [], ['agent-1', 'agent-2']);
+      await deleteProject(tx, auth, {
+        projectId: 'project-1',
+        mode,
+        confirmPhrase: 'Q2 Sales',
+      });
+      expect(cancelAgentRunsElsewhereInTx).toHaveBeenCalledWith(tx, {
+        organizationId: 'org_1',
+        projectId: 'project-1',
+        agentIds: ['agent-1', 'agent-2'],
+      });
+      for (const agentId of ['agent-1', 'agent-2']) {
+        expect(clearAgentAssignmentsInTx).toHaveBeenCalledWith(tx, {
+          organizationId: 'org_1',
+          agentId,
+          actorId: 'user-1',
+          exceptProjectId: 'project-1',
+        });
+      }
+      expect(vi.mocked(createAuditLog).mock.calls[0]?.[1]).toMatchObject({
+        metadata: { cancelledRunCount: 1 },
+      });
     },
   );
 

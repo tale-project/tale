@@ -128,10 +128,11 @@ function fixture(
     task,
     statements,
     tx,
-    call: (patch: unknown) =>
+    call: (patch: unknown, reachedProjectIds?: string[]) =>
       updateAgentTaskMetadata(tx, {
         organizationId: 'org',
         projectId: 'project',
+        ...(reachedProjectIds !== undefined ? { reachedProjectIds } : {}),
         actorId: 'manager',
         patch,
       }),
@@ -375,5 +376,32 @@ describe('agent metadata domain', () => {
         expected: { assignee: null },
       }),
     ).rejects.toMatchObject({ code: 'TASK_HAS_LIVE_RUN' });
+  });
+});
+
+describe('the agents of a dispatch work the boards it serves like their own [TASK-R73]', () => {
+  it('changes a task of a board its project’s dispatch serves, and never one of a board it does not', async () => {
+    const served = fixture({ task: { projectId: 'served-board' } });
+    expect(
+      await served.call(
+        {
+          taskId: 'task',
+          priority: 'p1',
+          expected: { priority: null },
+        },
+        ['served-board'],
+      ),
+    ).toMatchObject({ taskId: 'task', priority: 'p1', changed: true });
+    const unserved = fixture({ task: { projectId: 'other-board' } });
+    await expect(
+      unserved.call(
+        {
+          taskId: 'task',
+          priority: 'p1',
+          expected: { priority: null },
+        },
+        ['served-board'],
+      ),
+    ).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
   });
 });

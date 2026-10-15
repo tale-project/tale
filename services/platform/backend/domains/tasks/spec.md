@@ -532,8 +532,8 @@ reads the run ledger and the passes, never where cards stand on the board.
 
 It names the project's dispatch as its starter and spends under the automation subject, as a
 schedule's run does. It acts with the agent's full equipment while the project's dispatch is
-switched on and the project is active; a run that has not launched when dispatch is switched off
-fails without running.
+switched on and the project is active, and — on another board — while the dispatch still serves
+it (`TASK-R72`); a run that has not launched when dispatch is switched off fails without running.
 
 - **Example**: Dispatch starts Scribe on "Changelog" → the run's starter reads `dispatch:` and the
   project, and no member's budget pays for it.
@@ -541,8 +541,9 @@ fails without running.
 ### TASK-R48 · Only who may administer the project changes its dispatch
 
 Owners and admins of the organization, and the project's own administrators, change it on an
-active project. Every agent, task and label it names must be the project's, and its schedules must
-read (`DISPATCH_INVALID`). Anyone who can read the project reads it.
+active project. Every agent, task and label it names must be the project's (a source's labels that
+source's, `TASK-R70`), and its schedules must read (`DISPATCH_INVALID`). Anyone who can read the
+project reads it.
 
 - **Example**: Mia, a member, tries to switch the project's dispatch on → refused. An admin adds a
   standing role on a task of another project → refused, naming the task.
@@ -637,6 +638,182 @@ declaration stays, and so does every task wearing it.
 
 - **Example**: The Fleet project holds the label `release`; its declaration names `Release` →
   the label is respelled `Release`, and its tasks keep it.
+
+## Dispatch across projects
+
+One project's dispatch may serve the boards of other projects of the same organization: a
+central project's pool works the ready tasks of the projects whose boards receive the work. The
+boards it serves are its sources; its agents — the pool, the standing roles' agents and its
+reviewers — work them while it serves them. Every other agent, and every other project, keeps to
+its own board.
+
+### TASK-R70 · A dispatch serves another board only when its writer may edit that board
+
+A source is another active project of the organization, named once and never the dispatch's own.
+Saving a dispatch that adds a source or changes one — in the app, through the settings tools or by
+a managed declaration, whose check before any write runs the same rules (`TASK-R61`) — needs the
+right to edit that project, besides administering the dispatch's own project (`TASK-R48`). A
+source kept exactly as stored is not checked again, whatever became of its project: every use
+judges it (`TASK-R72`), so keeping it widens nothing. Switching a dispatch off, and changing
+nothing else, is never refused for what it names. A source's label filter names that project's
+labels; a gate's labels may be those of any board the dispatch serves. Its reviewers are agents
+of its own project granted task review. A dispatch that names neither sources nor reviewers
+reads, hashes and behaves as it did before they existed.
+
+- **Example**: Ada administers Development and edits Tale, but only reads Billing. She saves
+  Development's dispatch serving Tale → saved. She adds Billing → refused at
+  `sources.1.projectId`, and nothing is written.
+- **Example**: Development's dispatch serves Billing, which Noah has since archived. Ada switches
+  the dispatch off in the app → saved; the next day she raises its pool to three agents → saved,
+  and Billing stays skipped as archived.
+
+### TASK-R71 · A dispatch takes ready work from every board it serves in one order
+
+Each board's ready work is chosen as on the dispatch's own (`TASK-R41`), by that board's columns —
+the dispatch's unless the source names its own — and that board's labels. All of it is ranked in
+one order: the column a task waits in, by its board's preference, then priority, board order and
+age; a pass reads up to 500 tasks across all of them (`TASK-R63`). An agent's runs count on every
+board against its own limit and the pool's.
+
+- **Example**: Development's Coder may hold 256 runs and holds 255, on Development, Tale and
+  Billing. A p0 To do task waits on Billing and a p2 To do task on Development → the Coder starts
+  on the Billing task, and the other waits for the next free run.
+
+### TASK-R72 · A board a dispatch can no longer reach is skipped, and the pass says why
+
+Every pass, start and tool call judges each source again, on the right of whoever last saved the
+dispatch: a project gone from the organization, an archived one, or one that person may no longer
+edit is skipped — none of its work is taken, none of its tasks are reached, and a run working one
+of its tasks acts for nobody. Its tasks stay assigned to the dispatch's agents until someone
+reassigns them, but nothing starts those agents there: a person's Start agent is refused, and a move
+to In progress, a retry or a late comment starts no run. The pass records the skip
+(`source_missing`, `source_archived`, `source_no_authority`) and the dispatch's page says why.
+Nobody else's right ever stands in: the dispatch serves the board again once someone who may edit
+it saves the dispatch, even unchanged, and from then on on that person's right. The dispatch's
+editor offers its Save, unchanged, to an administrator of the dispatch's project who may serve the
+board again, and to such a caller a managed declaration or a settings tools change reads the
+dispatch as not yet applied and saves it again.
+
+- **Example**: Ada saved Development's dispatch serving Billing, then lost her role there → the
+  next pass takes nothing from Billing and records `source_no_authority`, and the Coder's run on
+  a Billing task can no longer comment on it. Bea, who edits Billing, chooses Start agent on that
+  task → refused: the Coder's dispatch no longer serves Billing's board. She saves the dispatch
+  again → Billing is served on her right.
+
+### TASK-R73 · The agents of a dispatch work the boards it serves like their own
+
+While a dispatch reaches a source, its pool, its standing roles' agents and its reviewers may be
+assigned that board's tasks, started on them — by the dispatch, a person or an automation — and
+find, read, comment on, move, change the metadata of, review and hand on the reviews of its tasks,
+each as its tools are granted. They create no task there, start no other agent there, and read
+nothing else of that project. A run the dispatch starts there answers to the dispatch
+(`TASK-R47`); a run anyone else starts there answers to both projects (`TASK-R79`).
+
+- **Example**: Bea assigns "Fix the importer" on Billing to the Coder, an agent of Development
+  in the dispatch's pool → the Coder is started on it, comments on it and moves it to In review.
+  She tries the Reporter, an agent of Development outside the dispatch → refused.
+
+### TASK-R74 · A run on another board belongs to it and follows both projects' instructions
+
+The run is the task's: it shows on that board and in the task's history, and the people who read
+that project read it. It records the agent's own project. Every turn opens with both projects'
+current instructions (`TASK-R49`): the board's project decides about its board — how its tasks
+are written, labelled, moved, reviewed and reported — and the agent's own project about how the
+agent works. The run records the digest of each. The run that ends asks for a pass of both
+projects' dispatches.
+
+- **Example**: Ada's dispatch starts the Coder on a Billing task → the run appears on Billing's
+  board, and its turn reads Billing's "Every task names its customer" and Development's "Open a
+  draft pull request for every change", saying which governs what.
+
+### TASK-R75 · A dispatch's reviewers review its pool's work on every board it serves
+
+A task that names its own reviewer, an agent or a person, keeps it. Otherwise, work an agent of
+the pool produced on a board the dispatch serves goes to the first of its reviewers that may
+review there and did not produce it, before the board's default reviewer agent. A reviewer never
+reviews its own work.
+
+- **Example**: The Coder finishes "Fix the importer" on Billing, which names no reviewer, and
+  Billing's default reviewer is its Auditor → the review goes to Development's Reviewer. "Quarterly
+  return" names Bea as its reviewer → it goes to Bea.
+
+### TASK-R76 · A board says which other projects' dispatches serve it
+
+A project's dispatch page, and the dispatch readback, name every dispatch of another project that
+lists it as a source: switched on or off, and served or skipped with why — whether or not the
+project has a dispatch of its own. Its board names the agents those dispatches put to work there
+while they serve it, and offers them to assign and to review; a mention there still reaches only
+the project's own agents.
+
+- **Example**: Bea opens Billing's Dispatch tab → it reads "Served by Development's dispatch", a
+  link to it, even though Billing has no dispatch of its own. A Billing task the Coder took reads
+  "Coder", and Billing's assignee list offers the Coder "From Development's dispatch".
+
+### TASK-R79 · A run on a served board is equipped only for a starter who edits both projects
+
+On a board another project's dispatch serves, a run a person, an API key or a schedule starts
+works with the agent's full equipment — its secrets and brokered credentials, its standing
+workspace, and task tools beyond its own task — only while its starter may edit the board's
+project and the agent's own project, and while the dispatch still reaches the board. Any other
+run of that agent there is confined to its own task, in a workspace of its own, as a member's
+run is. Wherever it works, a run's task tools reach only the boards the dispatch serves that its
+starter may edit, besides its own task's while its starter may read it (`TASK-R82`); a run the
+dispatch started reaches every board the dispatch serves.
+
+- **Example**: Development's dispatch serves Billing and Payroll. Bea edits Billing and nothing
+  else. She chooses Start agent on a Billing task assigned to the Coder → the run works only on
+  that task, in a workspace of her own, without the Coder's secrets. Ada, who edits Development
+  and Billing but not Payroll, starts the Coder on a Development task → it may work Billing's
+  tasks, but none of Payroll's.
+
+### TASK-R80 · The dispatch readback names another project only to who may read it
+
+Anyone who reads a project reads its dispatch, but a board it serves, the runs of its agents on
+that board and a dispatch serving it are named only to who may read that other project. To
+anyone else, a run there is counted and never listed, and the project is listed without its
+name and without the labels that select its work; a gate shows only the labels of the projects
+they read, and a gate with none of those left is not shown. Whoever may administer the dispatch
+reads all of it, since a save writes the whole dispatch back. A board's list of agents that may
+be assigned there says only that an agent comes from another project's dispatch.
+
+- **Example**: Development's dispatch serves Billing's tasks labelled invoices, and Billing is
+  shared with one team. Noah reads Development but is not in that team. The Coder works one task
+  on each board. Noah opens Development's Dispatch page → the Coder holds two runs and only
+  Development's is listed, the served board reads "A project you cannot open", and neither "Fix
+  the importer", the name Billing nor the label invoices appears.
+
+### TASK-R81 · A switched-off dispatch serves no board
+
+Switched off, a dispatch reaches none of its sources, whoever saved it: no board offers its agents
+to assign or to review, nothing starts them on another board — neither the dispatch, a person nor
+an automation — a run of theirs on one acts for nobody, and it routes no review of its pool's
+work, on its own board or another (`TASK-R75`). The boards it lists still name it, switched off
+(`TASK-R76`). Switched on again, it serves each source as that source is judged then (`TASK-R72`).
+
+- **Example**: Ada switches Development's dispatch off. Bea chooses Start agent on a Billing task
+  assigned to the Coder → refused, and Billing's assignee list no longer offers the Coder. The
+  Coder finishes a Development task → the review goes to Development's default reviewer, not to
+  the dispatch's Reviewer.
+
+### TASK-R82 · A run on a served board reads only what its starter may read
+
+On a board another project's dispatch serves, a run a person or an API key started — with Start
+agent, a comment that woke the agent, a move to In progress, a retry of their run, or a start a
+run of theirs handed on — finds and reads tasks, documents and knowledge only of the projects that
+person may read: the agent's own project only while they may read it, and the board's only while
+they may read that. Of the other boards the dispatch serves, it reaches those they may edit
+(`TASK-R79`). A run a schedule began there reads the agent's own project only while the schedule
+may act in it. A run the dispatch started there acts for whoever last saved the dispatch, on whose
+right to edit the board the dispatch serves it (`TASK-R72`): it reads the agent's own project and
+every board the dispatch serves, so whoever may put a ready task on such a board writes the brief
+of a run with the agent's full equipment.
+
+- **Example**: Development is shared with its team only, and its dispatch serves Billing. Bea
+  edits Billing and is not in Development's team. She chooses Start agent on a Billing task
+  assigned to the Coder and asks it to list Development's tasks and documents → it lists
+  Billing's tasks alone, a Development task reads as not found, and its knowledge search finds
+  none of Development's documents. The dispatch starts the Coder on another Billing task → that
+  run reads Development's tasks and documents as its own.
 
 ## What a run is handed
 
@@ -979,6 +1156,15 @@ connection to its own instance.
   the title alone is accepted. The user docs say **Save** stays unavailable on such a task
   until the description is shortened (`docs/en/platform/projects/tasks.md`). One of the two
   is the intended rule.
+- **Dispatch across projects beyond `TASK-R70`–`TASK-R76`**: an agent does not start another
+  agent on a board it serves (`task_start_agent` keeps to its own project), creates no task or
+  document there and reads none of that project's documents or knowledge; review batches stay on
+  the manager's own project; the app's Dispatch editor shows the sources and reviewers but does
+  not edit them — managed configuration and the settings tools do (`dispatch-reach.ts`,
+  `dispatch-config.ts`).
+- **Undecided: may a served board's own administrators refuse to be served?** A dispatch serves
+  a board on its writer's right to edit it (`TASK-R70`); the served project's administrators
+  can see it (`TASK-R76`) but stop it only by removing that right or archiving the project.
 - **`TASK-R12` covers project agents only.** Nothing counts automation runs on a task; the
   contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records it.
 - **`TASK-R4` has no REST twin.** A task cannot be deleted over `/api/v1`; the same ledger

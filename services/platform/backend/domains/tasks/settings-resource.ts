@@ -34,7 +34,9 @@ import {
   DISPATCH_INVALID_SENTENCE,
   readProjectDispatchConfiguration,
   saveProjectDispatch,
+  savingServesAgain,
 } from './dispatch-config.ts';
+import { readDispatchPreimage } from './dispatch-store.ts';
 import { TaskError } from './errors.ts';
 import {
   assertTaskReviewContextChange,
@@ -346,20 +348,31 @@ export const projectDispatchSettings: SettingsKindHandler = {
       );
     }
     const { projectId: _projectId, ...dispatch } = after;
+    // Checked as the save checks it: a board kept as stored, and switching
+    // the dispatch off, are never refused for what became of that board.
+    const stored = await readDispatchPreimage(ctx.sql, auth.organizationId, id);
     const issues = await checkProjectDispatch(ctx.sql, {
       organizationId: auth.organizationId,
       projectId: id,
       dispatch,
+      auth,
+      stored: stored?.config ?? null,
     });
     if (issues.length > 0) {
       throw new TaskError('DISPATCH_INVALID', DISPATCH_INVALID_SENTENCE, 400, {
         issues,
       });
     }
+    // The same document still changes something while saving it again
+    // serves a board it skips now, on the caller's right (TASK-R72).
     const unchanged =
       current !== null &&
       current.config !== null &&
-      configurationHash(after) === configurationHash(current.config);
+      configurationHash(after) === configurationHash(current.config) &&
+      !(
+        stored !== null &&
+        (await savingServesAgain(ctx.sql, auth, project, stored))
+      );
     return { after, unchanged };
   },
   apply: async (ctx, change, expectedHash) => {
