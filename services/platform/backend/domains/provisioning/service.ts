@@ -1,17 +1,5 @@
-import { automationSettingsSchema } from '@tale/shared/schemas/automation-settings';
-import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import type { Sql } from 'postgres';
 
-import {
-  applyModelDefaults,
-  llmModelSteps,
-  modelDefaultsMessage,
-} from '../../../lib/automations/model-defaults.ts';
-import { automationPresentationSchema } from '../../../lib/shared/schemas/automation_presentation.ts';
-import { loadSeedablePacks } from '../../core/provisioning/provision_default_automations.ts';
-import { PROVISIONING_ORIGIN } from '../../lib/write-origin.ts';
-import { resolveModelReplacements } from '../automations/model-defaults.ts';
-import { saveVersion, setTrigger } from '../automations/store.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import {
   createProject,
@@ -21,174 +9,21 @@ import { createTask } from '../tasks/service.ts';
 import { EXAMPLE_TASKS } from './starter-content.ts';
 
 /**
- * Org provisioning — the 0.5 twin of `convex/provisioning`: seed the
- * shipped default automation packs and the starter content into a fresh
- * organization. Runs from the `org.scaffold` job (the 0.4
- * afterCreateOrganization schedule), and is IDEMPOTENT so a scaffold retry
- * or a deploy-time re-run never duplicates anything:
+ * Org provisioning: the starter content of a fresh organization. Runs from
+ * the `org.scaffold` job, which the organization's creation queues and
+ * `tale migrate` queues again for every organization, so it is IDEMPOTENT: a
+ * scaffold retry or a re-run never duplicates anything, and starter content
+ * seeds only while the org has no project at all.
  *
- *  - a pack an org already has any version of is skipped (its own history
- *    wins for behaviour; only the shipped presentation refreshes),
- *  - a pack the org DELETED stays deleted (the tombstone outlives deploys;
- *    saving the name again clears it),
- *  - a pack's trigger is bound once, while the org has none for it, and
- *    switched off unless the pack says otherwise,
- *  - a pack's model step whose model the org does not serve is given one
- *    it does serve, and the version says which (PROVN-R8),
- *  - starter content seeds only while the org has no project at all.
+ * Provisioning adds no automation and touches none an organization has: the
+ * automations that ship with the product are templates a person picks from
+ * the template catalog, and one an organization already has keeps its
+ * versions, its trigger and its name.
  *
  * The 0.4 default-AGENT provisioner is not ported: it had already been
  * gutted to a logging no-op ("returns with chat v2"), and 0.5 agents are
  * file-backed — the org scaffold seeds the builtin catalog tree.
  */
-
-/** The 0.4 fail-at-the-door parse rule: a malformed pack half refuses the
- * seed rather than storing a shape every surface then chokes on. */
-function parseOrThrow<T>(
-  value: unknown,
-  schema: { safeParse: (v: unknown) => { success: boolean; data?: T } },
-  what: string,
-): T | undefined {
-  if (value === undefined || value === null) return undefined;
-  const parsed = schema.safeParse(value);
-  if (!parsed.success || parsed.data === undefined) {
-    throw new Error(`[provisioning] pack ${what} is not the real shape`);
-  }
-  return parsed.data;
-}
-
-export interface SeedPacksResult {
-  provisioned: string[];
-  skipped: string[];
-}
-
-/** Seed the shipped org-scope automation packs (the 0.4 `seedDefaultPacks`
- * semantics on the 0.5 store). */
-export async function seedDefaultAutomationPacks(
-  sql: Sql,
-  organizationId: string,
-): Promise<SeedPacksResult> {
-  const packs = loadSeedablePacks();
-  if (packs === null || packs.length === 0) {
-    return { provisioned: [], skipped: [] };
-  }
-  const provisioned: string[] = [];
-  const skipped: string[] = [];
-  // What each model a pack names is replaced with — null keeps it — asked
-  // once per model however many packs name it.
-  const decided = new Map<string, string | null>();
-  for (const pack of packs) {
-    const document = pack.document;
-    const name = document.name ?? '';
-    if (!name) continue;
-    const existing = await sql<{ id: string; presentation: unknown }[]>`
-      SELECT id, presentation FROM app.automations
-      WHERE org_id = ${organizationId} AND name = ${name}
-      ORDER BY version DESC
-      LIMIT 1
-    `;
-    if (existing.length === 0) {
-      // A deliberate deletion outlives the deploy cycle: the tombstone says
-      // this organization removed the pack, so provisioning must not bring
-      // it back. Saving the name again (re-create, upload) clears it.
-      const tombstones = await sql<{ name: string }[]>`
-        SELECT name FROM app.automation_tombstones
-        WHERE org_id = ${organizationId} AND name = ${name} LIMIT 1
-      `;
-      if (tombstones.length > 0) {
-        skipped.push(name);
-        continue;
-      }
-    }
-    if (existing.length > 0) {
-      // The organization's own history wins for BEHAVIOUR; only the shipped
-      // display half refreshes on the newest version — nothing a run can
-      // observe.
-      const shipped = parseOrThrow(
-        pack.presentation,
-        automationPresentationSchema,
-        'presentation',
-      );
-      const newest = existing[0];
-      if (
-        shipped !== undefined &&
-        newest !== undefined &&
-        JSON.stringify(newest.presentation) !== JSON.stringify(shipped)
-      ) {
-        await sql`
-          UPDATE app.automations
-          SET presentation = ${sql.json(JSON.stringify(shipped))}
-          WHERE id = ${newest.id}
-        `;
-      }
-      skipped.push(name);
-      continue;
-    }
-    const contract = parseOrThrow(
-      pack.taskContract,
-      taskSubjectContractSchema,
-      'subjects.task',
-    );
-    const settings = parseOrThrow(
-      pack.settings,
-      automationSettingsSchema,
-      'settings',
-    );
-    const presentation = parseOrThrow(
-      pack.presentation,
-      automationPresentationSchema,
-      'presentation',
-    );
-    const undecided = [
-      ...new Set(llmModelSteps(document).map((step) => step.model)),
-    ].filter((model) => !decided.has(model));
-    if (undecided.length > 0) {
-      const replacements = await resolveModelReplacements(
-        sql,
-        organizationId,
-        undecided,
-      );
-      for (const model of undecided) {
-        decided.set(model, replacements.get(model) ?? null);
-      }
-    }
-    const seeded = applyModelDefaults(
-      document,
-      (model) => decided.get(model) ?? null,
-    );
-    await saveVersion(sql, {
-      organizationId,
-      name,
-      document: seeded.document,
-      origin: PROVISIONING_ORIGIN,
-      message:
-        seeded.changes.length === 0
-          ? 'Shipped default pack'
-          : `Shipped default pack. ${modelDefaultsMessage(seeded.changes)}`,
-      ...(contract !== undefined ? { taskContract: contract } : {}),
-      ...(settings !== undefined ? { settings } : {}),
-      ...(presentation !== undefined ? { presentation } : {}),
-    });
-    if (pack.trigger !== undefined) {
-      const bound = await sql<{ id: string }[]>`
-        SELECT id FROM app.automation_triggers
-        WHERE org_id = ${organizationId} AND name = ${name} LIMIT 1
-      `;
-      if (bound.length === 0) {
-        // Switched off unless the pack says otherwise: nothing is deployed
-        // yet, and the deploy offers to turn it on (PROVN-R7).
-        await setTrigger(sql, {
-          organizationId,
-          name,
-          trigger: { ...pack.trigger, enabled: pack.trigger.enabled ?? false },
-          origin: PROVISIONING_ORIGIN,
-        });
-      }
-    }
-    provisioned.push(name);
-  }
-  return { provisioned, skipped };
-}
 
 /**
  * Starter content — a "Getting started" project and a few example tasks

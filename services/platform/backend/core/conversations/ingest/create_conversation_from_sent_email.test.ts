@@ -106,3 +106,30 @@ describe('createConversationFromSentEmail', () => {
     expect(result.skippedCount).toBe(1);
   });
 });
+
+describe('createConversationFromSentEmail — what it found stored already [CONV-R6]', () => {
+  it('counts a sent email it finds stored, such as a reply sent from the Inbox', async () => {
+    const stored = '4abab424-9cfd-f43a-64c4-c5fd36788a4f@support.example.com';
+    const ctx = {
+      runQuery: vi.fn(async (_ref: unknown, args: Record<string, unknown>) =>
+        args.externalMessageId === stored
+          ? {
+              _id: 'msg_sent',
+              conversationId: 'conv_1',
+              deliveryState: 'sent',
+            }
+          : null,
+      ),
+      runMutation: vi.fn(async () => null),
+    } as unknown as ActionCtx;
+
+    const result = await createConversationFromSentEmail(ctx, {
+      organizationId: ORG,
+      emails: [makeSentEmail()],
+      accountEmail: 'billing@support.example.com',
+      connectorName: 'gmail',
+    });
+
+    expect(result).toMatchObject({ processedCount: 1, alreadyStoredCount: 1 });
+  });
+});

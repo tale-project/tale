@@ -5,8 +5,8 @@
 # Never edit this file by hand: change the diff or the documents, review the
 # diff, and regenerate with
 #   DIFF_CORPUS_UPDATE=1 bunx vitest run lib/engine/core/diff/corpus
-pack github/import-issues:
-  template: n/a
+pack github/review-pull-requests:
+  template: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   code: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
@@ -20,9 +20,9 @@ pack github/import-issues:
   tests: '{"nodes":{"added":0,"removed":0,"changed":0},"tests":true}'
   ui only: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
   node order: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
-pack github/review-pull-requests:
-  template: '{"nodes":{"added":0,"removed":0,"changed":1}}'
-  code: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+pack github/sync-issues:
+  template: n/a
+  code: n/a
   condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   add node: '{"nodes":{"added":1,"removed":0,"changed":0}}'
@@ -50,9 +50,9 @@ pack github/triage-issues:
   tests: '{"nodes":{"added":0,"removed":0,"changed":0},"tests":true}'
   ui only: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
   node order: '{"nodes":{"added":0,"removed":0,"changed":0},"identical":true}'
-pack glitchtip/import-issues:
+pack glitchtip/sync-issues:
   template: n/a
-  code: '{"nodes":{"added":0,"removed":0,"changed":1}}'
+  code: n/a
   condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   add node: '{"nodes":{"added":1,"removed":0,"changed":0}}'

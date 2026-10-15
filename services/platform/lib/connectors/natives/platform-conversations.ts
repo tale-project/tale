@@ -53,9 +53,14 @@ const ingestInput = z
 const syncInput = z
   .object({
     connectorSlug: z.string().min(1),
+    /** Emails one pass reads from each mailbox, Inbox and Sent together. */
     limit: z.number().int().positive().max(100).optional(),
-    /** When true, also sync the IMAP Sent folder into threads. */
+    /** Read the Sent folder with the Inbox, so a thread holds both sides. */
     includeSent: z.boolean().optional(),
+    /** One mailbox by its connection name; blank reads every active one. */
+    mailbox: z.string().max(200).optional(),
+    /** Days a mailbox's first pass reads back. */
+    backfillDays: z.number().int().min(0).max(365).optional(),
   })
   .strict();
 
@@ -112,10 +117,45 @@ export interface ConversationIngestResult {
   reason?: string;
 }
 
+/** What one sync pass did in one mailbox — the run record's account of it. */
+export interface MailboxSyncReceipt {
+  /** The mailbox's connection name; `default` when the connector has no
+   * stored connection. */
+  mailbox: string;
+  /** False when the pass stopped on an error (`error`). */
+  ok: boolean;
+  /** Emails listed after the mailbox's position. */
+  listed: number;
+  /** Emails whose body was read. */
+  fetched: number;
+  /** Emails stored for the first time. */
+  ingested: number;
+  /** Emails read again that were stored already. */
+  duplicates: number;
+  /** Emails that cannot be stored: no Message-ID, or no one to file them
+   * under. */
+  skipped: number;
+  /** Emails deleted or moved between the listing and the read. */
+  vanished: number;
+  /** More email is waiting than one pass reads; the next pass continues. */
+  capped: boolean;
+  /** The provider asked the sync to slow down, and the pass stopped there. */
+  rateLimited?: true;
+  /** When the provider allows the next try, when it said (ISO 8601). */
+  retryAfter?: string;
+  /** Why the pass stopped early. */
+  error?: string;
+  /** Where the next pass starts, per folder (ISO 8601): it reads what
+   * arrived after that instant. */
+  resumeFrom?: { inbox?: string; sent?: string };
+}
+
 export interface ConversationSyncResult {
   inbound: ConversationIngestResult;
   sent?: ConversationIngestResult;
   listed: number;
+  /** One receipt per mailbox the pass read, in the order read. */
+  mailboxes: MailboxSyncReceipt[];
 }
 
 export interface ConversationSyncCursor {
@@ -189,6 +229,10 @@ export interface WorkflowConversationStore {
     limit: number;
     includeSent: boolean;
     mode: 'mock' | 'live';
+    /** Days a mailbox's first pass reads back. */
+    backfillDays: number;
+    /** One mailbox by its connection name; absent reads every one. */
+    mailbox?: string;
   }): Promise<ConversationSyncResult>;
   listMailboxMessages(args: {
     organizationId: string;
@@ -216,6 +260,13 @@ export interface WorkflowConversationStore {
     nodeId?: string;
   }): Promise<ConversationDraftReplyResult>;
 }
+
+/** Emails one sync pass reads from each mailbox when the step names no
+ * `limit` — Inbox and Sent together. */
+const MAILBOX_PASS_LIMIT = 50;
+
+/** Days a mailbox's first sync pass reads back when the step names none. */
+export const FIRST_PASS_BACKFILL_DAYS = 7;
 
 function refuse(action: string, issues: z.ZodError): never {
   throw new ConnectorError(
@@ -281,12 +332,16 @@ export function platformConversationNatives(
   ) => {
     const parsed = syncInput.safeParse(raw);
     if (!parsed.success) refuse('sync_mailbox', parsed.error);
+    const mailbox = parsed.data.mailbox?.trim() ?? '';
     return await store.syncMailbox({
       organizationId: ctx.organizationId,
       connectorSlug: parsed.data.connectorSlug,
-      limit: parsed.data.limit ?? 25,
-      includeSent:
-        parsed.data.includeSent ?? parsed.data.connectorSlug === 'imap-smtp',
+      limit: parsed.data.limit ?? MAILBOX_PASS_LIMIT,
+      // Every provider: a thread holds what the mailbox sent from anywhere,
+      // and an email sent from the Inbox is stored once (`CONV-R6`).
+      includeSent: parsed.data.includeSent ?? true,
+      backfillDays: parsed.data.backfillDays ?? FIRST_PASS_BACKFILL_DAYS,
+      ...(mailbox !== '' && { mailbox }),
       // The dispatcher only invokes natives in live mode; the mock path runs
       // the connector.yml mock and never reaches here.
       mode: 'live',

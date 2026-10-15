@@ -332,12 +332,25 @@ export function useAutomationProjects(organizationId: string, name: string) {
   });
 }
 
-/** The starters a person creates an automation from, with their
- * questions — read while the gallery is open. */
+/** The template catalog a person creates an automation from, with each
+ * template's questions — read while the catalog is open. */
 export function useAutomationTemplates(organizationId: string, enabled = true) {
   return useBackendQuery(
     'automations/queries:listAutomationTemplates',
     enabled ? { organizationId } : 'skip',
+  );
+}
+
+/** One template's preview: the document it creates, for the read-only
+ * flow, and the credentials its questions can name — read while it is
+ * open. */
+export function useAutomationTemplate(
+  organizationId: string,
+  slug: string | null,
+) {
+  return useBackendQuery(
+    'automations/queries:getAutomationTemplate',
+    slug === null ? 'skip' : { organizationId, slug },
   );
 }
 

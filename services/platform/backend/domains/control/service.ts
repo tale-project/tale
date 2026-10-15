@@ -250,10 +250,12 @@ export async function drainStatus(sql: Sql): Promise<
  * migrate`'s Convex `provisioning:provisionAll` step. SCHEMA migrations need
  * no door: the backend applies them under an advisory lock at boot, so a
  * deployed image is always at its own schema. What stays operator-triggered
- * is the idempotent per-org seeding (default automation packs + starter
- * content), which rides the same `org.scaffold` job the create path uses —
- * one job per org so a slow or failing org retries on its own without
- * blocking the rest, and the CLI returns as soon as they are queued.
+ * is the idempotent per-org seeding, which re-runs only the config scaffold
+ * (the shipped configuration files an org is missing) and the starter
+ * content (for an org with no project) — never an automation: it adds,
+ * changes and removes none. It rides the same `org.scaffold` job the create
+ * path uses — one job per org so a slow or failing org retries on its own
+ * without blocking the rest, and the CLI returns as soon as they are queued.
  */
 export async function provisionAllOrganizations(
   sql: Sql,

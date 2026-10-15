@@ -1,10 +1,16 @@
-# Each delivery to the automation's webhook address creates one task in the
+# Each delivery to the automation's webhook address becomes one task in the
 # project it is installed in: the delivery's "title" names the task and its
 # "description" adds the text. A delivery without a title does not fit the
 # inputs, so it is refused at the door and starts no run.
+#
+# The task is keyed by the delivery: the value at the field the creator named
+# (such as id or alert.id), or — for a delivery without it — a digest of the
+# whole body, the same for the same body whatever the order of its keys. A
+# delivery sent again, even days after the door stopped remembering it,
+# updates the task it made the first time instead of adding a second one.
 version: 1
 name: webhook-create-task
-description: Create a task from each webhook delivery.
+description: Create a task from each webhook delivery; a delivery sent again updates the task it made.
 inputs:
   type: object
   properties:
@@ -27,29 +33,117 @@ inputs:
   required:
     - payload
 nodes:
-  - id: create
-    type: task.create
+  - id: key
+    type: transform
+    input:
+      payload: '{{ input.payload }}'
+      field: id
+    code: |
+      // The value at the named field (a dotted path such as alert.id), as
+      // text; without one, a digest of the whole body with its keys sorted.
+      const read = (value, path) =>
+        path.split('.').reduce(
+          (at, key) => (at !== null && typeof at === 'object' && !Array.isArray(at) ? at[key] : undefined),
+          value,
+        );
+      const field = typeof input.field === 'string' ? input.field.trim() : '';
+      const named = field === '' ? undefined : read(input.payload, field);
+      if (
+        (typeof named === 'string' && named.trim() !== '') ||
+        (typeof named === 'number' && Number.isFinite(named))
+      ) {
+        return { externalId: String(named).trim().slice(0, 2000), from: 'field' };
+      }
+      const canonical = (value) =>
+        Array.isArray(value)
+          ? `[${value.map(canonical).join(',')}]`
+          : value !== null && typeof value === 'object'
+            ? `{${Object.keys(value)
+                .sort()
+                .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
+                .join(',')}}`
+            : (JSON.stringify(value) ?? 'null');
+      const text = canonical(input.payload);
+      let first = 0x811c9dc5;
+      let second = 0x5bd1e995;
+      for (let at = 0; at < text.length; at += 1) {
+        const code = text.charCodeAt(at);
+        first = Math.imul(first ^ code, 0x01000193);
+        second = Math.imul(second ^ code, 0x5bd1e995) ^ (second >>> 13);
+      }
+      const hex = (value) => (value >>> 0).toString(16).padStart(8, '0');
+      return { externalId: `body:${hex(first)}${hex(second)}`, from: 'body' };
+
+  # Keyed by the delivery: a key seen before updates its task (its title, and
+  # its text while the task has none) instead of making another.
+  - id: upsert
+    type: task.upsert
     input:
       projectId: the-project
+      externalSystem: webhook
+      externalId: '{{ nodes.key.output.externalId }}'
       title: '{{ input.payload.title }}'
       description: "{{ input.payload.description ?? '' }}"
-output: '{{ nodes.create.output }}'
+output:
+  taskId: '{{ nodes.upsert.output.taskId }}'
+  created: '{{ nodes.upsert.output.created }}'
+  title: '{{ nodes.upsert.output.title }}'
+  key: '{{ nodes.key.output.externalId }}'
 tests:
-  - name: a delivery creates a task titled from it
+  - name: a delivery makes a task keyed by its id
     input:
       trigger: webhook
       payload:
+        id: evt-1
         title: Server down
         description: Disk full on web-1.
     # The project is the creator's answer; the task's words are the
     # delivery's whatever it is.
     expect:
       outputIncludes:
-        taskId: tsk_mock_1
+        created: true
         title: Server down
+        key: evt-1
       effects:
-        - connector: task.create
-          node: create
+        - connector: task.upsert
+          node: upsert
           inputIncludes:
+            externalSystem: webhook
+            externalId: evt-1
             title: Server down
             description: Disk full on web-1.
+  - name: a delivery sent again updates the task it made
+    input:
+      trigger: webhook
+      payload:
+        id: evt-1
+        title: Server down
+    mocks:
+      upsert:
+        taskId: task_webhook_evt-1
+        created: false
+        title: Server down
+    expect:
+      output:
+        taskId: task_webhook_evt-1
+        created: false
+        title: Server down
+        key: evt-1
+  - name: a delivery without an id is keyed by its whole body
+    input:
+      trigger: webhook
+      payload:
+        title: Server down
+        description: Disk full on web-1.
+    expect:
+      outputIncludes:
+        key: body:4075a5136408c06d
+  - name: the same body in another key order gets the same key
+    input:
+      trigger: webhook
+      payload:
+        description: Disk full on web-1.
+        title: Server down
+    expect:
+      outputIncludes:
+        key: body:4075a5136408c06d

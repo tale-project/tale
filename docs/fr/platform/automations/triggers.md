@@ -5,7 +5,7 @@ description: Lance une automatisation selon une planification, depuis un webhook
 
 La section **Déclencheur** de l’onglet **Général** d’une automatisation définit quand elle démarre seule : selon une planification, quand un autre système envoie une requête, ou quand quelque chose se passe dans Tale. Chaque déclencheur utilise la version en service en mode réel. Avant d’en activer un, vérifie ce que recevront ses exécutions et que les actions externes du workflow sont prêtes.
 
-<Frame caption="Le déclencheur d’un paquet fourni arrive désactivé : sa planification est définie et ses prochaines exécutions sont listées, mais rien ne démarre tant que tu ne l’actives pas.">
+<Frame caption="Un déclencheur qui arrive désactivé, comme celui d’un modèle créé sans être démarré : sa planification est définie et ses prochaines exécutions sont listées, mais rien ne démarre tant que tu ne l’actives pas.">
 
 ![L’onglet Général de Triage the Gmail inbox avec l’interrupteur Enabled désactivé, Schedule comme type de déclencheur, le format Repeat avec une planification toutes les 6 heures, le fuseau horaire UTC, Start the latest one when Tale is back sous Missed runs et les prochaines exécutions listées sous Would run at.](/images/platform/automation-general-trigger.webp)
 
@@ -229,9 +229,9 @@ Quand la version en service exige des champs que le déclencheur n’envoie pas,
 
 ## Activer le déclencheur après la mise en service
 
-Un nouveau déclencheur démarre désactivé, tout comme celui d’un paquet fourni. Quand tu mets une version en service, dans l’éditeur ou en téléversant un paquet, et que son déclencheur est désactivé, un avis indique **Son déclencheur est désactivé**. **Activer le déclencheur** active le déclencheur enregistré tel quel, et l’avis indique alors **Le déclencheur est activé.**
+Un nouveau déclencheur démarre désactivé, tout comme celui d’une automatisation que tu crées à partir d’un modèle sans **Démarrer maintenant**. Quand tu mets une version en service, dans l’éditeur ou en téléversant un paquet, et que son déclencheur est désactivé, un avis indique **Son déclencheur est désactivé**. **Activer le déclencheur** active le déclencheur enregistré tel quel, et l’avis indique alors **Le déclencheur est activé.**
 
-Quand la version en service refuserait ce qu’envoie le déclencheur, ou qu’un webhook n’a pas encore d’URL, l’avis propose plutôt **Vérifier le déclencheur**. Cela ouvre la section **Déclencheur** de l’onglet **Général**, où tu ajoutes d’abord l’entrée fixe ou crées l’URL. Les paquets GitHub fournis en sont un exemple : leurs planifications ont besoin d’un dépôt, comme l’explique [Automatisations livrées](/fr/platform/automations/builtin).
+Quand la version en service refuserait ce qu’envoie le déclencheur, ou qu’un webhook n’a pas encore d’URL, l’avis propose plutôt **Vérifier le déclencheur**. Cela ouvre la section **Déclencheur** de l’onglet **Général**, où tu ajoutes d’abord l’entrée fixe ou crées l’URL. Un modèle demande ces valeurs quand tu l’utilises, comme l’explique [Modèles d’automatisation](/fr/platform/automations/templates).
 
 ## Démarrer un agent de projet selon une planification
 
@@ -269,38 +269,27 @@ Une nouvelle tentative automatique est possible si le type d’échec le permet,
 
 Une planification qui exécute le rôle permanent d’un projet, comme un responsable qui distribue le travail, peut aussi se déclencher dès qu’un agent de son projet termine et que l’un de ses workers habituels se libère, au lieu d’attendre sa prochaine minute cron. Active-le avec `wakeOnSlotFreed: true` dans la configuration gérée de la planification, appliquée avec la CLI Tale ; une seule planification activée par projet peut l’avoir — une deuxième est refusée, tout comme l’installation de son automatisation dans un projet qu’une autre planification réveille déjà — et l’application n’offre aucun interrupteur pour cela. Chaque réveil est une occurrence ordinaire avec l’entrée habituelle `{ trigger: "schedule", firedAt }`, donc les réponses ci-dessus s’appliquent toujours. Plusieurs agents qui terminent pendant qu’un réveil est en attente n’en déclenchent qu’un seul. Un réveil attend tant que la propre carte du responsable a une exécution active ou une nouvelle tentative automatique prévue, que la carte refuserait le démarrage ou qu’elle n’est plus assignée à l’agent, jusqu’à `retryAfter` quand la tâche a pris trois démarrages dans l’heure, et, après une occurrence qui n’a rien servi, une minute qui double jusqu’à une heure, sans limite de tentatives. Les autres tâches du même agent ne bloquent pas le réveil ; la nouvelle exécution du responsable reçoit son propre worker ou attend la capacité nécessaire, comme d’habitude. Il ne compte comme servi qu’une fois que l’exécution de l’agent qu’il a démarrée s’est lancée et terminée. Tant que la planification est en pause après des échecs, désactivée ou sans `wakeOnSlotFreed`, le réveil attend et se déclenche une fois quand la planification est de nouveau enregistrée.
 
-### Importer chaque issue selon une planification
+### Synchroniser des issues selon une planification
 
-Un import d’issues lit au plus un lot par exécution, jusqu’à 500 issues, et indique où commence le lot suivant. Une personne le poursuit avec **Poursuivre l'import** ; une planification conserve plutôt la position entre ses occurrences, si bien que chaque occurrence importe un lot à partir de l’endroit où la précédente s’est arrêtée, jusqu’à ce que toutes les issues ouvertes aient été lues, et l’occurrence suivante commence la passe d’après. Lis la position avec `task.get_import_cursor`, transmets-la à l’import et enregistre son `nextCursor` avec `task.save_import_cursor` :
+La synchronisation des issues tient les tâches d’un projet alignées sur des dépôts GitHub et des projets GlitchTip. Une seule étape `task.sync_issues` liste les sources, et chaque exécution lit, pour chaque source, le lot suivant d’issues ouvertes à partir de l’endroit où la précédente s’est arrêtée. Les modèles [Synchroniser les issues GitHub](/fr/platform/automations/templates#github-sync-issues) et [Synchroniser les issues GlitchTip](/fr/platform/automations/templates#glitchtip-sync-issues) la configurent pour une source. Pour en synchroniser plusieurs dans une automatisation, liste-les dans l’étape :
 
 ```yaml
 nodes:
-  - id: position
-    type: task.get_import_cursor
-    onError: continue
-    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
-  - id: issues
-    type: subautomation
-    automation: github-import-issues
-    onError: continue
+  - id: sync
+    type: task.sync_issues
     input:
       projectId: <the project's ID>
-      owner: owner
-      repo: repo
-      limit: 500
-      cursor: '{{ nodes.position.output.cursor }}'
-  - id: progress
-    type: task.save_import_cursor
-    onError: continue
-    input:
-      projectId: <the project's ID>
-      externalSystem: github
-      source: owner/repo
-      revision: '{{ nodes.position.output.revision }}'
-      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+      sources:
+        - { kind: github, owner: tale-project, repo: tale, labels: bug }
+        - { kind: github, owner: tale-project, repo: docs, credential: GitHub docs }
+        - { kind: glitchtip, organization: tale, project: web, query: 'is:unresolved environment:production' }
+      limit: 100
+      refreshLimit: 50
 ```
 
-`source` est le nom que tu donnes à la liste ; les automatisations qui nomment la même source partagent une même passe. La lecture indique aussi `revision`, le jeton de comparaison de la position, et l’enregistrement le renvoie : la position n’avance que tant qu’elle en est encore à cette révision. Chaque lot enregistré, chaque fin de passe et chaque redémarrage fait passer à une nouvelle révision, et aucune révision ne se répète, même quand le texte du curseur se répète. Un import qui échoue n’enregistre rien, si bien que l’occurrence suivante reprend le même lot. Un enregistrement fait avec une révision antérieure est refusé (`conflict`) et n’écrit rien, qu’il vienne d’une exécution qui se chevauche, d’une exécution retardée au-delà de la fin de sa passe ou d’une exécution qui détient encore une position antérieure à un redémarrage. Après trois lectures d’une même position sans enregistrement, la lecture suivante recommence la passe (`restarted`) au lieu de réessayer une position que la source refuse sans cesse, par exemple après le renommage du dépôt. L’enregistrement indique `batch` et `drained`, qu’un reçu peut rapporter. Chaque exécution rafraîchit aussi jusqu’à 500 issues importées auparavant, en commençant par celles vérifiées le moins récemment, si bien qu’une grande collection est rafraîchie sur plusieurs occurrences.
+La plateforme conserve la position de chaque source par projet, par nom de source (`owner/repo`, `organization/project`) et par filtre : les automatisations qui nomment la même source avec le même filtre dans le même projet partagent une même passe, une source restreinte par des `labels` ou une `query` a sa propre passe, et une source sans filtre poursuit une passe commencée par une chaîne faite à la main avec `task.get_import_cursor` et `task.save_import_cursor`. Chaque exécution lit jusqu’à `limit` nouvelles issues ouvertes par source (100 si rien n’est indiqué, 500 au plus), crée une tâche dans **Backlog** pour chaque issue que le projet n’a pas encore et enregistre où elle s’est arrêtée ; après la dernière issue, l’exécution suivante commence la passe suivante à la première. Elle relit aussi jusqu’à `refreshLimit` issues importées plus tôt (50 si rien n’est indiqué, 0 pour aucune), les moins récemment vérifiées d’abord, et met à jour la fiche source de leurs tâches ; le titre, la description, le statut et l’assignation d’une tâche restent tels quels, que l’issue soit fermée à la source ou non. `credential` nomme les identifiants enregistrés avec lesquels une source est lue ; vide ou absent, ce sont les identifiants par défaut.
+
+L’étape répond par un reçu par source, dans l’ordre de la liste : sa `source` et son `filter` ; `ok` et `error`, avec le statut HTTP de la source (`status`) quand l’échec était sa réponse ; le `batch` de la passe qu’elle a lu, et si elle a poursuivi (`resumed`), recommencé (`restarted`) ou terminé (`drained`) la passe ; si la position a été enregistrée (`saved`) ou si une autre exécution l’a enregistrée avant elle (`conflict`) ; combien d’issues elle a trouvées (`discovered`), créées (`created`), actualisées (`refreshed`), laissées inchangées (`unchanged`) et ignorées (`skipped`) ; et combien ont été fermées, rouvertes ou sont devenues indisponibles à la source. Chaque source est lue séparément. Une source qui échoue n’arrête pas les autres et n’enregistre rien, si bien que l’exécution suivante relit le même lot ; après trois lots en échec d’affilée, l’exécution suivante recommence la passe, et une position enregistrée avec un autre filtre de labels ou une autre recherche recommence tout de suite. Une issue que la source ne veut plus montrer, ou que sa tâche refuse, est ignorée et retentée plus tard (`skippedIssues` nomme les premières). Quand une source limite la synchronisation par une limite de requêtes, elle s’arrête pour cette exécution en gardant ce qu’elle a fait, et les exécutions avant l’heure qu’elle a indiquée (`retryAfter`) la laissent tranquille. L’étape n’échoue que si toutes les sources ont échoué, avec la cause qu’elles partagent, si bien que la planification compte l’échec ; une source qui attend la fin d’une limite de requêtes n’a pas échoué. `error` vaut `credential`, `unauthorized`, `not_found`, `rate_limited`, `unavailable`, `invalid_response` ou `failed`.
 
 ## Comprendre l’absence de démarrage
 

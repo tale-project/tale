@@ -190,6 +190,7 @@ import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
+import { checkIssueSync } from './domains/tasks/issue-sync.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
 import { checkNativeAgentRuns } from './domains/tasks/native-runs.integration.ts';
@@ -30655,6 +30656,8 @@ async function checkMailboxSyncLane(
   // --- the fake transport (phased inbox) -----------------------------------
   let phase: 1 | 2 = 1;
   const smtpSends: Array<{ to: string; subject: string }> = [];
+  // What each pass asked the transport for: the position it continues from.
+  const listQueries: Array<{ after?: number }> = [];
   interface FakeBody {
     uid: string;
     messageId: string;
@@ -30737,8 +30740,14 @@ async function checkMailboxSyncLane(
   };
   setMailTransportForTesting({
     openImap: async () => ({
-      listMessages: async (query: { mailbox: { kind: string } }) => {
+      listMessages: async (query: {
+        mailbox: { kind: string };
+        after?: number;
+      }) => {
         if (query.mailbox.kind !== 'inbox') return [];
+        listQueries.push(
+          query.after !== undefined ? { after: query.after } : {},
+        );
         return phase === 1
           ? [summaryOf('101'), summaryOf('102')]
           : [summaryOf('103')];
@@ -30769,6 +30778,7 @@ async function checkMailboxSyncLane(
         caller: system,
       });
 
+    const firstPassAt = Date.now();
     const first = await sync();
     const firstOut = z
       .object({
@@ -30777,6 +30787,7 @@ async function checkMailboxSyncLane(
           skippedCount: z.number(),
         }),
         listed: z.number(),
+        mailboxes: z.array(z.looseObject({ ingested: z.number() })),
       })
       .loose()
       .safeParse(first.status === 'ok' ? first.output : {});
@@ -30797,9 +30808,9 @@ async function checkMailboxSyncLane(
         AND status = 'active' AND is_default = true
     `;
 
-    // Idempotency: the same window again UPDATES in place (the 0.4
-    // semantics count an already-ingested message as processed) — the row
-    // counts must not move.
+    // Idempotency: the same listing again. The position already stands past
+    // both emails, so the pass reads neither again — the row counts must not
+    // move.
     const again = await sync();
     const againOut = z
       .object({ inbound: z.looseObject({ processedCount: z.number() }) })
@@ -30826,6 +30837,69 @@ async function checkMailboxSyncLane(
       JOIN app.contacts ct ON ct.id = c.contact_id
       WHERE c.org_id = ${orgId} AND ct.email = 'alice@ext.test'
     `;
+    // Positions on the credential row: the first pass started at its
+    // seven-day window, and each later one continued strictly after the
+    // newest email read — Bob's — which the identical repeat did not move.
+    const sevenDays = 7 * 86_400_000;
+    const firstAfter = listQueries[0]?.after;
+    const bobArrived = summaryOf('102').sentAt;
+    record(
+      'mailbox sync: the first pass reads back seven days, then each pass continues strictly after the newest email read, kept on the credential row',
+      listQueries.length === 3 &&
+        typeof firstAfter === 'number' &&
+        Math.abs(firstAfter - (firstPassAt - sevenDays)) < 60_000 &&
+        watermark[0]?.inbound === bobArrived &&
+        listQueries[1]?.after === bobArrived &&
+        listQueries[2]?.after === bobArrived &&
+        firstOut.success &&
+        firstOut.data.mailboxes[0]?.ingested === 2,
+      `queries=${JSON.stringify(listQueries)} position=${watermark[0]?.inbound ?? 'null'} (want ${bobArrived}) firstAfter=${firstAfter ?? 'none'} (want ≈${firstPassAt - sevenDays}) receipt=${firstOut.success ? JSON.stringify(firstOut.data.mailboxes[0]) : 'ERR'}`,
+    );
+    // The emails read at a position ride beside it (0214): written and read
+    // back through the very credential seams the sync uses.
+    const { conversationShimHandlers } =
+      await import('./domains/conversations/shim.ts');
+    const credentialSeams = conversationShimHandlers(sql, () => {
+      throw new Error('the edges probe dispatches no connector calls');
+    });
+    const syncedCredential = await sql<{ id: string }[]>`
+      SELECT id FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+        AND status = 'active' AND is_default = true
+    `;
+    const edges = { inbox: { at: bobArrived, ids: ['itest-edge-1'] } };
+    await credentialSeams[
+      'connector_credentials/mutations:patchCredentialInternal'
+    ]?.({
+      organizationId: orgId,
+      credentialId: syncedCredential[0]?.id ?? '',
+      mailSyncEdges: edges,
+    });
+    const listedCredentials = z
+      .array(
+        z.looseObject({
+          id: z.string(),
+          mailSyncEdges: z.unknown().optional(),
+        }),
+      )
+      .parse(
+        await credentialSeams[
+          'connector_credentials/queries:listActiveCredentialsInternal'
+        ]?.({ organizationId: orgId, connectorSlug: 'imap-smtp' }),
+      );
+    const keptEdges = z
+      .object({ inbox: z.object({ at: z.number(), ids: z.array(z.string()) }) })
+      .safeParse(
+        listedCredentials.find((row) => row.id === syncedCredential[0]?.id)
+          ?.mailSyncEdges,
+      );
+    record(
+      'mailbox sync keeps the emails read at a position beside it, on the credential row',
+      keptEdges.success &&
+        keptEdges.data.inbox.at === bobArrived &&
+        keptEdges.data.inbox.ids.join() === 'itest-edge-1',
+      `edges=${JSON.stringify(keptEdges.success ? keptEdges.data : 'unreadable')}`,
+    );
     const conversationsFinal = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
@@ -31000,7 +31074,7 @@ async function checkMailboxSyncLane(
         (watermark[0]?.inbound ?? 0) > 0 &&
         again.status === 'ok' &&
         againOut.success &&
-        againOut.data.inbound.processedCount === 2 &&
+        againOut.data.inbound.processedCount === 0 &&
         countAfterRepeat[0]?.count === '2' &&
         messagesAfterRepeat[0]?.count === '2' &&
         aliceThread[0]?.count === '2' &&
@@ -31014,7 +31088,7 @@ async function checkMailboxSyncLane(
         retried.status === 'ok' &&
         smtpSends.length === 2 &&
         approvalAfter[0]?.status === 'completed',
-      `sync1=${first.status}/${firstOut.success ? `${firstOut.data.inbound.processedCount} listed=${firstOut.data.listed}` : 'ERR'} conv=${conversationsAfterFirst.length} contacts=${conversationsAfterFirst.map((r) => r.contactEmail).join('|')}, watermark=${(watermark[0]?.inbound ?? 0) > 0}, repeat=${againOut.success ? againOut.data.inbound.processedCount : 'ERR'} conv=${countAfterRepeat[0]?.count} msgs=${messagesAfterRepeat[0]?.count} (want 2/2), aliceThread=${aliceThread[0]?.count} (want 2) totalConv=${conversationsFinal[0]?.count} (want 2), send=${sent.status} smtp=${smtpAfterSystemSend} audit=${sendAudit[0]?.count}, gate=${gated.status}/${approvalRows[0]?.status}→retry=${retried.status}/${approvalAfter[0]?.status} smtpAfter=${smtpSends.length}`,
+      `sync1=${first.status}/${firstOut.success ? `${firstOut.data.inbound.processedCount} listed=${firstOut.data.listed}` : 'ERR'} conv=${conversationsAfterFirst.length} contacts=${conversationsAfterFirst.map((r) => r.contactEmail).join('|')}, watermark=${(watermark[0]?.inbound ?? 0) > 0}, repeat=${againOut.success ? againOut.data.inbound.processedCount : 'ERR'} (want 0) conv=${countAfterRepeat[0]?.count} msgs=${messagesAfterRepeat[0]?.count} (want 2/2), aliceThread=${aliceThread[0]?.count} (want 2) totalConv=${conversationsFinal[0]?.count} (want 2), send=${sent.status} smtp=${smtpAfterSystemSend} audit=${sendAudit[0]?.count}, gate=${gated.status}/${approvalRows[0]?.status}→retry=${retried.status}/${approvalAfter[0]?.status} smtpAfter=${smtpSends.length}`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
@@ -34027,20 +34101,16 @@ async function checkSsoAdminSurface(
 }
 
 /**
- * Org provisioning on a THROWAWAY org: the shipped default automation packs
- * seed once (version 1, trigger bound switched off as the pack's repeat rule,
- * presentation stored), a re-run skips
- * everything, a tombstoned pack stays deleted, and the starter content
- * seeds a Getting-started project with example tasks only while the org has
- * no project.
+ * Org provisioning on a THROWAWAY org: what the `org.scaffold` job runs —
+ * the config scaffold, then the starter content — adds no automation and no
+ * trigger, though the builtin catalog holds a shipped pack it could have
+ * added, and the starter content seeds a Getting-started project with
+ * example tasks only while the org has no project.
  */
 async function checkProvisioning(sql: Sql): Promise<void> {
-  const { seedDefaultAutomationPacks, seedStarterContent } =
-    await import('./domains/provisioning/service.ts');
-  const { isRecord } = await import('../lib/utils/type-utils.ts');
   // The harness's builtin catalog is a hermetic EMPTY dir — plant one REAL
-  // shipped pack (copied from the repo catalog) so the seeder has something
-  // to provision.
+  // shipped pack (copied from the repo catalog), so provisioning has an
+  // automation it could add and the zero below means something.
   const repoPack = path.resolve(
     process.cwd(),
     '../../configs/platform/custom/automations/imap-smtp/sync-emails',
@@ -34069,80 +34139,38 @@ async function checkProvisioning(sql: Sql): Promise<void> {
   `;
   const orgId = orgRows[0]?.id ?? '';
 
-  const first = await seedDefaultAutomationPacks(sql, orgId);
-  const versions = await sql<
-    { name: string; version: number; hasPresentation: boolean }[]
-  >`
-    SELECT name, version, (presentation IS NOT NULL) AS "hasPresentation"
-    FROM app.automations WHERE org_id = ${orgId}
+  // The job the organization's creation queues, run as the worker runs it —
+  // its provisioning half included: the harness keeps provisioning switched
+  // off for every other lane (TALE_PROVISIONING_DISABLED), so this lane turns
+  // it on around the job, or "no automation" would prove nothing.
+  const scaffold = createTaskList({ sql })['org.scaffold'];
+  const runScaffold = async (
+    payload: Record<string, unknown>,
+  ): Promise<string | null> => {
+    const before = process.env.TALE_PROVISIONING_DISABLED;
+    process.env.TALE_PROVISIONING_DISABLED = '0';
+    try {
+      await scaffold?.(payload);
+      return null;
+    } catch (error) {
+      return errorText(error);
+    } finally {
+      if (before === undefined) delete process.env.TALE_PROVISIONING_DISABLED;
+      else process.env.TALE_PROVISIONING_DISABLED = before;
+    }
+  };
+  const scaffoldError = await runScaffold({
+    orgSlug: 'itest-provision',
+    cleanFirst: true,
+  });
+  const automations = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automations
+    WHERE org_id = ${orgId}
   `;
   const triggers = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.automation_triggers
     WHERE org_id = ${orgId}
   `;
-  // PROVN-R7: the shipped trigger is bound switched off, and the pack's
-  // repeat rule is stored as a rule, not as a cron expression.
-  const seededTriggers = await sql<
-    {
-      name: string;
-      enabled: boolean;
-      cron: string | null;
-      repeat: unknown;
-      nextDueAt: string | null;
-    }[]
-  >`
-    SELECT name, enabled, cron, schedule_rule -> 'repeat' AS repeat,
-           next_due_at_ms::text AS "nextDueAt"
-    FROM app.automation_triggers
-    WHERE org_id = ${orgId}
-  `;
-  const syncTrigger = seededTriggers.find(
-    (row) => row.name === 'imap-smtp-sync-emails',
-  );
-  record(
-    'org provisioning binds a shipped trigger switched off, as the pack’s repeat rule [PROVN-R7]',
-    seededTriggers.length >= 1 &&
-      seededTriggers.every((row) => !row.enabled && row.nextDueAt === null) &&
-      syncTrigger !== undefined &&
-      syncTrigger.cron === null &&
-      // jsonb keeps its own key order, so the rule is compared by field.
-      isRecord(syncTrigger.repeat) &&
-      syncTrigger.repeat.frequency === 'minutely' &&
-      syncTrigger.repeat.interval === 5 &&
-      Object.keys(syncTrigger.repeat).length === 2,
-    `seeded=${seededTriggers.map((row) => `${row.name}:${row.enabled ? 'on' : 'off'}/next=${row.nextDueAt ?? 'none'}`).join('|')} (want every one off, none due), sync cron=${syncTrigger?.cron ?? 'null'} repeat=${JSON.stringify(syncTrigger?.repeat ?? null)} (want null / minutely 5)`,
-  );
-
-  // Idempotency: the second run provisions nothing and duplicates nothing.
-  const again = await seedDefaultAutomationPacks(sql, orgId);
-  const versionsAfter = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.automations
-    WHERE org_id = ${orgId}
-  `;
-
-  // A deliberate deletion outlives the deploy cycle.
-  const tombstoned = first.provisioned[0] ?? '';
-  await sql`
-    DELETE FROM app.automations
-    WHERE org_id = ${orgId} AND name = ${tombstoned}
-  `;
-  await sql`
-    DELETE FROM app.automation_triggers
-    WHERE org_id = ${orgId} AND name = ${tombstoned}
-  `;
-  await sql`
-    INSERT INTO app.automation_tombstones (org_id, name, deleted_by,
-                                           deleted_at_ms)
-    VALUES (${orgId}, ${tombstoned}, 'itest', ${Date.now()})
-  `;
-  const afterTombstone = await seedDefaultAutomationPacks(sql, orgId);
-  const resurrected = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.automations
-    WHERE org_id = ${orgId} AND name = ${tombstoned}
-  `;
-
-  // Starter content: seeds once, then the existing project blocks a re-run.
-  await seedStarterContent(sql, orgId);
   const starterProjects = await sql<{ id: string; name: string }[]>`
     SELECT id, name FROM app.projects WHERE org_id = ${orgId}
   `;
@@ -34154,30 +34182,38 @@ async function checkProvisioning(sql: Sql): Promise<void> {
   const starterTitles = await sql<{ title: string }[]>`
     SELECT title FROM app.tasks WHERE org_id = ${orgId}
   `;
-  await seedStarterContent(sql, orgId);
-  const projectsAfter = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgId}
-  `;
-
   record(
-    'org provisioning (default packs + starter content, throwaway org)',
-    first.provisioned.length >= 1 &&
-      versions.length === first.provisioned.length &&
-      versions.every((row) => row.version === 1 && row.hasPresentation) &&
-      Number(triggers[0]?.count ?? '0') >= 1 &&
-      again.provisioned.length === 0 &&
-      again.skipped.length >= first.provisioned.length &&
-      Number(versionsAfter[0]?.count ?? '0') === versions.length &&
-      tombstoned !== '' &&
-      afterTombstone.skipped.includes(tombstoned) &&
-      resurrected[0]?.count === '0' &&
+    'a new organization starts with the starter project and no automation (throwaway org) [PROVN-R9]',
+    scaffold !== undefined &&
+      scaffoldError === null &&
+      automations[0]?.count === '0' &&
+      triggers[0]?.count === '0' &&
       starterProjects.length === 1 &&
       starterProjects[0]?.name === 'Getting started' &&
       starterTasks[0]?.count === '3' &&
       starterTitles.some((row) => row.title === 'Connect a connector') &&
-      !starterTitles.some((row) => /\ban connector\b/i.test(row.title)) &&
-      projectsAfter[0]?.count === '1',
-    `first=${first.provisioned.length} packs (${first.provisioned.join('|')}) v1+presentation=${versions.every((r) => r.version === 1 && r.hasPresentation)} triggers=${triggers[0]?.count}, again=${again.provisioned.length}/${again.skipped.length} rows=${versionsAfter[0]?.count}, tombstone=${afterTombstone.skipped.includes(tombstoned)}/resurrected=${resurrected[0]?.count} (want 0), starter=${starterProjects[0]?.name}/${starterTasks[0]?.count} tasks (want 3) rerun=${projectsAfter[0]?.count} (want 1)`,
+      !starterTitles.some((row) => /\ban connector\b/i.test(row.title)),
+    `scaffold=${scaffold === undefined ? 'no handler' : (scaffoldError ?? 'ok')}, automations=${automations[0]?.count} triggers=${triggers[0]?.count} (want 0/0), starter=${starterProjects[0]?.name}/${starterTasks[0]?.count} tasks (want Getting started/3)`,
+  );
+
+  // Provisioning again, as `tale migrate` queues it: the existing project
+  // blocks a second starter, and still no automation appears.
+  const rerunError = await runScaffold({ orgSlug: 'itest-provision' });
+  const projectsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgId}
+  `;
+  const automationsAfter = await sql<{ count: string }[]>`
+    SELECT ((SELECT count(*) FROM app.automations WHERE org_id = ${orgId})
+      + (SELECT count(*) FROM app.automation_triggers
+         WHERE org_id = ${orgId}))::text AS count
+  `;
+  record(
+    'org provisioning run again adds no second starter project and no automation (throwaway org) [PROVN-R5]',
+    scaffold !== undefined &&
+      rerunError === null &&
+      projectsAfter[0]?.count === '1' &&
+      automationsAfter[0]?.count === '0',
+    `scaffold=${scaffold === undefined ? 'no handler' : (rerunError ?? 'ok')}, projects=${projectsAfter[0]?.count} (want 1), automations+triggers=${automationsAfter[0]?.count} (want 0)`,
   );
 }
 
@@ -62379,6 +62415,141 @@ async function checkWorkflowDocumentListing(
 }
 
 /**
+ * `automation.read_position` / `automation.save_position` on real Postgres
+ * (migration 0213): a place is shared by the runs of one automation in one
+ * project, found from the asking run; a save lands only at the revision its
+ * run read, so a stale one changes nothing; another project or automation has
+ * its own places; and deleting the automation deletes its places.
+ */
+async function checkAutomationPositions(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { pgAutomationPositions } =
+    await import('./domains/automations/positions.ts');
+  const { deleteAutomationCascade, saveVersion } =
+    await import('./domains/automations/store.ts');
+  const { orgId, userId } = ctx;
+  const suffix = Date.now().toString(36);
+  const name = `itest-positions-${suffix}`;
+  const other = `itest-positions-other-${suffix}`;
+  const ids: string[] = [];
+  // Fixture runs are written the way the other automation lanes write one:
+  // inside a transaction that carries the current writer protocol.
+  const run = async (automation: string, projectId: string | null) => {
+    const [inserted] = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
+        INSERT INTO app.automation_runs (
+          org_id, name, version, project_id, status, mode, started_by,
+          started_at_ms, finished_at_ms
+        ) VALUES (
+          ${orgId}, ${automation}, 1, ${projectId}, 'success', 'live',
+          'user:itest', ${Date.now()}, ${Date.now()}
+        )
+        RETURNING id
+      `;
+    });
+    if (inserted === undefined) throw new Error('seeding a run wrote no row');
+    ids.push(inserted.id);
+    return inserted.id;
+  };
+  const places = pgAutomationPositions(sql);
+  try {
+    await saveVersion(sql, {
+      organizationId: orgId,
+      name,
+      document: {
+        version: 1,
+        name,
+        nodes: [{ id: 'noop', type: 'transform', code: 'return 1;' }],
+        output: '{{ nodes.noop.output }}',
+      },
+      origin: appOrigin(userId),
+    });
+    const first = await run(name, null);
+    const second = await run(name, null);
+    const elsewhere = await run(name, `itest-project-${suffix}`);
+    const stranger = await run(other, null);
+    const at = (runId: string) => ({
+      organizationId: orgId,
+      runId,
+      key: 'window',
+    });
+
+    const empty = await places.read(at(first));
+    const created = await places.save({
+      ...at(first),
+      value: { until: 1 },
+      revision: '0',
+    });
+    const raced = await places.save({
+      ...at(second),
+      value: { until: 9 },
+      revision: '0',
+    });
+    const shared = await places.read(at(second));
+    const moved = await places.save({
+      ...at(second),
+      value: { until: 2 },
+      revision: created?.revision ?? '',
+    });
+    const stale = await places.save({
+      ...at(first),
+      value: { until: 3 },
+      revision: created?.revision ?? '',
+    });
+    const now = await places.read(at(first));
+    const otherProject = await places.read(at(elsewhere));
+    await places.save({ ...at(stranger), value: { until: 5 }, revision: '0' });
+    const otherAutomation = await places.read(at(stranger));
+
+    await deleteAutomationCascade(sql, {
+      organizationId: orgId,
+      name,
+      origin: appOrigin(userId),
+    });
+    const left = await sql<{ name: string }[]>`
+      SELECT automation_name AS name FROM app.automation_positions
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${other})
+    `;
+    const until = (value: unknown): unknown =>
+      typeof value === 'object' && value !== null && 'until' in value
+        ? value.until
+        : null;
+    record(
+      'automation positions: shared by one automation’s runs in a project, saved only at the revision a run read, deleted with the automation',
+      empty.value === null &&
+        empty.revision === '0' &&
+        created?.saved === true &&
+        raced?.saved === false &&
+        raced.conflict &&
+        until(shared.value) === 1 &&
+        shared.revision === created.revision &&
+        moved?.saved === true &&
+        moved.revision !== created.revision &&
+        stale?.saved === false &&
+        stale.conflict &&
+        stale.revision === moved.revision &&
+        until(now.value) === 2 &&
+        otherProject.value === null &&
+        until(otherAutomation.value) === 5 &&
+        left.map((row) => row.name).join(',') === other,
+      `empty=${JSON.stringify(empty)}, created=${JSON.stringify(created)}, raced=${JSON.stringify(raced)}, shared=${JSON.stringify(shared)}, moved=${JSON.stringify(moved)}, stale=${JSON.stringify(stale)}, now=${JSON.stringify(now)}, otherProject=${JSON.stringify(otherProject)}, otherAutomation=${JSON.stringify(otherAutomation)}, left=${left.map((row) => row.name).join(',')} (want only the other automation's place left)`,
+    );
+  } finally {
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      await fixtureTx`DELETE FROM app.automation_runs WHERE id = ANY(${ids})`;
+    });
+    await sql`
+      DELETE FROM app.automation_positions
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${other})
+    `;
+  }
+}
+
+/**
  * Team audience on real Postgres: the ONE rule (`core/lib/audience.ts`)
  * behind documents, folders and projects, the assignment rule every write
  * door runs, the rollout fallback for a project row the previous image
@@ -64780,6 +64951,10 @@ async function main(): Promise<void> {
         () => checkWorkflowDocumentListing(sql, baseUrl, authCtx),
       ],
       [
+        'checkAutomationPositions',
+        () => checkAutomationPositions(sql, authCtx),
+      ],
+      [
         'checkBlobRefAuthority',
         () => checkBlobRefAuthority(sql, baseUrl, authCtx),
       ],
@@ -65526,6 +65701,7 @@ async function main(): Promise<void> {
         'checkImportCursorContinuation',
         () => checkImportCursorContinuation(sql, authCtx, record),
       ],
+      ['checkIssueSync', () => checkIssueSync(sql, authCtx, record)],
       [
         'checkTaskWorkflowParentMoves',
         async () =>

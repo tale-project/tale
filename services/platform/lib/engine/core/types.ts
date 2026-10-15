@@ -72,6 +72,11 @@ export interface NodeDef {
   /** `fail` (default) halts the run; `continue` records the error and skips
    * dependents. */
   onError?: 'fail' | 'continue';
+  /** forEach only. `fail` (default): one failed item fails the node.
+   * `continue`: a failed item's entry in the output is `null` and the next
+   * item runs; the node fails — and `onError` decides what that does — only
+   * when every item failed. */
+  onItemError?: 'fail' | 'continue';
 
   // Per-type payloads.
   /** A connector step: the name of the stored credential it acts as. Absent,

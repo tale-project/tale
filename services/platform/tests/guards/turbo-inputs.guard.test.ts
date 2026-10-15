@@ -88,7 +88,7 @@ const OUTSIDE_READS = [
   {
     path: 'configs/platform/custom',
     readers:
-      'backend/core/provisioning/provision_default_automations.test.ts, lib/shared/config/document-skills-catalog.test.ts and the shipped automation corpus (lib/engine/selftest/corpus.ts)',
+      'lib/automations/packs.test.ts, lib/shared/config/document-skills-catalog.test.ts and the shipped automation corpus (lib/engine/selftest/corpus.ts)',
   },
   {
     path: 'configs/platform/system',

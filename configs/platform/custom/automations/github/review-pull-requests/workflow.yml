@@ -1,21 +1,39 @@
-# Reviews every open pull request and leaves its findings as a review comment.
-# It never approves and never merges: the verdict is written into the comment
-# and a human still decides, which is what keeps a scheduled reviewer safe.
+# Reviews the open pull requests that are due a review and leaves the findings
+# as a review comment. A pull request is due once per commit: this GitHub
+# account has not reviewed it at its newest commit yet. Drafts and the
+# account's own pull requests are never reviewed, and it never approves,
+# requests changes or merges: the verdict is written into the comment and a
+# human still decides, which is what keeps a scheduled reviewer safe.
+#
+# A run reviews at most `limit` pull requests (at most 10, so the run stays
+# far inside the engine's execution ceiling); the others wait for the next
+# run. A pull request whose diff cannot be read, or whose review fails, is
+# left alone in this run and comes back in the next one; the others are
+# reviewed all the same (`onItemError: continue`).
 version: 1
 name: github-review-pull-requests
-description: Read every open pull request's diff, review it, and leave the findings as a comment for a human to act on.
+description: Review each open pull request once per new commit and leave the findings as a comment for a human to act on.
 inputs:
   type: object
   properties:
     owner:
       type: string
+      minLength: 1
       description: Repository owner — the user or organization login.
     repo:
       type: string
+      minLength: 1
       description: Repository name.
     limit:
-      type: number
-      description: How many open pull requests to review in one pass (10 when unset).
+      type: integer
+      minimum: 0
+      maximum: 10
+      description: How many pull requests one run reviews (5 when unset, at most 10); the others wait for the next run.
+    maxDiffChars:
+      type: integer
+      minimum: 1000
+      maximum: 100000
+      description: How much of a diff the review reads, in characters (30000 when unset); a longer diff is cut there and the review says so.
     # Every trigger-started run arrives inside the trigger wrapper
     # (docs/en/platform/automations/triggers.md). A declared schema must
     # describe that wrapper, or the pack's own schedule is refused at start
@@ -31,41 +49,69 @@ inputs:
     - repo
   additionalProperties: false
 nodes:
-  - id: pulls
-    type: github.list_pull_requests
+  # The pull requests due a review — open, not drafts, not this account's
+  # own, not yet reviewed by it at their newest commit — oldest change first,
+  # at most `limit` of them.
+  - id: queue
+    type: github.list_pull_requests_to_review
+    credential: github
     input:
       owner: '{{ input.owner }}'
       repo: '{{ input.repo }}'
-      state: open
-      per_page: '{{ input.limit ?? 10 }}'
+      limit: '{{ input.limit ?? 5 }}'
 
-  - id: open_pulls
-    type: transform
-    input:
-      pulls: '{{ nodes.pulls.output.pull_requests }}'
-      limit: '{{ input.limit ?? 10 }}'
-    code: |
-      const asText = (value) => (typeof value === 'string' ? value : '');
-      const pulls = (Array.isArray(input.pulls) ? input.pulls : [])
-        .slice(0, input.limit)
-        .map((pull) => ({
-          number: typeof pull.number === 'number' ? pull.number : 0,
-          title: asText(pull.title),
-          url: asText(pull.html_url),
-        }));
-      return { count: pulls.length, pulls };
-
+  # Each one's diff, cut to what one review reads. A diff that cannot be read
+  # fails that pull request alone, and it is tried again next run.
   - id: diff
     type: github.get_pull_request_diff
-    forEach: '{{ nodes.open_pulls.output.pulls }}'
+    credential: github
+    forEach: '{{ nodes.queue.output.pulls }}'
+    onItemError: continue
     input:
       owner: '{{ input.owner }}'
       repo: '{{ input.repo }}'
       pull_number: '{{ item.number }}'
+      maxChars: '{{ input.maxDiffChars ?? 30000 }}'
+
+  # The pull requests whose diff was read, each with it. One whose diff GitHub
+  # will not render is set apart: it gets a short note instead of a review.
+  - id: due
+    type: transform
+    input:
+      pulls: '{{ nodes.queue.output.pulls }}'
+      diffs: '{{ nodes.diff.output }}'
+    code: |
+      const pulls = Array.isArray(input.pulls) ? input.pulls : [];
+      const diffs = Array.isArray(input.diffs) ? input.diffs : [];
+      const toReview = [];
+      const tooLarge = [];
+      const unread = [];
+      pulls.forEach((pull, at) => {
+        const read = diffs[at];
+        if (read === null || read === undefined) {
+          unread.push(pull.number);
+          return;
+        }
+        if (read.tooLarge === true) {
+          tooLarge.push({ number: pull.number, headSha: pull.headSha });
+          return;
+        }
+        const diff = typeof read.diff === 'string' ? read.diff : '';
+        toReview.push({
+          number: pull.number,
+          title: pull.title,
+          headSha: pull.headSha,
+          diff,
+          truncated: read.truncated === true,
+          size: typeof read.size === 'number' ? read.size : diff.length,
+        });
+      });
+      return { pulls: toReview, tooLarge, unread };
 
   - id: review
     type: llm
-    forEach: '{{ nodes.open_pulls.output.pulls }}'
+    forEach: '{{ nodes.due.output.pulls }}'
+    onItemError: continue
     model: anthropic/claude-haiku-4-5
     system: >-
       You review pull requests for a small team. Judge only the diff you are
@@ -74,9 +120,10 @@ nodes:
       cannot see.
     prompt: |
       Pull request #{{ item.number }} — {{ item.title }}
+      {{ item.truncated ? 'Only the first ' + item.diff.length + ' of ' + item.size + ' characters of the diff are shown; review those, and say that the rest was not reviewed.' : 'The whole diff is shown.' }}
 
       Diff:
-      {{ nodes.diff.output[index].diff }}
+      {{ item.diff }}
     outputSchema:
       type: object
       properties:
@@ -93,45 +140,172 @@ nodes:
         - verdict
         - summary
 
-  # COMMENT, never APPROVE: an automated review informs the human review, it
-  # does not stand in for it.
+  # What gets posted: each review that came back, and the note on a pull
+  # request too large to review. A review that failed is left for next run.
+  - id: ready
+    type: transform
+    input:
+      pulls: '{{ nodes.due.output.pulls }}'
+      reviews: '{{ nodes.review.output }}'
+      tooLarge: '{{ nodes.due.output.tooLarge }}'
+    code: |
+      const reviews = Array.isArray(input.reviews) ? input.reviews : [];
+      const posts = [];
+      const failed = [];
+      (Array.isArray(input.pulls) ? input.pulls : []).forEach((pull, at) => {
+        const review = reviews[at];
+        if (!review || typeof review.summary !== 'string') {
+          failed.push(pull.number);
+          return;
+        }
+        const verdict = review.verdict === 'approve' ? 'Looks ready' : 'Changes suggested';
+        const cut = pull.truncated
+          ? `\n\n_Reviewed the first ${pull.diff.length} of ${pull.size} characters of the diff; the rest was not reviewed._`
+          : '';
+        posts.push({
+          number: pull.number,
+          headSha: pull.headSha,
+          body: `**${verdict}** — ${review.summary}${cut}`,
+        });
+      });
+      for (const pull of Array.isArray(input.tooLarge) ? input.tooLarge : []) {
+        posts.push({
+          number: pull.number,
+          headSha: pull.headSha,
+          body: 'This pull request is too large for an automated review: GitHub does not render its diff. A person reviews it.',
+        });
+      }
+      return { posts, failed };
+
+  # COMMENT, never APPROVE, pinned to the commit that was read: a push in
+  # between makes the pull request due again, and the next run reviews it.
   - id: post
     type: github.create_pull_request_review
-    forEach: '{{ nodes.open_pulls.output.pulls }}'
+    credential: github
+    forEach: '{{ nodes.ready.output.posts }}'
+    onItemError: continue
     input:
       owner: '{{ input.owner }}'
       repo: '{{ input.repo }}'
       pull_number: '{{ item.number }}'
+      commit_id: '{{ item.headSha }}'
       event: COMMENT
-      body: '**{{ nodes.review.output[index].verdict }}** — {{ nodes.review.output[index].summary }}'
-output:
-  reviewed: '{{ nodes.open_pulls.output.count }}'
-  reviews: '{{ nodes.review.output }}'
+      body: '{{ item.body }}'
+
+  - id: report
+    type: transform
+    input:
+      posts: '{{ nodes.ready.output.posts }}'
+      posted: '{{ nodes.post.output }}'
+      unread: '{{ nodes.due.output.unread }}'
+      failed: '{{ nodes.ready.output.failed }}'
+      waiting: '{{ nodes.queue.output.waiting }}'
+      skipped: '{{ nodes.queue.output.skipped }}'
+    code: |
+      const posted = Array.isArray(input.posted) ? input.posted : [];
+      const reviewed = [];
+      const failed = [...input.unread, ...input.failed];
+      input.posts.forEach((post, at) => {
+        (posted[at] ? reviewed : failed).push(post.number);
+      });
+      return {
+        reviewed,
+        failed: failed.sort((left, right) => left - right),
+        waiting: input.waiting,
+        skipped: input.skipped,
+      };
+output: '{{ nodes.report.output }}'
 tests:
-  - name: an open pull request is reviewed and commented on
+  - name: a pull request due a review is reviewed at its newest commit
     input:
       owner: tale
       repo: tale
     expect:
       output:
-        reviewed: 1
-        reviews:
-          - verdict: approve
-            summary: mock
+        reviewed:
+          - 1
+        failed: []
+        waiting: 0
+        skipped:
+          drafts: 0
+          own: 0
+          reviewed: 0
       effects:
         - connector: github.create_pull_request_review
           input:
             owner: tale
             repo: tale
             pull_number: 1
+            commit_id: 0123456789abcdef0123456789abcdef01234567
             event: COMMENT
-            body: '**approve** — mock'
-  - name: no open pull requests means no review and no comment
+            body: '**Looks ready** — mock'
+  - name: a diff GitHub will not render gets a note instead of a review
+    input:
+      owner: tale
+      repo: tale
+    mocks:
+      diff:
+        - diff: ''
+          size: null
+          truncated: true
+          tooLarge: true
+    expect:
+      output:
+        reviewed:
+          - 1
+        failed: []
+        waiting: 0
+        skipped:
+          drafts: 0
+          own: 0
+          reviewed: 0
+      effects:
+        - connector: github.create_pull_request_review
+          inputIncludes:
+            pull_number: 1
+            body: 'This pull request is too large for an automated review: GitHub does not render its diff. A person reviews it.'
+  - name: a review of a cut diff says what it did not read
+    input:
+      owner: tale
+      repo: tale
+      maxDiffChars: 1000
+    mocks:
+      diff:
+        - diff: 'diff --git a/app.ts b/app.ts'
+          size: 4000
+          truncated: true
+          tooLarge: false
+    expect:
+      effects:
+        - connector: github.create_pull_request_review
+          inputIncludes:
+            body: "**Looks ready** — mock\n\n_Reviewed the first 28 of 4000 characters of the diff; the rest was not reviewed._"
+  - name: nothing due posts nothing
     input:
       owner: tale
       repo: tale
       limit: 0
     expect:
       output:
-        reviewed: 0
-        reviews: []
+        reviewed: []
+        failed: []
+        waiting: 0
+        skipped:
+          drafts: 0
+          own: 0
+          reviewed: 0
+      effects:
+        - connector: github.create_pull_request_review
+          absent: true
+  - name: a run whose every review fails fails, so the schedule reports it
+    input:
+      owner: tale
+      repo: tale
+    failures:
+      review: the model is not available
+    expect:
+      failure:
+        node: review
+      effects:
+        - connector: github.create_pull_request_review
+          absent: true

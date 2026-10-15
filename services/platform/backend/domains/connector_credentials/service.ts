@@ -1462,6 +1462,8 @@ export async function listActiveCredentials(
     config: Record<string, string | number | boolean> | null;
     mailSyncInboundSince: number | null;
     mailSyncOutboundSince: number | null;
+    /** The emails already read at each folder's position (0214). */
+    mailSyncEdges: unknown;
   }[]
 > {
   return sql<
@@ -1472,11 +1474,13 @@ export async function listActiveCredentials(
       config: Record<string, string | number | boolean> | null;
       mailSyncInboundSince: number | null;
       mailSyncOutboundSince: number | null;
+      mailSyncEdges: unknown;
     }[]
   >`
     SELECT id, name, is_default AS "isDefault", config,
            mail_sync_inbound_since_ms::float8 AS "mailSyncInboundSince",
-           mail_sync_outbound_since_ms::float8 AS "mailSyncOutboundSince"
+           mail_sync_outbound_since_ms::float8 AS "mailSyncOutboundSince",
+           mail_sync_edges AS "mailSyncEdges"
     FROM app.connector_credentials
     WHERE org_id = ${organizationId} AND connector_slug = ${connectorSlug}
       AND status = 'active'
@@ -1523,12 +1527,13 @@ export async function listCredentialsInService(
   return byConnector;
 }
 
-/** Advance a credential's mail-sync watermarks (the sync pass's cursor). */
+/** Advance a credential's mail-sync positions (the sync pass's cursor), and
+ * the emails already read at them (`edges`, 0214), each only when named. */
 export async function patchMailSyncWatermarks(
   sql: Sql,
   organizationId: string,
   credentialId: string,
-  patch: { inboundSince?: number; outboundSince?: number },
+  patch: { inboundSince?: number; outboundSince?: number; edges?: unknown },
 ): Promise<void> {
   await sql`
     UPDATE app.connector_credentials SET
@@ -1536,6 +1541,11 @@ export async function patchMailSyncWatermarks(
         ${patch.inboundSince ?? null}, mail_sync_inbound_since_ms),
       mail_sync_outbound_since_ms = coalesce(
         ${patch.outboundSince ?? null}, mail_sync_outbound_since_ms),
+      mail_sync_edges = ${
+        patch.edges === undefined
+          ? sql`mail_sync_edges`
+          : sql.json(toJson(patch.edges))
+      },
       updated_at_ms = ${Date.now()}
     WHERE id = ${credentialId} AND org_id = ${organizationId}
   `;

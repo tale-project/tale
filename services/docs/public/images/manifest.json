@@ -208,11 +208,12 @@
       "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",
       "viewport": {
         "width": 1440,
-        "height": 640
+        "height": 900
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1280
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automation-http-credential.webp",
@@ -380,33 +381,7 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 1208,
-      "locale": "en"
-    },
-    {
-      "file": "images/platform/automation-starter-gallery.webp",
-      "shot": "automation-starter-gallery",
-      "route": "/dashboard/:orgId/automations",
-      "viewport": {
-        "width": 1440,
-        "height": 1100
-      },
-      "dpr": 2,
-      "width": 1024,
-      "height": 1540,
-      "locale": "en"
-    },
-    {
-      "file": "images/platform/automation-starter-setup.webp",
-      "shot": "automation-starter-setup",
-      "route": "/dashboard/:orgId/automations",
-      "viewport": {
-        "width": 1440,
-        "height": 1100
-      },
-      "dpr": 2,
-      "width": 1024,
-      "height": 1712,
+      "height": 1440,
       "locale": "en"
     },
     {
@@ -446,6 +421,45 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-template-catalog.webp",
+      "shot": "automation-template-catalog",
+      "route": "/dashboard/:orgId/automations",
+      "viewport": {
+        "width": 1440,
+        "height": 1100
+      },
+      "dpr": 2,
+      "width": 2200,
+      "height": 1872,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-template-preview.webp",
+      "shot": "automation-template-preview",
+      "route": "/dashboard/:orgId/automations",
+      "viewport": {
+        "width": 1440,
+        "height": 1500
+      },
+      "dpr": 2,
+      "width": 2200,
+      "height": 2552,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-template-setup.webp",
+      "shot": "automation-template-setup",
+      "route": "/dashboard/:orgId/automations",
+      "viewport": {
+        "width": 1440,
+        "height": 1100
+      },
+      "dpr": 2,
+      "width": 2200,
+      "height": 1872,
       "locale": "en"
     },
     {
@@ -627,7 +641,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automations-upload-dialog.webp",
@@ -639,7 +654,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/chat-arena-split.webp",
@@ -1284,6 +1300,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/project-dispatch.webp",
+      "shot": "project-dispatch",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/project-general-tab.webp",
       "shot": "project-general-tab",
       "route": "/dashboard/:orgId/projects",
@@ -1393,7 +1422,7 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 550,
+      "height": 1374,
       "locale": "en"
     },
     {

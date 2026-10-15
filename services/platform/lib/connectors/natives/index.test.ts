@@ -24,6 +24,7 @@ import {
   type WorkflowNotifyStore,
   type WorkflowTaskStore,
 } from './index';
+import type { WorkflowAutomationPositions } from './platform-automation';
 
 /**
  * The wiring test: with the natives registered, every one of the six shipped
@@ -117,6 +118,18 @@ const NATIVE_ACTIONS: Array<{
     connector: 'task',
     action: 'get',
     input: { taskId: 'tsk_1' },
+  },
+  {
+    impl: 'automation.read_position',
+    connector: 'automation',
+    action: 'read_position',
+    input: { key: 'window' },
+  },
+  {
+    impl: 'automation.save_position',
+    connector: 'automation',
+    action: 'save_position',
+    input: { key: 'window', value: { until: 1791000000000 }, revision: '0' },
   },
   {
     impl: 'task.update_status',
@@ -287,6 +300,7 @@ const transport: MailTransport = {
             from: 'sender@example.com',
             subject: 'Quarterly numbers',
             sentAt: 1_700_000_000_000,
+            receivedAt: 1_700_000_060_000,
           },
         ]),
       getMessage: (uid) =>
@@ -440,6 +454,17 @@ const taskStore: WorkflowTaskStore = {
       conflict: false,
       revision: '2',
     }),
+  syncIssues: () =>
+    Promise.resolve({
+      sources: [],
+      failed: 0,
+      rateLimited: 0,
+      created: 0,
+      refreshed: 0,
+      unchanged: 0,
+      skipped: 0,
+      closedUpstream: 0,
+    }),
 };
 
 const documentStore: WorkflowDocumentStore = {
@@ -478,6 +503,18 @@ const notifyStore: WorkflowNotifyStore = {
         userId: `usr_${at}`,
       })),
       skipped: [],
+    }),
+};
+
+/** The position store: nothing saved yet, and every save lands, as the
+ * mocks answer. */
+const automationPositions: WorkflowAutomationPositions = {
+  read: () => Promise.resolve({ value: null, revision: '0' }),
+  save: ({ revision }) =>
+    Promise.resolve({
+      saved: true,
+      conflict: false,
+      revision: String(Number(revision) + 1),
     }),
 };
 
@@ -524,6 +561,19 @@ const conversationStore: WorkflowConversationStore = {
         skippedCount: 0,
         conversationIds: ['conv_mock'],
       },
+      mailboxes: [
+        {
+          mailbox: 'default',
+          ok: true,
+          listed: 1,
+          fetched: 1,
+          ingested: 1,
+          duplicates: 0,
+          skipped: 0,
+          vanished: 0,
+          capped: false,
+        },
+      ],
     }),
   listMailboxMessages: () =>
     Promise.resolve({
@@ -586,6 +636,7 @@ beforeEach(() => {
     conversations: conversationStore,
     knowledge: knowledgeStore,
     notify: notifyStore,
+    automationPositions,
     mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
@@ -633,6 +684,7 @@ describe('registration', () => {
       conversations: conversationStore,
       knowledge: knowledgeStore,
       notify: notifyStore,
+      automationPositions,
       mailAttachments,
       mailTransport: transport,
     });
@@ -687,6 +739,7 @@ describe('dispatching the shipped native actions', () => {
       conversations: conversationStore,
       knowledge: knowledgeStore,
       notify: notifyStore,
+      automationPositions,
       mailAttachments,
       mailTransport: transport,
     });
@@ -727,6 +780,7 @@ describe('dispatching the shipped native actions', () => {
         conversations: conversationStore,
         knowledge: knowledgeStore,
         notify: notifyStore,
+        automationPositions,
         mailAttachments,
         mailTransport: transport,
         tasks: {

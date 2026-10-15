@@ -46,14 +46,14 @@ the phone list's URL state). The desktop list is the Home panel's
 other `$status` throws `notFound()` (see CONV-B2).
 
 **Gating** (`useInboxAvailability`): an automation counts only when its
-deployed presentation declares `builtinViews: [{ id: 'inbox' }]` — the builtin
-packs are seeded into every org as drafts, so the seeded files alone must NOT
-surface the Inbox until someone deploys a sync pack. While the availability
+deployed presentation declares `builtinViews: [{ id: 'inbox' }]` — a sync pack
+an org holds only as a draft (one an earlier release seeded, or one added and
+never deployed) must NOT surface the Inbox until someone deploys it. While the availability
 queries load, the Inbox view and the route body stay hidden (no flash). With no
 qualifying deploy or registered API source, `…/conversations*` renders a localized empty state
 (`conversations.activate.noAutomationTitle` / `.noAutomationDescription`) with
-a **Browse automations** link (`conversations.activate.browseAutomations`)
-instead of the inbox. Only Owners, Admins and Developers can deploy one, so
+a **Browse email templates** link (`conversations.activate.browseTemplates`),
+which opens the template catalog on its **Inbox** tab, instead of the inbox. Only Owners, Admins and Developers can deploy one, so
 everyone else gets the reader description
 (`conversations.activate.noAutomationReaderDescription`) and no link (CONV-G4).
 
@@ -65,7 +65,8 @@ customer's live account as a manual test.
 > **Gating verified live** (2026-08-04, mode A, fresh org with no deployed
 > automation): the navigation offered **no Inbox** (CONV-G1 holds) and a
 > direct `/conversations` hit redirects to `…/open` rendering **Set up your
-> Inbox** with the **Browse automations** link (CONV-G2 holds). The observed
+> Inbox** with the link to Automations, now **Browse email templates**
+> (CONV-G2 holds). The observed
 > behaviour is the designed gate; trust the runs over any code comment that
 > claims otherwise.
 
@@ -81,22 +82,12 @@ Bring the stack up and sign in per [SETUP.md](../setup.md). Deploying an email
 automation needs the developer-settings capability (Owner / Admin /
 Developer).
 
-**A pack the org was never seeded with is missing, not hidden.** Packs reach
-an organization at two moments only: org creation, and
-`provisioning:provisionAll` on deploy. An org created before a pack directory
-existed therefore lists nothing for it — `convex dev` pushes code, it does not
-provision. Seed the newly shipped packs into an existing org (create-if-absent
-per name, always as drafts, an org's own edits and triggers untouched):
-
-```bash
-cd services/platform
-bunx convex run provisioning/provision_default_automations:provisionDefaultAutomations \
-  '{"organizationId":"<ORG-ID>","orgSlug":"<org-slug>"}'
-```
-
-The three sync packs then appear as **Not deployed** drafts
-(`gmail-sync-emails`, `outlook-sync-emails`, `imap-smtp-sync-emails`);
-deploying one is what opens the Inbox. A fresh org has **zero** conversations,
+**A new org has no sync pack.** Nothing adds one on its own: not the org's
+creation, and not `tale migrate` (PROVN-R9, PROVN-R10). Add one of the
+three (`gmail-sync-emails`, `outlook-sync-emails`, `imap-smtp-sync-emails`)
+from the template catalog, or zip its folder under
+`configs/platform/custom/automations/` and upload it (automations
+AUTO-F9); deploying it is what opens the Inbox. A fresh org has **zero** conversations,
 so after installing an email automation the reading pane is the **Activate
 conversations** CTA (`conversations.activate.title`), the Home panel's Inbox
 view reads **No conversations** (`home.empty.inbox.title`) with its search box
@@ -152,16 +143,18 @@ subject.
   `/dashboard/{org}/conversations` directly (same org as CONV-G1) → Redirect
   to `…/open` still happens; the body is the localized empty state **Set up
   your Inbox** (`conversations.activate.noAutomationTitle`) + description +
-  **Browse automations** link → `/dashboard/{org}/automations`; no crash, no
+  **Browse email templates** link → `/dashboard/{org}/automations` with the
+  template catalog open on its **Inbox** tab (the address drops
+  `?templates=inbox` again, so a reload shows the list); no crash, no
   console error.
-- [ ] `CONV-G3` · **Appears after install** — Install **Sync Outlook emails**
-  from `/dashboard/{org}/automations/outlook__reply-emails` (wizard: **Next**
-  on Install, **I'll do this later** on the Outlook connect step, **Finish**)
-  → The **Inbox** option (`home.views.inbox`) appears in the Home panel's
+- [ ] `CONV-G3` · **Appears after install** — Create **Sync Outlook emails**
+  from the catalog CONV-G2's link opens, then deploy it (**Start it now** with
+  Outlook connected; otherwise create it as a draft and **Deploy** it in its
+  editor) → The **Inbox** option (`home.views.inbox`) appears in the Home panel's
   switcher without a reload, and choosing it lists the Open conversations;
   `/conversations/open` now shows the inbox, not the set-up state; the
   automation's own page shows only workflow-settings tabs (Configuration /
-  Connectors) — **no Inbox tab**. Uninstalling the last email automation
+  Connectors) — **no Inbox tab**. Deleting the last deployed email automation
   removes the option again (a remembered Inbox view falls back to **All**) and
   CONV-G2 applies again.
 - [ ] `CONV-G4` · **Reader deep link** — As a Member or Editor in the same org
@@ -169,7 +162,7 @@ subject.
   **New email** action → **Set up your Inbox** says an Owner, Admin or
   Developer must deploy an email automation
   (`conversations.activate.noAutomationReaderDescription`) and offers **no
-  Browse automations** link; with the contact, the notice reads
+  Browse email templates** link; with the contact, the notice reads
   `conversations.activate.composeNoticeReader` (not "first install").
 
 ## Functional tests

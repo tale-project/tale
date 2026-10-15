@@ -47,7 +47,7 @@ The task is created with the rights of the person who started the run, as on the
 
 ## List a project's tasks
 
-A `task.list` step reads a project's tasks, newest first, to report on them — a daily digest, a count of what waits for review. It reads a project the way a create there does, and it changes nothing, so it never waits for approval.
+A `task.list` step reads a project's tasks, newest or oldest first, to report on them — a daily digest, a count of what waits for review. It reads a project the way a create there does, and it changes nothing, so it never waits for approval.
 
 ```yaml
 nodes:
@@ -65,9 +65,12 @@ nodes:
 | `projectId`    | The project to read.                                                                                                                        |
 | `status`       | Only tasks in these statuses — any of `backlog`, `todo`, `in_progress`, `in_review`, `done` and `cancelled`; every status when left out.    |
 | `createdSince` | Only tasks created at or after this moment: epoch milliseconds, a date such as `2026-10-17` (its start, in UTC), or an ISO date and time.   |
+| `createdBefore` | Only tasks created before this moment, written the same way. With `createdSince`, it makes a window: one that starts where the last one ended never lists a task twice. |
+| `order` | `newest` first, as when left out, or `oldest` first. |
+| `after` | With `order: oldest`, only the tasks after this place: the `next` an earlier listing answered. Empty starts from the first. |
 | `limit`        | At most this many tasks, up to 200; 50 when left out.                                                                                       |
 
-The step returns `{ tasks, hasMore }`. Each task carries its `taskId`, `number`, `title`, `status`, `priority`, `assignee` (its `type`, `id` and `name`), `dueDate`, `createdAt` and the `url` that opens it. Archived tasks are left out, and `hasMore` says that more tasks match than `limit` returned. The **Daily task digest** [starter](/platform/automations/starters) is built on it.
+The step returns `{ tasks, hasMore, next }`. Each task carries its `taskId`, `number`, `title`, `status`, `priority`, `assignee` (its `type`, `id` and `name`), `dueDate`, `createdAt` and the `url` that opens it. Archived tasks are left out, and `hasMore` says that more tasks match than `limit` returned. Oldest first, `next` then names the last task listed: pass it as `after`, and the next listing carries on behind it, even past tasks created in the same millisecond. The **Daily task digest** [template](/platform/automations/templates#task-digest) is built on it.
 
 <Frame caption="The Daily task digest's run, with its Tasks step selected: the project and the moment it read from, and the seven tasks it returned.">
 

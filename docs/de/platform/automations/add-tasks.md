@@ -47,7 +47,7 @@ Die Aufgabe wird mit den Rechten der Person erstellt, die den Lauf gestartet hat
 
 ## Die Aufgaben eines Projekts auflisten
 
-Ein Schritt `task.list` liest die Aufgaben eines Projekts, die neueste zuerst, um über sie zu berichten — eine tägliche Übersicht, die Zahl der Aufgaben, die auf eine Prüfung warten. Er liest ein Projekt so, wie ein Erstellen dort es darf, und ändert nichts; deshalb wartet er nie auf eine Freigabe.
+Ein Schritt `task.list` liest die Aufgaben eines Projekts, die neueste oder die älteste zuerst, um über sie zu berichten — eine tägliche Übersicht, die Zahl der Aufgaben, die auf eine Prüfung warten. Er liest ein Projekt so, wie ein Erstellen dort es darf, und ändert nichts; deshalb wartet er nie auf eine Freigabe.
 
 ```yaml
 nodes:
@@ -65,9 +65,12 @@ nodes:
 | `projectId`    | Das Projekt, das gelesen wird.                                                                                                                    |
 | `status`       | Nur Aufgaben in diesen Status — `backlog`, `todo`, `in_progress`, `in_review`, `done` und `cancelled`; fehlt es, jeder Status.                    |
 | `createdSince` | Nur Aufgaben, die ab diesem Zeitpunkt erstellt wurden: Epoch-Millisekunden, ein Datum wie `2026-10-17` (sein Beginn in UTC) oder Datum und Uhrzeit nach ISO. |
+| `createdBefore` | Nur Aufgaben, die vor diesem Zeitpunkt erstellt wurden, gleich geschrieben. Mit `createdSince` ergibt das ein Zeitfenster: Eines, das dort beginnt, wo das letzte endete, listet keine Aufgabe doppelt. |
+| `order` | `newest`, die neuesten zuerst, wie wenn es fehlt, oder `oldest`, die ältesten zuerst. |
+| `after` | Mit `order: oldest` nur die Aufgaben nach dieser Stelle: dem `next`, das eine frühere Auflistung zurückgab. Leer beginnt bei der ersten. |
 | `limit`        | Höchstens so viele Aufgaben, bis zu 200; fehlt es, 50.                                                                                            |
 
-Der Schritt gibt `{ tasks, hasMore }` zurück. Jede Aufgabe trägt ihre `taskId`, `number`, `title`, `status`, `priority`, `assignee` (mit `type`, `id` und `name`), `dueDate`, `createdAt` und die `url`, die sie öffnet. Archivierte Aufgaben fehlen, und `hasMore` sagt, dass mehr Aufgaben passen, als `limit` zurückgegeben hat. Die [Vorlage](/de/platform/automations/starters) **Tägliche Aufgabenübersicht** baut darauf auf.
+Der Schritt gibt `{ tasks, hasMore, next }` zurück. Jede Aufgabe trägt ihre `taskId`, `number`, `title`, `status`, `priority`, `assignee` (mit `type`, `id` und `name`), `dueDate`, `createdAt` und die `url`, die sie öffnet. Archivierte Aufgaben fehlen, und `hasMore` sagt, dass mehr Aufgaben passen, als `limit` zurückgegeben hat. Mit den ältesten zuerst nennt `next` dann die zuletzt aufgelistete Aufgabe: Gib sie als `after` mit, und die nächste Auflistung macht dahinter weiter, auch an Aufgaben derselben Millisekunde vorbei. Die [Vorlage](/de/platform/automations/templates#task-digest) **Tägliche Aufgabenübersicht** baut darauf auf.
 
 <Frame caption="Der Lauf der Daily task digest mit ausgewähltem Schritt Tasks: das Projekt und der Zeitpunkt, ab dem er las, und die sieben Aufgaben, die er zurückgab.">
 

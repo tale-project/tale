@@ -11,7 +11,7 @@ import type { AuditLogActorType } from '../audit_logs/types.ts';
  * added or removed, a write it may make without approval granted or
  * withdrawn, the automation deleted. Every door reaches these writes
  * through the store (the editor, a package upload, the REST API, a coding
- * agent over MCP, managed configuration, the shipped default packs), so the
+ * agent over MCP, managed configuration, a template from the catalog), so the
  * row is written there, in the write's own transaction: no door can change a
  * definition without leaving one.
  *

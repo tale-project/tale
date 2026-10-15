@@ -26,6 +26,10 @@ import {
 } from './imap-smtp';
 import { issueImportNatives } from './issue-import';
 import {
+  platformAutomationNatives,
+  type WorkflowAutomationPositions,
+} from './platform-automation';
+import {
   platformConversationNatives,
   type WorkflowConversationStore,
 } from './platform-conversations';
@@ -128,6 +132,9 @@ export interface NativeConnectorDeps {
    * rationale: who a message reaches and what its run may still send are
    * decided by the platform, from the run and the organization. */
   readonly notify: WorkflowNotifyStore;
+  /** The automations domain's position store, as the run asking — same
+   * rationale: whose places a step keeps comes from the run. */
+  readonly automationPositions: WorkflowAutomationPositions;
   /** Outbound mail attachment bytes, by org-scoped blob ref — required for
    * the same reason: the mail native must never read a file or a URL a
    * caller names, so the org's blob store is its only source of bytes. */
@@ -142,6 +149,8 @@ export interface NativeConnectorDeps {
 /** The impl ids the shipped native actions declare — the contract this
  * module fulfils, and what a wiring test asserts against. */
 export const NATIVE_IMPL_IDS = [
+  'automation.read_position',
+  'automation.save_position',
   'conversation.ingest_emails',
   'conversation.ingest_sent_emails',
   'conversation.list_mailbox_messages',
@@ -173,6 +182,7 @@ export const NATIVE_IMPL_IDS = [
   'task.list_external_issues',
   'task.save_import_cursor',
   'task.start_agent',
+  'task.sync_issues',
   'task.update_status',
   'task.upsert',
   'task.upsert_issues',
@@ -203,6 +213,7 @@ export function registerNativeConnectors(
     }),
     ...knowledgeNatives(deps.knowledge),
     ...notifyNatives(deps.notify),
+    ...platformAutomationNatives(deps.automationPositions),
     ...platformConversationNatives(deps.conversations),
     ...platformDocumentNatives(deps.documents),
     ...platformTaskNatives(deps.tasks),

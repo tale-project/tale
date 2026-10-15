@@ -126,8 +126,8 @@ codes:
   NODE_FIELD_TYPE:
     title: Field has the wrong type
     explanation: Node fields have fixed types. Conditions and loops are templates, an input is an object, and an agent's lists are lists of names.
-    cause: '{expected, select, repeatUntil {{fieldLabel} of {nodeLabel} only works together with a "Repeat until" condition.} other {{fieldLabel} of {nodeLabel} must be {expected, select, template {one template, such as ''{{'' nodes.check.output.ok ''}}''} nodeId {the id of another node} object {an object} string {text} stringArray {a list of names} filesMap {a mapping from names to files or folders} other {{expected}}}.}}'
-    fix: '{expected, select, repeatUntil {Add a "Repeat until" condition, or remove {fieldLabel}.} other {Give {fieldLabel} a value of that type.}}'
+    cause: '{expected, select, repeatUntil {{fieldLabel} of {nodeLabel} only works together with a "Repeat until" condition.} forEach {{fieldLabel} of {nodeLabel} only works together with a "For each" list.} other {{fieldLabel} of {nodeLabel} must be {expected, select, template {one template, such as ''{{'' nodes.check.output.ok ''}}''} nodeId {the id of another node} object {an object} string {text} stringArray {a list of names} filesMap {a mapping from names to files or folders} other {{expected}}}.}}'
+    fix: '{expected, select, repeatUntil {Add a "Repeat until" condition, or remove {fieldLabel}.} forEach {Add a "For each" list, or remove {fieldLabel}.} other {Give {fieldLabel} a value of that type.}}'
   CODE_SYNTAX:
     title: Code cannot be validated
     explanation: Transform code must have valid JavaScript syntax and fit the analysis limits before saving or deployment.
@@ -161,6 +161,11 @@ codes:
   ONERROR_INVALID:
     title: Invalid error handling
     explanation: On error is either fail, which stops the run at the node, or continue, which records the failure and skips the nodes that read this one.
+    cause: '{nodeLabel} sets it to "{value}".'
+    fix: Use fail or continue.
+  ONITEMERROR_INVALID:
+    title: Invalid item error handling
+    explanation: What a failed item does is either fail, which fails the node at the first item that fails, or continue, which records the failed item and goes on with the next one.
     cause: '{nodeLabel} sets it to "{value}".'
     fix: Use fail or continue.
   SUBAUTOMATION_REF_INVALID:

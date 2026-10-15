@@ -41,9 +41,30 @@ const CONNECTOR = 'imap-smtp';
 /** Messages returned by one `list_messages` when the caller names no limit. */
 const DEFAULT_LIMIT = 25;
 
-/** Ceiling for one pass — a sync reads a window and advances its cursor, so an
- * unbounded limit would only trade progress for a timeout. */
-const MAX_LIMIT = 100;
+/** Ceiling for one listing. A sync reads a window and advances its position,
+ * so an unbounded limit would only trade progress for a timeout; it lists one
+ * message past what a pass reads, and a whole instant when one second holds
+ * more mail than a pass, so the ceiling sits well above a pass. Summaries
+ * are small: bodies are read one by one with `get_message`. */
+const MAX_LIMIT = 1000;
+
+const DAY_MS = 86_400_000;
+
+/** IMAP SEARCH SINCE / BEFORE compare whole days, on the calendar of each
+ * message's own arrival stamp, and the client writes the day in its own zone:
+ * a search for a stretch of time reaches two days past either end, and the
+ * exact instants are applied afterwards. */
+const SEARCH_MARGIN_MS = 2 * DAY_MS;
+
+/** Days the first search after a position covers; each further search covers
+ * four times as many, until enough messages are found or the stretch reaches
+ * today. A backlog of a year then costs a few days of arrival times a pass,
+ * not the year. */
+const FIRST_SEARCH_DAYS = 1;
+
+/** UIDs per FETCH: a sparse UID set is sent as a list, and servers bound the
+ * length of one command line. */
+const FETCH_UID_CHUNK = 500;
 
 /** Standard IMAPS port: implicit TLS from the first byte. */
 const IMAPS_PORT = 993;
@@ -104,8 +125,12 @@ export interface MailMessageSummary {
   readonly uid: string;
   readonly from: string;
   readonly subject: string;
-  /** Epoch ms the message was sent. */
+  /** Epoch ms the message was sent: its Date header, else its arrival. */
   readonly sentAt: number;
+  /** Epoch ms the server took the message in (its INTERNALDATE) — the
+   * server's own clock, which a sender cannot set; absent when the server
+   * gave none. */
+  readonly receivedAt?: number;
 }
 
 /** One address as the conversation ingest helpers expect it. */
@@ -170,8 +195,13 @@ export interface MailMessageBody {
 
 export interface MailboxQuery {
   readonly mailbox: MailboxSelector;
-  /** Epoch-ms cursor; messages at or after it are returned. */
+  /** Epoch-ms cursor on the date a sender wrote; messages at or after it are
+   * returned, oldest first. */
   readonly since?: number;
+  /** Epoch-ms position on the server's arrival clock; the messages that
+   * arrived strictly after it are returned, oldest arrival first. Wins over
+   * `since`. */
+  readonly after?: number;
   readonly limit: number;
 }
 
@@ -524,6 +554,7 @@ function assertSingleLine(value: string, field: string, action: string): void {
  */
 const listInput = z.object({
   since: z.number().optional(),
+  after: z.number().optional(),
   limit: z.number().optional(),
   mailbox: z.string().optional(),
 });
@@ -592,6 +623,20 @@ function parseInput<T>(
   return parsed.data;
 }
 
+/** One summary as `list_messages` answers it: the arrival time only when
+ * the server gave one. */
+function listedRow(message: MailMessageSummary): MailMessageSummary {
+  const row = {
+    uid: message.uid,
+    from: message.from,
+    subject: message.subject,
+    sentAt: message.sentAt,
+  };
+  return message.receivedAt === undefined
+    ? row
+    : Object.assign(row, { receivedAt: message.receivedAt });
+}
+
 /** The window one pass reads: a positive whole number, capped. */
 function boundedLimit(limit: number | undefined): number {
   if (limit === undefined || !Number.isFinite(limit)) return DEFAULT_LIMIT;
@@ -629,9 +674,11 @@ export function imapSmtpNatives(
   ) => {
     const parsed = parseInput(listInput, input, 'list_messages');
     const since = boundedSince(parsed.since);
+    const after = boundedSince(parsed.after);
     const query: MailboxQuery = {
       mailbox: selectMailbox(parsed.mailbox),
       ...(since !== undefined && { since }),
+      ...(after !== undefined && { after }),
       limit: boundedLimit(parsed.limit),
     };
     const config = await configFor(ctx, 'list_messages');
@@ -642,14 +689,7 @@ export function imapSmtpNatives(
     const messages = await withSession(session, 'IMAP', (imap) =>
       imap.listMessages(query),
     );
-    return {
-      messages: messages.map((message) => ({
-        uid: message.uid,
-        from: message.from,
-        subject: message.subject,
-        sentAt: message.sentAt,
-      })),
-    };
+    return { messages: messages.map(listedRow) };
   };
 
   const send: NativeConnectorImpl = async (
@@ -1240,12 +1280,12 @@ interface ImapClientLike {
     Array<{ path: string; flags: Set<string>; specialUse?: string }>
   >;
   search(
-    query: { since?: Date; all?: boolean },
+    query: { since?: Date; before?: Date; all?: boolean },
     options: { uid: true },
   ): Promise<number[] | false>;
   fetch(
     range: string | number[],
-    query: { uid: true; envelope: true; internalDate: true },
+    query: { uid: true; envelope?: true; internalDate: true },
     options?: { uid: true },
   ): AsyncIterableIterator<{
     uid: number;
@@ -1296,64 +1336,156 @@ async function resolveMailboxPath(
 }
 
 /**
- * The newest messages matching the cursor, oldest first.
+ * The messages a listing asks for, oldest first.
  *
- * Only envelopes are fetched: the connector returns sender, subject, and time,
- * so pulling whole message sources would multiply the transfer and put message
- * bodies in memory for nothing. `SEARCH SINCE` is date-granular, so the
- * millisecond cursor is applied again here.
+ * - `after` (a sync's position): the messages the server took in strictly
+ *   after it, by the server's own arrival clock (INTERNALDATE) — a sender
+ *   cannot move it, unlike the Date header, which runs days behind or years
+ *   ahead on a wrong clock. Ties keep UID order.
+ * - `since` (the older cursor): the messages a sender dated at or after it.
+ * - neither: the newest `limit` of the folder.
+ *
+ * `SEARCH SINCE` is day-granular, so the exact instant is applied here, and
+ * BEFORE the window is cut: cutting the UID list first took the oldest
+ * `limit` UIDs of the cursor's day, all of them before the cursor on a busy
+ * day, and the pass stalled there for good. Arrival times are read for a
+ * stretch of days after the position (a UID and a date each), envelopes only
+ * for the messages returned.
  */
 export async function fetchSummaries(
   client: ImapClientLike,
   query: MailboxQuery,
 ): Promise<readonly MailMessageSummary[]> {
-  const summaries: MailMessageSummary[] = [];
-
+  if (query.after !== undefined) {
+    return await summariesAfter(client, query.after, query.limit);
+  }
   if (query.since !== undefined) {
     const found = await client.search(
       { since: new Date(query.since) },
       { uid: true },
     );
-    // Oldest first: a cursored pass DRAINS forward, so it takes the OLDEST
-    // window after the cursor (SEARCH returns UIDs ascending ≈ arrival order).
-    // The watermark then advances over this window and the next pass continues.
-    // Taking the newest window instead would re-read the tail every pass and
-    // strand everything older than it behind the advancing cursor — the loss
-    // this drains against.
-    const uids = (found === false ? [] : found).slice(0, query.limit);
-    if (uids.length === 0) return [];
+    const summaries = await envelopesOf(client, found === false ? [] : found);
+    const cursor = query.since;
+    return summaries
+      .filter((message) => message.sentAt >= cursor)
+      .sort((a, b) => a.sentAt - b.sentAt)
+      .slice(0, query.limit);
+  }
+
+  // No cursor: read the tail of the mailbox. IMAP has no negative offset, so
+  // the range is derived from the message count the server reported when the
+  // mailbox was opened.
+  const exists = client.mailbox === false ? 0 : client.mailbox.exists;
+  if (exists === 0) return [];
+  const start = Math.max(1, exists - query.limit + 1);
+  const summaries: MailMessageSummary[] = [];
+  for await (const message of client.fetch(`${start}:*`, {
+    uid: true,
+    envelope: true,
+    internalDate: true,
+  })) {
+    summaries.push(toSummary(message));
+  }
+  return summaries.sort((a, b) => a.sentAt - b.sentAt).slice(-query.limit);
+}
+
+/**
+ * The messages that arrived strictly after `after`, oldest arrival first, at
+ * most `limit`. Searches a stretch of days after the position that grows
+ * until it holds `limit` messages or reaches today: only that stretch's
+ * arrival times are read, and a message beyond its trusted end is newer than
+ * every one taken, so nothing older is passed by.
+ */
+async function summariesAfter(
+  client: ImapClientLike,
+  after: number,
+  limit: number,
+): Promise<readonly MailMessageSummary[]> {
+  const afterDay = Math.floor(after / DAY_MS) * DAY_MS;
+  const since = new Date(afterDay - SEARCH_MARGIN_MS);
+  for (let days = FIRST_SEARCH_DAYS; ; days *= 4) {
+    // The stretch is trusted up to `end`; the search reaches past it.
+    const end = afterDay + days * DAY_MS;
+    const open = end >= Date.now() + DAY_MS;
+    const found = await client.search(
+      open ? { since } : { since, before: new Date(end + SEARCH_MARGIN_MS) },
+      { uid: true },
+    );
+    const arrivals: Array<{ uid: number; receivedAt: number }> = [];
+    for (const chunk of chunked(
+      found === false ? [] : found,
+      FETCH_UID_CHUNK,
+    )) {
+      for await (const message of client.fetch(
+        chunk,
+        { uid: true, internalDate: true },
+        { uid: true },
+      )) {
+        const receivedAt = arrivalMs(message.internalDate);
+        if (
+          receivedAt !== undefined &&
+          receivedAt > after &&
+          (open || receivedAt < end)
+        ) {
+          arrivals.push({ uid: message.uid, receivedAt });
+        }
+      }
+    }
+    if (open || arrivals.length >= limit) {
+      return await inArrivalOrder(client, arrivals, limit);
+    }
+  }
+}
+
+/** The oldest `limit` of `arrivals`, with their envelopes, oldest first; ties
+ * keep UID order. */
+async function inArrivalOrder(
+  client: ImapClientLike,
+  arrivals: Array<{ uid: number; receivedAt: number }>,
+  limit: number,
+): Promise<readonly MailMessageSummary[]> {
+  const window = arrivals
+    .sort((a, b) => a.receivedAt - b.receivedAt || a.uid - b.uid)
+    .slice(0, limit);
+  if (window.length === 0) return [];
+  const byUid = new Map<string, MailMessageSummary>();
+  for (const summary of await envelopesOf(
+    client,
+    window.map((entry) => entry.uid),
+  )) {
+    byUid.set(summary.uid, summary);
+  }
+  // In arrival order, whatever order the server answered the FETCH in.
+  return window.flatMap((entry) => {
+    const summary = byUid.get(String(entry.uid));
+    return summary === undefined ? [] : [summary];
+  });
+}
+
+/** Sender, subject and both instants for each UID, in chunks. */
+async function envelopesOf(
+  client: ImapClientLike,
+  uids: readonly number[],
+): Promise<MailMessageSummary[]> {
+  const summaries: MailMessageSummary[] = [];
+  for (const chunk of chunked(uids, FETCH_UID_CHUNK)) {
     for await (const message of client.fetch(
-      uids,
+      chunk,
       { uid: true, envelope: true, internalDate: true },
       { uid: true },
     )) {
       summaries.push(toSummary(message));
     }
-  } else {
-    // No cursor: read the tail of the mailbox. IMAP has no negative offset, so
-    // the range is derived from the message count the server reported when the
-    // mailbox was opened.
-    const exists = client.mailbox === false ? 0 : client.mailbox.exists;
-    if (exists === 0) return [];
-    const start = Math.max(1, exists - query.limit + 1);
-    for await (const message of client.fetch(`${start}:*`, {
-      uid: true,
-      envelope: true,
-      internalDate: true,
-    })) {
-      summaries.push(toSummary(message));
-    }
   }
+  return summaries;
+}
 
-  const cursor = query.since;
-  const ordered = summaries
-    .filter((message) => cursor === undefined || message.sentAt >= cursor)
-    .sort((a, b) => a.sentAt - b.sentAt);
-  // A cursored pass keeps the OLDEST window (drain forward from the watermark);
-  // the initial no-cursor pass keeps the newest tail.
-  return cursor === undefined
-    ? ordered.slice(-query.limit)
-    : ordered.slice(0, query.limit);
+function chunked<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let at = 0; at < items.length; at += size) {
+    chunks.push(items.slice(at, at + size));
+  }
+  return chunks;
 }
 
 async function fetchMessageBody(
@@ -1414,25 +1546,30 @@ function toSummary(message: {
 }): MailMessageSummary {
   const envelope = message.envelope;
   const sender = envelope?.from?.[0];
+  const receivedAt = arrivalMs(message.internalDate);
   const sentAt =
     envelope?.date instanceof Date
       ? envelope.date.getTime()
-      : internalDateMs(message.internalDate);
+      : (receivedAt ?? 0);
   return {
     uid: String(message.uid),
     from: sender?.address ?? sender?.name ?? '',
     subject: envelope?.subject ?? '',
     sentAt,
+    ...(receivedAt !== undefined && { receivedAt }),
   };
 }
 
-/** The server's own arrival time, used when a message carries no valid Date
- * header — an unparseable one would otherwise sort as the epoch. */
-function internalDateMs(value: Date | string | undefined): number {
-  if (value instanceof Date) return value.getTime();
+/** The server's own arrival time (INTERNALDATE) in epoch ms, or undefined
+ * when the server gave none it could parse. */
+function arrivalMs(value: Date | string | undefined): number | undefined {
+  if (value instanceof Date) {
+    const at = value.getTime();
+    return Number.isFinite(at) ? at : undefined;
+  }
   if (typeof value === 'string') {
     const parsed = Date.parse(value);
     if (Number.isFinite(parsed)) return parsed;
   }
-  return 0;
+  return undefined;
 }

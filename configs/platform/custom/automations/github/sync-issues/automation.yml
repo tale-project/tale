@@ -1,0 +1,247 @@
+name: Sync GitHub issues
+description: Turns the open issues of a GitHub repository into tasks and keeps them current, one batch every run.
+icon: brand:github
+category: issues
+labels: [GitHub, Issues]
+scope: project
+requires:
+  connectors: [github, task]
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: minutely
+      interval: 15
+    timezone: UTC
+i18n:
+  de:
+    name: GitHub-Issues synchronisieren
+    description: Macht aus den offenen Issues eines GitHub-Repositorys Aufgaben und hält sie aktuell, mit jedem Lauf einen Stapel weiter.
+  fr:
+    name: Synchroniser les issues GitHub
+    description: Transforme les issues ouvertes d’un dépôt GitHub en tâches et les tient à jour, un lot à chaque exécution.
+template:
+  details: >-
+    Every 15 minutes to start with, the automation reads the next batch of open issues of the
+    repository you name, oldest first, and makes a task in Backlog for each one the project does
+    not have yet. Every run picks up where the last one stopped, so a large repository arrives
+    over several runs; after the last issue, the next run starts again from the first. Each run
+    also reads up to 50 issues it imported earlier again, the longest-unchecked first, and
+    updates what their tasks show of them: the title, the description and whether the issue is
+    open or closed. Your own changes to a task (its title, description, status and assignee) are
+    never overwritten, and a task stays where it is when its issue is closed on GitHub. Pull
+    requests are left out. When GitHub asks the sync to slow down, it waits as long as GitHub
+    says, then carries on where it stopped.
+  i18n:
+    de:
+      details: >-
+        Anfangs alle 15 Minuten liest die Automatisierung den nächsten Stapel offener Issues des
+        Repositorys, das du angibst, die ältesten zuerst, und legt für jedes Issue, das das
+        Projekt noch nicht hat, eine Aufgabe im Backlog an. Jeder Lauf macht dort weiter, wo der
+        letzte aufgehört hat, sodass ein großes Repository über mehrere Läufe ankommt; nach dem
+        letzten Issue beginnt der nächste Lauf wieder beim ersten. Jeder Lauf liest außerdem bis
+        zu 50 früher importierte Issues erneut, die am längsten nicht geprüften zuerst, und
+        aktualisiert, was ihre Aufgaben von ihnen zeigen: den Titel, die Beschreibung und ob das
+        Issue offen oder geschlossen ist. Deine eigenen Änderungen an einer Aufgabe (Titel,
+        Beschreibung, Status und Zuständigkeit) werden nie überschrieben, und eine Aufgabe bleibt,
+        wo sie ist, wenn ihr Issue auf GitHub geschlossen wird. Pull Requests bleiben außen vor.
+        Bittet GitHub die Synchronisierung, langsamer zu werden, wartet sie so lange wie verlangt
+        und macht dann dort weiter, wo sie aufgehört hat.
+    fr:
+      details: >-
+        Toutes les 15 minutes pour commencer, l’automatisation lit le lot suivant d’issues ouvertes du dépôt que tu indiques, les plus anciennes d’abord, et crée une tâche dans Backlog pour chaque issue que le projet n’a pas encore. Chaque exécution reprend là où la précédente s’est arrêtée, si bien qu’un grand dépôt arrive en plusieurs exécutions ; après la dernière issue, l’exécution suivante recommence à la première. Chaque exécution relit aussi jusqu’à 50 issues importées plus tôt, les moins récemment vérifiées d’abord, et met à jour ce que leurs tâches en montrent : le titre, la description et si l’issue est ouverte ou fermée. Tes propres modifications d’une tâche (titre, description, statut et personne assignée) ne sont jamais écrasées, et une tâche reste où elle est quand son issue est fermée sur GitHub. Les pull requests sont laissées de côté. Quand GitHub demande à la synchronisation de ralentir, elle attend le temps demandé, puis reprend là où elle s’est arrêtée.
+  steps:
+    - title: Picks up where the last run stopped
+      detail: The project keeps how far the repository's open issues have been read.
+      i18n:
+        de:
+          title: Macht dort weiter, wo der letzte Lauf aufgehört hat
+          detail: Das Projekt merkt sich, wie weit die offenen Issues des Repositorys gelesen sind.
+        fr:
+          title: Reprend là où la dernière exécution s’est arrêtée
+          detail: Le projet retient jusqu’où les issues ouvertes du dépôt ont été lues.
+    - title: Reads the next batch of open issues
+      detail: Up to the number you choose, oldest first. Pull requests are left out, and labels can narrow the batch.
+      i18n:
+        de:
+          title: Liest den nächsten Stapel offener Issues
+          detail: Bis zur gewählten Anzahl, die ältesten zuerst. Pull Requests bleiben außen vor, und Labels können den Stapel eingrenzen.
+        fr:
+          title: Lit le lot suivant d’issues ouvertes
+          detail: Jusqu’au nombre choisi, les plus anciennes d’abord. Les pull requests sont laissées de côté, et des étiquettes peuvent restreindre le lot.
+    - title: Reads issues imported earlier again
+      detail: Up to 50 per run, the longest-unchecked first, so every task keeps its issue's latest title, text and state.
+      i18n:
+        de:
+          title: Liest früher importierte Issues erneut
+          detail: Bis zu 50 pro Lauf, die am längsten nicht geprüften zuerst, damit jede Aufgabe Titel, Text und Stand ihres Issues aktuell hält.
+        fr:
+          title: Relit les issues importées plus tôt
+          detail: Jusqu’à 50 par exécution, les moins récemment vérifiées d’abord, pour que chaque tâche garde le dernier titre, texte et état de son issue.
+    - title: Writes each issue into its task
+      detail: A new issue becomes a task in Backlog; one imported before only updates what its task shows of it.
+      i18n:
+        de:
+          title: Schreibt jedes Issue in seine Aufgabe
+          detail: Ein neues Issue wird zu einer Aufgabe im Backlog; ein früher importiertes aktualisiert nur, was seine Aufgabe von ihm zeigt.
+        fr:
+          title: Écrit chaque issue dans sa tâche
+          detail: Une nouvelle issue devient une tâche dans Backlog ; une issue importée plus tôt met seulement à jour ce que sa tâche en montre.
+    - title: Saves where it stopped
+      detail: The next run continues from there; after the last issue, it starts again from the first.
+      i18n:
+        de:
+          title: Merkt sich, wo er aufgehört hat
+          detail: Der nächste Lauf macht dort weiter; nach dem letzten Issue beginnt er wieder beim ersten.
+        fr:
+          title: Enregistre où elle s’est arrêtée
+          detail: L’exécution suivante reprend à cet endroit ; après la dernière issue, elle recommence à la première.
+  outcomes:
+    - kind: creates
+      text: A task in Backlog for each open issue the project does not have yet.
+      i18n:
+        de:
+          text: Eine Aufgabe im Backlog für jedes offene Issue, das das Projekt noch nicht hat.
+        fr:
+          text: Une tâche dans Backlog pour chaque issue ouverte que le projet n’a pas encore.
+    - kind: changes
+      text: 'What each task shows of its issue: the title, the description, open or closed.'
+      i18n:
+        de:
+          text: 'Was jede Aufgabe von ihrem Issue zeigt: Titel, Beschreibung, offen oder geschlossen.'
+        fr:
+          text: 'Ce que chaque tâche montre de son issue : le titre, la description, ouverte ou fermée.'
+    - kind: never
+      text: Never changes, comments on or closes anything on GitHub.
+      i18n:
+        de:
+          text: Ändert, kommentiert oder schließt nie etwas auf GitHub.
+        fr:
+          text: Ne modifie, ne commente et ne ferme jamais rien sur GitHub.
+    - kind: never
+      text: Never overwrites your changes to a task, nor moves it when its issue is closed.
+      i18n:
+        de:
+          text: Überschreibt nie deine Änderungen an einer Aufgabe und verschiebt sie nicht, wenn ihr Issue geschlossen wird.
+        fr:
+          text: N’écrase jamais tes modifications d’une tâche et ne la déplace pas quand son issue est fermée.
+  worksWith:
+    - github/triage-issues
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose tasks the issues become.
+      writes:
+        - node: sync
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, in dem die Issues zu Aufgaben werden.
+        fr:
+          label: Projet
+          description: Le projet dans lequel les issues deviennent des tâches.
+    - id: owner
+      kind: text
+      label: Owner
+      description: The user or organization the repository belongs to, as in github.com/owner/repository.
+      placeholder: tale-project
+      maxLength: 99
+      pattern: '^[A-Za-z0-9-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/owner
+      i18n:
+        de:
+          label: Besitzer
+          description: Die Person oder Organisation, der das Repository gehört, wie in github.com/besitzer/repository.
+          placeholder: tale-project
+        fr:
+          label: Propriétaire
+          description: L’utilisateur ou l’organisation à qui appartient le dépôt, comme dans github.com/proprietaire/depot.
+          placeholder: tale-project
+    - id: repo
+      kind: text
+      label: Repository
+      description: The repository's name.
+      placeholder: tale
+      maxLength: 100
+      pattern: '^[A-Za-z0-9_.-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/repo
+      i18n:
+        de:
+          label: Repository
+          description: Der Name des Repositorys.
+          placeholder: tale
+        fr:
+          label: Dépôt
+          description: Le nom du dépôt.
+          placeholder: tale
+    - id: labels
+      kind: list
+      label: Only issues with these labels
+      description: Leave it empty to sync every open issue. With several labels, an issue needs all of them.
+      placeholder: bug
+      maxItems: 10
+      itemMaxLength: 50
+      writes:
+        - node: sync
+          pointer: /input/sources/0/labels
+      i18n:
+        de:
+          label: Nur Issues mit diesen Labels
+          description: Leer lassen, um alle offenen Issues zu synchronisieren. Bei mehreren Labels braucht ein Issue alle.
+          placeholder: bug
+        fr:
+          label: Seulement les issues avec ces étiquettes
+          description: Laisse vide pour synchroniser toutes les issues ouvertes. Avec plusieurs étiquettes, une issue doit toutes les avoir.
+          placeholder: bug
+    - id: connection
+      kind: credential
+      connector: github
+      required: false
+      label: GitHub credentials
+      description: The credentials the repository is read with. Leave it empty to use the default GitHub credentials.
+      placeholder: The default GitHub connection
+      writes:
+        - node: sync
+          pointer: /input/sources/0/credential
+      i18n:
+        de:
+          label: GitHub-Zugangsdaten
+          description: Die Zugangsdaten, mit denen das Repository gelesen wird. Leer lassen, um die Standard-Zugangsdaten für GitHub zu nutzen.
+          placeholder: Die Standardverbindung zu GitHub
+        fr:
+          label: Identifiants GitHub
+          description: Les identifiants avec lesquels le dépôt est lu. Laisse vide pour utiliser les identifiants GitHub par défaut.
+          placeholder: La connexion GitHub par défaut
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the repository is read; each run reads one batch.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft das Repository gelesen wird; jeder Lauf liest einen Stapel.
+        fr:
+          label: Quand
+          description: À quelle fréquence le dépôt est lu ; chaque exécution lit un lot.
+    - id: batch
+      kind: number
+      label: New issues per run
+      description: The most open issues one run reads; the rest follow in the next runs.
+      min: 1
+      max: 500
+      default: 100
+      writes:
+        - node: sync
+          pointer: /input/limit
+      i18n:
+        de:
+          label: Neue Issues pro Lauf
+          description: Höchstens so viele offene Issues liest ein Lauf; der Rest folgt in den nächsten Läufen.
+        fr:
+          label: Nouvelles issues par exécution
+          description: Le nombre maximal d’issues ouvertes qu’une exécution lit ; les autres suivent aux exécutions suivantes.

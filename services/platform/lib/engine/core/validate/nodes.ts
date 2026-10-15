@@ -34,6 +34,7 @@ const CONTROL_FIELDS = [
   'repeatUntil',
   'maxRepeats',
   'onError',
+  'onItemError',
 ];
 
 const STRING_FIELDS = [
@@ -397,6 +398,38 @@ export async function validateNodes(
           },
         ),
       );
+    }
+    if (n.onItemError !== undefined) {
+      if (n.onItemError !== 'fail' && n.onItemError !== 'continue') {
+        issues.push(
+          err(
+            'ONITEMERROR_INVALID',
+            `node "${label}": "onItemError" must be "fail" or "continue"`,
+            {
+              nodeId: id,
+              at: { pointer: `${base}/onItemError` },
+              params: { node: label, value: shown(n.onItemError) },
+            },
+          ),
+        );
+      }
+      if (n.forEach === undefined) {
+        issues.push(
+          err(
+            'NODE_FIELD_TYPE',
+            `node "${label}": onItemError only makes sense together with forEach`,
+            {
+              nodeId: id,
+              at: { pointer: `${base}/onItemError` },
+              params: {
+                node: label,
+                field: 'onItemError',
+                expected: 'forEach',
+              },
+            },
+          ),
+        );
+      }
     }
     // Payload field types.
     if (n.input !== undefined && !isRecord(n.input)) {

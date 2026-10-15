@@ -1,7 +1,8 @@
 /**
- * The Inbox gate. Every org is seeded with the mail packs as DRAFTS, so the
- * seeded files alone must not surface a shared inbox — only a deployed pack
- * that declares the `inbox` builtin view opens the nav entry and the routes.
+ * The Inbox gate. An org may hold a mail pack as a DRAFT — one an earlier
+ * release seeded, or one added and never deployed — and a draft alone must
+ * not surface a shared inbox: only a deployed pack that declares the `inbox`
+ * builtin view opens the nav entry and the routes.
  */
 
 import { renderHook } from '@testing-library/react';
@@ -145,7 +146,7 @@ describe('useInboxAvailability', () => {
     ]);
   });
 
-  it('keeps the Inbox closed while the pack is only seeded, never deployed', () => {
+  it('keeps the Inbox closed while the pack is only a draft, never deployed', () => {
     stubList([automationRow('imap-smtp/sync-emails', SYNC_PRESENTATION)]);
 
     const { result } = renderHook(() => useInboxAvailability('org_1'));

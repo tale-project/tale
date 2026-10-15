@@ -11,7 +11,8 @@ export interface DataTableEmptyStateProps {
   /**
    * Optional primary action (e.g. create). When the table is empty and has no
    * search/filter chrome, DataTable moves `addAction` here so the CTA sits
-   * with the empty copy instead of a lone toolbar button above an empty grid.
+   * with the empty copy instead of a lone toolbar button above an empty grid;
+   * an action the caller passes leads, with the moved one beside it.
    */
   action?: ReactNode;
   /**

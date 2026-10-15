@@ -414,19 +414,24 @@ const projectRoute = (
 ): string =>
   `/dashboard/${ctx.orgId}/projects/${seededProjectId(ctx, project)}${sub}`;
 
-/** Create automation › From a starter, from the automations list. */
-async function openStarterGallery(page: Page): Promise<void> {
+/** Create automation › From a template, from the automations list. */
+async function openTemplateCatalog(page: Page): Promise<void> {
   await page
     .getByRole('button', { name: t('automations.list.createButton') })
     .click();
   await page
-    .getByRole('menuitem', { name: t('automations.createMenu.starter') })
+    .getByRole('menuitem', { name: t('automations.createMenu.template') })
     .click();
 }
 
-/** The starter gallery's dialog. */
-function starterGallery(page: Page): Locator {
-  return page.getByRole('dialog', { name: t('automations.starters.title') });
+/** The template catalog's dialog, on the catalog. */
+function templateCatalog(page: Page): Locator {
+  return page.getByRole('dialog', { name: t('automations.templates.title') });
+}
+
+/** The catalog dialog, on one template: its preview or its questions. */
+function templateDialog(page: Page, name: string): Locator {
+  return page.getByRole('dialog', { name });
 }
 
 /** Keep catalog examples reproducible when the local organization also has
@@ -1763,32 +1768,67 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // The starter gallery — Create automation › From a starter: each
-    // starter with its icon, its name and what it does in one line.
-    name: 'automation-starter-gallery',
+    // The template catalog — Create automation › From a template: the
+    // category tabs, the search, and a card per template with its
+    // product's logo, when it runs and what it does in one line.
+    name: 'automation-template-catalog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
-    prepare: openStarterGallery,
+    prepare: openTemplateCatalog,
     readyWhen: (page) =>
-      starterGallery(page).getByRole('button', { name: /Tell the reviewer/ }),
-    capture: starterGallery,
-    // The gallery is 70 % of the viewport tall: this height shows every
-    // starter without the list scrolling.
+      templateCatalog(page).getByRole('button', {
+        name: /Triage the Gmail inbox/,
+      }),
+    capture: templateCatalog,
+    // The catalog is 85 % of the viewport tall: this height shows two rows
+    // of cards under the tabs.
     viewport: { width: 1440, height: 1100 },
   },
   {
-    // A starter's questions answered: Tell the reviewer, for Website
-    // relaunch, telling Priya, with its message and Start it now on.
-    // Nothing is created.
-    name: 'automation-starter-setup',
+    // One template's preview: Triage the Gmail inbox — how it works, what
+    // it changes, when it runs (in the reader's zone), what it needs and
+    // what it works with, and its workflow drawn read-only.
+    name: 'automation-template-preview',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
     prepare: async (page) => {
-      await openStarterGallery(page);
-      await starterGallery(page)
+      await openTemplateCatalog(page);
+      await templateCatalog(page)
+        .getByRole('button', { name: /Triage the Gmail inbox/ })
+        .click();
+    },
+    // Ready once the workflow's step boxes are laid out on its canvas — the
+    // canvas is there, busy and grey, while its layout engine arranges them.
+    readyWhen: (page) =>
+      templateDialog(page, 'Triage the Gmail inbox')
+        .getByRole('group', {
+          name: t('automations.canvas.ariaLabel'),
+          exact: true,
+        })
+        .and(page.locator('[aria-busy="false"]'))
+        .locator('[data-flow-node]')
+        .first(),
+    capture: (page) => templateDialog(page, 'Triage the Gmail inbox'),
+    // Tall enough for the whole preview, its drawn workflow included, in the
+    // dialog's 85 % frame.
+    viewport: { width: 1440, height: 1500 },
+  },
+  {
+    // A template's questions answered: Tell the reviewer, for Website
+    // relaunch, telling Priya, with its message and Start it now on.
+    // Nothing is created.
+    name: 'automation-template-setup',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations',
+    prepare: async (page) => {
+      await openTemplateCatalog(page);
+      await templateCatalog(page)
         .getByRole('button', { name: /Tell the reviewer/ })
         .click();
-      const dialog = page.getByRole('dialog', { name: 'Tell the reviewer' });
+      const dialog = templateDialog(page, 'Tell the reviewer');
+      await dialog
+        .getByRole('button', { name: t('automations.templates.use') })
+        .click();
       await dialog.getByRole('button', { name: /^Project/ }).click();
       await page
         .getByRole('option', { name: DEMO_PROJECTS[0].name, exact: true })
@@ -1800,10 +1840,10 @@ export const SHOTS: readonly Shot[] = [
     },
     // Ready once every question is answered: Create stops waiting.
     readyWhen: (page) =>
-      page
-        .getByRole('dialog', { name: 'Tell the reviewer' })
-        .locator('button[type="submit"]:not([aria-disabled="true"])'),
-    capture: (page) => page.getByRole('dialog', { name: 'Tell the reviewer' }),
+      templateDialog(page, 'Tell the reviewer').locator(
+        'button[type="submit"]:not([aria-disabled="true"])',
+      ),
+    capture: (page) => templateDialog(page, 'Tell the reviewer'),
     // The questions run below the fold of a 900 px viewport.
     viewport: { width: 1440, height: 1100 },
   },
@@ -2842,9 +2882,10 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // The seeded live run of the Daily task digest, created from its
-    // starter in Website relaunch, with its task listing step selected: what
-    // the step asked for, and the tasks it read — newest first, each with its
-    // number, status, assignee and link.
+    // starter in Website relaunch, with its task listing step selected: the
+    // tasks it read — oldest first, each with its number, status, assignee
+    // and link. What the step was asked fills the top of the step's panel, so
+    // the panel, not the page, scrolls to what it returned.
     name: 'automation-task-list-run',
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_TASK_DIGEST.automation}/runs`,
@@ -2855,6 +2896,16 @@ export const SHOTS: readonly Shot[] = [
           `[data-flow-node="${DEMO_TASK_DIGEST.node}"][data-flow-state="succeeded"]`,
         )
         .click();
+      await page
+        .getByText(t('automationRuns.data.returned'), { exact: true })
+        .evaluate((label) => {
+          const panel = label.closest('section[tabindex="-1"]');
+          if (panel === null) return;
+          panel.scrollTop +=
+            label.getBoundingClientRect().top -
+            panel.getBoundingClientRect().top -
+            16;
+        });
     },
     readyWhen: (page) =>
       page.getByText(t('automationRuns.data.returned'), { exact: true }),

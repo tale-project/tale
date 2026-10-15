@@ -11,8 +11,10 @@
  * input, `elseOf` branches, steps that fail and go on, `forEach` lists and
  * `repeatUntil` passes. A second set turns some of the steps into agent
  * steps, whose recorded input is the whole request the agent is handed,
- * their own `input` included. Times, working time and attempts differ by
- * nature and are left out; so is metadata.
+ * their own `input` included. A third lets the `forEach` steps go on past
+ * the items that fail (`onItemError: continue`), some of them past every
+ * item. Times, working time and attempts differ by nature and are left out;
+ * so is metadata.
  */
 
 import { seeded } from '@tale/ui/data/random-json';
@@ -31,6 +33,8 @@ const DOCUMENTS = 150;
 const SEED = 20261009;
 const AGENT_DOCUMENTS = 60;
 const AGENT_SEED = 20261010;
+const ITEM_DOCUMENTS = 80;
+const ITEM_SEED = 20261014;
 const RUN = { organizationId: 'org-1', runId: 'run-1' } as never;
 
 beforeAll(() => {
@@ -42,11 +46,14 @@ function pick<T>(random: () => number, items: readonly T[]): T | undefined {
 }
 
 /** A seeded document; with `agents`, about half of its steps are agent
- * steps (which never iterate, as a live one cannot). */
+ * steps (which never iterate, as a live one cannot); with `items`, every
+ * `forEach` step goes on past its failed items, and fails the item its
+ * input names (or every item). */
 function generate(
   random: () => number,
   index: number,
   agents = false,
+  items = false,
 ): Automation {
   const count = 2 + Math.floor(random() * 5);
   const nodes: NodeDef[] = [];
@@ -91,8 +98,13 @@ function generate(
     }
     const shape = random();
     // An agent step does not iterate.
-    if (!agent && shape < 0.2) node.forEach = '{{ input.list }}';
-    else if (!agent && shape < 0.3) {
+    if (!agent && shape < 0.2) {
+      node.forEach = '{{ input.list }}';
+      if (items) {
+        node.onItemError = 'continue';
+        input.fail = `{{ input.all_${id} === true || input.k_${id} === item }}`;
+      }
+    } else if (!agent && shape < 0.3) {
       node.repeatUntil = 'output.n >= 0';
       node.maxRepeats = 2;
     }
@@ -117,6 +129,10 @@ function inputFor(
   for (const node of doc.nodes) {
     input[`w_${node.id}`] = random() < 0.5;
     input[`f_${node.id}`] = random() < 0.3;
+    if (node.onItemError === 'continue') {
+      input[`k_${node.id}`] = Math.floor(random() * 4) - 1;
+      input[`all_${node.id}`] = random() < 0.15;
+    }
   }
   return input;
 }
@@ -181,10 +197,11 @@ async function expectSameRecords(
   seed: number,
   documents: number,
   agents: boolean,
+  items = false,
 ): Promise<void> {
   const random = seeded(seed);
   for (let index = 0; index < documents; index++) {
-    const doc = generate(random, index, agents);
+    const doc = generate(random, index, agents, items);
     const input = inputFor(random, doc);
     const inProcess = await execute(doc, {
       input,
@@ -205,5 +222,9 @@ describe('the run record is the same in both executors', () => {
 
   it(`for ${AGENT_DOCUMENTS} seeded documents with agent steps`, async () => {
     await expectSameRecords(AGENT_SEED, AGENT_DOCUMENTS, true);
+  }, 120_000);
+
+  it(`for ${ITEM_DOCUMENTS} seeded documents whose steps go on past failed items [AUTO-R70]`, async () => {
+    await expectSameRecords(ITEM_SEED, ITEM_DOCUMENTS, false, true);
   }, 120_000);
 });

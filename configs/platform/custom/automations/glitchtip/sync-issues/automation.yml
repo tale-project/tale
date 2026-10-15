@@ -1,0 +1,245 @@
+name: Sync GlitchTip issues
+description: Turns the unresolved issues of a GlitchTip project into tasks and keeps them current, one batch every run.
+icon: brand:glitchtip
+category: issues
+labels: [GlitchTip, Issues]
+scope: project
+requires:
+  connectors: [glitchtip, task]
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: minutely
+      interval: 15
+    timezone: UTC
+i18n:
+  de:
+    name: GlitchTip-Issues synchronisieren
+    description: Macht aus den ungelösten Issues eines GlitchTip-Projekts Aufgaben und hält sie aktuell, mit jedem Lauf einen Stapel weiter.
+  fr:
+    name: Synchroniser les issues GlitchTip
+    description: Transforme les issues non résolues d’un projet GlitchTip en tâches et les tient à jour, un lot à chaque exécution.
+template:
+  details: >-
+    Every 15 minutes to start with, the automation reads the next batch of unresolved issues of
+    the GlitchTip project you name, the first seen first, and makes a task in Backlog for each one
+    the project does not have yet. Every run picks up where the last one stopped, so a busy
+    project arrives over several runs; after the last issue, the next run starts again from the
+    first. Each run also reads up to 50 issues it imported earlier again, the longest-unchecked
+    first, and updates what their tasks show of them: the title, the details and whether the
+    issue is unresolved, resolved or ignored. Your own changes to a task (its title, description,
+    status and assignee) are never overwritten, and a task stays where it is when its issue is
+    resolved in GlitchTip. A search narrows which issues are read. When GlitchTip asks the sync to
+    slow down, it waits as long as asked, then carries on where it stopped.
+  i18n:
+    de:
+      details: >-
+        Anfangs alle 15 Minuten liest die Automatisierung den nächsten Stapel ungelöster Issues
+        des GlitchTip-Projekts, das du angibst, die zuerst gesehenen zuerst, und legt für jedes
+        Issue, das das Projekt noch nicht hat, eine Aufgabe im Backlog an. Jeder Lauf macht dort
+        weiter, wo der letzte aufgehört hat, sodass ein umfangreiches Projekt über mehrere Läufe
+        ankommt; nach dem letzten Issue beginnt der nächste Lauf wieder beim ersten. Jeder Lauf
+        liest außerdem bis zu 50 früher importierte Issues erneut, die am längsten nicht geprüften
+        zuerst, und aktualisiert, was ihre Aufgaben von ihnen zeigen: den Titel, die Details und ob
+        das Issue ungelöst, gelöst oder ignoriert ist. Deine eigenen Änderungen an einer Aufgabe
+        (Titel, Beschreibung, Status und Zuständigkeit) werden nie überschrieben, und eine Aufgabe
+        bleibt, wo sie ist, wenn ihr Issue in GlitchTip gelöst wird. Eine Suche grenzt ein, welche
+        Issues gelesen werden. Bittet GlitchTip die Synchronisierung, langsamer zu werden, wartet
+        sie so lange wie verlangt und macht dann dort weiter, wo sie aufgehört hat.
+    fr:
+      details: >-
+        Toutes les 15 minutes pour commencer, l’automatisation lit le lot suivant d’issues non résolues du projet GlitchTip que tu indiques, les premières vues d’abord, et crée une tâche dans Backlog pour chaque issue que le projet n’a pas encore. Chaque exécution reprend là où la précédente s’est arrêtée, si bien qu’un projet très actif arrive en plusieurs exécutions ; après la dernière issue, l’exécution suivante recommence à la première. Chaque exécution relit aussi jusqu’à 50 issues importées plus tôt, les moins récemment vérifiées d’abord, et met à jour ce que leurs tâches en montrent : le titre, les détails et si l’issue est non résolue, résolue ou ignorée. Tes propres modifications d’une tâche (titre, description, statut et personne assignée) ne sont jamais écrasées, et une tâche reste où elle est quand son issue est résolue dans GlitchTip. Une recherche restreint les issues lues. Quand GlitchTip demande à la synchronisation de ralentir, elle attend le temps demandé, puis reprend là où elle s’est arrêtée.
+  steps:
+    - title: Picks up where the last run stopped
+      detail: The project keeps how far the GlitchTip project's issues have been read.
+      i18n:
+        de:
+          title: Macht dort weiter, wo der letzte Lauf aufgehört hat
+          detail: Das Projekt merkt sich, wie weit die Issues des GlitchTip-Projekts gelesen sind.
+        fr:
+          title: Reprend là où la dernière exécution s’est arrêtée
+          detail: Le projet retient jusqu’où les issues du projet GlitchTip ont été lues.
+    - title: Reads the next batch of unresolved issues
+      detail: Up to the number you choose, the first seen first. A search can narrow the batch.
+      i18n:
+        de:
+          title: Liest den nächsten Stapel ungelöster Issues
+          detail: Bis zur gewählten Anzahl, die zuerst gesehenen zuerst. Eine Suche kann den Stapel eingrenzen.
+        fr:
+          title: Lit le lot suivant d’issues non résolues
+          detail: Jusqu’au nombre choisi, les premières vues d’abord. Une recherche peut restreindre le lot.
+    - title: Reads issues imported earlier again
+      detail: Up to 50 per run, the longest-unchecked first, so every task keeps its issue's latest title, details and state.
+      i18n:
+        de:
+          title: Liest früher importierte Issues erneut
+          detail: Bis zu 50 pro Lauf, die am längsten nicht geprüften zuerst, damit jede Aufgabe Titel, Details und Stand ihres Issues aktuell hält.
+        fr:
+          title: Relit les issues importées plus tôt
+          detail: Jusqu’à 50 par exécution, les moins récemment vérifiées d’abord, pour que chaque tâche garde le dernier titre, les détails et l’état de son issue.
+    - title: Writes each issue into its task
+      detail: A new issue becomes a task in Backlog; one imported before only updates what its task shows of it.
+      i18n:
+        de:
+          title: Schreibt jedes Issue in seine Aufgabe
+          detail: Ein neues Issue wird zu einer Aufgabe im Backlog; ein früher importiertes aktualisiert nur, was seine Aufgabe von ihm zeigt.
+        fr:
+          title: Écrit chaque issue dans sa tâche
+          detail: Une nouvelle issue devient une tâche dans Backlog ; une issue importée plus tôt met seulement à jour ce que sa tâche en montre.
+    - title: Saves where it stopped
+      detail: The next run continues from there; after the last issue, it starts again from the first.
+      i18n:
+        de:
+          title: Merkt sich, wo er aufgehört hat
+          detail: Der nächste Lauf macht dort weiter; nach dem letzten Issue beginnt er wieder beim ersten.
+        fr:
+          title: Enregistre où elle s’est arrêtée
+          detail: L’exécution suivante reprend à cet endroit ; après la dernière issue, elle recommence à la première.
+  outcomes:
+    - kind: creates
+      text: A task in Backlog for each unresolved issue the project does not have yet.
+      i18n:
+        de:
+          text: Eine Aufgabe im Backlog für jedes ungelöste Issue, das das Projekt noch nicht hat.
+        fr:
+          text: Une tâche dans Backlog pour chaque issue non résolue que le projet n’a pas encore.
+    - kind: changes
+      text: 'What each task shows of its issue: the title, the details, unresolved, resolved or ignored.'
+      i18n:
+        de:
+          text: 'Was jede Aufgabe von ihrem Issue zeigt: Titel, Details, ungelöst, gelöst oder ignoriert.'
+        fr:
+          text: 'Ce que chaque tâche montre de son issue : le titre, les détails, non résolue, résolue ou ignorée.'
+    - kind: never
+      text: Never resolves, ignores or changes anything in GlitchTip.
+      i18n:
+        de:
+          text: Löst, ignoriert oder ändert nie etwas in GlitchTip.
+        fr:
+          text: Ne résout, n’ignore et ne modifie jamais rien dans GlitchTip.
+    - kind: never
+      text: Never overwrites your changes to a task, nor moves it when its issue is resolved.
+      i18n:
+        de:
+          text: Überschreibt nie deine Änderungen an einer Aufgabe und verschiebt sie nicht, wenn ihr Issue gelöst wird.
+        fr:
+          text: N’écrase jamais tes modifications d’une tâche et ne la déplace pas quand son issue est résolue.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose tasks the issues become.
+      writes:
+        - node: sync
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, in dem die Issues zu Aufgaben werden.
+        fr:
+          label: Projet
+          description: Le projet dans lequel les issues deviennent des tâches.
+    - id: organization
+      kind: text
+      label: Organization
+      description: The organization's slug in GlitchTip, as in the address of its issues.
+      placeholder: tale
+      maxLength: 100
+      pattern: '^[A-Za-z0-9_-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/organization
+      i18n:
+        de:
+          label: Organisation
+          description: Die Kennung der Organisation in GlitchTip, wie in der Adresse ihrer Issues.
+          placeholder: tale
+        fr:
+          label: Organisation
+          description: L’identifiant de l’organisation dans GlitchTip, comme dans l’adresse de ses issues.
+          placeholder: tale
+    - id: glitchtipProject
+      kind: text
+      label: GlitchTip project
+      description: The project's slug in GlitchTip.
+      placeholder: web
+      maxLength: 99
+      pattern: '^[A-Za-z0-9_-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/project
+      i18n:
+        de:
+          label: GlitchTip-Projekt
+          description: Die Kennung des Projekts in GlitchTip.
+          placeholder: web
+        fr:
+          label: Projet GlitchTip
+          description: L’identifiant du projet dans GlitchTip.
+          placeholder: web
+    - id: query
+      kind: text
+      required: false
+      label: Search
+      description: Which issues to read, in GlitchTip's search syntax. Leave it empty to read every unresolved issue.
+      placeholder: 'is:unresolved environment:production'
+      maxLength: 2000
+      writes:
+        - node: sync
+          pointer: /input/sources/0/query
+      i18n:
+        de:
+          label: Suche
+          description: Welche Issues gelesen werden, in der Suchsyntax von GlitchTip. Leer lassen, um alle ungelösten Issues zu lesen.
+          placeholder: 'is:unresolved environment:production'
+        fr:
+          label: Recherche
+          description: Les issues à lire, dans la syntaxe de recherche de GlitchTip. Laisse vide pour lire toutes les issues non résolues.
+          placeholder: 'is:unresolved environment:production'
+    - id: connection
+      kind: credential
+      connector: glitchtip
+      required: false
+      label: GlitchTip credentials
+      description: The credentials the project is read with; they name the GlitchTip instance. Leave it empty to use the default GlitchTip credentials.
+      placeholder: The default GlitchTip connection
+      writes:
+        - node: sync
+          pointer: /input/sources/0/credential
+      i18n:
+        de:
+          label: GlitchTip-Zugangsdaten
+          description: Die Zugangsdaten, mit denen das Projekt gelesen wird; sie nennen die GlitchTip-Instanz. Leer lassen, um die Standard-Zugangsdaten für GlitchTip zu nutzen.
+          placeholder: Die Standardverbindung zu GlitchTip
+        fr:
+          label: Identifiants GlitchTip
+          description: Les identifiants avec lesquels le projet est lu ; ils désignent l’instance GlitchTip. Laisse vide pour utiliser les identifiants GlitchTip par défaut.
+          placeholder: La connexion GlitchTip par défaut
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the GlitchTip project is read; each run reads one batch.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft das GlitchTip-Projekt gelesen wird; jeder Lauf liest einen Stapel.
+        fr:
+          label: Quand
+          description: À quelle fréquence le projet GlitchTip est lu ; chaque exécution lit un lot.
+    - id: batch
+      kind: number
+      label: New issues per run
+      description: The most unresolved issues one run reads; the rest follow in the next runs.
+      min: 1
+      max: 500
+      default: 100
+      writes:
+        - node: sync
+          pointer: /input/limit
+      i18n:
+        de:
+          label: Neue Issues pro Lauf
+          description: Höchstens so viele ungelöste Issues liest ein Lauf; der Rest folgt in den nächsten Läufen.
+        fr:
+          label: Nouvelles issues par exécution
+          description: Le nombre maximal d’issues non résolues qu’une exécution lit ; les autres suivent aux exécutions suivantes.

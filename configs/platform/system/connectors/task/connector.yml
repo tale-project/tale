@@ -12,8 +12,9 @@ i18n:
     displayName: Tâches
 description: >-
   Read a task, move its status, write or read its discussion comments, put
-  its project agent to work, and keep a scheduled issue import's position
-  between occurrences — the platform's own task board as automation steps.
+  its project agent to work, sync issue trackers into a project, and keep a
+  scheduled issue import's position between occurrences — the platform's own
+  task board as automation steps.
 tags:
   - Platform
 auth:
@@ -154,8 +155,12 @@ actions:
     description: >-
       List a project's tasks, newest first: each one's number, title, status,
       priority, assignee, due date and creation time, with a link to it.
-      Narrow it to some statuses, or to tasks created at or after a moment
-      (epoch milliseconds or an ISO date and time). Archived tasks are left
+      Narrow it to some statuses, or to tasks created at or after a moment and
+      before another (epoch milliseconds or an ISO date and time), so windows
+      that follow each other never list a task twice. With order oldest the
+      oldest come first, and when more match than limit, next names the last
+      one listed: pass it as after, and the next listing carries on behind it
+      — even past tasks created in the same millisecond. Archived tasks are left
       out. A run reads only a project its automation is installed in, or any
       project when it is installed in none, within the rights of the person
       who started it; at most 200 tasks per call, and hasMore says when more
@@ -184,6 +189,23 @@ actions:
             type: [number, string],
             description: 'Only tasks created at or after this moment: epoch milliseconds, or an ISO date such as 2026-10-17 or a date and time.',
           }
+        createdBefore:
+          {
+            type: [number, string],
+            description: 'Only tasks created before this moment, the same way: the end of a window, which the next window starts at.',
+          }
+        order:
+          {
+            type: string,
+            enum: [newest, oldest],
+            description: 'newest first (when left out) or oldest first.',
+          }
+        after:
+          {
+            type: string,
+            maxLength: 300,
+            description: "With order oldest: only tasks after this place, the next an earlier listing answered; '' starts from the first.",
+          }
         limit:
           {
             type: integer,
@@ -191,7 +213,7 @@ actions:
             maximum: 200,
             description: At most this many tasks; 50 when left out.,
           }
-    output: '{ tasks: Array<{ taskId: string, number: number | null, title: string, status: string, priority: string | null, assignee: { type: string, id: string, name: string | null } | null, dueDate: string | null, createdAt: string, url: string }>, hasMore: boolean }'
+    output: '{ tasks: Array<{ taskId: string, number: number | null, title: string, status: string, priority: string | null, assignee: { type: string, id: string, name: string | null } | null, dueDate: string | null, createdAt: string, url: string }>, hasMore: boolean, next: string | null }'
     mock: |
       const statuses = Array.isArray(input.status) ? input.status : ['todo'];
       const tasks = [
@@ -207,7 +229,7 @@ actions:
           url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
         },
       ];
-      return { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false };
+      return { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false, next: null };
     backend:
       kind: native
       impl: task.list
@@ -386,6 +408,91 @@ actions:
       kind: native
       impl: task.start_agent
     exampleInput: { taskId: 'tsk_1', feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.' }
+  - name: sync_issues
+    title: Sync issues
+    i18n:
+      de:
+        title: Issues synchronisieren
+      fr:
+        title: Synchroniser les issues
+    description: >-
+      Keep a project's tasks in step with a list of issue sources, GitHub
+      repositories and GlitchTip projects, in one step. For each source, in the
+      order listed: read the next batch of open issues (limit, 100 by default)
+      from where its last saved batch stopped, refresh up to refreshLimit (50)
+      issues imported earlier, the longest-unchecked first, write every issue
+      into its task, and save where the batch stopped; once the listing is
+      drained, the next run starts the next pass. A new issue becomes a task in
+      Backlog; an issue imported before refreshes its task's source snapshot
+      (title, description, state) and leaves the task's own title, description,
+      status and assignee alone, closed upstream or not. Pull requests are left
+      out. Each source answers for itself in its receipt: one whose tracker
+      fails does not stop the others, an issue the tracker refuses or a task
+      write refused is skipped and tried again later, and a source the tracker
+      rate-limits stops for this run, keeps what it did, and is left alone until
+      the time it named (retryAfter). The step fails only when every source
+      failed. credential names the stored connection a source is read with, by
+      name; the organization's default when it is empty. Positions are kept per
+      project, source (owner/repo, organization/project) and filter, so
+      automations naming the same source under the same filter share one pass
+      and a source under another filter keeps its own. Runs only as an
+      automation step.
+    effects: write
+    # Safe to repeat: issues are written by their source identity and a
+    # position moves only from the revision its run read, so a repeated sync
+    # reads the next batch or writes the same tasks again, never twins.
+    idempotent: true
+    input:
+      type: object
+      required: [projectId, sources]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1, description: The project whose tasks the issues become. }
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: The issue sources, synced one after the other in the order listed.
+          items:
+            oneOf:
+              - type: object
+                required: [kind, owner, repo]
+                additionalProperties: false
+                properties:
+                  kind: { type: string, enum: [github] }
+                  owner: { type: string, minLength: 1, maxLength: 99, description: The repository's owner. }
+                  repo: { type: string, minLength: 1, maxLength: 100, description: The repository's name. }
+                  labels: { type: string, maxLength: 1000, description: 'Only issues carrying every one of these labels, separated by commas; every open issue when empty.' }
+                  credential: { type: string, maxLength: 200, description: 'The GitHub connection to read with, by name; the default one when empty or left out.' }
+              - type: object
+                required: [kind, organization, project]
+                additionalProperties: false
+                properties:
+                  kind: { type: string, enum: [glitchtip] }
+                  organization: { type: string, minLength: 1, maxLength: 100, description: The GlitchTip organization's slug. }
+                  project: { type: string, minLength: 1, maxLength: 99, description: The GlitchTip project's slug. }
+                  query: { type: string, maxLength: 2000, description: 'A GlitchTip search for the issues to read; is:unresolved when empty.' }
+                  credential: { type: string, maxLength: 200, description: 'The GlitchTip connection to read with, by name; the default one when empty or left out.' }
+        limit: { type: integer, minimum: 1, maximum: 500, description: 'New open issues read per source and run; 100 when left out.' }
+        refreshLimit: { type: integer, minimum: 0, maximum: 500, description: 'Issues imported earlier refreshed per source and run, the longest-unchecked first; 50 when left out, 0 for none.' }
+    output: '{ sources: Array<{ kind: string, source: string, filter?: string, ok: boolean, error: string | null, message?: string, status?: number, batch: number, resumed: boolean, restarted: boolean, saved: boolean, conflict: boolean, drained: boolean, discovered: number, created: number, refreshed: number, unchanged: number, skipped: number, closedUpstream: number, reopenedUpstream: number, unavailableUpstream: number, retryAfter: number | null, skippedIssues?: Array<{ externalId: string, reason: string }> }>, failed: number, rateLimited: number, created: number, refreshed: number, unchanged: number, skipped: number, closedUpstream: number }'
+    mock: |
+      const receipts = input.sources.map((source) => ({
+        kind: source.kind,
+        source: source.kind === 'github' ? source.owner + '/' + source.repo : source.organization + '/' + source.project,
+        ok: true, error: null, batch: 1, resumed: false, restarted: false, saved: true, conflict: false, drained: true,
+        discovered: 1, created: 1, refreshed: 0, unchanged: 0, skipped: 0,
+        closedUpstream: 0, reopenedUpstream: 0, unavailableUpstream: 0, retryAfter: null,
+      }));
+      return { sources: receipts, failed: 0, rateLimited: 0, created: receipts.length, refreshed: 0, unchanged: 0, skipped: 0, closedUpstream: 0 };
+    backend:
+      kind: native
+      impl: task.sync_issues
+    exampleInput:
+      projectId: proj_mock
+      sources:
+        - { kind: github, owner: example, repo: web, labels: bug }
+        - { kind: glitchtip, organization: example, project: web }
   - name: upsert
     title: Import issue as task
     i18n:

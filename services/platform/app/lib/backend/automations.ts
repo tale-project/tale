@@ -274,6 +274,19 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'automations/queries:getAutomationTemplate': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const slug = args.slug;
+    if (orgId === undefined || typeof slug !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'automation', 'templates', slug),
+      queryFn: () =>
+        backendFetch<ReturnsOf<'automations/queries:getAutomationTemplate'>>(
+          `/automation-templates/${namePath(slug)}`,
+          { orgId },
+        ),
+    };
+  },
   'automations/queries:listAutomationProjects': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const name = args.name;
@@ -953,7 +966,7 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
       backendFetch<
         ReturnsOf<'automations/mutations:createAutomationFromTemplate'>
       >(
-        `/automation-templates/${encodeURIComponent(stringArg(args, 'slug'))}/instantiate`,
+        `/automation-templates/${namePath(stringArg(args, 'slug'))}/instantiate`,
         {
           orgId: requireOrg(args, ctx),
           method: 'POST',
@@ -962,7 +975,10 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
             displayName: stringArg(args, 'displayName'),
             answers: args.answers ?? {},
             ...(typeof args.locale === 'string' && { locale: args.locale }),
-            ...(args.enableTrigger === true && { enableTrigger: true }),
+            ...(typeof args.timezone === 'string' && {
+              timezone: args.timezone,
+            }),
+            ...(args.start === true && { start: true }),
           },
         },
       ),

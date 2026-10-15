@@ -1,6 +1,7 @@
 name: Tell the reviewer
 description: Tells a member when a task of a project moves to In review, with a link to it.
 icon: bell-ring
+category: notifications
 scope: project
 requires:
   connectors:
@@ -32,6 +33,49 @@ template:
     fr:
       details: >-
         Quand une tâche du projet choisi passe à « En revue », le membre choisi reçoit un message dans Tale avec le titre de la tâche et un lien vers elle — dans la cloche, et par e-mail si ses réglages de notification en envoient un. Les autres changements de statut n’envoient rien.
+  steps:
+    - title: Watches the project's status changes
+      detail: Every status change of a task in the project you pick.
+      i18n:
+        de:
+          title: Beobachtet die Statuswechsel im Projekt
+          detail: Jeden Statuswechsel einer Aufgabe im gewählten Projekt.
+        fr:
+          title: Suit les changements de statut du projet
+          detail: Chaque changement de statut d’une tâche du projet choisi.
+    - title: Picks the moves to In review
+      detail: Every other status change sends nothing.
+      i18n:
+        de:
+          title: Reagiert auf den Wechsel zu „In Prüfung“
+          detail: Andere Statuswechsel senden nichts.
+        fr:
+          title: Retient les passages à « En revue »
+          detail: Les autres changements de statut n’envoient rien.
+    - title: Tells the reviewer
+      detail: A message in Tale with the task's title and a link to it, by email too when their settings send one.
+      i18n:
+        de:
+          title: Benachrichtigt den Reviewer
+          detail: Eine Nachricht in Tale mit dem Titel der Aufgabe und einem Link dorthin, auch per E-Mail, wenn seine Einstellungen eine senden.
+        fr:
+          title: Prévient le relecteur
+          detail: Un message dans Tale avec le titre de la tâche et un lien vers elle, aussi par e-mail si ses réglages en envoient un.
+  outcomes:
+    - kind: sends
+      text: A message to the reviewer for each task ready for review.
+      i18n:
+        de:
+          text: Eine Nachricht an den Reviewer für jede Aufgabe, die zur Prüfung bereit ist.
+        fr:
+          text: Un message au relecteur pour chaque tâche prête à relire.
+    - kind: never
+      text: Never changes the task.
+      i18n:
+        de:
+          text: Ändert die Aufgabe nie.
+        fr:
+          text: Ne modifie jamais la tâche.
   fields:
     - id: project
       kind: project

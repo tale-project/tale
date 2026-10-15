@@ -7,6 +7,12 @@ Die Arbeitsverteilung startet die bereiten Aufgaben eines Projekts auf den Agent
 
 Die Arbeitsverteilung entscheidet, wann und wo Arbeit startet. Was sich zu tun lohnt, bleibt die Entscheidung einer Person oder eines Manager-Agenten: Setze Prioritäten, ordne das Board und verschiebe Aufgaben zwischen Spalten – die Arbeitsverteilung nimmt die Arbeit in dieser Reihenfolge.
 
+<Frame caption="Der Tab Arbeitsverteilung zeigt, ob die Arbeitsverteilung eingeschaltet ist, wie viele Läufe ihr Pool hält und warum jeder Agent des Pools untätig ist.">
+
+![Der Tab Arbeitsverteilung des Projekts Website relaunch: Die Arbeitsverteilung ist aus, kein Lauf wird gehalten, beide Agenten des Pools sind untätig, weil die Arbeitsverteilung aus ist, und es gab noch keinen Durchlauf.](/images/platform/project-dispatch.webp)
+
+</Frame>
+
 ## Festlegen, was die Arbeitsverteilung nimmt und wer daran arbeitet
 
 Öffne das Projekt, wähle **Arbeitsverteilung** und dann **Bearbeiten** – oder **Arbeitsverteilung einrichten**, solange das Projekt keine hat.

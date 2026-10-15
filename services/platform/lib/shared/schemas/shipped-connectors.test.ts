@@ -31,6 +31,7 @@ const CONNECTORS_DIR = path.join(
  * directory without its connector.yml — fails loudly instead of silently
  * shrinking the catalog. */
 const EXPECTED_SLUGS = [
+  'automation',
   'confluence',
   'conversation',
   'discord',

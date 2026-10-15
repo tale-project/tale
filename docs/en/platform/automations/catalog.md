@@ -3,9 +3,9 @@ title: Create or import an automation
 description: Choose a starting point, import a validated package and prepare its skills, settings and deliverables before deployment.
 ---
 
-Open **Automations** to find the workflows available in your organization. Only the Owner, Admin and Developer roles see this section and manage its automations. Start with a [built-in automation](/platform/automations/builtin) when it matches your task, or create a draft you can test before making it live.
+Open **Automations** to find the workflows available in your organization. Only the Owner, Admin and Developer roles see this section and manage its automations. Start from a [template](/platform/automations/templates) when one matches your task, or create a draft you can test before making it live.
 
-Search by name or slug. For example, enter `Triage` to compare the shipped triage workflows.
+Search by name or slug. For example, enter `Triage` to compare your triage automations.
 
 <Frame caption="The list filtered by Triage shows four shipped examples with their version counts and deployment states.">
 
@@ -21,12 +21,12 @@ The **Create automation** menu offers four routes:
 
 | Choice | Use it when | What happens next |
 | --- | --- | --- |
-| **From a starter** | A shipped starter does what you need: triage new tasks, tell a reviewer, turn webhook deliveries into tasks, answer questions from your documents, or summarize the inbox. | Answer its few questions. **Start it now** (on by default) deploys version 1 and turns its trigger on. See [Start from a starter](/platform/automations/starters). |
-| **With your coding agent** | You need something no starter covers, or you already work in an agent such as Claude Code or Codex. | A dialog gives the commands that connect your agent and a prompt that asks it to create the automation. The agent reads the reference, writes it, checks and tests it, and saves its first version, which then appears in this list; the prompt tells it to ask before it deploys. See [Change it with your coding agent](/platform/automations/assistant). |
+| **From a template** | A template Tale ships does what you need: sync a mailbox into the Inbox and triage it, import issues, review pull requests, send a digest, tell a reviewer, or turn webhook deliveries into tasks. | Preview what it does and needs, then answer its few questions. **Start it now** (on by default) deploys version 1 and turns its trigger on in the same step. See [Automation templates](/platform/automations/templates). |
+| **With your coding agent** | You need something no template covers, or you already work in an agent such as Claude Code or Codex. | A dialog gives the commands that connect your agent and a prompt that asks it to create the automation. The agent reads the reference, writes it, checks and tests it, and saves its first version, which then appears in this list; the prompt tells it to ask before it deploys. See [Change it with your coding agent](/platform/automations/assistant). |
 | **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. **Deploy v1 now** (on by default) puts the first version live at once; otherwise it stays a draft you deploy from the editor. The agent receives what the trigger sends as its input. Creation opens the editor for further changes. |
 | **Upload package** | You already have a workflow file or a reusable pack. | Tale validates the files and saves a draft version. |
 
-Shipped automations are already installed when the organization is created. They still need configuration and a deployed version before automatic use. Follow [the workflow editor](/platform/automations/editor) to test inputs, inspect results and deploy deliberately.
+A new organization has no automations: the ones Tale ships are templates you choose from. An automation created as a draft still needs a deployed version before automatic use. Follow [the workflow editor](/platform/automations/editor) to test inputs, inspect results and deploy deliberately.
 
 ## Import a package
 

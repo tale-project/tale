@@ -112,6 +112,10 @@ export interface NativeConnectorContext extends ConnectorContext {
    * it; vendor-facing natives ignore it. Optional so their tests need not
    * fabricate one. */
   caller?: ConnectorCaller;
+  /** The caller's stop (its server is shutting down). The dispatcher stops
+   * waiting for the native the moment it aborts; a native that works in
+   * many steps (the issue sync) reads it to stop starting new ones. */
+  signal?: AbortSignal;
 }
 
 export type NativeConnectorImpl = (
@@ -936,6 +940,7 @@ export async function executeConnectorAction(
             credentialId: credential.credentialId,
             authMethod: credential.authMethod,
             caller,
+            ...(ctx.signal !== undefined && { signal: ctx.signal }),
           }),
         );
       } else if (backend.kind === 'yaml-js') {

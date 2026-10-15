@@ -8,12 +8,23 @@ import {
 import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
-import type { ConnectorCaller } from '../../../lib/connectors/dispatcher.ts';
+import type {
+  ConnectorCaller,
+  ConnectorDispatchResult,
+} from '../../../lib/connectors/dispatcher.ts';
+import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import type {
   WorkflowAgentStart,
   WorkflowTaskCreated,
   WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
+import {
+  IssueSyncProjectRefusal,
+  syncIssueSources,
+  type IssueWrite,
+  type LinkedIssueQuery,
+  type SyncPositionKey,
+} from '../../../lib/connectors/natives/issue-sync.ts';
 import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import {
@@ -32,6 +43,7 @@ import { currentMentionNames } from '../collab/mention-directory.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
+  ProjectError,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
@@ -50,7 +62,15 @@ import {
   automationOwnerOfWorkflowSlug,
   upsertTaskByExternalRef,
 } from '../tasks/external-ref.ts';
-import { readImportCursor, saveImportCursor } from '../tasks/import-cursors.ts';
+import {
+  failSyncPosition,
+  readImportCursor,
+  readSyncPosition,
+  restartSyncPosition,
+  saveImportCursor,
+  waitSyncPosition,
+  type ImportCursorKey,
+} from '../tasks/import-cursors.ts';
 import {
   agentUpdateTaskStatusTrusted,
   assertTaskCreatable,
@@ -68,6 +88,52 @@ function issueImportQueueKey(
   projectId: string,
 ): string {
   return `task-issue-import:${organizationId}:${projectId}`;
+}
+
+/** What the task store needs beyond the database. */
+export interface TaskStoreOptions {
+  /** The connector door, for the issue sync's reads of its trackers. The
+   * connectors service passes its own; a store built without it refuses
+   * the sync. */
+  readonly runConnector?: (args: {
+    organizationId: string;
+    connector: string;
+    action: string;
+    input: unknown;
+    credentialRef?: string;
+    mode: 'live';
+    caller: ConnectorCaller;
+    signal?: AbortSignal;
+  }) => Promise<ConnectorDispatchResult>;
+}
+
+/** The SQLSTATE of the database's refusal of one write's data — class 22
+ * (data exception) or 23 (integrity constraint) — or null for any other
+ * failure. */
+function dataRefusalState(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return null;
+  }
+  const code = error.code;
+  return typeof code === 'string' && /^2[23][0-9A-Z]{3}$/.test(code)
+    ? code
+    : null;
+}
+
+/** A refusal of the run's reach on the project — its automation is not
+ * installed there, the project is gone or archived, the person the run
+ * answers to may no longer write there — as the issue sync reports it; any
+ * other failure (the database) is passed on as it is. */
+function asProjectRefusal(error: unknown): unknown {
+  if (
+    error instanceof TaskError ||
+    error instanceof ProjectError ||
+    error instanceof AutomationError ||
+    (error instanceof Error && error.name === 'ActorAuthError')
+  ) {
+    return new IssueSyncProjectRefusal(error.message);
+  }
+  return error;
 }
 
 async function lockIssueImportQueue(
@@ -271,7 +337,10 @@ async function resolveStepAssignee(
   );
 }
 
-export function pgTaskStore(sql: Sql): WorkflowTaskStore {
+export function pgTaskStore(
+  sql: Sql,
+  options: TaskStoreOptions = {},
+): WorkflowTaskStore {
   const systemAuth = async (organizationId: string) =>
     getProjectAuthContext(sql, {
       organizationId,
@@ -364,7 +433,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         : {}),
     });
   };
-  return {
+  const store: WorkflowTaskStore = {
     async upsertIssues({ organizationId, caller, projectId, issues }) {
       const queueKey = issueImportQueueKey(organizationId, projectId);
       return transactSerializable(sql, async (tx) => {
@@ -642,6 +711,9 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       projectId,
       statuses,
       createdSince,
+      createdBefore,
+      order = 'newest',
+      after,
       limit,
     }) {
       try {
@@ -679,7 +751,9 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               AND t.archived_at_ms IS NULL
               AND ${statuses === undefined ? tx`TRUE` : tx`t.status = ANY(${[...statuses]})`}
               AND ${createdSince === undefined ? tx`TRUE` : tx`t.created_at_ms >= ${createdSince}`}
-            ORDER BY t.created_at_ms DESC, t.id DESC
+              AND ${createdBefore === undefined ? tx`TRUE` : tx`t.created_at_ms < ${createdBefore}`}
+              AND ${after === undefined ? tx`TRUE` : tx`(t.created_at_ms, t.id) > (${after.createdAtMs}, ${after.taskId})`}
+            ORDER BY ${order === 'oldest' ? tx`t.created_at_ms ASC, t.id ASC` : tx`t.created_at_ms DESC, t.id DESC`}
             LIMIT ${limit + 1}
           `;
           return {
@@ -956,5 +1030,170 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         truncated: page.hasMore,
       };
     },
+    async syncIssues({
+      organizationId,
+      caller,
+      projectId,
+      sources,
+      limit,
+      refreshLimit,
+      signal,
+    }) {
+      const runConnector = options.runConnector;
+      if (runConnector === undefined) {
+        throw new Error(
+          'task.sync_issues needs the connector door: build the task store with runConnector',
+        );
+      }
+      // The run's reach on the project is settled before any tracker is
+      // read; every step below checks it again in its own transaction.
+      const inProject = async <T>(
+        work: (tx: TransactionSql) => Promise<T>,
+      ): Promise<T> => {
+        // postgres.js's begin result unwraps arrays conditionally; keep the
+        // work's own answer outside that conditional return type.
+        const held: { answer?: { value: T } } = {};
+        try {
+          await sql.begin(async (tx) => {
+            await authorizeProject(tx, organizationId, projectId, caller);
+            held.answer = { value: await work(tx) };
+          });
+        } catch (error) {
+          throw asProjectRefusal(error);
+        }
+        if (held.answer === undefined) {
+          throw new Error('the issue sync transaction answered nothing');
+        }
+        return held.answer.value;
+      };
+      await inProject(async () => undefined);
+      const position = (key: SyncPositionKey): ImportCursorKey => ({
+        organizationId,
+        projectId,
+        externalSystem: key.externalSystem,
+        source: key.source,
+      });
+      return syncIssueSources(
+        {
+          call: async ({ connector, action, input, credential }) => {
+            const result = await runConnector({
+              organizationId,
+              connector,
+              action,
+              input,
+              ...(credential !== undefined && { credentialRef: credential }),
+              mode: 'live',
+              caller,
+              ...(signal !== undefined && { signal }),
+            });
+            if (result.status !== 'ok') {
+              throw new ConnectorError(
+                'LIVE_BODY_FAILED',
+                `${connector}.${action} asked for an approval, which a read of the tracker never needs`,
+                { connector, action },
+              );
+            }
+            return result.output;
+          },
+          positions: {
+            read: (key) =>
+              inProject((tx) => readSyncPosition(tx, position(key))),
+            save: (key, args) =>
+              inProject((tx) => saveImportCursor(tx, position(key), args)),
+            fail: async (key, args) => {
+              await inProject((tx) =>
+                failSyncPosition(tx, position(key), args),
+              );
+            },
+            restart: (key, args) =>
+              inProject((tx) => restartSyncPosition(tx, position(key), args)),
+            wait: (key, args) =>
+              inProject((tx) => waitSyncPosition(tx, position(key), args)),
+          },
+          linked: async (query: LinkedIssueQuery & { limit: number }) => {
+            try {
+              return await store.listExternalIssues({
+                organizationId,
+                caller,
+                projectId,
+                ...query,
+              });
+            } catch (error) {
+              throw asProjectRefusal(error);
+            }
+          },
+          write: async (issue): Promise<IssueWrite> => {
+            const queueKey = issueImportQueueKey(organizationId, projectId);
+            try {
+              return await transactSerializable(sql, async (tx) => {
+                try {
+                  // One transaction per issue, behind the same queue lock as
+                  // a batch import: one refused issue rolls back itself
+                  // alone, and the issues before and after it stay written.
+                  await lockIssueImportQueue(tx, queueKey);
+                  let scope: Awaited<ReturnType<typeof authorizeProject>>;
+                  try {
+                    scope = await authorizeProject(
+                      tx,
+                      organizationId,
+                      projectId,
+                      caller,
+                    );
+                  } catch (error) {
+                    throw asProjectRefusal(error);
+                  }
+                  const before = await tx<{ externalIssue: unknown }[]>`
+                    SELECT external_issue AS "externalIssue" FROM app.tasks
+                    WHERE org_id = ${organizationId}
+                      AND project_id = ${projectId}
+                      AND external_system = ${issue.externalSystem}
+                      AND external_source_id = ${issue.externalIssue.id}
+                    LIMIT 1
+                  `;
+                  const previous = taskExternalIssueSchema.safeParse(
+                    before[0]?.externalIssue,
+                  );
+                  const result = await persistIssue(
+                    tx,
+                    organizationId,
+                    caller,
+                    scope,
+                    issue,
+                  );
+                  return {
+                    ok: true as const,
+                    taskId: result.taskId,
+                    created: result.created,
+                    previous: previous.success ? previous.data : null,
+                  };
+                } catch (error) {
+                  throw markRetryQueueKey(error, queueKey);
+                }
+              });
+            } catch (error) {
+              // A refusal of this one issue skips it: the task domain's (a
+              // reference another source already holds, a task the run's
+              // person may not work) and the database's own refusal of its
+              // data (SQLSTATE classes 22 and 23 — text it cannot store, a
+              // value out of range, a constraint), which the next run would
+              // meet again for this issue alone. The project's refusal and
+              // a failure of the database itself stop the step.
+              if (error instanceof TaskError) {
+                return { ok: false, reason: error.code };
+              }
+              const state = dataRefusalState(error);
+              if (state !== null) {
+                return { ok: false, reason: `SQLSTATE_${state}` };
+              }
+              throw error;
+            }
+          },
+          now: () => Date.now(),
+          ...(signal !== undefined && { signal }),
+        },
+        { projectId, sources, limit, refreshLimit },
+      );
+    },
   };
+  return store;
 }

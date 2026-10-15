@@ -6,10 +6,20 @@
 #
 # The pack works on the Inbox the sync pack fills, not on the raw mailbox:
 # `conversation.list_untriaged` hands it the open threads waiting on the team
-# since the last pass, the model judges each one, `conversation.record_triage`
-# stamps the verdict (and the priority where none is set), and for every
-# thread that needs an answer a second model call drafts one that
-# `conversation.draft_reply` leaves in the thread for a person to send.
+# since the last pass, the model judges each one, a second model call drafts
+# a reply for every thread that needs one, `conversation.draft_reply` leaves
+# it in the thread for a person to send, and only then does
+# `conversation.record_triage` stamp the verdicts (and the priority where
+# none is set).
+#
+# The stamp is the cursor: a stamped thread is not listed again until the
+# customer writes again. So the stamp comes last and covers only what the run
+# can stand by — a thread that needs no reply, or one whose draft is waiting
+# in it. A thread whose draft failed stays unstamped and comes back in the
+# next run; the other drafts land all the same (`onItemError: continue`), and
+# a thread never holds two pending drafts. One run judges at most `limit`
+# threads (at most 40), so it stays inside the engine's execution ceiling;
+# the others wait for the next run.
 version: 1
 name: outlook-triage-inbox
 description: Triage the open Outlook conversations waiting on the team — set their priority and leave a drafted reply where one is due.
@@ -17,8 +27,10 @@ inputs:
   type: object
   properties:
     limit:
-      type: number
-      description: How many waiting conversations to judge in one pass (25 when unset, at most 100).
+      type: integer
+      minimum: 1
+      maximum: 40
+      description: How many waiting conversations one run judges (20 when unset, at most 40); the others wait for the next run.
     # Every trigger-started run arrives inside the trigger wrapper
     # (docs/en/platform/automations/triggers.md). A declared schema must
     # describe that wrapper, or the pack's own schedule is refused at start
@@ -35,10 +47,11 @@ nodes:
     type: conversation.list_untriaged
     input:
       connectorSlug: outlook
-      limit: '{{ input.limit ?? 25 }}'
+      limit: '{{ input.limit ?? 20 }}'
 
   # Skipped when nothing is waiting, so an empty pass costs no model call;
-  # every node below reads this one and skips with it.
+  # every node below reads this one and skips with it. The model reads each
+  # thread's newest message cut at 1500 characters: enough to judge it.
   - id: triage
     type: llm
     when: '{{ nodes.inbox.output.conversations.length > 0 }}'
@@ -50,9 +63,9 @@ nodes:
       and say why in one short sentence a teammate can act on.
     prompt: |
       These open conversations are waiting on the team. Each carries the
-      customer's newest message as text, cut at 4000 characters.
+      customer's newest message as text, cut at 1500 characters.
 
-      {{ nodes.inbox.output.conversations }}
+      {{ JSON.stringify(nodes.inbox.output.conversations.map((conversation) => ({ conversationId: conversation.conversationId, subject: conversation.subject, from: conversation.contact.name || conversation.contact.email, message: conversation.lastInboundText.slice(0, 1500) })), null, 2) }}
 
       Return one verdict per conversation, with its conversationId exactly as
       given. "reply" means a person has to answer; automated notifications,
@@ -86,11 +99,6 @@ nodes:
                 description: One sentence for the person who opens the thread.
             required: [conversationId, action, priority, reason]
       required: [summary, items]
-
-  - id: record
-    type: conversation.record_triage
-    input:
-      verdicts: '{{ nodes.triage.output.items }}'
 
   # The threads that need an answer, joined back onto what the Inbox handed
   # out: a verdict naming an id the listing never had is dropped, so the
@@ -127,11 +135,12 @@ nodes:
       }
       return { count: conversations.length, conversations };
 
-  # One draft per thread that needs an answer. The draft is a proposal: the
-  # next node leaves it in the thread, and only a person sends it.
+  # One draft per thread that needs an answer. A draft the model fumbles
+  # fails that thread alone: it stays unstamped and comes back next run.
   - id: draft
     type: llm
     forEach: '{{ nodes.due.output.conversations }}'
+    onItemError: continue
     model: anthropic/claude-haiku-4-5
     system: >-
       You draft replies for a small team's shared mailbox. Write the whole
@@ -159,24 +168,83 @@ nodes:
           description: The reply, ready for a person to send or edit.
       required: [body]
 
-  # A thread that already carries a pending draft keeps it (created: false);
-  # a thread gone since the listing is skipped rather than failing the pass.
+  # The drafts that came back, each with its thread.
+  - id: drafts
+    type: transform
+    input:
+      conversations: '{{ nodes.due.output.conversations }}'
+      bodies: '{{ nodes.draft.output }}'
+    code: |
+      const bodies = Array.isArray(input.bodies) ? input.bodies : [];
+      const conversations = [];
+      (Array.isArray(input.conversations) ? input.conversations : []).forEach((conversation, at) => {
+        const drafted = bodies[at];
+        if (drafted && typeof drafted.body === 'string' && drafted.body.trim() !== '') {
+          conversations.push({ conversationId: conversation.conversationId, body: drafted.body });
+        }
+      });
+      return { conversations };
+
+  # The draft is a proposal: it waits in the thread, and only a person sends
+  # it. A thread that already carries a pending draft keeps it (created:
+  # false), so a thread never holds two.
   - id: propose
     type: conversation.draft_reply
-    forEach: '{{ nodes.due.output.conversations }}'
-    onError: continue
+    forEach: '{{ nodes.drafts.output.conversations }}'
+    onItemError: continue
     input:
       conversationId: '{{ item.conversationId }}'
-      body: '{{ nodes.draft.output[index].body }}'
+      body: '{{ item.body }}'
       confidence: 0.5
+
+  # What the stamp covers: every verdict the run can stand by. A thread that
+  # needs a reply and has no draft waiting in it is left unstamped.
+  - id: settle
+    type: transform
+    input:
+      items: '{{ nodes.triage.output.items }}'
+      due: '{{ nodes.due.output.conversations }}'
+      drafts: '{{ nodes.drafts.output.conversations }}'
+      proposed: '{{ nodes.propose.output }}'
+    code: |
+      const proposed = Array.isArray(input.proposed) ? input.proposed : [];
+      const drafted = [];
+      (Array.isArray(input.drafts) ? input.drafts : []).forEach((draft, at) => {
+        const left = proposed[at];
+        if (left) {
+          drafted.push({ conversationId: draft.conversationId, approvalId: left.approvalId, created: left.created });
+        }
+      });
+      const landed = new Set(drafted.map((draft) => draft.conversationId));
+      const due = new Set((Array.isArray(input.due) ? input.due : []).map((conversation) => conversation.conversationId));
+      const verdicts = [];
+      const unstamped = [];
+      const seen = new Set();
+      for (const item of Array.isArray(input.items) ? input.items : []) {
+        if (!item || seen.has(item.conversationId)) continue;
+        seen.add(item.conversationId);
+        if (item.action === 'reply' && due.has(item.conversationId) && !landed.has(item.conversationId)) {
+          unstamped.push(item.conversationId);
+          continue;
+        }
+        verdicts.push(item);
+      }
+      return { verdicts, drafted, unstamped };
+
+  - id: record
+    type: conversation.record_triage
+    when: '{{ nodes.settle.output.verdicts.length > 0 }}'
+    input:
+      verdicts: '{{ nodes.settle.output.verdicts }}'
 output:
   read: '{{ nodes.inbox.output.conversations.length }}'
   summary: '{{ nodes.triage.output?.summary ?? null }}'
   recorded: '{{ nodes.record.output ?? null }}'
   needsReply: '{{ nodes.due.output?.conversations ?? [] }}'
-  drafted: '{{ nodes.propose.output ?? [] }}'
+  drafted: '{{ nodes.settle.output?.drafted ?? [] }}'
+  unstamped: '{{ nodes.settle.output?.unstamped ?? [] }}'
 tests:
-  - name: a waiting thread is judged, stamped and left a draft
+  - name: a waiting thread is judged, left a draft, and only then stamped
     input:
       limit: 1
     expect:
@@ -199,11 +267,63 @@ tests:
             priority: low
             reason: mock
         drafted:
-          - approvalId: apr_mock_mock
+          - conversationId: mock
+            approvalId: apr_mock_mock
             created: true
+        unstamped: []
+      effects:
+        - connector: conversation.draft_reply
+          node: propose
+          inputIncludes:
+            conversationId: mock
+        - connector: conversation.record_triage
+          node: record
+          inputIncludes:
+            verdicts:
+              - conversationId: mock
+                action: reply
+  - name: a thread that needs no reply is stamped without a draft
+    input:
+      limit: 1
+    mocks:
+      triage:
+        summary: A receipt.
+        items:
+          - conversationId: mock
+            action: no_reply
+            priority: low
+            reason: An automated receipt.
+    expect:
+      output:
+        read: 1
+        summary: A receipt.
+        recorded:
+          recorded: 1
+          prioritized: 1
+          unknown: []
+        needsReply: []
+        drafted: []
+        unstamped: []
+      effects:
+        - connector: conversation.draft_reply
+          absent: true
+  - name: a thread whose draft cannot be left stays unstamped for the next run
+    input:
+      limit: 1
+    failures:
+      propose: the conversation was closed meanwhile
+    expect:
+      failure:
+        node: propose
+      effects:
+        - connector: conversation.record_triage
+          absent: true
   - name: a pass with nothing waiting skips the model
     input:
-      limit: 0
+      limit: 1
+    mocks:
+      inbox:
+        conversations: []
     expect:
       output:
         read: 0
@@ -211,3 +331,4 @@ tests:
         recorded: null
         needsReply: []
         drafted: []
+        unstamped: []

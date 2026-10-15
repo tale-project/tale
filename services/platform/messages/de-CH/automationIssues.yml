@@ -21,8 +21,8 @@ codes:
   NODE_UNKNOWN_FIELD:
     cause: '{nodeLabel} ist eine {type}-Node und hat kein Feld «{field}».'
   NODE_FIELD_TYPE:
-    cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung «Wiederholen bis».} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
-    fix: '{expected, select, repeatUntil {Füge eine Bedingung «Wiederholen bis» hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
+    cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung «Wiederholen bis».} forEach {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Liste «Für jedes».} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
+    fix: '{expected, select, repeatUntil {Füge eine Bedingung «Wiederholen bis» hinzu oder entferne {fieldLabel}.} forEach {Füge eine Liste «Für jedes» hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
   CODE_NO_IO:
     cause: Der Code von {nodeLabel} verwendet «{token}».
   ELSEOF_TARGET_INVALID:
@@ -33,6 +33,8 @@ codes:
   REPEAT_MAX_INVALID:
     title: Wiederholungsgrenze ausserhalb des Bereichs
   ONERROR_INVALID:
+    cause: '{nodeLabel} setzt den Wert «{value}».'
+  ONITEMERROR_INVALID:
     cause: '{nodeLabel} setzt den Wert «{value}».'
   SUBAUTOMATION_REF_INVALID:
     cause: '{nodeLabel} ruft «{ref}» auf.'

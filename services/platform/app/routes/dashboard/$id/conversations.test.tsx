@@ -32,8 +32,20 @@ vi.mock('@tanstack/react-router', () => ({
     ...config,
   }),
   Outlet: () => <div data-testid="outlet" />,
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: React.ReactNode;
+    to: string;
+    search?: Record<string, string>;
+  }) => (
+    <a
+      href={search === undefined ? to : `${to}?${new URLSearchParams(search)}`}
+    >
+      {children}
+    </a>
   ),
   redirect: vi.fn(),
   useNavigate: () => mockNavigate,
@@ -185,7 +197,7 @@ describe('ConversationsLayout', () => {
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
     expect(screen.queryByText('Set up your Inbox')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Browse automations' }),
+      screen.queryByRole('link', { name: 'Browse email templates' }),
     ).not.toBeInTheDocument();
     await checkAccessibility(container);
   });
@@ -292,6 +304,11 @@ describe('ConversationsLayout', () => {
       screen.getByRole('heading', { name: 'Set up your Inbox' }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Install an email automation/)).toBeInTheDocument();
+    // A new organization's Automations list is empty: the link opens the
+    // template catalog on its Inbox tab instead.
+    expect(
+      screen.getByRole('link', { name: 'Browse email templates' }),
+    ).toHaveAttribute('href', '/dashboard/$id/automations?templates=inbox');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
     expect(
@@ -315,9 +332,9 @@ describe('ConversationsLayout', () => {
         'To email Ada Lovelace, first install an email automation.',
       ),
     ).toBeInTheDocument();
-    // The "Browse automations" escape hatch is still offered.
+    // The way to the email templates is still offered.
     expect(
-      screen.getByRole('link', { name: 'Browse automations' }),
+      screen.getByRole('link', { name: 'Browse email templates' }),
     ).toBeInTheDocument();
   });
 
@@ -333,7 +350,7 @@ describe('ConversationsLayout', () => {
       screen.getByText(/Once someone with the Owner, Admin, or Developer role/),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Browse automations' }),
+      screen.queryByRole('link', { name: 'Browse email templates' }),
     ).not.toBeInTheDocument();
   });
 

@@ -103,8 +103,11 @@ describe('automationDisplayDescription', () => {
 });
 
 describe('automationDisplayIcon', () => {
-  it('speaks the Iconify id the renderer resolves offline', () => {
-    expect(automationDisplayIcon(PACK)).toBe('lucide:file-check');
+  it('hands the declared icon on as the manifest names it', () => {
+    expect(automationDisplayIcon(PACK)).toBe('file-check');
+    expect(
+      automationDisplayIcon({ name: 'Support mailbox', icon: 'brand:gmail' }),
+    ).toBe('brand:gmail');
   });
 
   it('leaves the renderer to its fallback when nothing was declared', () => {

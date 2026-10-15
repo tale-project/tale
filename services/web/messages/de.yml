@@ -1156,8 +1156,8 @@ platformAutomations:
       path: /platform/automations/triggers
     - label: Ausführungs-Logs
       path: /platform/automations/execution-logs
-    - label: Integrierte Automatisierungen
-      path: /platform/automations/builtin
+    - label: Vorlagen für Automatisierungen
+      path: /platform/automations/templates
   tour:
     heading: So laufen Automatisierungen in Tale
     description: Definiere den Ablauf, wähle die nötigen Schritte und Daten und prüfe

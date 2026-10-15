@@ -27,8 +27,9 @@ export const automationPresentationSchema = z
     /** Display name, authored in English. */
     name: z.string().min(1).max(200),
     description: z.string().max(2000).optional(),
-    /** Lucide icon name, shown before the name on the automations list
-     * (see {@link automationDisplayIcon}). */
+    /** The icon shown before the name on the automations list: a lucide
+     * name, or `brand:<slug>` for a product's logo (see
+     * {@link automationDisplayIcon}). */
     icon: z.string().min(1).optional(),
     /** Catalog chips beside the name — proper nouns, left untranslated on
      * purpose (see {@link automationDisplayLabels}). */
@@ -122,16 +123,15 @@ export function automationDisplayDescription(
 }
 
 /**
- * The declared icon as the Iconify id `ConfigIcon` resolves offline
- * (`lucide:<name>`) — the manifest names a lucide glyph, the renderer speaks
- * Iconify. `undefined` when nothing was declared, so the renderer shows its
+ * The declared icon as the manifest names it — `brand:<slug>` for a
+ * product's logo, otherwise a lucide name — for the app's automation icon
+ * to draw. `undefined` when nothing was declared, so the renderer shows its
  * neutral fallback instead of an empty slot.
  */
 export function automationDisplayIcon(
   presentation: unknown,
 ): string | undefined {
-  const parsed = parseAutomationPresentation(presentation);
-  return parsed?.icon === undefined ? undefined : `lucide:${parsed.icon}`;
+  return parseAutomationPresentation(presentation)?.icon;
 }
 
 /** The catalog chips a pack declared, in declaration order; empty when none. */

@@ -2,10 +2,9 @@
 # The directory path is the slug (`gmail/sync-emails`); `workflow.yml` beside
 # this file is the document that runs.
 name: Sync Gmail emails
-description: >-
-  Pull new Gmail messages into the shared Inbox on a schedule so the team can
-  read, triage, and reply in one place.
-icon: mail
+description: Brings the email of your Gmail mailboxes, Inbox and Sent, into the shared Inbox.
+icon: brand:gmail
+category: inbox
 labels:
   - Email
   - Gmail
@@ -17,6 +16,8 @@ requires:
     - gmail
     - conversation
 triggers:
+  # A default the person adjusts: the schedule question sets the rule and
+  # their own time zone replaces UTC.
   - kind: schedule
     repeat:
       frequency: minutely
@@ -25,11 +26,189 @@ triggers:
 i18n:
   de:
     name: Gmail-E-Mails synchronisieren
-    description: >-
-      Holt neue Gmail-Nachrichten nach Plan in den gemeinsamen Posteingang, damit
-      das Team dort lesen, sichten und antworten kann.
+    description: Holt die E-Mails deiner Gmail-Postfächer, Posteingang und Gesendet, in die gemeinsame Inbox.
   fr:
     name: Synchroniser les e-mails Gmail
-    description: >-
-      Tire les nouveaux messages Gmail dans la boîte partagée selon un planning,
-      pour que l'équipe lise, trie et réponde au même endroit.
+    description: Amène les e-mails de tes boîtes Gmail, réception et envois, dans la boîte de réception partagée.
+template:
+  details: >-
+    Every five minutes to start with, the automation reads what arrived in your
+    connected Gmail mailboxes since its last pass, in the Inbox and, unless you
+    turn it off, in Sent, and files it into the shared Inbox. A reply joins the
+    conversation it answers, and what you send from Gmail itself sits in its
+    thread beside the answers. The first pass reads back the days you choose;
+    after that each pass continues where the last one stopped, oldest first, so
+    a busy morning or an outage is caught up over the next passes and no email
+    is skipped or stored twice. When Gmail asks the sync to slow down, the pass
+    stops and the next one continues. Each run's output says, per mailbox, what
+    it read, stored and left for later.
+  i18n:
+    de:
+      details: >-
+        Anfangs alle fünf Minuten liest die Automatisierung, was seit ihrem
+        letzten Durchlauf in deinen verbundenen Gmail-Postfächern angekommen ist
+        — im Posteingang und, solange du es nicht abschaltest, unter Gesendet —
+        und legt es in der gemeinsamen Inbox ab. Eine Antwort landet in der
+        Konversation, auf die sie antwortet, und was du direkt aus Gmail
+        sendest, steht in ihrem Verlauf neben den Antworten. Der erste Durchlauf
+        liest so viele Tage zurück, wie du wählst; danach macht jeder Durchlauf
+        dort weiter, wo der letzte aufgehört hat, die älteste E-Mail zuerst. So
+        holen die nächsten Durchläufe einen vollen Vormittag oder einen Ausfall
+        auf, und keine E-Mail wird übersprungen oder doppelt gespeichert. Bittet
+        Gmail darum, langsamer zu werden, hält der Durchlauf an, und der nächste
+        macht weiter. Die Ausgabe jedes Laufs sagt pro Postfach, was gelesen,
+        gespeichert und für später gelassen wurde.
+    fr:
+      details: >-
+        Toutes les cinq minutes pour commencer, l’automatisation lit ce qui est
+        arrivé dans tes boîtes Gmail connectées depuis son dernier passage — la
+        réception et, sauf si tu le désactives, les envois — et le range dans la
+        boîte de réception partagée. Une réponse rejoint la conversation à
+        laquelle elle répond, et ce que tu envoies depuis Gmail même figure dans
+        son fil à côté des réponses. Le premier passage remonte le nombre de
+        jours que tu choisis ; ensuite, chaque passage reprend là où le
+        précédent s’est arrêté, le plus ancien e-mail d’abord, si bien qu’une
+        matinée chargée ou une panne est rattrapée aux passages suivants et
+        qu’aucun e-mail n’est sauté ni enregistré deux fois. Quand Gmail demande
+        de ralentir, le passage s’arrête et le suivant reprend. La sortie de
+        chaque exécution indique, par boîte, ce qui a été lu, enregistré et
+        laissé pour plus tard.
+  steps:
+    - title: Lists what arrived since the last pass
+      detail: In the Inbox and Sent of each mailbox, oldest first; the first pass reaches back the days you choose.
+      i18n:
+        de:
+          title: Listet, was seit dem letzten Durchlauf ankam
+          detail: Im Posteingang und unter Gesendet jedes Postfachs, die älteste zuerst; der erste Durchlauf reicht so viele Tage zurück, wie du wählst.
+        fr:
+          title: Liste ce qui est arrivé depuis le dernier passage
+          detail: Dans la réception et les envois de chaque boîte, le plus ancien d’abord ; le premier passage remonte le nombre de jours choisi.
+    - title: Reads each email with its attachments
+      detail: Attachments are stored with their email; Gmail hands each one over up to 3.5 MB.
+      i18n:
+        de:
+          title: Liest jede E-Mail mit ihren Anhängen
+          detail: Anhänge werden mit ihrer E-Mail gespeichert; Gmail gibt jeden bis 3,5 MB heraus.
+        fr:
+          title: Lit chaque e-mail avec ses pièces jointes
+          detail: Les pièces jointes sont enregistrées avec leur e-mail ; Gmail transmet chacune jusqu’à 3,5 Mo.
+    - title: Files it into the shared Inbox
+      detail: A reply joins the conversation it answers; an email already there is not stored again.
+      i18n:
+        de:
+          title: Legt sie in der gemeinsamen Inbox ab
+          detail: Eine Antwort landet in der Konversation, auf die sie antwortet; eine E-Mail, die schon da ist, wird nicht noch einmal gespeichert.
+        fr:
+          title: La range dans la boîte de réception partagée
+          detail: Une réponse rejoint la conversation à laquelle elle répond ; un e-mail déjà présent n’est pas enregistré à nouveau.
+    - title: Picks up where it stopped
+      detail: A pass reads up to the number you set; the rest, or a pause Gmail asks for, waits for the next pass.
+      i18n:
+        de:
+          title: Macht dort weiter, wo sie aufgehört hat
+          detail: Ein Durchlauf liest höchstens die gewählte Anzahl; der Rest, oder eine Pause, um die Gmail bittet, wartet auf den nächsten Durchlauf.
+        fr:
+          title: Reprend là où elle s’est arrêtée
+          detail: Un passage lit au plus le nombre choisi ; le reste, ou une pause que Gmail demande, attend le passage suivant.
+  outcomes:
+    - kind: creates
+      text: New conversations in the shared Inbox, and new emails in existing ones.
+      i18n:
+        de:
+          text: Neue Konversationen in der gemeinsamen Inbox und neue E-Mails in bestehenden.
+        fr:
+          text: De nouvelles conversations dans la boîte de réception partagée, et de nouveaux e-mails dans celles qui existent.
+    - kind: never
+      text: Never sends, deletes, moves or marks an email in Gmail.
+      i18n:
+        de:
+          text: Sendet, löscht, verschiebt oder markiert nie eine E-Mail in Gmail.
+        fr:
+          text: N’envoie, ne supprime, ne déplace et ne marque jamais un e-mail dans Gmail.
+    - kind: never
+      text: Never stores the same email twice, even when several passes read it.
+      i18n:
+        de:
+          text: Speichert dieselbe E-Mail nie zweimal, auch wenn mehrere Durchläufe sie lesen.
+        fr:
+          text: N’enregistre jamais deux fois le même e-mail, même relu par plusieurs passages.
+  fields:
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often new email is read; every five minutes keeps the Inbox close to the mailbox.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft neue E-Mails gelesen werden; alle fünf Minuten bleibt die Inbox nah am Postfach.
+        fr:
+          label: Quand
+          description: À quelle fréquence les nouveaux e-mails sont lus ; toutes les cinq minutes, la boîte de réception reste proche de la boîte mail.
+    - id: mailbox
+      kind: credential
+      connector: gmail
+      label: Mailbox
+      description: Leave it empty to read every connected Gmail mailbox, each from where it stopped.
+      required: false
+      placeholder: Every connected Gmail mailbox
+      writes:
+        - node: sync
+          pointer: /input/mailbox
+      i18n:
+        de:
+          label: Postfach
+          description: Lass das Feld leer, um jedes verbundene Gmail-Postfach zu lesen, jedes ab da, wo es aufgehört hat.
+          placeholder: Alle verbundenen Gmail-Postfächer
+        fr:
+          label: Boîte mail
+          description: Laisse vide pour lire chaque boîte Gmail connectée, chacune là où elle s’est arrêtée.
+          placeholder: Toutes les boîtes Gmail connectées
+    - id: backfillDays
+      kind: number
+      label: Days to read back
+      description: How far back a mailbox's first pass reaches; 0 reads only email that arrives from now on. Older email is not read.
+      min: 0
+      max: 90
+      default: 7
+      writes:
+        - node: sync
+          pointer: /input/backfillDays
+      i18n:
+        de:
+          label: Tage zurück
+          description: Wie weit der erste Durchlauf eines Postfachs zurückreicht; 0 liest nur E-Mails, die ab jetzt ankommen. Ältere E-Mails werden nicht gelesen.
+        fr:
+          label: Jours à remonter
+          description: Jusqu’où remonte le premier passage d’une boîte ; 0 ne lit que les e-mails qui arrivent à partir de maintenant. Les e-mails plus anciens ne sont pas lus.
+    - id: includeSent
+      kind: toggle
+      label: Read Sent too
+      description: Brings what the mailbox sent from Gmail itself into its threads. An email sent from the Inbox is not stored twice.
+      default: true
+      writes:
+        - node: sync
+          pointer: /input/includeSent
+      i18n:
+        de:
+          label: Auch Gesendet lesen
+          description: Holt, was das Postfach direkt aus Gmail gesendet hat, in seine Verläufe. Eine aus der Inbox gesendete E-Mail wird nicht doppelt gespeichert.
+        fr:
+          label: Lire aussi les envois
+          description: Amène dans leurs fils ce que la boîte a envoyé depuis Gmail même. Un e-mail envoyé depuis la boîte de réception n’est pas enregistré deux fois.
+    - id: limit
+      kind: number
+      label: Emails per pass
+      description: The most emails one pass reads from each mailbox; more waits for the next pass.
+      min: 10
+      max: 100
+      default: 50
+      writes:
+        - node: sync
+          pointer: /input/limit
+      i18n:
+        de:
+          label: E-Mails pro Durchlauf
+          description: Höchstens so viele E-Mails liest ein Durchlauf aus jedem Postfach; mehr wartet auf den nächsten Durchlauf.
+        fr:
+          label: E-mails par passage
+          description: Le nombre maximal d’e-mails qu’un passage lit dans chaque boîte ; le surplus attend le passage suivant.

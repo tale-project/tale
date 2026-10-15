@@ -1,21 +1,34 @@
-# Scores a repository's open issues and returns a ranked shortlist. It only
-# reads from GitHub — nothing is written back, so a run is safe to schedule
-# and its result is a report a human acts on.
+# Triages a repository's open GitHub issues as they change and tells a member
+# which ones are ready to be worked, most urgent first. It only reads from
+# GitHub — nothing is written back there.
+#
+# Each run carries on where the last run that reached its end stopped: it
+# keeps a place per repository (automation.read_position / save_position) —
+# the newest change it triaged, and the issues triaged at that very second —
+# and lists only the issues changed since, oldest change first, at most
+# `limit` of them; the rest wait for the next run. A run for another
+# repository keeps its own place. The first run of a repository starts with
+# its most recently changed issues. An issue is triaged again only when it
+# changed. The place is saved last, so a failed run's issues come back.
 version: 1
 name: github-triage-issues
-description: Score a repository's open GitHub issues and rank the ones that are ready to be worked.
+description: Triage a repository's open GitHub issues as they change and tell a member which ones are ready to be worked.
 inputs:
   type: object
   properties:
     owner:
       type: string
+      minLength: 1
       description: Repository owner — the user or organization login.
     repo:
       type: string
+      minLength: 1
       description: Repository name.
     limit:
-      type: number
-      description: How many open issues to score in one pass (50 when unset).
+      type: integer
+      minimum: 1
+      maximum: 40
+      description: How many issues one run triages (20 when unset, at most 40); the others wait for the next run.
     # Every trigger-started run arrives inside the trigger wrapper
     # (docs/en/platform/automations/triggers.md). A declared schema must
     # describe that wrapper, or the pack's own schedule is refused at start
@@ -31,40 +44,114 @@ inputs:
     - repo
   additionalProperties: false
 nodes:
+  - id: place
+    type: automation.read_position
+    input:
+      key: "{{ (input.owner + '/' + input.repo).toLowerCase() }}"
+
+  # Where the last run of this repository stopped. Without one — its first
+  # run — the run starts with the most recently changed issues.
+  - id: position
+    type: transform
+    input:
+      saved: '{{ nodes.place.output.value }}'
+      limit: '{{ input.limit ?? 20 }}'
+    code: |
+      const saved = input.saved !== null && typeof input.saved === 'object' ? input.saved : null;
+      const usable =
+        saved !== null &&
+        typeof saved.updatedAt === 'string' &&
+        Number.isFinite(Date.parse(saved.updatedAt)) &&
+        Array.isArray(saved.numbers);
+      const numbers = usable ? saved.numbers.filter((n) => typeof n === 'number').slice(0, 100) : [];
+      return {
+        first: !usable,
+        at: usable ? saved.updatedAt : null,
+        numbers,
+        // GitHub lists pull requests with the issues; leave room for them.
+        perPage: Math.min(100, input.limit + numbers.length + 20),
+      };
+
+  # GitHub returns pull requests from the issues endpoint too; the next step
+  # sets them aside.
   - id: issues
     type: github.list_issues
+    credential: github
     input:
       owner: '{{ input.owner }}'
       repo: '{{ input.repo }}'
       state: open
-      per_page: '{{ input.limit ?? 50 }}'
+      sort: updated
+      direction: "{{ nodes.position.output.first ? 'desc' : 'asc' }}"
+      since: "{{ nodes.position.output.at ?? '' }}"
+      per_page: '{{ nodes.position.output.perPage }}'
 
-  # GitHub returns pull requests from the issues endpoint too; a pull request
-  # carries a `pull_request` field that a plain issue lacks.
-  - id: open_issues
+  # The issues this run triages, and the position the next run starts from.
+  - id: batch
     type: transform
     input:
-      issues: '{{ nodes.issues.output.issues }}'
-      limit: '{{ input.limit ?? 50 }}'
+      items: '{{ nodes.issues.output.issues }}'
+      position: '{{ nodes.position.output }}'
+      limit: '{{ input.limit ?? 20 }}'
     code: |
       const asText = (value) => (typeof value === 'string' ? value : '');
-      const issues = (Array.isArray(input.issues) ? input.issues : [])
-        .filter((issue) => issue.pull_request === undefined)
-        .slice(0, input.limit)
-        .map((issue) => ({
-          number: typeof issue.number === 'number' ? issue.number : 0,
-          title: asText(issue.title),
-          url: asText(issue.html_url),
-          body: asText(issue.body).slice(0, 2000),
-          labels: (Array.isArray(issue.labels) ? issue.labels : []).map((label) =>
-            typeof label === 'string' ? label : asText(label.name),
-          ),
-        }));
-      return { count: issues.length, issues };
+      const at = input.position.at;
+      const seen = new Set(input.position.numbers);
+      const items = Array.isArray(input.items) ? input.items : [];
+      // Changed since the position, or changed in its very second and not
+      // triaged then.
+      const fresh = items.filter((item) => {
+        const updated = asText(item.updated_at);
+        if (at === null || updated > at) return true;
+        return updated === at && !seen.has(item.number);
+      });
+      const passed = [];
+      const chosen = [];
+      for (const item of fresh) {
+        if (chosen.length >= input.limit) break;
+        passed.push(item);
+        if (item.pull_request === undefined) chosen.push(item);
+      }
+      let position = { updatedAt: at, numbers: [...seen] };
+      if (passed.length > 0) {
+        // The newest change passed: the last in an oldest-first page, the
+        // first in the newest-first one a first run reads.
+        const newest = passed.reduce(
+          (best, item) => (asText(item.updated_at) > best ? asText(item.updated_at) : best),
+          '',
+        );
+        const same = passed.filter((item) => asText(item.updated_at) === newest).map((item) => item.number);
+        position = {
+          updatedAt: newest === '' ? at : newest,
+          numbers: newest === at ? [...seen, ...same] : same,
+        };
+      } else if (items.length >= input.position.perPage && items.every((item) => asText(item.updated_at) === at)) {
+        // A full page of issues changed in one second, every one triaged
+        // already: step past that second rather than read it again.
+        position = {
+          updatedAt: new Date(Date.parse(at) + 1000).toISOString().replace('.000Z', 'Z'),
+          numbers: [],
+        };
+      }
+      const issues = chosen.map((issue) => ({
+        number: typeof issue.number === 'number' ? issue.number : 0,
+        title: asText(issue.title),
+        url: asText(issue.html_url),
+        body: asText(issue.body).slice(0, 2000),
+        labels: (Array.isArray(issue.labels) ? issue.labels : []).map((label) =>
+          typeof label === 'string' ? label : asText(label && label.name),
+        ),
+      }));
+      return {
+        issues,
+        position: { ...position, numbers: position.numbers.slice(-100) },
+        caughtUp: passed.length === fresh.length && items.length < input.position.perPage,
+      };
 
   - id: score
     type: llm
-    forEach: '{{ nodes.open_issues.output.issues }}'
+    forEach: '{{ nodes.batch.output.issues }}'
+    onItemError: continue
     model: anthropic/claude-haiku-4-5
     system: >-
       You triage GitHub issues for an implementation team. Actionable means a
@@ -99,37 +186,221 @@ nodes:
         - priority
         - reason
 
+  # The ranked shortlist, and the message that tells it. An issue whose
+  # scoring failed is named in the message; it is triaged again once it
+  # changes.
   - id: report
     type: transform
     input:
-      issues: '{{ nodes.open_issues.output.issues }}'
+      issues: '{{ nodes.batch.output.issues }}'
       scores: '{{ nodes.score.output }}'
+      position: '{{ nodes.batch.output.position }}'
+      caughtUp: '{{ nodes.batch.output.caughtUp }}'
     code: |
       const scores = Array.isArray(input.scores) ? input.scores : [];
-      const issues = Array.isArray(input.issues) ? input.issues : [];
-      const ranked = issues
-        .map((issue, at) => ({ ...issue, ...(scores[at] ?? {}) }))
-        .filter((issue) => issue.actionable === true)
-        .sort((left, right) => String(left.priority).localeCompare(String(right.priority)));
-      return { reviewed: issues.length, actionable: ranked.length, issues: ranked };
-output: '{{ nodes.report.output }}'
+      const scored = [];
+      const failed = [];
+      input.issues.forEach((issue, at) => {
+        const score = scores[at];
+        if (!score || typeof score.priority !== 'string') {
+          failed.push(issue.number);
+          return;
+        }
+        scored.push({
+          number: issue.number,
+          title: issue.title,
+          url: issue.url,
+          actionable: score.actionable === true,
+          priority: score.priority,
+          reason: typeof score.reason === 'string' ? score.reason : '',
+        });
+      });
+      const ranked = scored
+        .filter((issue) => issue.actionable)
+        .sort((left, right) => left.priority.localeCompare(right.priority) || left.number - right.number);
+      const lines = [];
+      let length = 0;
+      for (const [at, issue] of ranked.entries()) {
+        const line = `${issue.priority.toUpperCase()} · #${issue.number} ${issue.title} — ${issue.reason}`;
+        if (length + line.length > 1700) {
+          lines.push(`… and ${ranked.length - at} more in the run's output.`);
+          break;
+        }
+        lines.push(line);
+        length += line.length + 1;
+      }
+      if (failed.length > 0) {
+        lines.push(`Not triaged this time: ${failed.map((number) => `#${number}`).join(', ')}.`);
+      }
+      return {
+        triaged: scored.length,
+        actionable: ranked.length,
+        issues: ranked,
+        failed,
+        message: lines.join('\n').slice(0, 2000),
+        position: input.position,
+        caughtUp: input.caughtUp,
+      };
+
+  - id: notify
+    type: notify.member
+    when: '{{ nodes.report.output.actionable > 0 || nodes.report.output.failed.length > 0 }}'
+    input:
+      to:
+        - run-starter
+      title: GitHub issues ready to work on
+      message: '{{ nodes.report.output.message }}'
+      link: 'https://github.com/{{ input.owner }}/{{ input.repo }}/issues'
+
+  # Last: a run that fails before here keeps the place where it was.
+  - id: save
+    type: automation.save_position
+    input:
+      key: "{{ (input.owner + '/' + input.repo).toLowerCase() }}"
+      value: '{{ nodes.report.output.position }}'
+      revision: '{{ nodes.place.output.revision }}'
+output:
+  triaged: '{{ nodes.report.output.triaged }}'
+  actionable: '{{ nodes.report.output.actionable }}'
+  issues: '{{ nodes.report.output.issues }}'
+  failed: '{{ nodes.report.output.failed }}'
+  caughtUp: '{{ nodes.report.output.caughtUp }}'
+  # The place the next run of this repository carries on from.
+  position: '{{ nodes.report.output.position }}'
 tests:
-  - name: an open issue is scored and ranked
+  - name: a first run triages the most recently changed issues and tells the member
     input:
       owner: tale
       repo: tale
+    mocks:
+      issues:
+        issues:
+          - number: 12
+            title: Login fails on Safari
+            html_url: https://github.com/tale/tale/issues/12
+            body: Steps to reproduce attached.
+            labels:
+              - name: bug
+            updated_at: '2026-10-14T09:00:00Z'
+          - number: 11
+            title: Bump the build image
+            html_url: https://github.com/tale/tale/pull/11
+            updated_at: '2026-10-14T08:30:00Z'
+            pull_request: {}
+          - number: 9
+            title: How do I export?
+            html_url: https://github.com/tale/tale/issues/9
+            updated_at: '2026-10-14T08:00:00Z'
+      score:
+        - actionable: true
+          priority: p1
+          reason: A concrete bug with steps.
+        - actionable: false
+          priority: p3
+          reason: A question, not work.
     expect:
       output:
-        reviewed: 1
-        actionable: 0
-        issues: []
-  - name: reading nothing scores nothing
+        triaged: 2
+        actionable: 1
+        issues:
+          - number: 12
+            title: Login fails on Safari
+            url: https://github.com/tale/tale/issues/12
+            actionable: true
+            priority: p1
+            reason: A concrete bug with steps.
+        failed: []
+        caughtUp: true
+        position:
+          updatedAt: '2026-10-14T09:00:00Z'
+          numbers:
+            - 12
+      effects:
+        - connector: notify.member
+          node: notify
+          inputIncludes:
+            message: 'P1 · #12 Login fails on Safari — A concrete bug with steps.'
+            link: https://github.com/tale/tale/issues
+        - connector: automation.save_position
+          node: save
+          input:
+            key: tale/tale
+            value:
+              updatedAt: '2026-10-14T09:00:00Z'
+              numbers:
+                - 12
+            revision: '0'
+  - name: a later run reads on from where the last good run stopped
     input:
       owner: tale
       repo: tale
-      limit: 0
+    mocks:
+      place:
+        value:
+          updatedAt: '2026-10-14T09:00:00Z'
+          numbers:
+            - 12
+        revision: '3'
+      issues:
+        issues:
+          - number: 12
+            title: Login fails on Safari
+            html_url: https://github.com/tale/tale/issues/12
+            updated_at: '2026-10-14T09:00:00Z'
+          - number: 14
+            title: Crash on save
+            html_url: https://github.com/tale/tale/issues/14
+            updated_at: '2026-10-14T09:00:00Z'
+          - number: 15
+            title: Typo on the pricing page
+            html_url: https://github.com/tale/tale/issues/15
+            updated_at: '2026-10-14T10:00:00Z'
+      score:
+        - actionable: true
+          priority: p0
+          reason: Data loss.
+        - actionable: true
+          priority: p3
+          reason: Small and clear.
+    expect:
+      outputIncludes:
+        triaged: 2
+        actionable: 2
+        failed: []
+        position:
+          updatedAt: '2026-10-14T10:00:00Z'
+          numbers:
+            - 15
+      effects:
+        - connector: notify.member
+          node: notify
+          inputIncludes:
+            message: "P0 · #14 Crash on save — Data loss.\nP3 · #15 Typo on the pricing page — Small and clear."
+  - name: a run with nothing changed tells nobody and keeps its place
+    input:
+      owner: tale
+      repo: tale
+    mocks:
+      place:
+        value:
+          updatedAt: '2026-10-14T09:00:00Z'
+          numbers:
+            - 12
+        revision: '3'
+      issues:
+        issues: []
     expect:
       output:
-        reviewed: 0
+        triaged: 0
         actionable: 0
         issues: []
+        failed: []
+        caughtUp: true
+        position:
+          updatedAt: '2026-10-14T09:00:00Z'
+          numbers:
+            - 12
+      effects:
+        - connector: notify.member
+          node: notify
+          absent: true

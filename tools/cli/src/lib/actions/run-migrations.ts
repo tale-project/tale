@@ -3,11 +3,12 @@
  *
  * SCHEMA migrations need no door: the backend applies them under an advisory
  * lock at boot, so a deployed image is always at its own schema. What stays
- * operator-triggered is the idempotent per-org seeding (config scaffold,
- * default automation packs, starter content), which the control door queues
- * as one `org.scaffold` job per org — a slow or failing org retries on its
- * own without blocking the rest, and the command returns as soon as they are
- * queued.
+ * operator-triggered is the idempotent per-org seeding (the config scaffold,
+ * and the starter project for an org that has no project), which the control
+ * door queues as one `org.scaffold` job per org — a slow or failing org
+ * retries on its own without blocking the rest, and the command returns as
+ * soon as they are queued. It adds no automation and changes none an org
+ * has: shipped automations are templates a person adds in the app.
  *
  * Safe to re-run: already-provisioned content is skipped.
  */
@@ -33,8 +34,8 @@ export async function runMigrations(
   if (options.dryRun) {
     logger.blank();
     logger.info(
-      `[DRY-RUN] Would re-provision every organization via POST /api/control/provision in ${label} ` +
-        '(schema migrations run at backend boot).',
+      `[DRY-RUN] Would re-provision configuration defaults for every organization via POST /api/control/provision in ${label} ` +
+        '(no automations; schema migrations run at backend boot).',
     );
     return;
   }
@@ -47,7 +48,9 @@ export async function runMigrations(
   }
 
   logger.blank();
-  logger.step('Re-provisioning built-in defaults for every organization...');
+  logger.step(
+    'Re-provisioning configuration defaults for every organization (no automations)...',
+  );
   const res = await controlCall(
     'POST',
     '/api/control/provision',
@@ -64,9 +67,13 @@ export async function runMigrations(
   let organizations: number | null = null;
   try {
     const parsed: unknown = JSON.parse(res.stdout);
-    if (typeof parsed === 'object' && parsed !== null) {
-      const value = (parsed as Record<string, unknown>).organizations;
-      if (typeof value === 'number') organizations = value;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'organizations' in parsed &&
+      typeof parsed.organizations === 'number'
+    ) {
+      organizations = parsed.organizations;
     }
   } catch (err) {
     logger.debug(`provision response parse failed: ${String(err)}`);

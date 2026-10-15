@@ -1,12 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TASK_DESCRIPTION_MAX } from '../../backend/core/tasks/helpers';
-import { issueImportNatives } from './natives/issue-import';
+import { ConnectorError } from './errors';
+import {
+  IssueSourceHttpError,
+  issueImportNatives,
+  rateLimitWait,
+} from './natives/issue-import';
 
 const fetchPage = vi.fn();
 const endpoint = 'https://glitchtip.tale.dev';
-function response(rows: unknown, link = '', status = 200) {
-  return { status, headers: { link }, json: () => rows };
+function response(
+  rows: unknown,
+  link = '',
+  status = 200,
+  headers: Record<string, string> = {},
+) {
+  return {
+    status,
+    headers: { link, ...headers },
+    json: () => rows,
+    text: () => JSON.stringify(rows),
+  };
 }
 function githubIssue(number: number) {
   return {
@@ -629,3 +644,291 @@ it('does not invent an immutable identity for a missing legacy source', async ()
     ),
   ).resolves.toEqual([]);
 });
+
+describe('rate limits', () => {
+  const NOW = Date.parse('2026-10-14T18:00:00Z');
+  const answer = (
+    status: number,
+    headers: Record<string, string> = {},
+    body: unknown = {},
+  ) => response(body, '', status, headers);
+
+  it.each([
+    [
+      'a 429 with Retry-After seconds',
+      answer(429, { 'retry-after': '120' }),
+      NOW + 120_000,
+    ],
+    [
+      'a 429 with Retry-After as a date',
+      answer(429, { 'retry-after': new Date(NOW + 90_000).toUTCString() }),
+      NOW + 90_000,
+    ],
+    [
+      "GitHub's secondary limit, a 403 with Retry-After",
+      answer(403, { 'retry-after': '30' }),
+      NOW + 30_000,
+    ],
+    [
+      "GitHub's primary limit, a 403 with the reset time",
+      answer(403, {
+        'x-ratelimit-remaining': '0',
+        'x-ratelimit-reset': String((NOW + 600_000) / 1000),
+      }),
+      NOW + 600_000,
+    ],
+    [
+      "GitHub's secondary limit named only in its message, for a minute",
+      answer(403, {}, { message: 'You have exceeded a secondary rate limit.' }),
+      NOW + 60_000,
+    ],
+    [
+      'a wait longer than a day, cut to one',
+      answer(429, { 'retry-after': '999999' }),
+      NOW + 86_400_000,
+    ],
+  ])('reads %s as a wait [TASK-R56]', (_case, limited, until) => {
+    expect(rateLimitWait(limited as never, NOW)).toBe(until);
+  });
+
+  it.each([
+    [
+      'a 403 that refuses access',
+      answer(403, { 'x-ratelimit-remaining': '41' }),
+    ],
+    ['a 404', answer(404)],
+    ['a 500', answer(500)],
+  ])('reads %s as no wait [TASK-R56]', (_case, refused) => {
+    expect(rateLimitWait(refused as never, NOW)).toBeNull();
+  });
+
+  it.each(['github', 'glitchtip'])(
+    'fails a %s listing the tracker rate-limits with its status and wait, as a rate limit [TASK-R56]',
+    async (provider) => {
+      const before = Date.now();
+      fetchPage.mockResolvedValue(answer(429, { 'retry-after': '60' }));
+      const failure = await run(provider).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(IssueSourceHttpError);
+      expect(failure).toMatchObject({
+        status: 429,
+        failure: {
+          reason: 'CONNECTOR_RATE_LIMITED',
+          params: { connector: provider, status: 429 },
+        },
+      });
+      expect(
+        (failure as IssueSourceHttpError).retryAfter,
+      ).toBeGreaterThanOrEqual(before + 60_000);
+    },
+  );
+
+  it('fails a refused listing with its status and no wait, so a run record names the cause', async () => {
+    fetchPage.mockResolvedValue(answer(401));
+    await expect(run('github')).rejects.toMatchObject({
+      status: 401,
+      retryAfter: null,
+    });
+  });
+});
+
+function linked(provider: string, n: number) {
+  const isGithub = provider === 'github';
+  return {
+    externalId: isGithub ? `example/web#${n}` : `${endpoint}/example/web#${n}`,
+    externalIssue: {
+      id: isGithub ? String(1000 + n) : `${endpoint}#${n}`,
+      title: `Issue ${n}`,
+      description: 'Details',
+      url: isGithub
+        ? `https://github.com/Example/Web/issues/${n}`
+        : `${endpoint}/example/issues/${n}`,
+      state: 'open',
+      syncedAt: 1,
+      ...(isGithub
+        ? { repositoryId: 10, number: n }
+        : { sourceProjectId: '20' }),
+    },
+  };
+}
+
+function refreshAll(provider: string, count: number, report?: boolean) {
+  return issueImportNatives()[`${provider}.refresh_import_issues`]?.(
+    {
+      issues: Array.from({ length: count }, (_, at) =>
+        linked(provider, at + 1),
+      ),
+      ...(provider === 'github'
+        ? { repositoryId: 10 }
+        : { organization: 'example', sourceProjectId: '20' }),
+      ...(report !== undefined && { report }),
+    },
+    { endpoint, http: { get: fetchPage } } as never,
+  );
+}
+
+/** The issue number a refresh request asks for. */
+function asked(url: string): number {
+  return Number(/\/issues\/(\d+)\/?$/.exec(url)?.[1]);
+}
+
+describe.each(['github', 'glitchtip'])(
+  '%s refresh of linked issues',
+  (provider) => {
+    const item = (n: number) =>
+      provider === 'github' ? githubIssue(n) : glitchtipIssue(n);
+
+    it('skips an issue the tracker refuses and refreshes the others [TASK-R55]', async () => {
+      fetchPage.mockImplementation(async (url: string) =>
+        asked(url) === 2 ? response({}, '', 403) : response(item(asked(url))),
+      );
+      await expect(refreshAll(provider, 3, true)).resolves.toMatchObject({
+        issues: [
+          {
+            externalIssue: {
+              title: provider === 'github' ? 'Issue 1' : 'Error 1',
+            },
+          },
+          {
+            externalIssue: {
+              title: provider === 'github' ? 'Issue 3' : 'Error 3',
+            },
+          },
+        ],
+        failed: [
+          {
+            externalId: linked(provider, 2).externalId,
+            error: 'unauthorized',
+            status: 403,
+          },
+        ],
+        notRead: 0,
+        retryAfter: null,
+      });
+    });
+
+    it('answers the refreshed issues alone, and says the skipped ones in the log, without report [TASK-R55]', async () => {
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      fetchPage.mockImplementation(async (url: string) =>
+        asked(url) === 1 ? response({}, '', 500) : response(item(asked(url))),
+      );
+      const refreshed = (await refreshAll(provider, 2)) as unknown[];
+      expect(refreshed).toHaveLength(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('1 of 2 linked issues could not be refreshed'),
+      );
+      warn.mockRestore();
+    });
+
+    it('stops at a rate limit: the issues not started yet are not read [TASK-R56]', async () => {
+      fetchPage.mockImplementation(async (url: string) =>
+        asked(url) === 1
+          ? response({}, '', 429, { 'retry-after': '60' })
+          : response(item(asked(url))),
+      );
+      const report = (await refreshAll(provider, 8, true)) as {
+        issues: unknown[];
+        failed: unknown[];
+        notRead: number;
+        retryAfter: number | null;
+      };
+      // Four start together; the first is refused, the three beside it
+      // finish, and the four after them are left for a later run.
+      expect(report.issues).toHaveLength(3);
+      expect(report.failed).toEqual([
+        {
+          externalId: linked(provider, 1).externalId,
+          error: 'rate_limited',
+          status: 429,
+        },
+      ]);
+      expect(report.notRead).toBe(4);
+      expect(report.retryAfter).toBeGreaterThan(Date.now());
+    });
+
+    it('stops the whole refresh when its server is stopping', async () => {
+      fetchPage.mockRejectedValue(
+        new ConnectorError('INTERRUPTED', 'the call was interrupted'),
+      );
+      await expect(refreshAll(provider, 2, true)).rejects.toMatchObject({
+        code: 'INTERRUPTED',
+      });
+    });
+  },
+);
+
+describe.each(['github', 'glitchtip'])(
+  '%s text the database could not store',
+  (provider) => {
+    it('drops NUL characters from what an issue is read with [TASK-R55]', async () => {
+      fetchPage.mockResolvedValueOnce(
+        response([
+          provider === 'github'
+            ? {
+                ...githubIssue(1),
+                title: 'Broken\u0000 title',
+                body: 'first\u0000 line',
+              }
+            : {
+                ...glitchtipIssue(1),
+                title: 'Broken\u0000 title',
+                culprit: 'app\u0000.ts',
+                metadata: { value: 'Fail\u0000ed' },
+              },
+        ]),
+      );
+      const imported = (await run(provider)) as {
+        issues: {
+          title: string;
+          description: string;
+          externalIssue: { title: string; description: string };
+        }[];
+      };
+      const [first] = imported.issues;
+      expect(first?.title).toBe('Broken title');
+      expect(first?.externalIssue.title).toBe('Broken title');
+      expect(JSON.stringify(first)).not.toContain('\\u0000');
+    });
+
+    it('names an issue whose title is nothing but NUL characters by its number [TASK-R55]', async () => {
+      fetchPage.mockResolvedValueOnce(
+        response([
+          provider === 'github'
+            ? { ...githubIssue(7), title: '\u0000' }
+            : { ...glitchtipIssue(7), title: '\u0000' },
+        ]),
+      );
+      const imported = (await run(provider)) as {
+        issues: { title: string; externalIssue: { title: string } }[];
+      };
+      expect(imported.issues[0]?.title).toMatch(/7/);
+      expect(imported.issues[0]?.externalIssue.title).toBe(
+        imported.issues[0]?.title,
+      );
+    });
+  },
+);
+
+describe.each(['github', 'glitchtip'])(
+  '%s answers that are not JSON',
+  (provider) => {
+    it('fails without quoting the answer [TASK-R53]', async () => {
+      fetchPage.mockResolvedValue({
+        status: 200,
+        headers: { link: '' },
+        json: () => {
+          throw new Error(
+            'response body is not JSON (status 200, content-type text/html): <html>internal build 4711</html>',
+          );
+        },
+        text: () => '<html>internal build 4711</html>',
+      });
+      const failure = await run(provider).catch((error: unknown) => error);
+      expect(failure).toMatchObject({ code: 'INPUT_INVALID' });
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).not.toContain('4711');
+      expect((failure as Error).message).toContain('HTTP 200');
+    });
+  },
+);

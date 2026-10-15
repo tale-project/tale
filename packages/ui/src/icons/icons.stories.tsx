@@ -2,14 +2,17 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { ClaudeIcon } from './claude-icon';
 import { EnterKeyIcon } from './enter-key-icon';
+import { GlitchTipIcon } from './glitchtip-icon';
 import { GmailIcon } from './gmail-icon';
 import { GoogleDriveIcon } from './google-drive-icon';
 import { LocaleIcon } from './locale-icon';
+import { MailServerIcon } from './mail-server-icon';
 import { MicrosoftIcon } from './microsoft-icon';
 import { OneDriveIcon } from './onedrive-icon';
 import { OpenAIIcon } from './openai-icon';
 import { OutlookIcon } from './outlook-icon';
 import { ShopifyIcon } from './shopify-icon';
+import { SlackIcon } from './slack-icon';
 import { WebsiteIcon } from './website-icon';
 
 const icons = [
@@ -52,6 +55,21 @@ const icons = [
     name: 'GoogleDriveIcon',
     component: GoogleDriveIcon,
     description: 'Google Drive storage',
+  },
+  {
+    name: 'SlackIcon',
+    component: SlackIcon,
+    description: 'Slack messaging',
+  },
+  {
+    name: 'GlitchTipIcon',
+    component: GlitchTipIcon,
+    description: 'GlitchTip error tracking',
+  },
+  {
+    name: 'MailServerIcon',
+    component: MailServerIcon,
+    description: 'Mail server reached over IMAP and SMTP',
   },
   {
     name: 'LocaleIcon',
@@ -169,6 +187,9 @@ export const BrandIcons: StoryObj = {
         OutlookIcon,
         OneDriveIcon,
         GoogleDriveIcon,
+        SlackIcon,
+        GlitchTipIcon,
+        MailServerIcon,
       ].map((Icon, i) => (
         <div
           key={i}

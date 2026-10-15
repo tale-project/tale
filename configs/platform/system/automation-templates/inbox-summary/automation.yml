@@ -1,6 +1,7 @@
 name: Summarize the inbox
 description: Sends a member a summary of the inbox conversations still waiting for an answer, on a schedule.
 icon: inbox
+category: inbox
 requires:
   connectors:
     - conversation
@@ -22,7 +23,7 @@ triggers:
 i18n:
   de:
     name: Posteingang zusammenfassen
-    description: Schickt einem Mitglied nach Zeitplan eine Zusammenfassung der Posteingangs-Unterhaltungen, die noch auf eine Antwort warten.
+    description: Schickt einem Mitglied nach Zeitplan eine Zusammenfassung der Konversationen im Posteingang, die noch auf eine Antwort warten.
   fr:
     name: Résumer la boîte de réception
     description: >-
@@ -36,7 +37,7 @@ template:
   i18n:
     de:
       details: >-
-        Nach dem gewählten Zeitplan liest die Automatisierung die Unterhaltungen des gewählten
+        Nach dem gewählten Zeitplan liest die Automatisierung die Konversationen des gewählten
         Postfachs, die noch auf eine Antwort warten, und ein Sprachmodell fasst sie in je einer
         Zeile zusammen, die dringendste zuerst. Das gewählte Mitglied bekommt die Zusammenfassung
         als Nachricht in Tale, mit einem Link zum Posteingang. Ein leerer Posteingang sendet
@@ -44,12 +45,58 @@ template:
     fr:
       details: >-
         Selon l’horaire choisi, l’automatisation lit les conversations de la boîte choisie qui attendent encore une réponse, et un modèle de langage les résume en une ligne chacune, la plus urgente d’abord. Le membre choisi reçoit le résumé comme message dans Tale, avec un lien vers la boîte de réception. Une boîte vide n’envoie rien.
+  steps:
+    - title: Reads the conversations waiting for an answer
+      detail: Up to 25 conversations of the mailbox you pick.
+      i18n:
+        de:
+          title: Liest die Konversationen, die auf eine Antwort warten
+          detail: Bis zu 25 Konversationen des gewählten Postfachs.
+        fr:
+          title: Lit les conversations qui attendent une réponse
+          detail: Jusqu’à 25 conversations de la boîte mail choisie.
+    - title: Summarizes each one in a line
+      detail: A language model writes one line per conversation, most urgent first.
+      i18n:
+        de:
+          title: Fasst jede in einer Zeile zusammen
+          detail: Ein Sprachmodell schreibt je Konversation eine Zeile, die dringendste zuerst.
+        fr:
+          title: Résume chacune en une ligne
+          detail: Un modèle de langage écrit une ligne par conversation, la plus urgente d’abord.
+    - title: Sends the summary to a member
+      detail: As a message in Tale with a link to the inbox; an empty inbox sends nothing.
+      i18n:
+        de:
+          title: Schickt die Zusammenfassung an ein Mitglied
+          detail: Als Nachricht in Tale mit einem Link zum Posteingang; ein leerer Posteingang sendet nichts.
+        fr:
+          title: Envoie le résumé à un membre
+          detail: Sous forme de message dans Tale avec un lien vers la boîte de réception ; une boîte vide n’envoie rien.
+  outcomes:
+    - kind: sends
+      text: A summary message to the member you choose.
+      i18n:
+        de:
+          text: Eine Zusammenfassung als Nachricht an das gewählte Mitglied.
+        fr:
+          text: Un message de résumé au membre choisi.
+    - kind: never
+      text: Never replies to or changes a conversation.
+      i18n:
+        de:
+          text: Antwortet nie auf eine Konversation und ändert keine.
+        fr:
+          text: Ne répond jamais à une conversation et n’en modifie aucune.
+  worksWith:
+    - gmail/sync-emails
+    - outlook/sync-emails
+    - imap-smtp/sync-emails
   fields:
     - id: mailbox
       kind: choice
       label: Mailbox
       description: The connected mailbox whose conversations are summarized.
-      default: gmail
       options:
         - value: gmail
           label: Gmail
@@ -63,7 +110,7 @@ template:
       i18n:
         de:
           label: Postfach
-          description: Das verbundene Postfach, dessen Unterhaltungen zusammengefasst werden.
+          description: Das verbundene Postfach, dessen Konversationen zusammengefasst werden.
         fr:
           label: Boîte mail
           description: La boîte mail connectée dont les conversations sont résumées.

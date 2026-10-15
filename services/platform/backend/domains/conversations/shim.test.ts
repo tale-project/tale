@@ -593,6 +593,31 @@ describe('patchCredentialInternal shim', () => {
     });
   });
 
+  it('keeps the emails read at a Gmail position with it', async () => {
+    const edges = { inbox: { at: 1_000, ids: ['18c1a2b3c4d5e6f7'] } };
+    await patch()({
+      organizationId: 'o1',
+      credentialId: 'cred_1',
+      mailSyncInboundSince: 1_000,
+      mailSyncEdges: edges,
+    });
+    expect(patchMailSyncWatermarks).toHaveBeenCalledWith(SQL, 'o1', 'cred_1', {
+      inboundSince: 1_000,
+      edges,
+    });
+  });
+
+  it('refuses edges that are not ids at a position', async () => {
+    await expect(
+      patch()({
+        organizationId: 'o1',
+        credentialId: 'cred_1',
+        mailSyncEdges: { inbox: { at: 'soon', ids: [1] } },
+      }),
+    ).rejects.toThrow();
+    expect(patchMailSyncWatermarks).not.toHaveBeenCalled();
+  });
+
   it('refuses a config carrying non-scalar values', async () => {
     await expect(
       patch()({

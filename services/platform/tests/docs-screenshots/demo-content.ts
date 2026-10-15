@@ -549,9 +549,57 @@ export const DEMO_INBOX: readonly DemoConversation[] = [
 ] as const;
 
 /**
+ * The automations of the docs' automation pages that come from the shipped
+ * pack templates. A new organization has none: the seed makes each one the
+ * way a person does, from the template catalog, as a draft under the name
+ * the shots read, answering the template's questions with the demo's
+ * project, its owner, the GitHub repository below and its credential.
+ */
+export const DEMO_TEMPLATE_AUTOMATIONS = [
+  {
+    slug: 'github/triage-issues',
+    name: 'github-triage-issues',
+    displayName: 'Triage GitHub issues',
+  },
+  {
+    slug: 'github/review-pull-requests',
+    name: 'github-review-pull-requests',
+    displayName: 'Review GitHub pull requests',
+  },
+  {
+    slug: 'gmail/triage-inbox',
+    name: 'gmail-triage-inbox',
+    displayName: 'Triage the Gmail inbox',
+  },
+  {
+    slug: 'outlook/triage-inbox',
+    name: 'outlook-triage-inbox',
+    displayName: 'Triage the Outlook inbox',
+  },
+  {
+    slug: 'imap-smtp/triage-inbox',
+    name: 'imap-smtp-triage-inbox',
+    displayName: 'Triage the IMAP inbox',
+  },
+] as const;
+
+/**
+ * What the GitHub templates ask, answered for the demo: the repository and
+ * a GitHub credential in service. The capture stack answers every GitHub
+ * call from its mocks, so the token is never sent anywhere real.
+ */
+export const DEMO_GITHUB = {
+  credential: 'Docs demo GitHub',
+  token: 'ghp_docs_demo_token_answered_by_the_mocks',
+  owner: 'tale-project',
+  repo: 'tale',
+} as const;
+
+/**
  * The automation run the docs show (Runs tab, run page): a TEST run of the
- * shipped GitHub triage pack with this input. A test run answers every
- * connector and model call with mock data, so it needs no GitHub account.
+ * GitHub triage automation the demo made from its template, with this
+ * input. A test run answers every connector and model call with mock data,
+ * so it needs no GitHub account.
  */
 export const DEMO_TEST_RUN = {
   automation: 'github-triage-issues',
@@ -559,8 +607,9 @@ export const DEMO_TEST_RUN = {
 } as const;
 
 /**
- * The skip notice the triggers page shows: the shipped pull-request review
- * pack, deployed and switched on without the repository its inputs
+ * The skip notice the triggers page shows: the pull-request review
+ * automation the demo made from its template, deployed and switched on
+ * with its schedule saved again without the repository its inputs
  * require, so the start its schedule comes due for is refused and the
  * trigger says why. Its own schedule is `schedule`; `primer` comes due
  * within two minutes, so the seed need not wait half an hour for the first
@@ -992,8 +1041,8 @@ export const DEMO_VERSIONS = {
   runs: [2, 1],
 } as const;
 
-/** The write the pull-request review pack may make without a person:
- * posting its review. */
+/** The write the pull-request review automation may make without a
+ * person: posting its review. */
 export const DEMO_APPROVAL_ALLOWANCE = {
   automation: 'github-review-pull-requests',
   type: 'github.create_pull_request_review',

@@ -518,3 +518,45 @@ describe('createConversationFromEmail — attachment binding', () => {
     expect(result.conversationId).not.toBeNull();
   });
 });
+
+describe('createConversationFromEmail — what it found stored already [CONV-R6]', () => {
+  it('counts an email it finds stored apart from a new one', async () => {
+    const ctx = {
+      runQuery: vi.fn(async (ref: unknown, args: Record<string, unknown>) =>
+        functionRefName(ref) ===
+          'conversations/internal_queries:getMessageByExternalId' &&
+        args.externalMessageId === 'known@x'
+          ? {
+              _id: 'msg_known',
+              conversationId: 'conv_known',
+              deliveryState: 'delivered',
+            }
+          : null,
+      ),
+      runMutation: vi.fn(async (_ref, args: Record<string, unknown>) => {
+        if ('source' in args && args.source === 'conversation') {
+          return { contactId: 'cont_1', created: true };
+        }
+        if (isCreateConversationArgs(args)) {
+          return { conversationId: 'conv_new', messageId: 'msg_new' };
+        }
+        return null;
+      }),
+    } as unknown as ActionCtx;
+
+    const result = await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('<known@x>', '2026-07-01T09:00:00.000Z'),
+        makeEmail('<fresh@x>', '2026-07-01T10:00:00.000Z'),
+      ],
+    });
+
+    // Both are processed; one of them was there before this batch read it.
+    expect(result).toMatchObject({
+      created: true,
+      processedCount: 2,
+      alreadyStoredCount: 1,
+    });
+  });
+});

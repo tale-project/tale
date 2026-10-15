@@ -45,21 +45,24 @@ describe('the summary of a shipped pack: gmail/triage-inbox', () => {
     expect(a.version).toBe(1);
     expect(a.paths.atoms.map((x) => x.id)).toEqual([
       'when:triage',
-      'fail:propose',
+      'when:record',
     ]);
     expect(a.paths.count).toBe(3);
     expect(a.paths.truncated).toBe(false);
     expect(a.paths.success.map((p) => p.id)).toEqual([
-      'when:triage=1|fail:propose=0',
-      'when:triage=1|fail:propose=1',
+      'when:triage=1|when:record=1',
+      'when:triage=1|when:record=0',
       'when:triage=0',
     ]);
     expect(a.paths.halts.map((h) => h.nodeId)).toEqual([
       'inbox',
       'triage',
-      'record',
       'due',
       'draft',
+      'drafts',
+      'propose',
+      'settle',
+      'record',
     ]);
     expect(a.paths.halts[0].reasons).toEqual([
       'external',
@@ -72,10 +75,10 @@ describe('the summary of a shipped pack: gmail/triage-inbox', () => {
       { nodeId: 'triage', ran: false },
       { nodeId: 'record', ran: false },
       { nodeId: 'due', ran: false },
-      { nodeId: 'propose', ran: false },
+      { nodeId: 'settle', ran: false },
     ]);
     expect(a.output).toEqual({
-      reads: ['inbox', 'triage', 'record', 'due', 'propose'],
+      reads: ['inbox', 'triage', 'record', 'due', 'settle'],
       maybeEmpty: false,
     });
   });
@@ -98,18 +101,15 @@ describe('the summary of a shipped pack: gmail/triage-inbox', () => {
       ],
       reads: { data: ['inbox'], control: ['inbox'] },
     });
+    // It goes on past a failed item, and halts only when every item failed.
     expect(a.nodes.propose).toMatchObject({
-      failureHandling: 'continues',
+      failureHandling: 'halts',
       failureReasons: ['external', 'input-contract', 'expression', 'iteration'],
       maySkip: [
         {
           reason: 'upstream',
-          via: 'draft',
+          via: 'drafts',
           root: { atom: 'when:triage', nodeId: 'triage' },
-        },
-        {
-          reason: 'error',
-          root: { atom: 'fail:propose', nodeId: 'propose' },
         },
       ],
       issues: { errors: 0, warnings: 0 },

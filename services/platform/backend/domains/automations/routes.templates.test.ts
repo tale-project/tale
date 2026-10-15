@@ -1,10 +1,9 @@
 // @vitest-environment node
 
 /**
- * The starters' app door: authors list them and create from one — the
- * first version through the editor's save, its tests run, created and
- * never appended to, installed in the answered project, the trigger set
- * off.
+ * The template catalog's app door: authors list it, preview one template
+ * and create from one — the engine checks the document and runs its tests
+ * as any save does, and only then is everything written, in one go.
  */
 
 import { Hono, type Context } from 'hono';
@@ -16,8 +15,8 @@ const io = vi.hoisted(() => ({
   role: 'developer',
   prepare: vi.fn(),
   list: vi.fn(),
-  save: vi.fn(),
-  setTrigger: vi.fn(),
+  detail: vi.fn(),
+  commit: vi.fn(),
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -49,12 +48,9 @@ vi.mock('./project-visibility.ts', async (original) => ({
 }));
 vi.mock('./templates.ts', () => ({
   listTemplateCards: io.list,
+  readTemplateDetail: io.detail,
   prepareTemplateInstance: io.prepare,
-}));
-vi.mock('./store.ts', async (original) => ({
-  ...(await original<typeof import('./store.ts')>()),
-  saveVersion: io.save,
-  setTrigger: io.setTrigger,
+  commitTemplateInstance: io.commit,
 }));
 vi.mock('./dispatch-store.ts', () => ({
   pgAutomationStore: () => ({ get: () => Promise.resolve(null) }),
@@ -63,7 +59,7 @@ vi.mock('./dispatch-store.ts', () => ({
 import { createAutomationTemplateRoutes } from './routes.ts';
 import { AutomationError } from './store.ts';
 
-/** A starter's document as prepared: one step, and a test that passes. */
+/** A template's document as prepared: one step, and a test that passes. */
 const DOCUMENT = {
   version: 1,
   name: 'tell-ada',
@@ -81,7 +77,7 @@ const DOCUMENT = {
 
 const PREPARED = {
   document: DOCUMENT,
-  message: 'Created from the starter "Tell the reviewer".',
+  message: 'Created from the template "Tell the reviewer".',
   presentation: { name: 'Tell Ada', icon: 'bell-ring' },
   projectId: 'prj_1',
   trigger: { kind: 'event', event: 'task.status_changed', enabled: false },
@@ -94,8 +90,8 @@ function app() {
   );
 }
 
-const create = (body: unknown) =>
-  app().request('/api/app/automation-templates/notify-reviewer/instantiate', {
+const create = (body: unknown, slug = 'notify-reviewer') =>
+  app().request(`/api/app/automation-templates/${slug}/instantiate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -112,13 +108,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   io.role = 'developer';
   io.list.mockResolvedValue([{ slug: 'notify-reviewer' }]);
+  io.detail.mockResolvedValue({ slug: 'gmail/sync-emails' });
   io.prepare.mockResolvedValue(PREPARED);
-  io.save.mockResolvedValue({ name: 'tell-ada', version: 1 });
-  io.setTrigger.mockResolvedValue({ token: 'whk_once' });
+  io.commit.mockResolvedValue({
+    name: 'tell-ada',
+    version: 1,
+    deployed: false,
+    trigger: { token: 'whk_once', enabled: false },
+  });
 });
 
-describe('the starters, at the app door', () => {
-  it('lists them for an author', async () => {
+describe('the template catalog, at the app door', () => {
+  it('lists it for an author', async () => {
     const response = await app().request('/api/app/automation-templates');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -133,12 +134,38 @@ describe('the starters, at the app door', () => {
     expect(io.list).not.toHaveBeenCalled();
   });
 
-  it('creates version 1 through the editor’s save, installs it and sets its trigger off [AUTO-R44]', async () => {
+  it('previews a template whose slug is a path', async () => {
+    const response = await app().request(
+      '/api/app/automation-templates/gmail/sync-emails',
+    );
+    expect(response.status).toBe(200);
+    expect(io.detail).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'gmail/sync-emails',
+      // What is in use counts only what the reader can see.
+      ['prj_1'],
+    );
+  });
+
+  it('answers a template it does not hold with 404', async () => {
+    io.detail.mockRejectedValue(
+      new AutomationError('TEMPLATE_NOT_FOUND', 'There is none.', 404),
+    );
+    const response = await app().request(
+      '/api/app/automation-templates/nothing-here',
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it('checks the document and runs its tests, then writes it whole [AUTO-R61]', async () => {
     const response = await create(BODY);
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
       name: 'tell-ada',
       version: 1,
+      deployed: false,
+      testsPassed: true,
       // A webhook's address, minted by this create, is shown once.
       trigger: { token: 'whk_once' },
     });
@@ -154,37 +181,69 @@ describe('the starters, at the app door', () => {
         visibleProjectIds: ['prj_1'],
       }),
     );
-    expect(io.save).toHaveBeenCalledWith(
+    expect(io.commit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         organizationId: 'o1',
         name: 'tell-ada',
         origin: { actor: 'u1', via: 'app' },
-        create: true,
-        projectId: 'prj_1',
-        presentation: PREPARED.presentation,
-        message: PREPARED.message,
-        // The save ran the starter's tests.
-        testsPassed: true,
+        prepared: PREPARED,
+        // The engine's save ran the template's tests.
+        checked: expect.objectContaining({
+          message: PREPARED.message,
+          testsPassed: true,
+        }),
+        start: false,
       }),
     );
-    expect(io.setTrigger).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'o1',
-      name: 'tell-ada',
-      trigger: PREPARED.trigger,
-      origin: { actor: 'u1', via: 'app' },
-    });
   });
 
-  it('sets the trigger on when the create asks', async () => {
-    const response = await create({ ...BODY, enableTrigger: true });
+  it('starts it when the create asks, in the creator’s time zone', async () => {
+    const response = await create(
+      { ...BODY, start: true, timezone: 'Europe/Zurich' },
+      'gmail/sync-emails',
+    );
     expect(response.status).toBe(201);
-    expect(io.setTrigger).toHaveBeenCalledWith(
+    expect(io.prepare).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        trigger: { ...PREPARED.trigger, enabled: true },
+        slug: 'gmail/sync-emails',
+        timezone: 'Europe/Zurich',
       }),
     );
+    expect(io.commit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ start: true }),
+    );
+  });
+
+  it('starts the create a tab of the previous release asks to start with enableTrigger', async () => {
+    const response = await create({ ...BODY, enableTrigger: true });
+    expect(response.status).toBe(201);
+    expect(io.commit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ start: true }),
+    );
+  });
+
+  it('counts what is in use for the reader on the list too', async () => {
+    await app().request('/api/app/automation-templates');
+    expect(io.list).toHaveBeenCalledWith(expect.anything(), 'o1', ['prj_1']);
+  });
+
+  it('writes nothing for a document its checks refuse [AUTO-R61]', async () => {
+    io.prepare.mockResolvedValue({
+      ...PREPARED,
+      document: {
+        ...DOCUMENT,
+        nodes: [{ id: 'mystery', type: 'nowhere.nothing', input: {} }],
+        output: '{{ nodes.mystery.output }}',
+        tests: [],
+      },
+    });
+    const response = await create({ ...BODY, start: true });
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(io.commit).not.toHaveBeenCalled();
   });
 
   it('refuses a member, writing nothing', async () => {
@@ -192,7 +251,7 @@ describe('the starters, at the app door', () => {
     const response = await create(BODY);
     expect(response.status).toBe(403);
     expect(io.prepare).not.toHaveBeenCalled();
-    expect(io.save).not.toHaveBeenCalled();
+    expect(io.commit).not.toHaveBeenCalled();
   });
 
   it('names each answer it cannot use, writing nothing', async () => {
@@ -210,12 +269,11 @@ describe('the starters, at the app door', () => {
       error: 'TEMPLATE_ANSWERS_INVALID',
       data: { fields: [{ field: 'reviewer', code: 'unknown' }] },
     });
-    expect(io.save).not.toHaveBeenCalled();
-    expect(io.setTrigger).not.toHaveBeenCalled();
+    expect(io.commit).not.toHaveBeenCalled();
   });
 
-  it('refuses a name another automation has, and sets no trigger', async () => {
-    io.save.mockRejectedValue(
+  it('refuses a name another automation has', async () => {
+    io.commit.mockRejectedValue(
       new AutomationError(
         'AUTOMATION_NAME_TAKEN',
         'An automation with this name already exists.',
@@ -227,12 +285,17 @@ describe('the starters, at the app door', () => {
     expect(await response.json()).toMatchObject({
       error: 'AUTOMATION_NAME_TAKEN',
     });
-    expect(io.setTrigger).not.toHaveBeenCalled();
   });
 
   it('refuses a body that is not a create', async () => {
-    const response = await create({ name: 'tell-ada', answers: 'all' });
-    expect(response.status).toBe(400);
+    for (const body of [
+      { name: 'tell-ada', answers: 'all' },
+      { ...BODY, timezone: 'Mars/Olympus' },
+      { ...BODY, start: 'yes' },
+    ]) {
+      const response = await create(body);
+      expect(response.status).toBe(400);
+    }
     expect(io.prepare).not.toHaveBeenCalled();
   });
 });

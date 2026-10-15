@@ -121,8 +121,8 @@ codes:
   NODE_FIELD_TYPE:
     title: Feld hat den falschen Typ
     explanation: Node-Felder haben feste Typen. Bedingungen und Schleifen sind Templates, eine Eingabe ist ein Objekt, und die Listen einer Agent-Node sind Listen von Namen.
-    cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung „Wiederholen bis“.} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
-    fix: '{expected, select, repeatUntil {Füge eine Bedingung „Wiederholen bis“ hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
+    cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung „Wiederholen bis“.} forEach {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Liste „Für jedes“.} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
+    fix: '{expected, select, repeatUntil {Füge eine Bedingung „Wiederholen bis“ hinzu oder entferne {fieldLabel}.} forEach {Füge eine Liste „Für jedes“ hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
   CODE_SYNTAX:
     title: Code lässt sich nicht validieren
     explanation: Transform-Code muss gültige JavaScript-Syntax verwenden und die Analysegrenzen einhalten, bevor du speicherst oder bereitstellst.
@@ -156,6 +156,11 @@ codes:
   ONERROR_INVALID:
     title: Ungültige Fehlerbehandlung
     explanation: Bei Fehler gilt entweder fail, das den Lauf an der Node anhält, oder continue, das den Fehler festhält und die Nodes überspringt, die diese Node lesen.
+    cause: '{nodeLabel} setzt den Wert „{value}“.'
+    fix: Verwende fail oder continue.
+  ONITEMERROR_INVALID:
+    title: Ungültige Fehlerbehandlung pro Element
+    explanation: Für ein fehlgeschlagenes Element gilt entweder fail, das die Node beim ersten fehlgeschlagenen Element scheitern lässt, oder continue, das das fehlgeschlagene Element festhält und mit dem nächsten weitermacht.
     cause: '{nodeLabel} setzt den Wert „{value}“.'
     fix: Verwende fail oder continue.
   SUBAUTOMATION_REF_INVALID:

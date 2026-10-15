@@ -1,6 +1,7 @@
 name: Create tasks from a webhook
-description: Creates a task in a project for each delivery another system sends to the automation's webhook address.
+description: Creates a task in a project for each delivery another system sends to the automation's webhook address; a delivery sent again updates its task.
 icon: webhook
+category: webhooks
 scope: project
 requires:
   connectors:
@@ -10,34 +11,89 @@ triggers:
 i18n:
   de:
     name: Aufgaben per Webhook erstellen
-    description: Erstellt in einem Projekt eine Aufgabe für jede Lieferung, die ein anderes System an die Webhook-Adresse der Automatisierung sendet.
+    description: Erstellt in einem Projekt eine Aufgabe für jede Lieferung, die ein anderes System an die Webhook-Adresse der Automatisierung sendet; eine erneut gesendete Lieferung aktualisiert ihre Aufgabe.
   fr:
     name: Créer des tâches par webhook
     description: >-
-      Crée une tâche dans un projet pour chaque envoi qu’un autre système fait à l’adresse webhook de l’automatisation.
+      Crée une tâche dans un projet pour chaque envoi qu’un autre système fait à l’adresse webhook de l’automatisation ; un envoi renvoyé met sa tâche à jour.
 template:
   details: >-
     Another system — a form, a monitoring alert, a shop — sends JSON to the webhook address the
     automation's General tab shows, and a task is created in the project you pick: "title" names
-    it and "description" adds its text. A delivery without a title is refused and creates
-    nothing.
+    it and "description" adds its text. Each delivery is keyed by the field you name, such as
+    "id"; a delivery without it is keyed by its whole body. A delivery sent again — even days
+    later — updates the task it made instead of adding another. A delivery without a title is
+    refused and creates nothing.
   i18n:
     de:
       details: >-
         Ein anderes System — ein Formular, ein Monitoring-Alarm, ein Shop — sendet JSON an die
         Webhook-Adresse, die der Tab „Allgemein“ der Automatisierung zeigt, und im gewählten
-        Projekt entsteht eine Aufgabe: „title“ gibt ihr den Namen, „description“ den Text. Eine
+        Projekt entsteht eine Aufgabe: „title“ gibt ihr den Namen, „description“ den Text. Jede
+        Lieferung wird über das gewählte Feld erkannt, etwa „id“; eine Lieferung ohne dieses
+        Feld über ihren ganzen Inhalt. Eine erneut gesendete Lieferung — auch Tage später —
+        aktualisiert die Aufgabe, die sie erstellt hat, statt eine weitere anzulegen. Eine
         Lieferung ohne Titel wird abgelehnt und erstellt nichts.
     fr:
       details: >-
-        Un autre système — un formulaire, une alerte de supervision, une boutique — envoie du JSON à l’adresse webhook qu’affiche l’onglet « Général » de l’automatisation, et une tâche est créée dans le projet choisi : « title » lui donne son nom et « description » son texte. Un envoi sans titre est refusé et ne crée rien.
+        Un autre système — un formulaire, une alerte de supervision, une boutique — envoie du JSON à l’adresse webhook qu’affiche l’onglet « Général » de l’automatisation, et une tâche est créée dans le projet choisi : « title » lui donne son nom et « description » son texte. Chaque envoi est reconnu par le champ choisi, comme « id » ; un envoi sans ce champ l’est par tout son contenu. Un envoi renvoyé — même des jours plus tard — met à jour la tâche qu’il a créée au lieu d’en ajouter une autre. Un envoi sans titre est refusé et ne crée rien.
+  steps:
+    - title: Receives a delivery at its webhook address
+      detail: Another system — a form, a monitoring alert, a shop — sends JSON to the address the automation's General tab shows.
+      i18n:
+        de:
+          title: Empfängt eine Lieferung an ihrer Webhook-Adresse
+          detail: Ein anderes System — ein Formular, ein Monitoring-Alarm, ein Shop — sendet JSON an die Adresse, die der Tab „Allgemein“ der Automatisierung zeigt.
+        fr:
+          title: Reçoit un envoi à son adresse webhook
+          detail: Un autre système — un formulaire, une alerte de supervision, une boutique — envoie du JSON à l’adresse qu’affiche l’onglet « Général » de l’automatisation.
+    - title: Recognizes the delivery
+      detail: By the field you name, such as "id", or by its whole body when it has no such field.
+      i18n:
+        de:
+          title: Erkennt die Lieferung
+          detail: Über das gewählte Feld, etwa „id“, oder über ihren ganzen Inhalt, wenn sie dieses Feld nicht hat.
+        fr:
+          title: Reconnaît l’envoi
+          detail: Par le champ choisi, comme « id », ou par tout son contenu s’il n’a pas ce champ.
+    - title: Creates a task, or updates the one it made
+      detail: '"title" names it and "description" adds its text; a delivery without a title is refused.'
+      i18n:
+        de:
+          title: Erstellt eine Aufgabe oder aktualisiert die eigene
+          detail: „title“ gibt ihr den Namen, „description“ den Text; eine Lieferung ohne Titel wird abgelehnt.
+        fr:
+          title: Crée une tâche, ou met à jour la sienne
+          detail: '« title » lui donne son nom et « description » son texte ; un envoi sans titre est refusé.'
+  outcomes:
+    - kind: creates
+      text: A task in the project you pick for each new delivery.
+      i18n:
+        de:
+          text: Eine Aufgabe im gewählten Projekt für jede neue Lieferung.
+        fr:
+          text: Une tâche dans le projet choisi pour chaque nouvel envoi.
+    - kind: changes
+      text: The title of the task a delivery made, when the same delivery comes again.
+      i18n:
+        de:
+          text: Den Titel der Aufgabe, die eine Lieferung erstellt hat, wenn dieselbe Lieferung erneut kommt.
+        fr:
+          text: Le titre de la tâche créée par un envoi, quand le même envoi revient.
+    - kind: never
+      text: Never makes two tasks for one delivery.
+      i18n:
+        de:
+          text: Erstellt nie zwei Aufgaben für eine Lieferung.
+        fr:
+          text: Ne crée jamais deux tâches pour un même envoi.
   fields:
     - id: project
       kind: project
       label: Project
       description: The project the tasks are created in.
       writes:
-        - node: create
+        - node: upsert
           pointer: /input/projectId
       i18n:
         de:
@@ -46,3 +102,47 @@ template:
         fr:
           label: Projet
           description: Le projet où les tâches sont créées.
+    - id: idField
+      kind: text
+      label: Delivery key
+      description: The field of a delivery that names what it is about, such as id or alert.id. A later delivery with the same value updates that task; a delivery without the field is keyed by its whole body.
+      default: id
+      maxLength: 200
+      pattern: '^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$'
+      placeholder: alert.id
+      writes:
+        - node: key
+          pointer: /input/field
+      i18n:
+        de:
+          label: Schlüssel der Lieferung
+          description: Das Feld einer Lieferung, das sagt, worum es geht, etwa id oder alert.id. Eine spätere Lieferung mit demselben Wert aktualisiert diese Aufgabe; eine Lieferung ohne das Feld wird über ihren ganzen Inhalt erkannt.
+          default: id
+          placeholder: alert.id
+        fr:
+          label: Clé de l’envoi
+          description: Le champ d’un envoi qui dit de quoi il s’agit, comme id ou alert.id. Un envoi ultérieur avec la même valeur met cette tâche à jour ; un envoi sans ce champ est reconnu par tout son contenu.
+          default: id
+          placeholder: alert.id
+    - id: source
+      kind: text
+      label: Sender name
+      description: A short name for the system that sends the deliveries, such as monitoring or shop. Two senders with keys that could collide get a name each.
+      default: webhook
+      maxLength: 100
+      pattern: '^[a-z0-9][a-z0-9._-]{0,99}$'
+      placeholder: monitoring
+      writes:
+        - node: upsert
+          pointer: /input/externalSystem
+      i18n:
+        de:
+          label: Name des Absenders
+          description: Ein kurzer Name für das System, das die Lieferungen sendet, etwa monitoring oder shop. Zwei Absender, deren Schlüssel sich überschneiden könnten, bekommen je einen eigenen Namen.
+          default: webhook
+          placeholder: monitoring
+        fr:
+          label: Nom de l’expéditeur
+          description: Un nom court pour le système qui envoie, comme monitoring ou shop. Deux expéditeurs dont les clés pourraient se recouper reçoivent chacun le leur.
+          default: webhook
+          placeholder: monitoring

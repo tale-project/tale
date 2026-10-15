@@ -22,8 +22,9 @@ export function useSaveAutomation() {
   });
 }
 
-/** Create an automation from a starter with the answers to its
- * questions — refusals stay with the form, which marks each question. */
+/** Create an automation from a template with the answers to its
+ * questions, started at once when asked — refusals stay with the form,
+ * which marks each question. */
 export function useCreateAutomationFromTemplate() {
   return useBackendMutation(
     'automations/mutations:createAutomationFromTemplate',

@@ -33,9 +33,11 @@ nodes:
       urgent it reads, most urgent first. Write in the language most of the
       conversations are written in, and never invent facts the messages do not
       state.
+    # Each newest message is cut at 1500 characters: enough to summarize,
+    # and what one run sends the model stays bounded.
     prompt: |
       Conversations waiting for an answer:
-      {{ JSON.stringify(nodes.inbox.output.conversations.map((conversation) => ({ from: conversation.contact.name, subject: conversation.subject, unread: conversation.unreadCount, lastMessage: conversation.lastInboundText })), null, 2) }}
+      {{ JSON.stringify(nodes.inbox.output.conversations.map((conversation) => ({ from: conversation.contact.name, subject: conversation.subject, unread: conversation.unreadCount, lastMessage: conversation.lastInboundText.slice(0, 1500) })), null, 2) }}
     outputSchema:
       type: object
       properties:

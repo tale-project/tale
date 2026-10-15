@@ -49,7 +49,7 @@ nodes:
       Title: {{ nodes.task.output.title }}
 
       Description:
-      {{ nodes.task.output.descriptionText ?? 'none' }}
+      {{ (nodes.task.output.descriptionText ?? 'none').slice(0, 6000) }}
     outputSchema:
       type: object
       properties:

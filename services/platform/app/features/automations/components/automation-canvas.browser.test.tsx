@@ -209,10 +209,10 @@ describe('AutomationCanvas in Chromium', () => {
       );
       expect(box.y + box.height, `${id} above End`).toBeLessThan(end.y);
     }
-    // Score walks the issues in a frame of its own, named in words.
+    // Score walks the batch's issues in a frame of its own, named in words.
     expect(
       container.querySelector('[data-slot="flow-frame-header"]'),
-    ).toHaveTextContent('For each item of issues of Open issues');
+    ).toHaveTextContent('For each item of issues of Batch');
     // Start says what a run receives; End what it returns.
     expect(
       screen.getByRole('button', { name: /^Start/ }),
@@ -258,14 +258,13 @@ describe('AutomationCanvas in Chromium', () => {
     const start = screen.getByRole('button', { name: /^Start/ });
     await waitFor(() => expect(start).toHaveFocus());
     await userEvent.keyboard('{ArrowDown}');
-    const issues = screen.getByRole('button', { name: /^Issues/ });
-    await waitFor(() => expect(issues).toHaveFocus());
+    // The first step reads the place the last run of this repository kept.
+    const place = screen.getByRole('button', { name: /^Place/ });
+    await waitFor(() => expect(place).toHaveFocus());
     // Each box says what it is and what it reads.
-    expect(issues).toHaveAccessibleDescription(
-      /run input \(owner, repo, limit\)/,
-    );
+    expect(place).toHaveAccessibleDescription(/run input \(owner, repo\)/);
     await userEvent.keyboard('{Enter}');
-    expect(screen.getByTestId('selected')).toHaveTextContent('issues');
+    expect(screen.getByTestId('selected')).toHaveTextContent('place');
     await userEvent.keyboard('{End}');
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^End/ })).toHaveFocus(),
@@ -312,10 +311,13 @@ describe('AutomationCanvas in Chromium', () => {
     });
     const { container, layouts, rerender } = await renderLaidOut(TRIAGE);
     const nodes = TRIAGE.nodes.slice(0, -1);
+    const removed = TRIAGE.nodes.at(-1)?.id ?? '';
     rerender({ ...TRIAGE, nodes }, { ids: new Set(['score']), key: 3 });
     await waitFor(() => expect(layouts.length).toBe(2), { timeout: 20_000 });
     await waitFor(() =>
-      expect(container.querySelector('[data-flow-node="report"]')).toBeNull(),
+      expect(
+        container.querySelector(`[data-flow-node="${removed}"]`),
+      ).toBeNull(),
     );
     const chart = container.querySelector('[data-flow-engine]');
     expect(chart).not.toHaveAttribute('data-flow-transition');

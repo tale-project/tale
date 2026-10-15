@@ -375,28 +375,34 @@ describe('a shipped pack: gmail/triage-inbox', () => {
     ),
   ) as Automation;
 
-  it('has a when on triage and a tolerated failure on propose', () => {
+  it('has a when on triage and on the stamp, which comes last', () => {
     const f = facts(pack.nodes);
-    expect(f.atoms.map((a) => a.id)).toEqual(['when:triage', 'fail:propose']);
+    expect(f.atoms.map((a) => a.id)).toEqual(['when:triage', 'when:record']);
     expect(f.paths.map((p) => p.id)).toEqual([
-      'when:triage=1|fail:propose=0',
-      'when:triage=1|fail:propose=1',
+      'when:triage=1|when:record=1',
+      'when:triage=1|when:record=0',
       'when:triage=0',
     ]);
     expect(f.paths[2].ran).toEqual(['inbox']);
+    // The drafts go on past a failed item; the step itself fails, and halts
+    // the run, only when every item failed.
     expect(f.halts.map((h) => h.nodeId)).toEqual([
       'inbox',
       'triage',
-      'record',
       'due',
       'draft',
+      'drafts',
+      'propose',
+      'settle',
+      'record',
     ]);
     expect(f.reach('propose')).toMatchObject({ executed: true, always: false });
     expect(f.maySkip('propose')).toEqual([
-      // The first skipped node it reads, in reading order: its input reads
-      // draft before its forEach reads due.
-      { nodeId: 'propose', reason: 'upstream', via: 'draft' },
-      { nodeId: 'propose', reason: 'error' },
+      { nodeId: 'propose', reason: 'upstream', via: 'drafts' },
+    ]);
+    expect(f.maySkip('record')).toEqual([
+      { nodeId: 'record', reason: 'when' },
+      { nodeId: 'record', reason: 'upstream', via: 'settle' },
     ]);
   });
 });

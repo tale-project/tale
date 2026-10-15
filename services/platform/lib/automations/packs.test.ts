@@ -6,7 +6,7 @@ import { loadConnectors } from '../connectors/registry';
 import { runAutomationTests } from '../engine/api/tests';
 import { execute } from '../engine/core/execute';
 import { setCodeRunner } from '../engine/core/runner';
-import { nodeTypes, registerNodeType } from '../engine/core/slots';
+import { nodeTypes } from '../engine/core/slots';
 import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { compileSchema } from '../engine/core/validate/schema';
@@ -47,10 +47,10 @@ function connectorsUsedBy(automation: Automation): string[] {
 describe('the shipped automation packs', () => {
   it('are all discovered, each with a manifest, a document and an icon', () => {
     expect(packs.map((pack) => pack.slug)).toEqual([
-      'github/import-issues',
       'github/review-pull-requests',
+      'github/sync-issues',
       'github/triage-issues',
-      'glitchtip/import-issues',
+      'glitchtip/sync-issues',
       'gmail/sync-emails',
       'gmail/triage-inbox',
       'imap-smtp/sync-emails',
@@ -196,9 +196,10 @@ function syncSubstituted(automation: Automation, _connector: string): unknown {
       node.type === 'conversation.sync_mailbox'
         ? {
             ...node,
-            // Provider-specific: connectorSlug + includeSent for IMAP Sent.
+            // Provider-specific: the connectorSlug alone. Every variant reads
+            // Sent too, and the template writes the same knobs into each.
             input: Object.keys(node.input ?? {})
-              .filter((key) => key !== 'connectorSlug' && key !== 'includeSent')
+              .filter((key) => key !== 'connectorSlug')
               .sort(),
           }
         : node,
@@ -331,104 +332,62 @@ describe('a pack trigger starts runs its inputs take, or ships off', () => {
     });
   }
 
-  it('ships the GitHub schedules off, naming the repository to fill in', () => {
+  it('ships the GitHub schedules off, the repository a placeholder its questions replace', () => {
     for (const slug of [
       'github/triage-issues',
       'github/review-pull-requests',
     ]) {
-      const pack = packs.find((candidate) => candidate.slug === slug);
-      const trigger = pack?.manifest.triggers?.[0];
+      const pack = packBySlug(slug);
+      const trigger = pack.manifest.triggers?.[0];
       expect(trigger?.enabled).toBe(false);
-      const sample =
-        trigger === undefined
-          ? null
-          : triggerInputSample(trigger, Date.parse('2026-10-09'));
-      const inputs = pack?.automation.inputs;
-      expect(sample).not.toBeNull();
-      expect(inputs).toBeDefined();
-      if (sample === null || inputs === undefined) return;
-      const [warning] = triggerInputWarnings(compileSchema(inputs), sample);
-      expect(warning?.code).toBe('TRIGGER_INPUT_MISMATCH');
-      expect(warning?.params).toMatchObject({
-        kind: 'schedule',
-        missing: ['owner', 'repo'],
+      expect(trigger?.input).toMatchObject({
+        owner: 'your-organization',
+        repo: 'your-repository',
       });
+      const asked = (pack.manifest.template?.fields ?? []).flatMap((field) =>
+        'writes' in field && field.writes !== undefined
+          ? field.writes.flatMap((write) =>
+              'trigger' in write ? [write.pointer] : [],
+            )
+          : [],
+      );
+      expect(asked).toEqual(
+        expect.arrayContaining(['/input/owner', '/input/repo']),
+      );
     }
   });
 });
 
 describe('issue synchronization stays inside the engine execution ceiling', () => {
   it.each(['github', 'glitchtip'])(
-    '%s imports and refreshes 500 sources each in six nodes',
+    'the %s sync is one step, whatever its sources and batches',
     async (provider) => {
-      const pack = packBySlug(`${provider}/import-issues`);
-      const list = nodeTypes().get(`${provider}.list_import_issues`)!;
-      const known = nodeTypes().get('task.list_external_issues')!;
-      const sources = (prefix: string) =>
-        Array.from({ length: 500 }, (_, at) => {
-          const externalId = `${prefix}/web#${at + 1}`;
-          const url = `https://example.com/issues/${at + 1}`;
-          const externalIssue = {
-            id: `${prefix}-${at + 1}`,
-            title: 'Issue',
-            description: '',
-            url,
-            state: 'open',
-            syncedAt: 0,
-          };
-          return {
-            externalSystem: provider,
-            externalId,
-            title: 'Issue',
-            description: '',
-            externalUrl: url,
-            externalIssue,
-          };
-        });
-      if (!list.connector || !known.connector)
-        throw new Error('Missing issue connector');
-      registerNodeType({
-        ...list,
-        connector: {
-          ...list.connector,
-          mock: () => ({
-            issues: sources('new'),
-            nextCursor: null,
-            truncated: false,
-            repositoryId: 1,
-            sourceOrigin: 'https://example.com',
-            sourceProjectId: '1',
-          }),
-        },
-      });
-      registerNodeType({
-        ...known,
-        connector: {
-          ...known.connector,
-          mock: () => ({ issues: sources('known'), hasMore: false }),
-        },
-      });
-      try {
-        const result = await execute(pack.automation, {
-          mode: 'mock',
-          input: {
-            projectId: 'project-1',
-            limit: 500,
-            ...(provider === 'github'
-              ? { owner: 'example', repo: 'web' }
-              : { organization: 'example', project: 'web' }),
-          },
-        });
-        expect(result.status, result.error?.message).toBe('success');
-        expect(result.output).toMatchObject({
-          imported: 1000,
-          truncated: false,
-        });
-        expect(result.trace).toHaveLength(6);
-      } finally {
-        registerNodeType(list);
-        registerNodeType(known);
-      }
+      const pack = packBySlug(`${provider}/sync-issues`);
+      // Twenty sources at the largest batch: the reading, refreshing and
+      // writing happen inside the one task.sync_issues step, so a run spends
+      // one node execution of its budget however much there is to sync.
+      const document = structuredClone(pack.automation);
+      const sync = document.nodes.find((node) => node.id === 'sync');
+      if (sync === undefined)
+        throw new Error('the sync template lost its step');
+      sync.input = {
+        projectId: 'project-1',
+        sources: Array.from({ length: 20 }, (_, at) =>
+          provider === 'github'
+            ? { kind: 'github', owner: 'example', repo: `web-${at}` }
+            : {
+                kind: 'glitchtip',
+                organization: 'example',
+                project: `web-${at}`,
+              },
+        ),
+        limit: 500,
+        refreshLimit: 500,
+      };
+      const result = await execute(document, { mode: 'mock', input: {} });
+      expect(result.status, result.error?.message).toBe('success');
+      expect(result.trace).toHaveLength(1);
+      expect(result.output).toMatchObject({ failed: 0, created: 20 });
     },
   );
 });

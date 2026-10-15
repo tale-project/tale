@@ -7,6 +7,12 @@ La répartition du travail lance les tâches prêtes d’un projet sur les agent
 
 La répartition décide quand et où le travail démarre. Ce qui vaut la peine d’être fait reste la décision d’une personne ou d’un agent coordinateur : fixe les priorités, ordonne le tableau et déplace les tâches entre les colonnes, et la répartition prend le travail dans cet ordre.
 
+<Frame caption="L’onglet Répartition du travail montre si la répartition est activée, combien d’exécutions son pool tient et pourquoi chaque agent du pool est inactif.">
+
+![L’onglet Répartition du travail du projet Website relaunch : la répartition est désactivée, aucune exécution n’est tenue, les deux agents du pool sont inactifs parce que la répartition est désactivée, et aucun passage n’a encore eu lieu.](/images/platform/project-dispatch.webp)
+
+</Frame>
+
 ## Choisir ce que la répartition prend et qui y travaille
 
 Ouvre le projet, choisis **Répartition du travail**, puis **Modifier**, ou **Configurer la répartition du travail** tant que le projet n’en a pas.

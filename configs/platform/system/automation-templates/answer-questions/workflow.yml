@@ -69,10 +69,10 @@ nodes:
       the question is written in, in a few short sentences.
     prompt: |
       Question: {{ nodes.task.output.title }}
-      {{ nodes.task.output.descriptionText ?? '' }}
+      {{ (nodes.task.output.descriptionText ?? '').slice(0, 4000) }}
 
       Passages:
-      {{ JSON.stringify(nodes.search.output.hits.map((hit) => ({ title: hit.title, url: hit.url ?? null, text: hit.text })), null, 2) }}
+      {{ JSON.stringify(nodes.search.output.hits.map((hit) => ({ title: hit.title, url: hit.url ?? null, text: hit.text.slice(0, 2000) })), null, 2) }}
     outputSchema:
       type: object
       properties:

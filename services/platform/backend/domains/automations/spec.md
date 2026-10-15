@@ -3,10 +3,12 @@
 > **Prefix** `AUTO-` · **Suite** [`automations`](../../../tests/manual/suites/automations.md) · **Docs** [`automations/concepts`](../../../../../docs/en/platform/automations/concepts.md)
 
 The rules an automation is held to between the editor and a finished run: who can change one
-and run it live, what a saved version and a deployment guarantee, what creating from a starter does, what a check for problems
+and run it live, what a saved version and a deployment guarantee, what using a template does, what a check for problems
 reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
-to another and what a resumed run never repeats, what a run records of each step, whose
+to another and what a resumed run never repeats, what a step that runs once per item does with
+a failed item, where a scheduled automation carries on, what the shipped templates guarantee, what a run
+records of each step, whose
 approval policy a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
 agent steps and their retries, the rest of approvals and questions inside a run, package upload
 and managed configuration are not covered; see Not yet.
@@ -219,34 +221,91 @@ key whose holder may not deploy is refused (`ROLE_FORBIDDEN`) and nothing is sav
   version 10 is saved, restored from 7, and the live version is untouched. Ada had saved version
   10 first → refused, naming 10.
 
-## Creating from a starter
+## Using a template
 
-A starter is a working automation the platform ships with a few questions: the project it
-serves, whom it tells, when it runs. Creating from one answers them; the answers replace values
-in the starter's document, so what is saved is the starter's checked document with the answers
-in it.
+Every automation Tale ships is a template in one catalog: the starters and the packs, each with
+its product's icon, its category, the steps it takes, what it changes and what it needs. A new
+organization has no automation (`PROVN-R9`): a person picks a template, previews it and answers
+its few questions — the project it serves, whom it tells, when it runs. The answers replace values
+in the template's document or in what its trigger sends, so what is saved is the template's
+checked document with the answers in it.
 
-### AUTO-R44 · A starter creates version 1, installed where the answers say, its trigger off
+### AUTO-R57 · Every automation Tale ships is in the template catalog
 
-Creating from a starter saves version 1 under the name the person gives, through the same
+The catalog holds each starter and each pack Tale ships, unless a pack is hidden because a newer
+template replaced it; an organization that has a hidden pack keeps its copy.
+
+- **Example**: Ada opens the catalog → "Sync Gmail emails", "Triage the Gmail inbox" and "Daily
+  task digest" are there side by side, each with its steps, what it changes and what it needs.
+
+### AUTO-R44 · A template creates version 1, installed where the answers say, its trigger off
+
+Creating from a template saves version 1 under the name the person gives, through the same
 checks as any save: the document is checked and its tests run. The automation is installed in
 the project the answers name, a model the organization does not serve is replaced by one it
-does (the version says which), and the starter's trigger is set, switched off until a deploy
-turns it on. A name another automation has is refused (`AUTOMATION_NAME_TAKEN`) and adds no
-version to it.
+does (the version says which), and the template's trigger is set, switched off unless the create
+starts the automation (`AUTO-R61`). A name another automation has is refused
+(`AUTOMATION_NAME_TAKEN`) and adds no version to it.
 
 - **Example**: Ada creates "Tell the reviewer" for the project Website, naming Ben as the
-  reviewer → version 1 tells Ben, it is installed in Website, and its trigger on a task's
-  status change is off until Ada deploys it.
+  reviewer, without starting it → version 1 tells Ben, it is installed in Website, and its
+  trigger on a task's status change is off until Ada deploys it.
 
-### AUTO-R45 · An answer the organization cannot take refuses the whole create
+### AUTO-R45 · An answer the template or the organization cannot take refuses the whole create
 
 A project the person cannot open, someone who is not a member of the organization, a credential
-not in service, a value the question does not offer, or a required question left blank refuses
-the create (`TEMPLATE_ANSWERS_INVALID`), naming each question and why; nothing is written.
+not in service, a value the question does not offer, a number outside its bounds, a text without
+the form the question asks for, a list longer than it takes, or a required question left blank
+refuses the create (`TEMPLATE_ANSWERS_INVALID`), naming each question and why; nothing is
+written.
 
 - **Example**: Noah names a former colleague as the reviewer → refused, the reviewer question
   says there is no such member, and no automation is created.
+
+### AUTO-R58 · An automation made from a template keeps what the template says about it
+
+It is named as the person named it and keeps the template's icon, its labels, the connectors it
+needs, the product surfaces it opens (the Inbox, for a mail sync), its task contract, its
+settings forms, and the template it came from. That template is kept beside the rest, on every
+version, never inside it: a release that knows no templates still reads the name, the icon and
+the Inbox after a rollback.
+
+- **Example**: Ada creates "Sync Gmail emails" as "Support mailbox" and deploys it → the
+  automations list shows "Support mailbox" with the Gmail logo, and Home gains the Inbox.
+
+### AUTO-R59 · An answer can set what every run of the trigger receives
+
+A question may write its answer into the trigger's fixed input instead of into a step: every run
+that trigger starts then receives it.
+
+- **Example**: Ada uses a template that asks for a repository and answers `tale-project/tale` →
+  every run its schedule starts receives the owner `tale-project` and the repository `tale`.
+
+### AUTO-R60 · A schedule runs in the time zone of the person who uses the template
+
+The schedule question starts in the person's own time zone, and a schedule the template asks
+nothing about runs in that zone too — never in the zone the template was written in.
+
+- **Example**: Ada, in Zurich, creates "Daily task digest" and keeps 09:00 → it runs at 09:00
+  Europe/Zurich time.
+
+### AUTO-R61 · Creating and starting is one step: deployed and on, or nothing
+
+A create that starts the automation saves version 1, deploys it and turns its trigger on in one
+transaction. When any part is refused — the name, a test that fails, the trigger — nothing is
+kept: no version, no deployment, no trigger.
+
+- **Example**: Ada creates and starts "Daily task digest" → version 1 is live and its schedule
+  is on. Ben does the same under a name that is taken → refused, and nothing of his is saved.
+
+### AUTO-R62 · The catalog counts the automations each template made
+
+A template's count includes every automation made from it and, for a pack an earlier release
+installed in every organization, that installed copy.
+
+- **Example**: Ada's organization made two automations from "Tell the reviewer" and still has
+  the Gmail sync an earlier release installed → the catalog shows "Tell the reviewer" in use
+  twice and "Sync Gmail emails" once.
 
 ## Checking a version for problems
 
@@ -657,6 +716,111 @@ capacity through ordinary worker admission.
 - **Example**: Leo's dispatch schedule fails three wake occurrences in a row → the wake waits
   one, two, then four minutes, and fires the same pending release again after that.
 
+## A step that runs once per item
+
+A step with a list (`forEach`) runs once per item, and by default one failed item fails the whole
+step. A step can choose to go on past its failed items instead (`onItemError: continue`).
+
+### AUTO-R70 · A step that goes on past failed items fails only if every item failed
+
+With `onItemError: continue`, a failed item is recorded as failed, its place in the step's output
+is empty (`null`), and the next item runs; the steps after it run with the items that succeeded.
+Only when every item failed does the step fail, and its own `onError` then decides what that does.
+A stop, a time limit, a server shutting down, a write that may already have happened and the run's
+execution limit are never an item's failure: the run stops, waits or is handed on at that item as
+it would without the setting. A step without the setting fails at its first failed item, as before.
+
+- **Example**: Ada's review automation runs over five pull requests and the diff of one cannot be
+  read → the four others are reviewed, the run succeeds, and its record shows one failed item.
+- **Example**: The server restarts while the review is at its second pull request → the run is
+  handed on, the next server carries on at that pull request, and no item is recorded as failed.
+
+## Where a scheduled automation carries on
+
+A step can keep a place between the runs of its automation (`automation.read_position`,
+`automation.save_position`), so a scheduled pass carries on where the last one ended.
+
+### AUTO-R71 · A step keeps its automation's place between runs, and only its own
+
+A place belongs to the automation the run belongs to, in the run's project (or the
+organization), under the step's key; the run decides which, never the input. A save lands only
+while the place still holds the revision its run read, so a run that overlapped another, or read
+before another saved, changes nothing (`conflict`). Deleting the automation deletes its places,
+so one created later under the same name starts from its first run; removing runs, by hand or by
+a retention policy, leaves them as they are.
+
+- **Example**: Ben's daily digest saved its place on Monday and failed on Tuesday before saving →
+  Wednesday's digest starts where Monday's ended, and Tuesday's tasks are not lost.
+
+## What the shipped templates guarantee
+
+The templates Tale ships run on a schedule, a webhook or an event for months without anyone
+watching them, so each says what one run takes, what it does when one item fails, and how the next
+run carries on.
+
+### AUTO-R72 · A shipped template takes no more in one run than one run can finish
+
+Every template that works through a list — pull requests, issues, Inbox threads — bounds how many
+items one run takes, so a run never reaches the run's execution limit; the rest wait for the next
+run. A start that asks for more than the bound is refused (`AUTOMATION_INPUT_INVALID`): 10 pull
+requests, 40 issues, 40 threads.
+
+- **Example**: Ada's repository has 60 pull requests due a review and her reviewer takes 5 a run →
+  each run reviews 5 and succeeds, and the others wait their turn.
+
+### AUTO-R73 · The pull request reviewer reviews each pull request once per new commit
+
+The reviewer reviews an open pull request only when the connected account has not reviewed it at
+its newest commit; drafts and the account's own pull requests are left out. Each review is a
+comment pinned to the commit it read, never an approval. A pull request whose diff cannot be read,
+or whose review fails, is left for the next run while the others are reviewed. A diff is cut at
+the size the template sets, and one GitHub will not render gets a short note instead.
+
+- **Example**: Ben pushes a fix to a pull request the reviewer commented on → the next run reviews
+  the new commit once, and not again until he pushes another.
+
+### AUTO-R74 · Inbox triage marks a thread judged only once its draft waits in it
+
+The triage stamps a thread as judged — the stamp that keeps it out of the next pass until the
+customer writes again — only when the run left a draft in it, or found it needs no reply. A thread
+whose draft could not be left stays unstamped and comes back in the next run, and a thread never
+holds two pending drafts. When no draft at all could be left, the run fails and stamps nothing.
+
+- **Example**: Of three waiting threads, Mia's is closed before its draft is left → the other two
+  are stamped, and Mia's comes back in the next run.
+
+### AUTO-R75 · The task digest lists each new task once, however its schedule moved
+
+The daily task digest lists the tasks created from where the last digest that reached its end
+left off up to the occurrence it runs for, oldest first; a first digest looks back one day. A
+digest holds at most 50 tasks: when more were created, the next digest carries on behind the last
+one listed. A failed digest, a schedule moved to another hour, days the server was down or a busy
+week neither skip a task nor list one twice.
+
+- **Example**: Noah moves his digest from 09:00 to 17:00 → the first afternoon digest lists the
+  tasks created since 09:00 that morning, each once.
+
+### AUTO-R76 · A webhook delivery sent again updates the task it made
+
+Each task the webhook template makes is keyed by its delivery: the value of the field the creator
+names (`id` unless they name another), or a digest of the whole body for a delivery without it. A
+delivery whose key was seen before updates that task instead of making another, even after the
+webhook address stopped remembering the delivery (`AUTO-R9`).
+
+- **Example**: A monitoring system sends alert `a-9` again a week later → the alert's task gets the
+  new title, and the project still holds one task for it.
+
+### AUTO-R77 · Issue triage scores an issue again only once it changed
+
+The issue triage keeps a place per repository (`AUTO-R71`): it scores the open issues changed
+since its last run that reached its end, oldest change first, and a run for another repository
+moves nothing of it. An issue it scored is scored again only after it changes; a run that fails
+keeps no place, so its issues come back. A first run of a repository starts with its most
+recently changed issues.
+
+- **Example**: Ada's triage ran yesterday morning → today it scores only the two issues changed
+  since, and tells Ben the one that is ready to be worked.
+
 ## When a run ends
 
 ### AUTO-R14 · A run that ends takes its open approvals and questions with it
@@ -838,8 +1002,8 @@ run brought along: a run is not held up or refused because of another organizati
 
 ### AUTO-R15 · Deleting an automation keeps its runs and removes everything else
 
-Its versions, its deployment and the history of its deployments, its trigger and its project
-installs are removed in one step.
+Its versions, its deployment and the history of its deployments, its trigger, its project
+installs and the places its steps carry on from (`AUTO-R71`) are removed in one step.
 Its runs stay: they can still be listed under the automation's name, and opening the
 automation answers that it was deleted and when (`AUTOMATION_DELETED`). The delete is refused
 while one of its runs is still queued, running or waiting (`AUTOMATION_HAS_ACTIVE_RUNS`): stop
@@ -852,9 +1016,14 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
 
 ## Not yet
 
+- **A place a member's run saved outlives the member's erasure**: the places of `AUTO-R71` belong
+  to the automation and go with it, like the runs its triggers start; erasing a member removes
+  the runs that member started, not a place one of them saved. The shipped templates keep only
+  times, ids and repository names there; an automation an organization writes could keep more.
 - **The workflow document**: node types, references between steps, control flow, and limits
   such as the number of repeats and the depth of nested automations
-  (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`).
+  (`lib/engine/core/validate/`, `lib/engine/core/execute/`, `backend/core/automations/stepper.ts`);
+  `AUTO-R70` covers what a step that runs once per item does with a failed item.
 - **How a run proceeds**: checkpoints and resuming, how soon the sweep revives a run whose
   server stopped answering, what becomes of a step its server was running when it crashed, agent
   steps with their automatic retries and waits for a sandbox
@@ -945,6 +1114,14 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in
   `store.ts`). The project settings of an existing automation refuse an archived project
   (`AUTO-R8`) and answer a project the author cannot read like a missing one.
+- **Inbox triage can draft a thread twice in one narrow case.** A run that left a draft and failed
+  before stamping the thread lets the next run judge it again; when a person discarded that draft
+  in between, the thread gets a second one. The draft writer keeps one pending draft per thread,
+  not one per message (`backend/domains/conversations/draft.ts`, `AUTO-R74`).
+- **A webhook run never sees the delivery's own id.** The `Idempotency-Key` or vendor delivery
+  header keeps a repeat from starting a second run for a day (`AUTO-R9`), but it is not part of
+  the run's input, so the webhook template keys its task by a body field or by the whole body
+  (`AUTO-R76`); adding the header to the trigger's input would refuse every closed input schema.
 - **A webhook's body is never checked when it is saved.** `AUTO-R36` warns about what is known
   before a request comes — a required field the fixed input lacks, a `payload` the inputs do
   not take — but a delivery whose body the inputs refuse is refused only when it comes, and the

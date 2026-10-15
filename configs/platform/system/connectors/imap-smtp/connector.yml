@@ -118,39 +118,47 @@ actions:
       fr:
         title: Lister les messages
     description: >-
-      Fetch messages from an IMAP mailbox as standard email objects (from, to,
-      subject, body, attachments). Omit mailbox for INBOX; pass `sent` to read
-      the configured Sent folder. Used by the scheduled sync to import mail
-      into conversations.
+      List message envelopes from an IMAP mailbox (UID, sender, subject, the
+      date its sender wrote and the time the server took it in), oldest
+      first. Omit mailbox for INBOX; pass `sent` to read the configured Sent
+      folder. Read a body with get_message. Used by the scheduled sync to
+      import mail into conversations.
     effects: read
     input:
       type: object
       properties:
+        after:
+          {
+            type: number,
+            description: 'Only messages the server took in strictly after this epoch-ms instant (a sync position), oldest arrival first.',
+          }
         since:
           {
             type: number,
-            description: 'Only messages on/after this epoch-ms timestamp (the sync cursor).',
+            description: 'Only messages their sender dated on/after this epoch-ms timestamp.',
           }
         limit:
           {
             type: number,
-            description: 'Max messages to return in one pass (default 25).',
+            description: 'Max messages to return (default 25, at most 1000).',
           }
         mailbox:
           {
             type: string,
             description: 'IMAP folder to read. Omit for INBOX; pass `sent` for the Sent folder.',
           }
-    output: '{ messages: Array<{ uid: string, from: string, subject: string, sentAt: number }> }'
+    output: '{ messages: Array<{ uid: string, from: string, subject: string, sentAt: number, receivedAt?: number }> }'
     mock: |
       const limit = typeof input.limit === 'number' ? input.limit : 25;
       const count = Math.min(2, limit);
+      const from = input.after || input.since || 0;
       return {
         messages: Array.from({ length: count }, (_, i) => ({
           uid: `mock-${i + 1}`,
           from: `sender${i + 1}@example.com`,
           subject: `Mock message ${i + 1}`,
-          sentAt: (input.since || 0) + (i + 1) * 1000,
+          sentAt: from + (i + 1) * 1000,
+          receivedAt: from + (i + 1) * 1000,
         })),
       };
     backend:

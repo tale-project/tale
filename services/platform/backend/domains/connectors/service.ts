@@ -31,6 +31,7 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { limitRate } from '../../lib/rate-limit.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { pgAutomationPositions } from '../automations/positions.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import { draftReplyToConversation } from '../conversations/draft.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
@@ -292,13 +293,19 @@ function assembleConnectorHost(sql: Sql): void {
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
     sandboxScripts: workflowScripts(sql),
-    tasks: pgTaskStore(sql),
+    // The issue sync reads its trackers through this same door, as the step
+    // that runs it: their credentials, hosts, audit and usage stay policed.
+    tasks: pgTaskStore(sql, {
+      runConnector: (args) => runConnectorAction(sql, args),
+    }),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),
     // A search step searches as its run: the run's scope and its spend.
     knowledge: knowledgeSearchForRuns(sql),
     // A message step sends as its run: its automation, cap and starter.
     notify: pgNotifyStore(sql),
+    // A step keeps only its own automation's places.
+    automationPositions: pgAutomationPositions(sql),
     // Outbound mail attachments read from the org's own blob store — the
     // files domain refuses a ref outside the org before any byte moves.
     mailAttachments: ({ organizationId, storageRef }) =>

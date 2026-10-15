@@ -14,6 +14,7 @@ import {
 } from '../../../backend/core/tasks/helpers';
 import { nodeVmRunner } from '../../engine/runners/node-vm';
 import { parseYamlOrThrow } from '../../shared/config/yaml';
+import { IssueSyncProjectRefusal, type IssueSourceReceipt } from './issue-sync';
 import { platformTaskNatives } from './platform-tasks';
 
 const bodies = {
@@ -941,7 +942,7 @@ describe('task.list as an automation step [CONN-R27]', () => {
         },
         step as never,
       ),
-    ).resolves.toEqual({ tasks: [listed], hasMore: true });
+    ).resolves.toEqual({ tasks: [listed], hasMore: true, next: null });
     expect(list).toHaveBeenCalledWith({
       organizationId: 'org-1',
       caller: step.caller,
@@ -949,6 +950,7 @@ describe('task.list as an automation step [CONN-R27]', () => {
       statuses: ['todo', 'in_progress'],
       // A day alone is its start, in UTC.
       createdSince: Date.parse('2026-10-10T00:00:00Z'),
+      order: 'newest',
       limit: 20,
     });
   });
@@ -967,7 +969,84 @@ describe('task.list as an automation step [CONN-R27]', () => {
     });
   });
 
+  it('reads a window: created at or after one moment and before another', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [], hasMore: false });
+    await nativeWith(list)?.(
+      {
+        projectId: 'project-1',
+        createdSince: 1_791_000_000_000,
+        createdBefore: '2026-10-14T09:00:00Z',
+      },
+      step as never,
+    );
+    expect(list.mock.calls[0]?.[0]).toMatchObject({
+      createdSince: 1_791_000_000_000,
+      createdBefore: Date.parse('2026-10-14T09:00:00Z'),
+    });
+  });
+
+  it('reads oldest first, and says where to carry on when more match', async () => {
+    const at = (ms: number) => new Date(ms).toISOString();
+    const list = vi.fn().mockResolvedValue({
+      ok: true,
+      tasks: [
+        { ...listed, taskId: 'task-1', createdAt: at(1_791_000_000_000) },
+        { ...listed, taskId: 'task-2', createdAt: at(1_791_000_000_000) },
+      ],
+      hasMore: true,
+    });
+    const answer = await nativeWith(list)?.(
+      {
+        projectId: 'project-1',
+        order: 'oldest',
+        after: '1790999999000:task-0',
+        createdBefore: 1_791_000_100_000,
+        limit: 2,
+      },
+      step as never,
+    );
+    expect(list.mock.calls[0]?.[0]).toMatchObject({
+      order: 'oldest',
+      after: { createdAtMs: 1_790_999_999_000, taskId: 'task-0' },
+      createdBefore: 1_791_000_100_000,
+      limit: 2,
+    });
+    // The last task listed, by its moment and its id: two tasks of one
+    // millisecond are still told apart.
+    expect(answer).toMatchObject({
+      hasMore: true,
+      next: '1791000000000:task-2',
+    });
+  });
+
+  it('says nowhere to carry on when nothing more matches, or newest first', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [listed], hasMore: false });
+    await expect(
+      nativeWith(list)?.(
+        { projectId: 'project-1', order: 'oldest', after: '' },
+        step as never,
+      ),
+    ).resolves.toMatchObject({ next: null });
+    expect(list.mock.calls[0]?.[0]).not.toHaveProperty('after');
+    const more = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [listed], hasMore: true });
+    await expect(
+      nativeWith(more)?.({ projectId: 'project-1' }, step as never),
+    ).resolves.toMatchObject({ next: null });
+    expect(more.mock.calls[0]?.[0]).toMatchObject({ order: 'newest' });
+  });
+
   it.each([
+    [{ projectId: 'project-1', order: 'oldest', after: 'yesterday' }],
+    [{ projectId: 'project-1', order: 'newest', after: '1:task-1' }],
+    [{ projectId: 'project-1', after: '1:task-1' }],
+    [{ projectId: 'project-1', order: 'sideways' }],
+    [{ projectId: 'project-1', createdBefore: 'tomorrow' }],
     [{ projectId: 'project-1', createdSince: 'yesterday' }],
     [{ projectId: 'project-1', status: ['open'] }],
     [{ projectId: 'project-1', limit: 500 }],
@@ -1005,6 +1084,231 @@ describe('task.list as an automation step [CONN-R27]', () => {
         reason: 'TASK_PROJECT_NOT_BOUND',
         params: { projectId: 'project-9' },
       },
+    });
+  });
+});
+
+/**
+ * `task.sync_issues`: the rim narrows the step's input, insists on the
+ * workflow caller, and decides the step's outcome from the receipts — the
+ * per-source work is `issue-sync.ts`'s, proven over fakes in its own suite.
+ */
+describe('task.sync_issues as an automation step', () => {
+  const step = {
+    organizationId: 'org-1',
+    caller: { kind: 'workflow', runId: 'run-1', nodeId: 'sync' },
+    idempotencyKey: 'run-1/sync/0/0',
+  };
+  const sources = [
+    { kind: 'github', owner: 'example', repo: 'web' },
+    { kind: 'glitchtip', organization: 'example', project: 'web' },
+  ];
+  const receipt = (
+    overrides: Partial<IssueSourceReceipt> = {},
+  ): IssueSourceReceipt => ({
+    kind: 'github',
+    source: 'example/web',
+    ok: true,
+    error: null,
+    batch: 1,
+    resumed: false,
+    restarted: false,
+    saved: true,
+    conflict: false,
+    drained: true,
+    discovered: 1,
+    created: 1,
+    refreshed: 0,
+    unchanged: 0,
+    skipped: 0,
+    closedUpstream: 0,
+    reopenedUpstream: 0,
+    unavailableUpstream: 0,
+    retryAfter: null,
+    ...overrides,
+  });
+  const answer = (receipts: IssueSourceReceipt[]) => ({
+    sources: receipts,
+    failed: receipts.filter(
+      (entry) => !entry.ok && entry.error !== 'rate_limited',
+    ).length,
+    rateLimited: receipts.filter((entry) => entry.retryAfter !== null).length,
+    created: 0,
+    refreshed: 0,
+    unchanged: 0,
+    skipped: 0,
+    closedUpstream: 0,
+  });
+  const nativeWith = (syncIssues: ReturnType<typeof vi.fn>) =>
+    platformTaskNatives({ syncIssues } as never)['task.sync_issues'];
+
+  it('syncs the listed sources with the step’s defaults and answers their receipts [TASK-R57]', async () => {
+    const result = answer([receipt(), receipt({ kind: 'glitchtip' })]);
+    const syncIssues = vi.fn().mockResolvedValue(result);
+    const stop = new AbortController();
+    await expect(
+      nativeWith(syncIssues)?.({ projectId: 'project-1', sources }, {
+        ...step,
+        signal: stop.signal,
+      } as never),
+    ).resolves.toEqual(result);
+    expect(syncIssues).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller: step.caller,
+      projectId: 'project-1',
+      sources,
+      limit: 100,
+      refreshLimit: 50,
+      signal: stop.signal,
+    });
+  });
+
+  it('succeeds with the failures in its receipts when some sources failed [TASK-R54]', async () => {
+    const result = answer([
+      receipt({ ok: false, error: 'unauthorized', saved: false }),
+      receipt({ kind: 'glitchtip' }),
+    ]);
+    await expect(
+      nativeWith(vi.fn().mockResolvedValue(result))?.(
+        { projectId: 'project-1', sources },
+        step as never,
+      ),
+    ).resolves.toEqual(result);
+  });
+
+  it('succeeds when every source waits on a rate limit [TASK-R54]', async () => {
+    const waiting = receipt({
+      ok: false,
+      error: 'rate_limited',
+      saved: false,
+      retryAfter: Date.parse('2026-10-14T19:00:00Z'),
+    });
+    const result = answer([waiting, { ...waiting, kind: 'glitchtip' }]);
+    await expect(
+      nativeWith(vi.fn().mockResolvedValue(result))?.(
+        { projectId: 'project-1', sources },
+        step as never,
+      ),
+    ).resolves.toEqual(result);
+  });
+
+  it('fails with the cause the sources share when every source failed [TASK-R54]', async () => {
+    const refused = receipt({
+      ok: false,
+      error: 'unauthorized',
+      message: 'GitHub issue sync failed (HTTP 401).',
+      saved: false,
+    });
+    await expect(
+      nativeWith(vi.fn().mockResolvedValue(answer([refused, refused])))?.(
+        { projectId: 'project-1', sources },
+        step as never,
+      ),
+    ).rejects.toMatchObject({
+      connector: 'task',
+      action: 'sync_issues',
+      message: expect.stringContaining(
+        'github example/web: GitHub issue sync failed (HTTP 401).',
+      ),
+      failure: { reason: 'CONNECTOR_AUTH', params: { connector: 'github' } },
+    });
+  });
+
+  it('fails before any tracker is read when the run may not write in the project [CONN-R11]', async () => {
+    const syncIssues = vi
+      .fn()
+      .mockRejectedValue(new IssueSyncProjectRefusal('Project not found'));
+    await expect(
+      nativeWith(syncIssues)?.(
+        { projectId: 'project-9', sources },
+        step as never,
+      ),
+    ).rejects.toMatchObject({
+      connector: 'task',
+      action: 'sync_issues',
+      failure: {
+        reason: 'TASK_PROJECT_NOT_BOUND',
+        params: { projectId: 'project-9' },
+      },
+    });
+  });
+
+  it('passes the database’s failure on as it is', async () => {
+    const outage = new Error('connection terminated');
+    await expect(
+      nativeWith(vi.fn().mockRejectedValue(outage))?.(
+        { projectId: 'project-1', sources },
+        step as never,
+      ),
+    ).rejects.toBe(outage);
+  });
+
+  it('refuses a call that is not an automation step', async () => {
+    const syncIssues = vi.fn();
+    await expect(
+      nativeWith(syncIssues)?.({ projectId: 'project-1', sources }, {
+        ...step,
+        caller: { kind: 'user', userId: 'user-1' },
+      } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(syncIssues).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ projectId: 'project-1', sources: [] }],
+    [{ projectId: 'project-1', sources: [{ kind: 'jira', key: 'WEB' }] }],
+    [{ projectId: 'project-1', sources: [{ ...sources[0], owner: 'a/b' }] }],
+    [{ projectId: 'project-1', sources: [sources[0], sources[0]] }],
+    [
+      {
+        projectId: 'project-1',
+        sources: Array.from({ length: 21 }, (_, at) => ({
+          kind: 'github',
+          owner: 'example',
+          repo: `web-${at}`,
+        })),
+      },
+    ],
+    [{ projectId: 'project-1', sources, limit: 501 }],
+    [{ projectId: 'project-1', sources, refreshLimit: -1 }],
+    [{ projectId: 'project-1', sources, cursor: '' }],
+  ])('refuses %j before the store is asked', async (input) => {
+    const syncIssues = vi.fn();
+    await expect(
+      nativeWith(syncIssues)?.(input, step as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(syncIssues).not.toHaveBeenCalled();
+  });
+
+  it('answers a test run from its mock, one receipt per source in the live shape', async () => {
+    const connector = connectorSchema.parse(
+      parseYamlOrThrow(
+        readFileSync(
+          path.join(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../../../configs/platform/system/connectors/task/connector.yml',
+          ),
+          'utf8',
+        ),
+        { maxBytes: 1024 * 1024 },
+      ),
+    );
+    const action = connector.actions.find(
+      (entry) => entry.name === 'sync_issues',
+    );
+    expect(action).toMatchObject({
+      effects: 'write',
+      idempotent: true,
+      backend: { kind: 'native', impl: 'task.sync_issues' },
+    });
+    const mocked = await nodeVmRunner().runBody(
+      action?.mock ?? '',
+      { input: { projectId: 'project-1', sources } },
+      { timeoutMs: 2000 },
+    );
+    expect(mocked).toEqual({
+      ...answer([receipt(), receipt({ kind: 'glitchtip' })]),
+      created: 2,
     });
   });
 });

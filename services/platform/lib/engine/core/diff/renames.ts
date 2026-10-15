@@ -83,16 +83,49 @@ export function canonicalBody(node: RawNode): string {
   return stableStringify(body);
 }
 
+/** Whether `text` can read a node at all: a reference to `nodes` spells
+ * the name, or — in code — spells it with a unicode escape (`\u006eodes`).
+ * Text without either reads no node, so the syntax layer need not parse it:
+ * a long code body that only reads its input costs nothing here. */
+function mayReadNodes(text: string): boolean {
+  return text.includes('nodes') || text.includes('\\u');
+}
+
+/** `value` with every string that cannot read a node emptied, in place:
+ * keys and array positions stay, so the pointer of each string that can is
+ * the one it has in the node. */
+function readingStrings(value: unknown): unknown {
+  if (typeof value === 'string') return mayReadNodes(value) ? value : '';
+  if (Array.isArray(value)) return value.map(readingStrings);
+  if (isRecord(value)) return readingRecord(value);
+  return value;
+}
+
+function readingRecord(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, each] of Object.entries(value)) {
+    out[key] = readingStrings(each);
+  }
+  return out;
+}
+
 /** The fields of a raw node the syntax layer reads expressions from, at the
- * kinds it reads them as; a field of another kind holds no expression. */
+ * kinds it reads them as; a field of another kind holds no expression, and
+ * text that cannot read a node is left out (`mayReadNodes`). */
 function expressionView(node: RawNode): NodeDef {
   const text = (key: string): string | undefined => {
     const value = node[key];
     return typeof value === 'string' ? value : undefined;
   };
   const view: NodeDef = { id: text('id') ?? '', type: text('type') ?? '' };
-  if (isRecord(node.input)) view.input = node.input;
-  if (isRecord(node.files)) view.files = node.files;
+  if (isRecord(node.input)) {
+    view.input = readingRecord(node.input);
+  }
+  if (isRecord(node.files)) {
+    view.files = readingRecord(node.files);
+  }
   for (const key of [
     'prompt',
     'system',
@@ -102,7 +135,7 @@ function expressionView(node: RawNode): NodeDef {
     'repeatUntil',
   ] as const) {
     const value = text(key);
-    if (value !== undefined) view[key] = value;
+    if (value !== undefined && mayReadNodes(value)) view[key] = value;
   }
   return view;
 }

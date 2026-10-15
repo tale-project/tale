@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 export type IssueSource = 'github' | 'glitchtip';
 
+/**
+ * The importer an automation is, by its name: an organization's own copy of
+ * the GitHub or GlitchTip import an earlier release installed. The catalog
+ * no longer ships them (the issue sync templates replaced them), so this
+ * reads the organization's automation alone — the guided form, the result
+ * and **Continue import** keep working for the copies organizations have.
+ */
 export function issueSource(slug: string | undefined): IssueSource | null {
   if (slug === 'github/import-issues' || slug === 'github-import-issues')
     return 'github';

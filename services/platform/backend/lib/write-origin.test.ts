@@ -7,7 +7,6 @@ import {
   appOrigin,
   inferVia,
   mcpOrigin,
-  PROVISIONING_ORIGIN,
   requestChannelOf,
   restOrigin,
   WRITE_VIAS,
@@ -73,13 +72,6 @@ describe('the doors a definition write comes through', () => {
       via: 'mcp',
       agentConnectionId: 'conn_1',
       clientName: 'Cursor',
-    });
-  });
-
-  it('name the default packs as the platform', () => {
-    expect(PROVISIONING_ORIGIN).toEqual({
-      actor: 'system:provisioning',
-      via: 'system',
     });
   });
 
@@ -161,7 +153,7 @@ describe('the request channel a keyed door opens', () => {
     appOrigin('user_ada'),
     appOrigin('user_ada', 'upload'),
     appOrigin('user_ada', 'managed'),
-    PROVISIONING_ORIGIN,
+    { actor: 'system:provisioning', via: 'system' } as const,
   ])('is not opened for the $via door', (origin) => {
     expect(requestChannelOf(origin, { requestId: 'req_3' })).toBeUndefined();
   });

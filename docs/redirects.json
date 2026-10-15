@@ -10,6 +10,8 @@
     "self-hosted/operate/workforce-operations": "self-hosted/operate/observability/operations",
     "platform/automations/workflows": "platform/automations/editor",
     "platform/automations/metrics": "platform/automations/execution-logs",
+    "platform/automations/starters": "platform/automations/templates",
+    "platform/automations/builtin": "platform/automations/templates",
     "platform/workflows/concepts": "platform/automations/concepts",
     "platform/workflows/workflows": "platform/automations/editor",
     "platform/workflows/triggers": "platform/automations/triggers",

@@ -66,7 +66,7 @@ Pour comprendre un résultat, lis aussi l'implémentation réelle. Par exemple, 
 
 L'identifiant est choisi au moment de l'appel : celui nommé explicitement, sinon celui par défaut du connector. Modifier le défaut peut donc changer le compte d'une exécution ultérieure. Nomme l'identifiant explicitement lorsque le compte fait partie du contrat de ton intégration.
 
-La découverte des boîtes mail fait exception : `conversation.sync_mailbox` et `conversation.list_mailbox_messages` parcourent tous les identifiants actifs du connector. Ces actions couvrent ainsi toutes les boîtes connectées, sans se limiter au compte par défaut.
+La découverte des boîtes mail fait exception : `conversation.sync_mailbox` et `conversation.list_mailbox_messages` parcourent tous les identifiants actifs du connector. Ces actions couvrent ainsi toutes les boîtes connectées, sans se limiter au compte par défaut, sauf si l’entrée `mailbox` de `sync_mailbox` en nomme une : elle ne lit alors que celle-ci.
 
 ## Les méthodes d’authentification
 

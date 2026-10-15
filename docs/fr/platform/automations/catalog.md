@@ -3,9 +3,9 @@ title: Créer ou importer une automatisation
 description: Choisis un point de départ, importe un paquet validé et prépare ses skills, paramètres et livrables avant la mise en service.
 ---
 
-Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Seuls les rôles Propriétaire, Admin et Développeur voient cette section et en gèrent les automatisations. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
+Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Seuls les rôles Propriétaire, Admin et Développeur voient cette section et en gèrent les automatisations. Commence par vérifier si un [modèle](/fr/platform/automations/templates) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
 
-La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour comparer les workflows de triage fournis.
+La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour comparer tes automatisations de triage.
 
 <Frame caption="La liste filtrée avec Triage présente quatre exemples fournis, leur nombre de versions et leur état de déploiement.">
 
@@ -21,12 +21,12 @@ Le menu **Créer une automatisation** propose quatre parcours :
 
 | Choix | À utiliser si… | Suite du parcours |
 | --- | --- | --- |
-| **À partir d’un modèle** | un modèle d’automatisation fourni fait ce dont tu as besoin : trier les nouvelles tâches, prévenir un relecteur, transformer des envois webhook en tâches, répondre aux questions avec tes documents ou résumer la boîte de réception. | Réponds à ses quelques questions. **Démarrer maintenant** (coché par défaut) met la version 1 en service et active son déclencheur. Voir [Partir d’un modèle](/fr/platform/automations/starters). |
+| **À partir d’un modèle** | un modèle fourni par Tale fait ce dont tu as besoin : synchroniser une boîte mail dans la réception et la trier, importer des issues, examiner des pull requests, envoyer un récapitulatif, prévenir un relecteur ou transformer des envois webhook en tâches. | Vois dans l’aperçu ce qu’il fait et ce dont il a besoin, puis réponds à ses quelques questions. **Démarrer maintenant** (coché par défaut) met la version 1 en service et active son déclencheur dans la même étape. Voir [Modèles d’automatisation](/fr/platform/automations/templates). |
 | **Avec ton agent de code** | tu as besoin d’une automatisation sur mesure qu’aucun modèle ne couvre, ou tu travailles déjà dans un agent comme Claude Code ou Codex. | Un dialogue donne les commandes qui connectent ton agent et un prompt qui lui demande de créer l’automatisation. L’agent lit la référence, l’écrit, la vérifie et la teste, puis enregistre sa première version, qui apparaît ensuite dans cette liste ; le prompt lui demande de te consulter avant de la mettre en service. Voir [Modifier avec ton agent de code](/fr/platform/automations/assistant). |
 | **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Définis le nom, le modèle, les instructions et les équipements, puis choisis quand l’agent s’exécute. **Mettre v1 en service maintenant** (coché par défaut) met la première version en service tout de suite ; sinon elle reste un brouillon que tu mets en service depuis l’éditeur. L’agent reçoit ce qu’envoie le déclencheur comme son entrée. La création ouvre l’éditeur pour la suite des modifications. |
 | **Téléverser un paquet** | tu disposes d’un fichier de workflow ou d’un pack réutilisable. | Tale valide les fichiers et enregistre une version brouillon. |
 
-Les automatisations fournies sont installées à la création de l’organisation. Elles demandent encore leur configuration et une version en service avant un usage automatique. [L’éditeur de workflows](/fr/platform/automations/editor) explique comment tester les données, examiner les résultats et mettre la version choisie en service.
+Une nouvelle organisation n’a aucune automatisation : ce que Tale fournit, ce sont des modèles parmi lesquels tu choisis. Une automatisation créée comme brouillon demande encore une version en service avant un usage automatique. [L’éditeur de workflows](/fr/platform/automations/editor) explique comment tester les données, examiner les résultats et mettre la version choisie en service.
 
 ## Importer un paquet
 

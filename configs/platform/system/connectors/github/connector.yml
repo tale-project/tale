@@ -117,6 +117,11 @@ actions:
             description: 'Sort field: created, updated, or comments.',
           }
         direction: { type: string, description: 'Sort direction: asc or desc.' }
+        since:
+          {
+            type: string,
+            description: 'Only issues updated at or after this moment, as an ISO 8601 date and time such as 2026-10-14T08:00:00Z.',
+          }
       required: [owner, repo]
     output: '{ issues: Array<{ number: number, title: string, state: string, html_url: string }> }'
     mock: |
@@ -126,7 +131,7 @@ actions:
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const q = [];
-        for (const k of ['state', 'per_page', 'page', 'labels', 'sort', 'direction']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        for (const k of ['state', 'per_page', 'page', 'labels', 'sort', 'direction', 'since']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues${qs}`, { headers: h });
         if (!r.status || r.status >= 400) throw new Error(`GitHub list_issues failed (${r.status}): ${r.text()}`);
@@ -440,7 +445,11 @@ actions:
         title: Diff eines Pull Requests abrufen
       fr:
         title: Récupérer le diff d’une pull request
-    description: Get the raw unified diff for a pull request.
+    description: >-
+      Get the raw unified diff for a pull request. With maxChars, a longer diff
+      is cut there (truncated true; size is the whole diff's length). A diff
+      GitHub declines to render because it is too large answers an empty diff
+      with tooLarge true instead of failing.
     effects: read
     input:
       type: object
@@ -448,18 +457,133 @@ actions:
         owner: { type: string, description: 'Repository owner.' }
         repo: { type: string, description: 'Repository name.' }
         pull_number: { type: number, description: 'Pull request number.' }
+        maxChars:
+          {
+            type: integer,
+            minimum: 1,
+            description: 'Cut the diff after this many characters; the whole diff when unset.',
+          }
       required: [owner, repo, pull_number]
-    output: '{ diff: string }'
+    output: '{ diff: string, size: number | null, truncated: boolean, tooLarge: boolean }'
     mock: |
-      return { diff: `diff --git a/README.md b/README.md\n@@ -1 +1 @@\n-old\n+new` };
+      const diff = `diff --git a/README.md b/README.md\n@@ -1 +1 @@\n-old\n+new`;
+      const cut = typeof input.maxChars === 'number' && diff.length > input.maxChars;
+      return { diff: cut ? diff.slice(0, input.maxChars) : diff, size: diff.length, truncated: cut, tooLarge: false };
     backend:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/vnd.github.diff', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}`, { headers: h });
+        // GitHub answers 406 for a diff too large to render (too many files or lines).
+        if (r.status === 406) return { diff: '', size: null, truncated: true, tooLarge: true };
         if (!r.status || r.status >= 400) throw new Error(`GitHub get_pull_request_diff failed (${r.status}): ${r.text()}`);
-        return { diff: r.text() };
+        const text = r.text();
+        const max = typeof input.maxChars === 'number' && input.maxChars > 0 ? Math.floor(input.maxChars) : null;
+        const cut = max !== null && text.length > max;
+        return { diff: cut ? text.slice(0, max) : text, size: text.length, truncated: cut, tooLarge: false };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
+  - name: list_pull_requests_to_review
+    title: List pull requests to review
+    i18n:
+      de:
+        title: Zu prüfende Pull Requests auflisten
+      fr:
+        title: Lister les pull requests à examiner
+    description: >-
+      The open pull requests of a repository that the connected account has not
+      reviewed at their newest commit, oldest change first. Drafts and the
+      account's own pull requests are left out, and a pull request it reviewed
+      comes back once a new commit is pushed. Reads up to scan open pull
+      requests (most recently updated first) and answers at most limit of them,
+      each with the commit to review (headSha); waiting counts the others that
+      are due, for a later run. Uses GitHub's GraphQL API, so the token needs
+      read access to the repository's pull requests.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo]
+      additionalProperties: false
+      properties:
+        owner:
+          {
+            type: string,
+            minLength: 1,
+            description: 'Repository owner (user or organization).',
+          }
+        repo: { type: string, minLength: 1, description: 'Repository name.' }
+        limit:
+          {
+            type: integer,
+            minimum: 0,
+            maximum: 20,
+            description: 'At most this many pull requests to answer; 5 when unset.',
+          }
+        scan:
+          {
+            type: integer,
+            minimum: 1,
+            maximum: 300,
+            description: 'How many open pull requests to read, most recently updated first; 100 when unset.',
+          }
+        includeDrafts:
+          {
+            type: boolean,
+            description: 'Answer draft pull requests too; left out when unset.',
+          }
+    output: '{ viewer: string, open: number, scanned: number, pulls: Array<{ number: number, title: string, url: string, headSha: string, author: string | null, updatedAt: string }>, waiting: number, skipped: { drafts: number, own: number, reviewed: number } }'
+    mock: |
+      const limit = typeof input.limit === 'number' ? input.limit : 5;
+      const pulls = limit <= 0 ? [] : [{ number: 1, title: 'Example pull request', url: `https://github.com/${input.owner}/${input.repo}/pull/1`, headSha: '0123456789abcdef0123456789abcdef01234567', author: 'octocat', updatedAt: '2026-10-14T08:00:00Z' }];
+      return { viewer: 'tale-reviewer', open: pulls.length, scanned: pulls.length, pulls, waiting: 0, skipped: { drafts: 0, own: 0, reviewed: 0 } };
+    backend:
+      kind: yaml-js
+      live: |
+        const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json', 'User-Agent': 'Tale' };
+        const graphql = async (query, variables) => {
+          const r = await ctx.http.post('https://api.github.com/graphql', { headers: h, body: JSON.stringify({ query, variables }) });
+          if (!r.status || r.status >= 400) throw new Error(`GitHub list_pull_requests_to_review failed (${r.status}): ${r.text()}`);
+          const body = r.json();
+          if (Array.isArray(body.errors) && body.errors.length > 0) throw new Error(`GitHub list_pull_requests_to_review failed: ${body.errors.map((e) => e.message).join('; ')}`);
+          return body.data;
+        };
+        const viewer = (await graphql('query { viewer { login } }', {})).viewer.login;
+        const limit = Math.max(0, Math.min(20, typeof input.limit === 'number' ? Math.floor(input.limit) : 5));
+        const scan = Math.max(1, Math.min(300, typeof input.scan === 'number' ? Math.floor(input.scan) : 100));
+        const query = `query($owner: String!, $repo: String!, $first: Int!, $after: String, $viewer: String!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequests(states: [OPEN], first: $first, after: $after, orderBy: { field: UPDATED_AT, direction: DESC }) {
+              totalCount
+              pageInfo { hasNextPage endCursor }
+              nodes { number title url isDraft headRefOid updatedAt author { login } reviews(author: $viewer, last: 20) { nodes { commit { oid } } } }
+            }
+          }
+        }`;
+        const read = [];
+        let open = 0;
+        let after = null;
+        while (read.length < scan) {
+          const data = await graphql(query, { owner: input.owner, repo: input.repo, first: Math.min(100, scan - read.length), after, viewer });
+          if (!data.repository) throw new Error(`GitHub list_pull_requests_to_review failed: this account cannot read ${input.owner}/${input.repo}`);
+          const page = data.repository.pullRequests;
+          open = page.totalCount;
+          read.push(...page.nodes);
+          if (!page.pageInfo.hasNextPage) break;
+          after = page.pageInfo.endCursor;
+        }
+        const skipped = { drafts: 0, own: 0, reviewed: 0 };
+        const due = [];
+        for (const pull of read) {
+          const author = pull.author ? pull.author.login : null;
+          if (pull.isDraft && input.includeDrafts !== true) { skipped.drafts += 1; continue; }
+          if (author !== null && author === viewer) { skipped.own += 1; continue; }
+          const reviews = pull.reviews && Array.isArray(pull.reviews.nodes) ? pull.reviews.nodes : [];
+          if (reviews.some((review) => review.commit && review.commit.oid === pull.headRefOid)) { skipped.reviewed += 1; continue; }
+          due.push({ number: pull.number, title: pull.title, url: pull.url, headSha: pull.headRefOid, author, updatedAt: pull.updatedAt });
+        }
+        // Oldest change first: a pull request nobody touched since it came due is never starved by busier ones.
+        due.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : a.number - b.number));
+        return { viewer, open, scanned: read.length, pulls: due.slice(0, limit), waiting: Math.max(0, due.length - limit), skipped };
+    exampleInput: { owner: 'octocat', repo: 'hello-world', limit: 5 }
   - name: create_pull_request_review
     title: Submit pull request review
     i18n:
@@ -855,7 +979,7 @@ actions:
         title: Importierte Issues aktualisieren
       fr:
         title: Actualiser les issues importées
-    description: Refresh up to 500 linked source snapshots with bounded request concurrency. Closed and unavailable issues remain linked to their existing Tale tasks.
+    description: Refresh up to 500 linked source snapshots, four at a time, each on its own. An issue the tracker refuses is skipped and tried again on a later run, without failing the others; a rate limit stops the batch, and the issues after it wait for a later run. Closed and unavailable issues remain linked to their existing Tale tasks. With report, the answer also names the issues skipped, how many were not read, and the rate limit's wait.
     effects: read
     input:
       type: object
@@ -866,9 +990,13 @@ actions:
         organization: { type: string, minLength: 1, maxLength: 100 }
         repositoryId: { type: integer, minimum: 1 }
         sourceProjectId: { type: string, minLength: 1 }
+        report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the issues alone.' }
+    # `report: true` answers { issues, failed, notRead, retryAfter } instead
+    # (the issue sync's own reading); the signature types the plain answer.
     output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
     mock: |
-      return input.issues.map((issue) => ({ externalSystem: 'github', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      const issues = input.issues.map((issue) => ({ externalSystem: 'github', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;
     backend:
       kind: native
       impl: github.refresh_import_issues
