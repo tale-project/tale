@@ -1118,6 +1118,48 @@ describe('managed project dispatch', () => {
     expect(String(error)).not.toContain('rm -rf');
   });
 
+  test('applies a dispatch again, unchanged, while it skips a board only this key could serve again [TASK-R72]', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    await applyPlatformConfiguration(
+      config,
+      await planPlatformConfiguration(config, api.client),
+      api.client,
+      await receipt(),
+    );
+    // Whoever saved the dispatch last lost the right to a board it serves,
+    // and this key has it: the platform says saving it again serves it.
+    let skipped = true;
+    const request = api.client.request.bind(api.client);
+    api.client.request = async (path, method, body) => {
+      const answer = await request(path, method, body);
+      if (path.endsWith('/dispatch/by-project/project-1/configuration')) {
+        if (method === 'POST') skipped = false;
+        else if (skipped) return { ...(answer as object), servesAgain: true };
+      }
+      return answer;
+    };
+    const before = api.writes.length;
+    const plan = await planPlatformConfiguration(config, api.client);
+    expect(plan.resources.find((change) => change.id === id)).toMatchObject({
+      action: 'update',
+      currentSha256: valueHash(dispatch),
+      desiredSha256: valueHash(dispatch),
+    });
+    await applyPlatformConfiguration(config, plan, api.client, await receipt());
+    expect(api.writes.slice(before)).toEqual([
+      expect.objectContaining({
+        kind: 'project-dispatch',
+        body: expect.objectContaining({ config: dispatch }),
+      }),
+    ]);
+    expect(
+      (await planPlatformConfiguration(config, api.client)).resources.every(
+        (change) => change.action === 'unchanged',
+      ),
+    ).toBe(true);
+  });
+
   test('never asks about a dispatch that is already as declared', async () => {
     const config = withDispatch();
     const api = native(config.resources);

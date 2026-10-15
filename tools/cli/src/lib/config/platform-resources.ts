@@ -35,6 +35,10 @@ export interface ResourceObservation {
   config: unknown;
   revision: string | null;
   credentialId?: string;
+  /** A dispatch that skips a board whoever last saved it may no longer
+   * edit, and which this caller may: it is applied again, unchanged, so
+   * the board is served on the caller's right (TASK-R72). */
+  servesAgain?: true;
 }
 const hash = expectedConfigurationHashSchema;
 const credentials = z.object({
@@ -157,6 +161,7 @@ export function converged(
       current.config,
       configurationHash(secrets.desired(resource)),
     );
+  if (current.servesAgain === true) return false;
   return resourceConverged(resource, current.config);
 }
 

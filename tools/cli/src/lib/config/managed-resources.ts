@@ -207,7 +207,13 @@ export async function readManagedResource(
   resource: ManagedPlatformResource,
 ) {
   const view = z
-    .object({ config: z.unknown(), hash: expectedConfigurationHashSchema })
+    .object({
+      config: z.unknown(),
+      hash: expectedConfigurationHashSchema,
+      // A dispatch that skips a board its last writer may no longer edit,
+      // and which this caller may: saving it again serves the board.
+      servesAgain: z.literal(true).optional(),
+    })
     .parse(await client.request(resourcePath(resource, true)));
   if (view.config === null) {
     if (view.hash !== null || !createsWhenAbsent(resource))
@@ -289,7 +295,13 @@ export async function readManagedResource(
     throw preconditionError(
       'Managed review context readback names another reviewer.',
     );
-  return { config: observedConfig, revision: view.hash };
+  return {
+    config: observedConfig,
+    revision: view.hash,
+    ...(resource.kind === 'project-dispatch' && view.servesAgain === true
+      ? { servesAgain: true as const }
+      : {}),
+  };
 }
 
 const checkSchema = z.discriminatedUnion('ok', [
