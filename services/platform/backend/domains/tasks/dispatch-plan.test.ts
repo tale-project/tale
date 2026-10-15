@@ -1,8 +1,14 @@
-import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
+import {
+  DISPATCH_RUNS_MAX,
+  type ProjectDispatch,
+} from '@tale/shared/schemas/project-dispatch';
 import { describe, expect, it } from 'vitest';
 
 import {
   hostRecheckAt,
+  PASS_BUDGET_MS,
+  PASS_LEASE_MS,
+  passOutOfTime,
   planDispatch,
   rankCandidates,
   recheckDelaySeconds,
@@ -283,5 +289,123 @@ describe('dispatch spaces its starts and rechecks a held host on its delays [TAS
         retryAfterMs: 300_000,
       }),
     ).toBe(300_000);
+  });
+});
+
+describe('one agent can be kept on hundreds of runs, within the pool and the agent workers [TASK-R62]', () => {
+  /** Coder alone in the pool, with this many ready tasks of its own. */
+  function fleet(ready: number, config: Partial<ProjectDispatch> = {}) {
+    return {
+      config: {
+        ...base,
+        agents: ['coder'],
+        maxConcurrentRuns: 256,
+        perAgentConcurrency: 256,
+        assignment: 'pool' as const,
+        ...config,
+      },
+      agents: [agent('coder')],
+      candidates: Array.from({ length: ready }, (_, index) =>
+        task(`task-${String(index).padStart(4, '0')}`, {
+          rank: String(index).padStart(4, '0'),
+          assigneeAgentId: index % 2 === 0 ? 'coder' : null,
+        }),
+      ),
+    };
+  }
+
+  it('starts one agent on 256 ready tasks when the pool and the agent workers allow 256', () => {
+    const plan = planDispatch({ ...fleet(300), workerRoom: 256 });
+    expect(plan.stop).toBe('picked');
+    expect(plan.picks).toHaveLength(256);
+    expect(new Set(plan.picks.map((pick) => pick.agentId))).toEqual(
+      new Set(['coder']),
+    );
+    // Best-ranked first, assigned and unassigned work alike.
+    expect(plan.picks.slice(0, 3).map((pick) => pick.taskId)).toEqual([
+      'task-0000',
+      'task-0001',
+      'task-0002',
+    ]);
+  });
+
+  it('starts no more than the agent workers left, counting the runs it already holds', () => {
+    expect(planDispatch({ ...fleet(300), workerRoom: 100 }).picks).toHaveLength(
+      100,
+    );
+    const plan = planDispatch({
+      ...fleet(300),
+      agents: [agent('coder', { live: 200 })],
+      workerRoom: 300,
+    });
+    expect(plan).toMatchObject({ occupied: 200, capacity: 256 });
+    expect(plan.picks).toHaveLength(56);
+  });
+
+  it('holds the rest for the agent once it holds its runs per agent, whatever the pool allows', () => {
+    const plan = planDispatch({
+      ...fleet(300, { maxConcurrentRuns: DISPATCH_RUNS_MAX }),
+      workerRoom: null,
+    });
+    expect(plan.picks).toHaveLength(256);
+    expect(plan.holds.every((hold) => hold.reason === 'agent_busy')).toBe(true);
+  });
+
+  it('fills the largest pool the dispatch allows in one plan', () => {
+    const plan = planDispatch({
+      ...fleet(DISPATCH_RUNS_MAX, {
+        maxConcurrentRuns: DISPATCH_RUNS_MAX,
+        perAgentConcurrency: DISPATCH_RUNS_MAX,
+      }),
+      workerRoom: DISPATCH_RUNS_MAX,
+    });
+    expect(plan.picks).toHaveLength(DISPATCH_RUNS_MAX);
+  });
+});
+
+describe('a pass starts work for two minutes at most, and the next goes on at once [TASK-R63]', () => {
+  it('goes on starting for two minutes, then stops', () => {
+    expect(PASS_BUDGET_MS).toBe(2 * 60_000);
+    const tried = 40;
+    expect(passOutOfTime({ startedAt: 1_000, now: 1_000, tried })).toBe(false);
+    expect(passOutOfTime({ startedAt: 1_000, now: 120_999, tried })).toBe(
+      false,
+    );
+    expect(passOutOfTime({ startedAt: 1_000, now: 121_000, tried })).toBe(true);
+  });
+
+  it('always tries its first pick, however long it took to get there', () => {
+    expect(passOutOfTime({ startedAt: 0, now: 4 * 60_000, tried: 0 })).toBe(
+      false,
+    );
+    expect(passOutOfTime({ startedAt: 0, now: 4 * 60_000, tried: 1 })).toBe(
+      true,
+    );
+  });
+
+  it('keeps its two minutes well inside the five-minute lease', () => {
+    // The start under way when the time runs out asks the host for at most
+    // ten seconds, then runs one transaction.
+    expect(PASS_LEASE_MS).toBe(5 * 60_000);
+    expect(PASS_BUDGET_MS + 60_000).toBeLessThan(PASS_LEASE_MS);
+  });
+
+  it('with a spacing, starts the 256th run 255 spacings after the first', () => {
+    // Each pass makes one start; the next comes when the spacing allows.
+    const spacingMs = 30_000;
+    let now = 0;
+    let lastStartAt: number | null = null;
+    const starts: number[] = [];
+    while (starts.length < 256) {
+      const pacedUntil = startPacedUntil({ spacingMs, lastStartAt, now });
+      if (pacedUntil !== null) {
+        now = pacedUntil;
+        continue;
+      }
+      starts.push(now);
+      lastStartAt = now;
+    }
+    expect(starts.at(-1)).toBe(255 * 30_000);
+    expect(starts.at(-1)).toBe(((2 * 60 + 7) * 60 + 30) * 1000);
   });
 });

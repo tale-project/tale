@@ -676,6 +676,7 @@ dispatch:
       number: Saisis un nombre.
       recoverWithoutHold: Fixe d’abord Fermer à partir de.
       recoverAboveHold: Cette valeur ne doit pas dépasser Fermer à partir de.
+      perAgentAboveRuns: Cette valeur ne doit pas dépasser Exécutions simultanées.
     issues:
       agent: Un agent de ce pool ne travaille plus dans ce projet. Retire-le, puis enregistre de nouveau.
       roleAgent: Cet agent ne travaille plus dans ce projet.

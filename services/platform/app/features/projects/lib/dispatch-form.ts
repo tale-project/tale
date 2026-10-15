@@ -23,6 +23,7 @@ import {
   DISPATCH_LABELS_MAX,
   DISPATCH_POOL_MAX,
   DISPATCH_ROLE_BRIEF_MAX,
+  DISPATCH_RUNS_MAX,
   DISPATCH_STANDING_ROLES_MAX,
   dispatchRoleKeySchema,
   type DispatchAdmissionPreset,
@@ -47,9 +48,6 @@ export const DISPATCH_STATUS_ORDERS = [
 ] as const;
 export type DispatchStatusOrder = (typeof DISPATCH_STATUS_ORDERS)[number];
 
-/** The most runs at once a dispatch may hold, and one agent of its pool. */
-export const DISPATCH_RUNS_MAX = 100;
-export const DISPATCH_RUNS_PER_AGENT_MAX = 5;
 /** What a standing role's mode may hold. */
 export const DISPATCH_ROLE_MODE_MAX = 40;
 
@@ -414,6 +412,8 @@ function isRecheckList(text: string): boolean {
 export interface DispatchFormText {
   maxConcurrentRuns: string;
   perAgentConcurrency: string;
+  /** One agent would hold more runs than the whole pool. */
+  perAgentAboveRuns: string;
   startSpacing: string;
   recheck: string;
   agentsMax: string;
@@ -459,116 +459,133 @@ export function dispatchFormSchema(text: DispatchFormText) {
       (value) => dispatchRoleKeySchema.safeParse(value.trim()).success,
       text.key,
     );
-  return z.object({
-    enabled: z.boolean(),
-    agents: z.array(z.string()).max(DISPATCH_POOL_MAX, text.agentsMax),
-    maxConcurrentRuns: z
-      .string()
-      .refine(
-        (value) => wholeNumberIn(value, 1, DISPATCH_RUNS_MAX),
-        text.maxConcurrentRuns,
-      ),
-    perAgentConcurrency: z
-      .string()
-      .refine(
-        (value) => wholeNumberIn(value, 1, DISPATCH_RUNS_PER_AGENT_MAX),
-        text.perAgentConcurrency,
-      ),
-    statuses: z.enum(DISPATCH_STATUS_ORDERS),
-    assignment: z.enum(DISPATCH_ASSIGNMENTS),
-    rebalance: z.boolean(),
-    labels: z.object({ include: labels, exclude: labels }),
-    admission: z.object({
-      preset: z.enum(DISPATCH_ADMISSION_PRESETS),
-      startSpacingSeconds: z
+  return z
+    .object({
+      enabled: z.boolean(),
+      agents: z.array(z.string()).max(DISPATCH_POOL_MAX, text.agentsMax),
+      maxConcurrentRuns: z
         .string()
-        .refine((value) => wholeNumberIn(value, 0, 3_600), text.startSpacing),
-      recheckSeconds: z.string().refine(isRecheckList, text.recheck),
-    }),
-    standingRoles: z
-      .array(
-        z.object({
-          key,
-          agentId: z.string().min(1, text.roleAgent),
-          taskId: z.string().min(1, text.roleTask),
-          cron: z.string().superRefine((value, ctx) => {
-            if (value.trim() === '') {
-              ctx.addIssue({ code: 'custom', message: text.cronRequired });
-              return;
-            }
-            const problem = cronProblem(value);
-            if (problem !== null) {
-              ctx.addIssue({
-                code: 'custom',
-                message: text.cronInvalid(problem),
-              });
-            }
-          }),
-          timezone: z
-            .string()
-            .refine((value) => isValidTimezone(value.trim()), text.timezone),
-          mode: z
-            .string()
-            .refine(
-              (value) => value.trim().length <= DISPATCH_ROLE_MODE_MAX,
-              text.mode,
-            ),
-          brief: z
-            .string()
-            .refine(
-              (value) => value.trim().length <= DISPATCH_ROLE_BRIEF_MAX,
-              text.brief,
-            ),
-        }),
-      )
-      .max(DISPATCH_STANDING_ROLES_MAX)
-      .superRefine((roles, ctx) => duplicateKeys(roles, ctx, text.keyTaken)),
-    gates: z
-      .array(
-        z
-          .object({
+        .refine(
+          (value) => wholeNumberIn(value, 1, DISPATCH_RUNS_MAX),
+          text.maxConcurrentRuns,
+        ),
+      perAgentConcurrency: z
+        .string()
+        .refine(
+          (value) => wholeNumberIn(value, 1, DISPATCH_RUNS_MAX),
+          text.perAgentConcurrency,
+        ),
+      statuses: z.enum(DISPATCH_STATUS_ORDERS),
+      assignment: z.enum(DISPATCH_ASSIGNMENTS),
+      rebalance: z.boolean(),
+      labels: z.object({ include: labels, exclude: labels }),
+      admission: z.object({
+        preset: z.enum(DISPATCH_ADMISSION_PRESETS),
+        startSpacingSeconds: z
+          .string()
+          .refine((value) => wholeNumberIn(value, 0, 3_600), text.startSpacing),
+        recheckSeconds: z.string().refine(isRecheckList, text.recheck),
+      }),
+      standingRoles: z
+        .array(
+          z.object({
             key,
-            labels,
-            holdAt: z.string().refine(blankOrNumber, text.number),
-            recoverBelow: z.string().refine(blankOrNumber, text.number),
-            staleAfterSeconds: z
+            agentId: z.string().min(1, text.roleAgent),
+            taskId: z.string().min(1, text.roleTask),
+            cron: z.string().superRefine((value, ctx) => {
+              if (value.trim() === '') {
+                ctx.addIssue({ code: 'custom', message: text.cronRequired });
+                return;
+              }
+              const problem = cronProblem(value);
+              if (problem !== null) {
+                ctx.addIssue({
+                  code: 'custom',
+                  message: text.cronInvalid(problem),
+                });
+              }
+            }),
+            timezone: z
+              .string()
+              .refine((value) => isValidTimezone(value.trim()), text.timezone),
+            mode: z
               .string()
               .refine(
-                (value) => blankOrWholeNumberIn(value, 60, 86_400),
-                text.staleAfter,
+                (value) => value.trim().length <= DISPATCH_ROLE_MODE_MAX,
+                text.mode,
               ),
-            whenStale: z.enum(DISPATCH_GATE_WHEN_STALE),
-            startSpacingSeconds: z
+            brief: z
               .string()
               .refine(
-                (value) => blankOrWholeNumberIn(value, 0, 86_400),
-                text.gateSpacing,
+                (value) => value.trim().length <= DISPATCH_ROLE_BRIEF_MAX,
+                text.brief,
               ),
-          })
-          .superRefine((gate, ctx) => {
-            const holdAt = optionalNumber(gate.holdAt);
-            const recoverBelow = optionalNumber(gate.recoverBelow);
-            if (recoverBelow === undefined || Number.isNaN(recoverBelow)) {
-              return;
-            }
-            if (holdAt === undefined) {
-              ctx.addIssue({
-                code: 'custom',
-                path: ['recoverBelow'],
-                message: text.recoverWithoutHold,
-              });
-            } else if (!Number.isNaN(holdAt) && recoverBelow > holdAt) {
-              ctx.addIssue({
-                code: 'custom',
-                path: ['recoverBelow'],
-                message: text.recoverAboveHold,
-              });
-            }
           }),
-      )
-      .max(DISPATCH_GATES_MAX)
-      .superRefine((gates, ctx) => duplicateKeys(gates, ctx, text.keyTaken)),
-  });
+        )
+        .max(DISPATCH_STANDING_ROLES_MAX)
+        .superRefine((roles, ctx) => duplicateKeys(roles, ctx, text.keyTaken)),
+      gates: z
+        .array(
+          z
+            .object({
+              key,
+              labels,
+              holdAt: z.string().refine(blankOrNumber, text.number),
+              recoverBelow: z.string().refine(blankOrNumber, text.number),
+              staleAfterSeconds: z
+                .string()
+                .refine(
+                  (value) => blankOrWholeNumberIn(value, 60, 86_400),
+                  text.staleAfter,
+                ),
+              whenStale: z.enum(DISPATCH_GATE_WHEN_STALE),
+              startSpacingSeconds: z
+                .string()
+                .refine(
+                  (value) => blankOrWholeNumberIn(value, 0, 86_400),
+                  text.gateSpacing,
+                ),
+            })
+            .superRefine((gate, ctx) => {
+              const holdAt = optionalNumber(gate.holdAt);
+              const recoverBelow = optionalNumber(gate.recoverBelow);
+              if (recoverBelow === undefined || Number.isNaN(recoverBelow)) {
+                return;
+              }
+              if (holdAt === undefined) {
+                ctx.addIssue({
+                  code: 'custom',
+                  path: ['recoverBelow'],
+                  message: text.recoverWithoutHold,
+                });
+              } else if (!Number.isNaN(holdAt) && recoverBelow > holdAt) {
+                ctx.addIssue({
+                  code: 'custom',
+                  path: ['recoverBelow'],
+                  message: text.recoverAboveHold,
+                });
+              }
+            }),
+        )
+        .max(DISPATCH_GATES_MAX)
+        .superRefine((gates, ctx) => duplicateKeys(gates, ctx, text.keyTaken)),
+    })
+    .superRefine((values, ctx) => {
+      // One agent holds at most as many runs as the whole pool, as the
+      // platform refuses otherwise; each number is checked on its own above.
+      if (
+        wholeNumberIn(values.maxConcurrentRuns, 1, DISPATCH_RUNS_MAX) &&
+        wholeNumberIn(values.perAgentConcurrency, 1, DISPATCH_RUNS_MAX) &&
+        Number(values.perAgentConcurrency.trim()) >
+          Number(values.maxConcurrentRuns.trim())
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['perAgentConcurrency'],
+          message: text.perAgentAboveRuns,
+        });
+      }
+    });
 }
 
 /** One refusal of a saved dispatch, by the field of the document it names

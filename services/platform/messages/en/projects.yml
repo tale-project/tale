@@ -658,6 +658,7 @@ dispatch:
       number: Enter a number.
       recoverWithoutHold: Set Hold at first.
       recoverAboveHold: This must not be above Hold at.
+      perAgentAboveRuns: This must not be above Runs at once.
     issues:
       agent: An agent of this pool no longer works in this project. Remove it, then save again.
       roleAgent: This agent no longer works in this project.

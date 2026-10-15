@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import {
+  DISPATCH_RUNS_MAX,
   dispatchAdmission,
   type DispatchAdmissionPreset,
   type ProjectDispatch,
@@ -26,6 +27,8 @@ import {
 } from './dispatch-gates.ts';
 import {
   hostRecheckAt,
+  PASS_LEASE_MS,
+  passOutOfTime,
   planDispatch,
   startPacedUntil,
   type DispatchAgent,
@@ -59,17 +62,20 @@ import { assertTaskAutomationEnabled } from './run-start.ts';
  * run per task. Before each start of ready work the sandbox host is asked
  * whether it admits another (`GET /v1/admission`, with the dispatch's preset);
  * a hold ends the pass and the next one comes after the dispatch's recheck
- * delays. Starts are spaced by `startSpacingSeconds`. What the pass saw and
- * did is recorded (`project_dispatch_passes`): the readback of why an agent
- * is idle.
+ * delays. Starts are spaced by `startSpacingSeconds`: with a spacing, a pass
+ * makes one start of ready work and the next pass comes that much later, so
+ * a pool of N runs fills in (N - 1) times the spacing. Without one, a pass
+ * starts every pick the host admits, for at most `PASS_BUDGET_MS`; a pass
+ * that runs out of time asks for the next at once. What the pass saw
+ * and did is recorded (`project_dispatch_passes`): the readback of why an
+ * agent is idle.
  */
 
-/** How long a pass may hold its project's lease. */
-const PASS_LEASE_MS = 5 * 60_000;
 /** When a pass finds another under way, it asks again this much later. */
 const BUSY_RETRY_MS = 15_000;
-/** Ready tasks one pass reads, best-ranked first. */
-const CANDIDATES_PER_PASS = 200;
+/** Ready tasks one pass reads, best-ranked first: as many runs as a pool
+ * may ever hold, so one pass can fill the largest pool. */
+const CANDIDATES_PER_PASS = DISPATCH_RUNS_MAX;
 /** Holds one pass records, so a big backlog keeps the record small. */
 const HOLDS_RECORDED = 50;
 /** Pass records are kept this long. */
@@ -804,6 +810,12 @@ export async function runDispatchPass(
     const spacingMs = admission.startSpacingSeconds * 1000;
     for (const [index, pick] of plan.picks.entries()) {
       const now = Date.now();
+      if (passOutOfTime({ startedAt, now, tried: index })) {
+        // The pass has gone on as long as it may: the next one starts the
+        // rest at once, with the facts as they stand then.
+        nextPassAt = now;
+        break;
+      }
       const pacedUntil = startPacedUntil({ spacingMs, lastStartAt, now });
       if (pacedUntil !== null) {
         stop = 'pacing';

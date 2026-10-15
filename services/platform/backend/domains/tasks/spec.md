@@ -430,6 +430,18 @@ automated start: the task's hourly limit and its dependencies apply (`TASK-R12`)
   "Release notes" (To do, p1) is Lector's, "Press kit" (To do, p2) is Scribe's → Lector starts on
   "Release notes"; "Press kit" waits for Scribe.
 
+### TASK-R62 · A dispatch holds up to 500 runs, one agent at most as many as the pool
+
+Runs at once and runs per agent each go up to 500, as many agent workers as an organization may
+have, so one agent can be kept busy on every worker. A save that lets one agent hold more runs
+than the whole pool is refused, naming runs per agent; a dispatch saved before this rule still
+reads and starts work, the pool's limit binding first. Every run still needs an agent worker of
+the organization's: beyond them, nothing more starts (`TASK-R41`).
+
+- **Example**: Ada keeps Coder alone in the Fleet pool, with 256 runs at once and 256 per agent,
+  and the organization has 256 agent workers → dispatch starts Coder on 256 ready tasks. She
+  lowers runs at once to 200 and keeps 256 per agent → refused, naming runs per agent.
+
 ### TASK-R42 · Dispatch hands unassigned work to its pool only when told to
 
 With pool assignment, a ready task nobody is assigned to goes to the idle agent of the pool with
@@ -460,6 +472,19 @@ the pass and with the record of the run it started.
 
 - **Example**: The host's memory pressure is high when "Changelog" is next → nothing starts, and
   dispatch asks again a minute later, then after two minutes, then every four.
+
+### TASK-R63 · A pass starts work for two minutes at most, and the next goes on at once
+
+A pass reads up to 500 ready tasks, enough to fill the largest pool. Without a spacing it starts
+every one the host admits; after two minutes it stops, its first start always made, and the next
+pass goes on at once with the runs and the host as they stand then, so no two passes start work
+on one plan. With a spacing, each pass makes one start and the next pass comes a spacing later:
+the 256th run starts 255 spacings after the first, 2 hours 7 minutes 30 seconds at the default 30
+seconds.
+
+- **Example**: Coder's pool may hold 256 runs with no time between starts, and each start takes
+  the host a second to admit → the first pass starts about 120 of them by its two minutes, and
+  the next pass, at once, the rest.
 
 ### TASK-R45 · A standing role starts its agent on its task at each occurrence of its schedule
 

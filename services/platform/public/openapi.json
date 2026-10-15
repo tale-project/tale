@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.45.0",
+    "version": "3.46.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -14752,12 +14752,12 @@
                         "maxConcurrentRuns": {
                           "type": "integer",
                           "minimum": 1,
-                          "maximum": 100
+                          "maximum": 500
                         },
                         "perAgentConcurrency": {
                           "type": "integer",
                           "minimum": 1,
-                          "maximum": 5
+                          "maximum": 500
                         },
                         "statuses": {
                           "minItems": 1,
@@ -45738,7 +45738,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.45.0"
+          "example": "3.46.0"
         }
       },
       "Location": {

@@ -800,5 +800,12 @@
  * `maxWorkspaceGiB` and `reclaimMinIdleHours` (a file without them reads
  * their defaults), and a plan that sets or tightens the size cap names the
  * effect `irreversible`.
+ *
+ * 3.46.0 — 2026-10-15: a project's dispatch may hold up to 500 runs at once
+ * (`maxConcurrentRuns`, up to 100 before) and keep one agent of its pool on
+ * up to 500 of them (`perAgentConcurrency`, up to 5 before): as many as an
+ * organization may have agent workers. A write whose `perAgentConcurrency`
+ * is above its `maxConcurrentRuns` is refused; a dispatch stored before
+ * still reads as it was stored.
  */
-export const API_CONTRACT_VERSION = '3.45.0';
+export const API_CONTRACT_VERSION = '3.46.0';

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  SANDBOX_SESSION_BUDGET_MAX,
   sandboxQuotaTotal,
   type SandboxQuotaConfig,
 } from '@tale/shared/schemas/governance';
@@ -138,7 +139,7 @@ export function SandboxQuotaEditor({
       .number({ error: t('limits.invalidSessions') })
       .int(t('limits.invalidSessions'))
       .min(1, t('limits.invalidSessions'))
-      .max(500, t('limits.invalidSessions'));
+      .max(SANDBOX_SESSION_BUDGET_MAX, t('limits.invalidSessions'));
     return z.object({
       maxSessionsPerOrg: limit,
       maxWorkflowSessionsPerOrg: limit,
@@ -324,7 +325,7 @@ export function SandboxQuotaEditor({
                         isInvalid={exceedsDeployment}
                         type="number"
                         min={1}
-                        max={500}
+                        max={SANDBOX_SESSION_BUDGET_MAX}
                         step={1}
                         wrapperClassName="w-full"
                         errorMessage={errors[field]?.message}

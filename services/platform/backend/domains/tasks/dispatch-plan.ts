@@ -231,6 +231,31 @@ export function recheckDelaySeconds(
   return recheckSeconds[Math.max(0, index)] ?? last;
 }
 
+/** How long a pass goes on starting ready work. Well inside its lease
+ * ({@link PASS_LEASE_MS}): the start under way when the time runs out (a host
+ * admission asked for at most 10 seconds, then the start's transaction) ends
+ * long before the lease lapses and a second pass could start on what this
+ * one planned. */
+export const PASS_BUDGET_MS = 2 * 60_000;
+
+/** How long a pass may hold its project's lease: longer than it starts
+ * ready work for ({@link PASS_BUDGET_MS}), with room for the start under way
+ * when that time runs out. */
+export const PASS_LEASE_MS = 5 * 60_000;
+
+/** Whether a pass that began at `startedAt` has used its time for starting
+ * ready work, with `tried` picks behind it: it then stops, and the next pass
+ * goes on at once with the facts as they stand. Its first pick always goes
+ * ahead, so a pass slowed before it (standing roles, a slow read) still
+ * moves the pool on. */
+export function passOutOfTime(args: {
+  startedAt: number;
+  now: number;
+  tried: number;
+}): boolean {
+  return args.tried > 0 && args.now - args.startedAt >= PASS_BUDGET_MS;
+}
+
 /** When the next start of ready work may happen: now (null), or the time
  * `startSpacingSeconds` after the last start. */
 export function startPacedUntil(args: {

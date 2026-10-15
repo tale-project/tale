@@ -964,6 +964,46 @@ describe('managed project dispatch', () => {
     ]);
   });
 
+  test('reads a stored dispatch whose agent holds more runs than the pool, and corrects it', async () => {
+    // Saved before a write had to keep runs per agent within the pool.
+    const stored = {
+      ...dispatch,
+      maxConcurrentRuns: 2,
+      perAgentConcurrency: 5,
+    };
+    expect(() => declared(stored)).toThrow();
+    const fixed = {
+      ...dispatch,
+      maxConcurrentRuns: 256,
+      perAgentConcurrency: 256,
+    };
+    const configuration = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [{ kind: 'project-dispatch', config: fixed }],
+    });
+    const api = native(configuration.resources);
+    api.state.set(id, structuredClone(stored));
+    expect(
+      await readManagedResource(api.client, declared(fixed)),
+    ).toMatchObject({ config: stored, revision: valueHash(stored) });
+    const plan = await planPlatformConfiguration(configuration, api.client);
+    expect(plan.resources).toMatchObject([
+      { id, action: 'update', revision: valueHash(stored) },
+    ]);
+    await applyPlatformConfiguration(
+      configuration,
+      plan,
+      api.client,
+      await receipt(),
+    );
+    expect(api.writes).toEqual([
+      {
+        kind: 'project-dispatch',
+        body: { config: fixed, expectedHash: valueHash(stored) },
+      },
+    ]);
+  });
+
   test('reconciles a lost response without writing the dispatch twice', async () => {
     const config = withDispatch();
     const api = native(config.resources);

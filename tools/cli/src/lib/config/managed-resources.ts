@@ -3,6 +3,7 @@ import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configurat
 import {
   managedPlatformResourceSchema,
   managedAgentModelObservationSchema,
+  managedProjectDispatchObservationSchema,
   type ManagedPlatformResource,
 } from '@tale/shared/schemas/managed-configuration';
 import { z } from 'zod';
@@ -82,10 +83,17 @@ export async function readManagedResource(
           kind: resource.kind,
           config: managedAgentModelObservationSchema.parse(view.config),
         }
-      : managedPlatformResourceSchema.parse({
-          kind: resource.kind,
-          config: view.config,
-        });
+      : resource.kind === 'project-dispatch'
+        ? // A dispatch stored before a write's later rules still reads, so
+          // the plan can correct it instead of failing to read it.
+          {
+            kind: resource.kind,
+            config: managedProjectDispatchObservationSchema.parse(view.config),
+          }
+        : managedPlatformResourceSchema.parse({
+            kind: resource.kind,
+            config: view.config,
+          });
   // Stored legacy agent text may predate write-time trimming. Its preimage
   // must retain those bytes, otherwise a legitimate native hash cannot be used
   // to adopt and normalize that existing target.

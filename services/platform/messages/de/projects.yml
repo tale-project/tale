@@ -686,6 +686,7 @@ dispatch:
       number: Gib eine Zahl ein.
       recoverWithoutHold: Lege zuerst Schließen ab fest.
       recoverAboveHold: Der Wert darf nicht über Schließen ab liegen.
+      perAgentAboveRuns: Der Wert darf nicht über Läufe gleichzeitig liegen.
     issues:
       agent: Ein Agent dieses Pools arbeitet nicht mehr in diesem Projekt. Entferne ihn und speichere dann erneut.
       roleAgent: Dieser Agent arbeitet nicht mehr in diesem Projekt.
