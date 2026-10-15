@@ -415,6 +415,7 @@ connectors:
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connect
+    connectGroup: Connect with your {connector} account
     emptyBodyOauth:
       Connect {connector} so configured workflows and supported platform
       tools can use this account.
@@ -515,6 +516,7 @@ connectors:
     smtpPassword: SMTP password
     smtpHint: Enter your relay's SMTP username and password (Resend, SendGrid,
       Amazon SES, …).
+    fixedSettingReason: Set when the credential was added. To use another value, add another credential.
     tenantId: Directory (tenant) ID
     tenantIdHelp: The ID of the directory the app is registered in.
     clientId: Application (client) ID

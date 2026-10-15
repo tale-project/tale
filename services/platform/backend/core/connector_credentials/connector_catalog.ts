@@ -57,6 +57,8 @@ interface ConnectorSummary {
     required: boolean;
     /** Required only for a credential of these sign-in methods. */
     requiredFor?: ConnectorAuthMethod[];
+    /** Set when the credential is added; an edit cannot change it. */
+    fixed?: boolean;
     enum?: string[];
     integer?: boolean;
     min?: number;
@@ -144,6 +146,7 @@ export function listConnectorSummaries(): ConnectorSummary[] {
         ...(field.requiredFor !== undefined && {
           requiredFor: field.requiredFor,
         }),
+        ...(field.fixed === true && { fixed: true }),
         ...(field.description !== undefined && {
           description: field.description,
         }),

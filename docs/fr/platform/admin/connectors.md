@@ -58,7 +58,7 @@ Pour OneDrive/SharePoint, **Utiliser l'app SSO Entra ID** peut copier une inscri
 
 ## Connecter une boîte aux lettres Outlook partagée
 
-Une boîte aux lettres partagée, comme `promotion@example.com`, n’a pas de connexion propre. Tale y accède de deux façons : l’application Microsoft de ton organisation se connecte elle-même et n’a accès qu’à cette boîte, ou une personne qui dispose déjà d’un accès complet à la boîte connecte son propre compte. Dans les deux cas, le champ **Boîte aux lettres** des identifiants indique l’adresse partagée. Toutes les actions Outlook, la synchronisation de la boîte et la boîte de réception travaillent alors dans cette boîte et utilisent son adresse comme expéditeur.
+Une boîte aux lettres partagée, comme `promotion@example.com`, n’a pas de connexion propre. Tale y accède de deux façons : l’application Microsoft de ton organisation se connecte elle-même et n’a accès qu’à cette boîte, ou une personne qui dispose déjà d’un accès complet à la boîte connecte son propre compte. Dans les deux cas, le champ **Boîte aux lettres** des identifiants indique l’adresse partagée. Toutes les actions Outlook, la synchronisation de la boîte et la boîte de réception travaillent alors dans cette boîte et utilisent son adresse comme expéditeur. Tu indiques la boîte en ajoutant les identifiants, et elle ne peut plus changer ensuite : ce que les identifiants ont lu et envoyé appartient à cette boîte. Pour travailler dans une autre boîte, ajoute d’autres identifiants.
 
 Pour une boîte d’équipe, la connexion de l’app convient mieux : elle ne dépend pas du compte d’une seule personne, et Exchange limite l’application aux boîtes que tu choisis.
 
@@ -79,7 +79,7 @@ Pour une boîte d’équipe, la connexion de l’app convient mieux : elle ne d�
 
 Quand le secret client expire, remplace-le avec **Remplacer les identifiants de l'app** dans le menu de la ligne. Le formulaire s’ouvre avec l’ID d’annuaire et l’ID d’application déjà remplis : tu ne saisis que le nouveau secret client. Les identifiants gardent leur nom, leur boîte et leurs références.
 
-Si c’est une personne qui gère la boîte, connecte Outlook avec **Connecter** en tant que cette personne. Ouvre ensuite **Modifier les identifiants**, saisis l’adresse partagée sous **Boîte aux lettres**, enregistre, puis choisis **Reconnecter**. Le nouvel écran de consentement demande l’accès aux boîtes que ce compte peut ouvrir. La personne a besoin d’un accès complet à la boîte et, pour envoyer, de l’autorisation « Envoyer en tant que ».
+Si c’est une personne qui gère la boîte, sélectionne **Ajouter des identifiants**, puis **Microsoft Outlook**. Dans l’encadré au-dessus du formulaire, saisis l’adresse partagée sous **Boîte aux lettres**, puis sélectionne **Connecter** et connecte-toi en tant que cette personne. Comme une boîte est indiquée, l’écran de consentement demande aussi l’accès aux boîtes que ce compte peut ouvrir, et les nouveaux identifiants travaillent dans la boîte partagée dès la première synchronisation. La personne a besoin d’un accès complet à la boîte et, pour envoyer, de l’autorisation « Envoyer en tant que ». Laisse **Boîte aux lettres** vide pour connecter la boîte de la personne elle-même.
 
 ## Rétablir une connexion
 

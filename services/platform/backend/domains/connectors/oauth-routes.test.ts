@@ -135,6 +135,44 @@ describe('the consent intent', () => {
     },
   );
 
+  it('starts an Add with the settings its link carries [CCRED-R12]', async () => {
+    const config = encodeURIComponent(
+      JSON.stringify({ mailbox: 'promotion@example.com' }),
+    );
+    const response = await app(SIGNED_IN).request(
+      `/start?connector=outlook&organizationId=org-1&config=${config}`,
+    );
+    expect(response.status).toBe(302);
+    expect(startOauth2).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connectorSlug: 'outlook',
+        config: { mailbox: 'promotion@example.com' },
+      }),
+    );
+  });
+
+  it.each([
+    ['not JSON', 'mailbox=promotion@example.com'],
+    ['not an object', JSON.stringify(['promotion@example.com'])],
+    ['a nested value', JSON.stringify({ mailbox: { address: 'x' } })],
+  ])(
+    'refuses an Add whose settings are %s instead of starting it without them',
+    async (_what, raw) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const response = await app(SIGNED_IN).request(
+        `/start?connector=outlook&organizationId=org-1&config=${encodeURIComponent(raw)}`,
+        { headers: { 'accept-language': 'de' } },
+      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain(
+        'Diese Einstellungen passen nicht zu dieser Verbindung',
+      );
+      expect(startOauth2).not.toHaveBeenCalled();
+      warn.mockRestore();
+    },
+  );
+
   it('answers a Reconnect the service refused with the fixed page, before the vendor', async () => {
     startOauth2.mockResolvedValue({
       kind: 'error',

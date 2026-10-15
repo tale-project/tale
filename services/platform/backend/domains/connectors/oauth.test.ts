@@ -26,14 +26,24 @@ const {
   updateCredentialInTransaction: vi.fn(),
 }));
 
-vi.mock('../connector_credentials/service.ts', () => ({
-  CREDENTIAL_NAME_MAX: 100,
-  createCredentialInTransaction,
-  findOauth2Grant,
-  listCredentials,
-  lockCredentialPair,
-  updateCredentialInTransaction,
-}));
+vi.mock('../connector_credentials/service.ts', async (importOriginal) => {
+  // The settings rules are the credential domain's own, run as they are:
+  // the start door asks them before anything is minted.
+  const actual =
+    await importOriginal<
+      typeof import('../connector_credentials/service.ts')
+    >();
+  return {
+    CREDENTIAL_NAME_MAX: 100,
+    ConnectorCredentialError: actual.ConnectorCredentialError,
+    normalizeNewCredentialConfig: actual.normalizeNewCredentialConfig,
+    createCredentialInTransaction,
+    findOauth2Grant,
+    listCredentials,
+    lockCredentialPair,
+    updateCredentialInTransaction,
+  };
+});
 
 import {
   hashStateToken,
@@ -560,36 +570,62 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
   });
 });
 
-describe('the permissions a consent asks for [CONN-R31]', () => {
-  /** A `sql` that answers every statement with no row: no organization
-   * app (the deployment's env app serves) and a pending authorization that
-   * is written and forgotten. */
-  const emptySql = (() => {
-    const tag = () => Promise.resolve([]);
+/** A `sql` that answers every statement with no row — no organization
+ * app (the deployment's env app serves) — and records what it was asked:
+ * the pending authorization is written and kept here. */
+function recordingSql(): {
+  sql: Sql;
+  statements: { text: string; values: unknown[] }[];
+} {
+  const statements: { text: string; values: unknown[] }[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    statements.push({ text: strings.join('?'), values });
+    return Promise.resolve([]);
+  };
+  return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-    return Object.assign(tag, {
+    sql: Object.assign(tag, {
       unsafe: (text: string) => text,
-    }) as unknown as Sql;
-  })();
+      json: (value: unknown) => value,
+    }) as unknown as Sql,
+    statements,
+  };
+}
 
-  async function scopesAsked(reconnect?: {
-    config?: Record<string, string>;
-  }): Promise<string[]> {
-    vi.stubEnv('SITE_URL', 'https://tale.example');
-    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_ID', 'app-id');
-    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_SECRET', 'app-secret');
+/** Start an Outlook consent with the deployment's env app. */
+async function startOutlook(
+  sql: Sql,
+  args: { reconnectCredentialId?: string; config?: Record<string, string> },
+) {
+  vi.stubEnv('SITE_URL', 'https://tale.example');
+  vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_ID', 'app-id');
+  vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_SECRET', 'app-secret');
+  try {
+    return await startOauth2(sql, {
+      connectorSlug: 'outlook',
+      organizationId: 'org-1',
+      userId: 'user-1',
+      ...args,
+    });
+  } finally {
+    vi.unstubAllEnvs();
+  }
+}
+
+describe('the permissions a consent asks for [CONN-R31]', () => {
+  async function scopesAsked(
+    reconnect?: { config?: Record<string, string> },
+    add?: Record<string, string>,
+  ): Promise<string[]> {
     findOauth2Grant.mockResolvedValue(
       reconnect === undefined
         ? null
         : { id: 'cred-1', authMethod: 'oauth2', ...reconnect },
     );
-    const outcome = await startOauth2(emptySql, {
-      connectorSlug: 'outlook',
-      organizationId: 'org-1',
-      userId: 'user-1',
+    const outcome = await startOutlook(recordingSql().sql, {
       ...(reconnect !== undefined && { reconnectCredentialId: 'cred-1' }),
+      ...(add !== undefined && { config: add }),
     });
-    vi.unstubAllEnvs();
     if (outcome.kind !== 'redirect') throw new Error(JSON.stringify(outcome));
     return (new URL(outcome.url).searchParams.get('scope') ?? '').split(' ');
   }
@@ -598,6 +634,22 @@ describe('the permissions a consent asks for [CONN-R31]', () => {
     const scopes = await scopesAsked();
     expect(scopes).toContain('Mail.Read');
     expect(scopes.some((scope) => scope.endsWith('.Shared'))).toBe(false);
+  });
+
+  it('asks a new connection naming a mailbox for the shared-mailbox permissions', async () => {
+    const scopes = await scopesAsked(undefined, {
+      mailbox: 'promotion@example.com',
+    });
+    expect(scopes).toEqual(
+      expect.arrayContaining([
+        'Mail.Read',
+        'Mail.Read.Shared',
+        'Mail.Send.Shared',
+      ]),
+    );
+    expect(await scopesAsked(undefined, { mailbox: '  ' })).not.toContain(
+      'Mail.Read.Shared',
+    );
   });
 
   it('asks a reconnect of a credential naming a mailbox for the shared-mailbox permissions too', async () => {
@@ -627,5 +679,76 @@ describe('the permissions a consent asks for [CONN-R31]', () => {
       'b',
       'c',
     ]);
+  });
+});
+
+describe('a new connection is born with its settings, checked before the consent [CCRED-R12]', () => {
+  it('keeps the settings, normalized, on the pending authorization', async () => {
+    const { sql, statements } = recordingSql();
+
+    const outcome = await startOutlook(sql, {
+      config: { mailbox: ' promotion@example.com ' },
+    });
+
+    expect(outcome.kind).toBe('redirect');
+    const insert = statements.find((statement) =>
+      statement.text.includes('INSERT INTO app.connector_oauth_states'),
+    );
+    expect(insert?.values).toContainEqual({ mailbox: 'promotion@example.com' });
+  });
+
+  it('refuses settings the connector does not take, before anything is minted', async () => {
+    const { sql, statements } = recordingSql();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const outcome = await startOutlook(sql, { config: { region: 'eu' } });
+
+    expect(outcome).toEqual({ kind: 'error', error: 'invalid_settings' });
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('INSERT INTO app.connector_oauth_states'),
+      ),
+    ).toBe(false);
+    warn.mockRestore();
+  });
+
+  it('refuses settings beside a Reconnect, which keeps its credential’s own', async () => {
+    findOauth2Grant.mockResolvedValue({
+      id: 'cred-1',
+      authMethod: 'oauth2',
+      config: { mailbox: 'promotion@example.com' },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const outcome = await startOutlook(recordingSql().sql, {
+      reconnectCredentialId: 'cred-1',
+      config: { mailbox: 'other@example.com' },
+    });
+
+    expect(outcome).toEqual({ kind: 'error', error: 'invalid_settings' });
+    warn.mockRestore();
+  });
+
+  it('creates the credential with the settings its consent carried', async () => {
+    const { sql } = sqlWithRoutes({});
+
+    const outcome = await storeOauth2Grant(sql, {
+      organizationId: 'org-1',
+      connectorSlug: 'outlook',
+      userId: 'user-1',
+      displayName: 'Microsoft Outlook',
+      intent: { kind: 'add', config: { mailbox: 'promotion@example.com' } },
+      tokens: TOKENS,
+    });
+
+    expect(outcome).toMatchObject({ ok: true, credentialId: 'cred-new' });
+    expect(createCredentialInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connectorSlug: 'outlook',
+        authMethod: 'oauth2',
+        config: { mailbox: 'promotion@example.com' },
+      }),
+    );
   });
 });

@@ -54,27 +54,15 @@ export function withImapFromAddress(
  * Keep `fromAddress` on the mailbox a credential names (`config.mailbox` —
  * Outlook's shared mailbox): the Inbox, the composer and the sync's
  * direction all read `fromAddress`, and the credential acts on that mailbox,
- * not on the account that signed in. When an edit drops the mailbox, the
- * mirror of it goes too, so the next sync learns the account's own address
- * again instead of filing its mail under the old mailbox. `previous` is the
- * stored config an edit replaces; absent on create.
+ * not on the account that signed in. The mailbox is set when the credential
+ * is added and never changes (a `fixed` setting), so the mirror never has to
+ * follow it away. Returns `config` unchanged when it names no mailbox.
  */
 export function withMailboxFromAddress(
   config: Record<string, string | number | boolean> | undefined,
-  previous: Record<string, string | number | boolean> | undefined,
 ): Record<string, string | number | boolean> | undefined {
   const mailbox = config?.mailbox;
-  if (typeof mailbox === 'string' && looksLikeEmailAddress(mailbox)) {
-    return withFromAddress(config, mailbox);
-  }
-  const was = previous?.mailbox;
-  if (
-    config !== undefined &&
-    typeof was === 'string' &&
-    config.fromAddress === was
-  ) {
-    const { fromAddress: _dropped, ...rest } = config;
-    return rest;
-  }
-  return config;
+  return typeof mailbox === 'string'
+    ? withFromAddress(config, mailbox)
+    : config;
 }

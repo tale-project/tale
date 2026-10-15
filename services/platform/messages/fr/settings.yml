@@ -439,6 +439,7 @@ connectors:
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connecter
+    connectGroup: Se connecter avec ton compte {connector}
     emptyBodyOauth:
       Connecte {connector} pour que les workflows configurés et les outils
       compatibles de la plateforme puissent utiliser ce compte.
@@ -549,6 +550,7 @@ connectors:
     smtpHint:
       Saisis le nom d'utilisateur et le mot de passe SMTP de ton relais
       (Resend, SendGrid, Amazon SES, …).
+    fixedSettingReason: Fixé à l'ajout des identifiants. Pour une autre valeur, ajoute d'autres identifiants.
     tenantId: ID d'annuaire (tenant)
     tenantIdHelp: L'ID de l'annuaire dans lequel l'app est enregistrée.
     clientId: ID d'application (client)

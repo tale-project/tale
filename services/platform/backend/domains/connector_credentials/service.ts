@@ -337,6 +337,54 @@ function normalizeConfig(
   return out;
 }
 
+/**
+ * Refuse an edit that changes a setting the connector declares `fixed` —
+ * Outlook's `mailbox`, which decides where the credential acts and so what
+ * its mail sync's positions, the conversations it filed and their replies
+ * belong to. Absent and empty are the same value; another value is another
+ * credential, added beside this one.
+ */
+function assertFixedConfigKept(
+  connector: Connector,
+  stored: Record<string, string | number | boolean> | null,
+  next: Record<string, string | number | boolean> | undefined,
+): void {
+  const valueOf = (
+    config: Record<string, string | number | boolean> | null | undefined,
+    key: string,
+  ): string | number | boolean => {
+    const value = config?.[key];
+    return typeof value === 'string' ? value.trim() : (value ?? '');
+  };
+  for (const field of connector.configFields) {
+    if (field.fixed !== true) continue;
+    if (valueOf(stored, field.key) === valueOf(next, field.key)) continue;
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_CONFIG_INVALID',
+      `"${field.label}" is set when a "${connector.name}" credential is added and cannot be changed — add another credential instead.`,
+    );
+  }
+}
+
+/**
+ * A new credential's per-credential settings, validated and normalized the
+ * way {@link createCredential} stores them, before the credential exists —
+ * for a flow that collects them first and creates the credential later: the
+ * connector OAuth consent, whose settings (Outlook's `mailbox`) decide the
+ * permissions it asks for and travel with it to the callback.
+ */
+export function normalizeNewCredentialConfig(
+  connectorSlug: string,
+  authMethod: AuthMethod,
+  raw: Record<string, string | number | boolean> | undefined,
+): Record<string, string | number | boolean> | undefined {
+  return normalizeConfig(
+    requireConnectorAuthMethod(connectorSlug, authMethod),
+    raw,
+    authMethod,
+  );
+}
+
 export interface SecretInput {
   token?: string;
   username?: string;
@@ -497,7 +545,7 @@ function checkPayloadForConnector(
  * credential uses — the two values its refusal tells them to check — and a
  * secret rotation starts from them instead of blank fields.
  */
-export interface ClientApp {
+interface ClientApp {
   tenantId?: string;
   clientId: string;
 }
@@ -795,7 +843,6 @@ function prepareCredential(args: CreateCredentialArgs): PreparedCredential {
         normalizeConfig(connector, args.config, args.authMethod),
         args.secret.username,
       ),
-      undefined,
     );
   } catch (error) {
     translateAppError(error);
@@ -965,15 +1012,16 @@ export async function updateCredentialInTransaction(
   }
   let config = row.config;
   if (args.config !== undefined) {
+    const normalized = normalizeConfig(connector, args.config, row.authMethod);
+    assertFixedConfigKept(connector, row.config, normalized);
     try {
       config =
         withMailboxFromAddress(
           withImapFromAddress(
             row.connectorSlug,
-            normalizeConfig(connector, args.config, row.authMethod),
+            normalized,
             args.secret?.username,
           ),
-          row.config ?? undefined,
         ) ?? null;
     } catch (error) {
       translateAppError(error);

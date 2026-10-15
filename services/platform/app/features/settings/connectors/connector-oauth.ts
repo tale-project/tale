@@ -1,5 +1,7 @@
 import { getEnv } from '@/lib/env';
 import {
+  CONSENT_CONFIG_PARAM,
+  encodeConsentConfig,
   RECONNECT_CREDENTIAL_PARAM,
   type ConsentIntent,
 } from '@/lib/shared/connector-consent';
@@ -12,10 +14,11 @@ import {
  * state token and PKCE pair, and redirects to the vendor; the callback
  * exchanges the code and stores the credential. So there is nothing to submit
  * from here and nothing to name — the page just hands the browser over, and
- * says what the consent is FOR. An Add stores a new credential; a Reconnect
- * names the credential it renews, which the server checks, keeps on the
- * pending authorization, and writes to exactly — never to the connector's
- * default instead.
+ * says what the consent is FOR. An Add stores a new credential, with the
+ * settings entered beside Connect (Outlook's mailbox), which the server
+ * checks and keeps on the pending authorization; a Reconnect names the
+ * credential it renews, which the server checks, keeps, and writes to
+ * exactly — never to the connector's default instead.
  *
  * A full-page navigation rather than a popup: the state lives server-side,
  * there is no opener to talk to, and nothing for a blocked popup to swallow.
@@ -34,6 +37,14 @@ export function authorizationUrl(
   url.searchParams.set('organizationId', organizationId);
   if (intent.kind === 'reconnect') {
     url.searchParams.set(RECONNECT_CREDENTIAL_PARAM, intent.credentialId);
+  } else if (
+    intent.config !== undefined &&
+    Object.keys(intent.config).length > 0
+  ) {
+    url.searchParams.set(
+      CONSENT_CONFIG_PARAM,
+      encodeConsentConfig(intent.config),
+    );
   }
   return url.toString();
 }

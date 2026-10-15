@@ -33,6 +33,9 @@ export type ConnectorErrorKind =
   | 'not_configured'
   /** The slug is not a shipped connector, or it offers no OAuth2 method. */
   | 'unsupported_connector'
+  /** The settings a connection was started with are not ones the connector
+   * takes, or a Reconnect carried settings of its own. */
+  | 'invalid_settings'
   /** The Slack workspace is already connected to a different organization. */
   | 'workspace_claimed'
   /** Tokens were obtained but could not be stored. */
@@ -82,6 +85,12 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
       'The connector you asked for is unknown, or it does not use a sign-in flow. Check the connector list in your settings.',
     status: 400,
   },
+  invalid_settings: {
+    title: 'These settings cannot be used for this connection',
+    detail:
+      'The settings entered beside Connect are not ones this connector accepts, so nothing was saved and you were not sent to the provider. Go back to your connector settings, check them, and connect again.',
+    status: 400,
+  },
   workspace_claimed: {
     title: 'That workspace is already connected',
     detail:
@@ -122,6 +131,19 @@ const LOCALIZED_COPY: Partial<
     Record<SupportedLocale, Pick<ErrorCopy, 'title' | 'detail'>>
   >
 > = {
+  invalid_settings: {
+    en: ERROR_COPY.invalid_settings,
+    de: {
+      title: 'Diese Einstellungen passen nicht zu dieser Verbindung',
+      detail:
+        'Die neben „Verbinden“ eingegebenen Einstellungen nimmt dieser Connector nicht an. Deshalb wurde nichts gespeichert, und du wurdest nicht zum Anbieter weitergeleitet. Prüfe sie in deinen Connector-Einstellungen und verbinde erneut.',
+    },
+    fr: {
+      title: 'Ces paramètres ne conviennent pas à cette connexion',
+      detail:
+        'Les paramètres saisis à côté de « Connecter » ne sont pas acceptés par ce connecteur. Rien n’a donc été enregistré et tu n’as pas été redirigé vers le fournisseur. Vérifie-les dans les paramètres de tes connecteurs, puis connecte-toi à nouveau.',
+    },
+  },
   credential_missing: {
     en: ERROR_COPY.credential_missing,
     de: {

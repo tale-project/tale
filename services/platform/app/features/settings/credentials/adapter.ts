@@ -189,6 +189,9 @@ export interface CredentialExtraModule<V, Cred, Extra> {
     disabled?: boolean;
     /** The sign-in method being authored or edited. */
     method?: string;
+    /** True in the edit dialog: a field set once, when the credential was
+     * added, is shown without being editable. */
+    editing?: boolean;
   }> | null;
 }
 

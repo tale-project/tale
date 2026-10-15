@@ -58,7 +58,7 @@ For OneDrive/SharePoint, **Use Entra ID SSO app** can copy an existing SSO regis
 
 ## Connect a shared Outlook mailbox
 
-A shared mailbox, such as `promotion@example.com`, has no sign-in of its own. Tale reaches it in one of two ways: your organization's own Microsoft app signs in as itself and is allowed into that one mailbox, or a person who already has Full Access to the mailbox connects with their own account. Either way, the credential's **Mailbox** field names the shared address, and every Outlook action, the mailbox sync and the Inbox then work in that mailbox and use its address as the sender.
+A shared mailbox, such as `promotion@example.com`, has no sign-in of its own. Tale reaches it in one of two ways: your organization's own Microsoft app signs in as itself and is allowed into that one mailbox, or a person who already has Full Access to the mailbox connects with their own account. Either way, the credential's **Mailbox** field names the shared address, and every Outlook action, the mailbox sync and the Inbox then work in that mailbox and use its address as the sender. You enter the mailbox when you add the credential, and it cannot be changed afterwards: what the credential has read and sent belongs to that mailbox. To work in another mailbox, add another credential.
 
 The app sign-in is the better fit for a team inbox: it does not depend on one person's account, and Exchange limits the app to the mailboxes you choose.
 
@@ -79,7 +79,7 @@ The app sign-in is the better fit for a team inbox: it does not depend on one pe
 
 When the client secret expires, replace it with **Replace app credentials** in the row's menu. The form starts with the directory and application ID filled in, so only the new client secret needs entering; the credential keeps its name, mailbox and references.
 
-If a person handles the mailbox instead, connect Outlook with **Connect** as that person, then open **Edit credential**, enter the shared address under **Mailbox**, save, and choose **Reconnect**. The new consent screen asks for access to mailboxes that account can open. The person needs Full Access to the mailbox, and Send As to send from it.
+If a person handles the mailbox instead, select **Add credential**, then **Microsoft Outlook**. In the box above the form, enter the shared address under **Mailbox**, then select **Connect** and sign in as that person. Because a mailbox is named, the consent screen also asks for access to mailboxes that account can open, and the new credential works in the shared mailbox from its first sync. The person needs Full Access to the mailbox, and Send As to send from it. Leave **Mailbox** empty to connect the person's own mailbox.
 
 ## Reconnect or diagnose a failure
 

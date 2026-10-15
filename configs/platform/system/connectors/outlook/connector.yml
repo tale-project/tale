@@ -24,18 +24,25 @@ configFields:
     type: string
     requiredFor:
       - client-credentials
+    # Everything the credential does belongs to its mailbox: the mail sync's
+    # positions, the conversations it filed and the replies they send. So a
+    # credential is added for a mailbox and keeps it; another mailbox is
+    # another credential.
+    fixed: true
     description: >-
       The address of the mailbox to work in, such as a shared mailbox like
       support@example.com. Required for an app sign-in. With an OAuth
       connection, leave it empty to use the signed-in account's own mailbox,
-      or name a mailbox that account has Full Access to and reconnect.
+      or name a mailbox that account has Full Access to. Set when the
+      credential is added: to work in another mailbox, add another
+      credential.
     i18n:
       de:
         label: 'Postfach'
-        description: 'Die Adresse des Postfachs, in dem gearbeitet wird, etwa ein freigegebenes Postfach wie support@example.com. Für eine App-Anmeldung erforderlich. Bei einer OAuth-Verbindung leer lassen, um das eigene Postfach des angemeldeten Kontos zu verwenden, oder ein Postfach angeben, auf das dieses Konto Vollzugriff hat, und neu verbinden.'
+        description: 'Die Adresse des Postfachs, in dem gearbeitet wird, etwa ein freigegebenes Postfach wie support@example.com. Für eine App-Anmeldung erforderlich. Bei einer OAuth-Verbindung leer lassen, um das eigene Postfach des angemeldeten Kontos zu verwenden, oder ein Postfach angeben, auf das dieses Konto Vollzugriff hat. Wird beim Hinzufügen der Zugangsdaten festgelegt: Für ein anderes Postfach fügst du weitere Zugangsdaten hinzu.'
       fr:
         label: 'Boîte aux lettres'
-        description: 'L’adresse de la boîte aux lettres dans laquelle travailler, par exemple une boîte partagée comme support@example.com. Obligatoire pour une connexion de l’app. Avec une connexion OAuth, laisse vide pour utiliser la boîte du compte connecté, ou indique une boîte à laquelle ce compte a un accès complet, puis reconnecte.'
+        description: 'L’adresse de la boîte aux lettres dans laquelle travailler, par exemple une boîte partagée comme support@example.com. Obligatoire pour une connexion de l’app. Avec une connexion OAuth, laisse vide pour utiliser la boîte du compte connecté, ou indique une boîte à laquelle ce compte a un accès complet. Elle est fixée à l’ajout des identifiants : pour travailler dans une autre boîte, ajoute d’autres identifiants.'
   - key: fromAddress
     label: From address
     type: string
@@ -61,8 +68,9 @@ auth:
       - Calendars.ReadWrite
       - Contacts.Read
       - User.Read
-    # Asked only when a credential names a mailbox and is reconnected: a
-    # personal Microsoft account cannot grant the shared-mailbox permissions.
+    # Asked only of a credential that names a mailbox — entered beside
+    # Connect, or stored on the credential a Reconnect renews: a personal
+    # Microsoft account cannot grant the shared-mailbox permissions.
     configScopes:
       mailbox:
         - Mail.Read.Shared
@@ -95,7 +103,7 @@ livePrelude: |
     if (r.status === 401) return new Error(`${head}: Microsoft Graph refused the sign-in — reconnect the account, or for an app sign-in replace its client secret in Settings → Connectors.`);
     if (r.status === 403) {
       const permission = o.permission || 'Mail.Read';
-      if (outlookMailbox) return new Error(`${head}: Microsoft Graph denied access to the mailbox ${outlookMailbox} — an app signing in as itself needs the Exchange role "Application ${permission}" assigned with a management scope that includes this mailbox (RBAC for Applications); a person needs Full Access to the mailbox${permission === 'Mail.Send' ? ' and Send As' : ''}, then Reconnect so the consent covers the shared-mailbox permissions.`);
+      if (outlookMailbox) return new Error(`${head}: Microsoft Graph denied access to the mailbox ${outlookMailbox} — an app signing in as itself needs the Exchange role "Application ${permission}" assigned with a management scope that includes this mailbox (RBAC for Applications); a person needs Full Access to the mailbox${permission === 'Mail.Send' ? ' and Send As' : ''}.`);
       return new Error(`${head}: permission denied — verify the app has the ${o.permission ? `${o.permission} Microsoft Graph scope` : 'required Microsoft Graph scopes'}.`);
     }
     if (r.status === 404 && o.notFound) return new Error(`${head}: ${o.notFound} not found.`);

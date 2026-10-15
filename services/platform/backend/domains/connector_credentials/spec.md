@@ -6,7 +6,8 @@ A connector reaches an outside system, such as a mail account or a ticketing too
 credential the organization stores for it: a key, a user name and password, a sign-in the
 outside system lets Tale renew, or the organization's own app, which signs in as itself. A connector can have several credentials, one of which is its
 default. These rules cover what is shown of a credential, which credential is the default,
-what keeps a renewable sign-in working, and what the audit log records. Who can manage
+what keeps a renewable sign-in working, which settings a credential keeps for its life, and
+what the audit log records. Who can manage
 credentials and how a connector uses one are not covered; see Not yet.
 
 ## What is shown of a credential
@@ -104,6 +105,22 @@ secret. Replacing the secret starts from them, and only the client secret is typ
 - **Example**: Ada opens Settings → Connectors → the row of the shared mailbox reads "App
   1b2c… in directory contoso.onmicrosoft.com", and **Replace app credentials** opens with both
   filled in.
+
+## A credential's settings
+
+### CCRED-R12 · A setting a connector fixes is set when the credential is added, and kept
+
+Some settings decide where a credential acts, and so what everything it did belongs to: an
+Outlook credential's mailbox holds the mail sync's position in that mailbox, the conversations
+it filed and the replies they send. Such a setting is entered when the credential is added —
+for a sign-in at the outside system, beside **Connect**, so the credential exists with it from
+the start — and an edit that changes or clears it is refused (`CREDENTIAL_CONFIG_INVALID`):
+another value is another credential. Blanks around a value are not part of it, and blanks
+alone are no value.
+
+- **Example**: Lena enters `promotion@example.com` beside **Connect** → the credential works in
+  the shared mailbox from its first sync. Later Ada tries to point it at `support@example.com`
+  → the edit is refused, and she adds a second credential for the support mailbox instead.
 
 ## What the audit log records
 

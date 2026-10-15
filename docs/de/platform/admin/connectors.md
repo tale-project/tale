@@ -58,7 +58,7 @@ Bei OneDrive/SharePoint kann **Entra-ID-App aus SSO übernehmen** eine bestehend
 
 ## Ein freigegebenes Outlook-Postfach verbinden
 
-Ein freigegebenes Postfach wie `promotion@example.com` hat keine eigene Anmeldung. Tale erreicht es auf einem von zwei Wegen: Die eigene Microsoft-App deiner Organisation meldet sich selbst an und darf nur in dieses eine Postfach, oder eine Person mit Vollzugriff auf das Postfach verbindet ihr eigenes Konto. In beiden Fällen nennt das Feld **Postfach** der Zugangsdaten die freigegebene Adresse. Alle Outlook-Aktionen, die Postfach-Synchronisierung und der Posteingang arbeiten dann in diesem Postfach und verwenden seine Adresse als Absender.
+Ein freigegebenes Postfach wie `promotion@example.com` hat keine eigene Anmeldung. Tale erreicht es auf einem von zwei Wegen: Die eigene Microsoft-App deiner Organisation meldet sich selbst an und darf nur in dieses eine Postfach, oder eine Person mit Vollzugriff auf das Postfach verbindet ihr eigenes Konto. In beiden Fällen nennt das Feld **Postfach** der Zugangsdaten die freigegebene Adresse. Alle Outlook-Aktionen, die Postfach-Synchronisierung und der Posteingang arbeiten dann in diesem Postfach und verwenden seine Adresse als Absender. Das Postfach gibst du beim Hinzufügen der Zugangsdaten an, danach lässt es sich nicht mehr ändern: Was die Zugangsdaten gelesen und gesendet haben, gehört zu diesem Postfach. Für ein anderes Postfach fügst du weitere Zugangsdaten hinzu.
 
 Für ein Team-Postfach eignet sich die App-Anmeldung besser: Sie hängt nicht am Konto einer einzelnen Person, und Exchange beschränkt die App auf die Postfächer, die du festlegst.
 
@@ -79,7 +79,7 @@ Für ein Team-Postfach eignet sich die App-Anmeldung besser: Sie hängt nicht am
 
 Läuft das Client-Secret ab, ersetze es im Menü der Zeile mit **App-Zugangsdaten ersetzen**. Verzeichnis-ID und Anwendungs-ID sind im Formular schon eingetragen, du gibst nur das neue Client-Secret ein. Name, Postfach und Verweise der Zugangsdaten bleiben erhalten.
 
-Betreut stattdessen eine Person das Postfach, verbinde Outlook mit **Verbinden** als diese Person. Öffne danach **Zugangsdaten bearbeiten**, trage unter **Postfach** die freigegebene Adresse ein, speichere und wähle **Neu verbinden**. Die neue Freigabe fragt nach Zugriff auf die Postfächer, die dieses Konto öffnen kann. Die Person braucht Vollzugriff auf das Postfach und zum Senden die Berechtigung „Senden als“.
+Betreut stattdessen eine Person das Postfach, wähle **Zugangsdaten hinzufügen** und dann **Microsoft Outlook**. Trage im Feld über dem Formular unter **Postfach** die freigegebene Adresse ein, wähle **Verbinden** und melde dich als diese Person an. Weil ein Postfach angegeben ist, fragt die Freigabe auch nach Zugriff auf die Postfächer, die dieses Konto öffnen kann, und die neuen Zugangsdaten arbeiten ab der ersten Synchronisierung im freigegebenen Postfach. Die Person braucht Vollzugriff auf das Postfach und zum Senden die Berechtigung „Senden als“. Lässt du **Postfach** leer, verbindest du das eigene Postfach der Person.
 
 ## Eine Verbindung reparieren
 

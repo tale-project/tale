@@ -427,6 +427,7 @@ connectors:
   card:
     actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
     connect: Verbinden
+    connectGroup: Mit deinem {connector}-Konto verbinden
     emptyBodyOauth:
       Verbinde {connector}, damit konfigurierte Workflows und unterstützte
       Plattform-Werkzeuge dieses Konto nutzen können.
@@ -534,6 +535,7 @@ connectors:
     smtpPassword: SMTP-Passwort
     smtpHint: SMTP-Benutzername und -Passwort deines Relays (Resend, SendGrid,
       Amazon SES, …).
+    fixedSettingReason: Wurde beim Hinzufügen der Zugangsdaten festgelegt. Für einen anderen Wert fügst du weitere Zugangsdaten hinzu.
     tenantId: Verzeichnis-ID (Tenant)
     tenantIdHelp: Die ID des Verzeichnisses, in dem die App registriert ist.
     clientId: Anwendungs-ID (Client)

@@ -1,7 +1,11 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { RECONNECT_CREDENTIAL_PARAM } from '../../../lib/shared/connector-consent.ts';
+import {
+  CONSENT_CONFIG_PARAM,
+  decodeConsentConfig,
+  RECONNECT_CREDENTIAL_PARAM,
+} from '../../../lib/shared/connector-consent.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
   sessionAllowsOrganization,
@@ -31,8 +35,9 @@ const CREDENTIAL_ID_MAX = 128;
  * may add credentials to the named organization — connecting a connector IS
  * a credential write, just spelled as a consent flow. It also takes the
  * consent's intent (`lib/shared/connector-consent.ts`): no `credentialId`
- * adds a new credential, a `credentialId` reconnects that one (an OAuth grant of this organization and connector, or
- * the flow does not start). `callback` is authorized by the single-use state
+ * adds a new credential, with the settings `config` carries, a
+ * `credentialId` reconnects that one (an OAuth grant of this organization
+ * and connector, or the flow does not start). `callback` is authorized by the single-use state
  * row, which carries the organization, the connector and that intent —
  * nothing in the callback request can move them — AND bound to the session
  * on the returning browser: the completer must be the member who started the
@@ -87,6 +92,9 @@ export function createConnectorOauthRoutes(deps: {
     // Absent: an Add. Present, it must name something — an empty or absurd
     // id is a broken Reconnect link, never quietly read as an Add.
     const credentialId = c.req.query(RECONNECT_CREDENTIAL_PARAM);
+    // An Add's settings. Present, they must be readable: a link that lost
+    // them is refused, never started as a credential without them.
+    const rawConfig = c.req.query(CONSENT_CONFIG_PARAM);
     if (connectorSlug === '' || organizationId === '') {
       return errorPage('unsupported_connector');
     }
@@ -123,6 +131,19 @@ export function createConnectorOauthRoutes(deps: {
         c.req.header('accept-language'),
       );
     }
+    const config =
+      rawConfig === undefined ? undefined : decodeConsentConfig(rawConfig);
+    if (config === null) {
+      console.warn(
+        `[connectors:oauth2] refused a "${connectorSlug}" start whose settings are not readable (organization ${organizationId})`,
+      );
+      return errorPage(
+        'invalid_settings',
+        organizationId,
+        resolvePublicBaseUrl(origin),
+        c.req.header('accept-language'),
+      );
+    }
     const outcome = await startOauth2(deps.sql, {
       connectorSlug,
       organizationId,
@@ -130,6 +151,7 @@ export function createConnectorOauthRoutes(deps: {
       ...(credentialId !== undefined
         ? { reconnectCredentialId: credentialId }
         : {}),
+      ...(config !== undefined ? { config } : {}),
       publicOrigin: origin,
     });
     if (outcome.kind === 'error') {

@@ -7,6 +7,7 @@ import { Stack } from '@tale/ui/layout';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { Link2, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
 
 import {
   looseMutation,
@@ -19,7 +20,10 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import {
+  connectorConfigComplete,
+  ConnectorConfigFields,
   connectorConfigExtras,
+  pruneBlank,
   type ConnectorConfigValue,
 } from './config-fields';
 import { goToAuthorization } from './connector-oauth';
@@ -257,7 +261,13 @@ function SecretFields({
 }
 
 /**
- * Step two for a connector joined through OAuth: an explainer and the hand-off.
+ * Step two for a connector joined through OAuth: an explainer, the settings
+ * the new credential is born with, and the hand-off.
+ *
+ * The settings travel with the consent (Outlook's mailbox decides the
+ * permissions it asks for, and is fixed once the credential exists), so
+ * they are entered here, beside Connect — never on the credential after it
+ * was stored for the account's own mailbox.
  *
  * Renders nothing for a connector that offers no grant, so it can sit
  * unconditionally above the credential form — a connector declaring BOTH an
@@ -270,6 +280,9 @@ function ConnectorConsent({
 }: CredentialConsentProps<ConnectorVendor>) {
   const { t } = useT('settings');
   const ability = useAbility();
+  // The connector's declared settings, with the credential form's fields,
+  // checks and pruning.
+  const [config, setConfig] = useState<ConnectorConfigValue>({});
   // Literal keys per case, so the catalog guard sees every string in use.
   const oauthAppMissingCopy = (explainer: OauthAppMissingExplainer) => {
     const values = { connector: vendor.displayName };
@@ -302,19 +315,39 @@ function ConnectorConsent({
     );
   }
   return (
-    <Stack gap={3} className="border-border rounded-lg border p-4">
+    // A group of its own: its settings carry the same labels as the
+    // credential form's below it, and belong to the connection.
+    <Stack
+      gap={3}
+      className="border-border rounded-lg border p-4"
+      role="group"
+      aria-label={t('connectors.card.connectGroup', {
+        connector: vendor.displayName,
+      })}
+    >
       <Text as="p" variant="muted" className="text-sm">
         {t('connectors.card.emptyBodyOauth', {
           connector: vendor.displayName,
         })}
       </Text>
+      <ConnectorConfigFields
+        vendor={vendor}
+        value={config}
+        onChange={setConfig}
+        method="oauth2"
+      />
       <div>
         <Button
           icon={Link2}
           size="sm"
-          onClick={() =>
-            goToAuthorization(organizationId, vendor.key, { kind: 'add' })
-          }
+          disabled={!connectorConfigComplete(config, vendor, 'oauth2')}
+          onClick={() => {
+            const settings = pruneBlank(config);
+            goToAuthorization(organizationId, vendor.key, {
+              kind: 'add',
+              ...(Object.keys(settings).length > 0 && { config: settings }),
+            });
+          }}
         >
           {t('connectors.card.connect')}
         </Button>

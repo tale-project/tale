@@ -207,6 +207,15 @@ const configFieldSchema = z
       )
       .min(1)
       .optional(),
+    /**
+     * Set when the credential is added and kept for its life: an edit that
+     * changes it is refused. For a setting that decides WHERE the credential
+     * acts — Outlook's `mailbox` — and so what everything the credential
+     * already did belongs to: its mail sync's positions, the conversations
+     * it filed and the replies they send. Another value is another
+     * credential.
+     */
+    fixed: z.boolean().optional(),
     /** Closed set of accepted values, for a `string` field rendered as a select. */
     enum: z.array(z.string().min(1)).min(1).optional(),
     /** Numeric constraints for number fields. */

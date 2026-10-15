@@ -83,18 +83,26 @@ function isValidFieldValue(
   );
 }
 
-function ConnectorConfigFields({
+/**
+ * A connector's declared settings as form fields. `editing` is the edit
+ * dialog: a setting the connector declares `fixed` (Outlook's mailbox) is
+ * shown there but cannot be changed — the server refuses a change, and the
+ * field says why instead of letting a save fail.
+ */
+export function ConnectorConfigFields({
   vendor,
   value,
   onChange,
   disabled,
   method,
+  editing,
 }: {
   vendor: ConnectorVendorLike;
   value: ConnectorConfigValue;
   onChange: (next: ConnectorConfigValue) => void;
   disabled?: boolean;
   method?: string;
+  editing?: boolean;
 }) {
   const { t } = useT('settings');
   const localized = useLocalized();
@@ -112,6 +120,10 @@ function ConnectorConfigFields({
         const field = localized(declared);
         const current = value[field.key];
         const invalid = !isValidFieldValue(field, current);
+        const locked = editing === true && field.fixed === true;
+        const lockedReason = locked
+          ? t('connectors.dialog.fixedSettingReason')
+          : undefined;
         if (field.type === 'boolean') {
           return (
             <Switch
@@ -126,7 +138,7 @@ function ConnectorConfigFields({
                     : false
               }
               onCheckedChange={(next) => set(field.key, next)}
-              disabled={disabled}
+              disabled={disabled === true || locked}
             />
           );
         }
@@ -148,7 +160,7 @@ function ConnectorConfigFields({
                 value: option,
                 label: option,
               }))}
-              disabled={disabled}
+              disabled={disabled === true || locked}
               required={isRequired(field, method)}
             />
           );
@@ -172,7 +184,8 @@ function ConnectorConfigFields({
             step={field.integer === true ? 1 : undefined}
             errorMessage={invalid ? t('connectors.invalidPort') : undefined}
             isInvalid={invalid}
-            disabled={disabled}
+            disabled={disabled === true || locked}
+            disabledReason={lockedReason}
             required={isRequired(field, method)}
           />
         );
@@ -198,14 +211,7 @@ export function connectorConfigExtras<
     fromCredential: (credential) => ({ ...credential.config }),
     isDirty: (value, baseline) =>
       JSON.stringify(value) !== JSON.stringify(baseline),
-    isComplete: (value, vendor, method) =>
-      fieldsOf(vendor.summary).every(
-        (field) =>
-          (isSupplied(value[field.key]) &&
-            isValidFieldValue(field, value[field.key])) ||
-          (!isSupplied(value[field.key]) &&
-            (!isRequired(field, method) || field.default !== undefined)),
-      ),
+    isComplete: connectorConfigComplete,
     // Blank entries are dropped rather than sent as '': the server applies the
     // declared default for an ABSENT field, and would reject '' for a number.
     createArgs: (value) => {
@@ -217,7 +223,25 @@ export function connectorConfigExtras<
   };
 }
 
-function pruneBlank(value: ConnectorConfigValue): ConnectorConfigValue {
+/** Whether the declared settings are filled in enough for a credential of
+ * `method`: every required one supplied (or defaulted), every supplied one
+ * valid. */
+export function connectorConfigComplete(
+  value: ConnectorConfigValue,
+  vendor: ConnectorVendorLike,
+  method?: string,
+): boolean {
+  return fieldsOf(vendor.summary).every(
+    (field) =>
+      (isSupplied(value[field.key]) &&
+        isValidFieldValue(field, value[field.key])) ||
+      (!isSupplied(value[field.key]) &&
+        (!isRequired(field, method) || field.default !== undefined)),
+  );
+}
+
+/** The settings as they are sent: blank entries dropped. */
+export function pruneBlank(value: ConnectorConfigValue): ConnectorConfigValue {
   const out: ConnectorConfigValue = {};
   for (const [key, entry] of Object.entries(value)) {
     if (isSupplied(entry)) out[key] = entry;

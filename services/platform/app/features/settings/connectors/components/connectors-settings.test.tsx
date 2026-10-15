@@ -691,10 +691,15 @@ describe('ConnectorsSettings', () => {
     );
     // An app has no mailbox of its own: without one the server would refuse.
     expect(submit).toBeDisabled();
-    await user.type(
-      form.getByRole('textbox', { name: /^Mailbox/ }),
-      'promotion@example.com',
-    );
+    // The consent box asks for its own; this is the app form's.
+    const consent = form.getByRole('group', {
+      name: 'Connect with your Microsoft Outlook account',
+    });
+    const appMailbox = form
+      .getAllByRole('textbox', { name: /^Mailbox/ })
+      .find((field) => !consent.contains(field));
+    if (appMailbox === undefined) throw new Error('no app form mailbox');
+    await user.type(appMailbox, 'promotion@example.com');
     expect(submit).toBeEnabled();
 
     await user.click(submit);
@@ -708,6 +713,96 @@ describe('ConnectorsSettings', () => {
       clientSecret: 'app-client-secret',
       config: { mailbox: 'promotion@example.com' },
     });
+  });
+
+  it('connects a person to a shared mailbox named before the consent, never after [CCRED-R12]', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+    const consent = within(
+      form.getByRole('group', {
+        name: 'Connect with your Microsoft Outlook account',
+      }),
+    );
+
+    await user.type(
+      consent.getByRole('textbox', { name: /^Mailbox/ }),
+      ' promotion@example.com',
+    );
+    await user.click(consent.getByRole('button', { name: 'Connect' }));
+
+    expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'outlook', {
+      kind: 'add',
+      config: { mailbox: ' promotion@example.com' },
+    });
+  });
+
+  it('connects a person’s own mailbox when no mailbox is named', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+
+    await user.click(form.getByRole('button', { name: 'Connect' }));
+
+    expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'outlook', {
+      kind: 'add',
+    });
+  });
+
+  it('shows a credential’s mailbox on Edit without letting it change [CCRED-R12]', async () => {
+    fixtures.connectors = [
+      {
+        ...outlookConnector,
+        configFields: outlookConnector.configFields.map((field) =>
+          field.key === 'mailbox' ? { ...field, fixed: true } : field,
+        ),
+      },
+    ];
+    fixtures.credentials = [
+      credential({
+        id: 'cred-lena',
+        name: 'Promotion (Lena)',
+        connectorSlug: 'outlook',
+        authMethod: 'oauth2',
+        config: {
+          mailbox: 'promotion@example.com',
+          fromAddress: 'promotion@example.com',
+        },
+      }),
+    ];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', { name: 'Actions for Promotion (Lena)' }),
+    );
+    await user.click(
+      within(await screen.findByRole('menu')).getByRole('menuitem', {
+        name: 'Edit credential',
+      }),
+    );
+    const dialog = within(
+      await screen.findByRole('dialog', { name: 'Edit credential' }),
+    );
+
+    const mailbox = dialog.getByRole('textbox', { name: /^Mailbox/ });
+    expect(mailbox).toHaveValue('promotion@example.com');
+    expect(mailbox).toHaveAttribute('aria-disabled', 'true');
+    await user.type(mailbox, 'x');
+    expect(mailbox).toHaveValue('promotion@example.com');
+
+    await rename(user, dialog, 'Promotion');
+    await user.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(updateCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'cred-lena',
+        name: 'Promotion',
+        config: {
+          mailbox: 'promotion@example.com',
+          fromAddress: 'promotion@example.com',
+        },
+      }),
+    );
   });
 
   it('collects a separate SMTP relay login when the toggle is on', async () => {

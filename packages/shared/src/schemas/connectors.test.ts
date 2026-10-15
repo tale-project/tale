@@ -394,6 +394,20 @@ describe('connectorSchema', () => {
       ]);
     });
 
+    it('keeps a setting declared fixed for the credential’s life', () => {
+      const parsed = connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        configFields: [{ ...mailbox, requiredFor: undefined, fixed: true }],
+      });
+      expect(parsed.configFields[0]?.fixed).toBe(true);
+      expect(
+        connectorSchema.safeParse({
+          ...connectorSchema.parse(GITHUB),
+          configFields: [{ ...mailbox, requiredFor: undefined, fixed: 'yes' }],
+        }).success,
+      ).toBe(false);
+    });
+
     it('refuses a token URL the client secret would travel to in the clear', () => {
       const bad = {
         ...connectorSchema.parse(GITHUB),

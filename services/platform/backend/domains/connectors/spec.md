@@ -325,9 +325,11 @@ Access to it can reach it through their own sign-in.
 ### CONN-R29 · An Outlook credential naming a mailbox acts on it, whoever signed in
 
 Every call it makes lists, reads, drafts and sends in that mailbox, and the mailbox's address
-is the identity the Inbox, the composer and the mail sync use. A credential that names none
-acts on the signed-in account's own mailbox. An app that signs in as itself has no mailbox of
-its own, so its credential is refused until it names one (`CREDENTIAL_CONFIG_REQUIRED`).
+is the identity the Inbox, the composer and the mail sync use. The mailbox is named when the
+credential is added and stays its own (`CCRED-R12`), so nothing the credential reads or sends
+ever belongs to another mailbox. A credential that names none acts on the signed-in account's
+own mailbox. An app that signs in as itself has no mailbox of its own, so its credential is
+refused until it names one (`CREDENTIAL_CONFIG_REQUIRED`).
 
 - **Example**: The organization's app is connected for `promotion@example.com` → the Inbox
   lists the mail that arrives there, and Lena's reply leaves from `promotion@example.com`.
@@ -336,8 +338,8 @@ its own, so its credential is refused until it names one (`CREDENTIAL_CONFIG_REQ
 
 When Microsoft Graph denies access to the named mailbox, the refusal names the mailbox, the
 Exchange application role the app needs for the action, scoped to the mailbox with RBAC for
-Applications, and for a person Full Access (and Send As, to send) followed by a reconnect. A
-mailbox Graph does not know is refused as such, but only by a call on the mailbox itself: a message, attachment or
+Applications, and for a person Full Access (and Send As, to send). A mailbox Graph does not
+know is refused as such, but only by a call on the mailbox itself: a message, attachment or
 draft Graph no longer finds inside it keeps Graph's own not-found answer, which the mail sync
 reads as gone. A throttled call still names Graph's wait.
 
@@ -347,13 +349,14 @@ reads as gone. A throttled call still names Graph's wait.
 
 ### CONN-R31 · Only a credential naming a mailbox asks for shared-mailbox permissions
 
-A new Outlook connection asks for the account's own mailbox only, so an account that cannot
-grant shared-mailbox permissions can still connect. Reconnecting a credential that names a
-mailbox asks for them as well.
+A new Outlook connection that names no mailbox asks for the account's own mailbox only, so an
+account that cannot grant shared-mailbox permissions can still connect. One that names a
+mailbox beside **Connect** asks for them as well, and so does a reconnect of it. A mailbox of
+blanks names none.
 
-- **Example**: Lena connects her own mailbox, then names the shared `support@example.com` on
-  the credential and reconnects → the consent screen now asks for access to mailboxes she
-  can open.
+- **Example**: Lena enters the shared `support@example.com` beside **Connect** → the consent
+  screen asks for access to mailboxes she can open, and the new credential works in
+  `support@example.com` from its first call.
 
 ## Not yet
 

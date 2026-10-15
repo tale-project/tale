@@ -170,6 +170,7 @@ export function CredentialEditDialog<
           onChange={setExtraValue}
           disabled={update.isPending}
           method={credential.authMethod}
+          editing
         />
       )}
     </FormDialog>

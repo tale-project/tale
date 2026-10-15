@@ -86,6 +86,8 @@ export interface ConnectorCredentialsContract {
         requiredFor?: Array<
           'oauth2' | 'api-key' | 'bearer' | 'basic' | 'client-credentials'
         >;
+        /** Set when the credential is added; an edit cannot change it. */
+        fixed?: boolean;
         type: 'string' | 'number' | 'boolean';
         key: string;
         label: string;

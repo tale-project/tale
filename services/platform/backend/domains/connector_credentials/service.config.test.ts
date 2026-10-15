@@ -15,6 +15,7 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 import {
   createCredential,
   listCredentials,
+  normalizeNewCredentialConfig,
   updateCredential,
 } from './service.ts';
 
@@ -206,5 +207,95 @@ describe('an app sign-in shows which app it signs in as, never its secret [CCRED
     });
     // `unsafe('client_app')`: the column keeps what it holds.
     expect(write(renamed.statements, 'UPDATE').values).toContain('client_app');
+  });
+});
+
+describe('a setting the connector fixes is kept for the credential’s life [CCRED-R12]', () => {
+  const PERSON_ROW = {
+    ...APP_ROW,
+    id: 'cred-lena',
+    authMethod: 'oauth2',
+    name: 'Promotion (Lena)',
+    clientApp: null,
+  };
+  const edit = (config: Record<string, string>) => {
+    const { sql, statements } = fakeSql(PERSON_ROW);
+    return {
+      statements,
+      done: updateCredential(sql, {
+        organizationId: 'org-1',
+        credentialId: 'cred-lena',
+        config,
+      }),
+    };
+  };
+
+  it('refuses an edit that moves the credential to another mailbox, or off its mailbox', async () => {
+    const moves: Record<string, string>[] = [
+      { mailbox: 'support@example.com' },
+      {},
+      { mailbox: '  ' },
+    ];
+    for (const config of moves) {
+      const { statements, done } = edit(config);
+      await expect(done).rejects.toMatchObject({
+        code: 'CREDENTIAL_CONFIG_INVALID',
+        message: expect.stringContaining('add another credential'),
+      });
+      expect(
+        statements.some((statement) => statement.text.startsWith('UPDATE')),
+      ).toBe(false);
+    }
+  });
+
+  it('saves an edit that keeps the mailbox, however it is spaced', async () => {
+    const { statements, done } = edit({
+      mailbox: ' promotion@example.com ',
+      fromAddress: 'promotion@example.com',
+    });
+    await done;
+    expect(write(statements, 'UPDATE').values).toContainEqual({
+      mailbox: 'promotion@example.com',
+      fromAddress: 'promotion@example.com',
+    });
+  });
+
+  it('never fixes a setting the connector leaves editable', async () => {
+    const { sql } = fakeSql({
+      ...APP_ROW,
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      clientApp: null,
+      config: {
+        imapHost: 'imap.example.com',
+        smtpHost: 'smtp.example.com',
+        fromAddress: 'lena@example.com',
+      },
+    });
+    await expect(
+      updateCredential(sql, {
+        organizationId: 'org-1',
+        credentialId: 'cred-app',
+        config: {
+          imapHost: 'imap.other.example',
+          smtpHost: 'smtp.other.example',
+          fromAddress: 'lena@example.com',
+        },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('checks a new connection’s settings by the rules it will be created by', () => {
+    expect(
+      normalizeNewCredentialConfig('outlook', 'oauth2', {
+        mailbox: ' promotion@example.com ',
+      }),
+    ).toEqual({ mailbox: 'promotion@example.com' });
+    expect(() =>
+      normalizeNewCredentialConfig('outlook', 'oauth2', { region: 'eu' }),
+    ).toThrow(/has no setting "region"/);
+    expect(() =>
+      normalizeNewCredentialConfig('slack', 'oauth2', { mailbox: 'x@y.z' }),
+    ).toThrow(/takes no per-credential settings/);
   });
 });

@@ -108,37 +108,20 @@ describe('withFromAddress', () => {
 describe('withMailboxFromAddress — a named mailbox is the identity [CONN-R29]', () => {
   it('keeps fromAddress on the mailbox a credential names', () => {
     expect(
-      withMailboxFromAddress(
-        { mailbox: ' promotion@example.com ', fromAddress: 'lena@example.com' },
-        undefined,
-      ),
+      withMailboxFromAddress({
+        mailbox: 'promotion@example.com',
+        fromAddress: 'lena@example.com',
+      }),
     ).toEqual({
-      mailbox: ' promotion@example.com ',
+      mailbox: 'promotion@example.com',
       fromAddress: 'promotion@example.com',
     });
   });
 
-  it('drops the mirror when an edit removes the mailbox, so the sync learns the account again', () => {
-    expect(
-      withMailboxFromAddress(
-        { fromAddress: 'promotion@example.com' },
-        {
-          mailbox: 'promotion@example.com',
-          fromAddress: 'promotion@example.com',
-        },
-      ),
-    ).toEqual({});
-  });
-
-  it('leaves an account’s own learned address alone', () => {
-    expect(
-      withMailboxFromAddress(
-        { fromAddress: 'lena@example.com' },
-        {
-          fromAddress: 'lena@example.com',
-        },
-      ),
-    ).toEqual({ fromAddress: 'lena@example.com' });
-    expect(withMailboxFromAddress(undefined, undefined)).toBeUndefined();
+  it('leaves an account’s own learned address alone when no mailbox is named', () => {
+    expect(withMailboxFromAddress({ fromAddress: 'lena@example.com' })).toEqual(
+      { fromAddress: 'lena@example.com' },
+    );
+    expect(withMailboxFromAddress(undefined)).toBeUndefined();
   });
 });

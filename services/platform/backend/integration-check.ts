@@ -28217,6 +28217,45 @@ async function checkConnectorOauth(
       `start=${startedAgain.status}, stranger=${stranger.status} (want 400), pendingLeft=${afterStranger[0]?.count} (want 0), vendorCalls=${seen.length} (want 0)`,
     );
 
+    // ---- start: an Add's settings (0217) --------------------------------
+    // Settings the connector does not take are refused at the door, before
+    // anything is minted; settings it takes ride the pending row as the
+    // door normalized them, for the callback to create the credential with.
+    const refusedSettings = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}&config=${encodeURIComponent(JSON.stringify({ mailbox: 'promotion@door.test' }))}`,
+    );
+    const afterRefusedSettings = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    const { hashStateToken: hashConfigState } =
+      await import('./core/http_connectors/oauth_state.ts');
+    const configStateHash = await hashConfigState('itest-oauth-config-state');
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: configStateHash,
+      organizationId: orgId,
+      userId,
+      connectorSlug: 'outlook',
+      codeVerifier: 'itest-verifier-value-000000000000000000000',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
+      config: { mailbox: 'promotion@door.test' },
+    });
+    const pendingConfig = await sql<{ config: unknown }[]>`
+      SELECT config FROM app.connector_oauth_states
+      WHERE state_hash = ${configStateHash}
+    `;
+    await sql`
+      DELETE FROM app.connector_oauth_states WHERE state_hash = ${configStateHash}
+    `;
+    record(
+      "connector oauth: an Add's settings are checked at the start door and kept on its pending row",
+      refusedSettings.status === 400 &&
+        afterRefusedSettings[0]?.count === '0' &&
+        JSON.stringify(pendingConfig[0]?.config) ===
+          JSON.stringify({ mailbox: 'promotion@door.test' }),
+      `refused=${refusedSettings.status} (want 400), pendingAfterRefusal=${afterRefusedSettings[0]?.count} (want 0), kept=${JSON.stringify(pendingConfig[0]?.config)}`,
+    );
+
     // ---- callback: the happy path, driven through the service -----------
     // The vendor endpoint comes from the catalog, so the exchange is driven
     // at the service seam with the fake token URL — the routes above already
