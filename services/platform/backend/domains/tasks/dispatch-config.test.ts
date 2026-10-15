@@ -789,11 +789,16 @@ describe('a dispatch serves another board only when its writer may edit that boa
       agents: ['scribe', 'ghost'],
       sources: [{ projectId: 'p-vat' }],
     };
-    const base = database();
-    const query = (strings: TemplateStringsArray, ...values: unknown[]) =>
+    type Query = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => Promise<unknown>;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stand-in database answers the tagged template alone
+    const base = database() as unknown as Query;
+    const query: Query = (strings, ...values) =>
       strings.join('?').includes('FROM app.project_dispatch')
         ? Promise.resolve([{ config: stored, updatedAt: 1, updatedBy: 'ada' }])
-        : (base as unknown as typeof query)(strings, ...values);
+        : base(strings, ...values);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the save's reads, with the stored document
     const tx = Object.assign(query, {
       unsafe: (text: string) => text,

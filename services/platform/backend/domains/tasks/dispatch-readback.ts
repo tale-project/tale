@@ -82,10 +82,9 @@ export async function readAgentsServingProject(
     agents.map((agent) => agent.projectId),
   );
   return {
-    agents: agents.map((agent) => ({
-      ...agent,
-      projectName: nameIfReadable(readable, agent.projectId, agent.projectName),
-    })),
+    agents: agents.map((agent) =>
+      withReadableName(readable, agent, 'projectName'),
+    ),
   };
 }
 
@@ -97,6 +96,27 @@ export function nameIfReadable(
   name: string | null,
 ): string | null {
   return readable.has(projectId) ? name : null;
+}
+
+/** The row with its project's name under `key` kept for a reader who may
+ * read that project, and null for anyone else ({@link nameIfReadable}). */
+function withReadableName<
+  Row extends { projectId: string },
+  Key extends keyof Row & string,
+>(
+  readable: ReadonlySet<string>,
+  row: Row,
+  key: Key,
+): Omit<Row, Key> & Record<Key, string | null> {
+  const name = row[key];
+  return {
+    ...row,
+    [key]: nameIfReadable(
+      readable,
+      row.projectId,
+      typeof name === 'string' ? name : null,
+    ),
+  };
 }
 
 export async function readProjectDispatchStatus(
@@ -125,10 +145,9 @@ export async function readProjectDispatchStatus(
       auth,
       serving.map((row) => row.projectId),
     );
-    const servedBy = serving.map((row) => ({
-      ...row,
-      name: nameIfReadable(readable, row.projectId, row.name),
-    }));
+    const servedBy = serving.map((row) =>
+      withReadableName(readable, row, 'name'),
+    );
     return {
       configured: unreadable,
       unreadable,
@@ -395,21 +414,14 @@ export async function readProjectDispatchStatus(
     canEdit,
     state,
     pool,
-    sources: sources.map((source) => {
-      const view = sourceView(config, source);
-      return {
-        ...view,
-        name: nameIfReadable(readable, view.projectId, view.name),
-      };
-    }),
+    sources: sources.map((source) =>
+      withReadableName(readable, sourceView(config, source), 'name'),
+    ),
     reviewers: (config.reviewers ?? []).map((agentId) => ({
       agentId,
       name: agentById.get(agentId)?.name ?? null,
     })),
-    servedBy: serving.map((row) => ({
-      ...row,
-      name: nameIfReadable(readable, row.projectId, row.name),
-    })),
+    servedBy: serving.map((row) => withReadableName(readable, row, 'name')),
     standingRoles: roles.map((role) => {
       const last = lastOf.get(role.key);
       return {

@@ -686,7 +686,10 @@ export async function checkDispatchAcrossProjects(
     `;
     record(
       'dispatch across projects: a dispatch whose served board was archived is still switched off and saved from the app [TASK-R70]',
-      switchedOff.changed && narrowed.changed && offRows[0]?.enabled === false,
+      switchedOff.changed &&
+        narrowed.changed &&
+        offRows.length === 1 &&
+        !offRows[0].enabled,
       `off=${JSON.stringify(switchedOff)} narrowed=${JSON.stringify(narrowed)} rows=${JSON.stringify(offRows)}`,
     );
 
