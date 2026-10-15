@@ -357,23 +357,17 @@ export type ManagedAgentSecret = z.infer<typeof managedAgentSecretSchema>;
 
 /** The secret fields each way a connector credential signs in takes. A
  * sign-in the outside system renews (`oauth2`) needs a person's consent in
- * Tale and is never declared. */
+ * Tale and is never declared. A credential carries none of its connector's
+ * per-credential settings either, so a connector that requires some — an
+ * IMAP/SMTP mailbox, the HTTP connector — is connected in Tale, and with it
+ * a mailbox's separate SMTP login. */
 export const MANAGED_CONNECTOR_FIELDS = {
-  'api-key': { required: ['token'], optional: [] },
-  bearer: { required: ['token'], optional: [] },
-  basic: {
-    required: ['username', 'password'],
-    optional: ['smtpUsername', 'smtpPassword'],
-  },
+  'api-key': ['token'],
+  bearer: ['token'],
+  basic: ['username', 'password'],
 } as const;
 export type ManagedConnectorAuthMethod = keyof typeof MANAGED_CONNECTOR_FIELDS;
-const connectorField = z.enum([
-  'token',
-  'username',
-  'password',
-  'smtpUsername',
-  'smtpPassword',
-]);
+const connectorField = z.enum(['token', 'username', 'password']);
 
 const managedConnectorCredentialShape = {
   connector: identity,
@@ -408,9 +402,8 @@ export const managedConnectorCredentialSchema = z
     ),
   })
   .superRefine((credential, context) => {
-    const { required, optional } = MANAGED_CONNECTOR_FIELDS[
-      credential.authMethod
-    ] as { required: readonly string[]; optional: readonly string[] };
+    const required: readonly string[] =
+      MANAGED_CONNECTOR_FIELDS[credential.authMethod];
     const named = Object.keys(credential.fields);
     for (const field of required)
       if (!named.includes(field))
@@ -420,21 +413,12 @@ export const managedConnectorCredentialSchema = z
           message: `A ${credential.authMethod} credential needs ${field}`,
         });
     for (const field of named)
-      if (!required.includes(field) && !optional.includes(field))
+      if (!required.includes(field))
         context.addIssue({
           code: 'custom',
           path: ['fields', field],
           message: `A ${credential.authMethod} credential takes no ${field}`,
         });
-    if (
-      credential.authMethod === 'basic' &&
-      named.includes('smtpUsername') !== named.includes('smtpPassword')
-    )
-      context.addIssue({
-        code: 'custom',
-        path: ['fields'],
-        message: 'Declare the SMTP user name and password together',
-      });
   });
 export type ManagedConnectorCredential = z.infer<
   typeof managedConnectorCredentialSchema

@@ -695,6 +695,30 @@ function prepareCredential(args: CreateCredentialArgs): PreparedCredential {
   };
 }
 
+/**
+ * What refuses a credential before its secret is at hand: the connector,
+ * the sign-in method it takes, its endpoint and — for a new credential — the
+ * per-credential settings the connector requires, none given. For a caller
+ * that checks a credential it writes later (managed configuration's plan),
+ * by the rules the write applies: {@link prepareCredential} for a new one,
+ * {@link updateCredentialInTransaction} for an existing one, which keeps its
+ * settings and checks an endpoint only when one is given.
+ */
+export function checkCredentialTarget(args: {
+  connectorSlug: string;
+  authMethod: AuthMethod;
+  endpointUrl?: string;
+  creating: boolean;
+}): void {
+  const connector = requireConnectorAuthMethod(
+    args.connectorSlug,
+    args.authMethod,
+  );
+  if (args.creating || args.endpointUrl !== undefined)
+    normalizeEndpointUrl(connector, args.endpointUrl);
+  if (args.creating) normalizeConfig(connector, undefined);
+}
+
 async function insertPreparedCredential(
   tx: TransactionSql,
   args: CreateCredentialArgs,

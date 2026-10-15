@@ -35,8 +35,11 @@ vi.mock('./service.ts', async (importOriginal) => {
 });
 
 const service = await import('./service.ts');
-const { readManagedConnectorCredential, writeManagedConnectorCredential } =
-  await import('./managed.ts');
+const {
+  checkManagedConnectorCredential,
+  readManagedConnectorCredential,
+  writeManagedConnectorCredential,
+} = await import('./managed.ts');
 
 const PASSWORD = 'jira-stored-secret-value-0001';
 
@@ -226,5 +229,80 @@ describe('a declared credential is read back as a digest of its values; a renewe
       }),
     ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
     expect(service.updateCredentialInTransaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a declared credential is checked against its connector before anything is written [CCRED-R8]', () => {
+  type Target = Parameters<typeof checkManagedConnectorCredential>[2];
+  /** The verdict on a declared credential, against the shipped catalog. */
+  const check = (
+    config: Omit<Target, 'name' | 'authMethod'> &
+      Partial<Pick<Target, 'authMethod'>>,
+    rows: ReturnType<typeof row>[] = [],
+  ) =>
+    checkManagedConnectorCredential(database(rows), 'org-1', {
+      name: 'Ops',
+      authMethod: 'basic',
+      ...config,
+    });
+  const refusal = (path: string, code: string) => ({
+    ok: false,
+    issues: [{ path, code, message: expect.any(String) }],
+  });
+
+  it('takes a new credential its connector takes as declared', async () => {
+    await expect(
+      check({
+        connector: 'confluence',
+        endpoint: 'https://ops.atlassian.net',
+      }),
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      check({ connector: 'github', authMethod: 'bearer' }),
+    ).resolves.toEqual({ ok: true });
+  });
+
+  it('names the field its connector refuses', async () => {
+    await expect(check({ connector: 'jirra' })).resolves.toEqual(
+      refusal('connector', 'CONNECTOR_UNKNOWN'),
+    );
+    await expect(check({ connector: 'github' })).resolves.toEqual(
+      refusal('authMethod', 'AUTH_METHOD_NOT_SUPPORTED'),
+    );
+    await expect(check({ connector: 'confluence' })).resolves.toEqual(
+      refusal('endpoint', 'CREDENTIAL_ENDPOINT_REQUIRED'),
+    );
+    await expect(
+      check({
+        connector: 'github',
+        authMethod: 'bearer',
+        endpoint: 'https://github.example.com',
+      }),
+    ).resolves.toEqual(refusal('endpoint', 'CREDENTIAL_ENDPOINT_INVALID'));
+  });
+
+  it('refuses a new credential whose connector needs settings a declaration has none of', async () => {
+    // A mailbox needs its IMAP and SMTP servers, HTTP its base URL.
+    await expect(check({ connector: 'imap-smtp' })).resolves.toEqual(
+      refusal('connector', 'CREDENTIAL_CONFIG_REQUIRED'),
+    );
+    await expect(
+      check({ connector: 'http', authMethod: 'bearer' }),
+    ).resolves.toEqual(refusal('connector', 'CREDENTIAL_CONFIG_REQUIRED'));
+  });
+
+  it('keeps an existing credential’s sign-in method, settings and endpoint unless stated', async () => {
+    const stored = row({ connectorSlug: 'confluence' });
+    await expect(check({ connector: 'confluence' }, [stored])).resolves.toEqual(
+      { ok: true },
+    );
+    await expect(
+      check({ connector: 'confluence', authMethod: 'api-key' }, [stored]),
+    ).resolves.toEqual(refusal('authMethod', 'CREDENTIAL_AUTH_METHOD_FIXED'));
+    await expect(
+      check({ connector: 'confluence' }, [
+        row({ connectorSlug: 'confluence', authMethod: 'oauth2' }),
+      ]),
+    ).resolves.toEqual(refusal('authMethod', 'CREDENTIAL_NOT_DECLARABLE'));
   });
 });

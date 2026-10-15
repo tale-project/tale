@@ -90,7 +90,11 @@ method, endpoint, default, the names of its secret fields and a slow, salted dig
 values, so a value changed in the environment or in Tale reads as differing and the next apply
 writes the declared ones. A credential keeps the sign-in method it was created with, and a
 sign-in the outside system renews is connected in Tale, never declared
-(`CREDENTIAL_NOT_DECLARABLE`).
+(`CREDENTIAL_NOT_DECLARABLE`). Before anything of the declaration is written, its plan asks
+whether the connector takes the credential — the connector, its sign-in method, its endpoint —
+without sending a value. A declaration states none of a connector's per-credential settings,
+so a new credential for a connector that requires some, such as an IMAP/SMTP mailbox or HTTP, is
+refused there (`CREDENTIAL_CONFIG_REQUIRED`) and connected in Tale instead.
 
 - **Example**: Ada rotates the Jira token in the deployment's environment → the next plan shows
   the Ops credential changed, and its apply seals the new token; nothing records the token.

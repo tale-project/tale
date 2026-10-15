@@ -16,6 +16,8 @@ import {
 import { isConfigurableOauthAppSlug } from '../connectors/oauth-app-routes.ts';
 import { listOauthApps } from '../connectors/oauth-apps.ts';
 import {
+  checkManagedConnectorCredential,
+  managedConnectorCredentialCheckSchema,
   managedConnectorCredentialWriteSchema,
   readManagedConnectorCredential,
   writeManagedConnectorCredential,
@@ -166,6 +168,40 @@ export function createConnectorCredentialRoutes(deps: {
           target.data.connector,
           target.data.name,
           target.data.createIfMissing === 'true',
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Whether the declared credential could be written, asked by a plan
+  // before anything of its declaration is: no secret travels, nothing is
+  // written.
+  app.post('/configuration/check', async (c) => {
+    const refused = requireDeveloper(c);
+    if (refused) return refused;
+    const body = managedConnectorCredentialCheckSchema.safeParse(
+      await c.req.json(),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.connector !== c.req.query('connector') ||
+      body.data.config.name.toLowerCase() !==
+        (c.req.query('name') ?? '').toLowerCase()
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the credential in the query',
+        },
+      ]);
+    try {
+      return c.json(
+        await checkManagedConnectorCredential(
+          deps.sql,
+          c.get('orgId'),
+          body.data.config,
         ),
       );
     } catch (error) {

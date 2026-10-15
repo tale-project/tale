@@ -292,12 +292,18 @@ export async function readManagedResource(
   return { config: observedConfig, revision: view.hash };
 }
 
-const dispatchCheckSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), changed: z.boolean(), hash: z.string() }),
+const checkSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
   z.object({
     ok: z.literal(false),
     issues: z
-      .array(z.object({ path: z.string(), message: z.string() }))
+      .array(
+        z.object({
+          path: z.string(),
+          code: z.string().optional(),
+          message: z.string(),
+        }),
+      )
       .min(1)
       .max(1_000),
   }),
@@ -306,11 +312,44 @@ const dispatchCheckSchema = z.discriminatedUnion('ok', [
 /** A field of the declared dispatch, such as `gates.0.labels.1`. */
 const declaredPath = /^[A-Za-z]+(?:\.(?:[A-Za-z]+|\d+))*$/;
 
-/** A dispatch is the last resource a declaration writes, and the platform
- * checks what it names (the project's agents, tasks, labels and schedules)
- * only when it saves it. Ask before anything is written, so a dispatch it
- * would refuse leaves the declaration unapplied. Only the refused fields'
- * paths are named: native text never becomes a diagnostic. */
+/** A platform error code, such as `CREDENTIAL_CONFIG_REQUIRED`. */
+const errorCode = /^[A-Z][A-Z0-9_]{0,63}$/;
+
+/** Where a refused declaration is wrong: each field once, with the code the
+ * platform refuses it by when it names one. Only fields and codes are named:
+ * native text never becomes a diagnostic. */
+function refusedAt(issues: ReadonlyArray<{ path: string; code?: string }>) {
+  const places = [
+    ...new Set(
+      issues
+        .filter(({ path }) => path.length <= 120 && declaredPath.test(path))
+        .map(({ path, code }) =>
+          code !== undefined && errorCode.test(code)
+            ? `${path} (${code})`
+            : path,
+        ),
+    ),
+  ];
+  return places.length > 0 ? ` at ${places.join(', ')}` : '';
+}
+
+/** A path with `/check` appended before its query. */
+function checkPath(path: string): string {
+  const query = path.indexOf('?');
+  return query === -1
+    ? `${path}/check`
+    : `${path.slice(0, query)}/check${path.slice(query)}`;
+}
+
+/**
+ * Ask the platform, before anything is written, whether it would take a
+ * resource that it checks only when it saves it — so one it would refuse
+ * leaves the declaration unapplied instead of stopping an apply half-way.
+ * A dispatch is the last resource a declaration writes, and the platform
+ * checks what it names (the project's agents, tasks, labels and schedules);
+ * a connector credential must suit its connector (its sign-in method, its
+ * endpoint, the settings it requires). No secret value is sent.
+ */
 export async function checkManagedResource(
   client: PlatformConfigurationClient,
   resource: ManagedPlatformResource,
@@ -321,24 +360,30 @@ export async function checkManagedResource(
    * applied. The save that writes it checks again what then exists. */
   planned?: ManagedDispatchPlan,
 ): Promise<void> {
+  if (resource.kind === 'connector-credential') {
+    const { fields: _sources, ...config } = resource.config;
+    const verdict = checkSchema.parse(
+      await client.request(checkPath(resourcePath(resource)), 'POST', {
+        config,
+      }),
+    );
+    if (verdict.ok) return;
+    throw preconditionError(
+      `The platform refuses the connector credential declared as ${resource.config.connector}/${resource.config.name}${refusedAt(verdict.issues)}.`,
+      'Declare a connector Tale has, a sign-in method it takes and an endpoint exactly when it takes one per credential; a credential keeps the sign-in method it was created with. A connector that needs per-credential settings, such as an IMAP/SMTP mailbox or HTTP, is connected in Tale.',
+    );
+  }
   if (resource.kind !== 'project-dispatch') return;
-  const verdict = dispatchCheckSchema.parse(
-    await client.request(`${resourcePath(resource)}/check`, 'POST', {
+  const verdict = checkSchema.parse(
+    await client.request(checkPath(resourcePath(resource)), 'POST', {
       config: resource.config,
       expectedHash,
       ...(planned !== undefined ? { planned } : {}),
     }),
   );
   if (verdict.ok) return;
-  const paths = [
-    ...new Set(
-      verdict.issues
-        .map((issue) => issue.path)
-        .filter((path) => path.length <= 120 && declaredPath.test(path)),
-    ),
-  ];
   throw preconditionError(
-    `The platform refuses the dispatch declared for project ${resource.config.projectId}${paths.length > 0 ? ` at ${paths.join(', ')}` : ''}.`,
+    `The platform refuses the dispatch declared for project ${resource.config.projectId}${refusedAt(verdict.issues)}.`,
     'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates), or change the declaration, then plan again.',
   );
 }

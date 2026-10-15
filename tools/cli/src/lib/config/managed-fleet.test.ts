@@ -607,6 +607,53 @@ function platform() {
       if (parts[0] === 'connector-credentials') {
         const connector = query.get('connector') ?? '';
         const name = query.get('name') ?? '';
+        // /connector-credentials/configuration/check: the connector's own
+        // rules, without the values. Jira takes an endpoint per credential;
+        // HTTP needs a base URL among its per-credential settings.
+        if (parts[2] === 'check') {
+          const catalog: Record<
+            string,
+            { auth: string[]; endpoint: boolean; settings: boolean }
+          > = {
+            jira: {
+              auth: ['basic', 'api-key'],
+              endpoint: true,
+              settings: false,
+            },
+            http: {
+              auth: ['bearer', 'api-key', 'basic'],
+              endpoint: false,
+              settings: true,
+            },
+          };
+          const declared = config as unknown as {
+            authMethod: string;
+            endpoint?: string;
+          };
+          const known = catalog[connector];
+          const row = credentials.get(`${connector}/${name.toLowerCase()}`);
+          const refusal: [string, string] | undefined =
+            known === undefined
+              ? ['connector', 'CONNECTOR_UNKNOWN']
+              : row !== undefined && row.authMethod !== declared.authMethod
+                ? ['authMethod', 'CREDENTIAL_AUTH_METHOD_FIXED']
+                : !known.auth.includes(declared.authMethod)
+                  ? ['authMethod', 'AUTH_METHOD_NOT_SUPPORTED']
+                  : (row === undefined || declared.endpoint !== undefined) &&
+                      known.endpoint !== (declared.endpoint !== undefined)
+                    ? ['endpoint', 'CREDENTIAL_ENDPOINT_REQUIRED']
+                    : row === undefined && known.settings
+                      ? ['connector', 'CREDENTIAL_CONFIG_REQUIRED']
+                      : undefined;
+          return refusal === undefined
+            ? { ok: true }
+            : {
+                ok: false,
+                issues: [
+                  { path: refusal[0], code: refusal[1], message: 'refused' },
+                ],
+              };
+        }
         return resource(
           views.credential(connector, name),
           query,
@@ -1087,6 +1134,47 @@ describe('a declaration refuses at planning what it could not write inside what 
         ),
       ),
       `task/${PROJECT}/${TASK} is assigned to agent ${STRAY}`,
+    );
+  });
+
+  test('a connector credential its connector would refuse, checked without its values [CCRED-R8]', async () => {
+    const credential = (edit: Record<string, unknown>) =>
+      variant((resources) =>
+        resources.map((resource) =>
+          resource.kind === 'connector-credential'
+            ? {
+                ...resource,
+                config: { ...(resource.config as object), ...edit },
+              }
+            : resource,
+        ),
+      );
+    // HTTP needs a base URL among its per-credential settings, which a
+    // declaration has none of: it is connected in Tale.
+    const api = await refusedBeforeWriting(
+      credential({
+        connector: 'http',
+        name: 'Status API',
+        authMethod: 'bearer',
+        endpoint: undefined,
+        fields: { token: { env: 'TALE_CONFIG_SECRET_GITHUB' } },
+      }),
+      'connector credential declared as http/Status API at connector (CREDENTIAL_CONFIG_REQUIRED)',
+    );
+    const check = api.requests.find(({ path }) =>
+      path.startsWith('/api/app/connector-credentials/configuration/check?'),
+    );
+    expect(check?.body).toEqual({
+      config: { connector: 'http', name: 'Status API', authMethod: 'bearer' },
+    });
+    expect(JSON.stringify(api.requests)).not.toContain(TOKEN);
+    await refusedBeforeWriting(
+      credential({ connector: 'jirra' }),
+      'at connector (CONNECTOR_UNKNOWN)',
+    );
+    await refusedBeforeWriting(
+      credential({ endpoint: undefined }),
+      'at endpoint (CREDENTIAL_ENDPOINT_REQUIRED)',
     );
   });
 

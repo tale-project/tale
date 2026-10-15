@@ -286,6 +286,17 @@ describe('a declaration creates projects, labels, agents, tasks, secrets and cre
         authMethod: 'oauth2',
         fields: { token: { env: 'TALE_CONFIG_SECRET_A' } },
       },
+      // A mailbox's separate SMTP login belongs to a connector a
+      // declaration cannot set up (its servers are per-credential settings).
+      {
+        ...credential.config,
+        fields: {
+          username: { env: 'TALE_CONFIG_SECRET_A' },
+          password: { env: 'TALE_CONFIG_SECRET_B' },
+          smtpUsername: { env: 'TALE_CONFIG_SECRET_C' },
+          smtpPassword: { env: 'TALE_CONFIG_SECRET_D' },
+        },
+      },
       // An endpoint is an https origin.
       { ...credential.config, endpoint: 'https://ops.atlassian.net/jira' },
       { ...credential.config, endpoint: 'http://ops.atlassian.net' },

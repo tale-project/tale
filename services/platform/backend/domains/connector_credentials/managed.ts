@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import {
+  checkCredentialTarget,
   ConnectorCredentialError,
   createCredentialInTransaction,
   credentialSecretFields,
@@ -110,6 +111,87 @@ export async function readManagedConnectorCredential(
   return { config, hash: managedConfigurationHash(config) };
 }
 
+/** Where a refusal of the connector's rules points in the declaration. */
+const CHECKED_FIELD: Readonly<Record<string, string>> = {
+  CONNECTOR_UNKNOWN: 'connector',
+  AUTH_METHOD_NOT_SUPPORTED: 'authMethod',
+  CREDENTIAL_AUTH_METHOD_FIXED: 'authMethod',
+  CREDENTIAL_NOT_DECLARABLE: 'authMethod',
+  CREDENTIAL_ENDPOINT_REQUIRED: 'endpoint',
+  CREDENTIAL_ENDPOINT_INVALID: 'endpoint',
+  CREDENTIAL_CONFIG_REQUIRED: 'connector',
+};
+
+/** Whether a declared credential could be written, and if not, where. */
+type ManagedCredentialVerdict =
+  | { ok: true }
+  | {
+      ok: false;
+      issues: Array<{ path: string; code: string; message: string }>;
+    };
+
+/** A check names the credential as its write would, without the values. */
+export const managedConnectorCredentialCheckSchema = z.strictObject({
+  config: managedConnectorCredentialTargetSchema,
+});
+
+/**
+ * Whether the declared credential could be written, checked before anything
+ * of its declaration is — the plan asks, so a credential its connector
+ * refuses stops the declaration unapplied instead of half-way. A new one
+ * must name a connector Tale has, a sign-in method it takes, an endpoint
+ * exactly when it takes one per credential, and a connector whose
+ * per-credential settings all have defaults: a declaration states none
+ * (an IMAP/SMTP mailbox and the HTTP connector need theirs, so they are
+ * connected in Tale). An existing one keeps its sign-in method. A refusal
+ * names the declared field and the error code, with the connector's words.
+ */
+export async function checkManagedConnectorCredential(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  config: z.infer<typeof managedConnectorCredentialTargetSchema>,
+): Promise<ManagedCredentialVerdict> {
+  const row = await findCredentialByName(sql, {
+    organizationId,
+    connectorSlug: config.connector,
+    name: config.name,
+  });
+  try {
+    if (row?.authMethod === 'oauth2')
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_NOT_DECLARABLE',
+        'A credential the connector renews is connected in Tale, never declared.',
+        409,
+      );
+    if (row !== null && row.authMethod !== config.authMethod)
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_AUTH_METHOD_FIXED',
+        `Credential "${row.name}" signs in with ${row.authMethod}; create another credential to use ${config.authMethod}.`,
+        409,
+      );
+    checkCredentialTarget({
+      connectorSlug: config.connector,
+      authMethod: config.authMethod,
+      ...(config.endpoint !== undefined
+        ? { endpointUrl: config.endpoint }
+        : {}),
+      creating: row === null,
+    });
+    return { ok: true };
+  } catch (error) {
+    const path =
+      error instanceof ConnectorCredentialError
+        ? CHECKED_FIELD[error.code]
+        : undefined;
+    if (path === undefined || !(error instanceof ConnectorCredentialError))
+      throw error;
+    return {
+      ok: false,
+      issues: [{ path, code: error.code, message: error.message }],
+    };
+  }
+}
+
 // The same bounds as the door Settings → Connectors writes through.
 const secretValue = z.string().min(1).max(8192);
 const userName = z.string().min(1).max(512);
@@ -122,8 +204,6 @@ export const managedConnectorCredentialWriteSchema = z.strictObject({
     token: secretValue.optional(),
     username: userName.optional(),
     password: secretValue.optional(),
-    smtpUsername: userName.optional(),
-    smtpPassword: secretValue.optional(),
   }),
   expectedHash: expectedConfigurationHashSchema,
   createIfMissing: z.literal(true).optional(),
