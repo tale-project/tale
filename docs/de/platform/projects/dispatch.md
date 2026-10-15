@@ -66,6 +66,8 @@ Darf ein Agent mehr Läufe halten als **Läufe gleichzeitig**, wird das Speicher
 
 Wie schnell sich ein großer Pool füllt, hängt von **Zeit zwischen Starts (Sekunden)** ab. Ist eine Zeit gesetzt, startet jeder Durchlauf eine Aufgabe, und der nächste Durchlauf folgt um diese Zeit später. Der 256. Lauf startet also 255-mal diese Zeit nach dem ersten: bei den standardmäßigen 30 Sekunden nach 2 Stunden, 7 Minuten und 30 Sekunden, bei 5 Sekunden nach 21 Minuten und 15 Sekunden. Bei 0 startet ein Durchlauf jede bereite Aufgabe, die der Sandbox-Host zulässt, höchstens zwei Minuten lang, und der nächste Durchlauf macht sofort weiter; ist der Host ausgelastet, bremsen ihn seine Wartezeiten bis zur nächsten Frage. Ein Durchlauf liest bis zu 500 bereite Aufgaben – genug, um den größten Pool zu füllen.
 
+Antwortet ein KI-Modell wieder, nachdem es ausgelastet war, starten die Läufe, die darauf gewartet haben, in Wellen im Abstand von 15 Sekunden: erst ein Lauf, dann zwei, dann vier und so weiter, höchstens ein Sechzehntel von ihnen auf einmal. Auch 256 wartende Läufe haben so nach spätestens fünf Minuten begonnen.
+
 ## Ständige Rollen nach Zeitplan ausführen
 
 Eine ständige Rolle startet einen Agenten nach Zeitplan auf seiner eigenen Aufgabe, für Arbeit, die wiederkehrt: ein Manager-Agent, der alle dreißig Minuten Reviews verteilt, eine nächtliche Qualitätsprüfung. Füge sie in **Bearbeiten** unter **Ständige Rollen** hinzu:

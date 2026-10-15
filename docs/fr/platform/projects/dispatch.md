@@ -66,6 +66,8 @@ Un enregistrement qui permettrait à un agent de tenir plus d’exécutions que 
 
 La vitesse à laquelle un grand pool se remplit dépend de **Délai entre deux démarrages (secondes)**. Avec un délai, chaque passage lance une tâche et le passage suivant vient ce délai plus tard : la 256e exécution démarre donc 255 fois ce délai après la première, soit 2 heures 7 minutes 30 secondes avec les 30 secondes par défaut, et 21 minutes 15 secondes avec 5 secondes. Avec 0, un passage lance chaque tâche prête que l’hôte des sandbox admet, pendant deux minutes au plus, et le passage suivant prend aussitôt le relais ; quand l’hôte est occupé, ses délais avant de redemander ralentissent le démarrage. Un passage lit jusqu’à 500 tâches prêtes, assez pour remplir le plus grand pool.
 
+Quand un modèle d’IA répond de nouveau après avoir été saturé, les exécutions qui l’attendaient démarrent par vagues espacées de 15 secondes : une exécution, puis deux, puis quatre, et ainsi de suite, jamais plus d’un seizième d’entre elles à la fois. Même 256 exécutions en attente ont ainsi toutes démarré en cinq minutes au plus.
+
 ## Exécuter des rôles permanents selon un horaire
 
 Un rôle permanent lance un agent sur sa propre tâche selon un horaire, pour un travail qui revient : un agent coordinateur qui répartit les relectures toutes les trente minutes, une vérification de qualité chaque nuit. Ajoute-le sous **Rôles permanents** dans **Modifier** :

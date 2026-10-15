@@ -401,14 +401,17 @@ model wait for it: the run that was refused fails once and its automatic retry, 
 attempt, waits; a run started meanwhile waits before it takes a worker, reading "Waiting for
 model capacity". The wait lasts 1 minute, then 2, 4, 8 and 15 minutes as the refusals go on.
 When it ends one run goes first; the others follow once that run has worked for two minutes,
-or as soon as any run on the model finishes. A model at capacity for twelve hours is no longer
+or as soon as any run on the model finishes. They then start in waves 15 seconds apart: one run,
+then two, four and so on, never more than a sixteenth of them at once, so even 500 waiting runs
+have all started within five minutes. A model at capacity for twelve hours is no longer
 waited for: its next refusal ends the run, and a run that waited that long fails as having
 waited too long.
 
 - **Example**: The provider refuses Scribe's run on "Changelog" at 10:00 because its model is
   at capacity. At 10:00:30 a schedule starts Lector, on the same model, on "Press kit" → it
   reads "Waiting for model capacity" and takes no worker. At 10:01 the retry of "Changelog"
-  starts first; at 10:03 it is still working → "Press kit" starts.
+  starts first; at 10:03 it is still working → "Press kit" starts. Had 256 runs been waiting,
+  the last of them would have started at 10:07:45.
 
 ## Dispatch
 

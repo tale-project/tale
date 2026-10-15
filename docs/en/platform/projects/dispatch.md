@@ -66,6 +66,8 @@ A save that lets one agent hold more runs than **Runs at once** is refused under
 
 How fast a large pool fills depends on **Time between starts (seconds)**. With a time set, each pass starts one task and the next pass comes that much later, so the 256th run starts 255 times that time after the first: 2 hours 7 minutes 30 seconds at the default 30 seconds, 21 minutes 15 seconds at 5. With 0, a pass starts every ready task the sandbox host admits, for at most two minutes, and the next pass carries on at once; when the host is busy, its recheck delays slow the start. A pass reads up to 500 ready tasks, enough to fill the largest pool.
 
+When an AI model answers again after it was at capacity, the runs waiting for it start in waves 15 seconds apart: one run, then two, then four, and so on, up to a sixteenth of them at a time. Even 256 waiting runs have all started within five minutes.
+
 ## Run standing roles on a schedule
 
 A standing role starts one agent on its own task on a schedule, for work that recurs: a manager agent that routes reviews every thirty minutes, a quality check every night. Add one under **Standing roles** in **Edit**:
