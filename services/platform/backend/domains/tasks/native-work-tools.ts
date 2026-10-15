@@ -149,7 +149,7 @@ export async function nativeWorkTools(
 ): Promise<TurnWorkTools | undefined> {
   const [orgSlug, skillScope, imageModel, member] = await Promise.all([
     resolveOrgSlug(sql, turn.organizationId),
-    readProjectAgentSkillScope(sql, turn.agentId),
+    readProjectAgentSkillScope(sql, turn.agentId, turn.runId),
     offeredImageModel(sql, turn.organizationId),
     findActingMember(sql, turn.organizationId, turn.userId),
   ]);
@@ -158,10 +158,20 @@ export async function nativeWorkTools(
     return undefined;
   }
   const skillViewer = projectSkillViewer(skillScope);
+  // A run whose starter may not read the agent's own project reaches only
+  // the equipped skills that starter may see as well, as the harness stages
+  // them [TASK-R82]; a library that cannot be listed for the starter
+  // reaches none.
+  const skillAllowlist =
+    skillScope?.starter === undefined
+      ? turn.skills
+      : (await listSkillCatalog(orgSlug, skillScope.starter, turn.skills)).map(
+          (entry) => entry.slug,
+        );
   const skillCatalog = await listSkillCatalog(
     orgSlug,
     skillViewer,
-    turn.skills,
+    skillAllowlist,
   );
   const loadout: WorkLoadout = {
     createFile: true,
@@ -176,7 +186,7 @@ export async function nativeWorkTools(
     orgSlug,
     userId: turn.userId,
     skillViewer,
-    skillAllowlist: turn.skills,
+    skillAllowlist,
     sandboxOwnerKey: turn.runId,
     lightSandboxWaitMs: NATIVE_LIGHT_SANDBOX_WAIT_MS,
     loadout,

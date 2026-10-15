@@ -163,6 +163,50 @@ describe('nativeWorkTools — the tools a task run makes things with [TASK-R30]'
     ]);
   });
 
+  it('asks for the skill scope of the run itself, so a run on another board can be narrowed', async () => {
+    await nativeWorkTools(sql, TURN);
+
+    expect(readProjectAgentSkillScope).toHaveBeenCalledWith(
+      sql,
+      'agent-1',
+      'run-1',
+    );
+  });
+
+  it('reaches only the skills Bea sees as well on a board whose starter may not read the agent’s own project [TASK-R82]', async () => {
+    const bea = {
+      kind: 'user' as const,
+      userId: 'bea',
+      teamIds: ['team-billing'],
+      isOrgAdmin: false,
+    };
+    vi.mocked(readProjectAgentSkillScope).mockResolvedValue({
+      teamIds: ['team-dev'],
+      starter: bea,
+    });
+    // Of the two equipped skills, Bea sees only `docx`.
+    vi.mocked(listSkillCatalog).mockResolvedValue([
+      { slug: 'docx', description: 'Word documents' },
+    ]);
+
+    const tools = await nativeWorkTools(sql, TURN);
+
+    // Bea's own view decides which equipped skills the run reaches …
+    expect(listSkillCatalog).toHaveBeenCalledWith('acme', bea, [
+      'docx',
+      'xlsx',
+    ]);
+    // … and the project's view lists only those.
+    expect(listSkillCatalog).toHaveBeenCalledWith(
+      'acme',
+      { kind: 'project', teamIds: ['team-dev'] },
+      ['docx'],
+    );
+    expect(tools?.skillCatalog.map((entry) => entry.slug)).toEqual(['docx']);
+    const scope = vi.mocked(turnWorkToolsFor).mock.calls[0]?.[0];
+    expect(scope?.skillAllowlist).toEqual(['docx']);
+  });
+
   it('offers no skill tools when the agent equips none the library holds', async () => {
     vi.mocked(listSkillCatalog).mockResolvedValue([]);
 
