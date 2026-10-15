@@ -81,6 +81,30 @@ describe('readAgentTaskLabels [TASK-R83]', () => {
     expect(labels.get('t-1')).toEqual(['hold']);
   });
 
+  it('matches each task of a page that mixes two boards against its own project’s labels', async () => {
+    // The Fleet agent's own board and Billing's, which its project's dispatch
+    // serves, on one page: each task also wears an id of the other board's
+    // labels.
+    const { sql, statements } = catalogSql(CATALOG);
+    const labels = await readAgentTaskLabels(sql, 'org-1', [
+      {
+        id: 't-fleet',
+        projectId: 'p-fleet',
+        labelIds: ['l-other', 'l-human', 'l-hold'],
+      },
+      {
+        id: 't-billing',
+        projectId: 'p-billing',
+        labelIds: ['l-hold', 'l-other'],
+      },
+      { id: 't-billing-bare', projectId: 'p-billing', labelIds: ['l-human'] },
+    ]);
+    expect(statements).toHaveLength(1);
+    expect(labels.get('t-fleet')).toEqual(['hold', 'Needs-human']);
+    expect(labels.get('t-billing')).toEqual(['Billing only']);
+    expect(labels.get('t-billing-bare')).toEqual([]);
+  });
+
   it('reads nothing when no task of the page wears a label', async () => {
     const { sql, statements } = catalogSql(CATALOG);
     const labels = await readAgentTaskLabels(sql, 'org-1', [
