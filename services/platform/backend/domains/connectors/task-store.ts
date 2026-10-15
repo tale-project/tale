@@ -493,6 +493,7 @@ export function pgTaskStore(
       limit,
       legacyPrefixes,
       itemKind,
+      alertKinds,
     }) {
       const tracker = ISSUE_TRACKERS[externalSystem];
       const sourceScope =
@@ -508,6 +509,11 @@ export function pgTaskStore(
           : itemKind === 'pulls'
             ? tx`(external_issue->>'url') ~ ${PULL_REQUEST_PATH.source}`
             : tx`(external_issue->>'url') !~ ${PULL_REQUEST_PATH.source}`;
+      // A security alert's id is `<repository id>/<kind>/<number>`.
+      const alertMatches = (tx: TransactionSql) =>
+        alertKinds === undefined
+          ? tx`TRUE`
+          : tx`split_part(external_source_id, '/', 2) = ANY(${alertKinds}::text[])`;
       return sql.begin(async (tx) => {
         // Selection now writes its own attempt clock. Share the batch queue
         // so refresh bookkeeping and source upserts never lock a project's
@@ -527,7 +533,7 @@ export function pgTaskStore(
             AND ${repositoryId === undefined ? tx`TRUE` : tx`(external_issue->>'repositoryId' = ${String(repositoryId)} OR ${String(repositoryId)} = ANY(external_issue_source_scopes))`}
             AND ${sourceProjectId === undefined ? tx`TRUE` : tx`(external_issue->>'sourceProjectId' = ${sourceProjectId} OR ${sourceProjectId} = ANY(external_issue_source_scopes))`}
             AND ${sourceOrigin === undefined ? tx`TRUE` : tx`split_part(external_source_id, '#', 1) = ${sourceOrigin}`}
-            AND ${kindMatches(tx)})
+            AND ${kindMatches(tx)} AND ${alertMatches(tx)})
               OR (external_issue IS NULL AND ${itemKind !== 'pulls'} AND EXISTS (
                 SELECT 1 FROM unnest(${legacyPrefixes ?? []}::text[]) AS prefix
                 WHERE CASE WHEN ${tracker.foldsCase}

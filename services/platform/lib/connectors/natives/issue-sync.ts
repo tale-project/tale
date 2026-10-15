@@ -60,6 +60,7 @@ import {
 import {
   SECURITY_ALERT_KINDS,
   SECURITY_SEVERITIES,
+  type SecurityAlertKind,
 } from './issue-import-alerts';
 
 // ------------------------------------------------------------------ sources
@@ -204,6 +205,9 @@ export interface LinkedIssueQuery {
   /** Only a code host's issues, or only its pull requests; every task of
    * the listing when left out. */
   itemKind?: 'issues' | 'pulls';
+  /** Only the alerts of these kinds; every alert of the repository when
+   * left out. */
+  alertKinds?: SecurityAlertKind[];
 }
 
 /** One batch as the sync reads a listing's answer. */
@@ -399,12 +403,18 @@ const githubSecurityAdapter: IssueSourceAdapter<GithubSecuritySource> = {
     limit: batch.limit,
     ...(batch.cursor !== '' && { cursor: batch.cursor }),
   }),
-  listed: (_source, output) => {
+  listed: (source, output) => {
     const repositoryId =
       output.repositoryId ?? missingIdentity('repository id');
     const repository = output.repository ?? missingIdentity('repository');
     return {
-      linked: { externalSystem: 'github-security', repositoryId },
+      // Only the kinds the source reads: another source's alerts of the
+      // repository are read again through its own connection.
+      linked: {
+        externalSystem: 'github-security',
+        repositoryId,
+        alertKinds: [...source.alerts].sort(),
+      },
       refreshInput: { repositoryId, repository },
     };
   },

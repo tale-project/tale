@@ -901,7 +901,9 @@ scanning), code scanning from the tools it names, and every kind from its severi
 critical, high, medium and low, with a code scanning error read as high, a warning as medium and
 a note as low, and a secret always as critical. GitHub narrows each listing itself. Each alert is
 one task, its source card shows it open, resolved (fixed, or a revoked secret) or ignored
-(dismissed), and the value of a secret is never read or kept.
+(dismissed), and the value of a secret is never read or kept. A source reads again only the
+tasks of the kinds it names, so two sources of one repository's alerts, each with a connection of
+its own, never read each other's.
 
 - **Example**: The repository tale holds 7,000 open code scanning alerts, most from Trivy. Mia
   syncs code scanning from CodeQL and Opengrep at high and above → only those alerts become

@@ -32,6 +32,7 @@ import type {
   ConnectorCaller,
 } from '../dispatcher';
 import { ConnectorError } from '../errors';
+import type { SecurityAlertKind } from './issue-import-alerts';
 import {
   IssueSyncProjectRefusal,
   failedSources,
@@ -213,6 +214,8 @@ export interface WorkflowTaskStore {
     legacyPrefixes?: string[];
     /** Only a code host's issues, or only its pull requests. */
     itemKind?: 'issues' | 'pulls';
+    /** Only the security alerts of these kinds. */
+    alertKinds?: SecurityAlertKind[];
   }): Promise<{
     issues: Array<{
       taskId: string;

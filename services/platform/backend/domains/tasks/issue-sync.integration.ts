@@ -11,9 +11,10 @@
  * other's receipt says conflict; an issue closed upstream leaves its task's
  * status alone; the store takes any adapter slug and refuses a malformed
  * one; a repository's issues and its pull requests keep their own tasks,
- * each source reading again only its own kind; a source's task labels are
- * given to the tasks it creates and never again; and an archived project
- * stops the step before any tracker is read. */
+ * each source reading again only its own kind; two security sources of
+ * one repository read again only the alerts of their own kinds; a source's
+ * task labels are given to the tasks it creates and never again; and an
+ * archived project stops the step before any tracker is read. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
@@ -53,6 +54,11 @@ const callInput = z
       .array(z.object({ externalId: z.string() }).passthrough())
       .optional(),
   })
+  .passthrough();
+
+/** What the sync hands the stand-in's security alert listing. */
+const alertCallInput = z
+  .object({ repo: z.string(), alerts: z.array(z.string()) })
   .passthrough();
 
 /** The stand-in tracker's own cursor. */
@@ -156,13 +162,77 @@ export async function checkIssueSync(
       },
     };
   };
+  // A security alert of the stand-in: `1..total` of each kind.
+  const alert = (repo: string, at: FakeRepository, kind: string, n: number) => {
+    const url = `https://github.com/${owner}/${repo}/security/${kind}/${n}`;
+    const title = `Synthetic ${kind} alert ${n}`;
+    return {
+      externalSystem: 'github-security',
+      externalId: `${owner}/${repo}/${kind}#${n}`.toLowerCase(),
+      externalUrl: url,
+      title,
+      description: 'Synthetic',
+      externalIssue: {
+        id: `${at.repositoryId}/${kind}/${n}`,
+        title,
+        description: 'Synthetic',
+        url,
+        state: 'open',
+        syncedAt: Date.now(),
+        repositoryId: at.repositoryId,
+        number: n,
+      },
+    };
+  };
   // The stand-in tracker, behind the same door the sync reads GitHub
   // through: the listing pages by an offset cursor, the refresh answers its
-  // report.
+  // report. Its security alerts answer every alert of the kinds asked for,
+  // and their refresh each alert it is handed.
   const runConnector = async (args: {
     action: string;
     input: unknown;
   }): Promise<ConnectorDispatchResult> => {
+    if (args.action === 'list_import_alerts') {
+      const input = alertCallInput.parse(args.input);
+      const at = repositories.get(input.repo);
+      if (at === undefined)
+        throw new Error(`no synthetic repository ${input.repo}`);
+      calls.push({ action: args.action, repo: input.repo });
+      return ok({
+        issues: input.alerts.flatMap((kind) =>
+          Array.from({ length: at.total }, (_, n) =>
+            alert(input.repo, at, kind, n + 1),
+          ),
+        ),
+        truncated: false,
+        nextCursor: null,
+        repositoryId: at.repositoryId,
+        repository: `${owner}/${input.repo}`,
+      });
+    }
+    if (args.action === 'refresh_import_alerts') {
+      const input = callInput.parse(args.input);
+      const refreshed = (input.issues ?? []).map((linked) => {
+        const [, repo = '', kind = '', number = '0'] =
+          /\/([^/]+)\/([a-z-]+)#(\d+)$/.exec(linked.externalId) ?? [];
+        const at = [...repositories.entries()].find(
+          ([name]) => name.toLowerCase() === repo,
+        );
+        if (at === undefined) throw new Error(`no synthetic ${repo}`);
+        return alert(at[0], at[1], kind, Number(number));
+      });
+      calls.push({
+        action: args.action,
+        repo: 'alert-refresh',
+        ids: (input.issues ?? []).map((linked) => linked.externalId),
+      });
+      return ok({
+        issues: refreshed,
+        failed: [],
+        notRead: 0,
+        retryAfter: null,
+      });
+    }
     const input = callInput.parse(args.input);
     if (args.action === 'list_import_issues') {
       const repo = input.repo ?? '';
@@ -703,6 +773,51 @@ export async function checkIssueSync(
       kindRefreshes.join('|') === '1,2|101,102' &&
       relabelled[0]?.labels.length === 0,
     JSON.stringify({ labelled, kindRefreshes, relabelled }),
+  );
+
+  // 14. Two security sources of one repository, each read through its own
+  // connection, read again only the alerts of their own kinds.
+  repository('alerts', 2);
+  const alertSync = () =>
+    store.syncIssues({
+      organizationId: orgId,
+      caller,
+      projectId,
+      sources: [
+        {
+          kind: 'github-security' as const,
+          owner,
+          repo: 'alerts',
+          alerts: ['code-scanning' as const],
+        },
+        {
+          kind: 'github-security' as const,
+          owner,
+          repo: 'alerts',
+          alerts: ['secret-scanning' as const, 'dependabot' as const],
+        },
+      ],
+      limit: 10,
+      refreshLimit: 10,
+    });
+  const firstAlerts = await alertSync();
+  const alertsFrom = calls.length;
+  await alertSync();
+  const alertRefreshes = calls
+    .slice(alertsFrom)
+    .filter((call) => call.repo === 'alert-refresh')
+    .map((call) =>
+      (call.ids ?? [])
+        .map((id) => id.split('/').at(-1) ?? '')
+        .sort()
+        .join(','),
+    );
+  record(
+    'issue sync: two security sources of one repository read again only the alerts of their own kinds',
+    firstAlerts.created === 6 &&
+      alertRefreshes.join('|') ===
+        'code-scanning#1,code-scanning#2|dependabot#1,dependabot#2,secret-scanning#1,secret-scanning#2',
+    JSON.stringify({ created: firstAlerts.created, alertRefreshes }),
   );
 
   // 9. An archived project stops the step before any tracker is read.

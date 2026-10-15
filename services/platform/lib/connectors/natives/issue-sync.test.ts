@@ -880,6 +880,7 @@ describe('task.sync_issues sources', () => {
     expect(harness.queries[0]).toEqual({
       externalSystem: 'github-security',
       repositoryId: 10,
+      alertKinds: ['code-scanning', 'dependabot'],
       limit: 50,
     });
     expect(harness.calls[1]).toMatchObject({
@@ -926,6 +927,50 @@ describe('task.sync_issues sources', () => {
         }).success,
       ).toBe(false);
     }
+  });
+
+  it('reads again only the alerts of the kinds a security source reads [TASK-R65]', async () => {
+    const harness = fakes({
+      list: { 'github.list_import_alerts': alertListing },
+      refresh: {
+        'github.refresh_import_alerts': () => ({
+          issues: [],
+          failed: [],
+          notRead: 0,
+        }),
+      },
+      linked: [linkedTask('1')],
+    });
+    await syncIssueSources(
+      harness.deps,
+      input([
+        {
+          kind: 'github-security',
+          owner: 'example',
+          repo: 'web',
+          alerts: ['code-scanning'],
+          credential: 'GitHub code scanning',
+        },
+        {
+          kind: 'github-security',
+          owner: 'example',
+          repo: 'web',
+          alerts: ['secret-scanning', 'dependabot'],
+          credential: 'GitHub secrets',
+        },
+      ]),
+    );
+    expect(
+      harness.queries.map((query) => [query.repositoryId, query.alertKinds]),
+    ).toEqual([
+      [10, ['code-scanning']],
+      [10, ['dependabot', 'secret-scanning']],
+    ]);
+    expect(
+      harness.calls
+        .filter((call) => call.action === 'refresh_import_alerts')
+        .map((call) => call.credential),
+    ).toEqual(['GitHub code scanning', 'GitHub secrets']);
   });
 
   it('names the security alert listing when every security source failed [TASK-R54]', async () => {
