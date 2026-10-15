@@ -135,7 +135,7 @@ export async function runStarterMayEditProject(
 /** Which of the named projects a run's starter may act in with the agent's
  * full equipment now, each judged as {@link runStarterMayEditProject}
  * judges one. */
-export async function runStarterActingProjects(
+async function runStarterActingProjects(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
@@ -187,7 +187,7 @@ export async function runStarterActingProjects(
  * agent no longer in the organization reaches no other board, and its run
  * is judged on the task's project alone.
  */
-export async function runStarterMayActWithAgent(
+async function runStarterMayActWithAgent(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
