@@ -808,3 +808,13 @@ a few To do tasks.
   row counts both runs but lists only this project's task: neither the
   Billing task's title nor the name Billing appears anywhere on the page, in
   English, German and French.
+- [ ] `PROJ-B28` · **A switched-off dispatch serves no board** — With the
+  dispatch of `PROJ-F71` serving Billing and its agent assigned a Billing
+  task, switch off **Dispatch is on** (`projects.dispatch.editor.enabled`) in
+  this project and save → on Billing, **Start agent** on that task is refused
+  (`tasks.agentRun.agentOutOfReach`) and no run starts; the assignee list of
+  another Billing task no longer offers the agent with **From … dispatch**
+  (`tasks.assignee.servedFrom`); Billing's **Dispatch** tab still names this
+  project's dispatch, **switched off** (`projects.dispatch.servedBy.off`).
+  Switch it on again and save → the assignee list offers the agent again,
+  and **Start agent** starts it.

@@ -780,6 +780,19 @@ another project's dispatch.
   served board reads "A project you cannot open", and neither "Fix the importer" nor the name
   Billing appears.
 
+### TASK-R81 · A switched-off dispatch serves no board
+
+Switched off, a dispatch reaches none of its sources, whoever saved it: no board offers its agents
+to assign or to review, nothing starts them on another board — neither the dispatch, a person nor
+an automation — a run of theirs on one acts for nobody, and it routes no review of its pool's
+work, on its own board or another (`TASK-R75`). The boards it lists still name it, switched off
+(`TASK-R76`). Switched on again, it serves each source as that source is judged then (`TASK-R72`).
+
+- **Example**: Ada switches Development's dispatch off. Bea chooses Start agent on a Billing task
+  assigned to the Coder → refused, and Billing's assignee list no longer offers the Coder. The
+  Coder finishes a Development task → the review goes to Development's default reviewer, not to
+  the dispatch's Reviewer.
+
 ## What a run is handed
 
 ### TASK-R49 · Every turn gets its project's current instructions, and its run records them

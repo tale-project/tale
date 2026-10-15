@@ -176,6 +176,25 @@ describe('a dispatch’s reviewers review its pool’s work on every board it se
     });
   });
 
+  it('routes no review once the dispatch is switched off, on its own board or one it served [TASK-R81]', async () => {
+    reaching([]);
+    vi.mocked(readStoredDispatch).mockResolvedValue({
+      config: { ...DEVELOPMENT, enabled: false },
+      updatedAt: 1,
+      updatedBy: 'ada',
+    });
+    // The Coder's work on Development's own board goes to the board's
+    // default reviewer, not to the dispatch's Reviewer.
+    expect(
+      await resolveTaskReviewer(database(), task({ projectId: 'p-dev' })),
+    ).toEqual({ kind: 'agent', agentId: 'auditor' });
+    // Billing is no longer reached at all: its own reviewer takes it.
+    expect(await resolveTaskReviewer(database(), task())).toEqual({
+      kind: 'agent',
+      agentId: 'auditor',
+    });
+  });
+
   it('lets an agent that reaches a board review there, and no agent of another board', async () => {
     reaching(['p-vat']);
     const eligibility = (agentId: string) =>

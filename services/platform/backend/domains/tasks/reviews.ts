@@ -173,10 +173,11 @@ export async function agentReviewerEligibility(
 
 /**
  * The reviewer a dispatch names for its pool's work on a task: when the
- * agent that produced it is of a dispatch's pool and the task's board is
- * that dispatch's own or a source it reaches, the first of its reviewers
- * that did not produce the work and may review there. Null otherwise —
- * routing then goes on as if the dispatch named none.
+ * agent that produced it is of a switched-on dispatch's pool and the task's
+ * board is that dispatch's own or a source it reaches, the first of its
+ * reviewers that did not produce the work and may review there. Null
+ * otherwise — routing then goes on as if the dispatch named none: a
+ * switched-off dispatch routes no review.
  */
 async function dispatchReviewerFor(
   sql: Sql | TransactionSql,
@@ -200,7 +201,11 @@ async function dispatchReviewerFor(
     reach.homeProjectId,
   );
   const config = stored?.config;
-  if (config === undefined || !config.agents.includes(producerAgentId)) {
+  if (
+    config === undefined ||
+    !config.enabled ||
+    !config.agents.includes(producerAgentId)
+  ) {
     return null;
   }
   for (const reviewer of config.reviewers ?? []) {

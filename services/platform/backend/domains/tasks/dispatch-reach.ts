@@ -18,9 +18,10 @@ import { memberEditableProjects } from './edit-right.ts';
  * start that locks the agent, the assignment of a task, the scope of a
  * run's task tools, and who reviews the work.
  *
- * A dispatch reaches one of its sources while the project is in the same
- * organization, is not archived, and whoever last saved the dispatch may
- * still edit it ({@link memberEditableProjects}). Saving it with that source
+ * A dispatch reaches one of its sources while it is switched on, the project
+ * is in the same organization, is not archived, and whoever last saved the
+ * dispatch may still edit it ({@link memberEditableProjects}): a switched-off
+ * dispatch serves no board. Saving it with that source
  * needed that right (`dispatch-config.ts`); it is judged again at every use,
  * so a source that disappears, is archived, or whose right was lost is
  * skipped from then on — with why, in the pass and the readback — and never
@@ -129,7 +130,8 @@ export async function judgeDispatchSources(
 }
 
 /** A project's stored dispatch with who last saved it, or null when it has
- * none, or one this version cannot read (which reaches nothing). */
+ * none, one this version cannot read, or one switched off: each of those
+ * reaches nothing beyond its own board. */
 async function readReachingDispatch(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -137,6 +139,7 @@ async function readReachingDispatch(
 ): Promise<{ config: ProjectDispatch; updatedBy: string | null } | null> {
   const stored = await readDispatchRow(sql, organizationId, projectId);
   if (stored === null || stored === 'unreadable') return null;
+  if (!stored.config.enabled) return null;
   return { config: stored.config, updatedBy: stored.updatedBy };
 }
 
@@ -352,17 +355,18 @@ export async function dispatchesServing(
 /**
  * The agents other projects' dispatches put to work on this board now: the
  * pool, the standing roles' agents and the reviewers of every dispatch that
- * lists it among its sources and reaches it ({@link dispatchReachAgents}),
- * each with its own project. A board names them in its history, and offers
- * them where it offers its own agents to assign and to review; a dispatch
- * that skips the board puts none of its agents there.
+ * lists it among its sources, is switched on and reaches it
+ * ({@link dispatchReachAgents}), each with its own project. A board names
+ * them in its history, and offers them where it offers its own agents to
+ * assign and to review; a dispatch that is switched off or skips the board
+ * puts none of its agents there.
  */
 export async function agentsServingProject(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string },
 ): Promise<DispatchServingAgent[]> {
   const reaching = (await readServingDispatches(sql, args)).filter(
-    (serving) => serving.skipped === null,
+    (serving) => serving.enabled && serving.skipped === null,
   );
   const wanted = reaching.flatMap((serving) =>
     [...dispatchReachAgents(serving.config)].map((agentId) => ({

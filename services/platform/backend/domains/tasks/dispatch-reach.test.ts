@@ -352,6 +352,75 @@ describe('the agents of a dispatch work the boards it serves like their own [TAS
   });
 });
 
+describe('a switched-off dispatch serves no board [TASK-R81]', () => {
+  const OFF: World = {
+    ...WORLD,
+    dispatches: {
+      development: {
+        config: { ...DEVELOPMENT, enabled: false },
+        updatedBy: 'ada',
+      },
+    },
+  };
+
+  it('reaches no source, for no agent, while its writer still may edit them all', async () => {
+    adaEdits('tale', 'billing');
+    const sql = databaseOf(OFF);
+    for (const agentId of ['coder', 'reviewer', 'manager']) {
+      expect(
+        await readAgentReach(sql, { organizationId: 'org', agentId }),
+      ).toEqual({ homeProjectId: 'development', reachedProjectIds: [] });
+    }
+    expect(
+      await agentReachesProject(sql, {
+        organizationId: 'org',
+        agentId: 'coder',
+        projectId: 'tale',
+      }),
+    ).toBe(false);
+    expect(
+      await dispatchReachesSource(sql, {
+        organizationId: 'org',
+        dispatchProjectId: 'development',
+        projectId: 'billing',
+      }),
+    ).toBe(false);
+    // Its own board needs no dispatch.
+    expect(
+      await agentReachesProject(sql, {
+        organizationId: 'org',
+        agentId: 'coder',
+        projectId: 'development',
+      }),
+    ).toBe(true);
+  });
+
+  it('puts none of its agents on a board it lists, which still says it is switched off', async () => {
+    adaEdits('tale', 'billing');
+    const sql = databaseOf(OFF);
+    expect(
+      await agentsServingProject(sql, {
+        organizationId: 'org',
+        projectId: 'tale',
+      }),
+    ).toEqual([]);
+    expect(
+      await dispatchesServing(sql, {
+        organizationId: 'org',
+        projectId: 'tale',
+      }),
+    ).toEqual([
+      {
+        projectId: 'development',
+        name: 'Development',
+        enabled: false,
+        reachable: true,
+        skipped: null,
+      },
+    ]);
+  });
+});
+
 describe('a board says which other projects’ dispatches serve it [TASK-R76]', () => {
   it('names each serving dispatch, switched on or off, served or skipped with why', async () => {
     adaEdits('tale');
