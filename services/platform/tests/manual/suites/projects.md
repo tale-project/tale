@@ -698,6 +698,29 @@ a few To do tasks.
   **Open** (`projects.dispatch.gates.open`) → **Open**
   (`projects.dispatch.gates.states.open`), and the `ci` task starts within the
   minute.
+- [ ] `PROJ-F71` · **A dispatch serves another project's board** — In a
+  second project of the organization (say Billing) that you can edit, put a
+  To do task with no assignee; in this project, declare through the settings
+  tools (`project-dispatch`) a dispatch with assignment `pool`, one agent in
+  the pool, Billing as its only source and an agent granted task review as
+  its reviewer; choose **Run a pass now** → **Boards it serves**
+  (`projects.dispatch.sources.title`) lists Billing as **Served**
+  (`projects.dispatch.sources.served`), **Reviewers**
+  (`projects.dispatch.reviewers.title`) names the reviewer, and within a
+  minute the agent's row lists the Billing task with Billing beside it; the
+  task opens on Billing's board, assigned to the agent, In progress; when the
+  run finishes it waits In review for this project's reviewer. Change **Runs
+  at once** under **Edit** and save → the sources and the reviewer are kept.
+- [ ] `PROJ-F72` · **A board says who serves it** — Open Billing's
+  **Dispatch** tab, which has no dispatch of its own → a notice reads
+  **Served by** this project's dispatch (`projects.dispatch.servedBy.item`), a
+  link that opens it, above **Dispatch is not set up for this project**
+  (`projects.dispatch.notSetUp.title`); switch this project's dispatch off →
+  the notice adds **switched off** (`projects.dispatch.servedBy.off`); the page
+  reads the same in German and French. On Billing's board, the task the agent
+  took names it by its name, and the assignee list of another Billing task
+  offers it with **From … dispatch** (`tasks.assignee.servedFrom`); typing `@`
+  in a comment there does not offer it.
 - [ ] `PROJ-B20` · **A stale edit never overwrites another** — Open **Edit** in
   two sessions; save a change in the first; change **Runs at once**
   (`projects.dispatch.editor.maxConcurrentRuns`) in the second and save → one
@@ -744,3 +767,18 @@ a few To do tasks.
   **Runs per agent** above **Runs at once** and save → refused under **Runs
   per agent** (`projects.dispatch.editor.validation.perAgentAboveRuns`), the
   draft kept.
+- [ ] `PROJ-B25` · **A board whose right was lost is skipped, never widened**
+  — With the dispatch of `PROJ-F71` serving Billing, remove your own Editor
+  access to Billing (another administrator changes its audience or your role)
+  and choose **Run a pass now** on this project → **Boards it serves** reads
+  **Skipped: whoever last saved this dispatch can no longer edit that
+  project** (`projects.dispatch.sources.skipped.no_authority`), no new Billing
+  task starts, and Billing's tab shows the same reason beside **Served
+  by**; on Billing, the task the agent took still names it, and **Start
+  agent** (or **Retry**) there is refused: **The assigned agent belongs to
+  another project whose dispatch no longer serves this board**
+  (`tasks.agentRun.agentOutOfReach`), and no run starts; open **Edit** and
+  save → refused: **Board 1 under Boards it serves
+  must be another active project of this organization that you may edit**
+  (`projects.dispatch.editor.issues.sourceProject`), the draft kept. Restore
+  your access → the next pass serves Billing again.

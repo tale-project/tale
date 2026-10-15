@@ -319,6 +319,18 @@ function DispatchEditorDialog({
           return t('dispatch.editor.issues.cron');
         case 'label':
           return t('dispatch.editor.issues.label', { name: problem.name });
+        case 'sourceProject':
+          return t('dispatch.editor.issues.sourceProject', {
+            place: problem.place,
+          });
+        case 'sourceLabel':
+          return t('dispatch.editor.issues.sourceLabel', {
+            place: problem.place,
+          });
+        case 'reviewer':
+          return t('dispatch.editor.issues.reviewer', {
+            place: problem.place,
+          });
         default:
           return problem.message;
       }

@@ -7,6 +7,8 @@ dangerZone:
   deleteHelp: Löschen entfernt das Projekt endgültig, einschliesslich seiner
     Dateien und Einstellungen. Das lässt sich nicht rückgängig machen.
 dispatch:
+  reviewers:
+    description: Diese Agenten reviewen, was der Pool erarbeitet hat – auf diesem Board und auf jedem Board, das die Arbeitsverteilung bedient. Das Review übernimmt der erste, der die Arbeit nicht selbst erarbeitet hat, ausser die Aufgabe nennt einen eigenen Reviewer.
   gates:
     value: 'Letzter Wert {value}, schliesst ab {holdAt}'
     hold: Schliessen

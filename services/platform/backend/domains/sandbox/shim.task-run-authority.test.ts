@@ -65,7 +65,7 @@ function fakeSql(script: {
       );
     }
     if (text.includes('AS "teamIds"')) {
-      return Promise.resolve([{ teamIds: [] }]);
+      return Promise.resolve([{ id: 'p-1', teamIds: [] }]);
     }
     if (text.includes('FROM app.projects')) {
       return Promise.resolve([{ id: 'p-1' }]);

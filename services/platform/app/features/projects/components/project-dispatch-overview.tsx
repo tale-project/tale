@@ -3,14 +3,18 @@
 /**
  * What a project's dispatch does, as its readback says: whether it is on,
  * how many runs its pool holds, the models and agent workers it waits on,
- * every agent of its pool with what it works on or why it is idle, its
- * standing roles, its gates and its recent passes. Read only, but for the
- * gates, which project administrators hold and open from here.
+ * every agent of its pool with what it works on (on any board it serves) or
+ * why it is idle, its standing roles, the other boards it serves (each
+ * served or skipped, and why) and its reviewers, its gates and its recent
+ * passes. Read only, but for the gates, which project administrators hold
+ * and open from here.
  */
 
 import {
   DISPATCH_DEFAULTS,
   type DispatchIdleReason,
+  type DispatchSourceSkipReason,
+  type DispatchStatus,
   type ProjectDispatch,
   type ProjectDispatchStatus,
 } from '@tale/shared/schemas/project-dispatch';
@@ -41,6 +45,7 @@ type PoolAgent = ProjectDispatchStatus['pool'][number];
 type AgentRun = PoolAgent['runs'][number];
 type AgentRunCounts = PoolAgent['runCounts'];
 type StandingRoleRow = ProjectDispatchStatus['standingRoles'][number];
+type SourceRow = ProjectDispatchStatus['sources'][number];
 type GateRow = ProjectDispatchStatus['gates'][number];
 type PassRow = ProjectDispatchStatus['passes'][number];
 
@@ -89,6 +94,20 @@ const TRIGGER_KEYS = {
   manual: 'dispatch.passes.trigger.manual',
   gate: 'dispatch.passes.trigger.gate',
 } as const;
+
+/** A column ready work is taken from, worded as the board words it. */
+const COLUMN_KEYS = {
+  todo: 'status.todo',
+  backlog: 'status.backlog',
+} as const satisfies Record<DispatchStatus, string>;
+
+/** Why a dispatch skips a board it serves: the overview's sources and the
+ * tab's "Served by" say it in the same words. */
+export const SOURCE_SKIPPED_KEYS = {
+  missing: 'dispatch.sources.skipped.missing',
+  archived: 'dispatch.sources.skipped.archived',
+  no_authority: 'dispatch.sources.skipped.no_authority',
+} as const satisfies Record<DispatchSourceSkipReason, string>;
 
 const OUTCOME_KEYS = {
   started: 'dispatch.roles.outcome.started',
@@ -214,12 +233,17 @@ function PoolAgentRunCounts({ counts }: { counts: AgentRunCounts }) {
  * its first runs, with the rest the readback lists a click away. */
 function PoolAgentRuns({
   organizationId,
+  projectId,
   projectKey,
+  boardNames,
   runs,
   counts,
 }: {
   organizationId: string;
+  projectId: string;
   projectKey: string | undefined;
+  /** The names of the other boards the dispatch serves, by project. */
+  boardNames: ReadonlyMap<string, string>;
   runs: AgentRun[];
   counts: AgentRunCounts;
 }) {
@@ -240,7 +264,16 @@ function PoolAgentRuns({
       ) : null}
       <Stack as="ul" id={listId} gap={1} className="w-full min-w-0">
         {shown.map((run) => {
-          const identifier = formatTaskIdentifier(projectKey, run.taskNumber);
+          // A task of another board the dispatch serves names its board;
+          // this project's key would number it wrong.
+          const otherBoard =
+            run.projectId === projectId
+              ? null
+              : (boardNames.get(run.projectId) ?? run.projectId);
+          const identifier =
+            otherBoard === null
+              ? formatTaskIdentifier(projectKey, run.taskNumber)
+              : null;
           const waiting = keyOf(WAITING_KEYS, run.waitingReason);
           return (
             <li key={run.runId} className="min-w-0">
@@ -253,6 +286,11 @@ function PoolAgentRuns({
                     : `${identifier} ${run.taskTitle}`
                 }
               />
+              {otherBoard !== null ? (
+                <span className="text-muted-foreground mr-1 text-xs">
+                  {otherBoard}
+                </span>
+              ) : null}
               <span className="text-muted-foreground text-xs">
                 {run.status === 'running'
                   ? t('dispatch.agents.running')
@@ -310,6 +348,7 @@ export function ProjectDispatchOverview({
   agentNames,
 }: ProjectDispatchOverviewProps) {
   const { t } = useT('projects');
+  const { t: tTasks } = useT('tasks');
   const { formatDateSmart } = useFormatDate();
   const ability = useAbility();
   // Relative times ("3 minutes ago") move on while the page is open.
@@ -321,6 +360,15 @@ export function ProjectDispatchOverview({
   );
   const perAgent =
     config.perAgentConcurrency ?? DISPATCH_DEFAULTS.perAgentConcurrency;
+  const boardNames = useMemo(
+    () =>
+      new Map(
+        status.sources.flatMap((source): [string, string][] =>
+          source.name === null ? [] : [[source.projectId, source.name]],
+        ),
+      ),
+    [status.sources],
+  );
   const lastStopKey = keyOf(STOP_KEYS, status.state?.lastStopReason ?? null);
   const nextPassAt = status.state?.nextPassAt ?? null;
 
@@ -410,7 +458,9 @@ export function ProjectDispatchOverview({
         cell: ({ row }) => (
           <PoolAgentRuns
             organizationId={organizationId}
+            projectId={projectId}
             projectKey={projectKey}
+            boardNames={boardNames}
             runs={row.original.runs}
             counts={row.original.runCounts}
           />
@@ -430,7 +480,7 @@ export function ProjectDispatchOverview({
         },
       },
     ],
-    [t, organizationId, projectKey],
+    [t, organizationId, projectId, projectKey, boardNames],
   );
 
   const roleColumns = useMemo<ColumnDef<StandingRoleRow>[]>(
@@ -543,6 +593,84 @@ export function ProjectDispatchOverview({
       },
     ],
     [t, agentNames, organizationId, formatDateSmart],
+  );
+
+  const sourceColumns = useMemo<ColumnDef<SourceRow>[]>(
+    () => [
+      {
+        id: 'project',
+        header: t('dispatch.sources.project'),
+        size: 180,
+        cell: ({ row }) =>
+          row.original.name === null ? (
+            <span className="text-muted-foreground">
+              {t('dispatch.sources.unknownProject')}
+            </span>
+          ) : (
+            <Link
+              to="/dashboard/$id/projects/$projectId/dispatch"
+              params={{ id: organizationId, projectId: row.original.projectId }}
+              className={`${LINK_CLASS} block truncate font-medium`}
+            >
+              {row.original.name}
+            </Link>
+          ),
+      },
+      {
+        id: 'state',
+        header: t('dispatch.sources.state'),
+        size: 220,
+        cell: ({ row }) =>
+          row.original.skipped === null ? (
+            <Badge variant="green" dot>
+              {t('dispatch.sources.served')}
+            </Badge>
+          ) : (
+            <span>{t(SOURCE_SKIPPED_KEYS[row.original.skipped])}</span>
+          ),
+      },
+      {
+        id: 'columns',
+        header: t('dispatch.sources.columns'),
+        size: 150,
+        cell: ({ row }) =>
+          row.original.statuses
+            .map((column) => tTasks(COLUMN_KEYS[column]))
+            .join(', '),
+      },
+      {
+        id: 'labels',
+        header: t('dispatch.sources.labels'),
+        size: 180,
+        meta: { skeleton: { type: 'two-line' } },
+        cell: ({ row }) => {
+          const include = row.original.labels?.include ?? [];
+          const exclude = row.original.labels?.exclude ?? [];
+          if (include.length === 0 && exclude.length === 0) {
+            return (
+              <span className="text-muted-foreground">
+                {t('dispatch.sources.allWork')}
+              </span>
+            );
+          }
+          return (
+            <Stack gap={0}>
+              {include.length > 0 ? (
+                <span>
+                  {t('dispatch.sources.only', { labels: include.join(', ') })}
+                </span>
+              ) : null}
+              {exclude.length > 0 ? (
+                <span className="text-muted-foreground text-xs">
+                  {t('dispatch.sources.never', { labels: exclude.join(', ') })}
+                </span>
+              ) : null}
+            </Stack>
+          );
+        },
+      },
+    ],
+    [t, tTasks, organizationId],
   );
 
   const passColumns = useMemo<ColumnDef<PassRow>[]>(
@@ -675,6 +803,42 @@ export function ProjectDispatchOverview({
             getRowId={(row) => row.key}
             caption={t('dispatch.roles.caption')}
           />
+        </PageSection>
+      ) : null}
+
+      {status.sources.length > 0 ? (
+        <PageSection
+          title={t('dispatch.sources.title')}
+          description={t('dispatch.sources.description')}
+        >
+          <Stack gap={3}>
+            <DataTable<SourceRow>
+              columns={sourceColumns}
+              data={status.sources}
+              getRowId={(row) => row.projectId}
+              caption={t('dispatch.sources.caption')}
+            />
+            <Text variant="caption" className="text-muted-foreground">
+              {t('dispatch.sources.declared')}
+            </Text>
+          </Stack>
+        </PageSection>
+      ) : null}
+
+      {status.reviewers.length > 0 ? (
+        <PageSection
+          title={t('dispatch.reviewers.title')}
+          description={t('dispatch.reviewers.description')}
+        >
+          <ul className="flex flex-wrap gap-2">
+            {status.reviewers.map((reviewer) => (
+              <li key={reviewer.agentId}>
+                <Badge variant="outline">
+                  {reviewer.name ?? t('dispatch.reviewers.unknownAgent')}
+                </Badge>
+              </li>
+            ))}
+          </ul>
         </PageSection>
       ) : null}
 

@@ -10,6 +10,7 @@ import {
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import {
   checkPlannedProjectDispatch,
   checkProjectDispatch,
@@ -17,7 +18,10 @@ import {
   readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
-import { readStoredDispatch } from './dispatch-store.ts';
+import {
+  dispatchConfigurationValue,
+  readStoredDispatch,
+} from './dispatch-store.ts';
 
 vi.mock('../projects/service.ts', async (importOriginal) => {
   const actual =
@@ -34,6 +38,13 @@ vi.mock('../projects/service.ts', async (importOriginal) => {
 });
 
 const service = await import('../projects/service.ts');
+
+const auth = {
+  organizationId: 'org-1',
+  userId: 'admin-1',
+  role: 'admin',
+  teamIds: [],
+};
 
 const dispatch: ProjectDispatch = {
   enabled: true,
@@ -80,7 +91,7 @@ describe('a dispatch names only what is the project’s, and only who administer
           agents: ['scribe', 'lector'],
           tasks: [{ id: 'task-manager', archived: false }],
         }),
-        { organizationId: 'org-1', projectId: 'p-1', dispatch },
+        { organizationId: 'org-1', projectId: 'p-1', dispatch, auth },
       ),
     ).resolves.toEqual([]);
   });
@@ -94,6 +105,7 @@ describe('a dispatch names only what is the project’s, and only who administer
       {
         organizationId: 'org-1',
         projectId: 'p-1',
+        auth,
         dispatch: {
           ...dispatch,
           standingRoles: [
@@ -246,7 +258,9 @@ describe('a declaration whose dispatch would be refused writes nothing [TASK-R61
       if (text.includes('FROM app.tasks'))
         return Promise.resolve([{ id: 'task-manager', archived: false }]);
       if (text.includes('FROM app.task_labels'))
-        return Promise.resolve(rows.labels.map((name) => ({ name })));
+        return Promise.resolve(
+          rows.labels.map((name) => ({ projectId: 'p-1', name })),
+        );
       if (text.includes('FROM app.project_dispatch') && rows.stored)
         return Promise.resolve([
           { config: rows.stored, updatedAt: 1, updatedBy: 'ada' },
@@ -485,6 +499,7 @@ describe('a dispatch check counts what its declaration creates; its save, only w
         organizationId: 'org-1',
         projectId: 'p-1',
         dispatch: labelled,
+        auth: ada,
         planned,
       }),
     ).resolves.toEqual([]);
@@ -503,6 +518,7 @@ describe('a dispatch check counts what its declaration creates; its save, only w
       organizationId: 'org-1',
       projectId: 'p-1',
       dispatch: labelled,
+      auth: ada,
       planned: { agents: [], tasks: [], labels: [] },
     });
     expect(issues.map((issue) => issue.path)).toEqual([
@@ -523,9 +539,9 @@ describe('a dispatch check counts what its declaration creates; its save, only w
     ).rejects.toMatchObject({ code: 'DISPATCH_INVALID' });
   });
 
-  it('checks a project the declaration creates against the declaration alone, for who may administer it', () => {
-    expect(
-      checkPlannedProjectDispatch(ada, {
+  it('checks a project the declaration creates against the declaration alone, for who may administer it', async () => {
+    await expect(
+      checkPlannedProjectDispatch(holding([]), ada, {
         projectId: 'p-new',
         dispatch: {
           ...labelled,
@@ -535,23 +551,24 @@ describe('a dispatch check counts what its declaration creates; its save, only w
         expectedHash: null,
         planned: { ...planned, agents: ['scribe', 'lector'], project: true },
       }),
-    ).toMatchObject({ ok: true, changed: true });
-    expect(
-      checkPlannedProjectDispatch(ada, {
+    ).resolves.toMatchObject({ ok: true, changed: true });
+    await expect(
+      checkPlannedProjectDispatch(holding([]), ada, {
         projectId: 'p-new',
         dispatch: labelled,
         expectedHash: null,
         planned: { ...planned, project: true },
       }),
-    ).toMatchObject({
+    ).resolves.toMatchObject({
       ok: false,
       issues: [
         expect.objectContaining({ path: 'agents.0' }),
         expect.objectContaining({ path: 'standingRoles.0.agentId' }),
       ],
     });
-    expect(() =>
+    await expect(
       checkPlannedProjectDispatch(
+        holding([]),
         { ...ada, role: 'editor' },
         {
           projectId: 'p-new',
@@ -560,6 +577,247 @@ describe('a dispatch check counts what its declaration creates; its save, only w
           planned: { ...planned, project: true },
         },
       ),
-    ).toThrow(expect.objectContaining({ code: 'PROJECT_FORBIDDEN' }));
+    ).rejects.toMatchObject({ code: 'PROJECT_FORBIDDEN' });
+  });
+});
+
+describe('a dispatch serves another board only when its writer may edit that board [TASK-R70]', () => {
+  /** Development's administrator Ada edits Tale; Billing is shared with a
+   * team she is not in; Archive is archived; Elsewhere is in another
+   * organization. Development has a Coder, a Reviewer granted task review
+   * and a Reporter without it; Tale has the label `ready`. */
+  const ada = {
+    organizationId: 'org-1',
+    userId: 'ada',
+    role: 'editor',
+    teamIds: ['team-dev', 'team-tale'],
+  };
+  const PROJECTS: Record<
+    string,
+    { archived: boolean; teamIds: string[]; organizationId: string }
+  > = {
+    'p-tale': {
+      archived: false,
+      teamIds: ['team-tale'],
+      organizationId: 'org-1',
+    },
+    'p-vat': {
+      archived: false,
+      teamIds: ['team-vat'],
+      organizationId: 'org-1',
+    },
+    'p-archive': { archived: true, teamIds: [], organizationId: 'org-1' },
+  };
+  const AGENTS = [
+    { id: 'scribe', tools: ['task_review'] },
+    { id: 'lector', tools: [] },
+    { id: 'reviewer', tools: ['task_review'] },
+    { id: 'reporter', tools: ['task_comment'] },
+  ];
+  const LABELS = [
+    { projectId: 'p-1', name: 'release' },
+    { projectId: 'p-tale', name: 'ready' },
+  ];
+
+  function database(): Sql {
+    const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      if (text.includes('FROM app.project_agents'))
+        return Promise.resolve(AGENTS);
+      if (text.includes('FROM app.tasks'))
+        return Promise.resolve([{ id: 'task-manager', archived: false }]);
+      if (text.includes('FROM app.projects')) {
+        const ids = values.find(Array.isArray) ?? [];
+        return Promise.resolve(
+          (ids as string[]).flatMap((id) => {
+            const project = PROJECTS[id];
+            return project === undefined
+              ? []
+              : [{ id, archived: project.archived, teamIds: project.teamIds }];
+          }),
+        );
+      }
+      if (text.includes('FROM app.task_labels')) {
+        const projectIds = values.find(Array.isArray) ?? [];
+        return Promise.resolve(
+          LABELS.filter((label) =>
+            (projectIds as string[]).includes(label.projectId),
+          ),
+        );
+      }
+      return Promise.resolve([]);
+    };
+    const unsafe = (text: string) => text;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the check uses only the tagged template and unsafe; the rows model its reads
+    return Object.assign(query, { unsafe }) as unknown as Sql;
+  }
+
+  const check = (fields: Partial<ProjectDispatch>) =>
+    checkProjectDispatch(database(), {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      dispatch: { ...dispatch, standingRoles: undefined, ...fields },
+      auth: ada,
+    });
+
+  it('accepts a board its writer may edit, with that board’s labels and the project’s reviewers', async () => {
+    await expect(
+      check({
+        sources: [{ projectId: 'p-tale', labels: { include: ['ready'] } }],
+        reviewers: ['reviewer'],
+        gates: [{ key: 'ci', labels: ['ready'] }],
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it('names a board its writer may not edit, an archived one, one of no project, and its own', async () => {
+    const issues = await check({
+      sources: [
+        { projectId: 'p-vat' },
+        { projectId: 'p-archive' },
+        { projectId: 'p-elsewhere' },
+        { projectId: 'p-1' },
+      ],
+    });
+    expect(issues).toEqual([
+      {
+        path: 'sources.0.projectId',
+        message:
+          'Serving that project’s board needs the right to edit it, which you do not have.',
+      },
+      {
+        path: 'sources.1.projectId',
+        message: 'That project is archived; restore it first.',
+      },
+      {
+        path: 'sources.2.projectId',
+        message:
+          'No project with the id "p-elsewhere" is in this organization.',
+      },
+      {
+        path: 'sources.3.projectId',
+        message:
+          'A dispatch serves its own board already; a source names another project.',
+      },
+    ]);
+  });
+
+  it('never lets a project’s own API key serve another project', async () => {
+    const issues = await checkProjectDispatch(database(), {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      dispatch: {
+        ...dispatch,
+        standingRoles: undefined,
+        sources: [{ projectId: 'p-tale' }],
+      },
+      auth: { ...ada, role: 'admin', projectScope: 'p-1' },
+    });
+    expect(issues.map((issue) => issue.path)).toEqual(['sources.0.projectId']);
+  });
+
+  it('names a source’s label its board lacks, and a reviewer that is not the project’s or may not review', async () => {
+    const issues = await check({
+      sources: [{ projectId: 'p-tale', labels: { exclude: ['release'] } }],
+      reviewers: ['reporter', 'ghost'],
+      gates: [{ key: 'ci', labels: ['nowhere'] }],
+    });
+    expect(issues).toEqual([
+      {
+        path: 'reviewers.0',
+        message:
+          'The agent "reporter" may not review tasks; grant it task review first.',
+      },
+      {
+        path: 'reviewers.1',
+        message: 'No agent with the id "ghost" works in this project.',
+      },
+      {
+        path: 'sources.0.labels.exclude.0',
+        message: 'No label named "release" is in that project.',
+      },
+      {
+        path: 'gates.0.labels.0',
+        message:
+          'No label named "nowhere" is in this project or any project it serves.',
+      },
+    ]);
+  });
+
+  it('reads, hashes and saves a dispatch that names no other board exactly as before', () => {
+    const stored = {
+      ...dispatch,
+      gates: [{ key: 'ci', labels: ['release'] }],
+    };
+    const parsed = projectDispatchSchema.parse(stored);
+    expect(parsed).toEqual(stored);
+    expect('sources' in parsed || 'reviewers' in parsed).toBe(false);
+    expect(
+      managedConfigurationHash(dispatchConfigurationValue('p-1', parsed)),
+    ).toBe(managedConfigurationHash({ projectId: 'p-1', ...stored }));
+  });
+});
+
+describe('a board served on a right that was lost is served again once someone who may edit it saves the dispatch [TASK-R72]', () => {
+  /** Development's dispatch serves Tale, saved last by Ada; Bea edits Tale
+   * too. */
+  const serving: ProjectDispatch = {
+    ...dispatch,
+    standingRoles: undefined,
+    sources: [{ projectId: 'p-tale' }],
+  };
+  const bea = {
+    organizationId: 'org-1',
+    userId: 'bea',
+    role: 'editor',
+    teamIds: ['team-tale'],
+  };
+
+  function storedAs(stored: ProjectDispatch): TransactionSql {
+    const query = (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      if (text.includes('FROM app.project_agents'))
+        return Promise.resolve(
+          ['scribe', 'lector'].map((id) => ({ id, tools: [] })),
+        );
+      if (text.includes('FROM app.projects'))
+        return Promise.resolve([
+          { id: 'p-tale', archived: false, teamIds: ['team-tale'] },
+        ]);
+      if (text.includes('FROM app.project_dispatch'))
+        return Promise.resolve([
+          { config: stored, updatedAt: 1, updatedBy: 'ada' },
+        ]);
+      return Promise.resolve([]);
+    };
+    const unsafe = (text: string) => text;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the check uses only the tagged template and unsafe; the rows model its reads
+    return Object.assign(query, { unsafe }) as unknown as TransactionSql;
+  }
+
+  it('saves the same document again when someone else saves it, so it serves its boards on their right', async () => {
+    await expect(
+      checkProjectDispatchSave(storedAs(serving), bea, {
+        projectId: 'p-1',
+        dispatch: serving,
+      }),
+    ).resolves.toMatchObject({ ok: true, changed: true });
+    await expect(
+      checkProjectDispatchSave(
+        storedAs(serving),
+        { ...bea, userId: 'ada' },
+        { projectId: 'p-1', dispatch: serving },
+      ),
+    ).resolves.toMatchObject({ ok: true, changed: false });
+  });
+
+  it('leaves a dispatch that serves no other board unchanged, whoever saves it', async () => {
+    const own = { ...dispatch, standingRoles: undefined };
+    await expect(
+      checkProjectDispatchSave(storedAs(own), bea, {
+        projectId: 'p-1',
+        dispatch: own,
+      }),
+    ).resolves.toMatchObject({ ok: true, changed: false });
   });
 });

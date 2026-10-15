@@ -71,6 +71,7 @@ agentRun:
   alreadyRunning: This task's agent is already running.
   notStarted: The agent run could not start.
   agentMissing: The assigned agent no longer exists. Assign another agent to run this task.
+  agentOutOfReach: The assigned agent belongs to another project whose dispatch no longer serves this board. Assign another agent to run this task.
   noAgentAssignee: No agent is assigned to this task. Assign one to start a run.
   cancelled: The agent run was cancelled.
   cancelFailed: The agent run could not be cancelled.
@@ -386,6 +387,7 @@ assignee:
   liveAgentsOnlyReader: Only this project's agents appear here — Editors and Admins add them on the project's Agents tab.
   standardAgent: Standard agent
   standardAgentHint: The organization's agent for projects without their own
+  servedFrom: "From {project}'s dispatch"
   standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
 activity:
   reviewResponded: "Review decided"

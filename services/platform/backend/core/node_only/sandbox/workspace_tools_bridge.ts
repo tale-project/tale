@@ -209,7 +209,11 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'reads the oldest first and ' +
     'a task keeps its place, so a walk lists each task at most once, as it ' +
     'stands when its page is read. On a project-bound run the listing is ' +
-    "fixed to the run's own project. reviewerAgentId matches the captured " +
+    "fixed to the run's own project, plus the projects its project's " +
+    'dispatch serves when it is one of that dispatch’s agents: projectId ' +
+    'then names one of them, and task_get, task_comment, ' +
+    'task_update_status, task_update_metadata and task_review work their ' +
+    'tasks too. reviewerAgentId matches the captured ' +
     'pending native reviewer, not a future default or implementation owner. ' +
     'Each task includes pendingReview: null or {approvalId, runId, reviewer}. ' +
     'A manager pages in_review to discover all captured owners, including ' +
@@ -355,7 +359,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'handoffs. Answers {taskId, priority, assigneeType, assigneeId, changed}. ' +
     'Does not change status, reviewer, questions, budgets, or start any run.',
   task_delegate_review:
-    'Delegate one captured pending agent review to another eligible same-project agent. ' +
+    'Delegate one captured pending agent review to another eligible agent of the task’s project, ' +
+    'or one the dispatch that serves that project puts to work there. ' +
     'Only an explicitly granted live project-agent manager with project-wide authority may call. ' +
     'Read task_get first, then pass {taskId, reviewerAgentId, expected: {approvalId, runId, ' +
     'evidenceRevision, reviewer: {kind: "agent", agentId}}, reason} with full native IDs. ' +
@@ -473,10 +478,12 @@ function actionContextBlocker(
     return {
       code: 'schedule_revoked',
       guidance:
-        'The schedule that started this run was paused or removed, or its ' +
-        'automation is no longer bound to this project, so the run’s ' +
+        'The schedule or dispatch that started this run may no longer act ' +
+        'on this task’s board — the schedule was paused or removed, its ' +
+        'automation is no longer bound to the project, the dispatch was ' +
+        'switched off, or it no longer serves the board — so the run’s ' +
         'workspace tools act for nobody. Stop and report what is left; the ' +
-        'schedule’s next occurrence starts the work again once it is back.',
+        'work starts again once it may act there again.',
     };
   }
   if (reason === 'no_access_context') {

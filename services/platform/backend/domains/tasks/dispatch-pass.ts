@@ -5,6 +5,7 @@ import {
   DISPATCH_RUNS_MAX,
   dispatchAdmission,
   type DispatchAdmissionPreset,
+  type DispatchStatus,
   type ProjectDispatch,
   type ProjectDispatchRole,
 } from '@tale/shared/schemas/project-dispatch';
@@ -31,12 +32,18 @@ import {
   PASS_LEASE_MS,
   passOutOfTime,
   planDispatch,
+  rankCandidates,
   startPacedUntil,
   type DispatchAgent,
   type DispatchCandidate,
   type DispatchModelRamp,
   type DispatchPick,
 } from './dispatch-plan.ts';
+import {
+  judgeDispatchSources,
+  sourceStatuses,
+  type JudgedSource,
+} from './dispatch-reach.ts';
 import {
   requestDispatchPassInTx,
   type DispatchPassTrigger,
@@ -56,8 +63,11 @@ import { assertTaskAutomationEnabled } from './run-start.ts';
 
 /**
  * One pass of a project's dispatch (migration 0206): its standing roles
- * that are due, then its ready work on the idle agents of its pool, one
- * start at a time. A pass is asked for when a run of the project ends, when
+ * that are due, then its ready work — on its own board and every source it
+ * reaches now (`dispatch-reach.ts`), one order across them — on the idle
+ * agents of its pool, one start at a time. A source it no longer reaches is
+ * skipped and recorded as held with why (`source_missing`,
+ * `source_archived`, `source_no_authority`). A pass is asked for when a run of the project ends, when
  * a model its agents wait on answers again, when the dispatch is saved, at
  * the time a held or paced pass named, and by the minute scan.
  *
@@ -81,8 +91,9 @@ import { assertTaskAutomationEnabled } from './run-start.ts';
 
 /** When a pass finds another under way, it asks again this much later. */
 const BUSY_RETRY_MS = 15_000;
-/** Ready tasks one pass reads, best-ranked first: as many runs as a pool
- * may ever hold, so one pass can fill the largest pool. */
+/** Ready tasks one pass reads, best-ranked first, across every board it
+ * serves: as many runs as a pool may ever hold, so one pass can fill the
+ * largest pool. */
 const CANDIDATES_PER_PASS = DISPATCH_RUNS_MAX;
 /** Holds one pass records, so a big backlog keeps the record small. */
 const HOLDS_RECORDED = 50;
@@ -127,6 +138,9 @@ export interface DispatchHeld {
   reason: string;
   retryAfter?: number;
   role?: string;
+  /** A source the pass skipped (`reason` `source_<why>`), or the board a
+   * held task is on when it is not the dispatch's own. */
+  projectId?: string;
 }
 
 export interface DispatchPassResult {
@@ -175,15 +189,41 @@ async function readState(sql: Sql, projectId: string): Promise<DispatchState> {
   return rows[0] ?? { lastStartAt: null, recheckIndex: 0 };
 }
 
+/** One board a pass takes ready work from: the dispatch's own, or a source
+ * it reaches now, with the columns and labels that select its ready work. */
+export interface DispatchBoard {
+  projectId: string;
+  statuses: readonly DispatchStatus[];
+  labels: ProjectDispatch['labels'];
+}
+
+/** The boards a pass takes ready work from: its own first, then every
+ * source it reaches, in the order the dispatch lists them. */
+export function dispatchBoards(
+  projectId: string,
+  config: ProjectDispatch,
+  reachable: readonly JudgedSource[],
+): DispatchBoard[] {
+  return [
+    { projectId, statuses: config.statuses, labels: config.labels },
+    ...reachable.map((judged) => ({
+      projectId: judged.projectId,
+      statuses: sourceStatuses(config, judged.source),
+      labels: judged.source.labels,
+    })),
+  ];
+}
+
 /** The pool's occupancy, its agents' models on hold or ramping up after
- * one, the organization's agent-worker room and the ready work, as one pass
- * sees them. */
+ * one, the organization's agent-worker room and the ready work on every
+ * board the dispatch serves, as one pass sees them. An agent's occupancy
+ * counts every live run it holds, on whichever board. */
 async function readDispatchFacts(
   sql: Sql,
   args: {
     organizationId: string;
-    projectId: string;
     config: ProjectDispatch;
+    boards: readonly DispatchBoard[];
     now: number;
   },
 ): Promise<{
@@ -192,7 +232,7 @@ async function readDispatchFacts(
   workerRoom: number;
   modelRamps: Map<string, DispatchModelRamp>;
 }> {
-  const { organizationId, projectId, config } = args;
+  const { organizationId, config } = args;
   const pool = config.agents;
   const occupancy =
     pool.length === 0
@@ -200,7 +240,7 @@ async function readDispatchFacts(
       : await sql<{ agentId: string; live: number }[]>`
           SELECT agent_id AS "agentId", count(*)::int AS live
           FROM app.project_agent_runs r
-          WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+          WHERE r.org_id = ${organizationId}
             AND r.agent_id = ANY(${pool})
             AND (r.status IN ('queued', 'running')
               -- A failed run whose automatic retry is armed holds its agent:
@@ -263,31 +303,65 @@ async function readDispatchFacts(
   const workerRoom = cap - inFlight - (pending[0]?.queued ?? 0);
 
   const roleTasks = (config.standingRoles ?? []).map((role) => role.taskId);
+  const candidates: DispatchCandidate[] = [];
+  if (pool.length > 0) {
+    for (const board of args.boards) {
+      candidates.push(
+        ...(await readBoardCandidates(sql, {
+          organizationId,
+          board,
+          pool,
+          poolMode: config.assignment === 'pool',
+          roleTasks,
+        })),
+      );
+    }
+  }
+  // One order across every board: the column a task waits in (by its own
+  // board's preference), its priority, its place on its board and its age.
+  // A pass reads no more than it could start.
+  const ranked = rankCandidates(candidates, config.statuses).slice(
+    0,
+    CANDIDATES_PER_PASS,
+  );
+  return { agents, candidates: ranked, workerRoom, modelRamps };
+}
+
+/** The ready work of one board, best-ranked first: tasks in its columns
+ * that its labels select, assigned to an agent of the pool (or nobody's,
+ * when the pool takes unassigned work), with no live run, no armed retry
+ * and no open blocker. */
+async function readBoardCandidates(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    board: DispatchBoard;
+    pool: readonly string[];
+    poolMode: boolean;
+    roleTasks: readonly string[];
+  },
+): Promise<DispatchCandidate[]> {
+  const { organizationId, board, pool, poolMode, roleTasks } = args;
+  const projectId = board.projectId;
   const labels = await labelIdsByName(sql, {
     organizationId,
-    projectId,
-    names: [
-      ...(config.labels?.include ?? []),
-      ...(config.labels?.exclude ?? []),
-    ],
+    projectIds: [projectId],
+    names: [...(board.labels?.include ?? []), ...(board.labels?.exclude ?? [])],
   });
   const include =
-    config.labels?.include === undefined
+    board.labels?.include === undefined
       ? null
-      : config.labels.include.flatMap(
+      : board.labels.include.flatMap(
           (name) => labels.get(name.toLowerCase()) ?? [],
         );
   const exclude =
-    config.labels?.exclude === undefined
+    board.labels?.exclude === undefined
       ? null
-      : config.labels.exclude.flatMap(
+      : board.labels.exclude.flatMap(
           (name) => labels.get(name.toLowerCase()) ?? [],
         );
-  const poolMode = config.assignment === 'pool';
-  const candidates =
-    pool.length === 0
-      ? []
-      : await sql<DispatchCandidate[]>`
+  const statuses = [...board.statuses];
+  const rows = await sql<Omit<DispatchCandidate, 'projectId' | 'column'>[]>`
           SELECT t.id AS "taskId", t.status, t.priority, t.rank,
                  t.created_at_ms::float8 AS "createdAt",
                  CASE WHEN t.assignee_type = 'agent' THEN t.assignee_id END
@@ -298,7 +372,7 @@ async function readDispatchFacts(
                  ) AS "hasRuns"
           FROM app.tasks t
           WHERE t.org_id = ${organizationId} AND t.project_id = ${projectId}
-            AND t.status = ANY(${[...config.statuses]})
+            AND t.status = ANY(${statuses})
             AND t.archived_at_ms IS NULL
             AND ((t.assignee_type = 'agent' AND t.assignee_id = ANY(${pool}))
               OR (${poolMode} AND t.assignee_id IS NULL))
@@ -328,25 +402,31 @@ async function readDispatchFacts(
             AND (${include === null} OR t.label_ids && ${include ?? []}::text[])
             AND (${exclude === null}
               OR NOT (t.label_ids && ${exclude ?? []}::text[]))
-          ORDER BY array_position(${[...config.statuses]}::text[], t.status),
+          ORDER BY array_position(${statuses}::text[], t.status),
                    CASE t.priority WHEN 'p0' THEN 0 WHEN 'p1' THEN 1
                      WHEN 'p2' THEN 2 WHEN 'p3' THEN 3 ELSE 4 END,
                    t.rank, t.created_at_ms, t.id
           LIMIT ${CANDIDATES_PER_PASS}
         `;
-  return { agents, candidates, workerRoom, modelRamps };
+  return rows.map((row) =>
+    Object.assign(row, { projectId, column: statuses.indexOf(row.status) }),
+  );
 }
 
-/** The project's labels by lower-cased name: a name the board shows twice
- * in different case matches both. */
+/** The labels of the named projects by lower-cased name: a name a board
+ * shows twice in different case, or two boards each show, matches every
+ * one. */
 async function labelIdsByName(
   sql: Sql,
-  args: { organizationId: string; projectId: string; names: string[] },
+  args: { organizationId: string; projectIds: string[]; names: string[] },
 ): Promise<Map<string, string[]>> {
-  if (args.names.length === 0) return new Map();
+  if (args.names.length === 0 || args.projectIds.length === 0) {
+    return new Map();
+  }
   const rows = await sql<{ id: string; name: string }[]>`
     SELECT id, name FROM app.task_labels
-    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+    WHERE org_id = ${args.organizationId}
+      AND project_id = ANY(${args.projectIds})
       AND lower(name) = ANY(${args.names.map((name) => name.toLowerCase())})
   `;
   const byName = new Map<string, string[]>();
@@ -416,6 +496,9 @@ async function startPick(
   args: {
     organizationId: string;
     projectId: string;
+    /** The boards the dispatch serves now: its own and the sources it
+     * reaches. */
+    scopeProjectIds: readonly string[];
     passId: string;
     pick: { taskId: string; agentId: string };
     feedback?: string;
@@ -428,7 +511,7 @@ async function startPick(
     const result = await transactSerializable(sql, (tx) =>
       startDelegatedAgentRun(tx, {
         organizationId: args.organizationId,
-        scopeProjectIds: [args.projectId],
+        scopeProjectIds: args.scopeProjectIds,
         taskId: args.pick.taskId,
         startedBy: dispatchRunStarter(args.projectId),
         via: { kind: 'dispatch', runId: args.passId },
@@ -926,19 +1009,44 @@ export async function runDispatchPass(
       held.push(...outcome.held);
     }
 
-    const facts = await readDispatchFacts(sql, {
-      ...input,
+    // The other boards it serves, judged now: one it no longer reaches is
+    // skipped, and the pass says why.
+    const sources = await judgeDispatchSources(sql, {
+      organizationId: input.organizationId,
+      sources: config.sources ?? [],
+      authorityUserId: stored.updatedBy,
+    });
+    for (const source of sources) {
+      if (source.skipped === null) continue;
+      held.push({
+        taskId: null,
+        agentId: null,
+        reason: `source_${source.skipped}`,
+        projectId: source.projectId,
+      });
+    }
+    const boards = dispatchBoards(
+      input.projectId,
       config,
+      sources.filter((source) => source.skipped === null),
+    );
+    const boardIds = boards.map((board) => board.projectId);
+    const facts = await readDispatchFacts(sql, {
+      organizationId: input.organizationId,
+      config,
+      boards,
       now: Date.now(),
     });
-    // The gates: ready work a held gate governs waits, the rest goes on.
+    // The gates: ready work a held gate governs waits, the rest goes on. A
+    // gate governs by label name across every board the dispatch serves.
     const gates = config.gates ?? [];
     const gateStates =
       gates.length === 0
         ? new Map<string, GateState>()
         : await readGateStates(sql, input.projectId);
     const gateLabels = await labelIdsByName(sql, {
-      ...input,
+      organizationId: input.organizationId,
+      projectIds: boardIds,
       names: gates.flatMap((gate) => gate.labels ?? []),
     });
     const gateLabelIds = new Map(
@@ -976,11 +1084,21 @@ export async function runDispatchPass(
       workerRoom: facts.workerRoom,
       modelRamps: facts.modelRamps,
     });
+    const boardOf = new Map(
+      facts.candidates.map((candidate) => [
+        candidate.taskId,
+        candidate.projectId,
+      ]),
+    );
     for (const hold of plan.holds) {
+      const board = boardOf.get(hold.taskId);
       held.push({
         taskId: hold.taskId,
         agentId: hold.agentId,
         reason: hold.reason,
+        ...(board !== undefined && board !== input.projectId
+          ? { projectId: board }
+          : {}),
       });
     }
     const run = await startPicks(
@@ -1003,7 +1121,13 @@ export async function runDispatchPass(
       {
         now: () => Date.now(),
         askHost: () => ask(input.organizationId, admission.preset),
-        start: (pick) => startPick(sql, { ...input, passId, pick }),
+        start: (pick) =>
+          startPick(sql, {
+            ...input,
+            scopeProjectIds: boardIds,
+            passId,
+            pick,
+          }),
         noteStart: (pick, at) =>
           noteGatedStart(sql, {
             organizationId: input.organizationId,

@@ -10,6 +10,7 @@ import {
 import type { ManagedProjectDispatch } from '@tale/shared/schemas/managed-configuration';
 
 import { managedConfigurationHash } from '../../../../../services/platform/backend/core/lib/config_store/value_hash';
+import { CliError } from '../../utils/fail';
 import { readManagedResource } from './managed-resources';
 import {
   applyPlatformConfiguration,
@@ -1035,6 +1036,41 @@ describe('managed project dispatch', () => {
       'The platform refuses the dispatch declared for project project-1 at gates.0.labels.0.',
     );
     expect(api.checks).toEqual([id]);
+    expect(api.writes).toEqual([]);
+  });
+
+  test('stops a declaration whose dispatch serves a board the key may not edit, before anything is written', async () => {
+    const config = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [
+        {
+          kind: 'project-dispatch',
+          config: {
+            ...dispatch,
+            sources: [{ projectId: 'project-2' }],
+            reviewers: ['agent-1'],
+          },
+        },
+        ...declaration().resources,
+      ],
+    });
+    const api = native(config.resources);
+    api.refuse([
+      {
+        path: 'sources.0.projectId',
+        message:
+          'Serving that project’s board needs the right to edit it, which you do not have.',
+      },
+    ]);
+    const planning = planPlatformConfiguration(config, api.client);
+    await expect(planning).rejects.toThrow(
+      'The platform refuses the dispatch declared for project project-1 at sources.0.projectId.',
+    );
+    const error: unknown = await planning.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(CliError);
+    expect(String((error as CliError).info.next)).toContain(
+      'the right to edit every project the dispatch serves',
+    );
     expect(api.writes).toEqual([]);
   });
 

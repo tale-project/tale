@@ -185,6 +185,7 @@ function plannedForDispatch(
   const namedAgents = new Set([
     ...dispatch.agents,
     ...roles.map((role) => role.agentId),
+    ...(dispatch.reviewers ?? []),
   ]);
   const namedTasks = new Set(roles.map((role) => role.taskId));
   const namedLabels = new Set(

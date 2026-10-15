@@ -7,6 +7,7 @@
  * actually serve them.
  */
 
+import type { DispatchServingAgent } from '@tale/shared/schemas/project-dispatch';
 import type { SetProjectTaskReviewerInput } from '@tale/shared/schemas/task-review';
 
 /** Card/list metadata; the detail read owns retained project instructions. */
@@ -187,6 +188,13 @@ export interface ProjectsContract {
     kind: 'query';
     args: { organizationId: string; projectId: string };
     returns: { orgWide: boolean; userIds: string[] };
+  };
+  /** The agents other projects' dispatches put to work on this project's
+   * board now: the board names them and offers them to assign and review. */
+  'projects/queries:listServingAgents': {
+    kind: 'query';
+    args: { organizationId: string; projectId: string };
+    returns: DispatchServingAgent[];
   };
   'projects/queries:listProjectAgents': {
     kind: 'query';

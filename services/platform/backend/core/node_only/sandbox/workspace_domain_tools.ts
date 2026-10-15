@@ -684,7 +684,9 @@ const asProjectId = (raw: string): Id<'projects'> => raw;
  * Resolve the project a task WRITE/list targets from the session's authority:
  *
  * - a PROJECT-bound run is pinned to its own project — a caller-supplied
- *   different id is refused, not silently rerouted;
+ *   different id is refused, not silently rerouted — except that a listing
+ *   (`reach`) by an agent whose project's dispatch serves other boards lists
+ *   its own project and those boards, or the one of them it names;
  * - an org-wide run of a MULTI-BOUND automation may act only on the projects
  *   its automation is bound to: a requested id outside that set is refused, and
  *   a listing with no id named falls back to the whole bound set
@@ -695,11 +697,34 @@ const asProjectId = (raw: string): Id<'projects'> => raw;
 function resolveTargetProject(
   authority: WorkspaceActionAuthority,
   callArgs: Record<string, unknown>,
+  /** A listing (`task_find`) also reaches the boards the agent's project's
+   * dispatch serves; a create never does. */
+  options: { reach?: boolean } = {},
 ):
   | { projectId?: string; allowedProjectIds?: string[] }
   | { refusal: ToolResult } {
   const requested = readString(callArgs.projectId);
   if (authority.scope.kind === 'project') {
+    const reached =
+      options.reach === true ? (authority.scope.reachedProjectIds ?? []) : [];
+    if (reached.length > 0) {
+      const own = authority.scope.projectId;
+      if (requested === undefined) {
+        return { allowedProjectIds: [own, ...reached] };
+      }
+      if (requested === own || reached.includes(requested)) {
+        return { projectId: requested };
+      }
+      return {
+        refusal: {
+          status: 'invalid_args',
+          message:
+            'This run lists its own project and the projects its ' +
+            'project’s dispatch serves; that "projectId" is not one of ' +
+            `them: ${[own, ...reached].join(', ')}.`,
+        },
+      };
+    }
     if (requested !== undefined && requested !== authority.scope.projectId) {
       return {
         refusal: {
@@ -740,7 +765,9 @@ const TASK_OUT_OF_SCOPE: ToolResult = {
 
 /**
  * Guard an operation on an EXISTING task by the session's authority. A
- * project-bound run may only touch tasks in its own project — the create-time
+ * project-bound run may only touch tasks in its own project, and on the
+ * boards its project's dispatch puts its agent to work on
+ * (`reachedProjectIds`, `tasks/dispatch-reach.ts`) — the create-time
  * `resolveTargetProject` pins new tasks, but reads and mutations take a raw
  * task id, so the boundary has to be re-checked against the loaded row (org
  * scoping alone would let a bound run reach another project's board). An
@@ -764,7 +791,8 @@ async function loadTaskInScope(
   }
   if (
     authority.scope.kind === 'project' &&
-    String(task.projectId) !== authority.scope.projectId
+    String(task.projectId) !== authority.scope.projectId &&
+    !(authority.scope.reachedProjectIds ?? []).includes(String(task.projectId))
   ) {
     return { refusal: TASK_OUT_OF_SCOPE };
   }
@@ -1026,7 +1054,9 @@ export async function runTaskTool(
 
   try {
     if (args.tool === 'task_find') {
-      const target = resolveTargetProject(authority, callArgs);
+      const target = resolveTargetProject(authority, callArgs, {
+        reach: true,
+      });
       if ('refusal' in target) return target.refusal;
       const status = pickTaskStatus(callArgs.status);
       if (callArgs.status !== undefined && status === undefined) {

@@ -8,10 +8,12 @@ import { SANDBOX_SESSION_BUDGET_MAX } from './governance';
  * project's ready work moving without anyone starting each run: which of the
  * project's agents take that work, how many runs they may hold at once,
  * which tasks count as ready, how carefully a start is admitted on the
- * shared sandbox host, and the standing roles started on a schedule. The
- * app, REST and managed configuration write it; the platform parses it again
- * for every reader and checks what needs the database (that the agents and
- * tasks belong to the project, that a cron expression reads).
+ * shared sandbox host, the standing roles started on a schedule, the other
+ * boards of the organization it serves and the agents that review its
+ * pool's work. The app, REST and managed configuration write it; the
+ * platform parses it again for every reader and checks what needs the
+ * database (that the agents and tasks belong to the project, that a cron
+ * expression reads, that the writer may edit every board it serves).
  *
  * Every field a reader can default is optional, and readers apply
  * {@link DISPATCH_DEFAULTS}: nothing is written that the caller did not
@@ -60,6 +62,23 @@ export const DISPATCH_ROLE_BRIEF_MAX = 4_000;
 export const DISPATCH_LABELS_MAX = 20;
 export const DISPATCH_GATES_MAX = 10;
 export const DISPATCH_GATE_REASON_MAX = 500;
+/** As many other boards as one dispatch may serve. */
+export const DISPATCH_SOURCES_MAX = 20;
+/** As many reviewers as one dispatch may name. */
+export const DISPATCH_REVIEWERS_MAX = 10;
+
+/** Why a dispatch does not reach one of its sources now: the project is gone
+ * from the organization, it is archived, or whoever last saved the dispatch
+ * may no longer edit it. A source it does not reach is skipped — none of its
+ * work is taken and none of its tasks are reached — until it is reachable
+ * again; it is never widened to anyone else's rights. */
+export const DISPATCH_SOURCE_SKIP_REASONS = [
+  'missing',
+  'archived',
+  'no_authority',
+] as const;
+export type DispatchSourceSkipReason =
+  (typeof DISPATCH_SOURCE_SKIP_REASONS)[number];
 
 /** What a gate does while nobody has reported on it for its
  * `staleAfterSeconds`: let its work go, or hold it. */
@@ -80,6 +99,36 @@ const unique = (values: readonly string[]) =>
   new Set(values).size === values.length;
 
 const labelName = z.string().trim().min(1).max(50);
+
+/** Take only tasks with one of `include`, and none with one of `exclude`,
+ * matched by label name, case-insensitively. */
+const labelFilterSchema = z.strictObject({
+  include: z.array(labelName).max(DISPATCH_LABELS_MAX).optional(),
+  exclude: z.array(labelName).max(DISPATCH_LABELS_MAX).optional(),
+});
+
+/** The columns ready work is taken from, in this order of preference. */
+const statusesSchema = z
+  .array(z.enum(DISPATCH_STATUSES))
+  .min(1)
+  .max(DISPATCH_STATUSES.length)
+  .refine(unique, 'A column appears once.');
+
+/**
+ * Another board of the same organization whose ready work this dispatch
+ * takes too: the project, the columns its ready work waits in (the
+ * dispatch's own `statuses` unless said) and the labels that select it
+ * there (none: all of it), named as that project names them. While the
+ * dispatch lists it, the dispatch's pool, standing-role agents and
+ * reviewers may be assigned to, started on and work the tasks of that
+ * board; saving it needs the right to edit that project.
+ */
+export const projectDispatchSourceSchema = z.strictObject({
+  projectId: identity,
+  statuses: statusesSchema.optional(),
+  labels: labelFilterSchema.optional(),
+});
+export type ProjectDispatchSource = z.infer<typeof projectDispatchSourceSchema>;
 
 /** A role key: lower-case letters, digits and inner hyphens, 1 to 64
  * characters. It names the role in occurrence labels and readbacks. */
@@ -232,22 +281,31 @@ const projectDispatchDocumentSchema = z
       .max(DISPATCH_RUNS_MAX)
       .optional(),
     /** The columns ready work is taken from, in this order of preference. */
-    statuses: z
-      .array(z.enum(DISPATCH_STATUSES))
-      .min(1)
-      .max(DISPATCH_STATUSES.length)
-      .refine(unique, 'A column appears once.'),
+    statuses: statusesSchema,
     assignment: z.enum(DISPATCH_ASSIGNMENTS),
     /** Move a task that never started from a busy agent of the pool to an
      * idle one (default off). */
     rebalance: z.boolean().optional(),
     /** Take only tasks with one of `include`, and none with one of
      * `exclude`, matched by label name, case-insensitively. */
-    labels: z
-      .strictObject({
-        include: z.array(labelName).max(DISPATCH_LABELS_MAX).optional(),
-        exclude: z.array(labelName).max(DISPATCH_LABELS_MAX).optional(),
-      })
+    labels: labelFilterSchema.optional(),
+    /** Other boards of the organization whose ready work this dispatch
+     * takes too (never its own project; each once). */
+    sources: z
+      .array(projectDispatchSourceSchema)
+      .max(DISPATCH_SOURCES_MAX)
+      .refine(
+        (sources) => unique(sources.map((source) => source.projectId)),
+        'A project appears among the sources once.',
+      )
+      .optional(),
+    /** Agents of this project that review what its pool produced, on its
+     * own board and every source it reaches, in this order: the first that
+     * may review a task and did not produce its work takes it. */
+    reviewers: z
+      .array(identity)
+      .max(DISPATCH_REVIEWERS_MAX)
+      .refine(unique, 'An agent appears among the reviewers once.')
       .optional(),
     admission: projectDispatchAdmissionSchema.optional(),
     standingRoles: z
@@ -359,6 +417,9 @@ export const DISPATCH_RUNS_LISTED = 50;
 export const dispatchAgentRunSchema = z.object({
   runId: z.string(),
   taskId: z.string(),
+  /** The project whose board the task is on: this dispatch's own, or one
+   * of its sources. */
+  projectId: z.string(),
   taskNumber: z.number().nullable(),
   taskTitle: z.string(),
   status: z.enum(['queued', 'running']),
@@ -380,14 +441,60 @@ export type DispatchAgentRunCounts = z.infer<
   typeof dispatchAgentRunCountsSchema
 >;
 
+/** A source of a dispatch as its readback names it: the project (its name
+ * while it is in the organization), whether the dispatch reaches it now, and
+ * why not when it does not. */
+export const dispatchSourceStatusSchema = z.object({
+  projectId: z.string(),
+  name: z.string().nullable(),
+  reachable: z.boolean(),
+  skipped: z.enum(DISPATCH_SOURCE_SKIP_REASONS).nullable(),
+  /** The columns its ready work is taken from. */
+  statuses: z.array(z.enum(DISPATCH_STATUSES)),
+  labels: labelFilterSchema.nullable(),
+});
+export type DispatchSourceStatus = z.infer<typeof dispatchSourceStatusSchema>;
+
+/** Another project's dispatch that lists this project among its sources:
+ * its agents may work this board while it reaches it. */
+export const dispatchServedByStatusSchema = z.object({
+  projectId: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+  reachable: z.boolean(),
+  skipped: z.enum(DISPATCH_SOURCE_SKIP_REASONS).nullable(),
+});
+export type DispatchServedByStatus = z.infer<
+  typeof dispatchServedByStatusSchema
+>;
+
+/** An agent another project's dispatch puts to work on a board now: its
+ * pool, a standing role's agent or a reviewer, with its own project. The
+ * board names it, and offers it to assign and to review. */
+export const dispatchServingAgentSchema = z.object({
+  agentId: z.string(),
+  name: z.string(),
+  /** Its granted platform tools: whether it may review (`task_review`). */
+  tools: z.array(z.string()),
+  projectId: z.string(),
+  projectName: z.string(),
+});
+export type DispatchServingAgent = z.infer<typeof dispatchServingAgentSchema>;
+
+/** The agents other projects' dispatches put to work on a board now. */
+export const dispatchServingAgentsSchema = z.object({
+  agents: z.array(dispatchServingAgentSchema),
+});
+
 /**
  * What a project's dispatch is doing, as the app's Dispatch page, the REST
  * door (`GET /api/v1/projects/{id}/dispatch`) and an operator's watcher
  * read it: every agent of the pool with how many runs it holds, by what they
  * do, the oldest of them, or why it is idle,
- * the standing roles with their next and last occurrence, the models it
- * waits on, its gates, the organization's agent workers against the pool,
- * and its recent passes.
+ * the standing roles with their next and last occurrence, the other boards
+ * it serves and its reviewers, the dispatches that serve this project, the
+ * models it waits on, its gates, the organization's agent workers against
+ * the pool, and its recent passes.
  */
 export const projectDispatchStatusSchema = z.object({
   configured: z.boolean(),
@@ -454,6 +561,20 @@ export const projectDispatchStatusSchema = z.object({
       firstRefusedAt: z.number(),
     }),
   ),
+  /** The other boards it takes ready work from, each reachable now or
+   * skipped with why. */
+  sources: z.array(dispatchSourceStatusSchema),
+  /** The agents that review what its pool produced. */
+  reviewers: z.array(
+    z.object({
+      agentId: z.string(),
+      /** Null when no agent of the project has that id any more. */
+      name: z.string().nullable(),
+    }),
+  ),
+  /** The dispatches of other projects that list this one as a source: the
+   * other direction, so a board says who serves it. */
+  servedBy: z.array(dispatchServedByStatusSchema),
   gates: z.array(
     z.object({
       key: z.string(),

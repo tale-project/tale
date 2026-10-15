@@ -68,6 +68,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
       if (key === 'agentRun.agentMissing') {
         return 'The assigned agent no longer exists.';
       }
+      if (key === 'agentRun.agentOutOfReach') {
+        return 'The assigned agent’s dispatch no longer serves this board.';
+      }
       if (key === 'agentRun.noAgentAssignee') {
         return 'No agent is assigned to this task.';
       }
@@ -674,6 +677,17 @@ describe('TaskAgentRunEntry with a missing agent', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(toast).toHaveBeenLastCalledWith({
       title: 'The assigned agent no longer exists.',
+      variant: 'destructive',
+    });
+
+    // Another project's agent whose dispatch stopped serving this board.
+    startRun.mockResolvedValueOnce({
+      started: false,
+      reason: 'agent_out_of_reach',
+    });
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(toast).toHaveBeenLastCalledWith({
+      title: 'The assigned agent’s dispatch no longer serves this board.',
       variant: 'destructive',
     });
 

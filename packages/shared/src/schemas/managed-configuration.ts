@@ -13,6 +13,7 @@ import { isoDateSchema, staticInputSchema } from './automation-trigger';
 import { configurationHashSchema } from './configuration';
 import {
   DISPATCH_POOL_MAX,
+  DISPATCH_REVIEWERS_MAX,
   DISPATCH_STANDING_ROLES_MAX,
   projectDispatchSchema,
   storedProjectDispatchSchema,
@@ -186,13 +187,29 @@ export const managedAutomationScheduleSchema = z.union([
 
 /** A project's dispatch (`./project-dispatch`): its pool, how many runs it
  * holds, which columns and labels count as ready, how starts are admitted,
- * its standing roles and the gates it declares. Managed configuration may
- * create it; the platform checks that every agent, task and label it names
- * is the project's. What is reported on a gate is runtime state, kept apart
- * from the document, so it is never declared and never drifts a plan. */
-export const managedProjectDispatchSchema = projectDispatchSchema.safeExtend({
-  ...project,
-});
+ * its standing roles, the gates it declares, the other boards it serves
+ * (`sources`, never its own project) and its reviewers. Managed
+ * configuration may create it; the platform checks that every agent, task
+ * and label it names is the project's (a source's labels that source's), and
+ * that the writer may edit every source. What is reported on a gate is
+ * runtime state, kept apart from the document, so it is never declared and
+ * never drifts a plan. */
+export const managedProjectDispatchSchema = projectDispatchSchema
+  .safeExtend({
+    ...project,
+  })
+  .superRefine((value, ctx) => {
+    for (const [index, source] of (value.sources ?? []).entries()) {
+      if (source.projectId === value.projectId) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['sources', index, 'projectId'],
+          message:
+            'A dispatch serves its own board already; a source names another project.',
+        });
+      }
+    }
+  });
 export type ManagedProjectDispatch = z.infer<
   typeof managedProjectDispatchSchema
 >;
@@ -488,10 +505,13 @@ export type ManagedObservation<
  * `project` — that it creates the project itself. A save never reads it. */
 export const managedDispatchPlanSchema = z.strictObject({
   project: z.literal(true).optional(),
-  // The pool's agents and the standing roles', which may stand outside it.
+  // The pool's agents, the standing roles' and the reviewers, which may
+  // stand outside it.
   agents: z
     .array(identity)
-    .max(DISPATCH_POOL_MAX + DISPATCH_STANDING_ROLES_MAX),
+    .max(
+      DISPATCH_POOL_MAX + DISPATCH_STANDING_ROLES_MAX + DISPATCH_REVIEWERS_MAX,
+    ),
   tasks: z.array(identity).max(512),
   labels: z.array(storedText(TASK_LABEL_CHARS_MAX)).max(512),
 });

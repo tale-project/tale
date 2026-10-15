@@ -4,14 +4,13 @@ import {
   parseRunStarter,
   runStarterUserId,
 } from '../../../lib/shared/run-starter.ts';
-import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
-import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
-import { checkProjectAccess } from '../../core/projects/access.ts';
 import {
   isStandingProjectAgentSession,
   memberSessionIdForProjectAgent,
   standingSessionIdForProjectAgent,
 } from '../../core/sandbox/session_naming.ts';
+import { dispatchReachesSource } from './dispatch-reach.ts';
+import { memberEditableProjects } from './edit-right.ts';
 
 /**
  * What a project agent's run may do follows the person who started it.
@@ -40,8 +39,10 @@ import {
  * A run the project's dispatch started (`dispatch-pass.ts`) names the
  * project's dispatch (`dispatch:<projectId>`) and no person either. It acts
  * with the agent's full equipment in the standing workspace while the
- * project's dispatch is switched on and the project is active; switching
- * dispatch off confines its runs the same way.
+ * project's dispatch is switched on and the project is active — on a task
+ * of another board only while the dispatch still reaches that board as a
+ * source (`dispatch-reach.ts`); switching dispatch off, or the source
+ * becoming unreachable, confines its runs the same way.
  *
  * The workspace family is chosen when the run is kicked, by the starter's
  * rights then, and checked again whenever the run starts: its turn job
@@ -73,8 +74,10 @@ export async function scheduleMayActInProject(
   return rows.length > 0;
 }
 
-/** Whether the project's dispatch may act in it: the dispatch the starter
- * names is this project's, switched on, and the project is not archived. */
+/** Whether a project's dispatch may act in a project: the dispatch the
+ * starter names is switched on and its project is not archived, and the
+ * project is that dispatch's own or one of its sources it reaches now
+ * (`dispatch-reach.ts`). */
 export async function dispatchMayActInProject(
   sql: Sql | TransactionSql,
   args: {
@@ -83,15 +86,17 @@ export async function dispatchMayActInProject(
     dispatchProjectId: string;
   },
 ): Promise<boolean> {
-  if (args.dispatchProjectId !== args.projectId) return false;
   const rows = await sql<{ id: string }[]>`
     SELECT d.project_id AS id FROM app.project_dispatch d
     JOIN app.projects p ON p.id = d.project_id AND p.org_id = d.org_id
-    WHERE d.project_id = ${args.projectId} AND d.org_id = ${args.organizationId}
+    WHERE d.project_id = ${args.dispatchProjectId}
+      AND d.org_id = ${args.organizationId}
       AND d.enabled = true AND p.archived_at_ms IS NULL
     LIMIT 1
   `;
-  return rows.length > 0;
+  if (rows.length === 0) return false;
+  if (args.dispatchProjectId === args.projectId) return true;
+  return dispatchReachesSource(sql, args);
 }
 
 /** Whether a run's starter may act in the project with the agent's full
@@ -123,21 +128,12 @@ export async function runStarterMayEditProject(
   if (userId === null) return false;
   // A starter may be an API key that is not a person: it acts with the role
   // it was made with, and the audience it was given.
-  const member = await findActingMember(sql, args.organizationId, userId);
-  if (member === null) return false;
-  const role = member.role.toLowerCase();
-  if (role === 'disabled') return false;
-  const projects = await sql<{ teamIds: string[] | null }[]>`
-    SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
-    FROM app.projects
-    WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
-    LIMIT 1
-  `;
-  const project = projects[0];
-  if (project === undefined) return false;
-  const teamIds = await getUserTeamIds(sql, args.organizationId, userId);
-  return checkProjectAccess({ teamIds: project.teamIds ?? [] }, teamIds, role)
-    .canEdit;
+  const editable = await memberEditableProjects(sql, {
+    organizationId: args.organizationId,
+    userId,
+    projectIds: [args.projectId],
+  });
+  return editable.has(args.projectId);
 }
 
 /** The workspace family a run of the agent works in, by who starts it — as

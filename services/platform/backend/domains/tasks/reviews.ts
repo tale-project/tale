@@ -26,6 +26,8 @@ import {
   notifyTaskReviewRequested,
 } from '../collab/service.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
+import { agentReachesProject, readAgentReach } from './dispatch-reach.ts';
+import { readStoredDispatch } from './dispatch-store.ts';
 import {
   readTaskReviewSource,
   type TaskReviewSource,
@@ -142,7 +144,9 @@ export async function reviewerEligibility(
   return access.canEdit ? 'eligible' : 'cannot_edit';
 }
 
-/** Agent review is an explicit project-scoped grant, not an agent role. */
+/** Agent review is an explicit project-scoped grant, not an agent role: an
+ * agent of the project granted task review, or one another project's
+ * dispatch puts to work on this board (`dispatch-reach.ts`). */
 export async function agentReviewerEligibility(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string; agentId: string },
@@ -152,11 +156,63 @@ export async function agentReviewerEligibility(
     WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
       AND project_id = ${args.projectId}
   `;
-  const agent = agents[0];
-  if (agent === undefined) return 'reviewer_unavailable';
+  let agent = agents[0];
+  if (agent === undefined) {
+    if (!(await agentReachesProject(sql, args))) return 'reviewer_unavailable';
+    const reaching = await sql<{ tools: string[] }[]>`
+      SELECT tools FROM app.project_agents
+      WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+    `;
+    agent = reaching[0];
+    if (agent === undefined) return 'reviewer_unavailable';
+  }
   return agent.tools.includes('task_review')
     ? 'eligible'
     : 'permission_missing';
+}
+
+/**
+ * The reviewer a dispatch names for its pool's work on a task: when the
+ * agent that produced it is of a dispatch's pool and the task's board is
+ * that dispatch's own or a source it reaches, the first of its reviewers
+ * that did not produce the work and may review there. Null otherwise —
+ * routing then goes on as if the dispatch named none.
+ */
+async function dispatchReviewerFor(
+  sql: Sql | TransactionSql,
+  task: Pick<TaskRow, 'organizationId' | 'projectId'>,
+  producerAgentId: string,
+): Promise<string | null> {
+  const reach = await readAgentReach(sql, {
+    organizationId: task.organizationId,
+    agentId: producerAgentId,
+  });
+  if (
+    reach === null ||
+    (reach.homeProjectId !== task.projectId &&
+      !reach.reachedProjectIds.includes(task.projectId))
+  ) {
+    return null;
+  }
+  const stored = await readStoredDispatch(
+    sql,
+    task.organizationId,
+    reach.homeProjectId,
+  );
+  const config = stored?.config;
+  if (config === undefined || !config.agents.includes(producerAgentId)) {
+    return null;
+  }
+  for (const reviewer of config.reviewers ?? []) {
+    if (reviewer === producerAgentId) continue;
+    const eligibility = await agentReviewerEligibility(sql, {
+      organizationId: task.organizationId,
+      projectId: task.projectId,
+      agentId: reviewer,
+    });
+    if (eligibility === 'eligible') return reviewer;
+  }
+  return null;
 }
 
 /** Settlement must retain a recoverable review if policy cannot be read. */
@@ -294,12 +350,29 @@ export function taskReviewRecipientOf(
     : null;
 }
 
+/**
+ * Who reviews a task's work now: the task's own reviewer (an agent, or a
+ * person), then — for work an agent of a dispatch's pool produced on a
+ * board that dispatch serves — the dispatch's first eligible reviewer that
+ * did not produce it ({@link dispatchReviewerFor}), then the project's
+ * default reviewer agent, then the people of {@link resolveHumanReviewer}.
+ * The producer is the task's agent assignee: the run that parks the task at
+ * In review is its assignee's.
+ */
 export async function resolveTaskReviewer(
   tx: TransactionSql | Sql,
   task: TaskRow,
 ): Promise<TaskReviewRecipient | null> {
   if (task.reviewerAgentId != null) {
     return { kind: 'agent', agentId: task.reviewerAgentId };
+  }
+  if (
+    task.reviewerUserId === null &&
+    task.assigneeType === 'agent' &&
+    task.assigneeId !== null
+  ) {
+    const agentId = await dispatchReviewerFor(tx, task, task.assigneeId);
+    if (agentId !== null) return { kind: 'agent', agentId };
   }
   if (task.reviewerUserId === null) {
     const projects = await tx<{ agentId: string | null }[]>`

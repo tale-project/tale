@@ -7,6 +7,11 @@ import { standardAgentServingForKick } from '../projects/standard-agent.ts';
 import { isStandardAgentRefusal, kickAgentRun } from './agent-runs.ts';
 import { TaskError } from './errors.ts';
 
+vi.mock('./dispatch-reach.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./dispatch-reach.ts')>()),
+  // Every agent here works its own project's board.
+  agentReachesProject: vi.fn().mockResolvedValue(true),
+}));
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn().mockResolvedValue(null),
 }));

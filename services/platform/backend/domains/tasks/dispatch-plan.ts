@@ -11,12 +11,15 @@ import {
  * host before each.
  *
  * Ready work is ranked by the column it waits in (the order the dispatch
- * lists them), then by priority, then by its place on the board, then by
- * age: ranking is what people and their manager agents decide, by setting
- * priorities, ordering the board and moving work between columns.
+ * lists them, or a source lists its own), then by priority, then by its
+ * place on the board, then by age, in one order across every board the
+ * dispatch serves: ranking is what people and their manager agents decide,
+ * by setting priorities, ordering the board and moving work between
+ * columns.
  *
  * An agent of the pool works at most `perAgentConcurrency` runs at once,
- * and the pool at most `maxConcurrentRuns`. A task assigned to an agent of
+ * and the pool at most `maxConcurrentRuns`, counting its runs on every
+ * board. A task assigned to an agent of
  * the pool waits for that agent; with `rebalance`, a task that never started
  * moves to the idle agent that has the most room. With `assignment: pool`, a
  * task nobody is assigned goes to that agent too. An agent whose model the
@@ -27,7 +30,13 @@ import {
 
 export interface DispatchCandidate {
   taskId: string;
+  /** The board the task is on: the dispatch's own, or a source it serves. */
+  projectId: string;
   status: DispatchStatus;
+  /** Where its status stands among its board's columns, in the order the
+   * dispatch prefers them there: the first ranking key across boards. Absent,
+   * the dispatch's own `statuses` order it. */
+  column?: number;
   priority: string | null;
   /** The board order within its column (LexoRank). */
   rank: string;
@@ -43,8 +52,8 @@ export interface DispatchCandidate {
 
 export interface DispatchAgent {
   agentId: string;
-  /** Live runs (queued, waiting or running) the agent holds in the project,
-   * whoever started them. */
+  /** Live runs (queued, waiting or running) the agent holds, on whichever
+   * board, whoever started them. */
   live: number;
   /** The provider called the agent's model at capacity: it takes nothing. */
   modelHeld: boolean;
@@ -119,18 +128,23 @@ function priorityOrder(priority: string | null): number {
   return priority === null ? 4 : (PRIORITY_ORDER[priority] ?? 4);
 }
 
-/** Ready work in the order a dispatch takes it. */
+/** Ready work in the order a dispatch takes it, across every board it
+ * serves: by the column a task waits in (its own board's order of
+ * preference), then priority, board order and age. */
 export function rankCandidates(
   candidates: readonly DispatchCandidate[],
   statuses: readonly DispatchStatus[],
 ): DispatchCandidate[] {
-  const column = (status: DispatchStatus) => {
-    const index = statuses.indexOf(status);
+  const column = (candidate: DispatchCandidate) => {
+    if (candidate.column !== undefined && candidate.column >= 0) {
+      return candidate.column;
+    }
+    const index = statuses.indexOf(candidate.status);
     return index === -1 ? statuses.length : index;
   };
   return [...candidates].sort(
     (a, b) =>
-      column(a.status) - column(b.status) ||
+      column(a) - column(b) ||
       priorityOrder(a.priority) - priorityOrder(b.priority) ||
       (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0) ||
       a.createdAt - b.createdAt ||

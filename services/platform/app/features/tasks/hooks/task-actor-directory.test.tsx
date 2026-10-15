@@ -27,6 +27,8 @@ const data = vi.hoisted(() => ({
   project: { canEdit: true },
   memberRead: vi.fn(),
   agentRead: vi.fn(),
+  serving: [],
+  servingRead: vi.fn(),
   backendRead: vi.fn(),
   standardRead: vi.fn(),
   childRender: vi.fn(),
@@ -57,6 +59,12 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) => {
+    // The agents other projects' dispatches put to work on the board: read
+    // with the project's own agents, once per directory.
+    if (name === 'projects/queries:listServingAgents') {
+      data.servingRead(args);
+      return { data: data.serving };
+    }
     data.backendRead(name, args);
     return {
       data: name === 'projects/queries:getProject' ? data.project : data.scope,
@@ -109,6 +117,7 @@ beforeEach(() => {
   data.scope.orgWide = true;
   data.memberRead.mockClear();
   data.agentRead.mockClear();
+  data.servingRead.mockClear();
   data.backendRead.mockClear();
   data.standardRead.mockClear();
   data.childRender.mockClear();
@@ -132,6 +141,7 @@ describe('task actor directory boundaries', () => {
     expect(screen.getAllByText('Ada')).toHaveLength(200);
     expect(data.memberRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
+    expect(data.servingRead).toHaveBeenCalledTimes(1);
     expect(data.backendRead).not.toHaveBeenCalled();
     expect(data.standardRead).not.toHaveBeenCalled();
   });
@@ -162,6 +172,7 @@ describe('task actor directory boundaries', () => {
     expect(screen.getByText('1 candidates')).toBeInTheDocument();
     expect(data.memberRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
+    expect(data.servingRead).toHaveBeenCalledTimes(1);
     expect(data.backendRead).toHaveBeenCalledTimes(2);
     expect(data.standardRead).toHaveBeenCalledTimes(1);
   });
@@ -189,6 +200,7 @@ describe('task actor directory boundaries', () => {
     expect(screen.getAllByText('1 candidates')).toHaveLength(200);
     expect(data.memberRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
+    expect(data.servingRead).toHaveBeenCalledTimes(1);
     expect(data.backendRead).toHaveBeenCalledTimes(2);
     expect(data.standardRead).toHaveBeenCalledTimes(1);
   });

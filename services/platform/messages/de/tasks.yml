@@ -69,6 +69,7 @@ agentRun:
   alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
   notStarted: Der Agenten-Lauf konnte nicht starten.
   agentMissing: Der zugewiesene Agent existiert nicht mehr. Weise einen anderen Agenten zu, damit die Aufgabe läuft.
+  agentOutOfReach: Der zugewiesene Agent gehört zu einem anderen Projekt, dessen Arbeitsverteilung dieses Board nicht mehr bedient. Weise einen anderen Agenten zu, damit die Aufgabe läuft.
   noAgentAssignee: Dieser Aufgabe ist kein Agent zugewiesen. Weise einen zu, um einen Lauf zu starten.
   cancelled: Der Agenten-Lauf wurde abgebrochen.
   cancelFailed: Der Agenten-Lauf konnte nicht abgebrochen werden.
@@ -390,6 +391,7 @@ assignee:
   liveAgentsOnlyReader: 'Hier erscheinen nur die Agenten dieses Projekts — Redakteure und Admins fügen sie im Tab "Agenten" des Projekts hinzu.'
   standardAgent: Standard-Agent
   standardAgentHint: Der Agent der Organisation für Projekte ohne eigene Agenten
+  servedFrom: Aus der Arbeitsverteilung von {project}
   standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
 activity:
   reviewResponded: "Review entschieden"

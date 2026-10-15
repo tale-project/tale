@@ -1,6 +1,6 @@
 ---
 title: Agenten mit der Arbeitsverteilung auslasten
-description: Lass Tale die bereiten Aufgaben eines Projekts auf freien Agenten starten, ständige Rollen nach Zeitplan ausführen, Arbeit hinter Signalen von außen zurückhalten und sehen, warum ein Agent untätig ist.
+description: Lass Tale die bereiten Aufgaben eines Projekts auf freien Agenten starten, ständige Rollen nach Zeitplan ausführen, die Boards anderer Projekte bedienen, Arbeit hinter Signalen von außen zurückhalten und sehen, warum ein Agent untätig ist.
 ---
 
 Die Arbeitsverteilung startet die bereiten Aufgaben eines Projekts auf den Agenten in ihrem Pool, sobald einer frei ist, und startet ständige Rollen – etwa die Routing-Runde eines Managers oder eine nächtliche Prüfung – nach ihrem Zeitplan. Niemand muss jeden Lauf von Hand starten, und keine Automatisierung und kein Manager-Agent muss entscheiden, wann ein Agent beginnen darf. Wer das Projekt lesen kann, sieht im Projekt unter **Arbeitsverteilung**, was sie tut; Projektadministratoren ändern sie.
@@ -41,7 +41,7 @@ Die Arbeitsverteilung macht einen Durchlauf, sobald sich etwas ändert: Ein Lauf
 2. zählt die Läufe, die die Agenten des Pools halten, egal wer sie gestartet hat;
 3. lässt einen Agenten in Ruhe, solange das KI-Modell, das er nutzt, [ausgelastet](/de/platform/projects/task-automation#handle-waiting-and-failed-runs) ist, und startet Arbeit auf diesem Modell in Wellen, sobald es wieder antwortet;
 4. fragt vor jedem Start den Sandbox-Host und hört auf, wenn der Host ausgelastet ist;
-5. startet die am besten eingeordnete bereite Aufgabe auf ihrem eigenen freien Agenten.
+5. startet die am besten eingeordnete bereite Aufgabe – auf dem Board dieses Projekts oder auf einem Board, das sie [bedient](#sources) – auf ihrem eigenen freien Agenten.
 
 Jeder Start durchläuft dieselben Prüfungen wie ein Start vom Board: Eine Aufgabe mit offenem Blocker wartet, eine Aufgabe nimmt höchstens drei automatische Starts pro Stunde an, und eine Aufgabe läuft nur einmal gleichzeitig. Ein Lauf, den die Arbeitsverteilung gestartet hat, zeigt im Verlauf der Aufgabe **Von der Arbeitsverteilung gestartet** und läuft im Namen des Projekts, nicht einer Person.
 
@@ -61,6 +61,8 @@ Die Arbeitsverteilung kann einen Agenten an so vielen Aufgaben gleichzeitig besc
 | **Ausgelasteten Host erneut fragen nach (Sekunden)**    | 1 bis 10 Wartezeiten, jede von 10 bis 3.600                       |
 | **Ständige Rollen**                                     | Bis zu 20                                                         |
 | **Schranken**                                           | Bis zu 10                                                         |
+| **Bediente Boards**                                     | Bis zu 20 andere Projekte                                         |
+| **Reviewer**                                            | Bis zu 10 Agenten                                                 |
 
 Darf ein Agent mehr Läufe halten als **Läufe gleichzeitig**, wird das Speichern unter **Läufe pro Agent** abgelehnt. Eine Arbeitsverteilung, die vor dieser Regel gespeichert wurde, arbeitet unverändert weiter; das nächste Speichern korrigiert sie.
 
@@ -88,6 +90,22 @@ Eine Schranke hält die bereite Arbeit zurück, für die sie gilt, solange ein S
 
 Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/develop/api-reference#dispatch); Projektadministratoren können sie unter **Schranken** auch **Schließen** und **Öffnen**. Eine Schranke, zu der niemand innerhalb von **Veraltet nach (Sekunden)** etwas meldet – standardmäßig zehn Minuten –, öffnet sich wieder oder schließt sich, wenn **Wenn veraltet** auf **Schließen** steht. **Zeit zwischen ihren Starts (Sekunden)** lässt einen Start ihrer Arbeit durch und den nächsten erst nach dieser Zeit. Ständige Rollen hält eine Schranke nie zurück.
 
+## Die Boards anderer Projekte bedienen {#sources}
+
+Die Arbeitsverteilung eines Projekts kann die Boards anderer Projekte deiner Organisation bearbeiten. Ein Projekt „Entwicklung“ hält zum Beispiel einen Pool von Coding-Agenten, der die bereite Arbeit übernimmt, die auf den Boards der Projekte „Website“, „Abrechnung“ und „Mobile App“ eingeht. Diese anderen Projekte sind die Quellen der Arbeitsverteilung. Lege sie in der verwalteten Ressource `project-dispatch` oder mit den [Einstellungs-Tools](/de/develop/mcp-settings) fest: Jede Quelle nennt die ID des Projekts und, wenn du willst, die Spalten, aus denen ihre bereite Arbeit kommt (ohne Angabe die der Arbeitsverteilung), sowie die Labels jenes Projekts, die sie übernimmt oder auslässt. **Bearbeiten** lässt die Quellen, wie sie sind; es ändert sie nicht.
+
+Solange eine Arbeitsverteilung ein Projekt bedient:
+
+- reiht sich dessen bereite Arbeit in einer gemeinsamen Reihenfolge mit ihrer eigenen ein – Spalte, Priorität, Platz auf dem Board, Alter –, und die Läufe jedes Agenten auf allen Boards zählen für **Läufe pro Agent** und **Läufe gleichzeitig**;
+- dürfen die Agenten des Pools, der ständigen Rollen und die Reviewer den Aufgaben dieses Projekts zugewiesen und darauf gestartet werden; mit ihren Aufgaben-Tools finden, lesen, kommentieren, verschieben und reviewen sie diese Aufgaben, soweit freigegeben. Dort legen sie keine Aufgabe an, starten keinen anderen Agenten und lesen sonst nichts von jenem Projekt. Das Board jenes Projekts zeigt sie mit Namen, und seine Listen für Zuständige und Reviewer bieten sie an, versehen mit dem Projekt, aus dessen Arbeitsverteilung sie kommen; eine Erwähnung dort erreicht sie nicht;
+- gehört ein Lauf an einer seiner Aufgaben zu dieser Aufgabe: Er erscheint auf dem Board jenes Projekts und im Verlauf der Aufgabe, für die Personen, die jenes Projekt lesen. Der Agent liest die Anweisungen beider Projekte: Das Projekt des Boards entscheidet, wie seine Aufgaben geschrieben, gelabelt, verschoben, geprüft und berichtet werden, das eigene Projekt des Agenten, wie der Agent arbeitet.
+
+Um eine Arbeitsverteilung mit Quellen zu speichern, brauchst du das Recht, jedes dieser Projekte zu bearbeiten, zusätzlich zum Verwalten des eigenen Projekts. Tale prüft dieses Recht bei jedem Durchlauf, jedem Start und jedem Tool-Aufruf erneut, und zwar für die Person, die die Arbeitsverteilung zuletzt gespeichert hat: Ein Projekt, das gelöscht oder archiviert wurde oder das diese Person nicht mehr bearbeiten darf, wird übersprungen. Die Arbeitsverteilung übernimmt dann nichts mehr daraus, und ihre Agenten können an seinen Aufgaben nichts mehr tun, bis jemand, der es bearbeiten darf, die Arbeitsverteilung erneut speichert. Seine Aufgaben bleiben diesen Agenten zugewiesen, bis jemand sie neu zuweist, doch **Agent starten** wird bei ihnen abgelehnt, und weder ein Verschieben nach **In Bearbeitung** noch ein erneuter Versuch oder ein Kommentar startet sie dort. **Bediente Boards** auf der Seite **Arbeitsverteilung** zeigt jede Quelle als **Bedient** oder übersprungen, und warum. Der Tab **Arbeitsverteilung** eines Projekts, das eine andere Arbeitsverteilung bedient, sagt das und verlinkt sie – ob das Projekt eine eigene Arbeitsverteilung hat oder nicht.
+
+### Prüfen, was der Pool erarbeitet hat {#reviewers}
+
+Die **Reviewer** der Arbeitsverteilung sind Agenten ihres eigenen Projekts mit der Freigabe für das [Review von Aufgaben](/de/platform/projects/task-automation#agent-review); sie prüfen, was ihr Pool auf jedem Board erarbeitet hat, das sie bedient. Beendet ein Agent des Pools eine Aufgabe, geht das Review an den Reviewer, den die Aufgabe nennt, falls sie einen nennt. Andernfalls geht es an den ersten Reviewer der Arbeitsverteilung, der die Arbeit nicht selbst erarbeitet hat, noch vor dem Standard-Reviewer des Projekts. Ein Reviewer prüft nie seine eigene Arbeit.
+
 ## Lesen, warum ein Agent untätig ist
 
 **Agenten** listet jeden Agenten des Pools mit den Läufen, an denen er arbeitet, und mit dem Grund, wenn er keinen hat:
@@ -103,10 +121,10 @@ Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/dev
 | **Arbeitsverteilung ist aus**                    | Die Arbeitsverteilung oder die Aufgabenautomatisierung deiner Organisation ist ausgeschaltet.                                    |
 | **Noch kein Durchlauf**                          | Die Arbeitsverteilung hat seit der Aufnahme des Agenten in den Pool noch keinen Durchlauf gemacht.                               |
 
-Hält ein Agent mehr als fünf Läufe, zeigt die Seite, wie viele es sind – **Läuft**, **In der Warteschlange** und jeden Grund, aus dem seine Läufe warten, etwa **Wartet auf Modellkapazität** –, und dazu seine ersten fünf Läufe, die ältesten zuerst. Eine Schaltfläche wie **45 weitere Läufe zeigen** listet bis zu 50 davon auf; darüber hinaus nennt die Seite, wie viele weitere hier nicht aufgeführt sind. Die [REST-API](/de/develop/api-reference#dispatch) zählt und listet sie auf dieselbe Weise.
+Ein Lauf auf einem Board, das die Arbeitsverteilung bedient, nennt neben seiner Aufgabe das Projekt dieses Boards. Hält ein Agent mehr als fünf Läufe, zeigt die Seite, wie viele es sind – **Läuft**, **In der Warteschlange** und jeden Grund, aus dem seine Läufe warten, etwa **Wartet auf Modellkapazität** –, und dazu seine ersten fünf Läufe, die ältesten zuerst. Eine Schaltfläche wie **45 weitere Läufe zeigen** listet bis zu 50 davon auf; darüber hinaus nennt die Seite, wie viele weitere hier nicht aufgeführt sind. Die [REST-API](/de/develop/api-reference#dispatch) zählt und listet sie auf dieselbe Weise.
 
 **Letzte Durchläufe** zeigt die letzten 20 Durchläufe: wann, was sie ausgelöst hat, wie viele Läufe sie gestartet und zurückgehalten haben und warum sie aufgehört haben. **Jetzt einen Durchlauf starten** löst sofort einen aus. Eine selbst betriebene Bereitstellung kann alarmieren, wenn eine Arbeitsverteilung keine Durchläufe mehr macht; [Prometheus und Grafana](/de/self-hosted/operate/observability/prometheus-grafana) zeigt die Regel.
 
 ## Die Arbeitsverteilung als Konfiguration verwalten
 
-Eine Bereitstellung, die ihre Konfiguration in einem Repository führt, deklariert die Arbeitsverteilung eines Projekts als verwaltete Ressource `project-dispatch` und wendet sie wie andere [verwaltete Einstellungen](/de/develop/mcp-settings) mit der [Tale-CLI](/de/self-hosted/install/cli-install#plattform-konfigurieren) an. Was sie deklariert, zeigt **Bearbeiten**; eine Änderung in der App wird beim nächsten Anwenden überschrieben. Bevor die CLI etwas aus einer Deklaration schreibt, fragt sie Tale, ob die deklarierte Arbeitsverteilung gespeichert würde. Nennt die Arbeitsverteilung etwas, das das Projekt nicht verwenden kann – einen Agenten, eine Aufgabe, ein Label oder einen Zeitplan –, lehnt die CLI den Plan bei diesem Feld ab, und nichts aus der Deklaration wird angewendet, auch nicht die Zeitpläne, die sie ausschalten würde. Dieselbe Deklaration kann das Projekt, seine Agenten, Daueraufgaben und Labels anlegen: Die Prüfung zählt mit, was sie anlegt, und die Arbeitsverteilung wird geschrieben, sobald es existiert.
+Eine Bereitstellung, die ihre Konfiguration in einem Repository führt, deklariert die Arbeitsverteilung eines Projekts als verwaltete Ressource `project-dispatch` und wendet sie wie andere [verwaltete Einstellungen](/de/develop/mcp-settings) mit der [Tale-CLI](/de/self-hosted/install/cli-install#plattform-konfigurieren) an. Was sie deklariert, zeigt **Bearbeiten**; eine Änderung in der App wird beim nächsten Anwenden überschrieben. Bevor die CLI etwas aus einer Deklaration schreibt, fragt sie Tale, ob die deklarierte Arbeitsverteilung gespeichert würde. Nennt die Arbeitsverteilung etwas, das das Projekt nicht verwenden kann – einen Agenten, eine Aufgabe, ein Label oder einen Zeitplan –, einen Reviewer ohne Freigabe für Reviews oder eine Quelle, die der deklarierende Schlüssel nicht bearbeiten darf, lehnt die CLI den Plan bei diesem Feld ab, und nichts aus der Deklaration wird angewendet, auch nicht die Zeitpläne, die sie ausschalten würde. Dieselbe Deklaration kann das Projekt, seine Agenten, Daueraufgaben und Labels anlegen: Die Prüfung zählt mit, was sie anlegt, und die Arbeitsverteilung wird geschrieben, sobald es existiert.

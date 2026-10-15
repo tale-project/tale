@@ -344,17 +344,21 @@ export async function recordRunTerminalInTx(
     organizationId: entry.organizationId,
     runId: entry.runId,
   });
-  // The run that ended freed room in its project's dispatch pool: the next
-  // ready task starts without waiting for the minute scan.
-  const runs = await tx<{ projectId: string }[]>`
-    SELECT project_id AS "projectId" FROM app.project_agent_runs
+  // The run that ended freed room in its dispatch's pool — the dispatch of
+  // the task's project, and of its agent's own project when that one serves
+  // the task's board — so the next ready task starts without waiting for the
+  // minute scan.
+  const runs = await tx<{ projectId: string; agentProjectId: string }[]>`
+    SELECT project_id AS "projectId",
+           coalesce(agent_project_id, project_id) AS "agentProjectId"
+    FROM app.project_agent_runs
     WHERE id = ${entry.runId} AND org_id = ${entry.organizationId}
   `;
-  const projectId = runs[0]?.projectId;
-  if (projectId !== undefined) {
+  const run = runs[0];
+  if (run !== undefined) {
     await requestDispatchPassForRunInTx(tx, {
       organizationId: entry.organizationId,
-      projectId,
+      projectIds: [...new Set([run.projectId, run.agentProjectId])],
     });
   }
 }

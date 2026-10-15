@@ -1,9 +1,13 @@
 import type { ManagedDispatchPlan } from '@tale/shared/schemas/managed-configuration';
-import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
+import type {
+  ProjectDispatch,
+  ProjectDispatchSource,
+} from '@tale/shared/schemas/project-dispatch';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { scheduleOfTrigger } from '../../../lib/automations/schedule/occurrences.ts';
 import { PREDEFINED_TASK_LABELS } from '../../../lib/shared/task-label-colors.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
@@ -36,7 +40,10 @@ import { TaskError } from './errors.ts';
  * administer the project — an organization's Owner or Admin, or one of the
  * project's own administrators — writes it, on an active project: dispatch
  * starts the project's agents for nobody in particular, and what those runs
- * spend is the automation subject's, like a schedule's.
+ * spend is the automation subject's, like a schedule's. A dispatch that
+ * serves other boards (`sources`) also needs the writer's right to edit each
+ * of them: its agents work those boards on that right, which every pass and
+ * every use checks again (`dispatch-reach.ts`).
  */
 
 /** The dispatch as managed configuration reads it: the value and its
@@ -68,7 +75,7 @@ export async function readProjectDispatchConfiguration(
  * static, so it reaches every door as it is; the issues, field by field,
  * ride in its data. */
 export const DISPATCH_INVALID_SENTENCE =
-  'The dispatch names an agent, a task, a label or a schedule this project cannot use; the issues say which.';
+  'The dispatch names an agent, a task, a label, a schedule or another project this project cannot use; the issues say which.';
 
 /** One refusal of a dispatch document, by the field it concerns. */
 export interface DispatchIssue {
@@ -82,28 +89,58 @@ export interface DispatchIssue {
 export type DispatchPlannedState = ManagedDispatchPlan;
 
 /** What a project has that a dispatch may name: its agents, its tasks
- * (archived or not) and its labels by their case-folded name. */
+ * (archived or not) and its labels by their case-folded name; the tools each
+ * of its stored agents is granted (an agent a declaration is about to create
+ * has none listed: its grant is checked when the dispatch is saved); and
+ * the other boards the dispatch names, as their check found them. */
 interface DispatchFacts {
   agents: ReadonlySet<string>;
+  tools: ReadonlyMap<string, readonly string[]>;
   tasks: ReadonlyMap<string, { archived: boolean }>;
   labels: ReadonlySet<string>;
+  /** What is wrong with the sources it names (`checkSources`). */
+  sourceIssues: readonly DispatchIssue[];
+  /** The labels of each source that passed, by case-folded name. */
+  sourceLabels: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+/** A label a dispatch names, the field it sits in, and where it is
+ * looked up: the project's own board (`own`), one source's board, or — for
+ * a gate, which governs by label across every board the dispatch serves —
+ * any of them (`anywhere`). */
+interface LabelRef {
+  name: string;
+  path: string;
+  scope: 'own' | 'anywhere' | { sourceProjectId: string };
 }
 
 /** The label references a dispatch makes, each with the field it sits in. */
-function dispatchLabelRefs(dispatch: ProjectDispatch) {
+function dispatchLabelRefs(dispatch: ProjectDispatch): LabelRef[] {
   return [
     ...(dispatch.labels?.include ?? []).map((name, index) => ({
       name,
       path: `labels.include.${index}`,
+      scope: 'own' as const,
     })),
     ...(dispatch.labels?.exclude ?? []).map((name, index) => ({
       name,
       path: `labels.exclude.${index}`,
+      scope: 'own' as const,
     })),
+    ...(dispatch.sources ?? []).flatMap((source, sourceIndex) =>
+      (['include', 'exclude'] as const).flatMap((list) =>
+        (source.labels?.[list] ?? []).map((name, index) => ({
+          name,
+          path: `sources.${sourceIndex}.labels.${list}.${index}`,
+          scope: { sourceProjectId: source.projectId },
+        })),
+      ),
+    ),
     ...(dispatch.gates ?? []).flatMap((gate, gateIndex) =>
       (gate.labels ?? []).map((name, index) => ({
         name,
         path: `gates.${gateIndex}.labels.${index}`,
+        scope: 'anywhere' as const,
       })),
     ),
   ];
@@ -154,14 +191,56 @@ function judgeDispatch(
       });
     }
   }
-  // A label filter or a gate naming a label the project lacks would match
-  // nothing, silently: name it instead.
-  for (const ref of dispatchLabelRefs(dispatch)) {
-    if (!facts.labels.has(ref.name.toLowerCase())) {
+  for (const [index, agentId] of (dispatch.reviewers ?? []).entries()) {
+    const tools = facts.tools.get(agentId);
+    if (!facts.agents.has(agentId)) {
       issues.push({
-        path: ref.path,
-        message: `No label named "${ref.name}" is in this project.`,
+        path: `reviewers.${index}`,
+        message: `No agent with the id "${agentId}" works in this project.`,
       });
+    } else if (tools !== undefined && !tools.includes('task_review')) {
+      issues.push({
+        path: `reviewers.${index}`,
+        message: `The agent "${agentId}" may not review tasks; grant it task review first.`,
+      });
+    }
+  }
+  issues.push(...facts.sourceIssues);
+  // A label filter or a gate naming a label the project lacks would match
+  // nothing, silently: name it instead. A source's filter names its own
+  // project's labels; a gate governs by label across every board the
+  // dispatch serves, so its labels may be any of theirs. A source that did
+  // not pass is named once, for itself.
+  for (const ref of dispatchLabelRefs(dispatch)) {
+    const name = ref.name.toLowerCase();
+    if (ref.scope === 'own') {
+      if (!facts.labels.has(name)) {
+        issues.push({
+          path: ref.path,
+          message: `No label named "${ref.name}" is in this project.`,
+        });
+      }
+    } else if (ref.scope === 'anywhere') {
+      if (
+        !facts.labels.has(name) &&
+        ![...facts.sourceLabels.values()].some((labels) => labels.has(name))
+      ) {
+        issues.push({
+          path: ref.path,
+          message:
+            facts.sourceLabels.size === 0
+              ? `No label named "${ref.name}" is in this project.`
+              : `No label named "${ref.name}" is in this project or any project it serves.`,
+        });
+      }
+    } else {
+      const labels = facts.sourceLabels.get(ref.scope.sourceProjectId);
+      if (labels !== undefined && !labels.has(name)) {
+        issues.push({
+          path: ref.path,
+          message: `No label named "${ref.name}" is in that project.`,
+        });
+      }
     }
   }
   return issues;
@@ -169,9 +248,12 @@ function judgeDispatch(
 
 /**
  * What a dispatch names that the database must confirm: every agent of the
- * pool and of a standing role is an agent of this project, every standing
- * role's task is an open task of this project, every label it filters or
- * gates on is the project's, and every cron expression reads in its zone.
+ * pool, of a standing role and among the reviewers is an agent of this
+ * project (a reviewer one granted task review), every standing role's task
+ * is an open task of this project, every label it filters or gates on is the
+ * project's (a source's filter that source's, a gate's any board's it
+ * serves), every cron expression reads in its zone, and every source is
+ * another active project of the organization the writer may edit (`auth`).
  * Empty when the document is sound. A check may add what a declaration
  * about to be applied creates (`planned`): agents, tasks — new, so never
  * archived — and labels counted as the project's.
@@ -182,11 +264,13 @@ export async function checkProjectDispatch(
     organizationId: string;
     projectId: string;
     dispatch: ProjectDispatch;
+    /** Who writes it: saving a source needs the right to edit it. */
+    auth: ProjectAuthContext;
     planned?: DispatchPlannedState;
   },
 ): Promise<DispatchIssue[]> {
-  const agents = await sql<{ id: string }[]>`
-    SELECT id FROM app.project_agents
+  const agents = await sql<{ id: string; tools: string[] | null }[]>`
+    SELECT id, tools FROM app.project_agents
     WHERE project_id = ${args.projectId} AND org_id = ${args.organizationId}
   `;
   const taskIds = [
@@ -202,41 +286,107 @@ export async function checkProjectDispatch(
             AND project_id = ${args.projectId}
             AND id = ANY(${taskIds})
         `;
-  const labelRefs = dispatchLabelRefs(args.dispatch);
-  const labels =
-    labelRefs.length === 0
-      ? []
-      : await sql<{ name: string }[]>`
-          SELECT lower(name) AS name FROM app.task_labels
-          WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
-            AND lower(name) = ANY(${labelRefs.map((ref) => ref.name.toLowerCase())})
-        `;
+  const sources = await checkSourcesWithLabels(sql, args);
+  const labels = await readNamedLabels(sql, {
+    organizationId: args.organizationId,
+    projectIds: [args.projectId],
+    dispatch: args.dispatch,
+  });
   const planned = args.planned;
   return judgeDispatch(args.dispatch, {
     agents: new Set([
       ...agents.map((agent) => agent.id),
       ...(planned?.agents ?? []),
     ]),
+    tools: new Map(agents.map((agent) => [agent.id, agent.tools ?? []])),
     tasks: new Map([
       ...(planned?.tasks ?? []).map((id) => [id, { archived: false }] as const),
       ...tasks.map((task) => [task.id, { archived: task.archived }] as const),
     ]),
     labels: new Set([
-      ...labels.map((label) => label.name),
+      ...(labels.get(args.projectId) ?? []),
       ...(planned?.labels ?? []).map((name) => name.toLowerCase()),
     ]),
+    ...sources,
   });
+}
+
+/** The sources a dispatch names, checked for its writer
+ * ({@link checkSources}), with the labels of each that passed by their
+ * case-folded name. */
+async function checkSourcesWithLabels(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    dispatch: ProjectDispatch;
+    auth: ProjectAuthContext;
+  },
+): Promise<Pick<DispatchFacts, 'sourceIssues' | 'sourceLabels'>> {
+  const sourceIssues: DispatchIssue[] = [];
+  const passed = await checkSources(
+    sql,
+    args,
+    args.dispatch.sources ?? [],
+    sourceIssues,
+  );
+  const labels = await readNamedLabels(sql, {
+    organizationId: args.organizationId,
+    projectIds: [...passed],
+    dispatch: args.dispatch,
+  });
+  return {
+    sourceIssues,
+    sourceLabels: new Map(
+      [...passed].map((projectId) => [
+        projectId,
+        labels.get(projectId) ?? new Set<string>(),
+      ]),
+    ),
+  };
+}
+
+/** Of the labels a dispatch names, those each of the projects has, by
+ * case-folded name. */
+async function readNamedLabels(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    projectIds: readonly string[];
+    dispatch: ProjectDispatch;
+  },
+): Promise<Map<string, Set<string>>> {
+  const names = dispatchLabelRefs(args.dispatch).map((ref) =>
+    ref.name.toLowerCase(),
+  );
+  const byProject = new Map<string, Set<string>>();
+  if (names.length === 0 || args.projectIds.length === 0) return byProject;
+  const rows = await sql<{ projectId: string; name: string }[]>`
+    SELECT project_id AS "projectId", lower(name) AS name
+    FROM app.task_labels
+    WHERE org_id = ${args.organizationId}
+      AND project_id = ANY(${[...args.projectIds]})
+      AND lower(name) = ANY(${names})
+  `;
+  for (const row of rows) {
+    const set = byProject.get(row.projectId) ?? new Set<string>();
+    set.add(row.name);
+    byProject.set(row.projectId, set);
+  }
+  return byProject;
 }
 
 /**
  * A dispatch checked for a project a declaration is about to create, before
  * anything is written: it names only what the same declaration creates —
  * the project's agents, its tasks, its labels and the labels every new
- * project starts with — and only who may administer a new project, an
- * organization's Owner or Admin, may declare one. The save, once the
- * project exists, checks it again against what it then holds.
+ * project starts with — besides the other boards it serves, which exist and
+ * the caller may edit (`checkSources`), and only who may administer a new
+ * project, an organization's Owner or Admin, may declare one. The save,
+ * once the project exists, checks it again against what it then holds.
  */
-export function checkPlannedProjectDispatch(
+export async function checkPlannedProjectDispatch(
+  sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
   args: {
     projectId: string;
@@ -244,9 +394,10 @@ export function checkPlannedProjectDispatch(
     expectedHash?: string | null;
     planned: DispatchPlannedState;
   },
-):
+): Promise<
   | { ok: true; changed: boolean; hash: string }
-  | { ok: false; issues: DispatchIssue[] } {
+  | { ok: false; issues: DispatchIssue[] }
+> {
   if (
     !checkProjectAccess({ teamIds: [] }, auth.teamIds, auth.role).canAdminister
   )
@@ -256,8 +407,15 @@ export function checkPlannedProjectDispatch(
       403,
     );
   assertExpectedHash(null, args.expectedHash);
+  const sources = await checkSourcesWithLabels(sql, {
+    organizationId: auth.organizationId,
+    projectId: args.projectId,
+    dispatch: args.dispatch,
+    auth,
+  });
   const issues = judgeDispatch(args.dispatch, {
     agents: new Set(args.planned.agents),
+    tools: new Map(),
     tasks: new Map(
       args.planned.tasks.map((id) => [id, { archived: false }] as const),
     ),
@@ -265,6 +423,7 @@ export function checkPlannedProjectDispatch(
       ...PREDEFINED_TASK_LABELS.map((label) => label.name.toLowerCase()),
       ...args.planned.labels.map((name) => name.toLowerCase()),
     ]),
+    ...sources,
   });
   if (issues.length > 0) return { ok: false, issues };
   return {
@@ -275,6 +434,73 @@ export function checkPlannedProjectDispatch(
         dispatchConfigurationValue(args.projectId, args.dispatch),
       ) ?? '',
   };
+}
+
+/**
+ * The sources a dispatch names, checked for its writer: each is another
+ * project of the organization, active, and one the writer may edit — the
+ * right a dispatch needs to serve a board, so serving never widens what its
+ * writer may do. Pushes an issue for each that fails, and answers the
+ * sources that pass.
+ */
+async function checkSources(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; projectId: string; auth: ProjectAuthContext },
+  sources: readonly ProjectDispatchSource[],
+  issues: DispatchIssue[],
+): Promise<Set<string>> {
+  const passed = new Set<string>();
+  if (sources.length === 0) return passed;
+  const projects = await sql<
+    { id: string; archived: boolean; teamIds: string[] | null }[]
+  >`
+    SELECT id, archived_at_ms IS NOT NULL AS archived,
+           ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+    FROM app.projects
+    WHERE org_id = ${args.organizationId}
+      AND id = ANY(${sources.map((source) => source.projectId)})
+  `;
+  const byId = new Map(projects.map((project) => [project.id, project]));
+  for (const [index, source] of sources.entries()) {
+    const path = `sources.${index}.projectId`;
+    const project = byId.get(source.projectId);
+    if (source.projectId === args.projectId) {
+      issues.push({
+        path,
+        message:
+          'A dispatch serves its own board already; a source names another project.',
+      });
+    } else if (
+      project === undefined ||
+      (args.auth.projectScope !== undefined &&
+        project.id !== args.auth.projectScope)
+    ) {
+      issues.push({
+        path,
+        message: `No project with the id "${source.projectId}" is in this organization.`,
+      });
+    } else if (project.archived) {
+      issues.push({
+        path,
+        message: 'That project is archived; restore it first.',
+      });
+    } else if (
+      !checkProjectAccess(
+        { teamIds: project.teamIds ?? [] },
+        args.auth.teamIds,
+        args.auth.role,
+      ).canEdit
+    ) {
+      issues.push({
+        path,
+        message:
+          'Serving that project’s board needs the right to edit it, which you do not have.',
+      });
+    } else {
+      passed.add(source.projectId);
+    }
+  }
+  return passed;
 }
 
 interface DispatchSaveArgs {
@@ -316,12 +542,22 @@ async function prepareDispatchSave(
     organizationId: auth.organizationId,
     projectId: args.projectId,
     dispatch: args.dispatch,
+    auth,
     ...(args.planned !== undefined ? { planned: args.planned } : {}),
   });
   const next = dispatchConfigurationValue(args.projectId, args.dispatch);
   const hash = managedConfigurationHash(next) ?? '';
+  // A dispatch serves its other boards on the right of whoever saved it
+  // last (`dispatch-reach.ts`): saved again by someone else, it serves them
+  // on that person's right from then on, even when the document is the same.
+  const reanchored =
+    stored !== null &&
+    (args.dispatch.sources ?? []).length > 0 &&
+    stored.updatedBy !== auth.userId;
   const changed =
-    current === null || managedConfigurationHash(current) !== hash;
+    current === null ||
+    managedConfigurationHash(current) !== hash ||
+    reanchored;
   return { project, stored, issues, hash, changed };
 }
 
@@ -396,6 +632,14 @@ export async function saveProjectDispatch(
         agents: args.dispatch.agents.length,
         maxConcurrentRuns: args.dispatch.maxConcurrentRuns,
         standingRoles: args.dispatch.standingRoles?.length ?? 0,
+        ...(args.dispatch.sources !== undefined
+          ? {
+              sources: args.dispatch.sources.map((source) => source.projectId),
+            }
+          : {}),
+        ...(args.dispatch.reviewers !== undefined
+          ? { reviewers: args.dispatch.reviewers.length }
+          : {}),
         ...(stored === null ? { created: true } : {}),
       },
     }),

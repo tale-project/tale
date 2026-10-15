@@ -80,6 +80,9 @@ export function useMentionActorOptions(
       });
     }
     for (const agent of assignableAgents) {
+      // An agent another project's dispatch puts to work here is not this
+      // project's: a mention here does not reach it.
+      if (agent.servedFrom !== undefined) continue;
       const entry = agentMentionEntry({
         id: agent.id,
         name: agent.name,

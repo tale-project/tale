@@ -351,3 +351,80 @@ describe('managed project dispatch declarations read as the platform stores them
     ).toBe(false);
   });
 });
+
+describe('managed project dispatch sources and reviewers', () => {
+  const config = {
+    projectId: 'development',
+    enabled: true,
+    agents: ['coder'],
+    maxConcurrentRuns: 256,
+    perAgentConcurrency: 256,
+    statuses: ['todo'],
+    assignment: 'pool',
+  };
+
+  it('reads a declaration without sources or reviewers exactly as written', () => {
+    const parsed = managedProjectDispatchSchema.parse(config);
+    expect(parsed).toEqual(config);
+    expect('sources' in parsed).toBe(false);
+    expect('reviewers' in parsed).toBe(false);
+  });
+
+  it('keeps the other boards and reviewers a declaration names, as written', () => {
+    const served = {
+      ...config,
+      sources: [
+        { projectId: 'tale' },
+        {
+          projectId: 'billing',
+          statuses: ['backlog', 'todo'],
+          labels: { include: ['ready'], exclude: ['blocked'] },
+        },
+      ],
+      reviewers: ['reviewer'],
+    };
+    expect(
+      managedPlatformResourceSchema.parse({
+        kind: 'project-dispatch',
+        config: served,
+      }),
+    ).toEqual({ kind: 'project-dispatch', config: served });
+  });
+
+  it('refuses its own project, a project named twice and more than 20 sources', () => {
+    expect(
+      managedProjectDispatchSchema.safeParse({
+        ...config,
+        sources: [{ projectId: 'development' }],
+      }).error?.issues,
+    ).toMatchObject([{ path: ['sources', 0, 'projectId'] }]);
+    expect(
+      managedProjectDispatchSchema.safeParse({
+        ...config,
+        sources: [{ projectId: 'tale' }, { projectId: 'tale' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      managedProjectDispatchSchema.safeParse({
+        ...config,
+        sources: Array.from({ length: 21 }, (_, index) => ({
+          projectId: `board-${index}`,
+        })),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a reviewer named twice, an unknown field and an empty column list', () => {
+    for (const fields of [
+      { reviewers: ['reviewer', 'reviewer'] },
+      { sources: [{ projectId: 'tale', pool: ['coder'] }] },
+      { sources: [{ projectId: 'tale', statuses: [] }] },
+      { sources: [{ projectId: 'tale', statuses: ['done'] }] },
+    ]) {
+      expect(
+        managedProjectDispatchSchema.safeParse({ ...config, ...fields })
+          .success,
+      ).toBe(false);
+    }
+  });
+});

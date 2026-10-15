@@ -2,6 +2,7 @@ import type { TransactionSql } from 'postgres';
 
 import { taskMetadataPatchSchema } from '../../core/tasks/metadata.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
+import { authorityReaches } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 import { getPendingReviewForTask } from './reviews.ts';
 import { lockTaskRunStart } from './run-start.ts';
@@ -16,8 +17,11 @@ import {
   type TaskRow,
 } from './service.ts';
 
-function assertTarget(task: TaskRow, projectId: string): void {
-  if (task.projectId !== projectId) {
+function assertTarget(
+  task: TaskRow,
+  authority: { projectId: string; reachedProjectIds?: readonly string[] },
+): void {
+  if (!authorityReaches(authority, task.projectId)) {
     throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
   }
   assertTaskNotArchived(task);
@@ -30,7 +34,10 @@ export async function updateAgentTaskMetadata(
   tx: TransactionSql,
   args: {
     organizationId: string;
+    /** The acting agent's own project. */
     projectId: string;
+    /** The other boards its project's dispatch puts it to work on now. */
+    reachedProjectIds?: readonly string[];
     actorId: string;
     patch: unknown;
   },
@@ -44,7 +51,7 @@ export async function updateAgentTaskMetadata(
   }
   const patch = parsed.data;
   const initial = await loadTaskOrThrow(tx, patch.taskId, args.organizationId);
-  assertTarget(initial, args.projectId);
+  assertTarget(initial, args);
   const project = await loadProjectOrThrow(tx, initial.projectId);
   assertTaskCreatable(project, {
     organizationId: args.organizationId,
@@ -57,7 +64,7 @@ export async function updateAgentTaskMetadata(
   // conflicting task change invalidates this SERIALIZABLE snapshot on retry.
   await lockTaskRunStart(tx, args.organizationId, patch.taskId);
   const task = await loadTaskOrThrow(tx, patch.taskId, args.organizationId);
-  assertTarget(task, args.projectId);
+  assertTarget(task, args);
 
   const expectedAssignee = patch.expected.assignee;
   if (

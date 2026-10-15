@@ -1,6 +1,7 @@
 import {
   DISPATCH_DEFAULTS,
   DISPATCH_RUNS_LISTED,
+  type DispatchServingAgent,
   type DispatchAgentRun,
   type DispatchAgentRunCounts,
   type DispatchIdleReason,
@@ -23,6 +24,12 @@ import {
   readGateStates,
   type GateState,
 } from './dispatch-gates.ts';
+import {
+  agentsServingProject,
+  dispatchesServing,
+  judgeDispatchSources,
+  sourceView,
+} from './dispatch-reach.ts';
 import { nextRoleOccurrence } from './dispatch-roles.ts';
 import {
   dispatchConfigurationValue,
@@ -32,11 +39,13 @@ import { listModelCapacityHolds } from './model-capacity-holds.ts';
 
 /**
  * What a project's dispatch is doing, for the people who read the project:
- * every agent of its pool with how many runs it holds by what they do, the
- * oldest of them (at most `DISPATCH_RUNS_LISTED`), or why it is idle, its
- * standing roles with their next and last occurrence, the models it waits
- * on, the organization's agent workers against the pool, and its recent
- * passes. The answer to "why is this agent idle" is read here, from the run
+ * every agent of its pool with how many runs it holds by what they do (on
+ * every board it serves), the oldest of them (at most
+ * `DISPATCH_RUNS_LISTED`), or why it is idle, its standing roles with their
+ * next and last occurrence, the other boards it serves (each reachable now
+ * or skipped with why) and its reviewers, the dispatches of other projects
+ * that serve this one, the models it waits on, the organization's agent
+ * workers against the pool, and its recent passes. The answer to "why is this agent idle" is read here, from the run
  * ledger and the passes, never from where the cards stand on the board.
  */
 
@@ -46,6 +55,24 @@ export type DispatchPoolAgent = ProjectDispatchStatus['pool'][number];
 export type { DispatchAgentRun, ProjectDispatchStatus };
 
 const PASSES_SHOWN = 20;
+
+/** The agents other projects' dispatches put to work on this project's
+ * board now (`agentsServingProject`), for anyone who reads the project: the
+ * board names them and offers them to assign and to review. */
+export async function readAgentsServingProject(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<{ agents: DispatchServingAgent[] }> {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  return {
+    agents: await agentsServingProject(sql, {
+      organizationId: auth.organizationId,
+      projectId,
+    }),
+  };
+}
 
 export async function readProjectDispatchStatus(
   sql: Sql,
@@ -66,6 +93,7 @@ export async function readProjectDispatchStatus(
   const holds = await listModelCapacityHolds(sql, organizationId);
   const now = Date.now();
   const activeHolds = holds.filter((hold) => hold.heldUntilMs > now);
+  const servedBy = await dispatchesServing(sql, { organizationId, projectId });
   if (stored === null) {
     return {
       configured: unreadable,
@@ -76,6 +104,9 @@ export async function readProjectDispatchStatus(
       state: null,
       pool: [],
       standingRoles: [],
+      sources: [],
+      reviewers: [],
+      servedBy,
       holds: activeHolds.map(holdView),
       gates: [],
       workers: { limit: cap, inUse: inFlight },
@@ -101,7 +132,11 @@ export async function readProjectDispatchStatus(
   const state = states[0] ?? null;
   const roles = config.standingRoles ?? [];
   const agentIds = [
-    ...new Set([...config.agents, ...roles.map((role) => role.agentId)]),
+    ...new Set([
+      ...config.agents,
+      ...roles.map((role) => role.agentId),
+      ...(config.reviewers ?? []),
+    ]),
   ];
   const agents =
     agentIds.length === 0
@@ -120,9 +155,9 @@ export async function readProjectDispatchStatus(
             AND id = ANY(${agentIds})
         `;
   const agentById = new Map(agents.map((agent) => [agent.id, agent]));
-  // Every live run of the agents, counted by what it does; and the oldest
-  // of each agent's, listed: an agent kept on hundreds of tasks reads in one
-  // small answer.
+  // Every live run of the agents, on whichever board, counted by what it
+  // does; and the oldest of each agent's, listed: an agent kept on hundreds
+  // of tasks reads in one small answer.
   const tallies =
     agentIds.length === 0
       ? []
@@ -131,7 +166,7 @@ export async function readProjectDispatchStatus(
                  r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
                  r.waiting_reason AS reason, count(*)::int AS count
           FROM app.project_agent_runs r
-          WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+          WHERE r.org_id = ${organizationId}
             AND r.agent_id = ANY(${agentIds})
             AND r.status IN ('queued', 'running')
           GROUP BY r.agent_id, r.status, parked, r.waiting_reason
@@ -147,18 +182,20 @@ export async function readProjectDispatchStatus(
           })[]
         >`
           SELECT listed."runId", listed."taskId", listed."agentId",
+                 listed."projectId",
                  t.number AS "taskNumber", t.title AS "taskTitle",
                  listed.status, listed.parked, listed.reason
           FROM (
             SELECT r.id AS "runId", r.task_id AS "taskId",
-                   r.agent_id AS "agentId", r.status,
+                   r.agent_id AS "agentId", r.project_id AS "projectId",
+                   r.status,
                    r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
                    r.waiting_reason AS reason,
                    row_number() OVER (
                      PARTITION BY r.agent_id ORDER BY r.started_at_ms, r.id
                    ) AS place
             FROM app.project_agent_runs r
-            WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+            WHERE r.org_id = ${organizationId}
               AND r.agent_id = ANY(${agentIds})
               AND r.status IN ('queued', 'running')
           ) listed
@@ -172,6 +209,7 @@ export async function readProjectDispatchStatus(
     list.push({
       runId: run.runId,
       taskId: run.taskId,
+      projectId: run.projectId,
       taskNumber: run.taskNumber,
       taskTitle: run.taskTitle,
       status: run.status,
@@ -291,6 +329,11 @@ export async function readProjectDispatchStatus(
       spacedUntil: verdict.spacedUntil,
     };
   });
+  const sources = await judgeDispatchSources(sql, {
+    organizationId,
+    sources: config.sources ?? [],
+    authorityUserId: stored.updatedBy,
+  });
   const configValue = dispatchConfigurationValue(projectId, config);
   return {
     configured: true,
@@ -300,6 +343,12 @@ export async function readProjectDispatchStatus(
     canEdit,
     state,
     pool,
+    sources: sources.map((source) => sourceView(config, source)),
+    reviewers: (config.reviewers ?? []).map((agentId) => ({
+      agentId,
+      name: agentById.get(agentId)?.name ?? null,
+    })),
+    servedBy,
     standingRoles: roles.map((role) => {
       const last = lastOf.get(role.key);
       return {

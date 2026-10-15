@@ -26,6 +26,7 @@ import {
   startDelegatedAgentRun,
   withStartWait,
 } from '../tasks/delegated-start.ts';
+import { authorityReaches, readAgentReach } from '../tasks/dispatch-reach.ts';
 import { TaskError } from '../tasks/errors.ts';
 import {
   startAgentReviewBatch,
@@ -67,6 +68,9 @@ import { coded, workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 interface BindingResolution {
   kind: 'project' | 'org_run' | 'none';
   projectId?: string;
+  /** `project` with a project agent only: the other boards the agent's
+   * project's dispatch puts it to work on now (`tasks/dispatch-reach.ts`). */
+  reachedProjectIds?: string[];
   actorId?: string;
   /** Who the session belongs to: a project agent's session also answers to
    * the person who started each run on it. */
@@ -104,9 +108,14 @@ async function resolveSessionBinding(
         LIMIT 1
       `;
       if (projects.length > 0) {
+        const reach = await readAgentReach(sql, {
+          organizationId,
+          agentId: agent.id,
+        });
         return {
           kind: 'project',
           projectId: agent.projectId,
+          reachedProjectIds: reach?.reachedProjectIds ?? [],
           actorId: agent.id,
           ownerType: 'project_agent',
         };
@@ -151,6 +160,8 @@ async function taskRunConfinement(
     sessionId: string;
     agentId: string;
     projectId: string;
+    /** The other boards the agent reaches now (`BindingResolution`). */
+    reachedProjectIds?: readonly string[];
     execId?: string;
   },
 ): Promise<
@@ -191,12 +202,10 @@ async function taskRunConfinement(
     LIMIT 1
   `;
   const run = runs[0];
-  if (
-    run === undefined ||
-    run.agentId !== args.agentId ||
-    run.projectId !== args.projectId
-  )
-    return 'ended';
+  if (run === undefined || run.agentId !== args.agentId) return 'ended';
+  // A run on another board acts only while the agent's project's dispatch
+  // still reaches that board; once it does not, its tools act for nobody.
+  if (!authorityReaches(args, run.projectId)) return 'revoked';
   if (
     ['trigger', 'dispatch'].includes(parseRunStarter(run.startedBy).kind) &&
     !(await runStarterMayEditProject(sql, {
@@ -257,6 +266,7 @@ export async function readSessionCurrentExecution(
     sessionId: args.sessionId,
     agentId: binding.actorId,
     projectId: binding.projectId,
+    reachedProjectIds: binding.reachedProjectIds ?? [],
     execId: args.taskRunExecId,
   });
   if (
@@ -277,7 +287,12 @@ async function requireProjectTaskRun(
     taskRunExecId?: string;
   },
   code: 'TASK_METADATA_FORBIDDEN' | 'TASK_REVIEW_FORBIDDEN',
-): Promise<{ projectId: string; agentId: string; execId: string }> {
+): Promise<{
+  projectId: string;
+  reachedProjectIds: string[];
+  agentId: string;
+  execId: string;
+}> {
   const binding = await resolveSessionBinding(
     tx,
     args.organizationId,
@@ -296,11 +311,13 @@ async function requireProjectTaskRun(
       403,
     );
   }
+  const reachedProjectIds = binding.reachedProjectIds ?? [];
   const confinement = await taskRunConfinement(tx, {
     organizationId: args.organizationId,
     sessionId: args.sessionId,
     agentId: binding.actorId,
     projectId: binding.projectId,
+    reachedProjectIds,
     execId: args.taskRunExecId,
   });
   if (
@@ -316,6 +333,7 @@ async function requireProjectTaskRun(
   }
   return {
     projectId: binding.projectId,
+    reachedProjectIds,
     agentId: binding.actorId,
     execId: args.taskRunExecId,
   };
@@ -512,6 +530,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
                 sessionId: args.sessionId,
                 agentId: binding.actorId,
                 projectId: binding.projectId,
+                reachedProjectIds: binding.reachedProjectIds ?? [],
                 ...(args.taskRunExecId !== undefined
                   ? { execId: args.taskRunExecId }
                   : {}),
@@ -523,10 +542,17 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         if (confinement === 'revoked') {
           return { allowed: false, reason: 'schedule_revoked' };
         }
+        const reached = binding.reachedProjectIds ?? [];
         return {
           allowed: true,
           actorId: binding.actorId,
-          scope: { kind: 'project', projectId: binding.projectId },
+          scope: {
+            kind: 'project',
+            projectId: binding.projectId,
+            // The boards its project's dispatch serves: its task tools reach
+            // their tasks too (`tasks/dispatch-reach.ts`).
+            ...(reached.length > 0 ? { reachedProjectIds: reached } : {}),
+          },
           ...(confinement.taskId !== undefined
             ? { confinedToTaskId: confinement.taskId }
             : {}),
@@ -588,6 +614,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
           return updateAgentTaskMetadata(tx, {
             organizationId: args.organizationId,
             projectId: authority.projectId,
+            reachedProjectIds: authority.reachedProjectIds,
             actorId: authority.agentId,
             patch: args.patch,
           });

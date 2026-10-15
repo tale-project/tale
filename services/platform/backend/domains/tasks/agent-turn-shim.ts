@@ -38,6 +38,7 @@ import {
 } from './agent-run-completion.ts';
 import {
   failAgentRunFromTurn,
+  isAgentOutOfReach,
   isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
@@ -385,6 +386,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           // anything, so this transaction stays good to end.
           if (isStandardAgentRefusal(error)) {
             return { refusal: 'standard_agent_unavailable' };
+          }
+          // The assignee is another project's agent whose dispatch no
+          // longer serves this board: no start revives that reach.
+          if (isAgentOutOfReach(error)) {
+            return { refusal: 'agent_out_of_reach' };
           }
           throw error;
         }

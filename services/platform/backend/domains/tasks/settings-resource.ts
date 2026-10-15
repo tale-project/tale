@@ -350,6 +350,7 @@ export const projectDispatchSettings: SettingsKindHandler = {
       organizationId: auth.organizationId,
       projectId: id,
       dispatch,
+      auth,
     });
     if (issues.length > 0) {
       throw new TaskError('DISPATCH_INVALID', DISPATCH_INVALID_SENTENCE, 400, {

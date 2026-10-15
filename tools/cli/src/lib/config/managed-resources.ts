@@ -346,7 +346,8 @@ function checkPath(path: string): string {
  * resource that it checks only when it saves it — so one it would refuse
  * leaves the declaration unapplied instead of stopping an apply half-way.
  * A dispatch is the last resource a declaration writes, and the platform
- * checks what it names (the project's agents, tasks, labels and schedules);
+ * checks what it names (the project's agents, tasks, labels and schedules,
+ * and the other projects it serves, which the caller must be able to edit);
  * a connector credential must suit its connector (its sign-in method, its
  * endpoint, the settings it requires). No secret value is sent.
  */
@@ -384,7 +385,7 @@ export async function checkManagedResource(
   if (verdict.ok) return;
   throw preconditionError(
     `The platform refuses the dispatch declared for project ${resource.config.projectId}${refusedAt(verdict.issues)}.`,
-    'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates), or change the declaration, then plan again.',
+    'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates, its reviewers granted task review), give the declaring key the right to edit every project the dispatch serves (`sources`, each active and named once), or change the declaration, then plan again.',
   );
 }
 

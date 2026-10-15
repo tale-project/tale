@@ -1684,6 +1684,96 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     expect(message).toContain('proj_2');
   });
 
+  describe('the agents of a dispatch work the boards it serves like their own [TASK-R73]', () => {
+    // Development's dispatch serves proj_tale: its agent's run reaches it.
+    const REACHING_CTX = {
+      allowed: true,
+      actorId: 'agent_coder',
+      scope: {
+        kind: 'project',
+        projectId: 'proj_dev',
+        reachedProjectIds: ['proj_tale'],
+      },
+    };
+
+    it('task_find lists its own project and every board it serves, or the one it names', async () => {
+      const list = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve([]),
+      );
+      const { dispatch } = await getActions();
+      const { ctx } = createCtx({
+        actionContext: REACHING_CTX,
+        readQuery: vi.fn((ref: unknown, args: unknown) =>
+          fnName(ref).includes('listTasksForAgent')
+            ? list(ref, args)
+            : Promise.resolve(null),
+        ),
+      });
+      await dispatch(ctx, { ...BASE, tool: 'task_find', callArgs: {} });
+      expect(list.mock.calls[0]?.[1]).toMatchObject({
+        projectIds: ['proj_dev', 'proj_tale'],
+      });
+      await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_find',
+        callArgs: { projectId: 'proj_tale' },
+      });
+      expect(list.mock.calls[1]?.[1]).toMatchObject({ projectId: 'proj_tale' });
+      const refused = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_find',
+        callArgs: { projectId: 'proj_vat' },
+      });
+      expect(refused.status).toBe('invalid_args');
+      expect(list).toHaveBeenCalledTimes(2);
+    });
+
+    it('task_comment works a served board’s task, and still refuses a board it does not serve', async () => {
+      const comment = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({ messageId: 'm' }),
+      );
+      const { dispatch } = await getActions();
+      const ctxFor = (projectId: string) =>
+        createCtx({
+          actionContext: REACHING_CTX,
+          readQuery: vi.fn(() => Promise.resolve({ _id: 'task_x', projectId })),
+          runMutation: vi.fn((ref: unknown, args: unknown) =>
+            fnName(ref).includes('agentAddComment')
+              ? comment(ref, args)
+              : Promise.resolve(null),
+          ),
+        }).ctx;
+      const served = await dispatch(ctxFor('proj_tale'), {
+        ...BASE,
+        tool: 'task_comment',
+        callArgs: { taskId: 'task_x', body: 'Picked up.' },
+      });
+      expect(served.status).toBe('ok');
+      expect(comment).toHaveBeenCalledOnce();
+      const foreign = await dispatch(ctxFor('proj_vat'), {
+        ...BASE,
+        tool: 'task_comment',
+        callArgs: { taskId: 'task_x', body: 'Picked up.' },
+      });
+      expect(foreign).toEqual({
+        status: 'not_found',
+        message: 'No task with that id is available to this run.',
+      });
+      expect(comment).toHaveBeenCalledOnce();
+    });
+
+    it('task_create still files its tasks in its own project only', async () => {
+      const { dispatch } = await getActions();
+      const { ctx } = createCtx({ actionContext: REACHING_CTX });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_create',
+        callArgs: { title: 'Follow-up', projectId: 'proj_tale' },
+      });
+      expect(result.status).toBe('invalid_args');
+    });
+  });
+
   it('task_find on a multi-bound org run lists only across the bound projects', async () => {
     const list = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve([]),
@@ -2345,7 +2435,9 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
       result.blockers as { code: string; guidance: string }[]
     )[0];
     expect(blocker?.code).toBe('schedule_revoked');
-    expect(blocker?.guidance).toContain('schedule that started this run');
+    expect(blocker?.guidance).toContain(
+      'The schedule or dispatch that started this run',
+    );
     expect(start).not.toHaveBeenCalled();
   });
 

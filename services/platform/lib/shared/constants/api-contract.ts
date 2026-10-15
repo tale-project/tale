@@ -821,5 +821,26 @@
  * (`TASK_EXTERNAL_REF_INVALID`). Before, a task under either name was a
  * custom source whose `closed` parked it at `in_review`. No operation or
  * schema changes.
+ *
+ * 3.48.0 — 2026-10-15: a project's dispatch may serve other boards of its
+ * organization (`sources`, up to 20, each `{projectId, statuses?, labels?}`,
+ * never its own project) and name the agents that review its pool's work
+ * (`reviewers`, up to 10 agents of the project granted task review). Saving
+ * a source needs the right to edit that project (`DISPATCH_INVALID` names it
+ * under `sources.<n>.projectId`); every pass judges it again and skips one
+ * that is gone, archived, or whose right the dispatch's last writer lost.
+ * While a dispatch reaches a source, its pool, standing-role agents and
+ * reviewers may be assigned to, started on and work that board's tasks:
+ * `task_find` lists those projects too, and `task_get`, `task_comment`,
+ * `task_update_status`, `task_update_metadata`, `task_review` and
+ * `task_delegate_review` take their tasks. `GET /api/v1/projects/{id}/dispatch`
+ * answers `sources` (each reachable or `skipped` with why), `reviewers`,
+ * `servedBy` (the dispatches that serve this project) and, on every listed
+ * run, the `projectId` of the board its task is on; an agent's run counts
+ * span every board. Another project is named only to a caller who may read
+ * it: a run on a board the caller may not read is counted in `runCounts`
+ * and not listed, and such a source or serving dispatch answers `name:
+ * null`. A dispatch without the two new fields reads, hashes and behaves as
+ * before.
  */
-export const API_CONTRACT_VERSION = '3.47.0';
+export const API_CONTRACT_VERSION = '3.48.0';

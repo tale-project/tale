@@ -13,6 +13,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { dismissReviewRequestNotifications } from '../collab/service.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { addTaskReviewFeedback, queuedOnTask } from './comments.ts';
+import { authorityReaches } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 import { assertReviewBatchTarget } from './review-batch-scope.ts';
 import { readTaskReviewSource } from './review-evidence.ts';
@@ -31,11 +32,20 @@ import {
  * The shim rechecks the starter's project authority in this transaction. */
 export interface AgentReviewAuthority {
   organizationId: string;
+  /** The reviewing agent's own project. */
   projectId: string;
+  /** The other boards its project's dispatch puts it to work on now: it
+   * reviews their tasks as its own project's (`dispatch-reach.ts`). */
+  reachedProjectIds?: readonly string[];
   agentId: string;
   sessionId: string;
   execId: string;
 }
+
+type ReviewTargetAuthority = Pick<
+  AgentReviewAuthority,
+  'organizationId' | 'projectId' | 'reachedProjectIds' | 'agentId'
+>;
 
 function stale(): never {
   throw new TaskError(
@@ -60,8 +70,9 @@ export async function liveReviewIssuer(
     SELECT r.id, a.tools, r.review_batch_id AS "reviewBatchId"
     FROM app.project_agent_runs r
     JOIN app.project_agents a ON a.id = r.agent_id AND a.org_id = r.org_id
-      AND a.project_id = r.project_id
-    WHERE r.org_id = ${auth.organizationId} AND r.project_id = ${auth.projectId}
+      AND a.project_id = ${auth.projectId}
+    WHERE r.org_id = ${auth.organizationId}
+      AND r.project_id = ANY(${[auth.projectId, ...(auth.reachedProjectIds ?? [])]})
       AND r.agent_id = ${auth.agentId} AND r.session_id = ${auth.sessionId}
       AND r.exec_id = ${auth.execId} AND r.status IN ('queued', 'running')
       AND EXISTS (
@@ -121,7 +132,7 @@ function replayOf(
  * staging calls it in short transactions before and after network I/O. */
 async function validatePendingAgentReview(
   tx: TransactionSql,
-  auth: Pick<AgentReviewAuthority, 'organizationId' | 'projectId' | 'agentId'>,
+  auth: ReviewTargetAuthority,
   input: Pick<TaskAgentReviewInput, 'taskId' | 'expected'>,
   task: TaskRow,
   approval: ApprovalRow,
@@ -143,7 +154,8 @@ async function validatePendingAgentReview(
   }
   if (
     approval.metadata?.runId !== input.expected.runId ||
-    approval.metadata?.projectId !== auth.projectId ||
+    approval.metadata?.projectId !== task.projectId ||
+    !authorityReaches(auth, task.projectId) ||
     task.status !== 'in_review'
   )
     return stale();
@@ -160,7 +172,7 @@ async function validatePendingAgentReview(
   });
   const latest = await tx<{ id: string }[]>`
     SELECT id FROM app.project_agent_runs
-    WHERE org_id = ${auth.organizationId} AND project_id = ${auth.projectId}
+    WHERE org_id = ${auth.organizationId} AND project_id = ${task.projectId}
       AND task_id = ${task.id}
     ORDER BY seq DESC LIMIT 1
   `;
@@ -236,15 +248,15 @@ export async function readAgentTaskReviewAccess(
  * validate their own live issuer and repeat this same source predicate. */
 export async function readPendingAgentReviewTarget(
   tx: TransactionSql,
-  auth: Pick<AgentReviewAuthority, 'organizationId' | 'projectId' | 'agentId'>,
+  auth: ReviewTargetAuthority,
   input: Pick<TaskAgentReviewInput, 'taskId' | 'expected'>,
 ) {
   const task = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
-  if (task.projectId !== auth.projectId) {
+  if (!authorityReaches(auth, task.projectId)) {
     throw new TaskError('TASK_NOT_FOUND', 'No task in this project', 404);
   }
   assertTaskNotArchived(task);
-  const project = await loadProjectOrThrow(tx, auth.projectId);
+  const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskCreatable(project, {
     organizationId: auth.organizationId,
     userId: auth.agentId,
@@ -297,10 +309,10 @@ export async function reviewAgentTask(
   // This precedes replay and every target write, including the lock UPDATE.
   const issuerRunId = await liveReviewIssuer(tx, auth, 'task_review', input);
   const initial = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
-  if (initial.projectId !== auth.projectId) {
+  if (!authorityReaches(auth, initial.projectId)) {
     throw new TaskError('TASK_NOT_FOUND', 'No task in this project', 404);
   }
-  const project = await loadProjectOrThrow(tx, auth.projectId);
+  const project = await loadProjectOrThrow(tx, initial.projectId);
   assertTaskCreatable(project, {
     organizationId: auth.organizationId,
     userId: auth.agentId,
@@ -310,7 +322,7 @@ export async function reviewAgentTask(
   return queuedOnTask(tx, input.taskId, async () => {
     await lockTaskRunStart(tx, auth.organizationId, input.taskId);
     const task = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
-    if (task.projectId !== auth.projectId) return stale();
+    if (task.projectId !== initial.projectId) return stale();
     const rows = await tx<ApprovalRow[]>`
       SELECT id, org_id AS "organizationId", status,
         wf_execution_id AS "wfExecutionId", approved_by AS "approvedBy",

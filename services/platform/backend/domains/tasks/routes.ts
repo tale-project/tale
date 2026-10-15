@@ -79,7 +79,10 @@ import {
   saveProjectDispatch,
 } from './dispatch-config.ts';
 import { reportDispatchGate } from './dispatch-gates.ts';
-import { readProjectDispatchStatus } from './dispatch-readback.ts';
+import {
+  readAgentsServingProject,
+  readProjectDispatchStatus,
+} from './dispatch-readback.ts';
 import { requestDispatchPassInTx } from './dispatch-requests.ts';
 import {
   findLatestAutomationRunForTask,
@@ -831,6 +834,20 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  app.get('/dispatch/by-project/:projectId/serving-agents', async (c) => {
+    try {
+      return c.json(
+        await readAgentsServingProject(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('projectId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/dispatch/by-project/:projectId/configuration', async (c) => {
     try {
       return c.json(
@@ -880,7 +897,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ).length === 0
       )
         return c.json(
-          checkPlannedProjectDispatch(auth, { projectId, ...body, planned }),
+          await checkPlannedProjectDispatch(deps.sql, auth, {
+            projectId,
+            ...body,
+            planned,
+          }),
         );
       return c.json(
         await transactSerializable(deps.sql, (tx) =>

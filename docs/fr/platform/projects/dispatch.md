@@ -1,6 +1,6 @@
 ---
 title: Occuper les agents avec la répartition du travail
-description: Laisse Tale lancer les tâches prêtes d’un projet sur les agents libres, exécuter des rôles permanents selon un horaire, retenir du travail derrière des signaux extérieurs et voir pourquoi un agent est inactif.
+description: Laisse Tale lancer les tâches prêtes d’un projet sur les agents libres, exécuter des rôles permanents selon un horaire, desservir les tableaux d’autres projets, retenir du travail derrière des signaux extérieurs et voir pourquoi un agent est inactif.
 ---
 
 La répartition du travail lance les tâches prêtes d’un projet sur les agents de son pool dès qu’un agent est libre, et lance les rôles permanents — la tournée de routage d’un coordinateur, une vérification nocturne — selon leur horaire. Personne n’a à lancer chaque exécution, et aucune automatisation ni aucun agent coordinateur n’a à décider quand un agent peut commencer. Toute personne qui peut lire le projet voit ce que fait la répartition sous **Répartition du travail** dans le projet ; les administrateurs du projet la modifient.
@@ -41,7 +41,7 @@ La répartition fait un passage dès que quelque chose change : une exécution 
 2. compte les exécutions que tiennent les agents du pool, quelle que soit la personne qui les a lancées ;
 3. laisse un agent de côté tant que le modèle d’IA qu’il utilise est [saturé](/fr/platform/projects/task-automation#handle-waiting-and-failed-runs), et lance le travail sur ce modèle par vagues dès qu’il répond de nouveau ;
 4. interroge l’hôte des sandbox avant chaque démarrage, et s’arrête quand l’hôte est occupé ;
-5. lance la tâche prête la mieux classée sur son propre agent libre.
+5. lance la tâche prête la mieux classée — sur le tableau de ce projet ou sur un tableau qu’elle [dessert](#sources) — sur son propre agent libre.
 
 Chaque démarrage passe les mêmes contrôles qu’un démarrage depuis le tableau : une tâche avec un bloqueur ouvert attend, une tâche accepte au plus trois démarrages automatiques par heure, et une tâche ne s’exécute qu’une fois à la fois. Une exécution lancée par la répartition indique **Lancée par la répartition du travail** dans l’historique de la tâche et agit au nom du projet, pas d’une personne.
 
@@ -61,6 +61,8 @@ La répartition peut occuper un agent sur autant de tâches à la fois que ton o
 | **Redemander à un hôte occupé après (secondes)** | De 1 à 10 délais, chacun de 10 à 3 600 |
 | **Rôles permanents** | Jusqu’à 20 |
 | **Barrières** | Jusqu’à 10 |
+| **Tableaux desservis** | Jusqu’à 20 autres projets |
+| **Relecteurs** | Jusqu’à 10 agents |
 
 Un enregistrement qui permettrait à un agent de tenir plus d’exécutions que **Exécutions simultanées** est refusé sous **Exécutions par agent**. Une répartition enregistrée avant cette règle continue de fonctionner telle quelle ; le prochain enregistrement la corrige.
 
@@ -88,6 +90,22 @@ Une barrière retient le travail prêt qu’elle régit tant qu’un signal ext�
 
 Un système externe signale l’état de la barrière par l’[API REST](/fr/develop/api-reference#dispatch) ; les administrateurs du projet peuvent aussi la **Fermer** et l’**Ouvrir** sous **Barrières**. Une barrière que personne ne signale pendant **Obsolète après (secondes)** — dix minutes par défaut — se rouvre, ou se ferme quand **Si obsolète** indique **Fermer**. **Délai entre ses démarrages (secondes)** laisse passer un démarrage de son travail, puis le suivant seulement après ce délai. Une barrière ne retient jamais les rôles permanents.
 
+## Desservir les tableaux d’autres projets {#sources}
+
+La répartition du travail d’un projet peut travailler sur les tableaux d’autres projets de ton organisation. Un projet « Développement », par exemple, tient un pool d’agents de développement qui prend le travail prêt arrivé sur les tableaux des projets « Site web », « Facturation » et « Application mobile ». Ces autres projets sont les sources de la répartition. Déclare-les dans la ressource gérée `project-dispatch` ou avec les [outils de paramètres](/fr/develop/mcp-settings) : chaque source nomme l’ID du projet et, si tu le souhaites, les colonnes d’où vient son travail prêt (sinon celles de la répartition) ainsi que les étiquettes de ce projet à prendre ou à laisser. **Modifier** garde les sources telles quelles ; il ne les change pas.
+
+Tant qu’une répartition dessert un projet :
+
+- son travail prêt rejoint celui de la répartition dans un seul ordre — colonne, priorité, place sur le tableau, ancienneté —, et les exécutions de chaque agent sur tous les tableaux comptent pour **Exécutions par agent** et **Exécutions simultanées** ;
+- les agents du pool, des rôles permanents et les relecteurs peuvent se voir attribuer les tâches de ce projet et y être lancés ; avec leurs outils de tâches, ils trouvent, lisent, commentent, déplacent et relisent ces tâches, selon leurs autorisations. Ils n’y créent aucune tâche, n’y lancent aucun autre agent et ne lisent rien d’autre de ce projet. Le tableau de ce projet les affiche par leur nom, et ses listes de responsables et de relecteurs les proposent, avec le projet dont la répartition les envoie ; une mention à cet endroit ne les atteint pas ;
+- une exécution sur l’une de ses tâches appartient à cette tâche : elle apparaît sur le tableau de ce projet et dans l’historique de la tâche, pour les personnes qui lisent ce projet. L’agent lit les instructions des deux projets : le projet du tableau décide de la façon dont ses tâches sont rédigées, étiquetées, déplacées, relues et rapportées, et le projet de l’agent de la façon dont l’agent travaille.
+
+Enregistrer une répartition avec des sources exige le droit de modifier chacun de ces projets, en plus d’administrer le projet de la répartition. Tale vérifie de nouveau ce droit à chaque passage, chaque démarrage et chaque appel d’outil, pour la dernière personne à avoir enregistré la répartition : un projet supprimé ou archivé, ou que cette personne ne peut plus modifier, est ignoré. La répartition n’en prend alors plus rien, et ses agents ne peuvent plus agir sur ses tâches, jusqu’à ce qu’une personne qui peut le modifier enregistre de nouveau la répartition. Ses tâches restent assignées à ces agents jusqu’à ce que quelqu’un les réassigne, mais **Démarrer l'agent** y est refusé, et ni un passage à **En cours**, ni une nouvelle tentative, ni un commentaire ne les y lance. **Tableaux desservis**, sur la page **Répartition du travail**, affiche chaque source comme **Desservi** ou ignorée, avec la raison. L’onglet **Répartition du travail** d’un projet qu’une autre répartition dessert l’indique, avec un lien vers elle — que le projet ait ou non sa propre répartition.
+
+### Relire ce que le pool a produit {#reviewers}
+
+Les **Relecteurs** de la répartition sont des agents de son propre projet autorisés à [relire des tâches](/fr/platform/projects/task-automation#agent-review) ; ils relisent ce que son pool a produit sur chaque tableau qu’elle dessert. Quand un agent du pool termine une tâche, la relecture va au relecteur que la tâche désigne, si elle en désigne un. Sinon, elle va au premier relecteur de la répartition qui n’a pas produit le travail, avant le relecteur par défaut du projet. Un relecteur ne relit jamais son propre travail.
+
 ## Comprendre pourquoi un agent est inactif
 
 **Agents** liste chaque agent du pool avec les exécutions sur lesquelles il travaille, et la raison de son inactivité quand il n’en a aucune :
@@ -103,10 +121,10 @@ Un système externe signale l’état de la barrière par l’[API REST](/fr/dev
 | **La répartition est désactivée** | La répartition, ou l’automatisation des tâches de ton organisation, est désactivée. |
 | **Aucun passage encore** | La répartition n’a fait aucun passage depuis l’entrée de l’agent dans le pool. |
 
-Un agent qui tient plus de cinq exécutions affiche combien il en tient — **En cours**, **En file d’attente** et chaque raison pour laquelle ses exécutions attendent, comme **En attente du modèle** — ainsi que ses cinq premières exécutions, les plus anciennes d’abord. Un bouton comme **Afficher 45 exécutions de plus** en liste jusqu’à 50 ; au-delà, la page indique combien d’autres ne sont pas listées ici. L’[API REST](/fr/develop/api-reference#dispatch) les compte et les liste de la même façon.
+Une exécution sur un tableau que la répartition dessert nomme le projet de ce tableau à côté de sa tâche. Un agent qui tient plus de cinq exécutions affiche combien il en tient — **En cours**, **En file d’attente** et chaque raison pour laquelle ses exécutions attendent, comme **En attente du modèle** — ainsi que ses cinq premières exécutions, les plus anciennes d’abord. Un bouton comme **Afficher 45 exécutions de plus** en liste jusqu’à 50 ; au-delà, la page indique combien d’autres ne sont pas listées ici. L’[API REST](/fr/develop/api-reference#dispatch) les compte et les liste de la même façon.
 
 **Derniers passages** montre les 20 derniers passages : quand, ce qui les a demandés, combien d’exécutions ils ont lancées et retenues, et pourquoi ils se sont arrêtés. **Lancer un passage maintenant** en demande un aussitôt. Un déploiement auto-hébergé peut alerter quand une répartition ne fait plus de passages ; [Prometheus et Grafana](/fr/self-hosted/operate/observability/prometheus-grafana) montre la règle.
 
 ## Gérer la répartition comme configuration
 
-Un déploiement qui tient sa configuration dans un dépôt déclare la répartition d’un projet comme ressource gérée `project-dispatch`, appliquée avec la [CLI Tale](/fr/self-hosted/install/cli-install#configurer-la-plateforme) comme les autres [réglages gérés](/fr/develop/mcp-settings). Ce qu’il déclare est ce qu’affiche **Modifier** ; une modification faite dans l’app est écrasée à la prochaine application. Avant d’écrire quoi que ce soit d’une déclaration, la CLI demande à Tale si la répartition déclarée serait enregistrée. Si la répartition nomme ce que le projet ne peut pas utiliser — un agent, une tâche, une étiquette ou une planification —, la CLI refuse le plan à ce champ, et rien de la déclaration n’est appliqué, pas même les planifications qu’elle désactiverait. La même déclaration peut créer le projet, ses agents, ses tâches permanentes et ses étiquettes : la vérification compte ce qu’elle crée, et la répartition est écrite une fois que tout cela existe.
+Un déploiement qui tient sa configuration dans un dépôt déclare la répartition d’un projet comme ressource gérée `project-dispatch`, appliquée avec la [CLI Tale](/fr/self-hosted/install/cli-install#configurer-la-plateforme) comme les autres [réglages gérés](/fr/develop/mcp-settings). Ce qu’il déclare est ce qu’affiche **Modifier** ; une modification faite dans l’app est écrasée à la prochaine application. Avant d’écrire quoi que ce soit d’une déclaration, la CLI demande à Tale si la répartition déclarée serait enregistrée. Si la répartition nomme ce que le projet ne peut pas utiliser — un agent, une tâche, une étiquette ou une planification —, un relecteur sans autorisation de relecture ou une source que la clé déclarante ne peut pas modifier, la CLI refuse le plan à ce champ, et rien de la déclaration n’est appliqué, pas même les planifications qu’elle désactiverait. La même déclaration peut créer le projet, ses agents, ses tâches permanentes et ses étiquettes : la vérification compte ce qu’elle crée, et la répartition est écrite une fois que tout cela existe.

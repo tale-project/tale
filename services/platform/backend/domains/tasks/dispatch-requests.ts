@@ -52,20 +52,27 @@ export async function requestDispatchPassInTx(
   );
 }
 
-/** Ask for a pass of the run's project's dispatch when one is switched on —
- * the run that ended freed room in its pool. In the transaction that ended
- * the run. */
+/** Ask for a pass of each named project's dispatch that is switched on —
+ * the run that ended freed room in its pool: the task's project's, and its
+ * agent's own project's when the agent worked another board. In the
+ * transaction that ended the run. */
 export async function requestDispatchPassForRunInTx(
   tx: TransactionSql,
-  run: { organizationId: string; projectId: string },
+  run: { organizationId: string; projectIds: readonly string[] },
 ): Promise<void> {
   const enabled = await tx<{ projectId: string }[]>`
     SELECT project_id AS "projectId" FROM app.project_dispatch
-    WHERE project_id = ${run.projectId} AND org_id = ${run.organizationId}
-      AND enabled = true
+    WHERE project_id = ANY(${[...run.projectIds]})
+      AND org_id = ${run.organizationId} AND enabled = true
+    ORDER BY project_id
   `;
-  if (enabled.length === 0) return;
-  await requestDispatchPassInTx(tx, { ...run, trigger: 'run_ended' });
+  for (const { projectId } of enabled) {
+    await requestDispatchPassInTx(tx, {
+      organizationId: run.organizationId,
+      projectId,
+      trigger: 'run_ended',
+    });
+  }
 }
 
 /** Ask for a pass of every switched-on dispatch of the organization — a

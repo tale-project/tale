@@ -36,6 +36,7 @@ import {
   type StandardAgentEngine,
 } from '../projects/standard-agent.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
+import { agentReachesProject } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 import { loadTaskRetryHistory } from './kick-plan.ts';
 import {
@@ -378,6 +379,31 @@ async function standardAgentServing(
   }
 }
 
+/**
+ * The refusal of a start whose agent does not work the task's board: it is
+ * neither an agent of the task's project nor one its own project's dispatch
+ * puts to work there now (`dispatch-reach.ts`). An assignment can outlive
+ * that reach — a dispatch stops serving a board it no longer reaches, and
+ * its agents stay assigned there until someone reassigns the tasks — but no
+ * start revives it. The check is made before the kick writes anything, so
+ * the caller's transaction stays good to write.
+ */
+function agentOutOfReach(): TaskError {
+  return new TaskError(
+    'AGENT_NOT_ALLOWED_IN_PROJECT',
+    'The agent works neither in this project nor for a dispatch that serves it now; assign an agent that does',
+    409,
+  );
+}
+
+/** Whether a kick refused its agent for the task's board
+ * ({@link agentOutOfReach}). */
+export function isAgentOutOfReach(error: unknown): boolean {
+  return (
+    error instanceof TaskError && error.code === 'AGENT_NOT_ALLOWED_IN_PROJECT'
+  );
+}
+
 /** Whether a person's door started the run (`user:` / `api-key:` or a bare
  * user id), as opposed to a schedule or an unreadable value. */
 function startedByPerson(startedBy: string): boolean {
@@ -423,6 +449,17 @@ export async function kickAgentRun(
   const standing = await liveRun();
   if (standing) {
     return { runId: standing.id, execId: standing.execId, reused: true };
+  }
+  // Every start of an agent passes here: it works its own project's board,
+  // or one its project's dispatch serves now — never one it once served.
+  if (
+    !(await agentReachesProject(tx, {
+      organizationId: args.organizationId,
+      agentId: args.agentId,
+      projectId: args.projectId,
+    }))
+  ) {
+    throw agentOutOfReach();
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
   // The organization's standard agent runs what its policy says now, not
@@ -493,7 +530,7 @@ export async function kickAgentRun(
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
       started_via_automation, started_via_agent_id, in_place,
       in_place_retry_status, in_place_retry_activity_id, api_key_id,
-      wake_admitted_seq, review_batch_id
+      wake_admitted_seq, review_batch_id, agent_project_id
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
@@ -511,7 +548,9 @@ export async function kickAgentRun(
       ${via?.kind === 'agent' ? via.agentId : null},
       ${inPlace}, ${retryState?.status ?? null},
       ${retryState?.activityId ?? null}, ${args.apiKeyId ?? null},
-      ${args.wakeAdmittedSeq ?? null}::bigint, ${batch?.id ?? null}
+      ${args.wakeAdmittedSeq ?? null}::bigint, ${batch?.id ?? null},
+      (SELECT project_id FROM app.project_agents
+       WHERE id = ${args.agentId} AND org_id = ${args.organizationId})
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id

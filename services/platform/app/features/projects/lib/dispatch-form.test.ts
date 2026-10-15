@@ -143,6 +143,31 @@ describe('the Dispatch editor form', () => {
     expect(toDispatch(values(FULL), FULL)).toEqual(FULL);
   });
 
+  it('keeps the boards a dispatch serves and its reviewers exactly as stored, through any edit', () => {
+    const served: ProjectDispatch = {
+      ...SPARSE,
+      sources: [
+        { projectId: 'project-tale' },
+        {
+          projectId: 'project-vat',
+          statuses: ['backlog'],
+          labels: { include: ['ready'] },
+        },
+      ],
+      reviewers: ['agent-reviewer'],
+    };
+    expect(toDispatch(values(served), served)).toEqual(served);
+    const draft = values(served);
+    draft.maxConcurrentRuns = '5';
+    expect(toDispatch(draft, served)).toEqual({
+      ...served,
+      maxConcurrentRuns: 5,
+    });
+    // A dispatch that names neither keeps naming neither.
+    expect('sources' in toDispatch(values(SPARSE), SPARSE)).toBe(false);
+    expect('reviewers' in toDispatch(values(SPARSE), SPARSE)).toBe(false);
+  });
+
   it('writes a field the stored dispatch left out only once it differs from what readers assume', () => {
     const draft = values(SPARSE);
     draft.perAgentConcurrency = '2';
@@ -364,6 +389,23 @@ describe('where the platform’s refusal of a dispatch belongs in the form', () 
     expect(place('standingRoles.0.cron')).toEqual({
       path: 'standingRoles.0.cron',
       problem: { kind: 'cron' },
+    });
+  });
+
+  it('names a refused board it serves or reviewer by its place, on the form', () => {
+    const place = (path: string) =>
+      placeIssue({ path, message: 'refused' }, draft);
+    expect(place('sources.0.projectId')).toEqual({
+      path: 'root.server',
+      problem: { kind: 'sourceProject', place: 1 },
+    });
+    expect(place('sources.2.labels.exclude.0')).toEqual({
+      path: 'root.server',
+      problem: { kind: 'sourceLabel', place: 3 },
+    });
+    expect(place('reviewers.1')).toEqual({
+      path: 'root.server',
+      problem: { kind: 'reviewer', place: 2 },
     });
   });
 

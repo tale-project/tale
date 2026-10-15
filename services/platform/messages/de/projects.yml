@@ -544,6 +544,33 @@ dispatch:
       blocked: 'Nicht gestartet: Ein offener Blocker hält die Aufgabe auf'
       in_review: 'Nicht gestartet: Die Aufgabe ist im Review'
       closed: 'Nicht gestartet: Die Aufgabe ist abgeschlossen'
+  sources:
+    title: Bediente Boards
+    caption: Andere Projekte, deren bereite Aufgaben diese Arbeitsverteilung ebenfalls übernimmt
+    description: Ihr Pool übernimmt die bereiten Aufgaben dieser Projekte zusätzlich zu denen dieses Projekts, in einer gemeinsamen Reihenfolge. Solange sie diese Projekte bedient, dürfen ihr Pool, die Agenten ihrer ständigen Rollen und ihre Reviewer deren Aufgaben zugewiesen bekommen, darauf gestartet werden und daran arbeiten.
+    project: Projekt
+    state: Status
+    columns: Übernimmt Arbeit aus
+    labels: Labels
+    served: Bedient
+    skipped:
+      missing: 'Übersprungen: Das Projekt gibt es nicht mehr'
+      archived: 'Übersprungen: Das Projekt ist archiviert'
+      no_authority: 'Übersprungen: Wer diese Arbeitsverteilung zuletzt gespeichert hat, darf jenes Projekt nicht mehr bearbeiten'
+    unknownProject: Ein Projekt, das nicht mehr in dieser Organisation ist
+    allWork: Alle bereiten Aufgaben
+    only: 'Nur {labels}'
+    never: 'Nie {labels}'
+    declared: Diese Boards und die Reviewer werden über die verwaltete Konfiguration und die Einstellungs-Tools festgelegt. Speichern hier lässt sie, wie sie sind, und setzt das Recht voraus, jedes bediente Board zu bearbeiten.
+  reviewers:
+    title: Reviewer
+    description: Diese Agenten reviewen, was der Pool erarbeitet hat – auf diesem Board und auf jedem Board, das die Arbeitsverteilung bedient. Das Review übernimmt der erste, der die Arbeit nicht selbst erarbeitet hat, außer die Aufgabe nennt einen eigenen Reviewer.
+    unknownAgent: Ein Agent, der nicht mehr in diesem Projekt ist
+  servedBy:
+    title: '{count, plural, one {Die Arbeitsverteilung eines anderen Projekts bedient dieses Board} other {Die Arbeitsverteilungen von # anderen Projekten bedienen dieses Board}}'
+    body: Ihre Agenten dürfen den bereiten Aufgaben dieses Projekts zugewiesen, darauf gestartet werden und daran arbeiten.
+    item: 'Bedient von der Arbeitsverteilung von {project}'
+    off: ausgeschaltet
   gates:
     title: Schranken
     caption: Schranken der Arbeitsverteilung dieses Projekts
@@ -699,6 +726,9 @@ dispatch:
       roleTask: Wähle eine Aufgabe dieses Projekts, die nicht archiviert ist.
       cron: Dieser Zeitplan lässt sich nicht lesen.
       label: 'Dieses Projekt hat kein Label namens „{name}“.'
+      sourceProject: Board {place} unter Bediente Boards muss ein anderes aktives Projekt dieser Organisation sein, das du bearbeiten darfst.
+      sourceLabel: Board {place} unter Bediente Boards nennt ein Label, das jenes Projekt nicht hat.
+      reviewer: Reviewer {place} muss ein Agent dieses Projekts mit der Freigabe für das Review von Aufgaben sein.
       refusedTitle: Die Arbeitsverteilung wurde abgelehnt
     saved: Arbeitsverteilung gespeichert
     saveFailed: Die Arbeitsverteilung konnte nicht gespeichert werden.

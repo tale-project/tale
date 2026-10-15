@@ -7,6 +7,7 @@
  * against the shapes they always consumed.
  */
 
+import { dispatchServingAgentsSchema } from '@tale/shared/schemas/project-dispatch';
 import { setProjectTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -367,6 +368,20 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
           `/projects/${encodeURIComponent(projectId)}/agents`,
           { orgId },
         ).then((body): ProjectAgentItem[] => body.agents.map(projectAgentView)),
+    };
+  },
+  'projects/queries:listServingAgents': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const projectId = args.projectId;
+    if (orgId === undefined || typeof projectId !== 'string') return null;
+    return {
+      // Under the project entity: a dispatch saved in any project hints it.
+      queryKey: backendKey(orgId, 'project', 'serving-agents', projectId),
+      queryFn: () =>
+        backendFetch<unknown>(
+          `/tasks/dispatch/by-project/${encodeURIComponent(projectId)}/serving-agents`,
+          { orgId },
+        ).then((body) => dispatchServingAgentsSchema.parse(body).agents),
     };
   },
   'projects/queries:getStandardAgent': (args, ctx) => {

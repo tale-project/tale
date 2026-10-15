@@ -33,7 +33,14 @@ export interface WorkspaceActionAuthority {
    * org-level automation with no bindings) means the whole organization.
    */
   scope:
-    | { kind: 'project'; projectId: string }
+    | {
+        kind: 'project';
+        projectId: string;
+        /** The other boards the agent's project's dispatch puts it to work
+         * on: its task tools find, read and work their existing tasks too;
+         * it creates nothing there. Absent for most agents. */
+        reachedProjectIds?: string[];
+      }
     | { kind: 'org'; allowedProjectIds?: string[] };
   /**
    * Set for a project agent's run that a member started — someone who may

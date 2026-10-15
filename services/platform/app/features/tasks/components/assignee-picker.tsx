@@ -322,6 +322,14 @@ function AssigneePickerList({
     ): SearchableSelectOption => ({
       value: `agent:${agent.id}`,
       label: agent.name,
+      // An agent of another project, whose dispatch serves this board.
+      ...(agent.servedFrom !== undefined
+        ? {
+            description: t('assignee.servedFrom', {
+              project: agent.servedFrom.projectName,
+            }),
+          }
+        : {}),
     });
 
     // One plain "Agents" section — the entries are the project's own created

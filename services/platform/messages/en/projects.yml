@@ -516,6 +516,33 @@ dispatch:
       blocked: 'Not started: an open blocker holds the task'
       in_review: 'Not started: the task is in review'
       closed: 'Not started: the task is closed'
+  sources:
+    title: Boards it serves
+    caption: Other projects whose ready tasks this dispatch takes too
+    description: Its pool takes the ready tasks of these projects as well as this one's, in one order. Its pool, standing-role agents and reviewers may be assigned to, started on and work their tasks while it serves them.
+    project: Project
+    state: State
+    columns: Takes work from
+    labels: Labels
+    served: Served
+    skipped:
+      missing: 'Skipped: the project is gone'
+      archived: 'Skipped: the project is archived'
+      no_authority: 'Skipped: whoever last saved this dispatch can no longer edit that project'
+    unknownProject: A project no longer in this organization
+    allWork: Every ready task
+    only: 'Only {labels}'
+    never: 'Never {labels}'
+    declared: Managed configuration and the settings tools declare these boards and the reviewers. Saving here keeps them as they are, and needs the right to edit every board it serves.
+  reviewers:
+    title: Reviewers
+    description: These agents review what the pool produced, on this board and every board it serves. The first one that did not produce the work takes its review, unless the task names its own reviewer.
+    unknownAgent: An agent no longer in this project
+  servedBy:
+    title: '{count, plural, one {Another project''s dispatch serves this board} other {# other projects'' dispatches serve this board}}'
+    body: Their agents may be assigned to, started on and work this project's ready tasks.
+    item: "Served by {project}'s dispatch"
+    off: switched off
   gates:
     title: Gates
     caption: Gates of this project's dispatch
@@ -671,6 +698,9 @@ dispatch:
       roleTask: Choose a task of this project that is not archived.
       cron: This schedule doesn't read.
       label: 'This project has no label named "{name}".'
+      sourceProject: Board {place} under Boards it serves must be another active project of this organization that you may edit.
+      sourceLabel: Board {place} under Boards it serves names a label that project doesn't have.
+      reviewer: Reviewer {place} must be an agent of this project granted task review.
       refusedTitle: The dispatch was refused
     saved: Dispatch saved
     saveFailed: Couldn't save the dispatch.

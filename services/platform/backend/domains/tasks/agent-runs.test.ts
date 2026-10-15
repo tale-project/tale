@@ -13,6 +13,7 @@ import {
   failAgentRun,
   failAgentRunFromTurn,
   getLatestAgentRunCardForTask,
+  isAgentOutOfReach,
   kickAgentRun,
   launchAgentRun,
   listTaskAgentRunSummaries,
@@ -24,6 +25,7 @@ import {
   wakeParkedAgentRuns,
   withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
+import { agentReachesProject } from './dispatch-reach.ts';
 import { recordModelCapacityRefusalInTx } from './model-capacity-holds.ts';
 import {
   announceAgentRunFailed,
@@ -47,6 +49,11 @@ vi.mock('./model-capacity-holds.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./model-capacity-holds.ts')>()),
   recordModelCapacityRefusalInTx: vi.fn(),
   clearModelCapacityHoldInTx: vi.fn(),
+}));
+vi.mock('./dispatch-reach.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./dispatch-reach.ts')>()),
+  // The agent works the task's board unless a case says otherwise.
+  agentReachesProject: vi.fn().mockResolvedValue(true),
 }));
 
 type Row = Record<string, unknown>;
@@ -647,6 +654,7 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
   beforeEach(() => {
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
     vi.mocked(addJobInTx).mockReset();
+    vi.mocked(agentReachesProject).mockClear();
   });
 
   const kick = {
@@ -682,6 +690,26 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
       execId: 'exec',
       reused: true,
     });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('starts no agent on a board its dispatch no longer serves, before anything is written [TASK-R72]', async () => {
+    vi.mocked(agentReachesProject).mockResolvedValueOnce(false);
+    const { tx, statements } = fakeTx(() => []);
+    const refused: unknown = await kickAgentRun(tx, kick).catch(
+      (error: unknown) => error,
+    );
+    expect(refused).toMatchObject({
+      code: 'AGENT_NOT_ALLOWED_IN_PROJECT',
+      status: 409,
+    });
+    expect(isAgentOutOfReach(refused)).toBe(true);
+    expect(agentReachesProject).toHaveBeenCalledWith(tx, {
+      organizationId: 'org-1',
+      agentId: 'agent-1',
+      projectId: 'p-1',
+    });
+    expect(statements.some((text) => text.startsWith('INSERT'))).toBe(false);
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
@@ -825,7 +853,7 @@ describe('kickAgentRun — the workspace follows the person who starts the run',
         );
       }
       if (text.includes('AS "teamIds" FROM app.projects')) {
-        return Promise.resolve([{ teamIds: [] }]);
+        return Promise.resolve([{ id: 'p-1', teamIds: [] }]);
       }
       if (text.startsWith('INSERT INTO app.project_agent_runs')) {
         inserted = values;

@@ -7,7 +7,8 @@
  * declare is written back only once someone changes it from the value
  * readers assume for it (`DISPATCH_DEFAULTS`). So a save that changes
  * nothing stores the same document, and a declaration managed configuration
- * applies keeps reading as declared.
+ * applies keeps reading as declared. The other boards it serves and its
+ * reviewers have no field here: they are written back exactly as stored.
  *
  * Numbers are edited as the text a field holds and read when the dispatch is
  * built, so an empty or half-typed field is a problem the editor names
@@ -368,6 +369,10 @@ export function toDispatch(
           ),
         }
       : {}),
+    // The boards it serves and its reviewers are declared through managed
+    // configuration or the settings tools; the editor keeps them as stored.
+    ...(stored?.sources !== undefined ? { sources: stored.sources } : {}),
+    ...(stored?.reviewers !== undefined ? { reviewers: stored.reviewers } : {}),
   };
 }
 
@@ -602,6 +607,12 @@ export type DispatchIssueKind =
   | { kind: 'roleTask' }
   | { kind: 'cron' }
   | { kind: 'label'; name: string }
+  /** A board it serves, by its place in the list (1-based): the project
+   * itself, or a label its filter names there. */
+  | { kind: 'sourceProject'; place: number }
+  | { kind: 'sourceLabel'; place: number }
+  /** A reviewer, by its place in the list (1-based). */
+  | { kind: 'reviewer'; place: number }
   | { kind: 'other'; message: string };
 
 /** Where one of the platform's issues belongs in the form, and what kind of
@@ -648,6 +659,25 @@ export function placeIssue(
               ? 'roleTask'
               : 'cron',
       },
+    };
+  }
+  // The boards it serves and its reviewers have no field: their issues
+  // belong to the form, each named by its place in its list.
+  const source = /^sources\.(\d+)\.(projectId|labels\.)/.exec(issue.path);
+  if (source !== null) {
+    return {
+      path: 'root.server',
+      problem: {
+        kind: source[2] === 'projectId' ? 'sourceProject' : 'sourceLabel',
+        place: Number(source[1]) + 1,
+      },
+    };
+  }
+  const reviewer = /^reviewers\.(\d+)$/.exec(issue.path);
+  if (reviewer !== null) {
+    return {
+      path: 'root.server',
+      problem: { kind: 'reviewer', place: Number(reviewer[1]) + 1 },
     };
   }
   return {
