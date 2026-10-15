@@ -241,6 +241,48 @@ describe('editing a project’s dispatch', () => {
     ]);
   });
 
+  it('opens a dispatch saved with one agent above the pool, and saves it once it fits', async () => {
+    // Saved before a write had to keep runs per agent within the pool.
+    stored({ ...SPARSE, maxConcurrentRuns: 2, perAgentConcurrency: 5 });
+    saves(() => Response.json({ ok: true, changed: true, hash: NEXT_HASH }));
+    const { user, onOpenChange } = renderEditor();
+    const dialog = await editorDialog(t('dispatch.editor.title'));
+    const perAgent = await dialog.findByLabelText(
+      t('dispatch.editor.perAgentConcurrency'),
+    );
+    expect(perAgent).toHaveValue(5);
+    const runs = dialog.getByLabelText(t('dispatch.editor.maxConcurrentRuns'));
+    await user.clear(runs);
+    await user.type(runs, '3');
+    await user.click(
+      dialog.getByRole('button', { name: tCommon('actions.save') }),
+    );
+    expect(
+      await dialog.findByText(
+        t('dispatch.editor.validation.perAgentAboveRuns'),
+      ),
+    ).toBeInTheDocument();
+    expect(saved).toEqual([]);
+
+    await user.clear(perAgent);
+    await user.type(perAgent, '3');
+    await user.click(
+      dialog.getByRole('button', { name: tCommon('actions.save') }),
+    );
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(saved).toEqual([
+      {
+        config: {
+          ...SPARSE,
+          maxConcurrentRuns: 3,
+          perAgentConcurrency: 3,
+          projectId: 'proj-1',
+        },
+        expectedHash: HASH,
+      },
+    ]);
+  });
+
   it('checks the form before it saves anything', async () => {
     stored(SPARSE);
     saves(() => Response.json({ ok: true, changed: true, hash: NEXT_HASH }));
@@ -268,7 +310,7 @@ describe('editing a project’s dispatch', () => {
 
     expect(
       await dialog.findByText(
-        t('dispatch.editor.validation.wholeNumber', { min: 1, max: 100 }),
+        t('dispatch.editor.validation.wholeNumber', { min: 1, max: 500 }),
       ),
     ).toBeInTheDocument();
     expect(

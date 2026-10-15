@@ -21,8 +21,8 @@ Open the project, choose **Dispatch**, then **Edit**, or **Set up dispatch** whi
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Dispatch is on**                                 | Whether dispatch starts anything. Switched off, it starts nothing; runs already working continue.                                                                                                         |
 | **Agents in the pool**                             | The project's agents dispatch starts. A task assigned to an agent outside the pool is never started by dispatch.                                                                                          |
-| **Runs at once**                                   | The most runs the pool holds at the same time. Runs that people, automations and standing roles start on the pool's agents count too; a standing role still starts on its schedule when the pool is full. |
-| **Runs per agent**                                 | The most runs one agent of the pool holds at once, 1 by default. Each run works in an [agent worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of its own.                        |
+| **Runs at once**                                   | The most runs the pool holds at the same time, from 1 to 500. Runs that people, automations and standing roles start on the pool's agents count too; a standing role still starts on its schedule when the pool is full. |
+| **Runs per agent**                                 | The most runs one agent of the pool holds at once, 1 by default and never more than **Runs at once**. Each run works in an [agent worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of its own. |
 | **Take ready work from**                           | The columns ready work comes from, **To do**, **Backlog** or both, in the order you list them.                                                                                                            |
 | **Unassigned tasks**                               | **Leave them alone**, or **Give them to the pool**: an unassigned task is then assigned to the idle agent with the most room.                                                                             |
 | **Move tasks that never started to an idle agent** | Lets a task wait for a busy agent of the pool only until another agent is free. A task that already ran stays with its agent, so its conversation and files stay together.                                |
@@ -39,13 +39,34 @@ Dispatch makes a pass whenever something changes: a run of the project ends, a m
 
 1. starts the standing roles that are due;
 2. counts the runs the pool's agents hold, whoever started them;
-3. leaves an agent alone while the AI model it uses is [at capacity](/platform/projects/task-automation#handle-waiting-and-failed-runs);
+3. leaves an agent alone while the AI model it uses is [at capacity](/platform/projects/task-automation#handle-waiting-and-failed-runs), and starts work on that model in waves once it answers again;
 4. asks the sandbox host before each start, and stops when the host is busy;
 5. starts the best-ranked ready task on its own idle agent.
 
 Every start passes the same checks as a start from the board: a task with an open blocker waits, a task takes at most three automated starts an hour, and a task runs once at a time. A run dispatch started reads **Started by dispatch** in the task's timeline and answers to the project, not to a person.
 
 Each agent run needs an agent worker. When the pool can hold more runs at once than your organization has agent workers, **Dispatch** says so: the extra runs would only wait for a free worker. Owners and Admins raise the limit in [Sandboxes](/platform/admin/sandboxes#identify-the-limit-that-matters).
+
+## Run one agent on hundreds of tasks {#limits}
+
+Dispatch can keep one agent busy on as many tasks at once as your organization may have agent workers: up to 500. To run the agent Coder on 256 tasks at once, put Coder alone in the pool, set **Runs at once** and **Runs per agent** to 256, and give your organization at least 256 **Agent workers** in [Sandboxes](/platform/admin/sandboxes#identify-the-limit-that-matters), within what the deployment can run. Each run still works in a worker and workspace of its own.
+
+| Setting                                            | Allowed values                                         |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| **Runs at once**                                   | 1 to 500                                               |
+| **Runs per agent**                                 | 1 to 500, never more than **Runs at once**; 1 by default |
+| **Agents in the pool**                             | Up to 50                                               |
+| **Only tasks labelled** / **Never tasks labelled** | Up to 20 labels each                                   |
+| **Time between starts (seconds)**                  | 0 to 3,600; 30 by default                              |
+| **Ask a busy host again after (seconds)**          | 1 to 10 delays, each from 10 to 3,600                  |
+| **Standing roles**                                 | Up to 20                                               |
+| **Gates**                                          | Up to 10                                               |
+
+A save that lets one agent hold more runs than **Runs at once** is refused under **Runs per agent**. A dispatch saved before that rule keeps working as it is; the next save corrects it.
+
+How fast a large pool fills depends on **Time between starts (seconds)**. With a time set, each pass starts one task and the next pass comes that much later, so the 256th run starts 255 times that time after the first: 2 hours 7 minutes 30 seconds at the default 30 seconds, 21 minutes 15 seconds at 5. With 0, a pass starts every ready task the sandbox host admits, for at most two minutes, and the next pass carries on at once; when the host is busy, its recheck delays slow the start. A pass reads up to 500 ready tasks, enough to fill the largest pool.
+
+When an AI model answers again after it was at capacity, the runs waiting for it start in waves 15 seconds apart: one run, then two, then four, and so on, up to a sixteenth of them at a time. Even 256 waiting runs have all started within five minutes. New work dispatch starts on that model ramps up the same way, so the ready work it held back while the model was at capacity does not reach the model at once: one run as soon as the model answers, two more 15 seconds later, then four, eight and sixteen, and from then on up to 32 every 15 seconds, counting every run started on the model since it answered, whoever started it. A pool of 256 on that model fills within three minutes; after five minutes the ramp is over. A **Time between starts (seconds)** slower than the ramp still applies.
 
 ## Run standing roles on a schedule
 
@@ -76,11 +97,13 @@ An external system reports on the gate through the [REST API](/develop/api-refer
 | **Its model is at capacity**     | The provider called the agent's model at capacity; the agent takes work again once the model answers. |
 | **The sandbox host is busy**     | The host held the last start; dispatch asks again after its delays.                                   |
 | **All agent workers are in use** | Every agent worker of your organization is busy.                                                      |
-| **Waiting between starts**       | The last pass started a run and waits for the time between starts.                                    |
+| **Waiting between starts**       | The next start waits for the time between starts, for the next wave of a model that answered again, or for the next pass, which follows at once when a pass ran out of time. |
 | **A gate holds the ready work**  | The work left for this agent is held by a gate.                                                       |
 | **No ready work**                | No task in the chosen columns is ready for this agent.                                                |
 | **Dispatch is off**              | Dispatch, or task automation for your organization, is switched off.                                  |
 | **No pass yet**                  | Dispatch has not made a pass since the agent joined the pool.                                         |
+
+An agent that holds more than five runs shows how many it holds — **Running**, **Queued**, and each reason its runs wait, such as **Waiting for model capacity** — and its first five runs, the oldest first. A button such as **Show 45 more runs** lists up to 50 of them; past that, the page says how many more are not listed here. The [REST API](/develop/api-reference#dispatch) counts and lists them the same way.
 
 **Recent passes** shows the last 20 passes: when, what asked for them, how many runs they started and held, and why they stopped. **Run a pass now** asks for one at once. A self-hosted deployment can alert when a dispatch stops passing; [Prometheus and Grafana](/self-hosted/operate/observability/prometheus-grafana) shows the rule.
 

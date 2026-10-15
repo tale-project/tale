@@ -17,7 +17,7 @@
  * hint, so the readback also polls while it is shown.
  */
 
-import { managedProjectDispatchSchema } from '@tale/shared/schemas/managed-configuration';
+import { managedProjectDispatchObservationSchema } from '@tale/shared/schemas/managed-configuration';
 import {
   dispatchGateReportResultSchema,
   type ProjectDispatch,
@@ -94,8 +94,10 @@ export function projectDispatchStatusQuery(
   });
 }
 
+// Read in the stored shape, which still reads a dispatch saved before a
+// write's later rules: the editor opens it and names what to correct.
 const configurationAnswerSchema = z.object({
-  config: managedProjectDispatchSchema.nullable(),
+  config: managedProjectDispatchObservationSchema.nullable(),
   hash: z.string().nullable(),
 });
 

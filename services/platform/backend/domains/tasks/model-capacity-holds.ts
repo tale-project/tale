@@ -1,3 +1,4 @@
+import { SANDBOX_SESSION_BUDGET_MAX } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -20,7 +21,14 @@ import { requestOrganizationDispatchPassesInTx } from './dispatch-requests.ts';
  *   the probe has proved the model answers again — a run on the model that
  *   settles, or a probe that has worked for {@link MODEL_CAPACITY_PROBE_PROOF_MS}
  *   — which clears the hold ({@link clearModelCapacityHoldInTx}) and wakes
- *   them, spaced apart so the model is not met by every waiter at once.
+ *   them in waves ({@link modelCapacityWakeDelaysMs}), so the model is not
+ *   met by every waiter at once and hundreds of waiters still start within
+ *   minutes.
+ * - The clear also records when the model answered again (migration 0215):
+ *   for as long as the waves of {@link MODEL_CAPACITY_WAKES_MAX} runs take,
+ *   dispatch starts no more new work on the model than those waves have let
+ *   through ({@link readModelCapacityRamps}), so the ready work it held back
+ *   meanwhile ramps up the same way instead of meeting the model at once.
  *
  * Only a refusal that is new information doubles the wait: the probe's own,
  * or one after the hold ran out. Runs that were already working when the
@@ -45,8 +53,148 @@ export const MODEL_CAPACITY_MAX_WAIT_MS = 12 * 60 * 60_000;
  * answers again. */
 export const MODEL_CAPACITY_PROBE_PROOF_MS = 2 * 60_000;
 
-/** How far apart the runs a cleared hold wakes start. */
-const MODEL_CAPACITY_WAKE_SPACING_MS = 15_000;
+/** The runs one cleared hold wakes itself: as many as an organization may
+ * have agent workers. A run beyond them is reached by the generic wakes
+ * once the hold is gone. */
+const MODEL_CAPACITY_WAKES_MAX = SANDBOX_SESSION_BUDGET_MAX;
+
+/** How far apart the waves of runs a cleared hold wakes start. */
+export const MODEL_CAPACITY_WAKE_SPACING_MS = 15_000;
+
+/** A cleared hold wakes its waiters in about this many waves once its first
+ * waves have ramped up: a wave holds at most the waiters over this many,
+ * rounded up. Up to this many waiters, one run starts at a time. */
+const MODEL_CAPACITY_WAKE_WAVES = 16;
+
+/**
+ * When each of `count` runs a cleared hold wakes starts, oldest park first,
+ * in milliseconds after the clear. The runs start in waves
+ * {@link MODEL_CAPACITY_WAKE_SPACING_MS} apart: the first wave is one run,
+ * and each next one twice the last, up to `count / MODEL_CAPACITY_WAKE_WAVES`
+ * (rounded up) runs. The model that just answered again meets a few runs
+ * first; if it refuses them, its hold is back before the bigger waves come,
+ * and their claims park again without starting. Up to sixteen waiters wake
+ * one at a time; 256 wake in 20 waves, the last after 4 minutes 45 seconds,
+ * where one at a time would take over an hour.
+ */
+export function modelCapacityWakeDelaysMs(count: number): number[] {
+  const total = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  const widest = Math.max(1, Math.ceil(total / MODEL_CAPACITY_WAKE_WAVES));
+  const delays: number[] = [];
+  let wave = 0;
+  let size = 1;
+  while (delays.length < total) {
+    const take = Math.min(size, widest, total - delays.length);
+    for (let i = 0; i < take; i += 1) {
+      delays.push(wave * MODEL_CAPACITY_WAKE_SPACING_MS);
+    }
+    wave += 1;
+    size *= 2;
+  }
+  return delays;
+}
+
+/** The waves new work meets a model in once its hold cleared: those that
+ * would wake as many runs as an organization may have agent workers. */
+const MODEL_CAPACITY_RAMP_DELAYS_MS = modelCapacityWakeDelaysMs(
+  MODEL_CAPACITY_WAKES_MAX,
+);
+
+/** How long after a clear new work on the model ramps up: until its last
+ * wave (4 minutes 45 seconds), then one spacing more. */
+export const MODEL_CAPACITY_RAMP_MS =
+  (MODEL_CAPACITY_RAMP_DELAYS_MS.at(-1) ?? 0) + MODEL_CAPACITY_WAKE_SPACING_MS;
+
+/** How far the ramp after a hold that cleared at `clearedAtMs` has come at
+ * `now`. */
+export interface ModelCapacityRamp {
+  /** New runs its waves have let onto the model so far: 1, 3, 7, 15, 31,
+   * 63, then 32 more every 15 seconds. */
+  allowed: number;
+  /** When its next wave comes. */
+  nextWaveAtMs: number;
+}
+
+/**
+ * The ramp after a hold that cleared at `clearedAtMs`, as it stands at
+ * `now`: the waves {@link modelCapacityWakeDelaysMs} spaces for
+ * {@link MODEL_CAPACITY_WAKES_MAX} runs, counted from the clear. Null once
+ * its last wave has come: the model then takes any number of runs again.
+ * A clock behind the clear reads as the first wave.
+ */
+export function modelCapacityRamp(
+  clearedAtMs: number,
+  now: number,
+): ModelCapacityRamp | null {
+  const elapsed = Math.max(0, now - clearedAtMs);
+  if (!Number.isFinite(elapsed)) return null;
+  let allowed = 0;
+  for (const delay of MODEL_CAPACITY_RAMP_DELAYS_MS) {
+    if (delay > elapsed) {
+      return { allowed, nextWaveAtMs: clearedAtMs + delay };
+    }
+    allowed += 1;
+  }
+  return null;
+}
+
+/** One string for a model's key within an organization, as
+ * {@link readModelCapacityRamps} keys its answer. */
+export function modelCapacityKey(model: {
+  modelProvider: string | null;
+  model: string;
+}): string {
+  return JSON.stringify([model.modelProvider ?? '', model.model]);
+}
+
+/** How many more new runs a model that answered again may take now. */
+export interface ModelCapacityRampRoom {
+  /** Never below zero. */
+  room: number;
+  /** When its ramp lets the next wave through. */
+  nextWaveAtMs: number;
+}
+
+/**
+ * The organization's models whose hold cleared less than
+ * {@link MODEL_CAPACITY_RAMP_MS} ago and that still ramp up, keyed by
+ * {@link modelCapacityKey}: the runs the ramp has let through, less every
+ * run of the organization started on the model since the clear, whoever
+ * started it. A model missing from the answer takes any number of runs.
+ */
+export async function readModelCapacityRamps(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; now: number },
+): Promise<Map<string, ModelCapacityRampRoom>> {
+  const rows = await sql<
+    {
+      modelProvider: string;
+      model: string;
+      clearedAt: number;
+      started: number;
+    }[]
+  >`
+    SELECT rc.model_provider AS "modelProvider", rc.model,
+           rc.cleared_at_ms::float8 AS "clearedAt",
+           (SELECT count(*)::int FROM app.project_agent_runs r
+            WHERE r.org_id = rc.org_id AND r.started_at_ms >= rc.cleared_at_ms
+              AND coalesce(r.model_provider, '') = rc.model_provider
+              AND r.model = rc.model) AS started
+    FROM app.model_capacity_recoveries rc
+    WHERE rc.org_id = ${args.organizationId}
+      AND rc.cleared_at_ms > ${args.now - MODEL_CAPACITY_RAMP_MS}
+  `;
+  const ramps = new Map<string, ModelCapacityRampRoom>();
+  for (const row of rows) {
+    const ramp = modelCapacityRamp(row.clearedAt, args.now);
+    if (ramp === null) continue;
+    ramps.set(modelCapacityKey(row), {
+      room: Math.max(0, ramp.allowed - row.started),
+      nextWaveAtMs: ramp.nextWaveAtMs,
+    });
+  }
+  return ramps;
+}
 
 /** The wait a hold imposes after its `consecutive`-th refusal, with ±10 %
  * jitter so the runs it parks do not wake in lockstep. */
@@ -251,8 +399,9 @@ export async function admitModelCapacityInTx(
 }
 
 /**
- * The model answers again: drop its hold and wake every run parked on it,
- * {@link MODEL_CAPACITY_WAKE_SPACING_MS} apart, oldest park first. A no-op
+ * The model answers again: drop its hold, wake every run parked on it,
+ * oldest park first, in the waves {@link modelCapacityWakeDelaysMs} spaces,
+ * and start its ramp for new work ({@link readModelCapacityRamps}). A no-op
  * when no hold stands. In the transaction that proved it (a settle, or the
  * claim that found the probe proven).
  */
@@ -268,6 +417,22 @@ export async function clearModelCapacityHoldInTx(
     RETURNING model
   `;
   if (cleared.length === 0) return 0;
+  // New work on the model ramps up from now (readModelCapacityRamps); the
+  // organization's ramps that are over go.
+  await tx`
+    INSERT INTO app.model_capacity_recoveries (
+      org_id, model_provider, model, cleared_at_ms
+    ) VALUES (
+      ${args.organizationId}, ${providerKey(args)}, ${args.model}, ${now}
+    )
+    ON CONFLICT (org_id, model_provider, model)
+      DO UPDATE SET cleared_at_ms = EXCLUDED.cleared_at_ms
+  `;
+  await tx`
+    DELETE FROM app.model_capacity_recoveries
+    WHERE org_id = ${args.organizationId}
+      AND cleared_at_ms <= ${now - MODEL_CAPACITY_RAMP_MS}
+  `;
   const parked = await tx<{ id: string; execId: string }[]>`
     SELECT id, exec_id AS "execId"
     FROM app.project_agent_runs
@@ -277,9 +442,11 @@ export async function clearModelCapacityHoldInTx(
       AND coalesce(model_provider, '') = ${providerKey(args)}
       AND model = ${args.model}
     ORDER BY waiting_for_capacity_at_ms
-    LIMIT 500
+    LIMIT ${MODEL_CAPACITY_WAKES_MAX}
   `;
+  const delays = modelCapacityWakeDelaysMs(parked.length);
   for (const [index, run] of parked.entries()) {
+    const delay = delays[index] ?? 0;
     await addJobInTx(
       tx,
       'task.agent_park_wake',
@@ -288,14 +455,11 @@ export async function clearModelCapacityHoldInTx(
         runId: run.id,
         execId: run.execId,
       },
-      index === 0
-        ? {}
-        : {
-            startAfter: new Date(now + index * MODEL_CAPACITY_WAKE_SPACING_MS),
-          },
+      delay === 0 ? {} : { startAfter: new Date(now + delay) },
     );
   }
-  // Dispatch held ready work for agents on this model: it may start it now.
+  // Dispatch held ready work for agents on this model: it may start it now,
+  // as the ramp lets it through.
   await requestOrganizationDispatchPassesInTx(tx, {
     organizationId: args.organizationId,
     trigger: 'capacity_cleared',

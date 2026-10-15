@@ -1,5 +1,5 @@
 import {
-  projectDispatchSchema,
+  storedProjectDispatchSchema,
   type ProjectDispatch,
 } from '@tale/shared/schemas/project-dispatch';
 import type { Sql, TransactionSql } from 'postgres';
@@ -34,7 +34,7 @@ export async function readDispatchRow(
   `;
   const row = rows[0];
   if (row === undefined) return null;
-  const parsed = projectDispatchSchema.safeParse(row.config);
+  const parsed = storedProjectDispatchSchema.safeParse(row.config);
   if (!parsed.success) return 'unreadable';
   return {
     config: parsed.data,

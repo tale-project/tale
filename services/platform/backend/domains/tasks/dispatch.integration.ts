@@ -37,7 +37,17 @@ import {
 } from './dispatch-config.ts';
 import { reportDispatchGate } from './dispatch-gates.ts';
 import { runDispatchPass, type HostVerdict } from './dispatch-pass.ts';
-import { readProjectDispatchStatus } from './dispatch-readback.ts';
+import {
+  readProjectDispatchStatus,
+  type DispatchAgentRun,
+  type DispatchPoolAgent,
+} from './dispatch-readback.ts';
+import {
+  clearModelCapacityHoldInTx,
+  MODEL_CAPACITY_RAMP_MS,
+  MODEL_CAPACITY_WAKE_SPACING_MS,
+  recordModelCapacityRefusalInTx,
+} from './model-capacity-holds.ts';
 import { snapshotRunInstructions } from './run-instructions.ts';
 
 const ADMIT: HostVerdict = {
@@ -91,20 +101,8 @@ export async function checkFleetDispatch(
     teamIds: [],
   };
   // The organization's default two agent workers would hold the pool back
-  // before its own limit does: give it ten for the lane, then put back what
-  // it had.
-  const orgSlug = await resolveOrgSlug(sql, orgId);
-  if (orgSlug === null) throw new Error('itest: the organization has no slug');
-  const quotaBefore = await readGovernancePolicySnapshot(
-    orgSlug,
-    'sandbox_quota',
-  );
-  await sql.begin((tx) =>
-    writeGovernancePolicyFile(tx, orgSlug, 'sandbox_quota', {
-      ...(quotaBefore.config ?? DEFAULT_SANDBOX_QUOTA),
-      maxSessionsPerOrg: 10,
-    }),
-  );
+  // before its own limit does: give it ten for the lane.
+  const restoreQuota = await raiseAgentWorkers(sql, orgId, 10);
   try {
     await sql`
       INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
@@ -482,12 +480,27 @@ export async function checkFleetDispatch(
     const status = await readProjectDispatchStatus(sql, auth, projectId);
     const a1 = status.pool.find((entry) => entry.agentId === agents.a1);
     const a2 = status.pool.find((entry) => entry.agentId === agents.a2);
+    // The counts tally the same runs the list names, by what they do.
+    const countsMatchList = (agent: DispatchPoolAgent | undefined) => {
+      if (agent === undefined) return false;
+      const listed = (match: (run: DispatchAgentRun) => boolean) =>
+        agent.runs.filter(match).length;
+      const parked = listed((run) => run.waitingReason === 'model_capacity');
+      return (
+        agent.runCounts.total === agent.runs.length &&
+        agent.runCounts.running === listed((run) => run.status === 'running') &&
+        agent.runCounts.waiting.model_capacity ===
+          (parked > 0 ? parked : undefined)
+      );
+    };
     record(
       'fleet dispatch: the readback names each agent’s runs, a run waiting for its model, and the model’s hold [TASK-R46]',
       status.configured &&
         a1?.runs[0]?.waitingReason === 'model_capacity' &&
         a1.modelHeldUntil !== null &&
         a2?.runs.length === 1 &&
+        countsMatchList(a1) &&
+        countsMatchList(a2) &&
         status.holds.some((hold) => hold.model === modelA) &&
         status.passes.length >= 7,
       `status=${JSON.stringify({ pool: status.pool, holds: status.holds, passes: status.passes.length })}`,
@@ -740,6 +753,35 @@ export async function checkFleetDispatch(
       DELETE FROM app.model_capacity_holds
       WHERE org_id = ${orgId} AND model = ANY(${[modelA, modelB]})
     `;
+    await sql`
+      DELETE FROM app.model_capacity_recoveries
+      WHERE org_id = ${orgId} AND model = ANY(${[modelA, modelB]})
+    `;
+    await restoreQuota();
+    await release();
+  }
+}
+
+/** Give the organization `count` agent workers for a lane; the answer puts
+ * back what it had. */
+async function raiseAgentWorkers(
+  sql: Sql,
+  orgId: string,
+  count: number,
+): Promise<() => Promise<void>> {
+  const orgSlug = await resolveOrgSlug(sql, orgId);
+  if (orgSlug === null) throw new Error('itest: the organization has no slug');
+  const quotaBefore = await readGovernancePolicySnapshot(
+    orgSlug,
+    'sandbox_quota',
+  );
+  await sql.begin((tx) =>
+    writeGovernancePolicyFile(tx, orgSlug, 'sandbox_quota', {
+      ...(quotaBefore.config ?? DEFAULT_SANDBOX_QUOTA),
+      maxSessionsPerOrg: count,
+    }),
+  );
+  return async () => {
     if (quotaBefore.config === null) {
       await removeFileSafe(resolvePolicyYamlFilePath(orgSlug, 'sandbox_quota'));
       clearOrgConfigCaches();
@@ -749,6 +791,244 @@ export async function checkFleetDispatch(
         writeGovernancePolicyFile(tx, orgSlug, 'sandbox_quota', config),
       );
     }
+  };
+}
+
+/**
+ * A pool kept on one model as it answers again, and a pass that runs out of
+ * time, against real PostgreSQL. Coder alone in the pool, with no time
+ * between starts: once its model's hold clears, a pass starts the one run
+ * the ramp lets through and asks again at the next wave, a pass before it
+ * starts nothing, and the next wave starts the rest; a ramp that is over
+ * holds nothing back. A pass whose time runs out after its first start asks
+ * for the next at once, with no delay, and that pass starts the rest.
+ */
+export async function checkDispatchRampAndBudget(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const suffix = randomUUID().slice(0, 8);
+  const projectId = randomUUID();
+  const coder = randomUUID();
+  const model = `itest-dispatch-ramp-${suffix}`;
+  const tasks: string[] = Array.from({ length: 6 }, () => randomUUID());
+  const now = Date.now();
+  // Every request keeps its delay, a day later: the lane reads whether the
+  // pass asked for the next at once.
+  const release = await holdAgentJobs(sql, `ramp_${suffix}`, [projectId], {
+    keepDelay: true,
+    extraQueues: ['tasks.dispatch_project', 'task.agent_park_wake'],
+  });
+  const auth: ProjectAuthContext = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [],
+  };
+  // Room for the lane's six runs whatever other lanes left behind.
+  const restoreQuota = await raiseAgentWorkers(sql, orgId, 20);
+  try {
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+      VALUES (${projectId}, ${orgId}, 'Fleet ramp', ${userId}, ${now}, ${now})
+    `;
+    await sql`
+      INSERT INTO app.project_agents (id, org_id, project_id, name, harness,
+        model, created_by, created_at_ms, updated_at_ms)
+      VALUES (${coder}, ${orgId}, ${projectId}, 'Coder', 'codex', ${model},
+        ${userId}, ${now}, ${now})
+    `;
+    // Ranked in the order they are listed.
+    const addTasks = async (ids: readonly string[]) => {
+      for (const id of ids) {
+        const place = tasks.indexOf(id);
+        await sql`
+          INSERT INTO app.tasks (id, org_id, project_id, title, status,
+            assignee_type, assignee_id, rank, created_by, created_by_type,
+            created_at_ms, updated_at_ms)
+          VALUES (${id}, ${orgId}, ${projectId}, ${`Fleet task ${place}`},
+            'todo', 'agent', ${coder}, ${`r${place}`}, ${userId}, 'user',
+            ${now}, ${now})
+        `;
+      }
+    };
+    await addTasks(tasks.slice(0, 3));
+    await transactSerializable(sql, (tx) =>
+      saveProjectDispatch(tx, auth, {
+        projectId,
+        dispatch: {
+          enabled: true,
+          agents: [coder],
+          maxConcurrentRuns: 10,
+          perAgentConcurrency: 10,
+          statuses: ['todo'],
+          assignment: 'assigned',
+          admission: {
+            preset: 'default',
+            startSpacingSeconds: 0,
+            recheckSeconds: [60],
+          },
+        },
+        expectedHash: null,
+      }),
+    );
+    const pass = (budgetMs?: number) =>
+      runDispatchPass(
+        sql,
+        { organizationId: orgId, projectId, trigger: 'manual' },
+        {
+          askHost: () => Promise.resolve(ADMIT),
+          ...(budgetMs === undefined ? {} : { budgetMs }),
+        },
+      );
+    const startedTasks = async () =>
+      (
+        await sql<{ taskId: string }[]>`
+          SELECT task_id AS "taskId" FROM app.project_agent_runs
+          WHERE project_id = ${projectId} AND status IN ('queued', 'running')
+        `
+      ).map((row) => row.taskId);
+    const clearedAt = async () =>
+      (
+        await sql<{ clearedAt: number }[]>`
+          SELECT cleared_at_ms::float8 AS "clearedAt"
+          FROM app.model_capacity_recoveries
+          WHERE org_id = ${orgId} AND model_provider = '' AND model = ${model}
+        `
+      )[0]?.clearedAt ?? null;
+
+    // 1. The provider refused the model, and a run on it then settled: the
+    // hold clears and the ramp starts.
+    await sql.begin(async (tx) => {
+      await recordModelCapacityRefusalInTx(tx, {
+        organizationId: orgId,
+        modelProvider: null,
+        model,
+        runId: `itest-refused-${suffix}`,
+      });
+      await clearModelCapacityHoldInTx(tx, {
+        organizationId: orgId,
+        modelProvider: null,
+        model,
+      });
+    });
+    const cleared = await clearedAt();
+    const first = await pass();
+    const second = await pass();
+    const afterRamp = await startedTasks();
+    record(
+      'fleet dispatch: once a model answers again, a pass with no time between starts starts the one run its ramp lets through and asks again at the next wave [TASK-R43]',
+      cleared !== null &&
+        first !== null &&
+        first.stop === 'model_ramp' &&
+        first.started.map((start) => start.taskId).join() === tasks[0] &&
+        first.held.filter((hold) => hold.reason === 'model_ramp').length ===
+          2 &&
+        first.nextPassAt === cleared + MODEL_CAPACITY_WAKE_SPACING_MS &&
+        second !== null &&
+        second.stop === 'model_ramp' &&
+        second.started.length === 0 &&
+        second.nextPassAt === cleared + MODEL_CAPACITY_WAKE_SPACING_MS &&
+        afterRamp.length === 1,
+      `cleared=${cleared} first=${JSON.stringify(first)} second=${JSON.stringify(second)} started=${JSON.stringify(afterRamp)}`,
+    );
+
+    // 2. The next wave lets two more through: a clear 15 seconds back.
+    await sql`
+      UPDATE app.model_capacity_recoveries
+      SET cleared_at_ms = cleared_at_ms - ${MODEL_CAPACITY_WAKE_SPACING_MS}
+      WHERE org_id = ${orgId} AND model = ${model}
+    `;
+    const wave = await pass();
+    // A ramp that is over holds nothing back.
+    await sql`
+      UPDATE app.model_capacity_recoveries
+      SET cleared_at_ms = cleared_at_ms - ${MODEL_CAPACITY_RAMP_MS}
+      WHERE org_id = ${orgId} AND model = ${model}
+    `;
+    await addTasks(tasks.slice(3, 4));
+    const over = await pass();
+    record(
+      'fleet dispatch: the next wave starts the work the ramp held, and a ramp that is over holds nothing back [TASK-R43]',
+      wave !== null &&
+        wave.stop === 'started' &&
+        wave.started.map((start) => start.taskId).join() ===
+          [tasks[1], tasks[2]].join() &&
+        wave.nextPassAt === null &&
+        over !== null &&
+        over.stop === 'started' &&
+        over.started.map((start) => start.taskId).join() === tasks[3],
+      `wave=${JSON.stringify(wave)} over=${JSON.stringify(over)}`,
+    );
+
+    // 3. A pass out of time after its first start: the next goes on at once.
+    await addTasks(tasks.slice(4, 6));
+    // One pass waits per project: drop the lane's own held requests, so the
+    // pass this one asks for is a row of its own.
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'tasks.dispatch_project'
+        AND data ->> 'projectId' = ${projectId} AND state = 'created'
+    `;
+    const before = Date.now();
+    const outOfTime = await pass(0);
+    const after = Date.now();
+    const recorded = await sql<
+      { stopReason: string; nextPassAt: number | null }[]
+    >`
+      SELECT stop_reason AS "stopReason",
+             next_pass_at_ms::float8 AS "nextPassAt"
+      FROM app.project_dispatch_passes WHERE id = ${outOfTime?.passId ?? ''}
+    `;
+    const asked = await sql<{ trigger: string; delayMs: number }[]>`
+      SELECT data ->> 'trigger' AS trigger,
+             (extract(epoch FROM start_after - created_on) * 1000)::float8
+               AS "delayMs"
+      FROM pgboss.job
+      WHERE name = 'tasks.dispatch_project'
+        AND data ->> 'projectId' = ${projectId} AND state = 'created'
+    `;
+    const next = await pass();
+    const allStarted = await startedTasks();
+    const day = 24 * 60 * 60_000;
+    record(
+      'fleet dispatch: a pass out of time after its first start asks for the next at once, which starts the rest [TASK-R63]',
+      outOfTime !== null &&
+        outOfTime.stop === 'budget' &&
+        outOfTime.started.length === 1 &&
+        outOfTime.nextPassAt !== null &&
+        outOfTime.nextPassAt >= before &&
+        outOfTime.nextPassAt <= after &&
+        recorded[0]?.stopReason === 'budget' &&
+        recorded[0].nextPassAt === outOfTime.nextPassAt &&
+        asked.length === 1 &&
+        asked[0]?.trigger === 'recheck' &&
+        // Held a day by the lane, and not a moment more.
+        Math.abs((asked[0]?.delayMs ?? 0) - day) < 5_000 &&
+        next !== null &&
+        next.started.length === 1 &&
+        allStarted.length === 6,
+      `outOfTime=${JSON.stringify(outOfTime)} recorded=${JSON.stringify(recorded)} asked=${JSON.stringify(asked)} next=${JSON.stringify(next)} started=${allStarted.length}`,
+    );
+  } finally {
+    await sql`
+      UPDATE app.project_dispatch SET enabled = false WHERE project_id = ${projectId}
+    `;
+    await sql`
+      UPDATE app.project_agent_runs SET status = 'cancelled',
+        settled_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
+      WHERE project_id = ${projectId} AND status IN ('queued', 'running')
+    `;
+    await sql`
+      DELETE FROM app.model_capacity_holds WHERE org_id = ${orgId} AND model = ${model}
+    `;
+    await sql`
+      DELETE FROM app.model_capacity_recoveries
+      WHERE org_id = ${orgId} AND model = ${model}
+    `;
+    await restoreQuota();
     await release();
   }
 }

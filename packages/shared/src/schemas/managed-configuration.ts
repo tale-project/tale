@@ -5,7 +5,10 @@ import { isValidAutomationName } from '../automation-name';
 import { TASK_DESCRIPTION_MAX } from '../task-limits';
 import { isoDateSchema, staticInputSchema } from './automation-trigger';
 import { configurationHashSchema } from './configuration';
-import { projectDispatchSchema } from './project-dispatch';
+import {
+  projectDispatchSchema,
+  storedProjectDispatchSchema,
+} from './project-dispatch';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
   PROJECT_AGENT_BINDINGS_MAX,
@@ -181,6 +184,11 @@ export const managedProjectDispatchSchema = projectDispatchSchema.safeExtend({
 export type ManagedProjectDispatch = z.infer<
   typeof managedProjectDispatchSchema
 >;
+/** A project's dispatch as the platform reads it back: the stored shape,
+ * which still reads a dispatch saved before a write's later rules, so a
+ * plan can adopt and correct it rather than fail to read it. */
+export const managedProjectDispatchObservationSchema =
+  storedProjectDispatchSchema.safeExtend({ ...project });
 
 export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({

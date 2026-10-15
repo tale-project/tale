@@ -7,6 +7,7 @@ import {
   managedAgentModelSchema,
   managedAgentModelObservationSchema,
   managedPlatformResourceSchema,
+  managedProjectDispatchObservationSchema,
   managedProjectDispatchSchema,
 } from './managed-configuration';
 import { PROJECT_AGENT_BINDINGS_MAX } from './projects';
@@ -306,6 +307,47 @@ describe('managed project dispatch declarations read as the platform stores them
   ])('refuses a missing identity or a field it does not know %j', (fields) => {
     expect(
       managedProjectDispatchSchema.safeParse({ ...config, ...fields }).success,
+    ).toBe(false);
+  });
+
+  it('declares one agent on up to 500 runs, never more runs than the pool', () => {
+    const fleet = {
+      ...config,
+      maxConcurrentRuns: 256,
+      perAgentConcurrency: 256,
+    };
+    expect(
+      managedPlatformResourceSchema.parse({
+        kind: 'project-dispatch',
+        config: fleet,
+      }),
+    ).toEqual({ kind: 'project-dispatch', config: fleet });
+    expect(
+      managedProjectDispatchSchema.safeParse({
+        ...fleet,
+        maxConcurrentRuns: 501,
+        perAgentConcurrency: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      managedProjectDispatchSchema.safeParse({
+        ...fleet,
+        maxConcurrentRuns: 200,
+      }).error?.issues,
+    ).toMatchObject([{ path: ['perAgentConcurrency'] }]);
+  });
+
+  it('observes a stored dispatch whose agent holds more runs than the pool, as stored', () => {
+    const stored = { ...config, maxConcurrentRuns: 2, perAgentConcurrency: 5 };
+    expect(managedProjectDispatchSchema.safeParse(stored).success).toBe(false);
+    expect(managedProjectDispatchObservationSchema.parse(stored)).toEqual(
+      stored,
+    );
+    expect(
+      managedProjectDispatchObservationSchema.safeParse({
+        ...stored,
+        quorum: 2,
+      }).success,
     ).toBe(false);
   });
 });

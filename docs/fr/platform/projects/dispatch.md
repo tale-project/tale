@@ -21,8 +21,8 @@ Ouvre le projet, choisis **Répartition du travail**, puis **Modifier**, ou **Co
 | --- | --- |
 | **Répartition activée** | Si la répartition lance quoi que ce soit. Désactivée, elle ne lance rien ; les exécutions en cours continuent. |
 | **Agents du pool** | Les agents du projet que la répartition lance. Une tâche assignée à un agent hors du pool n’est jamais lancée par la répartition. |
-| **Exécutions simultanées** | Le nombre maximal d’exécutions que le pool tient en même temps. Les exécutions que des personnes, des automatisations et des rôles permanents lancent sur les agents du pool comptent aussi ; un rôle permanent démarre tout de même à son horaire quand le pool est plein. |
-| **Exécutions par agent** | Le nombre maximal d’exécutions qu’un agent du pool tient à la fois, 1 par défaut. Chaque exécution travaille dans son propre [worker d’agent](/fr/platform/projects/project-agents#run-one-agent-on-several-tasks). |
+| **Exécutions simultanées** | Le nombre maximal d’exécutions que le pool tient en même temps, de 1 à 500. Les exécutions que des personnes, des automatisations et des rôles permanents lancent sur les agents du pool comptent aussi ; un rôle permanent démarre tout de même à son horaire quand le pool est plein. |
+| **Exécutions par agent** | Le nombre maximal d’exécutions qu’un agent du pool tient à la fois, 1 par défaut et jamais plus que **Exécutions simultanées**. Chaque exécution travaille dans son propre [worker d’agent](/fr/platform/projects/project-agents#run-one-agent-on-several-tasks). |
 | **Prendre le travail prêt dans** | Les colonnes d’où vient le travail prêt, **À faire**, **Backlog** ou les deux, dans l’ordre où tu les indiques. |
 | **Tâches non assignées** | **Les laisser**, ou **Les confier au pool** : une tâche non assignée est alors assignée à l’agent libre qui a le plus de place. |
 | **Confier les tâches jamais lancées à un agent libre** | Une tâche n’attend un agent occupé du pool que jusqu’à ce qu’un autre soit libre. Une tâche qui a déjà été exécutée reste à son agent, pour que sa conversation et ses fichiers restent ensemble. |
@@ -39,13 +39,34 @@ La répartition fait un passage dès que quelque chose change : une exécution 
 
 1. lance les rôles permanents qui sont dus ;
 2. compte les exécutions que tiennent les agents du pool, quelle que soit la personne qui les a lancées ;
-3. laisse un agent de côté tant que le modèle d’IA qu’il utilise est [saturé](/fr/platform/projects/task-automation#handle-waiting-and-failed-runs) ;
+3. laisse un agent de côté tant que le modèle d’IA qu’il utilise est [saturé](/fr/platform/projects/task-automation#handle-waiting-and-failed-runs), et lance le travail sur ce modèle par vagues dès qu’il répond de nouveau ;
 4. interroge l’hôte des sandbox avant chaque démarrage, et s’arrête quand l’hôte est occupé ;
 5. lance la tâche prête la mieux classée sur son propre agent libre.
 
 Chaque démarrage passe les mêmes contrôles qu’un démarrage depuis le tableau : une tâche avec un bloqueur ouvert attend, une tâche accepte au plus trois démarrages automatiques par heure, et une tâche ne s’exécute qu’une fois à la fois. Une exécution lancée par la répartition indique **Lancée par la répartition du travail** dans l’historique de la tâche et agit au nom du projet, pas d’une personne.
 
 Chaque exécution d’agent a besoin d’un worker d’agent. Quand le pool peut tenir en même temps plus d’exécutions que ton organisation n’a de workers d’agent, **Répartition du travail** le signale : les exécutions en trop ne feraient qu’attendre un worker libre. Les Propriétaires et les Admins relèvent la limite dans [Sandboxes](/fr/platform/admin/sandboxes#identifier-la-limite-concernee).
+
+## Faire travailler un agent sur des centaines de tâches {#limits}
+
+La répartition peut occuper un agent sur autant de tâches à la fois que ton organisation peut avoir de workers d’agent : jusqu’à 500. Pour que l’agent Coder travaille sur 256 tâches à la fois, place Coder seul dans le pool, règle **Exécutions simultanées** et **Exécutions par agent** sur 256, et donne à ton organisation au moins 256 **Workers d’agent** dans [Sandboxes](/fr/platform/admin/sandboxes#identifier-la-limite-concernee), dans la limite de ce que le déploiement peut exécuter. Chaque exécution travaille toujours dans son propre worker, avec son propre espace de travail.
+
+| Réglage | Valeurs admises |
+| --- | --- |
+| **Exécutions simultanées** | De 1 à 500 |
+| **Exécutions par agent** | De 1 à 500, jamais plus que **Exécutions simultanées** ; 1 par défaut |
+| **Agents du pool** | Jusqu’à 50 |
+| **Seulement les tâches avec l’étiquette** / **Jamais les tâches avec l’étiquette** | Jusqu’à 20 étiquettes chacun |
+| **Délai entre deux démarrages (secondes)** | De 0 à 3 600 ; 30 par défaut |
+| **Redemander à un hôte occupé après (secondes)** | De 1 à 10 délais, chacun de 10 à 3 600 |
+| **Rôles permanents** | Jusqu’à 20 |
+| **Barrières** | Jusqu’à 10 |
+
+Un enregistrement qui permettrait à un agent de tenir plus d’exécutions que **Exécutions simultanées** est refusé sous **Exécutions par agent**. Une répartition enregistrée avant cette règle continue de fonctionner telle quelle ; le prochain enregistrement la corrige.
+
+La vitesse à laquelle un grand pool se remplit dépend de **Délai entre deux démarrages (secondes)**. Avec un délai, chaque passage lance une tâche et le passage suivant vient ce délai plus tard : la 256e exécution démarre donc 255 fois ce délai après la première, soit 2 heures 7 minutes 30 secondes avec les 30 secondes par défaut, et 21 minutes 15 secondes avec 5 secondes. Avec 0, un passage lance chaque tâche prête que l’hôte des sandbox admet, pendant deux minutes au plus, et le passage suivant prend aussitôt le relais ; quand l’hôte est occupé, ses délais avant de redemander ralentissent le démarrage. Un passage lit jusqu’à 500 tâches prêtes, assez pour remplir le plus grand pool.
+
+Quand un modèle d’IA répond de nouveau après avoir été saturé, les exécutions qui l’attendaient démarrent par vagues espacées de 15 secondes : une exécution, puis deux, puis quatre, et ainsi de suite, jamais plus d’un seizième d’entre elles à la fois. Même 256 exécutions en attente ont ainsi toutes démarré en cinq minutes au plus. Le nouveau travail que la répartition lance sur ce modèle monte en charge de la même façon, pour que le travail prêt qu’elle a retenu pendant la saturation n’atteigne pas le modèle d’un coup : une exécution dès que le modèle répond, deux de plus 15 secondes plus tard, puis quatre, huit et seize, et ensuite jusqu’à 32 toutes les 15 secondes. Chaque exécution lancée sur le modèle depuis qu’il répond compte, d’où qu’elle vienne. Un pool de 256 exécutions sur ce modèle est ainsi rempli en trois minutes au plus ; au bout de cinq minutes, la montée en charge est terminée. Un **Délai entre deux démarrages (secondes)** plus lent que cette montée en charge s’applique toujours.
 
 ## Exécuter des rôles permanents selon un horaire
 
@@ -76,11 +97,13 @@ Un système externe signale l’état de la barrière par l’[API REST](/fr/dev
 | **Son modèle est saturé** | Le fournisseur a déclaré le modèle de l’agent saturé ; l’agent reprend du travail dès que le modèle répond. |
 | **L’hôte des sandbox est occupé** | L’hôte a retenu le dernier démarrage ; la répartition redemande après ses délais. |
 | **Tous les workers d’agent sont occupés** | Chaque worker d’agent de ton organisation est occupé. |
-| **Attend entre deux démarrages** | Le dernier passage a lancé une exécution et respecte le délai entre deux démarrages. |
+| **Attend entre deux démarrages** | Le prochain démarrage attend le délai entre deux démarrages, la prochaine vague d’un modèle qui répond de nouveau, ou le passage suivant, qui suit aussitôt quand un passage a manqué de temps. |
 | **Une barrière retient le travail prêt** | Le travail restant pour cet agent est retenu par une barrière. |
 | **Aucun travail prêt** | Aucune tâche des colonnes choisies n’est prête pour cet agent. |
 | **La répartition est désactivée** | La répartition, ou l’automatisation des tâches de ton organisation, est désactivée. |
 | **Aucun passage encore** | La répartition n’a fait aucun passage depuis l’entrée de l’agent dans le pool. |
+
+Un agent qui tient plus de cinq exécutions affiche combien il en tient — **En cours**, **En file d’attente** et chaque raison pour laquelle ses exécutions attendent, comme **En attente du modèle** — ainsi que ses cinq premières exécutions, les plus anciennes d’abord. Un bouton comme **Afficher 45 exécutions de plus** en liste jusqu’à 50 ; au-delà, la page indique combien d’autres ne sont pas listées ici. L’[API REST](/fr/develop/api-reference#dispatch) les compte et les liste de la même façon.
 
 **Derniers passages** montre les 20 derniers passages : quand, ce qui les a demandés, combien d’exécutions ils ont lancées et retenues, et pourquoi ils se sont arrêtés. **Lancer un passage maintenant** en demande un aussitôt. Un déploiement auto-hébergé peut alerter quand une répartition ne fait plus de passages ; [Prometheus et Grafana](/fr/self-hosted/operate/observability/prometheus-grafana) montre la règle.
 

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.45.0",
+    "version": "3.46.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -14752,12 +14752,12 @@
                         "maxConcurrentRuns": {
                           "type": "integer",
                           "minimum": 1,
-                          "maximum": 100
+                          "maximum": 500
                         },
                         "perAgentConcurrency": {
                           "type": "integer",
                           "minimum": 1,
-                          "maximum": 5
+                          "maximum": 500
                         },
                         "statuses": {
                           "minItems": 1,
@@ -14982,6 +14982,7 @@
                             "nullable": true
                           },
                           "runs": {
+                            "maxItems": 50,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -15018,6 +15019,40 @@
                               ]
                             }
                           },
+                          "runCounts": {
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "running": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "queued": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "waiting": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              }
+                            },
+                            "required": [
+                              "total",
+                              "running",
+                              "queued",
+                              "waiting"
+                            ]
+                          },
                           "capacity": {
                             "type": "number"
                           },
@@ -15047,6 +15082,7 @@
                           "model",
                           "modelProvider",
                           "runs",
+                          "runCounts",
                           "capacity",
                           "modelHeldUntil",
                           "idle"
@@ -45738,7 +45774,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.45.0"
+          "example": "3.46.0"
         }
       },
       "Location": {

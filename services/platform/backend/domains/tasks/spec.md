@@ -401,14 +401,18 @@ model wait for it: the run that was refused fails once and its automatic retry, 
 attempt, waits; a run started meanwhile waits before it takes a worker, reading "Waiting for
 model capacity". The wait lasts 1 minute, then 2, 4, 8 and 15 minutes as the refusals go on.
 When it ends one run goes first; the others follow once that run has worked for two minutes,
-or as soon as any run on the model finishes. A model at capacity for twelve hours is no longer
+or as soon as any run on the model finishes. They then start in waves 15 seconds apart: one run,
+then two, four and so on, never more than a sixteenth of them at once, so even 500 waiting runs
+have all started within five minutes; new work dispatch starts on the model follows the same
+waves (`TASK-R43`). A model at capacity for twelve hours is no longer
 waited for: its next refusal ends the run, and a run that waited that long fails as having
 waited too long.
 
 - **Example**: The provider refuses Scribe's run on "Changelog" at 10:00 because its model is
   at capacity. At 10:00:30 a schedule starts Lector, on the same model, on "Press kit" → it
   reads "Waiting for model capacity" and takes no worker. At 10:01 the retry of "Changelog"
-  starts first; at 10:03 it is still working → "Press kit" starts.
+  starts first; at 10:03 it is still working → "Press kit" starts. Had 256 runs been waiting,
+  the last of them would have started at 10:07:45.
 
 ## Dispatch
 
@@ -430,6 +434,18 @@ automated start: the task's hourly limit and its dependencies apply (`TASK-R12`)
   "Release notes" (To do, p1) is Lector's, "Press kit" (To do, p2) is Scribe's → Lector starts on
   "Release notes"; "Press kit" waits for Scribe.
 
+### TASK-R62 · A dispatch holds up to 500 runs, one agent at most as many as the pool
+
+Runs at once and runs per agent each go up to 500, as many agent workers as an organization may
+have, so one agent can be kept busy on every worker. A save that lets one agent hold more runs
+than the whole pool is refused, naming runs per agent; a dispatch saved before this rule still
+reads and starts work, the pool's limit binding first. Every run still needs an agent worker of
+the organization's: beyond them, nothing more starts (`TASK-R41`).
+
+- **Example**: Ada keeps Coder alone in the Fleet pool, with 256 runs at once and 256 per agent,
+  and the organization has 256 agent workers → dispatch starts Coder on 256 ready tasks. She
+  lowers runs at once to 200 and keeps 256 per agent → refused, naming runs per agent.
+
 ### TASK-R42 · Dispatch hands unassigned work to its pool only when told to
 
 With pool assignment, a ready task nobody is assigned to goes to the idle agent of the pool with
@@ -444,10 +460,19 @@ and files stay where they are.
 
 While the provider holds its model at capacity (`TASK-R40`), the agent's ready work waits, and
 unassigned work goes to an agent whose model answers. When the model answers again, dispatch
-looks for work at once.
+looks for work at once, and for five minutes starts no more new runs on the model than the waves
+of `TASK-R40` let through: one at once, then two more 15 seconds later, four, eight, sixteen, then
+up to 32 every 15 seconds, counting every run started on the model since it answered, whoever
+started it. The agents on that model share those runs; work for an agent on another model goes
+on. A dispatch the waves hold back looks again at the next wave: even with no time between starts,
+a pool never starts its whole room on a model that has just answered.
 
 - **Example**: Scribe's model is at capacity; Lector's is not. "Sitemap" is assigned to nobody →
   Lector takes it, and Scribe's own ready work waits.
+- **Example**: Coder alone holds a pool of 256 with no time between starts. Its model went to
+  capacity when 56 of its runs had started, and 200 ready tasks wait. At 10:00 the model answers →
+  dispatch starts one run at 10:00, two at 10:00:15, then four, eight, sixteen, then 32 every 15
+  seconds; the 200 have all started by 10:02:30.
 
 ### TASK-R44 · Dispatch asks the sandbox host before each start and spaces its starts
 
@@ -460,6 +485,20 @@ the pass and with the record of the run it started.
 
 - **Example**: The host's memory pressure is high when "Changelog" is next → nothing starts, and
   dispatch asks again a minute later, then after two minutes, then every four.
+
+### TASK-R63 · A pass starts work for two minutes at most, and the next goes on at once
+
+A pass reads up to 500 ready tasks, enough to fill the largest pool. Without a spacing it starts
+every one the host admits; after two minutes it stops, its first start always made, and the next
+pass goes on at once with the runs and the host as they stand then, so no two passes start work
+on one plan; its record says it ran out of time. With a spacing, each pass makes one start and
+the next pass comes a spacing later:
+the 256th run starts 255 spacings after the first, 2 hours 7 minutes 30 seconds at the default 30
+seconds.
+
+- **Example**: Coder's pool may hold 256 runs with no time between starts, and each start takes
+  the host a second to admit → the first pass starts about 120 of them by its two minutes, and
+  the next pass, at once, the rest.
 
 ### TASK-R45 · A standing role starts its agent on its task at each occurrence of its schedule
 
@@ -478,11 +517,16 @@ is in the pool counts toward the pool.
 
 For every agent of the pool it names the runs it holds, and for an idle one why: dispatch is off,
 its model is at capacity, the host held the last start, the agent workers are all in use, the
-last start was spaced, or no work is ready for it. It reads the run ledger and the passes, never
-where cards stand on the board.
+next start waits (for the spacing, for the next wave of a model that answered again, or for the
+pass that follows one that ran out of time), or no work is ready for it. It counts an agent's runs by what they do
+(running, queued, and waiting by why) and lists its 50 oldest, so an agent on hundreds of tasks
+still reads in one answer; the page shows the first five and the rest of the list on request. It
+reads the run ledger and the passes, never where cards stand on the board.
 
 - **Example**: Scribe has no run and the last pass stopped because the host was under pressure →
-  the readback says Scribe is idle because the host held the last start.
+  the readback says Scribe is idle because the host held the last start. Coder holds 256 runs, 6
+  of them waiting for model capacity → the readback counts 250 running and 6 waiting for model
+  capacity, and lists 50 of them.
 
 ### TASK-R47 · A run dispatch starts answers to the project, never to a person
 

@@ -21,8 +21,8 @@ Die Arbeitsverteilung entscheidet, wann und wo Arbeit startet. Was sich zu tun l
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Arbeitsverteilung ist ein**                           | Ob die Arbeitsverteilung überhaupt etwas startet. Ausgeschaltet startet sie nichts; laufende Läufe arbeiten weiter.                                                                                                                            |
 | **Agenten im Pool**                                     | Die Agenten des Projekts, die die Arbeitsverteilung startet. Eine Aufgabe, die einem Agenten außerhalb des Pools zugewiesen ist, startet sie nie.                                                                                              |
-| **Läufe gleichzeitig**                                  | Wie viele Läufe der Pool höchstens gleichzeitig hält. Läufe, die Personen, Automatisierungen und ständige Rollen auf den Agenten des Pools starten, zählen mit; eine ständige Rolle startet zu ihrem Termin auch dann, wenn der Pool voll ist. |
-| **Läufe pro Agent**                                     | Wie viele Läufe ein Agent des Pools höchstens gleichzeitig hält, standardmäßig 1. Jeder Lauf arbeitet in einem eigenen [Agenten-Worker](/de/platform/projects/project-agents#run-one-agent-on-several-tasks).                                  |
+| **Läufe gleichzeitig**                                  | Wie viele Läufe der Pool höchstens gleichzeitig hält, von 1 bis 500. Läufe, die Personen, Automatisierungen und ständige Rollen auf den Agenten des Pools starten, zählen mit; eine ständige Rolle startet zu ihrem Termin auch dann, wenn der Pool voll ist. |
+| **Läufe pro Agent**                                     | Wie viele Läufe ein Agent des Pools höchstens gleichzeitig hält, standardmäßig 1 und nie mehr als **Läufe gleichzeitig**. Jeder Lauf arbeitet in einem eigenen [Agenten-Worker](/de/platform/projects/project-agents#run-one-agent-on-several-tasks). |
 | **Bereite Arbeit aus**                                  | Die Spalten, aus denen bereite Arbeit kommt, **Zu erledigen**, **Backlog** oder beide, in der Reihenfolge, in der du sie aufführst.                                                                                                            |
 | **Nicht zugewiesene Aufgaben**                          | **In Ruhe lassen** oder **Dem Pool geben**: Eine nicht zugewiesene Aufgabe wird dann dem freien Agenten mit dem meisten Platz zugewiesen.                                                                                                      |
 | **Nie gestartete Aufgaben einem freien Agenten geben**  | Eine Aufgabe wartet auf einen beschäftigten Agenten des Pools nur so lange, bis ein anderer frei ist. Eine Aufgabe, die schon gelaufen ist, bleibt bei ihrem Agenten, damit ihr Gespräch und ihre Dateien zusammenbleiben.                     |
@@ -39,13 +39,34 @@ Die Arbeitsverteilung macht einen Durchlauf, sobald sich etwas ändert: Ein Lauf
 
 1. startet die ständigen Rollen, die fällig sind;
 2. zählt die Läufe, die die Agenten des Pools halten, egal wer sie gestartet hat;
-3. lässt einen Agenten in Ruhe, solange das KI-Modell, das er nutzt, [ausgelastet](/de/platform/projects/task-automation#handle-waiting-and-failed-runs) ist;
+3. lässt einen Agenten in Ruhe, solange das KI-Modell, das er nutzt, [ausgelastet](/de/platform/projects/task-automation#handle-waiting-and-failed-runs) ist, und startet Arbeit auf diesem Modell in Wellen, sobald es wieder antwortet;
 4. fragt vor jedem Start den Sandbox-Host und hört auf, wenn der Host ausgelastet ist;
 5. startet die am besten eingeordnete bereite Aufgabe auf ihrem eigenen freien Agenten.
 
 Jeder Start durchläuft dieselben Prüfungen wie ein Start vom Board: Eine Aufgabe mit offenem Blocker wartet, eine Aufgabe nimmt höchstens drei automatische Starts pro Stunde an, und eine Aufgabe läuft nur einmal gleichzeitig. Ein Lauf, den die Arbeitsverteilung gestartet hat, zeigt im Verlauf der Aufgabe **Von der Arbeitsverteilung gestartet** und läuft im Namen des Projekts, nicht einer Person.
 
 Jeder Lauf eines Agenten braucht einen Agenten-Worker. Kann der Pool gleichzeitig mehr Läufe halten, als deine Organisation Agenten-Worker hat, weist **Arbeitsverteilung** darauf hin: Die zusätzlichen Läufe würden nur auf einen freien Worker warten. Inhaber und Admins erhöhen das Limit unter [Sandboxes](/de/platform/admin/sandboxes#das-relevante-limit-erkennen).
+
+## Einen Agenten an Hunderten Aufgaben arbeiten lassen {#limits}
+
+Die Arbeitsverteilung kann einen Agenten an so vielen Aufgaben gleichzeitig beschäftigen, wie deine Organisation Agenten-Worker haben darf: an bis zu 500. Soll der Agent Coder an 256 Aufgaben gleichzeitig arbeiten, nimm Coder als einzigen Agenten in den Pool, setze **Läufe gleichzeitig** und **Läufe pro Agent** auf 256 und gib deiner Organisation unter [Sandboxes](/de/platform/admin/sandboxes#das-relevante-limit-erkennen) mindestens 256 **Agenten-Worker**, soweit das Deployment so viele ausführen kann. Jeder Lauf arbeitet weiterhin in einem eigenen Worker mit eigenem Arbeitsbereich.
+
+| Einstellung                                             | Erlaubte Werte                                                    |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Läufe gleichzeitig**                                  | 1 bis 500                                                         |
+| **Läufe pro Agent**                                     | 1 bis 500, nie mehr als **Läufe gleichzeitig**; standardmäßig 1   |
+| **Agenten im Pool**                                     | Bis zu 50                                                         |
+| **Nur Aufgaben mit Label** / **Nie Aufgaben mit Label** | Jeweils bis zu 20 Labels                                          |
+| **Zeit zwischen Starts (Sekunden)**                     | 0 bis 3.600; standardmäßig 30                                     |
+| **Ausgelasteten Host erneut fragen nach (Sekunden)**    | 1 bis 10 Wartezeiten, jede von 10 bis 3.600                       |
+| **Ständige Rollen**                                     | Bis zu 20                                                         |
+| **Schranken**                                           | Bis zu 10                                                         |
+
+Darf ein Agent mehr Läufe halten als **Läufe gleichzeitig**, wird das Speichern unter **Läufe pro Agent** abgelehnt. Eine Arbeitsverteilung, die vor dieser Regel gespeichert wurde, arbeitet unverändert weiter; das nächste Speichern korrigiert sie.
+
+Wie schnell sich ein großer Pool füllt, hängt von **Zeit zwischen Starts (Sekunden)** ab. Ist eine Zeit gesetzt, startet jeder Durchlauf eine Aufgabe, und der nächste Durchlauf folgt um diese Zeit später. Der 256. Lauf startet also 255-mal diese Zeit nach dem ersten: bei den standardmäßigen 30 Sekunden nach 2 Stunden, 7 Minuten und 30 Sekunden, bei 5 Sekunden nach 21 Minuten und 15 Sekunden. Bei 0 startet ein Durchlauf jede bereite Aufgabe, die der Sandbox-Host zulässt, höchstens zwei Minuten lang, und der nächste Durchlauf macht sofort weiter; ist der Host ausgelastet, bremsen ihn seine Wartezeiten bis zur nächsten Frage. Ein Durchlauf liest bis zu 500 bereite Aufgaben – genug, um den größten Pool zu füllen.
+
+Antwortet ein KI-Modell wieder, nachdem es ausgelastet war, starten die Läufe, die darauf gewartet haben, in Wellen im Abstand von 15 Sekunden: erst ein Lauf, dann zwei, dann vier und so weiter, höchstens ein Sechzehntel von ihnen auf einmal. Auch 256 wartende Läufe haben so nach spätestens fünf Minuten begonnen. Neue Arbeit, die die Arbeitsverteilung auf diesem Modell startet, nimmt genauso zu, damit die bereite Arbeit, die sie zurückgehalten hat, solange das Modell ausgelastet war, das Modell nicht auf einmal erreicht: ein Lauf, sobald das Modell wieder antwortet, zwei weitere 15 Sekunden später, dann vier, acht und sechzehn und danach bis zu 32 alle 15 Sekunden. Dabei zählt jeder Lauf, der seither auf dem Modell gestartet wurde, egal wer ihn gestartet hat. Ein Pool von 256 Läufen auf diesem Modell ist so nach spätestens drei Minuten gefüllt; nach fünf Minuten ist der Anlauf vorbei. Ist **Zeit zwischen Starts (Sekunden)** langsamer als dieser Anlauf, gilt sie weiterhin.
 
 ## Ständige Rollen nach Zeitplan ausführen
 
@@ -76,11 +97,13 @@ Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/dev
 | **Sein Modell ist ausgelastet**                  | Der Anbieter hat das Modell des Agenten als ausgelastet gemeldet; der Agent nimmt wieder Arbeit an, sobald das Modell antwortet. |
 | **Der Sandbox-Host ist ausgelastet**             | Der Host hat den letzten Start zurückgehalten; die Arbeitsverteilung fragt nach ihren Wartezeiten erneut.                        |
 | **Alle Agenten-Worker sind belegt**              | Jeder Agenten-Worker deiner Organisation ist beschäftigt.                                                                        |
-| **Wartet zwischen Starts**                       | Der letzte Durchlauf hat einen Lauf gestartet und wartet die Zeit zwischen Starts ab.                                            |
+| **Wartet zwischen Starts**                       | Der nächste Start wartet: auf die Zeit zwischen Starts, auf die nächste Welle eines Modells, das wieder antwortet, oder auf den nächsten Durchlauf, der sofort folgt, wenn einem Durchlauf die Zeit ausging. |
 | **Eine Schranke hält die bereite Arbeit zurück** | Die Arbeit, die für diesen Agenten übrig ist, hält eine Schranke zurück.                                                         |
 | **Keine bereite Arbeit**                         | Keine Aufgabe in den gewählten Spalten ist für diesen Agenten bereit.                                                            |
 | **Arbeitsverteilung ist aus**                    | Die Arbeitsverteilung oder die Aufgabenautomatisierung deiner Organisation ist ausgeschaltet.                                    |
 | **Noch kein Durchlauf**                          | Die Arbeitsverteilung hat seit der Aufnahme des Agenten in den Pool noch keinen Durchlauf gemacht.                               |
+
+Hält ein Agent mehr als fünf Läufe, zeigt die Seite, wie viele es sind – **Läuft**, **In der Warteschlange** und jeden Grund, aus dem seine Läufe warten, etwa **Wartet auf Modellkapazität** –, und dazu seine ersten fünf Läufe, die ältesten zuerst. Eine Schaltfläche wie **45 weitere Läufe zeigen** listet bis zu 50 davon auf; darüber hinaus nennt die Seite, wie viele weitere hier nicht aufgeführt sind. Die [REST-API](/de/develop/api-reference#dispatch) zählt und listet sie auf dieselbe Weise.
 
 **Letzte Durchläufe** zeigt die letzten 20 Durchläufe: wann, was sie ausgelöst hat, wie viele Läufe sie gestartet und zurückgehalten haben und warum sie aufgehört haben. **Jetzt einen Durchlauf starten** löst sofort einen aus. Eine selbst betriebene Bereitstellung kann alarmieren, wenn eine Arbeitsverteilung keine Durchläufe mehr macht; [Prometheus und Grafana](/de/self-hosted/operate/observability/prometheus-grafana) zeigt die Regel.
 

@@ -1,5 +1,12 @@
+import {
+  sandboxQuotaConfigSchema,
+  SANDBOX_SESSION_BUDGET_MAX,
+} from '@tale/shared/schemas/governance';
 import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
-import { projectDispatchSchema } from '@tale/shared/schemas/project-dispatch';
+import {
+  DISPATCH_RUNS_MAX,
+  projectDispatchSchema,
+} from '@tale/shared/schemas/project-dispatch';
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -364,5 +371,77 @@ describe('a declaration whose dispatch would be refused writes nothing [TASK-R61
       }),
     ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
     expect(writes()).toEqual([]);
+  });
+});
+
+describe('a dispatch holds up to 500 runs, one agent at most as many as the pool [TASK-R62]', () => {
+  const coder: ProjectDispatch = {
+    enabled: true,
+    agents: ['coder'],
+    maxConcurrentRuns: 256,
+    perAgentConcurrency: 256,
+    statuses: ['todo'],
+    assignment: 'pool',
+  };
+
+  it('takes as many runs at once, and per agent, as an organization may have agent workers', () => {
+    expect(DISPATCH_RUNS_MAX).toBe(500);
+    expect(DISPATCH_RUNS_MAX).toBe(SANDBOX_SESSION_BUDGET_MAX);
+    expect(
+      sandboxQuotaConfigSchema.safeParse({ maxSessionsPerOrg: 500 }).success,
+    ).toBe(true);
+    expect(
+      sandboxQuotaConfigSchema.safeParse({ maxSessionsPerOrg: 501 }).success,
+    ).toBe(false);
+    expect(projectDispatchSchema.safeParse(coder).success).toBe(true);
+    expect(
+      projectDispatchSchema.safeParse({
+        ...coder,
+        maxConcurrentRuns: 500,
+        perAgentConcurrency: 500,
+      }).success,
+    ).toBe(true);
+    for (const field of ['maxConcurrentRuns', 'perAgentConcurrency']) {
+      expect(
+        projectDispatchSchema.safeParse({
+          ...coder,
+          maxConcurrentRuns: 500,
+          [field]: 501,
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('refuses one agent holding more runs than the whole pool, naming runs per agent', () => {
+    const refused = projectDispatchSchema.safeParse({
+      ...coder,
+      maxConcurrentRuns: 200,
+    });
+    expect(refused.error?.issues).toMatchObject([
+      { path: ['perAgentConcurrency'] },
+    ]);
+    // Left out, an agent holds one run: never more than the pool.
+    const { perAgentConcurrency: _perAgent, ...lean } = coder;
+    expect(
+      projectDispatchSchema.safeParse({ ...lean, maxConcurrentRuns: 1 })
+        .success,
+    ).toBe(true);
+  });
+
+  it('still reads and starts a dispatch saved before the rule, whose agent holds more than the pool', async () => {
+    const saved = { ...coder, maxConcurrentRuns: 2, perAgentConcurrency: 5 };
+    const query = (strings: TemplateStringsArray) =>
+      Promise.resolve(
+        strings.join('?').includes('FROM app.project_dispatch')
+          ? [{ config: saved, updatedAt: 1, updatedBy: 'ada' }]
+          : [],
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reader uses only the tagged template; one row models the stored document
+    const sql = query as unknown as TransactionSql;
+    await expect(readStoredDispatch(sql, 'org-1', 'p-1')).resolves.toEqual({
+      config: saved,
+      updatedAt: 1,
+      updatedBy: 'ada',
+    });
   });
 });

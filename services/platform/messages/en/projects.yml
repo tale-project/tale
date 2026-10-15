@@ -482,6 +482,10 @@ dispatch:
     emptyEditor: No agent is in the pool yet. Choose agents under Edit.
     running: Running
     queued: Queued
+    runCount: '{label}: {count, number}'
+    showMore: '{count, plural, one {Show # more run} other {Show # more runs}}'
+    showFewer: Show fewer runs
+    notListed: '{count, plural, one {# more run is not listed here} other {# more runs are not listed here}}'
   idle:
     model_capacity: Its model is at capacity
     host_pressure: The sandbox host is busy
@@ -563,6 +567,8 @@ dispatch:
       host_pressure: The sandbox host is busy
       pacing: Waiting between starts
       gated: A gate holds the ready work
+      budget: It ran out of time; the next pass goes on at once
+      model_ramp: A model that answered again takes work in waves
       started: It started work
       held: Every start was refused
   editor:
@@ -658,6 +664,7 @@ dispatch:
       number: Enter a number.
       recoverWithoutHold: Set Hold at first.
       recoverAboveHold: This must not be above Hold at.
+      perAgentAboveRuns: This must not be above Runs at once.
     issues:
       agent: An agent of this pool no longer works in this project. Remove it, then save again.
       roleAgent: This agent no longer works in this project.

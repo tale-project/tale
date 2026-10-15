@@ -20,6 +20,7 @@ import {
 const TEXT: DispatchFormText = {
   maxConcurrentRuns: 'runs',
   perAgentConcurrency: 'per agent',
+  perAgentAboveRuns: 'per agent above runs',
   startSpacing: 'spacing',
   recheck: 'recheck',
   agentsMax: 'agents max',
@@ -115,7 +116,11 @@ describe('the Dispatch editor form', () => {
     // An organization without workers still starts from one run at once.
     expect(toFormValues(null, { workersLimit: 0 }).maxConcurrentRuns).toBe('1');
     expect(toFormValues(null, { workersLimit: 400 }).maxConcurrentRuns).toBe(
-      '100',
+      '400',
+    );
+    // Never more than a dispatch may hold.
+    expect(toFormValues(null, { workersLimit: 600 }).maxConcurrentRuns).toBe(
+      '500',
     );
   });
 
@@ -210,7 +215,7 @@ describe('what the Dispatch editor checks before it saves', () => {
   it('refuses limits out of their range', () => {
     const draft = values(SPARSE);
     draft.maxConcurrentRuns = '0';
-    draft.perAgentConcurrency = '6';
+    draft.perAgentConcurrency = '501';
     draft.admission.startSpacingSeconds = '';
     draft.admission.recheckSeconds = '5, 60';
     expect(issuesOf(draft)).toEqual([
@@ -219,7 +224,7 @@ describe('what the Dispatch editor checks before it saves', () => {
       { path: 'admission.startSpacingSeconds', message: 'spacing' },
       { path: 'admission.recheckSeconds', message: 'recheck' },
     ]);
-    draft.maxConcurrentRuns = '101';
+    draft.maxConcurrentRuns = '501';
     draft.perAgentConcurrency = '2.5';
     expect(issuesOf(draft).map((issue) => issue.path)).toContain(
       'maxConcurrentRuns',
@@ -227,6 +232,35 @@ describe('what the Dispatch editor checks before it saves', () => {
     expect(issuesOf(draft).map((issue) => issue.path)).toContain(
       'perAgentConcurrency',
     );
+  });
+
+  it('takes one agent on as many runs as the pool holds, up to 500', () => {
+    const draft = values(SPARSE);
+    draft.agents = ['agent-coder'];
+    draft.maxConcurrentRuns = '256';
+    draft.perAgentConcurrency = '256';
+    expect(issuesOf(draft)).toEqual([]);
+    draft.maxConcurrentRuns = '500';
+    draft.perAgentConcurrency = '500';
+    expect(issuesOf(draft)).toEqual([]);
+    expect(toDispatch(draft, null)).toMatchObject({
+      maxConcurrentRuns: 500,
+      perAgentConcurrency: 500,
+    });
+  });
+
+  it('refuses one agent holding more runs than the whole pool, under runs per agent', () => {
+    const draft = values(SPARSE);
+    draft.maxConcurrentRuns = '200';
+    draft.perAgentConcurrency = '256';
+    expect(issuesOf(draft)).toEqual([
+      { path: 'perAgentConcurrency', message: 'per agent above runs' },
+    ]);
+    // A number out of its own range is named once, by its own check.
+    draft.maxConcurrentRuns = '0';
+    expect(issuesOf(draft)).toEqual([
+      { path: 'maxConcurrentRuns', message: 'runs' },
+    ]);
   });
 
   it('refuses a standing role without its agent, task, schedule or zone', () => {

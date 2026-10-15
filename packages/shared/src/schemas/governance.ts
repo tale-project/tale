@@ -150,6 +150,11 @@ const taskAutomationConfigSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
+/** The most sessions one budget of an organization may hold: the ceiling of
+ * every budget of `sandboxQuotaConfigSchema`, and so of the agent workers a
+ * project's dispatch can keep busy (`DISPATCH_RUNS_MAX` is this number). */
+export const SANDBOX_SESSION_BUDGET_MAX = 500;
+
 /**
  * Per-org sandbox SESSION budgets. Missing row ⇒ these schema defaults.
  *
@@ -167,16 +172,31 @@ export const sandboxQuotaConfigSchema = z.object({
    * stays for shipped-config compatibility. The other workloads have their
    * own separate budgets below so they never compete for one pool.
    */
-  maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  maxSessionsPerOrg: z
+    .number()
+    .int()
+    .min(1)
+    .max(SANDBOX_SESSION_BUDGET_MAX)
+    .default(2),
   /** Max concurrently-active per-**workflow-run** sandbox sessions. */
-  maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  maxWorkflowSessionsPerOrg: z
+    .number()
+    .int()
+    .min(1)
+    .max(SANDBOX_SESSION_BUDGET_MAX)
+    .default(2),
   /**
    * Max concurrently-active crawler **render** sessions (headless-Chromium
    * document/page rendering). Isolated in its own budget so heavy crawling can't
    * starve interactive agent/run_code sessions — the session-model replacement
    * for the old one-shot render pool.
    */
-  maxRenderSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  maxRenderSessionsPerOrg: z
+    .number()
+    .int()
+    .min(1)
+    .max(SANDBOX_SESSION_BUDGET_MAX)
+    .default(2),
   /**
    * Max concurrently-active **light** sandboxes: the small throwaway sessions
    * a chat runs code in to make documents and charts. Each lives for one
@@ -184,7 +204,12 @@ export const sandboxQuotaConfigSchema = z.object({
    * use, and an idle one gives way when the organization needs the room for
    * another conversation, so a handful serves many people.
    */
-  maxLightSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  maxLightSessionsPerOrg: z
+    .number()
+    .int()
+    .min(1)
+    .max(SANDBOX_SESSION_BUDGET_MAX)
+    .default(2),
 });
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =

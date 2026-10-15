@@ -18,6 +18,7 @@ import {
   DISPATCH_LABELS_MAX,
   DISPATCH_POOL_MAX,
   DISPATCH_ROLE_BRIEF_MAX,
+  DISPATCH_RUNS_MAX,
   DISPATCH_STANDING_ROLES_MAX,
 } from '@tale/shared/schemas/project-dispatch';
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
@@ -70,8 +71,6 @@ import {
 import { useProjectAgents } from '../hooks/queries';
 import {
   DISPATCH_ROLE_MODE_MAX,
-  DISPATCH_RUNS_MAX,
-  DISPATCH_RUNS_PER_AGENT_MAX,
   type DispatchFormValues,
   type DispatchIssueKind,
   dispatchFormSchema,
@@ -199,8 +198,9 @@ function DispatchEditorDialog({
         }),
         perAgentConcurrency: t('dispatch.editor.validation.wholeNumber', {
           min: 1,
-          max: DISPATCH_RUNS_PER_AGENT_MAX,
+          max: DISPATCH_RUNS_MAX,
         }),
+        perAgentAboveRuns: t('dispatch.editor.validation.perAgentAboveRuns'),
         startSpacing: t('dispatch.editor.validation.wholeNumber', {
           min: 0,
           max: 3_600,
@@ -624,7 +624,7 @@ function DispatchFields({
             type="number"
             inputMode="numeric"
             min={1}
-            max={DISPATCH_RUNS_PER_AGENT_MAX}
+            max={DISPATCH_RUNS_MAX}
             label={t('dispatch.editor.perAgentConcurrency')}
             description={t('dispatch.editor.perAgentConcurrencyHint')}
             errorMessage={errors.perAgentConcurrency?.message}

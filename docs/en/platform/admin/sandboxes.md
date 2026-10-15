@@ -14,7 +14,7 @@ Open **Settings > Sandboxes** when agent work, chat or crawling cannot obtain an
 | **Render sessions** | 2 | A temporary sandbox rendering pages during website crawling. |
 | **Light sandboxes** | 2 | A short-lived sandbox in which the chat assistant runs code for one conversation, or the standard agent for one task run. An idle one gives way to the next request; see [Light sandboxes for chat and tasks](#light-sandboxes). |
 
-These are concurrency limits, not a count of tasks or a spending budget. An agent working three tasks at once holds three agent workers; a run that finds them all busy [waits for one](#resolve-a-blocked-start) and starts on its own when one is free. Under **Agent workers**, Owners and Admins see how many agent runs are waiting for a free worker: the runs a higher limit would start now. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
+These are concurrency limits, not a count of tasks or a spending budget. An agent working three tasks at once holds three agent workers; a run that finds them all busy [waits for one](#resolve-a-blocked-start) and starts on its own when one is free. Under **Agent workers**, Owners and Admins see how many agent runs are waiting for a free worker: the runs a higher limit would start now. A project's [dispatch](/platform/projects/dispatch#limits) may hold up to 500 runs at once, as many as this limit can allow, but starts no more than the agent workers left free. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
 
 <Frame caption="The workload limits add up automatically. Their total must fit within the deployment capacity.">
 

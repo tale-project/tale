@@ -500,6 +500,10 @@ dispatch:
     emptyEditor: Aucun agent n’est encore dans le pool. Choisis des agents sous Modifier.
     running: En cours
     queued: En file d’attente
+    runCount: '{label} : {count, number}'
+    showMore: '{count, plural, one {Afficher # exécution de plus} other {Afficher # exécutions de plus}}'
+    showFewer: Afficher moins d’exécutions
+    notListed: '{count, plural, one {# autre exécution n’est pas listée ici} other {# autres exécutions ne sont pas listées ici}}'
   idle:
     model_capacity: Son modèle est saturé
     host_pressure: L’hôte des sandbox est occupé
@@ -581,6 +585,8 @@ dispatch:
       host_pressure: L’hôte des sandbox est occupé
       pacing: Attend entre deux démarrages
       gated: Une barrière retient le travail prêt
+      budget: Son temps était écoulé ; le passage suivant a lieu aussitôt
+      model_ramp: Un modèle qui répond de nouveau prend le travail par vagues
       started: Il a lancé du travail
       held: Chaque démarrage a été refusé
   editor:
@@ -676,6 +682,7 @@ dispatch:
       number: Saisis un nombre.
       recoverWithoutHold: Fixe d’abord Fermer à partir de.
       recoverAboveHold: Cette valeur ne doit pas dépasser Fermer à partir de.
+      perAgentAboveRuns: Cette valeur ne doit pas dépasser Exécutions simultanées.
     issues:
       agent: Un agent de ce pool ne travaille plus dans ce projet. Retire-le, puis enregistre de nouveau.
       roleAgent: Cet agent ne travaille plus dans ce projet.

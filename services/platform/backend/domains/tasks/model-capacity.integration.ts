@@ -21,8 +21,11 @@ import { admitAutomatedStart } from './delegated-start.ts';
 import { loadTaskRetryHistory, resolveTaskKickStartArgs } from './kick-plan.ts';
 import {
   MODEL_CAPACITY_MAX_WAIT_MS,
+  MODEL_CAPACITY_WAKE_SPACING_MS,
+  modelCapacityKey,
   PARKED_ON_HELD_MODEL_SQL,
   readModelCapacityHold,
+  readModelCapacityRamps,
 } from './model-capacity-holds.ts';
 
 export async function checkModelCapacityRetry(
@@ -229,6 +232,7 @@ export async function checkModelCapacityRetry(
     // A run on the model that settles proves it answers: the hold goes and
     // the parked retry is woken.
     const answered = await addRun(otherTaskId);
+    const settling = Date.now();
     const settled = await settleAgentRun(sql, {
       runId: answered.runId,
       execId: answered.execId,
@@ -239,10 +243,23 @@ export async function checkModelCapacityRetry(
       SELECT count(*)::int AS n FROM pgboss.job
       WHERE name = 'task.agent_park_wake' AND data ->> 'runId' = ${kicked.runId}
     `;
+    // New work on the model ramps up from the clear: the one run its first
+    // wave lets through has not started yet.
+    const ramps = await readModelCapacityRamps(sql, {
+      organizationId: orgId,
+      now: Date.now(),
+    });
+    const ramp = ramps.get(modelCapacityKey(key));
     record(
-      'model capacity: a run that settles on the model clears its hold and wakes the runs parked on it [TASK-R40]',
-      settled && cleared === null && (wakes[0]?.n ?? 0) >= 2,
-      `settled=${settled} cleared=${JSON.stringify(cleared)} wakes=${wakes[0]?.n}`,
+      'model capacity: a run that settles on the model clears its hold, wakes the runs parked on it and starts its ramp [TASK-R40] [TASK-R43]',
+      settled &&
+        cleared === null &&
+        (wakes[0]?.n ?? 0) >= 2 &&
+        ramp !== undefined &&
+        ramp.room === 1 &&
+        ramp.nextWaveAtMs >= settling + MODEL_CAPACITY_WAKE_SPACING_MS &&
+        ramp.nextWaveAtMs <= Date.now() + MODEL_CAPACITY_WAKE_SPACING_MS,
+      `settled=${settled} cleared=${JSON.stringify(cleared)} wakes=${wakes[0]?.n} ramp=${JSON.stringify(ramp)}`,
     );
 
     // A model at capacity for twelve hours is no longer waited for.
@@ -287,6 +304,10 @@ export async function checkModelCapacityRetry(
       `;
       await tx`
         DELETE FROM app.model_capacity_holds
+        WHERE org_id = ${orgId} AND model = ${model}
+      `;
+      await tx`
+        DELETE FROM app.model_capacity_recoveries
         WHERE org_id = ${orgId} AND model = ${model}
       `;
     });

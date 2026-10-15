@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { timeZoneSchema } from './automation-trigger';
+import { SANDBOX_SESSION_BUDGET_MAX } from './governance';
 
 /**
  * A project's dispatch — the one zod source of its shape. Dispatch keeps a
@@ -45,6 +46,15 @@ export type DispatchAdmissionPreset =
 
 /** As many agents as a project may have. */
 export const DISPATCH_POOL_MAX = 50;
+/**
+ * The most runs a dispatch may hold at once, and one agent of its pool: as
+ * many as an organization may ever have agent workers (the sandbox quota's
+ * ceiling, `SANDBOX_SESSION_BUDGET_MAX`), since every run works in a worker
+ * of its own. One agent can so be kept on every worker an organization may
+ * have; what it gets is still bounded by the organization's own budget and
+ * the deployment's `SANDBOX_MAX_SESSIONS`.
+ */
+export const DISPATCH_RUNS_MAX = SANDBOX_SESSION_BUDGET_MAX;
 export const DISPATCH_STANDING_ROLES_MAX = 20;
 export const DISPATCH_ROLE_BRIEF_MAX = 4_000;
 export const DISPATCH_LABELS_MAX = 20;
@@ -202,7 +212,7 @@ export const projectDispatchAdmissionSchema = z.strictObject({
     .optional(),
 });
 
-export const projectDispatchSchema = z
+const projectDispatchDocumentSchema = z
   .strictObject({
     enabled: z.boolean(),
     /** The pool: the project's agents dispatch starts on ready work. */
@@ -212,9 +222,15 @@ export const projectDispatchSchema = z
       .refine(unique, 'An agent appears in the pool once.'),
     /** The most runs the pool's agents hold at once, whoever started them;
      * a standing role still starts on its schedule when the pool is full. */
-    maxConcurrentRuns: z.number().int().min(1).max(100),
-    /** The most runs one agent of the pool holds at once (default 1). */
-    perAgentConcurrency: z.number().int().min(1).max(5).optional(),
+    maxConcurrentRuns: z.number().int().min(1).max(DISPATCH_RUNS_MAX),
+    /** The most runs one agent of the pool holds at once (default 1); a
+     * write keeps it at most `maxConcurrentRuns`. */
+    perAgentConcurrency: z
+      .number()
+      .int()
+      .min(1)
+      .max(DISPATCH_RUNS_MAX)
+      .optional(),
     /** The columns ready work is taken from, in this order of preference. */
     statuses: z
       .array(z.enum(DISPATCH_STATUSES))
@@ -268,6 +284,35 @@ export const projectDispatchSchema = z
       gates.add(gate.key);
     }
   });
+
+/**
+ * A dispatch as it is stored and read back: what the pass, the readbacks and
+ * an operator's observation parse. It holds every rule of a write but the
+ * one a dispatch stored before it existed may break — an agent that holds
+ * more runs than the whole pool — so such a dispatch keeps reading and
+ * starting work (the pool's limit binds first) until its next write names
+ * both coherently.
+ */
+export const storedProjectDispatchSchema = projectDispatchDocumentSchema;
+
+/**
+ * A project's dispatch as a write declares it: the app's editor, the
+ * settings tools and managed configuration. Beyond the stored shape, one
+ * agent of the pool holds at most as many runs as the whole pool.
+ */
+export const projectDispatchSchema = projectDispatchDocumentSchema.superRefine(
+  (value, ctx) => {
+    const perAgent =
+      value.perAgentConcurrency ?? DISPATCH_DEFAULTS.perAgentConcurrency;
+    if (perAgent > value.maxConcurrentRuns) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['perAgentConcurrency'],
+        message: `An agent holds at most as many runs as the pool (${value.maxConcurrentRuns}).`,
+      });
+    }
+  },
+);
 export type ProjectDispatch = z.infer<typeof projectDispatchSchema>;
 
 /** The admission settings a reader works with: the declared ones, and the
@@ -305,10 +350,41 @@ export const DISPATCH_IDLE_REASONS = [
 ] as const;
 export type DispatchIdleReason = (typeof DISPATCH_IDLE_REASONS)[number];
 
+/** The runs the readback lists for one agent of the pool, oldest first: an
+ * agent kept on hundreds of tasks reads in one small answer, and its
+ * `runCounts` count every run it holds. */
+export const DISPATCH_RUNS_LISTED = 50;
+
+/** One run an agent of the pool holds, as the readback lists it. */
+export const dispatchAgentRunSchema = z.object({
+  runId: z.string(),
+  taskId: z.string(),
+  taskNumber: z.number().nullable(),
+  taskTitle: z.string(),
+  status: z.enum(['queued', 'running']),
+  /** Why the run waits instead of working, while it does. */
+  waitingReason: z.string().nullable(),
+});
+export type DispatchAgentRun = z.infer<typeof dispatchAgentRunSchema>;
+
+/** Every run an agent of the pool holds, by what it does: working, queued
+ * to take a worker, and waiting, by why — the reasons a run's
+ * `waitingReason` names (`org_limit`, `host`, `model_capacity`, …). */
+export const dispatchAgentRunCountsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  waiting: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type DispatchAgentRunCounts = z.infer<
+  typeof dispatchAgentRunCountsSchema
+>;
+
 /**
  * What a project's dispatch is doing, as the app's Dispatch page, the REST
  * door (`GET /api/v1/projects/{id}/dispatch`) and an operator's watcher
- * read it: every agent of the pool with what it works on or why it is idle,
+ * read it: every agent of the pool with how many runs it holds, by what they
+ * do, the oldest of them, or why it is idle,
  * the standing roles with their next and last occurrence, the models it
  * waits on, its gates, the organization's agent workers against the pool,
  * and its recent passes.
@@ -318,7 +394,7 @@ export const projectDispatchStatusSchema = z.object({
   /** A dispatch is stored, in a shape this version cannot read (a newer
    * version wrote it): it starts nothing, and is kept as it is. */
   unreadable: z.boolean(),
-  config: projectDispatchSchema.nullable(),
+  config: storedProjectDispatchSchema.nullable(),
   /** The managed configuration hash of the stored document. */
   hash: z.string().nullable(),
   /** The reader may change the dispatch. */
@@ -337,17 +413,10 @@ export const projectDispatchStatusSchema = z.object({
       name: z.string(),
       model: z.string(),
       modelProvider: z.string().nullable(),
-      runs: z.array(
-        z.object({
-          runId: z.string(),
-          taskId: z.string(),
-          taskNumber: z.number().nullable(),
-          taskTitle: z.string(),
-          status: z.enum(['queued', 'running']),
-          /** Why the run waits instead of working, while it does. */
-          waitingReason: z.string().nullable(),
-        }),
-      ),
+      /** The runs it holds, oldest first: at most
+       * {@link DISPATCH_RUNS_LISTED}; `runCounts` counts them all. */
+      runs: z.array(dispatchAgentRunSchema).max(DISPATCH_RUNS_LISTED),
+      runCounts: dispatchAgentRunCountsSchema,
       /** Runs it may hold at once. */
       capacity: z.number(),
       /** Its model is at capacity until then. */

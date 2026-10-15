@@ -1,5 +1,8 @@
 import {
   DISPATCH_DEFAULTS,
+  DISPATCH_RUNS_LISTED,
+  type DispatchAgentRun,
+  type DispatchAgentRunCounts,
   type DispatchIdleReason,
   type ProjectDispatchStatus,
 } from '@tale/shared/schemas/project-dispatch';
@@ -29,7 +32,8 @@ import { listModelCapacityHolds } from './model-capacity-holds.ts';
 
 /**
  * What a project's dispatch is doing, for the people who read the project:
- * every agent of its pool with what it works on or why it is idle, its
+ * every agent of its pool with how many runs it holds by what they do, the
+ * oldest of them (at most `DISPATCH_RUNS_LISTED`), or why it is idle, its
  * standing roles with their next and last occurrence, the models it waits
  * on, the organization's agent workers against the pool, and its recent
  * passes. The answer to "why is this agent idle" is read here, from the run
@@ -39,8 +43,7 @@ import { listModelCapacityHolds } from './model-capacity-holds.ts';
 /** Why an agent of the pool works on nothing now. */
 export type DispatchAgentIdleReason = DispatchIdleReason;
 export type DispatchPoolAgent = ProjectDispatchStatus['pool'][number];
-export type DispatchAgentRun = DispatchPoolAgent['runs'][number];
-export type { ProjectDispatchStatus };
+export type { DispatchAgentRun, ProjectDispatchStatus };
 
 const PASSES_SHOWN = 20;
 
@@ -117,26 +120,51 @@ export async function readProjectDispatchStatus(
             AND id = ANY(${agentIds})
         `;
   const agentById = new Map(agents.map((agent) => [agent.id, agent]));
+  // Every live run of the agents, counted by what it does; and the oldest
+  // of each agent's, listed: an agent kept on hundreds of tasks reads in one
+  // small answer.
+  const tallies =
+    agentIds.length === 0
+      ? []
+      : await sql<RunTally[]>`
+          SELECT r.agent_id AS "agentId", r.status,
+                 r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+                 r.waiting_reason AS reason, count(*)::int AS count
+          FROM app.project_agent_runs r
+          WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+            AND r.agent_id = ANY(${agentIds})
+            AND r.status IN ('queued', 'running')
+          GROUP BY r.agent_id, r.status, parked, r.waiting_reason
+        `;
   const runs =
     agentIds.length === 0
       ? []
       : await sql<
-          (DispatchAgentRun & {
+          (Omit<DispatchAgentRun, 'waitingReason'> & {
             agentId: string;
             parked: boolean;
             reason: string | null;
           })[]
         >`
-          SELECT r.id AS "runId", r.task_id AS "taskId", r.agent_id AS "agentId",
-                 t.number AS "taskNumber", t.title AS "taskTitle", r.status,
-                 r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
-                 r.waiting_reason AS reason
-          FROM app.project_agent_runs r
-          JOIN app.tasks t ON t.id = r.task_id
-          WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
-            AND r.agent_id = ANY(${agentIds})
-            AND r.status IN ('queued', 'running')
-          ORDER BY r.started_at_ms
+          SELECT listed."runId", listed."taskId", listed."agentId",
+                 t.number AS "taskNumber", t.title AS "taskTitle",
+                 listed.status, listed.parked, listed.reason
+          FROM (
+            SELECT r.id AS "runId", r.task_id AS "taskId",
+                   r.agent_id AS "agentId", r.status,
+                   r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+                   r.waiting_reason AS reason,
+                   row_number() OVER (
+                     PARTITION BY r.agent_id ORDER BY r.started_at_ms, r.id
+                   ) AS place
+            FROM app.project_agent_runs r
+            WHERE r.org_id = ${organizationId} AND r.project_id = ${projectId}
+              AND r.agent_id = ANY(${agentIds})
+              AND r.status IN ('queued', 'running')
+          ) listed
+          JOIN app.tasks t ON t.id = listed."taskId"
+          WHERE listed.place <= ${DISPATCH_RUNS_LISTED}
+          ORDER BY listed."agentId", listed.place
         `;
   const runsByAgent = new Map<string, DispatchAgentRun[]>();
   for (const run of runs) {
@@ -147,15 +175,11 @@ export async function readProjectDispatchStatus(
       taskNumber: run.taskNumber,
       taskTitle: run.taskTitle,
       status: run.status,
-      waitingReason:
-        run.parked && isAgentRunWaitingReason(run.reason)
-          ? run.reason
-          : run.parked
-            ? 'unknown'
-            : null,
+      waitingReason: runWaitingReason(run),
     });
     runsByAgent.set(run.agentId, list);
   }
+  const countsByAgent = countRunsByAgent(tallies);
   const heldUntilOf = (agent: {
     model: string;
     modelProvider: string | null;
@@ -171,6 +195,7 @@ export async function readProjectDispatchStatus(
     const agent = agentById.get(agentId);
     if (agent === undefined) return [];
     const agentRuns = runsByAgent.get(agentId) ?? [];
+    const runCounts = countsByAgent.get(agentId) ?? emptyRunCounts();
     const heldUntil = heldUntilOf(agent);
     return [
       {
@@ -179,10 +204,11 @@ export async function readProjectDispatchStatus(
         model: agent.model,
         modelProvider: agent.modelProvider,
         runs: agentRuns,
+        runCounts,
         capacity: perAgent,
         modelHeldUntil: heldUntil,
         idle:
-          agentRuns.length > 0
+          runCounts.total > 0
             ? null
             : idleReason({
                 enabled: config.enabled,
@@ -323,6 +349,52 @@ function holdView(hold: {
   };
 }
 
+/** One group of an agent's live runs: its status, whether it waits, why,
+ * and how many runs share all three. */
+export interface RunTally {
+  agentId: string;
+  status: 'queued' | 'running';
+  parked: boolean;
+  reason: string | null;
+  count: number;
+}
+
+/** Why a live run waits instead of working: null while it does not, its
+ * stored reason when this version knows it, else `unknown`. */
+function runWaitingReason(run: {
+  parked: boolean;
+  reason: string | null;
+}): string | null {
+  if (!run.parked) return null;
+  return isAgentRunWaitingReason(run.reason) ? run.reason : 'unknown';
+}
+
+function emptyRunCounts(): DispatchAgentRunCounts {
+  return { total: 0, running: 0, queued: 0, waiting: {} };
+}
+
+/** Each agent's live runs counted by what they do: working, queued to take
+ * a worker, or waiting, by why — the same reason the listed run shows. */
+export function countRunsByAgent(
+  tallies: readonly RunTally[],
+): Map<string, DispatchAgentRunCounts> {
+  const counts = new Map<string, DispatchAgentRunCounts>();
+  for (const tally of tallies) {
+    const agent = counts.get(tally.agentId) ?? emptyRunCounts();
+    agent.total += tally.count;
+    const waiting = runWaitingReason(tally);
+    if (tally.status === 'running') {
+      agent.running += tally.count;
+    } else if (waiting === null) {
+      agent.queued += tally.count;
+    } else {
+      agent.waiting[waiting] = (agent.waiting[waiting] ?? 0) + tally.count;
+    }
+    counts.set(tally.agentId, agent);
+  }
+  return counts;
+}
+
 /** Why an agent with no run is idle, from its model's hold and the last
  * pass's stop. */
 export function idleReason(args: {
@@ -337,7 +409,12 @@ export function idleReason(args: {
       return 'host_pressure';
     case 'org_limit':
       return 'org_limit';
+    // Waiting for the next start: the spacing, the next wave of a model
+    // that answered again, or the pass that goes on at once after one ran
+    // out of time.
     case 'pacing':
+    case 'model_ramp':
+    case 'budget':
       return 'pacing';
     case 'gated':
       return 'gated';
