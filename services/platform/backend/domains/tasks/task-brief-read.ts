@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import type { TaskBriefFacts } from '../../../lib/agent/task-brief.ts';
 import { cutTaskText, relabelTaskMentions } from '../../core/tasks/mentions.ts';
 import { currentMentionNames } from '../collab/mention-directory.ts';
+import { readAgentTaskLabels } from './agent-labels.ts';
 
 /**
  * What an agent turn is told about the task it works on, read from the
@@ -94,16 +95,14 @@ export async function readTaskBrief(
       LIMIT ${BRIEF_DISCUSSION_LIMIT}
     ) tail ORDER BY "createdAt"
   `;
+  // The labels as every agent-facing read names them — the task's
+  // `task_find` row and its `task_get` read alike [TASK-R83].
   const labelNames =
-    task.labelIds.length > 0
-      ? (
-          await sql<{ name: string }[]>`
-            SELECT name FROM app.task_labels
-            WHERE id = ANY(${task.labelIds})
-            ORDER BY array_position(${task.labelIds}::text[], id)
-          `
-        ).map((row) => row.name)
-      : [];
+    (
+      await readAgentTaskLabels(sql, task.organizationId, [
+        { id: taskId, projectId: task.projectId, labelIds: task.labelIds },
+      ])
+    ).get(taskId) ?? [];
   // The agent reads each mention with the CURRENT name of whoever it
   // names: the address is what it acts on, the name what it calls them.
   const names = await currentMentionNames(sql, task.organizationId, [

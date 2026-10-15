@@ -9,9 +9,10 @@ interface AgentLabelledTask {
 }
 
 /**
- * The labels an agent reads on a task (`task_find`'s rows and `task_get`'s
- * task): each name as its project's catalog spells it, sorted without regard
- * to case, `[]` for a task that wears none. A team steers its agents with
+ * The labels an agent reads on a task (`task_find`'s rows, `task_get`'s task
+ * and the brief a run of the task opens with, `task-brief-read.ts`): each
+ * name as its project's catalog spells it, sorted without regard to case,
+ * `[]` for a task that wears none. A team steers its agents with
  * labels — one that holds a task back, one that waits for a person — and an
  * agent that cannot read them cannot honour them.
  *
