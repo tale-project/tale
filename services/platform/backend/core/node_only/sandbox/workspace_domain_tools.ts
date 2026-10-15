@@ -187,12 +187,19 @@ export function toolResultFromError(error: unknown): ToolResult {
 type ProjectLabel = { name: string; key?: string };
 
 /** The compact task shape the list/read tools answer with — identity, board
- * position, the external-sync key, and the schedule and repeat rule when the
- * row carries them; `description` only on `task_get`. */
+ * position, the label names, the external-sync key, and the schedule and
+ * repeat rule when the row carries them; `description` only on `task_get`. */
 function compactTask(
   task: Doc<'tasks'> & { pendingReview?: PendingReviewIdentity | null },
   project?: ProjectLabel | null,
 ): Record<string, unknown> {
+  // The label names the task wears, as its project spells them, sorted
+  // without regard to case; [] when it wears none. A team steers its agents
+  // with labels (one that holds a task back, one that waits for a person),
+  // so every row and every read carries them. Both reads answer them
+  // (`domains/tasks/agent-labels.ts`); a row without them says nothing,
+  // rather than "none".
+  const labels: unknown = task.labels;
   return {
     taskId: String(task._id),
     number: task.number,
@@ -206,6 +213,13 @@ function compactTask(
         }
       : {}),
     ...(task.priority !== undefined ? { priority: task.priority } : {}),
+    ...(Array.isArray(labels)
+      ? {
+          labels: labels.filter(
+            (label: unknown): label is string => typeof label === 'string',
+          ),
+        }
+      : {}),
     ...(task.assigneeType !== undefined
       ? { assigneeType: task.assigneeType }
       : {}),

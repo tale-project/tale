@@ -65886,7 +65886,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkDispatchAcrossProjects',
-        () => checkDispatchAcrossProjects(sql, authCtx, record),
+        () => checkDispatchAcrossProjects(sql, baseUrl, authCtx, record),
       ],
       [
         'checkHeavyPhaseLeases',

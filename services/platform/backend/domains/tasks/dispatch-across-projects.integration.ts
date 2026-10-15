@@ -3,27 +3,30 @@
  * Development's pool (the Coder) and its Reviewer work Billing's ready
  * tasks. The lane saves the dispatch through the save's own checks, runs
  * passes against a stand-in host, assigns and locks agents across the two
- * boards, routes a review, judges people who edit only one of the two
- * projects and what their runs there read, switches the dispatch off and on
- * again, takes the served board away twice — by a lost right and by
- * archiving it — switches the dispatch off from the app with the archived
- * board still listed, and deletes the Coder. Every agent turn, retry, park
- * wake and dispatch pass the two projects enqueue is held a day ahead
- * (`holdAgentJobs`), so the harness's worker launches nothing and every pass
- * is the lane's own.
+ * boards, routes a review, reads both boards' labelled tasks through the
+ * workspace-tool door as the dispatch's run on Billing, judges people who
+ * edit only one of the two projects and what their runs there read, switches
+ * the dispatch off and on again, takes the served board away twice — by a
+ * lost right and by archiving it — switches the dispatch off from the app
+ * with the archived board still listed, and deletes the Coder. Every agent
+ * turn, retry, park wake and dispatch pass the two projects enqueue is held a
+ * day ahead (`holdAgentJobs`), so the harness's worker launches nothing and
+ * every pass is the lane's own.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { ProjectDispatch } from '@tale/shared/schemas/project-dispatch';
 import type { Sql } from 'postgres';
 
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   memberSessionIdForProjectAgent,
   standingSessionIdForProjectAgent,
 } from '../../core/sandbox/session_naming.ts';
 import { deleteProjectAgent, loadProjectOrThrow } from '../projects/service.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
+import { insertSessionToken } from '../sandbox/sessions.ts';
 import { holdAgentJobs } from './delegated-start.integration.ts';
 import {
   checkProjectDispatch,
@@ -67,6 +70,7 @@ const ADMIT: HostVerdict = {
 
 export async function checkDispatchAcrossProjects(
   sql: Sql,
+  base: string,
   ctx: { orgId: string; userId: string },
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
@@ -106,6 +110,9 @@ export async function checkDispatchAcrossProjects(
   const devTeam = `itest-dev-team-${suffix}`;
   const bea = `itest-bea-${suffix}`;
   const dan = `itest-dan-${suffix}`;
+  // The session row and token the dispatch's run calls its tools with.
+  const sessionRowIds: string[] = [];
+  const tokenHashes: string[] = [];
   try {
     // Billing is shared with one team only: an editor outside it may not
     // edit it.
@@ -430,6 +437,113 @@ export async function checkDispatchAcrossProjects(
         serving.every((agent) => agent.projectName === 'Development'),
       `servedBy=${JSON.stringify(servedBy)} serving=${JSON.stringify(serving)}`,
     );
+
+    // The dispatch's run on Billing lists both boards on one page, through
+    // the workspace-tool door its turn calls: each task reads the labels its
+    // own project spells, never the other board's — "Archive old invoices"
+    // and "Release notes" each also wear an id of the other board's labels.
+    const label = async (projectId: string, name: string): Promise<string> =>
+      (
+        await sql<{ id: string }[]>`
+          INSERT INTO app.task_labels (org_id, project_id, name, color,
+            created_by, created_at_ms, updated_at_ms)
+          VALUES (${orgId}, ${projectId}, ${name}, '#64748b', ${userId},
+                  ${now}, ${now})
+          RETURNING id
+        `
+      )[0]?.id ?? '';
+    const customerFacing = await label(billing, 'customer-facing');
+    const awaitingCustomer = await label(billing, 'Awaiting customer');
+    const releaseLabel = await label(development, 'release');
+    await sql`
+      UPDATE app.tasks
+      SET label_ids = ${[customerFacing, releaseLabel, awaitingCustomer]}
+      WHERE id = ${tasks.invoices}
+    `;
+    await sql`
+      UPDATE app.tasks SET label_ids = ${[customerFacing, releaseLabel]}
+      WHERE id = ${tasks.releaseNotes}
+    `;
+    const runSession =
+      (
+        await sql<{ sessionId: string }[]>`
+          SELECT session_id AS "sessionId" FROM app.project_agent_runs
+          WHERE id = ${importerRun.id}
+        `
+      )[0]?.sessionId ?? '';
+    sessionRowIds.push(
+      ...(
+        await sql<{ id: string }[]>`
+          INSERT INTO app.sandbox_sessions (org_id, session_id, status,
+            owner_type, owner_id, created_by, created_at_ms, expires_at_ms)
+          VALUES (${orgId}, ${runSession}, 'active', 'project_agent',
+            ${agents.coder}, 'itest:across', ${now}, ${now + 3_600_000})
+          RETURNING id
+        `
+      ).map((row) => row.id),
+    );
+    const token = `itest-across-${randomUUID()}`;
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    tokenHashes.push(tokenHash);
+    await insertSessionToken(sql, {
+      organizationId: orgId,
+      sessionId: runSession,
+      tokenHash,
+      scope: {
+        agentKind: 'codex',
+        allowedModels: [],
+        connectorGrants: [],
+        budgetCents: 100,
+        toolGrants: ['task_find', 'task_get'],
+        taskRun: { execId: importerRun.execId },
+      },
+      ttlMs: 600_000,
+    });
+    const runTool = async (
+      tool: string,
+      args: Record<string, unknown>,
+    ): Promise<{ status: unknown; output: Record<string, unknown> }> => {
+      const res = await fetch(`${base}/api/tools/execute`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tool, args }),
+      });
+      const body: unknown = await res.json().catch((error: unknown) => {
+        console.warn(`itest: ${tool} answered no JSON`, error);
+        return null;
+      });
+      const status = isRecord(body) ? body.status : 'PARSE_ERROR';
+      const output = isRecord(body) && isRecord(body.output) ? body.output : {};
+      return { status, output };
+    };
+    const labelsOf = (value: unknown): string =>
+      JSON.stringify(isRecord(value) ? value.labels : undefined);
+    const todo = await runTool('task_find', { status: 'todo' });
+    const todoRows = Array.isArray(todo.output.tasks)
+      ? todo.output.tasks.filter(isRecord)
+      : [];
+    const rowOf = (taskId: string) =>
+      todoRows.find((row) => row.taskId === taskId);
+    const invoicesRead = await runTool('task_get', { taskId: tasks.invoices });
+    const billingLabels = JSON.stringify([
+      'Awaiting customer',
+      'customer-facing',
+    ]);
+    record(
+      "dispatch across projects: the dispatch's run reads each board's tasks with the labels their own project spells, on one page of both boards [TASK-R83]",
+      todo.status === 'ok' &&
+        labelsOf(rowOf(tasks.invoices)) === billingLabels &&
+        labelsOf(rowOf(tasks.releaseNotes)) === JSON.stringify(['release']) &&
+        invoicesRead.status === 'ok' &&
+        labelsOf(invoicesRead.output.task) === billingLabels,
+      `find=${String(todo.status)} rows=${JSON.stringify(todoRows.map((row) => ({ taskId: row.taskId, labels: row.labels })))} get=${String(invoicesRead.status)} ${labelsOf(invoicesRead.output.task)}`,
+    );
+    // The steps below judge the Coder's sessions without this one.
+    await sql`DELETE FROM app.sandbox_session_tokens WHERE token_hash = ${tokenHash}`;
+    await sql`DELETE FROM app.sandbox_sessions WHERE id = ANY(${sessionRowIds})`;
 
     // 8. A person's run of the Coder on Billing answers to both projects.
     // Development is shared with one team for now: Bea edits Billing alone,
@@ -818,6 +932,11 @@ export async function checkDispatchAcrossProjects(
       `cards=${JSON.stringify(heldCards)} lines=${JSON.stringify(unassignedLines)}`,
     );
   } finally {
+    await sql`
+      DELETE FROM app.sandbox_session_tokens
+      WHERE token_hash = ANY(${tokenHashes})
+    `;
+    await sql`DELETE FROM app.sandbox_sessions WHERE id = ANY(${sessionRowIds})`;
     await sql`
       UPDATE app.project_dispatch SET enabled = false
       WHERE project_id = ${development}

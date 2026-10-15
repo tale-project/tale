@@ -215,11 +215,15 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'task_update_status, task_update_metadata and task_review work their ' +
     'tasks too. reviewerAgentId matches the captured ' +
     'pending native reviewer, not a future default or implementation owner. ' +
-    'Each task includes pendingReview: null or {approvalId, runId, reviewer}. ' +
+    'Each task includes labels — its label names as the project spells ' +
+    'them, sorted, [] when it has none — and pendingReview: null or ' +
+    '{approvalId, runId, reviewer}. ' +
     'A manager pages in_review to discover all captured owners, including ' +
     'deleted agents; task_get gives the current blocker and exact evidence.',
   task_get:
-    'Read one task in full — description, project, subtasks and blockers ' +
+    'Read one task in full — description, labels (its label names as the ' +
+    'project spells them, sorted, [] when it has none), project, subtasks ' +
+    'and blockers ' +
     '(each with its taskId), comments, its project-agent runs, its ' +
     'automation run and a pending review. A mention in the description or a ' +
     'comment reads [@Name](mention:agent/<agentId>) (kind user, agent or ' +
@@ -234,7 +238,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'when requested, that exact requestedRun, plus workflowRun and the server ' +
     'observed read interval. A historical terminal run never replaces a newer ' +
     'occupant. Missing/inaccessible requested runs fail; failures are unknown. ' +
-    'This omits instructions, comments, feedback, blockers and reviews. The ' +
+    'This omits labels, instructions, comments, feedback, blockers and ' +
+    'reviews. The ' +
     'read is not atomic, does not reserve capacity and never authorizes a ' +
     'start or review; read full current context and use guarded mutations. ' +
     'A quarantined workflow remains held even though it is not live. ' +

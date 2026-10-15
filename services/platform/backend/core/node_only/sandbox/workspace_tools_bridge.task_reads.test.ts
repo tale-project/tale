@@ -36,6 +36,7 @@ interface BoardTask {
   createdAt: number;
   updatedAt: number;
   pendingReview?: PendingReviewIdentity | null;
+  labels?: string[];
 }
 
 type Scope =
@@ -1441,5 +1442,57 @@ describe('task_get compact occupancy', () => {
       compactBytes,
       reduction: 1 - compactBytes / fullBytes,
     });
+  });
+});
+
+describe('the labels an agent reads on a task [TASK-R83]', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('task_find carries each row’s labels as the read answered them, [] for none', async () => {
+    const board = tiedBoard(3);
+    board[0]!.labels = ['blocked', 'hold', 'Needs-human'];
+    board[1]!.labels = [];
+    const { call } = createHarness({ board });
+    const result = await call('task_find', {});
+    expect(result.status).toBe('ok');
+    const rows = outputOf(result).tasks as Record<string, unknown>[];
+    expect(rows.map((row) => row.labels)).toEqual([
+      ['blocked', 'hold', 'Needs-human'],
+      [],
+      undefined,
+    ]);
+    // A row the read gave no labels says nothing, never "none".
+    expect(rows[2]).not.toHaveProperty('labels');
+  });
+
+  it('task_get carries the task’s labels; the occupancy view leaves them out', async () => {
+    const { call } = createHarness({
+      context: () => ({
+        task: {
+          _id: 't-0000',
+          title: 'Renew the certificate',
+          status: 'todo',
+          projectId: 'p-1',
+          labels: ['hold', 'Needs-human'],
+        },
+        project: { name: 'Fleet' },
+        subtasks: [],
+        blockedBy: [],
+        comments: [],
+        commentsHasMore: false,
+      }),
+    });
+    const full = await call('task_get', { taskId: 't-0000' });
+    expect(full.status).toBe('ok');
+    expect(outputOf(full).task).toMatchObject({
+      taskId: 't-0000',
+      labels: ['hold', 'Needs-human'],
+    });
+    const compact = await call('task_get', {
+      taskId: 't-0000',
+      view: 'occupancy',
+    });
+    expect(compact.status).toBe('ok');
+    expect(outputOf(compact).task).not.toHaveProperty('labels');
   });
 });

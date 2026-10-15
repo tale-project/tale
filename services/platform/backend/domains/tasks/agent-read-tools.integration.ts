@@ -26,6 +26,7 @@ import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_namin
  * run. */
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
+import { agentTurnShimHandlers } from './agent-turn-shim.ts';
 import { addTaskComment } from './comments.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
@@ -1641,6 +1642,71 @@ export async function checkAgentTaskReadTools(
         `type=${typeof reviewerAgentId} status=${String(result.status)}`,
       );
     }
+
+    // ==== labels: what a team steers its agents with [TASK-R83] ============
+    const label = async (projectId: string, name: string): Promise<string> =>
+      (
+        await sql<{ id: string }[]>`
+          INSERT INTO app.task_labels (org_id, project_id, name, color,
+            created_by, created_at_ms, updated_at_ms)
+          VALUES (${orgId}, ${projectId}, ${name}, '#64748b', ${userId},
+                  ${now}, ${now})
+          RETURNING id
+        `
+      )[0]?.id ?? '';
+    const holdLabel = await label(projectA, 'hold');
+    const humanLabel = await label(projectA, 'Needs-human');
+    const neighbourLabel = await label(projectB, 'Neighbour only');
+    const labelledTask = await insertTask({
+      projectId: projectA,
+      title: 'Renew the certificate',
+      status: 'cancelled',
+    });
+    // Stored out of order, beside an id of another project's catalog that
+    // was put in by hand: the read sorts the one and never names the other.
+    await sql`
+      UPDATE app.tasks
+      SET label_ids = ${[humanLabel, neighbourLabel, holdLabel]}
+      WHERE id = ${labelledTask}
+    `;
+    const cancelledWalk = await walk(m2, { status: 'cancelled', limit: PAGE });
+    const labelledRows = cancelledWalk.pages.flatMap((page) =>
+      listAt(page, 'tasks'),
+    );
+    const labelledRow = labelledRows.find((row) => row.taskId === labelledTask);
+    const labelledDetail = await dispatch(m2, 'task_get', {
+      taskId: labelledTask,
+    });
+    const unlabelledDetail = await dispatch(m2, 'task_get', {
+      taskId: parentTask,
+    });
+    const expectedLabels = JSON.stringify(['hold', 'Needs-human']);
+    record(
+      'read tools: task_find rows and task_get name a task’s labels as its project spells them, sorted, never another project’s; a task without labels reads [] [TASK-R83]',
+      cancelledWalk.ok &&
+        JSON.stringify(labelledRow?.labels) === expectedLabels &&
+        labelledRows
+          .filter((row) => row.taskId !== labelledTask)
+          .every((row) => JSON.stringify(row.labels) === '[]') &&
+        JSON.stringify(recordAt(out(labelledDetail), 'task').labels) ===
+          expectedLabels &&
+        JSON.stringify(recordAt(out(unlabelledDetail), 'task').labels) === '[]',
+      `row=${JSON.stringify(labelledRow?.labels)} detail=${JSON.stringify(recordAt(out(labelledDetail), 'task').labels)} unlabelled=${JSON.stringify(recordAt(out(unlabelledDetail), 'task').labels)}`,
+    );
+    // The brief a run of the task opens with names them the same way, and
+    // says nothing of labels for a task without them.
+    const readBrief =
+      agentTurnShimHandlers(sql)['tasks/agent_runs:getTaskBriefForAgentRun'];
+    const labelledBrief: unknown = await readBrief?.({ taskId: labelledTask });
+    const unlabelledBrief: unknown = await readBrief?.({ taskId: parentTask });
+    record(
+      'read tools: the brief a run of a task opens with names its labels as task_find and task_get do, and none for a task without labels [TASK-R83]',
+      isRecord(labelledBrief) &&
+        JSON.stringify(labelledBrief.labels) === expectedLabels &&
+        isRecord(unlabelledBrief) &&
+        !('labels' in unlabelledBrief),
+      `brief=${JSON.stringify(isRecord(labelledBrief) ? labelledBrief.labels : labelledBrief)} unlabelled=${JSON.stringify(isRecord(unlabelledBrief) ? unlabelledBrief.labels : unlabelledBrief)}`,
+    );
   } finally {
     await sql`DELETE FROM app.approvals WHERE id = ANY(${discoveryApprovalIds})`;
     await sql`DELETE FROM app.sandbox_session_tokens

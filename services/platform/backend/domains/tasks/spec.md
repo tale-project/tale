@@ -835,6 +835,19 @@ start: its run fails as a start failure and is retried like one.
   "Changelog". She asks for changes → the turn that continues the conversation opens with "Never
   merge red", and the run's record names the new digest.
 
+### TASK-R83 · An agent sees a task's labels wherever it lists or reads the task
+
+Every task an agent lists (`task_find`), the task it reads in full (`task_get`) and the brief a
+run of the task opens with name the task's labels one way: each name spelled as the project's
+labels spell it, sorted without regard to case. A task without labels reads an empty list, and its
+brief says nothing of labels. Only a label the task's own project holds counts; one deleted from
+the project is no longer read. The compact run read (`view: "occupancy"`) leaves them out, as it
+leaves out the rest of the task.
+
+- **Example**: Ada labels "Renew the certificate" `Needs-human` and `hold`. The fleet's manager
+  lists the To do column → the task reads `labels: ["hold", "Needs-human"]`, and so does its full
+  read. The Coder is started on it → its brief reads "Labels: hold, Needs-human".
+
 ## Runs that need no workspace
 
 The organization's standard agent works a task with what a chat reply has: the model, the

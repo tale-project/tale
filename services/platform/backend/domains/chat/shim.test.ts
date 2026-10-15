@@ -237,6 +237,46 @@ describe("chat shim 'tasks/internal_queries:getTaskContextForAgent'", () => {
       expect(read.task).not.toHaveProperty(key);
     }
   });
+
+  it('hands task_get the labels the task wears, as its project spells them [TASK-R83]', async () => {
+    const reads: { text: string; values: unknown[] }[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      reads.push({ text, values });
+      if (text.includes('discussion_thread_id')) {
+        return Promise.resolve([
+          {
+            _id: 'task_1',
+            title: 'Renew the certificate',
+            status: 'todo',
+            projectId: 'proj_1',
+            labelIds: ['l-human', 'l-gone', 'l-hold'],
+          },
+        ]);
+      }
+      if (text.includes('FROM app.task_labels')) {
+        return Promise.resolve([
+          { id: 'l-hold', projectId: 'proj_1', name: 'hold' },
+          { id: 'l-human', projectId: 'proj_1', name: 'Needs-human' },
+        ]);
+      }
+      return Promise.resolve([]);
+    };
+    const context = chatShimHandlers(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call is exercised by the context read
+      tag as unknown as Sql,
+    )['tasks/internal_queries:getTaskContextForAgent'];
+    if (context === undefined) throw new Error('context handler missing');
+    const read = (await context({
+      taskId: 'task_1',
+      organizationId: 'org_1',
+    })) as { task: Record<string, unknown> };
+    expect(read.task.labels).toEqual(['hold', 'Needs-human']);
+    const catalog = reads.find((entry) =>
+      entry.text.includes('FROM app.task_labels'),
+    );
+    expect(catalog?.values[0]).toBe('org_1');
+  });
 });
 
 describe("chat shim 'tasks/internal_queries:getTaskContextForAgent' — ids and pages", () => {

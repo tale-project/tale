@@ -193,3 +193,67 @@ describe('workspaceWriteShimHandlers — an outage is not a refusal', () => {
     expect(writes(statements)).toEqual([]);
   });
 });
+
+describe('workspaceWriteShimHandlers — the task_find page', () => {
+  /** Answers the page read with two tasks of `proj-1` and the catalog read
+   * with the project's labels, recording each statement. */
+  function pageSql(): { sql: Sql; statements: string[] } {
+    const statements: string[] = [];
+    const task = (id: string, labelIds: string[]) => ({
+      id,
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      number: 1,
+      title: `Task ${id}`,
+      status: 'todo',
+      rank: '0|hzzzzz:',
+      labelIds,
+      commentCount: 0,
+      createdAt: 1_790_000_000_000,
+      updatedAt: 1_790_000_000_000,
+    });
+    const tag = (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push(text);
+      if (text.startsWith('SELECT ? FROM app.tasks t')) {
+        return Promise.resolve([
+          task('task-1', ['l-human', 'l-hold']),
+          task('task-2', []),
+        ]);
+      }
+      if (text.includes('FROM app.task_labels')) {
+        return Promise.resolve([
+          { id: 'l-hold', projectId: 'proj-1', name: 'hold' },
+          { id: 'l-human', projectId: 'proj-1', name: 'Needs-human' },
+        ]);
+      }
+      return Promise.resolve([]);
+    };
+    const sql = Object.assign(tag, { unsafe: (text: string) => text });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag and `unsafe` are all the page read calls
+    return { sql: sql as unknown as Sql, statements };
+  }
+
+  it('hands each row the labels it wears, as its project spells them, [] for none [TASK-R83]', async () => {
+    const { sql, statements } = pageSql();
+    const list =
+      workspaceWriteShimHandlers(sql)[
+        'tasks/internal_queries:listTasksForAgent'
+      ];
+    if (list === undefined) throw new Error('page handler missing');
+    const page = (await list({
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      limit: 21,
+    })) as Record<string, unknown>[];
+    expect(page.map((row) => [row._id, row.labels])).toEqual([
+      ['task-1', ['hold', 'Needs-human']],
+      ['task-2', []],
+    ]);
+    expect(page[0]).toMatchObject({ pendingReview: null });
+    // One catalog read for the whole page.
+    expect(
+      statements.filter((text) => text.includes('FROM app.task_labels')),
+    ).toHaveLength(1);
+  });
+});

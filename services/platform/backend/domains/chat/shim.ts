@@ -37,6 +37,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
+import { readAgentTaskLabels } from '../tasks/agent-labels.ts';
 import { readTaskCommentPage } from '../tasks/comments.ts';
 import {
   getChatModel,
@@ -1018,19 +1019,30 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           discussionThreadId: string | null;
           startDate: number | null;
           repeat: unknown;
+          labelIds: string[] | null;
         })[]
       >`
         SELECT id AS "_id", title, description, number, status, priority,
                project_id AS "projectId",
                discussion_thread_id AS "discussionThreadId",
                start_date_ms::float8 AS "startDate",
-               due_date_ms::float8 AS "dueDate", repeat_rule AS "repeat"
+               due_date_ms::float8 AS "dueDate", repeat_rule AS "repeat",
+               label_ids AS "labelIds"
         FROM app.tasks
         WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
       const task = tasks[0];
       if (!task) return null;
+      // The label names the task wears, as its project spells them — what
+      // `task_get` shows an agent beside the task's status.
+      const labels = await readAgentTaskLabels(sql, args.organizationId, [
+        {
+          id: task._id,
+          projectId: task.projectId ?? '',
+          labelIds: task.labelIds ?? [],
+        },
+      ]);
       const projects = await sql<
         { name: string; key: string | null; instructions: string | null }[]
       >`
@@ -1112,6 +1124,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
             ? { description: relabelTaskMentions(task.description, names) }
             : {}),
           ...(task.projectId != null ? { projectId: task.projectId } : {}),
+          labels: labels.get(task._id) ?? [],
           ...(task.startDate != null ? { startDate: task.startDate } : {}),
           ...(task.dueDate != null ? { dueDate: task.dueDate } : {}),
           ...(repeat !== null ? { repeat } : {}),

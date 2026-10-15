@@ -9,6 +9,7 @@ import {
   upsertAgentDocument,
 } from '../documents/agent-write.ts';
 import { upsertKnowledgeEntryByTopic } from '../knowledge_entries/service.ts';
+import { readAgentTaskLabels } from '../tasks/agent-labels.ts';
 import { readAgentTaskReviewSummaries } from '../tasks/agent-review-discovery.ts';
 import { readAgentTaskReviewFiles } from '../tasks/agent-review-files.ts';
 import {
@@ -95,7 +96,8 @@ export async function coded<T>(run: () => Promise<T>): Promise<T> {
 /** The row shape the reused bridge's `compactTask` reads: `_id`, and absent
  * rather than null for everything optional. `rank` is not shown to the model
  * — the bridge reads it, with `status`, `createdAt` and `_id`, as the sort
- * key a `task_find` page's cursor resumes after. */
+ * key a `task_find` page's cursor resumes after. The page's label names and
+ * captured reviews are read once for the page and added beside it. */
 function toAgentTaskDoc(task: TaskRow): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries({
@@ -125,13 +127,17 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
       const args = raw as Parameters<typeof listTasksForAgent>[1];
       const rows = await coded(() => listTasksForAgent(sql, args));
-      const reviews = await readAgentTaskReviewSummaries(
-        sql,
-        args.organizationId,
-        rows.map((task) => task.id),
-      );
+      const [reviews, labels] = await Promise.all([
+        readAgentTaskReviewSummaries(
+          sql,
+          args.organizationId,
+          rows.map((task) => task.id),
+        ),
+        readAgentTaskLabels(sql, args.organizationId, rows),
+      ]);
       return rows.map((task) =>
         Object.assign(toAgentTaskDoc(task), {
+          labels: labels.get(task.id) ?? [],
           pendingReview: reviews.get(task.id) ?? null,
         }),
       );

@@ -3977,8 +3977,9 @@ export type AgentTaskListPosition =
  * Authority is resolved before this call (`resolveSessionActionContext`), so
  * the project set arrives as an argument: one project for a project-bound run,
  * its automation's bound set for an org-wide one, and nothing at all for a
- * truly org-level run, which reads the whole organization. Labels and folder
- * facts are skipped — the model reads titles and status, not chips.
+ * truly org-level run, which reads the whole organization. Folder facts are
+ * skipped; the page's label names are read beside it, once for the page
+ * (`readAgentTaskLabels` in `agent-labels.ts`), by the shim that answers it.
  *
  * A keyset page: the rows strictly after `after` in `order`, at most `limit`
  * of them. Each page reads the board as it stands, never a snapshot of the
