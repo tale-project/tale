@@ -399,10 +399,22 @@ describe('GitHub security alert intake', () => {
     [{ alerts: [] }],
     [{ alerts: ['issues'] }],
     [{ alerts: ['code-scanning'], minSeverity: 'error' }],
-    [{ alerts: ['code-scanning'], tools: ['Code&QL'] }],
+    [{ alerts: ['code-scanning'], tools: ['Code\nQL'] }],
   ])('refuses %j before GitHub is asked', async (input) => {
     await expect(list(input)).rejects.toMatchObject({ code: 'INPUT_INVALID' });
     expect(fetchPage).not.toHaveBeenCalled();
+  });
+
+  it('asks GitHub for a tool whose name holds a character an address reserves, encoded', async () => {
+    fetchPage.mockResolvedValue(response([]));
+    await list({ alerts: ['code-scanning'], tools: ['Black Duck & C#?'] });
+    expect(String(fetchPage.mock.calls[0]?.[0])).toContain(
+      '&tool_name=Black%20Duck%20%26%20C%23%3F',
+    );
+    expect(asked(fetchPage.mock.calls[0])).toMatchObject({
+      kind: 'code-scanning',
+      tool_name: 'Black Duck & C#?',
+    });
   });
 });
 

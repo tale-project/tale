@@ -7,6 +7,7 @@ import {
   IssueSourceHttpError,
   type ImportedIssue,
 } from './issue-import';
+import { securityToolName } from './issue-import-alerts';
 import {
   failedSources,
   issueSyncFailure,
@@ -972,6 +973,29 @@ describe('task.sync_issues sources', () => {
         .map((call) => call.credential),
     ).toEqual(['GitHub code scanning', 'GitHub secrets']);
   });
+
+  it.each([
+    ['CodeQL', true],
+    ['Black Duck & Polaris', true],
+    ['C# scanner?', true],
+    [' Trivy ', true],
+    ['', false],
+    ['Code\nQL', false],
+    ['Trivy\n', false],
+    ['Code\u0000QL', false],
+    ['x'.repeat(101), false],
+  ])(
+    'takes the code scanning tool %j where the source is written as the listing takes it: %s',
+    (tool, takes) => {
+      expect(securityToolName.safeParse(tool).success).toBe(takes);
+      expect(
+        issueSyncInputSchema.safeParse({
+          projectId: 'project-1',
+          sources: [{ ...security, tools: [tool] }],
+        }).success,
+      ).toBe(takes);
+    },
+  );
 
   it('names the security alert listing when every security source failed [TASK-R54]', async () => {
     const harness = fakes({

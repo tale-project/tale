@@ -86,13 +86,19 @@ const DEPENDABOT_AT_LEAST: Record<SecuritySeverity, string | null> = {
   critical: 'critical',
 };
 
-/** A code scanning tool's name as GitHub knows it (`CodeQL`, `Trivy`). */
-const toolName = z
+/** A code scanning tool's name as GitHub knows it (`CodeQL`, `Trivy`):
+ * any text but a control character, which no tool's name carries, so a
+ * typo is refused where the source is written, never on each run. The
+ * listing encodes it into its address. The one rule for the sync's
+ * sources and for the listing. */
+export const securityToolName = z
   .string()
+  .regex(/^[^\u0000-\u001f\u007f]*$/, {
+    message: 'is a tool name without control characters',
+  })
   .trim()
   .min(1)
-  .max(100)
-  .regex(/^[^\u0000-\u001f&#?]+$/);
+  .max(100);
 
 const listInput = z
   .object({
@@ -106,7 +112,7 @@ const listInput = z
       .max(100),
     alerts: z.array(z.enum(SECURITY_ALERT_KINDS)).min(1).max(3),
     minSeverity: z.enum(SECURITY_SEVERITIES).optional(),
-    tools: z.array(toolName).max(10).optional(),
+    tools: z.array(securityToolName).max(10).optional(),
     limit,
     cursor,
   })

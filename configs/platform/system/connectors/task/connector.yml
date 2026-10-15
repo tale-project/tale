@@ -482,7 +482,7 @@ actions:
                   repo: { type: string, minLength: 1, maxLength: 100, description: The repository's name. }
                   alerts: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: string, enum: [code-scanning, dependabot, secret-scanning] }, description: The kinds of security alert to read. }
                   minSeverity: { type: string, enum: [low, medium, high, critical], description: 'Only alerts at or above this severity (error counts as high, warning as medium, note as low, a secret as critical); every alert when left out.' }
-                  tools: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 100 }, description: 'Only code scanning alerts from these tools, such as CodeQL; every tool when empty.' }
+                  tools: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000-\u001f\u007f]*$' }, description: 'Only code scanning alerts from these tools, such as CodeQL; every tool when empty.' }
                   credential: { type: string, maxLength: 200, description: 'The GitHub connection to read with, by name; the default one when empty or left out.' }
                   taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:security.' }
               - type: object

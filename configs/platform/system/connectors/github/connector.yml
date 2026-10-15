@@ -1033,7 +1033,7 @@ actions:
         repo: { type: string, minLength: 1, maxLength: 100 }
         alerts: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: string, enum: [code-scanning, dependabot, secret-scanning] } }
         minSeverity: { type: string, enum: [low, medium, high, critical] }
-        tools: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 100 } }
+        tools: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000-\u001f\u007f]*$' } }
         limit: { type: integer, minimum: 1, maximum: 500 }
         cursor: { type: string, maxLength: 12000 }
     output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId: number, repository: string }'

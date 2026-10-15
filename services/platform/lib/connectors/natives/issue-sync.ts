@@ -60,6 +60,7 @@ import {
 import {
   SECURITY_ALERT_KINDS,
   SECURITY_SEVERITIES,
+  securityToolName,
   type SecurityAlertKind,
 } from './issue-import-alerts';
 
@@ -138,8 +139,9 @@ const githubSecuritySourceSchema = z
       }),
     /** Only alerts at or above this severity. */
     minSeverity: z.enum(SECURITY_SEVERITIES).optional(),
-    /** Only code scanning alerts from these tools (`CodeQL`, `Trivy`). */
-    tools: z.array(z.string().trim().min(1).max(100)).max(10).optional(),
+    /** Only code scanning alerts from these tools (`CodeQL`, `Trivy`),
+     * named as the listing takes them. */
+    tools: z.array(securityToolName).max(10).optional(),
     credential,
     taskLabels,
   })
