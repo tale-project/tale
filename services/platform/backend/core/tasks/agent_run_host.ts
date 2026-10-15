@@ -1410,7 +1410,7 @@ export async function startTaskAgentTurnImpl(
       const [projectScope, brief] = await Promise.all([
         ctx.runQuery(
           internal.projects.internal_queries.getProjectAgentSkillScope,
-          { agentId: args.agentId },
+          { agentId: args.agentId, runId: args.runId },
         ),
         ctx.runQuery(internal.tasks.agent_runs.getTaskBriefForAgentRun, {
           taskId: args.taskId,
@@ -1428,6 +1428,11 @@ export async function startTaskAgentTurnImpl(
           projectScope === null
             ? { kind: 'org' }
             : { kind: 'project', teamIds: projectScope.teamIds },
+          // A run whose starter may not read the agent's own project stages
+          // only the skills that starter may see as well [TASK-R82].
+          projectScope?.starter !== undefined
+            ? { alsoVisibleTo: projectScope.starter }
+            : {},
         ),
         stageTaskInputs(ctx, {
           organizationId: args.organizationId,
@@ -2762,6 +2767,7 @@ export async function steerTaskAgentTurnImpl(
       internal.projects.internal_queries.getProjectAgentSkillScope,
       {
         agentId: args.agentId,
+        runId: args.runId,
       },
     );
     const skillsAddendum = await stageWorkflowSkills(
@@ -2772,6 +2778,10 @@ export async function steerTaskAgentTurnImpl(
       projectScope === null
         ? { kind: 'org' }
         : { kind: 'project', teamIds: projectScope.teamIds },
+      // Judged again for the restart, as at the start [TASK-R82].
+      projectScope?.starter !== undefined
+        ? { alsoVisibleTo: projectScope.starter }
+        : {},
     );
     // The reservation belongs to the ROTATED exec, like every stamp below.
     const prepared = await mintTurnServing(ctx, { ...args, execId }, resolved);

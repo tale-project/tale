@@ -894,10 +894,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // ---------------------------------------------------- project equipment
+    // With the run, also whose sight narrows the skills a run on another
+    // project's board stages, when its starter may not read the agent's own
+    // project [TASK-R82].
     'projects/internal_queries:getProjectAgentSkillScope': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { agentId: string };
-      return readProjectAgentSkillScope(sql, args.agentId);
+      const args = raw as { agentId: string; runId?: string };
+      return readProjectAgentSkillScope(sql, args.agentId, args.runId);
     },
 
     // Skill bundles for staging — the reused file layer.

@@ -836,7 +836,8 @@ The agent dialog's **Repository access** (`projects.agents.repository.label`)
 and **Commit identity** (`projects.agents.gitIdentity.label`), judged against
 the user guide (`docs/en/platform/projects/project-agents.md`, *Give the agent
 its own repository access*). The pin rules, the broker's host map, the
-helper's answers and the identity order are held by specs;
+helper's answers and the identity order are held by specs
+([`reference/automation/projects.md`](../reference/automation/projects.md));
 these boxes are the live halves: a real Forgejo or GitHub, a real push, two
 roles and the three languages. Store two Forgejo credentials of different
 reach under Settings › Connectors, one of them the default.
@@ -862,3 +863,13 @@ reach under Settings › Connectors, one of them the default.
   `projects.agents.repository.missing` with the old name; start the agent and
   ask it to push → Git gets no credential, and the default's repositories
   stay out of reach too.
+- [ ] `PROJ-B31` · **A run on a served board gets only the skills its starter
+  sees** — With the dispatch of `PROJ-F71` serving Billing, equip the pool's
+  agent with an organization skill and a team skill shared only with this
+  project's team, and sign in as an editor of Billing who is not in that
+  team. Start the agent on a Billing task asking it to list the skills its
+  instructions name and the skill folders in its workspace's `.tale`
+  folder →
+  only the organization skill appears in either. The run the dispatch starts
+  on another such Billing task lists both.
+

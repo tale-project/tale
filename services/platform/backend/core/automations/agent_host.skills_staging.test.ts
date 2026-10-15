@@ -297,3 +297,82 @@ describe('equipped skill staging with real bundles', () => {
     expect(sandboxFetch).not.toHaveBeenCalled();
   });
 });
+
+describe('a run whose starter may not read the agent’s own project stages only the skills that starter sees too [TASK-R82]', () => {
+  // Development is shared with the dev team; Bea is in the billing team.
+  const development: SkillViewer = { kind: 'project', teamIds: ['dev'] };
+  const bea: SkillViewer = {
+    kind: 'user',
+    userId: 'bea',
+    teamIds: ['billing'],
+    isOrgAdmin: false,
+  };
+
+  it('leaves the team skill Bea cannot see out of the workspace and the list, and stages the organization’s', async () => {
+    await seed('org-a', 'release-notes', 'Write release notes.');
+    await seed(
+      'org-a',
+      'deploy-runbook',
+      'Deploy Development.',
+      'visibility: team\nteams: [dev]\n',
+    );
+    const prompt = await stageWorkflowSkills(
+      ctx,
+      ORG_A,
+      SESSION,
+      ['release-notes', 'deploy-runbook'],
+      development,
+      { alsoVisibleTo: bea },
+    );
+    expect(prompt).toContain('- release-notes:');
+    expect(prompt).not.toContain('deploy-runbook');
+    expect(staged.map((file) => file.path)).toEqual([
+      'workspace/.tale/skills/release-notes/SKILL.md',
+    ]);
+  });
+
+  it('stages both for a starter who sees both, as without a second viewer', async () => {
+    await seed('org-a', 'release-notes', 'Write release notes.');
+    await seed(
+      'org-a',
+      'deploy-runbook',
+      'Deploy Development.',
+      'visibility: team\nteams: [dev]\n',
+    );
+    const prompt = await stageWorkflowSkills(
+      ctx,
+      ORG_A,
+      SESSION,
+      ['release-notes', 'deploy-runbook'],
+      development,
+      { alsoVisibleTo: { ...bea, teamIds: ['billing', 'dev'] } },
+    );
+    expect(prompt).toContain('- deploy-runbook:');
+    expect(staged).toHaveLength(2);
+  });
+
+  it('lists nothing when the starter sees none of them, and still refuses a skill the project cannot equip', async () => {
+    await seed(
+      'org-a',
+      'deploy-runbook',
+      'Deploy Development.',
+      'visibility: team\nteams: [dev]\n',
+    );
+    await expect(
+      stageWorkflowSkills(
+        ctx,
+        ORG_A,
+        SESSION,
+        ['deploy-runbook'],
+        development,
+        { alsoVisibleTo: { kind: 'org' } },
+      ),
+    ).resolves.toBe('');
+    expect(staged).toEqual([]);
+    await expect(
+      stageWorkflowSkills(ctx, ORG_A, SESSION, ['no-such-skill'], development, {
+        alsoVisibleTo: bea,
+      }),
+    ).rejects.toBeInstanceOf(SkillUnavailableError);
+  });
+});
