@@ -103,6 +103,8 @@ Un système externe signale l’état de la barrière par l’[API REST](/fr/dev
 | **La répartition est désactivée** | La répartition, ou l’automatisation des tâches de ton organisation, est désactivée. |
 | **Aucun passage encore** | La répartition n’a fait aucun passage depuis l’entrée de l’agent dans le pool. |
 
+Un agent qui tient plus de cinq exécutions affiche combien il en tient — **En cours**, **En file d’attente** et chaque raison pour laquelle ses exécutions attendent, comme **En attente du modèle** — ainsi que ses cinq premières exécutions, les plus anciennes d’abord. Un bouton comme **Afficher 45 exécutions de plus** en liste jusqu’à 50 ; au-delà, la page indique combien d’autres ne sont pas listées ici. L’[API REST](/fr/develop/api-reference#dispatch) les compte et les liste de la même façon.
+
 **Derniers passages** montre les 20 derniers passages : quand, ce qui les a demandés, combien d’exécutions ils ont lancées et retenues, et pourquoi ils se sont arrêtés. **Lancer un passage maintenant** en demande un aussitôt. Un déploiement auto-hébergé peut alerter quand une répartition ne fait plus de passages ; [Prometheus et Grafana](/fr/self-hosted/operate/observability/prometheus-grafana) montre la règle.
 
 ## Gérer la répartition comme configuration

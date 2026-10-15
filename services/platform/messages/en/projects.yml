@@ -482,6 +482,10 @@ dispatch:
     emptyEditor: No agent is in the pool yet. Choose agents under Edit.
     running: Running
     queued: Queued
+    runCount: '{label}: {count, number}'
+    showMore: '{count, plural, one {Show # more run} other {Show # more runs}}'
+    showFewer: Show fewer runs
+    notListed: '{count, plural, one {# more run is not listed here} other {# more runs are not listed here}}'
   idle:
     model_capacity: Its model is at capacity
     host_pressure: The sandbox host is busy

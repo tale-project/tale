@@ -510,6 +510,10 @@ dispatch:
     emptyEditor: Noch ist kein Agent im Pool. Wähle Agenten unter Bearbeiten.
     running: Läuft
     queued: In der Warteschlange
+    runCount: '{label}: {count, number}'
+    showMore: '{count, plural, one {# weiteren Lauf zeigen} other {# weitere Läufe zeigen}}'
+    showFewer: Weniger Läufe zeigen
+    notListed: '{count, plural, one {# weiterer Lauf ist hier nicht aufgeführt} other {# weitere Läufe sind hier nicht aufgeführt}}'
   idle:
     model_capacity: Sein Modell ist ausgelastet
     host_pressure: Der Sandbox-Host ist ausgelastet

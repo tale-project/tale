@@ -103,6 +103,8 @@ Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/dev
 | **Arbeitsverteilung ist aus**                    | Die Arbeitsverteilung oder die Aufgabenautomatisierung deiner Organisation ist ausgeschaltet.                                    |
 | **Noch kein Durchlauf**                          | Die Arbeitsverteilung hat seit der Aufnahme des Agenten in den Pool noch keinen Durchlauf gemacht.                               |
 
+Hält ein Agent mehr als fünf Läufe, zeigt die Seite, wie viele es sind – **Läuft**, **In der Warteschlange** und jeden Grund, aus dem seine Läufe warten, etwa **Wartet auf Modellkapazität** –, und dazu seine ersten fünf Läufe, die ältesten zuerst. Eine Schaltfläche wie **45 weitere Läufe zeigen** listet bis zu 50 davon auf; darüber hinaus nennt die Seite, wie viele weitere hier nicht aufgeführt sind. Die [REST-API](/de/develop/api-reference#dispatch) zählt und listet sie auf dieselbe Weise.
+
 **Letzte Durchläufe** zeigt die letzten 20 Durchläufe: wann, was sie ausgelöst hat, wie viele Läufe sie gestartet und zurückgehalten haben und warum sie aufgehört haben. **Jetzt einen Durchlauf starten** löst sofort einen aus. Eine selbst betriebene Bereitstellung kann alarmieren, wenn eine Arbeitsverteilung keine Durchläufe mehr macht; [Prometheus und Grafana](/de/self-hosted/operate/observability/prometheus-grafana) zeigt die Regel.
 
 ## Die Arbeitsverteilung als Konfiguration verwalten

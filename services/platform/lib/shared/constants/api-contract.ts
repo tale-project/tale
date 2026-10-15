@@ -806,6 +806,9 @@
  * up to 500 of them (`perAgentConcurrency`, up to 5 before): as many as an
  * organization may have agent workers. A write whose `perAgentConcurrency`
  * is above its `maxConcurrentRuns` is refused; a dispatch stored before
- * still reads as it was stored.
+ * still reads as it was stored. `GET /api/v1/projects/{id}/dispatch` answers
+ * `runCounts` for each agent of the pool — every run it holds, `running`,
+ * `queued`, and `waiting` by reason — and lists its 50 oldest runs at most
+ * under `runs`, where it listed every one.
  */
 export const API_CONTRACT_VERSION = '3.46.0';

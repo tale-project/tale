@@ -730,3 +730,17 @@ a few To do tasks.
   Escape without closing the dialog; a field's error is read with it; no German
   or French label clips in the dialog or the tables; at phone width the tables
   scroll sideways instead of clipping.
+- [ ] `PROJ-B24` · **One agent on many runs stays one row** — Give the
+  organization at least 8 agent workers (Settings → Sandboxes), keep one agent
+  alone in the pool with **Runs at once** and **Runs per agent**
+  (`projects.dispatch.editor.perAgentConcurrency`) at 8 and **Time between
+  starts (seconds)** (`projects.dispatch.editor.startSpacing`) at 0, with 8 To
+  do tasks ready, and choose **Run a pass now** → within a minute the agent's
+  row counts its runs by what they do (`projects.dispatch.agents.runCount`),
+  lists five and offers **Show 3 more runs**
+  (`projects.dispatch.agents.showMore`); choosing it by keyboard lists all
+  eight and reads **Show fewer runs** (`projects.dispatch.agents.showFewer`),
+  announced as expanded, and the row stays readable in German and French. Set
+  **Runs per agent** above **Runs at once** and save → refused under **Runs
+  per agent** (`projects.dispatch.editor.validation.perAgentAboveRuns`), the
+  draft kept.

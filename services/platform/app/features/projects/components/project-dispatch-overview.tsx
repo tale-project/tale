@@ -29,7 +29,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Gauge } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -39,12 +39,18 @@ import { useSetDispatchGate } from '../hooks/dispatch';
 
 type PoolAgent = ProjectDispatchStatus['pool'][number];
 type AgentRun = PoolAgent['runs'][number];
+type AgentRunCounts = PoolAgent['runCounts'];
 type StandingRoleRow = ProjectDispatchStatus['standingRoles'][number];
 type GateRow = ProjectDispatchStatus['gates'][number];
 type PassRow = ProjectDispatchStatus['passes'][number];
 
 /** How often relative times on the page are read again. */
 const CLOCK_MS = 30_000;
+
+/** The runs an agent's row lists until the reader asks for the rest of
+ * those the readback lists: a row stays a row while the agent holds
+ * hundreds. */
+const DISPATCH_RUNS_SHOWN = 5;
 
 const IDLE_KEYS = {
   model_capacity: 'dispatch.idle.model_capacity',
@@ -151,48 +157,131 @@ function TaskLink({
   );
 }
 
+/** How many runs an agent holds, by what they do: working, queued, and
+ * waiting, by why — worded as the task's own run row words it. */
+function PoolAgentRunCounts({ counts }: { counts: AgentRunCounts }) {
+  const { t } = useT('projects');
+  const { t: tTasks } = useT('tasks');
+  const parts = [
+    ...(counts.running > 0
+      ? [
+          {
+            key: 'running',
+            label: t('dispatch.agents.running'),
+            count: counts.running,
+          },
+        ]
+      : []),
+    ...(counts.queued > 0
+      ? [
+          {
+            key: 'queued',
+            label: t('dispatch.agents.queued'),
+            count: counts.queued,
+          },
+        ]
+      : []),
+    ...Object.entries(counts.waiting)
+      .filter(([, count]) => count > 0)
+      .map(([reason, count]) => {
+        const waiting = keyOf(WAITING_KEYS, reason);
+        return {
+          key: `waiting:${reason}`,
+          label: waiting === undefined ? reason : tTasks(waiting),
+          count,
+        };
+      }),
+  ];
+  return (
+    <Row as="ul" gap={2} wrap className="text-muted-foreground text-xs">
+      {parts.map((part) => (
+        <li key={part.key}>
+          {t('dispatch.agents.runCount', {
+            label: part.label,
+            count: part.count,
+          })}
+        </li>
+      ))}
+    </Row>
+  );
+}
+
 /** The runs an agent of the pool holds: each task, and whether its run
- * works or waits — and why, worded as the task's own run row words it. */
+ * works or waits — and why, worded as the task's own run row words it. An
+ * agent kept on many tasks shows how many it holds, by what they do, and
+ * its first runs, with the rest the readback lists a click away. */
 function PoolAgentRuns({
   organizationId,
   projectKey,
   runs,
+  counts,
 }: {
   organizationId: string;
   projectKey: string | undefined;
   runs: AgentRun[];
+  counts: AgentRunCounts;
 }) {
   const { t } = useT('projects');
   const { t: tTasks } = useT('tasks');
-  if (runs.length === 0) {
+  const listId = useId();
+  const [expanded, setExpanded] = useState(false);
+  if (counts.total === 0 && runs.length === 0) {
     return <span className="text-muted-foreground">—</span>;
   }
+  const shown = expanded ? runs : runs.slice(0, DISPATCH_RUNS_SHOWN);
+  const hidden = runs.length - shown.length;
+  const unlisted = Math.max(0, counts.total - runs.length);
   return (
-    <Stack as="ul" gap={1} className="min-w-0">
-      {runs.map((run) => {
-        const identifier = formatTaskIdentifier(projectKey, run.taskNumber);
-        const waiting = keyOf(WAITING_KEYS, run.waitingReason);
-        return (
-          <li key={run.runId} className="min-w-0">
-            <TaskLink
-              organizationId={organizationId}
-              taskId={run.taskId}
-              label={
-                identifier === null
-                  ? run.taskTitle
-                  : `${identifier} ${run.taskTitle}`
-              }
-            />
-            <span className="text-muted-foreground text-xs">
-              {run.status === 'running'
-                ? t('dispatch.agents.running')
-                : waiting === undefined
-                  ? t('dispatch.agents.queued')
-                  : tTasks(waiting)}
-            </span>
-          </li>
-        );
-      })}
+    <Stack gap={1} className="min-w-0 items-start">
+      {counts.total > DISPATCH_RUNS_SHOWN ? (
+        <PoolAgentRunCounts counts={counts} />
+      ) : null}
+      <Stack as="ul" id={listId} gap={1} className="w-full min-w-0">
+        {shown.map((run) => {
+          const identifier = formatTaskIdentifier(projectKey, run.taskNumber);
+          const waiting = keyOf(WAITING_KEYS, run.waitingReason);
+          return (
+            <li key={run.runId} className="min-w-0">
+              <TaskLink
+                organizationId={organizationId}
+                taskId={run.taskId}
+                label={
+                  identifier === null
+                    ? run.taskTitle
+                    : `${identifier} ${run.taskTitle}`
+                }
+              />
+              <span className="text-muted-foreground text-xs">
+                {run.status === 'running'
+                  ? t('dispatch.agents.running')
+                  : waiting === undefined
+                    ? t('dispatch.agents.queued')
+                    : tTasks(waiting)}
+              </span>
+            </li>
+          );
+        })}
+      </Stack>
+      {runs.length > DISPATCH_RUNS_SHOWN ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-6 px-0 text-xs"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {expanded
+            ? t('dispatch.agents.showFewer')
+            : t('dispatch.agents.showMore', { count: hidden })}
+        </Button>
+      ) : null}
+      {unlisted > 0 && (expanded || runs.length <= DISPATCH_RUNS_SHOWN) ? (
+        <span className="text-muted-foreground text-xs">
+          {t('dispatch.agents.notListed', { count: unlisted })}
+        </span>
+      ) : null}
     </Stack>
   );
 }
@@ -225,7 +314,7 @@ export function ProjectDispatchOverview({
   const now = useNow(CLOCK_MS);
 
   const running = status.pool.reduce(
-    (sum, agent) => sum + agent.runs.length,
+    (sum, agent) => sum + agent.runCounts.total,
     0,
   );
   const perAgent =
@@ -321,6 +410,7 @@ export function ProjectDispatchOverview({
             organizationId={organizationId}
             projectKey={projectKey}
             runs={row.original.runs}
+            counts={row.original.runCounts}
           />
         ),
       },

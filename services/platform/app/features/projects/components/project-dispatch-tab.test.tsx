@@ -101,6 +101,26 @@ const NOW = Date.now();
 const HASH = 'a'.repeat(64);
 
 type PoolAgent = ProjectDispatchStatus['pool'][number];
+type AgentRun = PoolAgent['runs'][number];
+
+/** The counts a readback gives for the runs it lists, when it lists them
+ * all. */
+function countsOf(runs: readonly AgentRun[]): PoolAgent['runCounts'] {
+  const counts: PoolAgent['runCounts'] = {
+    total: runs.length,
+    running: 0,
+    queued: 0,
+    waiting: {},
+  };
+  for (const run of runs) {
+    if (run.status === 'running') counts.running += 1;
+    else if (run.waitingReason === null) counts.queued += 1;
+    else
+      counts.waiting[run.waitingReason] =
+        (counts.waiting[run.waitingReason] ?? 0) + 1;
+  }
+  return counts;
+}
 
 function poolAgent(
   agent: Pick<PoolAgent, 'agentId' | 'name'> & Partial<PoolAgent>,
@@ -109,6 +129,7 @@ function poolAgent(
     model: 'gpt-6.1-sol',
     modelProvider: 'openai',
     runs: [],
+    runCounts: countsOf(agent.runs ?? []),
     capacity: 1,
     modelHeldUntil: null,
     idle: 'no_ready_work',
@@ -369,6 +390,94 @@ describe('the Dispatch page of a configured dispatch', () => {
     expect(within(scribe).getByText(t('dispatch.agents.queued'))).toBeVisible();
     // Working, so not idle: its summary counts the three runs.
     expect(screen.getByText('3 of 2')).toBeInTheDocument();
+  });
+
+  it('keeps an agent on hundreds of runs to one row: counts, five runs, the rest of the list on request [TASK-R46]', async () => {
+    // The readback lists an agent's 50 oldest runs and counts all 256.
+    const listed = Array.from({ length: 50 }, (_, index): AgentRun => ({
+      runId: `run-${index}`,
+      taskId: `task-${index}`,
+      taskNumber: index + 1,
+      taskTitle: `Fleet task ${index + 1}`,
+      status: index < 44 ? 'running' : 'queued',
+      waitingReason: index < 44 ? null : 'model_capacity',
+    }));
+    answer(
+      readback({
+        config: {
+          enabled: true,
+          agents: ['agent-scribe'],
+          maxConcurrentRuns: 256,
+          perAgentConcurrency: 256,
+          statuses: ['todo'],
+          assignment: 'pool',
+        },
+        pool: [
+          poolAgent({
+            agentId: 'agent-scribe',
+            name: 'Scribe',
+            idle: null,
+            capacity: 256,
+            runs: listed,
+            runCounts: {
+              total: 256,
+              running: 244,
+              queued: 4,
+              waiting: { model_capacity: 6, org_limit: 2 },
+            },
+          }),
+        ],
+        workers: { limit: 256, inUse: 250 },
+      }),
+    );
+    const { user } = renderTab();
+    const agents = await table(t('dispatch.agents.caption'));
+    const scribe = rowOf(agents, 'Scribe');
+    const runLinks = () =>
+      within(scribe)
+        .getAllByRole('link')
+        .filter((link) => link.textContent?.includes('Fleet task'));
+
+    expect(runLinks()).toHaveLength(5);
+    for (const [label, count] of [
+      [t('dispatch.agents.running'), 244],
+      [t('dispatch.agents.queued'), 4],
+      [tTasks('agentRun.waiting.model_capacity'), 6],
+      [tTasks('agentRun.waiting.org_limit'), 2],
+    ] as const) {
+      expect(
+        within(scribe).getByText(
+          t('dispatch.agents.runCount', { label, count }),
+        ),
+      ).toBeInTheDocument();
+    }
+    expect(screen.getByText('256 of 256')).toBeInTheDocument();
+    expect(
+      within(scribe).queryByText(
+        t('dispatch.agents.notListed', { count: 206 }),
+      ),
+    ).not.toBeInTheDocument();
+
+    const more = within(scribe).getByRole('button', {
+      name: t('dispatch.agents.showMore', { count: 45 }),
+    });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    await user.click(more);
+
+    expect(runLinks()).toHaveLength(50);
+    const fewer = within(scribe).getByRole('button', {
+      name: t('dispatch.agents.showFewer'),
+    });
+    expect(fewer).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      document.getElementById(fewer.getAttribute('aria-controls') ?? ''),
+    ).toContainElement(runLinks()[49] ?? null);
+    expect(
+      within(scribe).getByText(t('dispatch.agents.notListed', { count: 206 })),
+    ).toBeInTheDocument();
+
+    await user.click(fewer);
+    expect(runLinks()).toHaveLength(5);
   });
 
   it('says when the pool can hold more runs than the organization has agent workers', async () => {

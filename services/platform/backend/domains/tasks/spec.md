@@ -506,11 +506,15 @@ is in the pool counts toward the pool.
 
 For every agent of the pool it names the runs it holds, and for an idle one why: dispatch is off,
 its model is at capacity, the host held the last start, the agent workers are all in use, the
-last start was spaced, or no work is ready for it. It reads the run ledger and the passes, never
-where cards stand on the board.
+last start was spaced, or no work is ready for it. It counts an agent's runs by what they do
+(running, queued, and waiting by why) and lists its 50 oldest, so an agent on hundreds of tasks
+still reads in one answer; the page shows the first five and the rest of the list on request. It
+reads the run ledger and the passes, never where cards stand on the board.
 
 - **Example**: Scribe has no run and the last pass stopped because the host was under pressure →
-  the readback says Scribe is idle because the host held the last start.
+  the readback says Scribe is idle because the host held the last start. Coder holds 256 runs, 6
+  of them waiting for model capacity → the readback counts 250 running and 6 waiting for model
+  capacity, and lists 50 of them.
 
 ### TASK-R47 · A run dispatch starts answers to the project, never to a person
 

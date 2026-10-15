@@ -37,7 +37,11 @@ import {
 } from './dispatch-config.ts';
 import { reportDispatchGate } from './dispatch-gates.ts';
 import { runDispatchPass, type HostVerdict } from './dispatch-pass.ts';
-import { readProjectDispatchStatus } from './dispatch-readback.ts';
+import {
+  readProjectDispatchStatus,
+  type DispatchAgentRun,
+  type DispatchPoolAgent,
+} from './dispatch-readback.ts';
 import { snapshotRunInstructions } from './run-instructions.ts';
 
 const ADMIT: HostVerdict = {
@@ -482,12 +486,27 @@ export async function checkFleetDispatch(
     const status = await readProjectDispatchStatus(sql, auth, projectId);
     const a1 = status.pool.find((entry) => entry.agentId === agents.a1);
     const a2 = status.pool.find((entry) => entry.agentId === agents.a2);
+    // The counts tally the same runs the list names, by what they do.
+    const countsMatchList = (agent: DispatchPoolAgent | undefined) => {
+      if (agent === undefined) return false;
+      const listed = (match: (run: DispatchAgentRun) => boolean) =>
+        agent.runs.filter(match).length;
+      const parked = listed((run) => run.waitingReason === 'model_capacity');
+      return (
+        agent.runCounts.total === agent.runs.length &&
+        agent.runCounts.running === listed((run) => run.status === 'running') &&
+        agent.runCounts.waiting.model_capacity ===
+          (parked > 0 ? parked : undefined)
+      );
+    };
     record(
       'fleet dispatch: the readback names each agent’s runs, a run waiting for its model, and the model’s hold [TASK-R46]',
       status.configured &&
         a1?.runs[0]?.waitingReason === 'model_capacity' &&
         a1.modelHeldUntil !== null &&
         a2?.runs.length === 1 &&
+        countsMatchList(a1) &&
+        countsMatchList(a2) &&
         status.holds.some((hold) => hold.model === modelA) &&
         status.passes.length >= 7,
       `status=${JSON.stringify({ pool: status.pool, holds: status.holds, passes: status.passes.length })}`,

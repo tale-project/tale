@@ -14982,6 +14982,7 @@
                             "nullable": true
                           },
                           "runs": {
+                            "maxItems": 50,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -15018,6 +15019,40 @@
                               ]
                             }
                           },
+                          "runCounts": {
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "running": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "queued": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "waiting": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              }
+                            },
+                            "required": [
+                              "total",
+                              "running",
+                              "queued",
+                              "waiting"
+                            ]
+                          },
                           "capacity": {
                             "type": "number"
                           },
@@ -15047,6 +15082,7 @@
                           "model",
                           "modelProvider",
                           "runs",
+                          "runCounts",
                           "capacity",
                           "modelHeldUntil",
                           "idle"

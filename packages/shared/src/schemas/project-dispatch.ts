@@ -350,10 +350,41 @@ export const DISPATCH_IDLE_REASONS = [
 ] as const;
 export type DispatchIdleReason = (typeof DISPATCH_IDLE_REASONS)[number];
 
+/** The runs the readback lists for one agent of the pool, oldest first: an
+ * agent kept on hundreds of tasks reads in one small answer, and its
+ * `runCounts` count every run it holds. */
+export const DISPATCH_RUNS_LISTED = 50;
+
+/** One run an agent of the pool holds, as the readback lists it. */
+export const dispatchAgentRunSchema = z.object({
+  runId: z.string(),
+  taskId: z.string(),
+  taskNumber: z.number().nullable(),
+  taskTitle: z.string(),
+  status: z.enum(['queued', 'running']),
+  /** Why the run waits instead of working, while it does. */
+  waitingReason: z.string().nullable(),
+});
+export type DispatchAgentRun = z.infer<typeof dispatchAgentRunSchema>;
+
+/** Every run an agent of the pool holds, by what it does: working, queued
+ * to take a worker, and waiting, by why — the reasons a run's
+ * `waitingReason` names (`org_limit`, `host`, `model_capacity`, …). */
+export const dispatchAgentRunCountsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  waiting: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type DispatchAgentRunCounts = z.infer<
+  typeof dispatchAgentRunCountsSchema
+>;
+
 /**
  * What a project's dispatch is doing, as the app's Dispatch page, the REST
  * door (`GET /api/v1/projects/{id}/dispatch`) and an operator's watcher
- * read it: every agent of the pool with what it works on or why it is idle,
+ * read it: every agent of the pool with how many runs it holds, by what they
+ * do, the oldest of them, or why it is idle,
  * the standing roles with their next and last occurrence, the models it
  * waits on, its gates, the organization's agent workers against the pool,
  * and its recent passes.
@@ -382,17 +413,10 @@ export const projectDispatchStatusSchema = z.object({
       name: z.string(),
       model: z.string(),
       modelProvider: z.string().nullable(),
-      runs: z.array(
-        z.object({
-          runId: z.string(),
-          taskId: z.string(),
-          taskNumber: z.number().nullable(),
-          taskTitle: z.string(),
-          status: z.enum(['queued', 'running']),
-          /** Why the run waits instead of working, while it does. */
-          waitingReason: z.string().nullable(),
-        }),
-      ),
+      /** The runs it holds, oldest first: at most
+       * {@link DISPATCH_RUNS_LISTED}; `runCounts` counts them all. */
+      runs: z.array(dispatchAgentRunSchema).max(DISPATCH_RUNS_LISTED),
+      runCounts: dispatchAgentRunCountsSchema,
       /** Runs it may hold at once. */
       capacity: z.number(),
       /** Its model is at capacity until then. */

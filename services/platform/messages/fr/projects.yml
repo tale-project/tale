@@ -500,6 +500,10 @@ dispatch:
     emptyEditor: Aucun agent n’est encore dans le pool. Choisis des agents sous Modifier.
     running: En cours
     queued: En file d’attente
+    runCount: '{label} : {count, number}'
+    showMore: '{count, plural, one {Afficher # exécution de plus} other {Afficher # exécutions de plus}}'
+    showFewer: Afficher moins d’exécutions
+    notListed: '{count, plural, one {# autre exécution n’est pas listée ici} other {# autres exécutions ne sont pas listées ici}}'
   idle:
     model_capacity: Son modèle est saturé
     host_pressure: L’hôte des sandbox est occupé

@@ -103,6 +103,8 @@ An external system reports on the gate through the [REST API](/develop/api-refer
 | **Dispatch is off**              | Dispatch, or task automation for your organization, is switched off.                                  |
 | **No pass yet**                  | Dispatch has not made a pass since the agent joined the pool.                                         |
 
+An agent that holds more than five runs shows how many it holds — **Running**, **Queued**, and each reason its runs wait, such as **Waiting for model capacity** — and its first five runs, the oldest first. A button such as **Show 45 more runs** lists up to 50 of them; past that, the page says how many more are not listed here. The [REST API](/develop/api-reference#dispatch) counts and lists them the same way.
+
 **Recent passes** shows the last 20 passes: when, what asked for them, how many runs they started and held, and why they stopped. **Run a pass now** asks for one at once. A self-hosted deployment can alert when a dispatch stops passing; [Prometheus and Grafana](/self-hosted/operate/observability/prometheus-grafana) shows the rule.
 
 ## Manage dispatch as configuration
