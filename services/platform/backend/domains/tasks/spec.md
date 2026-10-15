@@ -464,8 +464,8 @@ looks for work at once, and for five minutes starts no more new runs on the mode
 of `TASK-R40` let through: one at once, then two more 15 seconds later, four, eight, sixteen, then
 up to 32 every 15 seconds, counting every run started on the model since it answered, whoever
 started it. The agents on that model share those runs; work for an agent on another model goes
-on. A dispatch the waves hold back looks again at the next wave, so no spacing of its own lets a
-pool start its whole room on a model that has just answered.
+on. A dispatch the waves hold back looks again at the next wave: even with no time between starts,
+a pool never starts its whole room on a model that has just answered.
 
 - **Example**: Scribe's model is at capacity; Lector's is not. "Sitemap" is assigned to nobody →
   Lector takes it, and Scribe's own ready work waits.
