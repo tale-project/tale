@@ -279,8 +279,10 @@ function normalizeConfig(
   }
   const out: Record<string, string | number | boolean> = {};
   for (const field of fields) {
-    const provided = supplied[field.key];
-    const value = provided ?? field.default;
+    const given = supplied[field.key] ?? field.default;
+    // Stored without the blanks around it, and blanks alone are no value:
+    // a mailbox of spaces must not pass for one an app's sign-in requires.
+    const value = typeof given === 'string' ? given.trim() : given;
     if (value === undefined || value === '') {
       if (field.required) {
         throw new ConnectorCredentialError(
