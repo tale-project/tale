@@ -12,7 +12,7 @@ suites themselves sit in [`suites/`](suites).
 | **Browser engines** | `npx playwright install chromium firefox webkit` once — the cross-engine boxes and every chauffeur script need them. |
 | **A viewport** | 1440×900 is the default; responsive boxes name their own. |
 
-| **Fixed secrets** | The two in [`../../.env.example`](../../.env.example), exported before the server starts. Development generates any that are absent — and a generated `AI_GATEWAY_ENCRYPTION_KEY` cannot read what the previous run sealed, so a round without fixed secrets loses its accounts at every restart. |
+| **Fixed secrets** | The two in [`../../.env.example`](../../.env.example), exported before the server starts. Development generates any that are absent — and a generated `AI_GATEWAY_ENCRYPTION_KEY` cannot read what the previous run sealed, so a round without fixed secrets loses its accounts at every restart. For the REST boxes (`ACCT-50` … `ACCT-52`) also export `AI_GATEWAY_ADMIN_API_KEY` — development never generates it. |
 | **A Claude subscription** | A Pro or Max account you own, signed in in the round's browser. Needed from `ACCT-1`. |
 | **A ChatGPT subscription** | A Plus or Pro account you own, signed in in the same browser. Needed from `ACCT-3`. |
 | **Both vendor CLIs** | `claude` and `codex` on the path, for the hand-out boxes `ACCT-8` and `ACCT-9`. |
@@ -35,6 +35,7 @@ environment, not a finding.
 ```bash
 export AI_GATEWAY_API_KEY=…            # see ../../.env.example
 export AI_GATEWAY_ENCRYPTION_KEY=…     # 32 base64 bytes
+export AI_GATEWAY_ADMIN_API_KEY=…      # only for the REST boxes (ACCT-50 … ACCT-52)
 export AI_GATEWAY_DATA_DIR=/tmp/ai-gateway-round
 
 bun run --filter @tale/ai-gateway dev   # Vite + the API on :3004
