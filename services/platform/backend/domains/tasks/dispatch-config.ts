@@ -18,16 +18,20 @@ import {
   assertProjectActive,
   assertProjectAdministrable,
   assertReadable,
+  checkProjectAdministrable,
   loadProjectOrThrow,
   projectAudit,
   type ProjectAuthContext,
+  type ProjectRow,
 } from '../projects/service.ts';
+import { judgeDispatchSources } from './dispatch-reach.ts';
 import { requestDispatchPassInTx } from './dispatch-requests.ts';
 import {
   dispatchConfigurationValue,
   readDispatchPreimage,
   type ProjectDispatchConfigurationValue,
 } from './dispatch-store.ts';
+import { memberEditableProjects } from './edit-right.ts';
 import { TaskError } from './errors.ts';
 
 /**
@@ -47,8 +51,10 @@ import { TaskError } from './errors.ts';
  */
 
 /** The dispatch as managed configuration reads it: the value and its
- * hash, both null when the project has none. A stored document this image
- * cannot read is refused, never read as none (`readDispatchPreimage`). */
+ * hash, both null when the project has none, and `servesAgain` when saving
+ * it again, even unchanged, would serve a board it skips now
+ * ({@link savingServesAgain}). A stored document this image cannot read is
+ * refused, never read as none (`readDispatchPreimage`). */
 export async function readProjectDispatchConfiguration(
   sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
@@ -56,6 +62,7 @@ export async function readProjectDispatchConfiguration(
 ): Promise<{
   config: ProjectDispatchConfigurationValue | null;
   hash: string | null;
+  servesAgain?: true;
 }> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
@@ -68,7 +75,59 @@ export async function readProjectDispatchConfiguration(
     stored === null
       ? null
       : dispatchConfigurationValue(projectId, stored.config);
-  return { config, hash: managedConfigurationHash(config) };
+  const servesAgain =
+    stored !== null && (await savingServesAgain(sql, auth, project, stored));
+  return {
+    config,
+    hash: managedConfigurationHash(config),
+    ...(servesAgain ? { servesAgain: true as const } : {}),
+  };
+}
+
+/**
+ * Whether the caller, saving the stored dispatch again — even unchanged —
+ * would serve a board it now skips for want of authority: one whoever last
+ * saved it may no longer edit, and the caller may (`dispatch-reach.ts`). The
+ * editor offers its Save then, and managed configuration and the settings
+ * tools read the dispatch as not yet applied, so the right that serves the
+ * board is the caller's from then on and nobody else's stands in. A caller
+ * who could not serve the board either, or may not save the dispatch at all
+ * (the project is archived, or theirs only to read), changes nothing by
+ * saving, and is not asked to.
+ */
+export async function savingServesAgain(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  project: ProjectRow,
+  stored: { config: ProjectDispatch; updatedBy: string | null },
+): Promise<boolean> {
+  const sources = stored.config.sources ?? [];
+  if (
+    sources.length === 0 ||
+    stored.updatedBy === auth.userId ||
+    project.archivedAt !== null ||
+    !checkProjectAdministrable(project, auth)
+  )
+    return false;
+  const lost = (
+    await judgeDispatchSources(sql, {
+      organizationId: auth.organizationId,
+      sources,
+      authorityUserId: stored.updatedBy,
+    })
+  )
+    .filter((source) => source.skipped === 'no_authority')
+    .map((source) => source.projectId);
+  if (lost.length === 0) return false;
+  return (
+    (
+      await memberEditableProjects(sql, {
+        organizationId: auth.organizationId,
+        userId: auth.userId,
+        projectIds: lost,
+      })
+    ).size > 0
+  );
 }
 
 /** The refusal of a dispatch that names what the project does not have:
@@ -100,8 +159,12 @@ interface DispatchFacts {
   labels: ReadonlySet<string>;
   /** What is wrong with the sources it names (`checkSources`). */
   sourceIssues: readonly DispatchIssue[];
-  /** The labels of each source that passed, by case-folded name. */
+  /** The labels of each source that passed or was kept as stored, by
+   * case-folded name. */
   sourceLabels: ReadonlyMap<string, ReadonlySet<string>>;
+  /** The sources kept exactly as stored, which are not checked again: each
+   * is judged where it is used (`dispatch-reach.ts`). */
+  keptSources: ReadonlySet<string>;
 }
 
 /** A label a dispatch names, the field it sits in, and where it is
@@ -233,7 +296,7 @@ function judgeDispatch(
               : `No label named "${ref.name}" is in this project or any project it serves.`,
         });
       }
-    } else {
+    } else if (!facts.keptSources.has(ref.scope.sourceProjectId)) {
       const labels = facts.sourceLabels.get(ref.scope.sourceProjectId);
       if (labels !== undefined && !labels.has(name)) {
         issues.push({
@@ -266,9 +329,20 @@ export async function checkProjectDispatch(
     dispatch: ProjectDispatch;
     /** Who writes it: saving a source needs the right to edit it. */
     auth: ProjectAuthContext;
+    /** The document the save replaces: a source it already names, exactly
+     * as named there, is kept without being checked again, and switching it
+     * off, changing nothing else, is never refused
+     * ({@link switchesOffOnly}). */
+    stored?: ProjectDispatch | null;
     planned?: DispatchPlannedState;
   },
 ): Promise<DispatchIssue[]> {
+  if (
+    args.stored !== undefined &&
+    args.stored !== null &&
+    switchesOffOnly(args.projectId, args.stored, args.dispatch)
+  )
+    return [];
   const agents = await sql<{ id: string; tools: string[] | null }[]>`
     SELECT id, tools FROM app.project_agents
     WHERE project_id = ${args.projectId} AND org_id = ${args.organizationId}
@@ -312,8 +386,13 @@ export async function checkProjectDispatch(
 }
 
 /** The sources a dispatch names, checked for its writer
- * ({@link checkSources}), with the labels of each that passed by their
- * case-folded name. */
+ * ({@link checkSources}), with the labels of each that passed or was kept
+ * as stored, by their case-folded name. A source named exactly as the
+ * stored document names it is kept, and not checked again: a save that
+ * keeps a board served widens nothing, since every use judges it on the
+ * right of whoever saved last (`dispatch-reach.ts`), so a board since
+ * archived, gone, or beyond the writer's right never refuses the save of
+ * the rest — switching the dispatch off among them. */
 async function checkSourcesWithLabels(
   sql: Sql | TransactionSql,
   args: {
@@ -321,29 +400,74 @@ async function checkSourcesWithLabels(
     projectId: string;
     dispatch: ProjectDispatch;
     auth: ProjectAuthContext;
+    stored?: ProjectDispatch | null;
   },
-): Promise<Pick<DispatchFacts, 'sourceIssues' | 'sourceLabels'>> {
-  const sourceIssues: DispatchIssue[] = [];
-  const passed = await checkSources(
-    sql,
-    args,
-    args.dispatch.sources ?? [],
-    sourceIssues,
+): Promise<
+  Pick<DispatchFacts, 'sourceIssues' | 'sourceLabels' | 'keptSources'>
+> {
+  const storedSources = new Set(
+    (args.stored?.sources ?? []).map((source) => sourceIdentity(source)),
   );
+  const sources = args.dispatch.sources ?? [];
+  const keptSources = new Set(
+    sources
+      .filter(
+        (source) =>
+          source.projectId !== args.projectId &&
+          storedSources.has(sourceIdentity(source)),
+      )
+      .map((source) => source.projectId),
+  );
+  const sourceIssues: DispatchIssue[] = [];
+  const passed = await checkSources(sql, args, sources, sourceIssues, {
+    kept: keptSources,
+  });
+  const labelled = [...new Set([...passed, ...keptSources])];
   const labels = await readNamedLabels(sql, {
     organizationId: args.organizationId,
-    projectIds: [...passed],
+    projectIds: labelled,
     dispatch: args.dispatch,
   });
   return {
     sourceIssues,
     sourceLabels: new Map(
-      [...passed].map((projectId) => [
+      labelled.map((projectId) => [
         projectId,
         labels.get(projectId) ?? new Set<string>(),
       ]),
     ),
+    keptSources,
   };
+}
+
+/** Whether the document is the stored one switched off, and nothing else
+ * changed: it names nothing new and starts nothing, so it is never refused
+ * for what the stored document names, whatever became of it since — a
+ * board archived or beyond the writer's right, an agent deleted. */
+function switchesOffOnly(
+  projectId: string,
+  stored: ProjectDispatch,
+  dispatch: ProjectDispatch,
+): boolean {
+  return (
+    !dispatch.enabled &&
+    managedConfigurationHash(
+      dispatchConfigurationValue(projectId, { ...stored, enabled: false }),
+    ) ===
+      managedConfigurationHash(dispatchConfigurationValue(projectId, dispatch))
+  );
+}
+
+/** A source as it is named — its project, columns and label filter — for
+ * telling one kept as stored from one added or changed. */
+function sourceIdentity(source: ProjectDispatchSource): string {
+  return (
+    managedConfigurationHash({
+      projectId: source.projectId,
+      statuses: source.statuses ?? null,
+      labels: source.labels ?? null,
+    }) ?? ''
+  );
 }
 
 /** Of the labels a dispatch names, those each of the projects has, by
@@ -440,7 +564,8 @@ export async function checkPlannedProjectDispatch(
  * The sources a dispatch names, checked for its writer: each is another
  * project of the organization, active, and one the writer may edit — the
  * right a dispatch needs to serve a board, so serving never widens what its
- * writer may do. Pushes an issue for each that fails, and answers the
+ * writer may do. A source kept exactly as stored (`options.kept`) is not
+ * checked again. Pushes an issue for each that fails, and answers the
  * sources that pass.
  */
 async function checkSources(
@@ -448,6 +573,7 @@ async function checkSources(
   args: { organizationId: string; projectId: string; auth: ProjectAuthContext },
   sources: readonly ProjectDispatchSource[],
   issues: DispatchIssue[],
+  options: { kept: ReadonlySet<string> },
 ): Promise<Set<string>> {
   const passed = new Set<string>();
   if (sources.length === 0) return passed;
@@ -470,6 +596,9 @@ async function checkSources(
         message:
           'A dispatch serves its own board already; a source names another project.',
       });
+    } else if (options.kept.has(source.projectId)) {
+      // Kept as stored: judged where it is used, never refused here.
+      continue;
     } else if (
       project === undefined ||
       (args.auth.projectScope !== undefined &&
@@ -538,15 +667,16 @@ async function prepareDispatchSave(
       ? null
       : dispatchConfigurationValue(args.projectId, stored.config);
   assertExpectedHash(managedConfigurationHash(current), args.expectedHash);
+  const next = dispatchConfigurationValue(args.projectId, args.dispatch);
+  const hash = managedConfigurationHash(next) ?? '';
   const issues = await checkProjectDispatch(tx, {
     organizationId: auth.organizationId,
     projectId: args.projectId,
     dispatch: args.dispatch,
     auth,
+    stored: stored?.config ?? null,
     ...(args.planned !== undefined ? { planned: args.planned } : {}),
   });
-  const next = dispatchConfigurationValue(args.projectId, args.dispatch);
-  const hash = managedConfigurationHash(next) ?? '';
   // A dispatch serves its other boards on the right of whoever saved it
   // last (`dispatch-reach.ts`): saved again by someone else, it serves them
   // on that person's right from then on, even when the document is the same.

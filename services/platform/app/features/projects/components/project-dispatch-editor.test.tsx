@@ -241,6 +241,74 @@ describe('editing a project’s dispatch', () => {
     ]);
   });
 
+  it('offers Save, unchanged, while saving would serve a skipped board again on the reader’s right [TASK-R72]', async () => {
+    const serving: ProjectDispatch = {
+      ...SPARSE,
+      sources: [{ projectId: 'proj-billing' }],
+    };
+    backend.on(CONFIG, () =>
+      Response.json({
+        config: { ...serving, projectId: 'proj-1' },
+        hash: HASH,
+        servesAgain: true,
+      }),
+    );
+    saves(() => Response.json({ ok: true, changed: true, hash: NEXT_HASH }));
+    const { user, onOpenChange } = renderEditor();
+    const dialog = await editorDialog(t('dispatch.editor.title'));
+    expect(
+      await dialog.findByText(t('dispatch.editor.servesAgainTitle')),
+    ).toBeInTheDocument();
+    const save = dialog.getByRole('button', { name: tCommon('actions.save') });
+    expect(save).toBeEnabled();
+    await user.click(save);
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(saved).toEqual([
+      { config: { ...serving, projectId: 'proj-1' }, expectedHash: HASH },
+    ]);
+  });
+
+  it('closes unchanged without asking to discard, while Save would serve a skipped board again', async () => {
+    backend.on(CONFIG, () =>
+      Response.json({
+        config: {
+          ...SPARSE,
+          sources: [{ projectId: 'proj-billing' }],
+          projectId: 'proj-1',
+        },
+        hash: HASH,
+        servesAgain: true,
+      }),
+    );
+    const confirm = vi.spyOn(globalThis, 'confirm').mockReturnValue(false);
+    try {
+      const { user, onOpenChange } = renderEditor();
+      const dialog = await editorDialog(t('dispatch.editor.title'));
+      await dialog.findByText(t('dispatch.editor.servesAgainTitle'));
+      await user.click(
+        dialog.getByRole('button', { name: tCommon('actions.cancel') }),
+      );
+      expect(confirm).not.toHaveBeenCalled();
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it('keeps Save off for an unchanged dispatch that serves every board it names', async () => {
+    stored({ ...SPARSE, sources: [{ projectId: 'proj-billing' }] });
+    renderEditor();
+    const dialog = await editorDialog(t('dispatch.editor.title'));
+    await dialog.findByLabelText(t('dispatch.editor.maxConcurrentRuns'));
+    expect(
+      dialog.queryByText(t('dispatch.editor.servesAgainTitle')),
+    ).not.toBeInTheDocument();
+    expect(
+      dialog.getByRole('button', { name: tCommon('actions.save') }),
+    ).toBeDisabled();
+  });
+
   it('opens a dispatch saved with one agent above the pool, and saves it once it fits', async () => {
     // Saved before a write had to keep runs per agent within the pool.
     stored({ ...SPARSE, maxConcurrentRuns: 2, perAgentConcurrency: 5 });

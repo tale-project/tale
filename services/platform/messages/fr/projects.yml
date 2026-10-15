@@ -552,7 +552,7 @@ dispatch:
     allWork: Toutes les tâches prêtes
     only: 'Seulement {labels}'
     never: 'Jamais {labels}'
-    declared: La configuration gérée et les outils de paramètres déclarent ces tableaux et les relecteurs. Enregistrer ici les garde tels quels, et exige le droit de modifier chaque tableau desservi.
+    declared: La configuration gérée et les outils de paramètres déclarent ces tableaux et les relecteurs. Enregistrer ici les garde tels quels, et la répartition les dessert ensuite grâce à ton droit. Un tableau que tu ne peux pas modifier est ignoré.
   reviewers:
     title: Relecteurs
     description: Ces agents relisent ce que le pool a produit, sur ce tableau et sur chaque tableau qu’il dessert. Le premier qui n’a pas produit le travail en prend la relecture, sauf si la tâche désigne son propre relecteur.
@@ -728,4 +728,6 @@ dispatch:
     conflict: Quelqu’un d’autre a enregistré cette répartition du travail pendant que tu la modifiais. Charge la version actuelle, puis refais ta modification.
     changedTitle: Cette répartition du travail a changé depuis son ouverture
     changedBody: Un enregistrement serait refusé maintenant. Charge la version actuelle pour repartir d’elle ; tes modifications ici sont abandonnées.
+    servesAgainTitle: Enregistrer pour desservir à nouveau un tableau ignoré
+    servesAgainBody: La dernière personne à avoir enregistré cette répartition ne peut plus modifier un tableau qu’elle dessert, elle l’ignore donc. Tu peux le modifier. Enregistrer, même sans modification, le dessert à nouveau grâce à ton droit.
     reload: Charger la version actuelle

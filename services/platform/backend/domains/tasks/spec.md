@@ -650,16 +650,22 @@ its own board.
 ### TASK-R70 · A dispatch serves another board only when its writer may edit that board
 
 A source is another active project of the organization, named once and never the dispatch's own.
-Saving a dispatch with sources — in the app, through the settings tools or by a managed
-declaration, whose check before any write runs the same rules (`TASK-R61`) — needs the right to
-edit every one of them, besides administering the dispatch's own project (`TASK-R48`). A source's
-label filter names that project's labels; a gate's labels may be those of any board the dispatch
-serves. Its reviewers are agents of its own project granted task review. A dispatch that names
-neither sources nor reviewers reads, hashes and behaves as it did before they existed.
+Saving a dispatch that adds a source or changes one — in the app, through the settings tools or by
+a managed declaration, whose check before any write runs the same rules (`TASK-R61`) — needs the
+right to edit that project, besides administering the dispatch's own project (`TASK-R48`). A
+source kept exactly as stored is not checked again, whatever became of its project: every use
+judges it (`TASK-R72`), so keeping it widens nothing. Switching a dispatch off, and changing
+nothing else, is never refused for what it names. A source's label filter names that project's
+labels; a gate's labels may be those of any board the dispatch serves. Its reviewers are agents
+of its own project granted task review. A dispatch that names neither sources nor reviewers
+reads, hashes and behaves as it did before they existed.
 
 - **Example**: Ada administers Development and edits Tale, but only reads Billing. She saves
   Development's dispatch serving Tale → saved. She adds Billing → refused at
   `sources.1.projectId`, and nothing is written.
+- **Example**: Development's dispatch serves Billing, which Noah has since archived. Ada switches
+  the dispatch off in the app → saved; the next day she raises its pool to three agents → saved,
+  and Billing stays skipped as archived.
 
 ### TASK-R71 · A dispatch takes ready work from every board it serves in one order
 
@@ -683,7 +689,10 @@ reassigns them, but nothing starts those agents there: a person's Start agent is
 to In progress, a retry or a late comment starts no run. The pass records the skip
 (`source_missing`, `source_archived`, `source_no_authority`) and the dispatch's page says why.
 Nobody else's right ever stands in: the dispatch serves the board again once someone who may edit
-it saves the dispatch, even unchanged, and from then on on that person's right.
+it saves the dispatch, even unchanged, and from then on on that person's right. The dispatch's
+editor offers its Save, unchanged, to an administrator of the dispatch's project who may serve the
+board again, and to such a caller a managed declaration or a settings tools change reads the
+dispatch as not yet applied and saves it again.
 
 - **Example**: Ada saved Development's dispatch serving Billing, then lost her role there → the
   next pass takes nothing from Billing and records `source_no_authority`, and the Coder's run on

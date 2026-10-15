@@ -562,7 +562,7 @@ dispatch:
     allWork: Alle bereiten Aufgaben
     only: 'Nur {labels}'
     never: 'Nie {labels}'
-    declared: Diese Boards und die Reviewer werden über die verwaltete Konfiguration und die Einstellungs-Tools festgelegt. Speichern hier lässt sie, wie sie sind, und setzt das Recht voraus, jedes bediente Board zu bearbeiten.
+    declared: Diese Boards und die Reviewer werden über die verwaltete Konfiguration und die Einstellungs-Tools festgelegt. Speichern hier lässt sie, wie sie sind, und von da an bedient die Arbeitsverteilung sie mit deinem Recht. Ein Board, das du nicht bearbeiten darfst, wird übersprungen.
   reviewers:
     title: Reviewer
     description: Diese Agenten reviewen, was der Pool erarbeitet hat – auf diesem Board und auf jedem Board, das die Arbeitsverteilung bedient. Das Review übernimmt der erste, der die Arbeit nicht selbst erarbeitet hat, außer die Aufgabe nennt einen eigenen Reviewer.
@@ -738,4 +738,6 @@ dispatch:
     conflict: Jemand anderes hat diese Arbeitsverteilung gespeichert, während du sie bearbeitet hast. Lade die aktuelle Version und nimm deine Änderung dann erneut vor.
     changedTitle: Diese Arbeitsverteilung hat sich seit dem Öffnen geändert
     changedBody: Speichern würde jetzt abgelehnt. Lade die aktuelle Version, um von ihr aus neu zu beginnen; deine Änderungen hier werden verworfen.
+    servesAgainTitle: Speichern, um ein übersprungenes Board wieder zu bedienen
+    servesAgainBody: Wer diese Arbeitsverteilung zuletzt gespeichert hat, darf ein Board, das sie bedient, nicht mehr bearbeiten, deshalb überspringt sie es. Du darfst es bearbeiten. Speichern – auch ohne Änderung – bedient es wieder, mit deinem Recht.
     reload: Aktuelle Version laden

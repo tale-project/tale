@@ -744,6 +744,78 @@ describe('a dispatch serves another board only when its writer may edit that boa
     ]);
   });
 
+  it('keeps a board exactly as stored without checking it again, and refuses one added or changed', async () => {
+    // Development's dispatch was saved serving Billing (Ada may not edit
+    // it), Archive (since archived) and a project since deleted, each with
+    // its columns and filter.
+    const stored: ProjectDispatch = {
+      ...dispatch,
+      standingRoles: undefined,
+      sources: [
+        { projectId: 'p-vat', statuses: ['todo'] },
+        { projectId: 'p-archive', labels: { include: ['gone'] } },
+        { projectId: 'p-elsewhere' },
+      ],
+    };
+    const withStored = (fields: Partial<ProjectDispatch>) =>
+      checkProjectDispatch(database(), {
+        organizationId: 'org-1',
+        projectId: 'p-1',
+        dispatch: { ...stored, ...fields },
+        auth: ada,
+        stored,
+      });
+    await expect(withStored({ maxConcurrentRuns: 1 })).resolves.toEqual([]);
+    await expect(withStored({ enabled: false })).resolves.toEqual([]);
+    const changed = await withStored({
+      sources: [
+        { projectId: 'p-vat', statuses: ['backlog'] },
+        { projectId: 'p-archive', labels: { include: ['gone'] } },
+        { projectId: 'p-elsewhere' },
+      ],
+    });
+    expect(changed.map((issue) => issue.path)).toEqual(['sources.0.projectId']);
+    const added = await withStored({
+      sources: [...(stored.sources ?? []), { projectId: 'p-1' }],
+    });
+    expect(added.map((issue) => issue.path)).toEqual(['sources.3.projectId']);
+  });
+
+  it('switches a dispatch off whatever the boards it serves became, and refuses nothing else for them', async () => {
+    const stored: ProjectDispatch = {
+      ...dispatch,
+      standingRoles: undefined,
+      // A board Ada may not edit, and an agent since deleted.
+      agents: ['scribe', 'ghost'],
+      sources: [{ projectId: 'p-vat' }],
+    };
+    const base = database();
+    const query = (strings: TemplateStringsArray, ...values: unknown[]) =>
+      strings.join('?').includes('FROM app.project_dispatch')
+        ? Promise.resolve([{ config: stored, updatedAt: 1, updatedBy: 'ada' }])
+        : (base as unknown as typeof query)(strings, ...values);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the save's reads, with the stored document
+    const tx = Object.assign(query, {
+      unsafe: (text: string) => text,
+    }) as unknown as TransactionSql;
+    await expect(
+      checkProjectDispatchSave(tx, ada, {
+        projectId: 'p-1',
+        dispatch: { ...stored, enabled: false },
+      }),
+    ).resolves.toMatchObject({ ok: true, changed: true });
+    // Anything more than the switch is checked: the deleted agent refuses it.
+    await expect(
+      checkProjectDispatchSave(tx, ada, {
+        projectId: 'p-1',
+        dispatch: { ...stored, enabled: false, maxConcurrentRuns: 1 },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      issues: [expect.objectContaining({ path: 'agents.1' })],
+    });
+  });
+
   it('reads, hashes and saves a dispatch that names no other board exactly as before', () => {
     const stored = {
       ...dispatch,

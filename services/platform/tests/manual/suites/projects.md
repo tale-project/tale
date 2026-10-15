@@ -721,6 +721,15 @@ a few To do tasks.
   took names it by its name, and the assignee list of another Billing task
   offers it with **From … dispatch** (`tasks.assignee.servedFrom`); typing `@`
   in a comment there does not offer it.
+- [ ] `PROJ-F73` · **Saving again serves a skipped board on your right** —
+  With the dispatch of `PROJ-F71` saved last by a second administrator who
+  then loses Editor access to Billing (so **Boards it serves** reads Billing
+  skipped, `projects.dispatch.sources.skipped.no_authority`), open **Edit** as
+  an administrator who edits Billing → a notice reads **Save to serve a
+  skipped board again** (`projects.dispatch.editor.servesAgainTitle`) and
+  **Save** is on without any change; save → **Dispatch saved**, and the next
+  pass reads Billing as **Served**. Open **Edit** again → no notice, and
+  **Save** stays off until something changes.
 - [ ] `PROJ-B20` · **A stale edit never overwrites another** — Open **Edit** in
   two sessions; save a change in the first; change **Runs at once**
   (`projects.dispatch.editor.maxConcurrentRuns`) in the second and save → one
@@ -777,8 +786,25 @@ a few To do tasks.
   by**; on Billing, the task the agent took still names it, and **Start
   agent** (or **Retry**) there is refused: **The assigned agent belongs to
   another project whose dispatch no longer serves this board**
-  (`tasks.agentRun.agentOutOfReach`), and no run starts; open **Edit** and
-  save → refused: **Board 1 under Boards it serves
-  must be another active project of this organization that you may edit**
-  (`projects.dispatch.editor.issues.sourceProject`), the draft kept. Restore
-  your access → the next pass serves Billing again.
+  (`tasks.agentRun.agentOutOfReach`), and no run starts; open **Edit** → no
+  notice offers to serve it again and **Save** stays off; change **Runs at
+  once** and save → saved, and Billing stays skipped. Restore your access →
+  the next pass serves Billing again.
+- [ ] `PROJ-B26` · **Switching dispatch off is never refused for a board it
+  serves** — With the dispatch of `PROJ-F71` serving Billing, archive Billing;
+  in this project open **Edit**, switch off **Dispatch is on**
+  (`projects.dispatch.editor.enabled`) and save → **Dispatch saved**
+  (`projects.dispatch.editor.saved`); open **Edit** again, change **Runs at
+  once** (`projects.dispatch.editor.maxConcurrentRuns`) and save → saved, and
+  **Boards it serves** reads Billing as skipped because it is archived
+  (`projects.dispatch.sources.skipped.archived`). Restore Billing, switch
+  dispatch on again and save → the next pass serves it.
+- [ ] `PROJ-B27` · **Another project stays unnamed to who cannot open it** —
+  With the dispatch of `PROJ-F71` serving Billing, share Billing with a team
+  you are not in, and let an agent of the pool work one task on each board;
+  as an editor of this project who is not in that team, open its **Dispatch**
+  tab → **Boards it serves** reads **A project you cannot open**
+  (`projects.dispatch.sources.hiddenProject`), links nothing, and the agent's
+  row counts both runs but lists only this project's task: neither the
+  Billing task's title nor the name Billing appears anywhere on the page, in
+  English, German and French.

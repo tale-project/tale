@@ -5,8 +5,9 @@
  * passes against a stand-in host, assigns and locks agents across the two
  * boards, routes a review, judges people who edit only one of the two
  * projects, takes the served board away twice — by a lost right and by
- * archiving it — and deletes the Coder. Every agent turn, retry, park wake and
- * dispatch pass the two projects enqueue is held a day ahead
+ * archiving it — switches the dispatch off from the app with the archived
+ * board still listed, and deletes the Coder. Every agent turn, retry, park
+ * wake and dispatch pass the two projects enqueue is held a day ahead
  * (`holdAgentJobs`), so the harness's worker launches nothing and every pass
  * is the lane's own.
  */
@@ -25,6 +26,7 @@ import type { ProjectAuthContext } from '../projects/service.ts';
 import { holdAgentJobs } from './delegated-start.integration.ts';
 import {
   checkProjectDispatch,
+  readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
 import { runDispatchPass, type HostVerdict } from './dispatch-pass.ts';
@@ -618,8 +620,20 @@ export async function checkDispatchAcrossProjects(
 
     // 11. Saved again by the owner, unchanged, it serves Billing on the
     // owner's right; archiving Billing then skips it again.
+    // The owner may edit Billing: reading the dispatch tells her that saving
+    // it again, unchanged, serves Billing again.
+    const lostRead = await readProjectDispatchConfiguration(
+      sql,
+      owner,
+      development,
+    );
     const resaved = await transactSerializable(sql, (tx) =>
       saveProjectDispatch(tx, owner, { projectId: development, dispatch }),
+    );
+    const regainedRead = await readProjectDispatchConfiguration(
+      sql,
+      owner,
+      development,
     );
     const regained = await agentReachesProject(sql, {
       organizationId: orgId,
@@ -639,6 +653,8 @@ export async function checkDispatchAcrossProjects(
     record(
       'dispatch across projects: a board saved again by who may edit it is served again, and an archived one is skipped [TASK-R72]',
       resaved.changed &&
+        lostRead.servesAgain === true &&
+        regainedRead.servesAgain === undefined &&
         regained &&
         archivedPass !== null &&
         archivedPass.held.some(
@@ -650,7 +666,31 @@ export async function checkDispatchAcrossProjects(
       `resaved=${JSON.stringify(resaved)} regained=${regained} pass=${JSON.stringify(archivedPass)} reach=${archivedReach} lock=${archivedLock}`,
     );
 
-    // 12. Deleting the Coder takes it off the Billing cards it held, each
+    // 12. Billing is archived, and the app's editor saves the dispatch with
+    // every board it serves sent back as stored: switched off, then with
+    // another limit. Neither is refused for the archived board.
+    const switchedOff = await transactSerializable(sql, (tx) =>
+      saveProjectDispatch(tx, owner, {
+        projectId: development,
+        dispatch: { ...dispatch, enabled: false },
+      }),
+    );
+    const narrowed = await transactSerializable(sql, (tx) =>
+      saveProjectDispatch(tx, owner, {
+        projectId: development,
+        dispatch: { ...dispatch, enabled: false, maxConcurrentRuns: 2 },
+      }),
+    );
+    const offRows = await sql<{ enabled: boolean }[]>`
+      SELECT enabled FROM app.project_dispatch WHERE project_id = ${development}
+    `;
+    record(
+      'dispatch across projects: a dispatch whose served board was archived is still switched off and saved from the app [TASK-R70]',
+      switchedOff.changed && narrowed.changed && offRows[0]?.enabled === false,
+      `off=${JSON.stringify(switchedOff)} narrowed=${JSON.stringify(narrowed)} rows=${JSON.stringify(offRows)}`,
+    );
+
+    // 13. Deleting the Coder takes it off the Billing cards it held, each
     // with a line in Billing's own history.
     await transactSerializable(sql, (tx) =>
       deleteProjectAgent(tx, owner, agents.coder),

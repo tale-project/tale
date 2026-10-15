@@ -534,7 +534,7 @@ dispatch:
     allWork: Every ready task
     only: 'Only {labels}'
     never: 'Never {labels}'
-    declared: Managed configuration and the settings tools declare these boards and the reviewers. Saving here keeps them as they are, and needs the right to edit every board it serves.
+    declared: Managed configuration and the settings tools declare these boards and the reviewers. Saving here keeps them as they are, and from then on the dispatch serves them on your right. A board you may not edit is skipped.
   reviewers:
     title: Reviewers
     description: These agents review what the pool produced, on this board and every board it serves. The first one that did not produce the work takes its review, unless the task names its own reviewer.
@@ -710,4 +710,6 @@ dispatch:
     conflict: Someone else saved this dispatch while you were editing it. Load the current version, then make your change again.
     changedTitle: This dispatch changed since you opened it
     changedBody: Saving now would be refused. Load the current version to start again from it; your changes here are discarded.
+    servesAgainTitle: Save to serve a skipped board again
+    servesAgainBody: Whoever last saved this dispatch can no longer edit a board it serves, so it skips that board. You may edit it. Saving, even without a change, serves it again on your right.
     reload: Load the current version
