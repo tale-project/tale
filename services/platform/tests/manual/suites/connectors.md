@@ -376,9 +376,10 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   CONN-F24's row: **Replace app credentials**
   (`settings.connectors.replace.clientCredentialsTitle`) opens with the
   directory and application ID filled in and the secret blank; save a wrong
-  client secret → the next mail sync or Outlook action fails with
-  `CREDENTIAL_APP_REFUSED`, naming `invalid_client` and the three values to
-  check, and the row stays active; the right secret restores it. Then name a
+  client secret → the next mail sync or Outlook action fails saying the
+  token endpoint refused the app's sign-in, naming `invalid_client` and the
+  three values to check (backend `CREDENTIAL_APP_REFUSED`, which the sentence
+  does not show), and the row stays active; the right secret restores it. Then name a
   mailbox outside the app's management scope → the action fails naming that
   mailbox and the Exchange role it lacks (`Application Mail.Read`), never a
   bare 403.
