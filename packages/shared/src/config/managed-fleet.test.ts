@@ -429,6 +429,27 @@ describe('a declared agent pins its repository credentials and commit identity',
       declared({ connectorCredentials: { forgejo: ' Client A' } }).success,
     ).toBe(false);
   });
+
+  test('refuses a pin spelled otherwise than the credential it declares beside it, which could never read back', () => {
+    const clientA: Declared = {
+      kind: 'connector-credential',
+      config: {
+        connector: 'forgejo',
+        name: 'Client A',
+        authMethod: 'bearer',
+        endpoint: 'https://git.tale.dev',
+        fields: { token: { env: 'TALE_CONFIG_SECRET_FORGEJO_CLIENT_A' } },
+      },
+    };
+    const pinning = (pin: string) => ({
+      kind: 'project-agent',
+      config: { ...agent.config, connectorCredentials: { forgejo: pin } },
+    });
+    expect(declare([clientA, pinning('client a')]).success).toBe(false);
+    expect(declare([clientA, pinning('Client A')]).success).toBe(true);
+    // A pin of a credential the declaration leaves to Tale is checked there.
+    expect(declare([pinning('client a')]).success).toBe(true);
+  });
 });
 
 describe('a declared secret is compared by a slow, salted digest of its value', () => {

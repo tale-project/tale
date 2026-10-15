@@ -181,6 +181,27 @@ const declarationSchema = z
       .map((resource) => resource.config.connector);
     if (new Set(connectorDefaults).size !== connectorDefaults.length)
       fail('A connector cannot have two declared default credentials');
+    // A pin names the credential exactly as Tale stores its name, which is
+    // how a declared credential spells it: one spelled otherwise is refused
+    // by the platform, and would never read back as declared.
+    for (const resource of configuration.resources) {
+      if (resource.kind !== 'project-agent') continue;
+      for (const [connector, pin] of Object.entries(
+        resource.config.connectorCredentials ?? {},
+      )) {
+        const respelled = configuration.resources.find(
+          (candidate) =>
+            candidate.kind === 'connector-credential' &&
+            candidate.config.connector === connector &&
+            candidate.config.name !== pin &&
+            candidate.config.name.toLowerCase() === pin.toLowerCase(),
+        );
+        if (respelled?.kind === 'connector-credential')
+          fail(
+            `A project agent pins "${pin}" for ${connector}, which this declaration names "${respelled.config.name}": spell the pin as the credential`,
+          );
+      }
+    }
     for (const resource of configuration.resources) {
       if (
         resource.kind !== 'automation-deployment' &&
