@@ -75,6 +75,50 @@ function createsWhenAbsent(resource: ManagedPlatformResource): boolean {
   );
 }
 
+/** The creation, by resource id, that leaves a resource of an adopting kind
+ * in place to write: a project its instructions, an agent the runtime,
+ * model, instructions and tools it is created with ({@link creationSeed}),
+ * a task its description and the review context written onto it. */
+function createdWith(resource: ManagedPlatformResource): string | undefined {
+  switch (resource.kind) {
+    case 'project-instructions':
+      return `project/${resource.config.projectId}`;
+    case 'agent-instructions':
+    case 'agent-tools':
+    case 'agent-model':
+      return `project-agent/${resource.config.projectId}/${resource.config.agentId}`;
+    case 'task-instructions':
+    case 'task-review-context':
+      return `task/${resource.config.projectId}/${resource.config.taskId}`;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Whether a resource can be written inside a project, agent or task the same
+ * declaration creates (`created`: the ids of those that do not exist yet).
+ * It can when it creates itself — `createIfMissing`, an automation, a
+ * dispatch — or when what is created leaves it there to write. Anything
+ * else there only adopts, and would find nothing to adopt: an agent's model
+ * in a new project whose agent nobody declares, a label or agent declared
+ * without `createIfMissing`. Planning refuses it, before anything is
+ * written, rather than letting an apply stop half-way at it.
+ */
+export function writableInsideCreation(
+  resource: ManagedPlatformResource,
+  created: ReadonlySet<string>,
+): boolean {
+  if (
+    resource.kind.startsWith('automation-') ||
+    resource.kind === 'project-dispatch' ||
+    ('createIfMissing' in resource && resource.createIfMissing === true)
+  )
+    return true;
+  const home = createdWith(resource);
+  return home !== undefined && created.has(home);
+}
+
 const encode = encodeURIComponent;
 
 function resourcePath(resource: ManagedPlatformResource, read = false): string {

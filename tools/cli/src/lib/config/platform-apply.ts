@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { CliError, preconditionError } from '../../utils/fail';
 import { readOptionalJson, writePrivateJson } from '../state/private-files';
 import { DeclaredSecrets, isSecretResource } from './declared-secrets';
-import { isManagedResource } from './managed-resources';
+import { isManagedResource, writableInsideCreation } from './managed-resources';
 import type { PlatformConfigurationClient } from './platform-client';
 import {
   configurationPlanSchema,
@@ -90,19 +90,54 @@ function creationParents(resource: PlatformResource): string[] {
 const ABSENT_SHA256 = valueHash(null);
 
 /**
+ * Refuse, before anything is written, what cannot be written inside the
+ * project, agent or task `parent` this declaration creates: a resource that
+ * only adopts finds nothing there to adopt, and a task in a new project can
+ * be assigned only to an agent the declaration creates there.
+ */
+function assertWritableInside(
+  resource: PlatformResource,
+  parent: string,
+  absent: ReadonlySet<string>,
+) {
+  if (!isManagedResource(resource)) return;
+  if (!writableInsideCreation(resource, absent))
+    throw preconditionError(
+      `${resourceId(resource)} adopts a resource inside ${parent}, which this declaration creates: nothing exists there to adopt.`,
+      'Give it `createIfMissing: true`, declare the agent or task it belongs to with `createIfMissing: true`, or remove it, then plan again.',
+    );
+  if (
+    resource.kind === 'task' &&
+    typeof resource.config.assigneeAgentId === 'string' &&
+    absent.has(`project/${resource.config.projectId}`) &&
+    !absent.has(
+      `project-agent/${resource.config.projectId}/${resource.config.assigneeAgentId}`,
+    )
+  )
+    throw preconditionError(
+      `${resourceId(resource)} is assigned to agent ${resource.config.assigneeAgentId}, which nothing creates in project ${resource.config.projectId}: this declaration creates that project.`,
+      'Declare that agent in the project with `createIfMissing: true`, or assign the task to one the declaration creates, then plan again.',
+    );
+}
+
+/**
  * Read a resource unless what it exists inside of does not exist yet: a
  * project, agent or task this declaration creates (`absent`, which this
  * read adds to). Nothing inside it can exist either, so it reads as absent
  * — and its dispatch, its agents' instructions, its tasks' descriptions are
- * planned as created.
+ * planned as created — once it is one that can be written there.
  */
 async function observe(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
   absent: Set<string>,
 ): Promise<ResourceObservation> {
-  if (creationParents(resource).some((id) => absent.has(id)))
+  const parent = creationParents(resource).find((id) => absent.has(id));
+  if (parent !== undefined) {
+    assertWritableInside(resource, parent, absent);
+    if (CREATORS.has(resource.kind)) absent.add(resourceId(resource));
     return { config: null, revision: null };
+  }
   const current = await readResource(client, resource);
   if (CREATORS.has(resource.kind) && current.config === null)
     absent.add(resourceId(resource));

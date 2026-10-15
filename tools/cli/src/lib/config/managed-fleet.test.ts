@@ -176,6 +176,10 @@ function fleet(
 
 class NativeRefusal extends Error {}
 
+/** Whether a request asks the platform to check a resource, writing nothing. */
+const isCheck = (path: string) =>
+  path.split('?')[0]?.endsWith('/check') === true;
+
 /** The platform's managed routes for the kinds a fleet needs, over one
  * organization's state: reads answer `{config, hash}` (null for an absent
  * resource a creating read names), writes compare-and-set on the hash. */
@@ -699,7 +703,7 @@ describe('a declaration creates a fleet whole', () => {
     ).rejects.toThrow('at agents.1');
     expect(
       api.requests.filter(
-        ({ method, path }) => method === 'POST' && !path.endsWith('/check'),
+        ({ method, path }) => method === 'POST' && !isCheck(path),
       ),
     ).toEqual([]);
   });
@@ -770,9 +774,7 @@ describe('a declaration creates a fleet whole', () => {
     );
     expect(result.unchanged).toBe(false);
     const writes = api.requests
-      .filter(
-        ({ method, path }) => method === 'POST' && !path.endsWith('/check'),
-      )
+      .filter(({ method, path }) => method === 'POST' && !isCheck(path))
       .map(({ path }) => path.split('?')[0]);
     expect(writes).toEqual([
       `/api/app/projects/${PROJECT}/configuration/project`,
@@ -980,6 +982,137 @@ describe('a declaration adopts and converges what exists', () => {
     await expect(
       planPlatformConfiguration(configuration, api.client, { environment }),
     ).rejects.toThrow('HTTP 404');
+  });
+});
+
+describe('a declaration refuses at planning what it could not write inside what it creates', () => {
+  const STRAY = '11111111-2222-4333-8444-555555555555';
+
+  /** The fleet with its resources edited, re-read as a declaration. */
+  function variant(
+    edit: (resources: Record<string, unknown>[]) => Record<string, unknown>[],
+  ) {
+    return parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: edit([...fleet().resources]),
+    });
+  }
+
+  /** The resources with one kind's `createIfMissing` dropped. */
+  function adoptOnly(resources: Record<string, unknown>[], kind: string) {
+    return resources.map(({ createIfMissing, ...resource }) =>
+      resource.kind === kind || createIfMissing === undefined
+        ? resource
+        : { ...resource, createIfMissing },
+    );
+  }
+
+  async function refusedBeforeWriting(
+    configuration: ReturnType<typeof variant>,
+    reason: string,
+  ) {
+    const api = platform();
+    await expect(
+      planPlatformConfiguration(configuration, api.client, { environment }),
+    ).rejects.toThrow(reason);
+    // Nothing was written.
+    expect(
+      api.requests.filter(
+        ({ method, path }) => method === 'POST' && !isCheck(path),
+      ),
+    ).toEqual([]);
+    expect(api.projects.size).toBe(0);
+    return api;
+  }
+
+  test('an agent declared without createIfMissing in a project it creates', async () => {
+    await refusedBeforeWriting(
+      variant((resources) => adoptOnly(resources, 'project-agent')),
+      `project-agent/${PROJECT}/${AGENT} adopts a resource inside project/${PROJECT}`,
+    );
+  });
+
+  test('a label declared without createIfMissing in a project it creates', async () => {
+    await refusedBeforeWriting(
+      variant((resources) => adoptOnly(resources, 'project-label')),
+      `project-label/${PROJECT}/Release adopts a resource inside project/${PROJECT}`,
+    );
+  });
+
+  test('the model of an agent nothing declares, in a project it creates', async () => {
+    await refusedBeforeWriting(
+      variant((resources) => [
+        ...resources,
+        {
+          kind: 'agent-model',
+          config: {
+            projectId: PROJECT,
+            agentId: STRAY,
+            harness: 'codex',
+            model: 'example-model',
+            modelProvider: 'example',
+          },
+        },
+      ]),
+      `agent-model/${PROJECT}/${STRAY} adopts a resource inside project/${PROJECT}`,
+    );
+  });
+
+  test('the description of a task nothing declares, in a project it creates', async () => {
+    await refusedBeforeWriting(
+      variant((resources) => [
+        ...resources,
+        {
+          kind: 'task-instructions',
+          config: { projectId: PROJECT, taskId: STRAY, description: 'Stray.' },
+        },
+      ]),
+      `task-instructions/${PROJECT}/${STRAY} adopts a resource inside project/${PROJECT}`,
+    );
+  });
+
+  test('a task assigned to an agent nothing creates in the project it creates', async () => {
+    await refusedBeforeWriting(
+      variant((resources) =>
+        resources.map((resource) =>
+          resource.kind === 'task'
+            ? {
+                ...resource,
+                config: {
+                  ...(resource.config as object),
+                  assigneeAgentId: STRAY,
+                },
+              }
+            : resource,
+        ),
+      ),
+      `task/${PROJECT}/${TASK} is assigned to agent ${STRAY}`,
+    );
+  });
+
+  test('an adopting resource still adopts in a project that exists', async () => {
+    const api = platform();
+    const configuration = fleet();
+    await applyPlatformConfiguration(
+      configuration,
+      await planPlatformConfiguration(configuration, api.client, {
+        environment,
+      }),
+      api.client,
+      await receiptPath(),
+      { environment },
+    );
+    // The project exists now: an agent declared without createIfMissing
+    // reads it and plans unchanged.
+    const adopting = variant((resources) =>
+      adoptOnly(resources, 'project-agent'),
+    );
+    const plan = await planPlatformConfiguration(adopting, api.client, {
+      environment,
+    });
+    expect(plan.resources.every(({ action }) => action === 'unchanged')).toBe(
+      true,
+    );
   });
 });
 
