@@ -5,7 +5,8 @@
 A connector lets an agent or an automation act in an outside system: read a mailbox, file a
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
 account is connected by signing in at the outside system, what importing tasks through a
-connector may write, and where an agent's call runs. The catalog of connectors and what each
+connector may write, where an agent's call runs, and which mailbox an Outlook credential
+reaches. The catalog of connectors and what each
 one can do are not covered; see Not yet.
 
 ## Whom a connector call acts for
@@ -314,6 +315,43 @@ One run sends at most 100 messages across its steps; a step that would pass that
 `task.get` with `agentRunId` returns only that run’s identity, status and clocks when it belongs to the already read task, project and organization. A missing or foreign run is `agentRun: null`, never a different or latest run. Without the option, the original response stays unchanged. `task.list_comments` with `includeIds: true` adds native message IDs beside the existing trusted author metadata; text in a comment cannot supply its ID. Reads change no grants or admission rules.
 
 - **Example**: A checkpoint claims a run from another task → the read returns null metadata; the checker keeps identity unknown instead of borrowing the latest run.
+
+## Reaching a shared mailbox
+
+An Outlook credential may name a mailbox to work in, such as a shared mailbox nobody signs in
+to. The organization's own app can reach it signing in as itself, and a person who has Full
+Access to it can reach it through their own sign-in.
+
+### CONN-R29 · An Outlook credential naming a mailbox acts on it, whoever signed in
+
+Every call it makes lists, reads, drafts and sends in that mailbox, and the mailbox's address
+is the identity the Inbox, the composer and the mail sync use. A credential that names none
+acts on the signed-in account's own mailbox. An app that signs in as itself has no mailbox of
+its own, so its credential is refused until it names one (`CREDENTIAL_CONFIG_REQUIRED`).
+
+- **Example**: The organization's app is connected for `promotion@example.com` → the Inbox
+  lists the mail that arrives there, and Lena's reply leaves from `promotion@example.com`.
+
+### CONN-R30 · A refused call on a named mailbox says how that mailbox is granted
+
+When Microsoft Graph denies access to the named mailbox, the refusal names the mailbox, the
+Exchange application role the app needs for the action, scoped to the mailbox with RBAC for
+Applications, and for a person Full Access (and Send As, to send) followed by a reconnect. A
+mailbox Graph does not know is refused as such, and a throttled call still names Graph's wait.
+
+- **Example**: The app was granted reading but not sending, and Ada's automation replies from
+  `promotion@example.com` → the step fails, saying the app needs "Application Mail.Send" for
+  that mailbox.
+
+### CONN-R31 · Only a credential naming a mailbox asks for shared-mailbox permissions
+
+A new Outlook connection asks for the account's own mailbox only, so an account that cannot
+grant shared-mailbox permissions can still connect. Reconnecting a credential that names a
+mailbox asks for them as well.
+
+- **Example**: Lena connects her own mailbox, then names the shared `support@example.com` on
+  the credential and reconnects → the consent screen now asks for access to mailboxes she
+  can open.
 
 ## Not yet
 

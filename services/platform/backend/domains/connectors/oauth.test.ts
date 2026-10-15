@@ -39,7 +39,12 @@ import {
   hashStateToken,
   mintStateToken,
 } from '../../core/http_connectors/oauth_state.ts';
-import { completeOauth2, storeOauth2Grant } from './oauth.ts';
+import {
+  completeOauth2,
+  consentScopes,
+  startOauth2,
+  storeOauth2Grant,
+} from './oauth.ts';
 
 interface Route {
   organizationId: string;
@@ -552,5 +557,75 @@ describe('completeOauth2 — the completer must be the initiator, and still allo
       error: 'not_configured',
       organizationId: 'org-1',
     });
+  });
+});
+
+describe('the permissions a consent asks for [CONN-R31]', () => {
+  /** A `sql` that answers every statement with no row: no organization
+   * app (the deployment's env app serves) and a pending authorization that
+   * is written and forgotten. */
+  const emptySql = (() => {
+    const tag = () => Promise.resolve([]);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return Object.assign(tag, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+  })();
+
+  async function scopesAsked(reconnect?: {
+    config?: Record<string, string>;
+  }): Promise<string[]> {
+    vi.stubEnv('SITE_URL', 'https://tale.example');
+    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_ID', 'app-id');
+    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_SECRET', 'app-secret');
+    findOauth2Grant.mockResolvedValue(
+      reconnect === undefined
+        ? null
+        : { id: 'cred-1', authMethod: 'oauth2', ...reconnect },
+    );
+    const outcome = await startOauth2(emptySql, {
+      connectorSlug: 'outlook',
+      organizationId: 'org-1',
+      userId: 'user-1',
+      ...(reconnect !== undefined && { reconnectCredentialId: 'cred-1' }),
+    });
+    vi.unstubAllEnvs();
+    if (outcome.kind !== 'redirect') throw new Error(JSON.stringify(outcome));
+    return (new URL(outcome.url).searchParams.get('scope') ?? '').split(' ');
+  }
+
+  it('asks a new Outlook connection for its own mailbox only', async () => {
+    const scopes = await scopesAsked();
+    expect(scopes).toContain('Mail.Read');
+    expect(scopes.some((scope) => scope.endsWith('.Shared'))).toBe(false);
+  });
+
+  it('asks a reconnect of a credential naming a mailbox for the shared-mailbox permissions too', async () => {
+    const scopes = await scopesAsked({
+      config: { mailbox: 'promotion@example.com' },
+    });
+    expect(scopes).toEqual(
+      expect.arrayContaining([
+        'Mail.Read',
+        'Mail.Read.Shared',
+        'Mail.ReadWrite.Shared',
+        'Mail.Send.Shared',
+      ]),
+    );
+    expect(await scopesAsked({ config: {} })).not.toContain('Mail.Read.Shared');
+  });
+
+  it('adds each declared scope once, and only for a setting that is set', () => {
+    const endpoints = {
+      scopes: ['a', 'b'],
+      configScopes: { mailbox: ['b', 'c'], region: ['d'] },
+    };
+    expect(consentScopes(endpoints, undefined)).toEqual(['a', 'b']);
+    expect(consentScopes(endpoints, { mailbox: '' })).toEqual(['a', 'b']);
+    expect(consentScopes(endpoints, { mailbox: 'x@example.com' })).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
   });
 });

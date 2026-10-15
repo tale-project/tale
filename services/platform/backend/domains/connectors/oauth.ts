@@ -72,6 +72,27 @@ export interface Oauth2Endpoints {
   readonly authorizeUrl: string;
   readonly tokenUrl: string;
   readonly scopes: readonly string[];
+  /** Scopes asked on top, per per-credential setting a credential sets. */
+  readonly configScopes: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * The scopes a consent asks for: the connector's own, plus those it
+ * declares for each per-credential setting the credential being reconnected
+ * has set (Outlook's shared-mailbox permissions, once a `mailbox` is named).
+ * An Add has no credential yet, so it asks for the connector's own only.
+ */
+export function consentScopes(
+  endpoints: Pick<Oauth2Endpoints, 'scopes' | 'configScopes'>,
+  config: Readonly<Record<string, string | number | boolean>> | undefined,
+): string[] {
+  const scopes = [...endpoints.scopes];
+  for (const [key, extra] of Object.entries(endpoints.configScopes)) {
+    const value = config?.[key];
+    if (value === undefined || value === '' || value === false) continue;
+    for (const scope of extra) if (!scopes.includes(scope)) scopes.push(scope);
+  }
+  return scopes;
 }
 
 /**
@@ -92,6 +113,7 @@ export function readOauth2Endpoints(
     authorizeUrl: oauth2.authorizeUrl,
     tokenUrl: oauth2.tokenUrl,
     scopes: oauth2.scopes,
+    configScopes: oauth2.configScopes ?? {},
   };
 }
 
@@ -506,14 +528,15 @@ export async function startOauth2(
   if (!endpoints) return { kind: 'error', error: 'unsupported_connector' };
 
   const reconnectCredentialId = args.reconnectCredentialId ?? null;
-  if (
-    reconnectCredentialId !== null &&
-    (await findOauth2Grant(sql, {
-      organizationId: args.organizationId,
-      connectorSlug: args.connectorSlug,
-      credentialId: reconnectCredentialId,
-    })) === null
-  ) {
+  const reconnecting =
+    reconnectCredentialId === null
+      ? null
+      : await findOauth2Grant(sql, {
+          organizationId: args.organizationId,
+          connectorSlug: args.connectorSlug,
+          credentialId: reconnectCredentialId,
+        });
+  if (reconnectCredentialId !== null && reconnecting === null) {
     console.warn(
       `[connectors:oauth2] refused to reconnect a credential that is not an OAuth grant of "${args.connectorSlug}" in organization ${args.organizationId}`,
     );
@@ -553,7 +576,7 @@ export async function startOauth2(
           endpoints.authorizeUrl,
           app.tenantId,
         ),
-        scopes: endpoints.scopes,
+        scopes: consentScopes(endpoints, reconnecting?.config),
         clientId: app.clientId,
         redirectUri,
         state,

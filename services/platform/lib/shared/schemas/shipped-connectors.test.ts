@@ -13,6 +13,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import {
+  connectorLiveBody,
   connectorSchema,
   type Connector,
 } from '@tale/shared/schemas/connectors';
@@ -82,9 +83,13 @@ describe('shipped connector catalog', () => {
   });
 
   it.each([...EXPECTED_SLUGS])(
-    '%s: every oauth2 method carries https endpoints',
+    '%s: every oauth2 and client-credentials method carries https endpoints',
     (slug) => {
       for (const method of loadConnector(slug).auth) {
+        if (method.method === 'client-credentials') {
+          expect(method.tokenUrl.startsWith('https://')).toBe(true);
+          continue;
+        }
         if (method.method !== 'oauth2') continue;
         expect(method.authorizeUrl.startsWith('https://')).toBe(true);
         expect(method.tokenUrl.startsWith('https://')).toBe(true);
@@ -111,11 +116,15 @@ describe('shipped connector catalog', () => {
   // Live bodies call the network, so they are compiled as async — `await
   // ctx.http.get(...)` is their normal shape.
   it.each([...EXPECTED_SLUGS])('%s: every live body compiles', async (slug) => {
-    for (const action of loadConnector(slug).actions) {
+    const connector = loadConnector(slug);
+    for (const action of connector.actions) {
       if (action.backend?.kind !== 'yaml-js') continue;
-      const error = await runner.checkBody(action.backend.live, {
-        async: true,
-      });
+      // With its connector's prelude, as every runner runs it: a name the
+      // body declares again would only fail here.
+      const error = await runner.checkBody(
+        connectorLiveBody(connector, action.backend.live),
+        { async: true },
+      );
       expect(error, `${slug}.${action.name} live body: ${error}`).toBeNull();
     }
   });
