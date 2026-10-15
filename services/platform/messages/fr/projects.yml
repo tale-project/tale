@@ -585,6 +585,7 @@ dispatch:
       host_pressure: L’hôte des sandbox est occupé
       pacing: Attend entre deux démarrages
       gated: Une barrière retient le travail prêt
+      budget: Son temps était écoulé ; le passage suivant a lieu aussitôt
       started: Il a lancé du travail
       held: Chaque démarrage a été refusé
   editor:

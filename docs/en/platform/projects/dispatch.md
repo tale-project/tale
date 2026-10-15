@@ -97,7 +97,7 @@ An external system reports on the gate through the [REST API](/develop/api-refer
 | **Its model is at capacity**     | The provider called the agent's model at capacity; the agent takes work again once the model answers. |
 | **The sandbox host is busy**     | The host held the last start; dispatch asks again after its delays.                                   |
 | **All agent workers are in use** | Every agent worker of your organization is busy.                                                      |
-| **Waiting between starts**       | The last pass started a run and waits for the time between starts.                                    |
+| **Waiting between starts**       | The next start waits for the time between starts, or for the next pass, which follows at once when a pass ran out of time. |
 | **A gate holds the ready work**  | The work left for this agent is held by a gate.                                                       |
 | **No ready work**                | No task in the chosen columns is ready for this agent.                                                |
 | **Dispatch is off**              | Dispatch, or task automation for your organization, is switched off.                                  |

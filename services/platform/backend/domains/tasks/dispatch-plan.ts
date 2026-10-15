@@ -244,7 +244,8 @@ export const PASS_BUDGET_MS = 2 * 60_000;
 export const PASS_LEASE_MS = 5 * 60_000;
 
 /** Whether a pass that began at `startedAt` has used its time for starting
- * ready work, with `tried` picks behind it: it then stops, and the next pass
+ * ready work (`budgetMs`, {@link PASS_BUDGET_MS} unless a test names
+ * another), with `tried` picks behind it: it then stops, and the next pass
  * goes on at once with the facts as they stand. Its first pick always goes
  * ahead, so a pass slowed before it (standing roles, a slow read) still
  * moves the pool on. */
@@ -252,8 +253,12 @@ export function passOutOfTime(args: {
   startedAt: number;
   now: number;
   tried: number;
+  budgetMs?: number;
 }): boolean {
-  return args.tried > 0 && args.now - args.startedAt >= PASS_BUDGET_MS;
+  return (
+    args.tried > 0 &&
+    args.now - args.startedAt >= (args.budgetMs ?? PASS_BUDGET_MS)
+  );
 }
 
 /** When the next start of ready work may happen: now (null), or the time

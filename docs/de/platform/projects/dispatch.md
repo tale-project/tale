@@ -97,7 +97,7 @@ Ein externes System meldet den Zustand der Schranke über die [REST-API](/de/dev
 | **Sein Modell ist ausgelastet**                  | Der Anbieter hat das Modell des Agenten als ausgelastet gemeldet; der Agent nimmt wieder Arbeit an, sobald das Modell antwortet. |
 | **Der Sandbox-Host ist ausgelastet**             | Der Host hat den letzten Start zurückgehalten; die Arbeitsverteilung fragt nach ihren Wartezeiten erneut.                        |
 | **Alle Agenten-Worker sind belegt**              | Jeder Agenten-Worker deiner Organisation ist beschäftigt.                                                                        |
-| **Wartet zwischen Starts**                       | Der letzte Durchlauf hat einen Lauf gestartet und wartet die Zeit zwischen Starts ab.                                            |
+| **Wartet zwischen Starts**                       | Der nächste Start wartet: auf die Zeit zwischen Starts oder auf den nächsten Durchlauf, der sofort folgt, wenn einem Durchlauf die Zeit ausging. |
 | **Eine Schranke hält die bereite Arbeit zurück** | Die Arbeit, die für diesen Agenten übrig ist, hält eine Schranke zurück.                                                         |
 | **Keine bereite Arbeit**                         | Keine Aufgabe in den gewählten Spalten ist für diesen Agenten bereit.                                                            |
 | **Arbeitsverteilung ist aus**                    | Die Arbeitsverteilung oder die Aufgabenautomatisierung deiner Organisation ist ausgeschaltet.                                    |

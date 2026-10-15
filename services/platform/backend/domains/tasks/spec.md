@@ -481,7 +481,8 @@ the pass and with the record of the run it started.
 A pass reads up to 500 ready tasks, enough to fill the largest pool. Without a spacing it starts
 every one the host admits; after two minutes it stops, its first start always made, and the next
 pass goes on at once with the runs and the host as they stand then, so no two passes start work
-on one plan. With a spacing, each pass makes one start and the next pass comes a spacing later:
+on one plan; its record says it ran out of time. With a spacing, each pass makes one start and
+the next pass comes a spacing later:
 the 256th run starts 255 spacings after the first, 2 hours 7 minutes 30 seconds at the default 30
 seconds.
 
@@ -506,7 +507,8 @@ is in the pool counts toward the pool.
 
 For every agent of the pool it names the runs it holds, and for an idle one why: dispatch is off,
 its model is at capacity, the host held the last start, the agent workers are all in use, the
-last start was spaced, or no work is ready for it. It counts an agent's runs by what they do
+next start waits (for the spacing, or for the pass that follows one that ran out of time), or no
+work is ready for it. It counts an agent's runs by what they do
 (running, queued, and waiting by why) and lists its 50 oldest, so an agent on hundreds of tasks
 still reads in one answer; the page shows the first five and the rest of the list on request. It
 reads the run ledger and the passes, never where cards stand on the board.

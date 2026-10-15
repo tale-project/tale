@@ -23,6 +23,12 @@ describe('the readback says why an idle agent of the pool is idle [TASK-R46]', (
     expect(reasonAfter('agents_busy')).toBe('no_ready_work');
     expect(reasonAfter(null)).toBe('unknown');
   });
+
+  it('reads a pass out of time as waiting between starts: the next goes on at once', () => {
+    expect(
+      idleReason({ enabled: true, heldUntil: null, lastStopReason: 'budget' }),
+    ).toBe('pacing');
+  });
 });
 
 describe('the readback counts the runs an agent of the pool holds, by what they do [TASK-R46]', () => {

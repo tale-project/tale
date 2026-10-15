@@ -409,7 +409,10 @@ export function idleReason(args: {
       return 'host_pressure';
     case 'org_limit':
       return 'org_limit';
+    // Waiting for the next start: the spacing, or the pass that goes on at
+    // once after one ran out of time.
     case 'pacing':
+    case 'budget':
       return 'pacing';
     case 'gated':
       return 'gated';

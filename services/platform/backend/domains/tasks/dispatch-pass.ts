@@ -27,6 +27,7 @@ import {
 } from './dispatch-gates.ts';
 import {
   hostRecheckAt,
+  PASS_BUDGET_MS,
   PASS_LEASE_MS,
   passOutOfTime,
   planDispatch,
@@ -92,6 +93,9 @@ export type DispatchStopReason =
   | 'host_pressure'
   | 'pacing'
   | 'gated'
+  /** The pass started work for as long as it may; the next goes on at
+   * once. */
+  | 'budget'
   | 'started'
   | 'held';
 
@@ -662,6 +666,141 @@ async function releaseLease(sql: Sql, projectId: string): Promise<void> {
   `;
 }
 
+/** What starting a plan's picks reaches beyond the pass: the clock, the
+ * sandbox host, the start itself, and what a start notes for the gates that
+ * space it. The pass hands the real ones; a test hands stand-ins. */
+export interface PickEffects {
+  now: () => number;
+  askHost: () => Promise<HostVerdict>;
+  start: (pick: DispatchPick) => ReturnType<typeof startPick>;
+  noteStart: (pick: DispatchPick, at: number) => Promise<void>;
+}
+
+/** What starting a plan's picks did, and when the next pass comes. */
+export interface PickRun {
+  stop: DispatchStopReason;
+  nextPassAt: number | null;
+  started: DispatchStart[];
+  held: DispatchHeld[];
+  lastStartAt: number | null;
+  recheckIndex: number;
+  /** The host's verdict on the last start asked about. */
+  hostEvidence: unknown;
+}
+
+/**
+ * Start a plan's picks in turn, asking the sandbox host before each. The
+ * pass stops at the first of: its time for starting ready work running out
+ * after its first pick (`budget`, the next pass at once); a start the
+ * spacing does not allow yet (`pacing`, the next pass when it does); the
+ * host holding (`host_pressure`, the next pass after the recheck delays);
+ * a start made with a spacing to keep (`pacing`). A start the task refuses
+ * is held and the next pick goes on.
+ */
+export async function startPicks(
+  args: {
+    picks: readonly DispatchPick[];
+    /** The plan's verdict, before any start: `held` while it has picks. */
+    stop: DispatchStopReason;
+    startedAt: number;
+    budgetMs: number;
+    spacingMs: number;
+    recheckSeconds: readonly number[];
+    lastStartAt: number | null;
+    recheckIndex: number;
+  },
+  effects: PickEffects,
+): Promise<PickRun> {
+  const started: DispatchStart[] = [];
+  const held: DispatchHeld[] = [];
+  let { stop, lastStartAt, recheckIndex } = args;
+  let nextPassAt: number | null = null;
+  let hostEvidence: unknown = null;
+  for (const [index, pick] of args.picks.entries()) {
+    const now = effects.now();
+    if (
+      passOutOfTime({
+        startedAt: args.startedAt,
+        now,
+        tried: index,
+        budgetMs: args.budgetMs,
+      })
+    ) {
+      // The pass has gone on as long as it may: the next one starts the
+      // rest at once, with the facts as they stand then.
+      stop = 'budget';
+      nextPassAt = now;
+      break;
+    }
+    const pacedUntil = startPacedUntil({
+      spacingMs: args.spacingMs,
+      lastStartAt,
+      now,
+    });
+    if (pacedUntil !== null) {
+      stop = 'pacing';
+      nextPassAt = pacedUntil;
+      break;
+    }
+    const host = await effects.askHost();
+    hostEvidence = host.evidence;
+    if (!host.admitted) {
+      stop = 'host_pressure';
+      nextPassAt = hostRecheckAt({
+        now,
+        recheckSeconds: args.recheckSeconds,
+        recheckIndex,
+        retryAfterMs: host.retryAfterMs,
+      });
+      recheckIndex += 1;
+      held.push({
+        taskId: pick.taskId,
+        agentId: pick.agentId,
+        reason: `host_${host.reason ?? 'pressure'}`,
+        retryAfter: nextPassAt,
+      });
+      break;
+    }
+    recheckIndex = 0;
+    const outcome = await effects.start(pick);
+    if (!outcome.started) {
+      held.push({
+        taskId: pick.taskId,
+        agentId: pick.agentId,
+        reason: outcome.reason,
+        ...(outcome.retryAfter !== undefined
+          ? { retryAfter: outcome.retryAfter }
+          : {}),
+      });
+      continue;
+    }
+    lastStartAt = effects.now();
+    await effects.noteStart(pick, lastStartAt);
+    started.push({
+      taskId: pick.taskId,
+      agentId: pick.agentId,
+      runId: outcome.runId,
+      via: pick.via,
+      admission: host.evidence,
+    });
+    stop = 'started';
+    if (args.spacingMs > 0 && index < args.picks.length - 1) {
+      stop = 'pacing';
+      nextPassAt = lastStartAt + args.spacingMs;
+      break;
+    }
+  }
+  return {
+    stop,
+    nextPassAt,
+    started,
+    held,
+    lastStartAt,
+    recheckIndex,
+    hostEvidence,
+  };
+}
+
 /** Run one pass of the project's dispatch. Null when another pass held the
  * lease (this one is asked for again shortly) or the project has no
  * switched-on dispatch. */
@@ -672,7 +811,12 @@ export async function runDispatchPass(
     projectId: string;
     trigger: DispatchPassTrigger;
   },
-  options: { askHost?: HostAsker } = {},
+  options: {
+    askHost?: HostAsker;
+    /** How long the pass starts ready work: {@link PASS_BUDGET_MS} unless a
+     * test runs it out sooner. */
+    budgetMs?: number;
+  } = {},
 ): Promise<DispatchPassResult | null> {
   const ask = options.askHost ?? askHost;
   const startedAt = Date.now();
@@ -799,85 +943,42 @@ export async function runDispatchPass(
         reason: hold.reason,
       });
     }
-    let stop: DispatchStopReason =
-      plan.stop === 'picked'
-        ? 'held'
-        : plan.stop === 'no_ready_work' && gatedCount > 0
-          ? 'gated'
-          : plan.stop;
-    let nextPassAt: number | null = null;
-    let hostEvidence: unknown = null;
-    const spacingMs = admission.startSpacingSeconds * 1000;
-    for (const [index, pick] of plan.picks.entries()) {
-      const now = Date.now();
-      if (passOutOfTime({ startedAt, now, tried: index })) {
-        // The pass has gone on as long as it may: the next one starts the
-        // rest at once, with the facts as they stand then.
-        nextPassAt = now;
-        break;
-      }
-      const pacedUntil = startPacedUntil({ spacingMs, lastStartAt, now });
-      if (pacedUntil !== null) {
-        stop = 'pacing';
-        nextPassAt = pacedUntil;
-        break;
-      }
-      const host = await ask(input.organizationId, admission.preset);
-      hostEvidence = host.evidence;
-      if (!host.admitted) {
-        stop = 'host_pressure';
-        nextPassAt = hostRecheckAt({
-          now,
-          recheckSeconds: admission.recheckSeconds,
-          recheckIndex,
-          retryAfterMs: host.retryAfterMs,
-        });
-        recheckIndex += 1;
-        held.push({
-          taskId: pick.taskId,
-          agentId: pick.agentId,
-          reason: `host_${host.reason ?? 'pressure'}`,
-          retryAfter: nextPassAt,
-        });
-        break;
-      }
-      recheckIndex = 0;
-      const outcome = await startPick(sql, { ...input, passId, pick });
-      if (!outcome.started) {
-        held.push({
-          taskId: pick.taskId,
-          agentId: pick.agentId,
-          reason: outcome.reason,
-          ...(outcome.retryAfter !== undefined
-            ? { retryAfter: outcome.retryAfter }
-            : {}),
-        });
-        continue;
-      }
-      lastStartAt = Date.now();
-      const spacedGates = governing(labelsOf.get(pick.taskId) ?? [])
-        .filter((gate) => (gate.startSpacingSeconds ?? 0) > 0)
-        .map((gate) => gate.key);
-      await noteGatedStart(sql, {
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        keys: spacedGates,
-        at: lastStartAt,
-      });
-      started.push({
-        taskId: pick.taskId,
-        agentId: pick.agentId,
-        runId: outcome.runId,
-        via: pick.via,
-        admission: host.evidence,
-      });
-      stop = 'started';
-      if (spacingMs > 0 && index < plan.picks.length - 1) {
-        stop = 'pacing';
-        nextPassAt = lastStartAt + spacingMs;
-        break;
-      }
-    }
+    const run = await startPicks(
+      {
+        picks: plan.picks,
+        stop:
+          plan.stop === 'picked'
+            ? 'held'
+            : plan.stop === 'no_ready_work' && gatedCount > 0
+              ? 'gated'
+              : plan.stop,
+        startedAt,
+        budgetMs: options.budgetMs ?? PASS_BUDGET_MS,
+        spacingMs: admission.startSpacingSeconds * 1000,
+        recheckSeconds: admission.recheckSeconds,
+        lastStartAt,
+        recheckIndex,
+      },
+      {
+        now: () => Date.now(),
+        askHost: () => ask(input.organizationId, admission.preset),
+        start: (pick) => startPick(sql, { ...input, passId, pick }),
+        noteStart: (pick, at) =>
+          noteGatedStart(sql, {
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            keys: governing(labelsOf.get(pick.taskId) ?? [])
+              .filter((gate) => (gate.startSpacingSeconds ?? 0) > 0)
+              .map((gate) => gate.key),
+            at,
+          }),
+      },
+    );
+    started.push(...run.started);
+    held.push(...run.held);
+    lastStartAt = run.lastStartAt;
+    recheckIndex = run.recheckIndex;
+    const { stop, nextPassAt, hostEvidence } = run;
     const result: DispatchPassResult = {
       passId,
       stop: started.length > 0 && stop === 'held' ? 'started' : stop,

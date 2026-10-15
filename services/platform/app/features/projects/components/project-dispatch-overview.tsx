@@ -74,6 +74,7 @@ const STOP_KEYS = {
   host_pressure: 'dispatch.passes.stop.host_pressure',
   pacing: 'dispatch.passes.stop.pacing',
   gated: 'dispatch.passes.stop.gated',
+  budget: 'dispatch.passes.stop.budget',
   started: 'dispatch.passes.stop.started',
   held: 'dispatch.passes.stop.held',
 } as const;

@@ -567,6 +567,7 @@ dispatch:
       host_pressure: The sandbox host is busy
       pacing: Waiting between starts
       gated: A gate holds the ready work
+      budget: It ran out of time; the next pass goes on at once
       started: It started work
       held: Every start was refused
   editor:

@@ -97,7 +97,7 @@ Un système externe signale l’état de la barrière par l’[API REST](/fr/dev
 | **Son modèle est saturé** | Le fournisseur a déclaré le modèle de l’agent saturé ; l’agent reprend du travail dès que le modèle répond. |
 | **L’hôte des sandbox est occupé** | L’hôte a retenu le dernier démarrage ; la répartition redemande après ses délais. |
 | **Tous les workers d’agent sont occupés** | Chaque worker d’agent de ton organisation est occupé. |
-| **Attend entre deux démarrages** | Le dernier passage a lancé une exécution et respecte le délai entre deux démarrages. |
+| **Attend entre deux démarrages** | Le prochain démarrage attend le délai entre deux démarrages, ou le passage suivant, qui suit aussitôt quand un passage a manqué de temps. |
 | **Une barrière retient le travail prêt** | Le travail restant pour cet agent est retenu par une barrière. |
 | **Aucun travail prêt** | Aucune tâche des colonnes choisies n’est prête pour cet agent. |
 | **La répartition est désactivée** | La répartition, ou l’automatisation des tâches de ton organisation, est désactivée. |

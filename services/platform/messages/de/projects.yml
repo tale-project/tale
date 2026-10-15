@@ -595,6 +595,7 @@ dispatch:
       host_pressure: Der Sandbox-Host ist ausgelastet
       pacing: Wartet zwischen Starts
       gated: Eine Schranke hält die bereite Arbeit zurück
+      budget: Seine Zeit war abgelaufen; der nächste Durchlauf folgt sofort
       started: Er hat Arbeit gestartet
       held: Jeder Start wurde abgelehnt
   editor:
