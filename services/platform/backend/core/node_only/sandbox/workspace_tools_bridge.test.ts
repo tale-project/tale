@@ -1774,6 +1774,174 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     });
   });
 
+  describe('a run on a served board reads only what its starter may read [TASK-R82]', () => {
+    // Bea started the Coder of Development on a proj_tale task; she may not
+    // read Development, so the run leaves it out.
+    const EXCLUDED_CTX = {
+      allowed: true,
+      actorId: 'agent_coder',
+      scope: {
+        kind: 'project',
+        projectId: 'proj_dev',
+        reachedProjectIds: ['proj_tale'],
+        ownProjectExcluded: true,
+      },
+      confinedToTaskId: 'task_tale',
+    };
+
+    it('task_find lists only the boards it reaches, and never the agent’s own project', async () => {
+      const list = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve([]),
+      );
+      const { dispatch } = await getActions();
+      const { ctx } = createCtx({
+        actionContext: EXCLUDED_CTX,
+        readQuery: vi.fn((ref: unknown, args: unknown) =>
+          fnName(ref).includes('listTasksForAgent')
+            ? list(ref, args)
+            : Promise.resolve(null),
+        ),
+      });
+      await dispatch(ctx, { ...BASE, tool: 'task_find', callArgs: {} });
+      expect(list.mock.calls[0]?.[1]).toMatchObject({
+        projectIds: ['proj_tale'],
+      });
+      const refused = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_find',
+        callArgs: { projectId: 'proj_dev' },
+      });
+      expect(refused.status).toBe('invalid_args');
+      expect(list).toHaveBeenCalledOnce();
+    });
+
+    it('task_find lists nothing when its starter reads no board it reaches', async () => {
+      const list = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve([]),
+      );
+      const { dispatch } = await getActions();
+      const { ctx } = createCtx({
+        actionContext: {
+          ...EXCLUDED_CTX,
+          scope: { ...EXCLUDED_CTX.scope, reachedProjectIds: undefined },
+        },
+        readQuery: vi.fn((ref: unknown, args: unknown) =>
+          fnName(ref).includes('listTasksForAgent')
+            ? list(ref, args)
+            : Promise.resolve(null),
+        ),
+      });
+      const refused = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_find',
+        callArgs: {},
+      });
+      expect(refused.status).toBe('unavailable');
+      expect(list).not.toHaveBeenCalled();
+    });
+
+    it('task_get reads a task of the agent’s own project as not found, and one of its board as before', async () => {
+      const { dispatch } = await getActions();
+      const reads = (projectId: string) => {
+        const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+          (ref: unknown) =>
+            Promise.resolve(
+              fnName(ref).includes('getTaskByIdInternal')
+                ? { _id: 'task_x', projectId }
+                : null,
+            ),
+        );
+        return {
+          readQuery,
+          ctx: createCtx({ actionContext: EXCLUDED_CTX, readQuery }).ctx,
+        };
+      };
+      const own = reads('proj_dev');
+      expect(
+        await dispatch(own.ctx, {
+          ...BASE,
+          tool: 'task_get',
+          callArgs: { taskId: 'task_x' },
+        }),
+      ).toEqual({
+        status: 'not_found',
+        message: 'No task with that id is available to this run.',
+      });
+      // Nothing of the task is read past the scope check.
+      expect(own.readQuery).toHaveBeenCalledOnce();
+      const served = reads('proj_tale');
+      await dispatch(served.ctx, {
+        ...BASE,
+        tool: 'task_get',
+        callArgs: { taskId: 'task_x' },
+      });
+      expect(served.readQuery.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it('task_create files nothing in the agent’s own project', async () => {
+      const create = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({ taskId: 'task_new' }),
+      );
+      const { dispatch } = await getActions();
+      const { ctx } = createCtx({
+        actionContext: EXCLUDED_CTX,
+        runMutation: create,
+      });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_create',
+        callArgs: { title: 'Follow-up', parentTaskId: 'task_tale' },
+      });
+      expect(result.status).toBe('unavailable');
+      // The audit write is the only mutation the call makes.
+      expect(
+        create.mock.calls.some(([ref]) =>
+          fnName(ref).includes('agentCreateTask'),
+        ),
+      ).toBe(false);
+    });
+
+    it('asks for the knowledge scope as the task run its token names, and lists no document once that run may no longer act', async () => {
+      searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
+      const { dispatch } = await getActions();
+      const { ctx, scopeQuery } = createCtx();
+      await dispatch(ctx, {
+        ...BASE,
+        taskRunExecId: 'exec_coder',
+        tool: 'rag_search',
+        callArgs: { query: 'invoices' },
+      });
+      expect(scopeQuery.mock.calls[0]?.[1]).toEqual({
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        userId: 'user_1',
+        taskRunExecId: 'exec_coder',
+        subject: 'documents',
+      });
+      const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({ page: [], isDone: true }),
+      );
+      const revoked = await dispatch(
+        createCtx({
+          readQuery,
+          scope: { allowed: false, reason: 'schedule_revoked' },
+        }).ctx,
+        {
+          ...BASE,
+          taskRunExecId: 'exec_coder',
+          tool: 'document_find',
+          callArgs: {},
+        },
+      );
+      expect(revoked.status).toBe('unavailable');
+      expect(
+        (revoked.blockers as { code: string }[] | undefined)?.[0]?.code,
+      ).toBe('schedule_revoked');
+      // The turn's user does not stand in for a run that may not act.
+      expect(readQuery).not.toHaveBeenCalled();
+    });
+  });
+
   it('task_find on a multi-bound org run lists only across the bound projects', async () => {
     const list = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve([]),

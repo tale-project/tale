@@ -35,7 +35,7 @@ import {
 import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
   isTaskRunConfined,
-  runReachedProjects,
+  runProjectScope,
   runStarterMayEditProject,
 } from '../tasks/run-authority.ts';
 import { getCurrentUser } from '../users/service.ts';
@@ -171,16 +171,20 @@ async function taskRunConfinement(
   | {
       taskId?: string;
       currentExecution?: Omit<SessionCurrentExecution, 'observedAt'>;
+      /** Whether this run's task, document and knowledge tools reach the
+       * agent's own project: not for a run on another board whose starter
+       * may not read it (`tasks/run-authority.ts`, `runProjectScope`). */
+      ownProject: boolean;
       /** The other boards this run's task tools reach: of the agent's, the
-       * ones its starter may act in, and its own task's
-       * (`tasks/run-authority.ts`, `runReachedProjects`). */
+       * ones its starter may act in, and its own task's while its starter
+       * may read it (`runProjectScope`). */
       reachedProjectIds: string[];
     }
 > {
   if (args.execId === undefined) {
     // No run to answer to: nobody's right reaches another board.
     return isStandingProjectAgentSession(args.agentId, args.sessionId)
-      ? { reachedProjectIds: [] }
+      ? { ownProject: true, reachedProjectIds: [] }
       : 'ended';
   }
   const runs = await sql<
@@ -226,7 +230,7 @@ async function taskRunConfinement(
     organizationId: args.organizationId,
     ...run,
   });
-  const reachedProjectIds = await runReachedProjects(sql, {
+  const scope = await runProjectScope(sql, {
     organizationId: args.organizationId,
     homeProjectId: args.projectId,
     reachedProjectIds: args.reachedProjectIds ?? [],
@@ -255,7 +259,7 @@ async function taskRunConfinement(
   return {
     ...(confined ? { taskId: run.taskId } : {}),
     ...execution,
-    reachedProjectIds,
+    ...scope,
   };
 }
 
@@ -338,7 +342,8 @@ async function requireProjectTaskRun(
   if (
     confinement === 'ended' ||
     confinement === 'revoked' ||
-    confinement.taskId !== undefined
+    confinement.taskId !== undefined ||
+    !confinement.ownProject
   ) {
     throw new TaskError(
       code,
@@ -473,6 +478,8 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         sessionId: string;
         userId?: string;
+        /** The exec of the task run a task turn's token names. */
+        taskRunExecId?: string;
         subject: 'documents' | 'websites';
       };
       const binding = await resolveSessionBinding(
@@ -481,11 +488,37 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         args.sessionId,
       );
       if (binding.kind === 'project' && binding.projectId !== undefined) {
+        // A project agent's run reads its project's knowledge only while it
+        // may: not once it ended or was revoked, and not on another board
+        // for a starter who may not read the agent's own project
+        // (`tasks/run-authority.ts`) — the organization's shared knowledge
+        // alone then.
+        const confinement =
+          binding.ownerType === 'project_agent' && binding.actorId !== undefined
+            ? await taskRunConfinement(sql, {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                agentId: binding.actorId,
+                projectId: binding.projectId,
+                reachedProjectIds: binding.reachedProjectIds ?? [],
+                ...(args.taskRunExecId !== undefined
+                  ? { execId: args.taskRunExecId }
+                  : {}),
+              })
+            : { ownProject: true };
+        if (confinement === 'ended') {
+          return { allowed: false, reason: 'run_ended' };
+        }
+        if (confinement === 'revoked') {
+          return { allowed: false, reason: 'schedule_revoked' };
+        }
         return {
           allowed: true,
-          scope: await projectsKnowledgeScope(sql, args.organizationId, [
-            binding.projectId,
-          ]),
+          scope: await projectsKnowledgeScope(
+            sql,
+            args.organizationId,
+            confinement.ownProject ? [binding.projectId] : [],
+          ),
         };
       }
       if (binding.kind === 'org_run') {
@@ -550,7 +583,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
                   ? { execId: args.taskRunExecId }
                   : {}),
               })
-            : { reachedProjectIds: [] };
+            : { ownProject: true, reachedProjectIds: [] };
         if (confinement === 'ended') {
           return { allowed: false, reason: 'run_ended' };
         }
@@ -568,6 +601,9 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             // starter may act in: its task tools reach their tasks too
             // (`tasks/dispatch-reach.ts`, `tasks/run-authority.ts`).
             ...(reached.length > 0 ? { reachedProjectIds: reached } : {}),
+            // A run on another board whose starter may not read the agent's
+            // own project: its tools leave that project out.
+            ...(confinement.ownProject ? {} : { ownProjectExcluded: true }),
           },
           ...(confinement.taskId !== undefined
             ? { confinedToTaskId: confinement.taskId }

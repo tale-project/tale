@@ -747,6 +747,9 @@ async function runWorkspaceTool(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.taskRunExecId !== undefined
+        ? { taskRunExecId: args.taskRunExecId }
+        : {}),
       ...(args.embeddingMeter !== undefined
         ? { embeddingMeter: args.embeddingMeter }
         : {}),
@@ -770,7 +773,13 @@ async function runWorkspaceTool(
     const cursor = readOffsetCursor(callArgs.cursor);
     const bound = await resolveKnowledgeAccess(
       ctx,
-      { organizationId: args.organizationId, sessionId: args.sessionId },
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        ...(args.taskRunExecId !== undefined
+          ? { taskRunExecId: args.taskRunExecId }
+          : {}),
+      },
       'documents',
     );
     if (bound.allowed) {
@@ -796,7 +805,12 @@ async function runWorkspaceTool(
       );
       return { status: 'ok', output: page };
     }
-    if (args.userId === undefined) {
+    // A task run that may no longer act reads nothing, not even as a user.
+    if (
+      args.userId === undefined ||
+      bound.reason === 'run_ended' ||
+      bound.reason === 'schedule_revoked'
+    ) {
       return {
         status: 'unavailable',
         blockers: [KNOWLEDGE_ACCESS_BLOCKERS[bound.reason]],
@@ -935,18 +949,31 @@ async function runWorkspaceTool(
 // The knowledge pair — rag_search / rag_fetch
 // ---------------------------------------------------------------------------
 
-/** Resolve what this dispatch may read — the session's binding first, then
- * the turn user (role-checked for `subject`), else refused. */
+/** Why a knowledge dispatch was refused: no binding or user to read as, a
+ * user who may not read, or — for a project agent's task run — a run that
+ * ended or may no longer act (`run_ended`, `schedule_revoked`). */
+type KnowledgeAccessRefusal =
+  | 'no_access_context'
+  | 'not_a_member'
+  | 'read_denied'
+  | 'run_ended'
+  | 'schedule_revoked';
+
+/** Resolve what this dispatch may read — the session's binding first (a
+ * project agent's as the task run its token names may), then the turn user
+ * (role-checked for `subject`), else refused. */
 async function resolveKnowledgeAccess(
   ctx: ActionCtx,
-  args: { organizationId: string; sessionId: string; userId?: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    userId?: string;
+    taskRunExecId?: string;
+  },
   subject: 'documents' | 'websites',
 ): Promise<
   | { allowed: true; scope: KnowledgeAccessScope }
-  | {
-      allowed: false;
-      reason: 'no_access_context' | 'not_a_member' | 'read_denied';
-    }
+  | { allowed: false; reason: KnowledgeAccessRefusal }
 > {
   return await ctx.runQuery(
     internal.sandbox.workspace_access.resolveKnowledgeToolAccess,
@@ -954,36 +981,39 @@ async function resolveKnowledgeAccess(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.taskRunExecId !== undefined
+        ? { taskRunExecId: args.taskRunExecId }
+        : {}),
       subject,
     },
   );
 }
 
 /** The blocker a refused knowledge dispatch relays, by refusal reason. */
-const KNOWLEDGE_ACCESS_BLOCKERS: Record<
-  'no_access_context' | 'not_a_member' | 'read_denied',
-  BridgeBlocker
-> = {
-  no_access_context: {
-    code: 'no_access_context',
-    guidance:
-      'This session is neither bound to a project nor carries a user ' +
-      'context, so knowledge reads cannot run from it.',
-  },
-  not_a_member: {
-    code: 'access_denied',
-    guidance:
-      'The user this turn runs as is not an active member of this ' +
-      'organization, so knowledge reads are unavailable. Tell the user; ' +
-      'do not retry.',
-  },
-  read_denied: {
-    code: 'access_denied',
-    guidance:
-      "The user's role does not permit reading this content in this " +
-      'organization. Tell the user; do not retry.',
-  },
-};
+const KNOWLEDGE_ACCESS_BLOCKERS: Record<KnowledgeAccessRefusal, BridgeBlocker> =
+  {
+    run_ended: actionContextBlocker('run_ended'),
+    schedule_revoked: actionContextBlocker('schedule_revoked'),
+    no_access_context: {
+      code: 'no_access_context',
+      guidance:
+        'This session is neither bound to a project nor carries a user ' +
+        'context, so knowledge reads cannot run from it.',
+    },
+    not_a_member: {
+      code: 'access_denied',
+      guidance:
+        'The user this turn runs as is not an active member of this ' +
+        'organization, so knowledge reads are unavailable. Tell the user; ' +
+        'do not retry.',
+    },
+    read_denied: {
+      code: 'access_denied',
+      guidance:
+        "The user's role does not permit reading this content in this " +
+        'organization. Tell the user; do not retry.',
+    },
+  };
 
 /** The retrieval backends REFUSE (throw) when the org has no embedding model
  * configured or its corpus/pool is unusable — surfaced as guidance, not a
@@ -1035,6 +1065,7 @@ async function runKnowledgeTool(
     organizationId: string;
     sessionId: string;
     userId?: string;
+    taskRunExecId?: string;
     embeddingMeter?: EmbeddingMeter;
     tool: 'rag_search' | 'rag_fetch';
     callArgs: Record<string, unknown>;

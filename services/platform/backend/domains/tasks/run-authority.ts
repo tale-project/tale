@@ -14,7 +14,10 @@ import {
   dispatchReachesSource,
   readAgentHome,
 } from './dispatch-reach.ts';
-import { memberEditableProjects } from './edit-right.ts';
+import {
+  memberEditableProjects,
+  memberReadableProjects,
+} from './edit-right.ts';
 
 /**
  * What a project agent's run may do follows the person who started it.
@@ -55,8 +58,13 @@ import { memberEditableProjects } from './edit-right.ts';
  * ({@link runStarterMayActWithAgent}). Someone who edits only the served
  * board gets a confined run in a workspace of their own: the agent's
  * secrets, credentials and standing workspace belong to its own project.
- * Its task tools reach, beyond the agent's own project, only the boards
- * its starter may act in, and its own task's ({@link runReachedProjects}).
+ * And it reads only what its starter may read ({@link runProjectScope}):
+ * its task, document and knowledge tools leave out the agent's own project
+ * when the person who started, woke, moved or retried it may not read that
+ * project, and reach the other boards only as far as that person may edit
+ * them. A run the dispatch started there acts for whoever last saved the
+ * dispatch — on whose right to edit the board the dispatch serves it
+ * (`dispatch-reach.ts`) — and keeps the agent's own project's reach.
  *
  * The workspace family is chosen when the run is kicked, by the starter's
  * rights then, and checked again whenever the run starts: its turn job
@@ -209,16 +217,33 @@ async function runStarterMayActWithAgent(
   return acting.has(args.projectId) && acting.has(home.projectId);
 }
 
+/** What a run's task, document and knowledge tools reach of the projects
+ * around it ({@link runProjectScope}). */
+export interface RunProjectScope {
+  /** Whether they reach the agent's own project. */
+  ownProject: boolean;
+  /** The other boards its task tools reach. */
+  reachedProjectIds: string[];
+}
+
 /**
- * The other boards a run's task tools reach beyond the agent's own project:
- * of those the agent reaches now (`reachedProjectIds`, `dispatch-reach.ts`),
- * the ones its starter may act in, and always its own task's board, which a
- * confined run works too. A run the agent's own project's dispatch started
- * reaches every board that dispatch serves: the dispatch's reach is the
- * agent's. Nobody widens what they may do by starting an agent another
- * project's dispatch puts on their board.
+ * What a run's tools reach beyond its own task, by who started it.
+ *
+ * A run the agent's own project's dispatch started reaches the agent's
+ * project and every board that dispatch serves now (`reachedProjectIds`,
+ * `dispatch-reach.ts`): the dispatch's reach is the agent's, on the right of
+ * whoever last saved it.
+ *
+ * Any other run reaches, of the boards the agent reaches, the ones its
+ * starter may act in ({@link runStarterActingProjects}). On the agent's own
+ * board it reads the agent's project, and nothing else changes. On another
+ * board it reads only what its starter may read: the agent's own project
+ * and its own task's board each only while the person who started it may
+ * read them ({@link memberReadableProjects}) — or, for a schedule, while it
+ * may act there. Nobody reads a project they may not read by starting an
+ * agent another project's dispatch puts on their board.
  */
-export async function runReachedProjects(
+export async function runProjectScope(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
@@ -228,11 +253,14 @@ export async function runReachedProjects(
     reachedProjectIds: readonly string[];
     run: { projectId: string; startedBy: string };
   },
-): Promise<string[]> {
-  if (args.reachedProjectIds.length === 0) return [];
+): Promise<RunProjectScope> {
+  const onOwnBoard = args.run.projectId === args.homeProjectId;
+  if (onOwnBoard && args.reachedProjectIds.length === 0) {
+    return { ownProject: true, reachedProjectIds: [] };
+  }
   const starter = parseRunStarter(args.run.startedBy);
   if (starter.kind === 'dispatch' && starter.projectId === args.homeProjectId) {
-    return [...args.reachedProjectIds];
+    return { ownProject: true, reachedProjectIds: [...args.reachedProjectIds] };
   }
   const acting = await runStarterActingProjects(sql, {
     organizationId: args.organizationId,
@@ -241,9 +269,48 @@ export async function runReachedProjects(
       (projectId) => projectId !== args.run.projectId,
     ),
   });
-  return args.reachedProjectIds.filter(
-    (projectId) => projectId === args.run.projectId || acting.has(projectId),
-  );
+  const readable = onOwnBoard
+    ? null
+    : await runStarterReadableProjects(sql, {
+        organizationId: args.organizationId,
+        startedBy: args.run.startedBy,
+        projectIds: [args.homeProjectId, args.run.projectId],
+      });
+  const reads = (projectId: string) =>
+    readable === null || readable.has(projectId);
+  return {
+    ownProject: reads(args.homeProjectId),
+    reachedProjectIds: args.reachedProjectIds.filter((projectId) =>
+      projectId === args.run.projectId
+        ? reads(projectId)
+        : acting.has(projectId),
+    ),
+  };
+}
+
+/** Which of the named projects a run's starter may read now: a person or an
+ * API key the projects their role and audience read
+ * ({@link memberReadableProjects}); a schedule or a dispatch, which read as
+ * no person, the projects it may act in ({@link runStarterActingProjects}). */
+async function runStarterReadableProjects(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    startedBy: string;
+    projectIds: readonly string[];
+  },
+): Promise<Set<string>> {
+  const kind = parseRunStarter(args.startedBy).kind;
+  if (kind === 'trigger' || kind === 'dispatch') {
+    return runStarterActingProjects(sql, args);
+  }
+  const userId = runStarterUserId(args.startedBy);
+  if (userId === null) return new Set();
+  return memberReadableProjects(sql, {
+    organizationId: args.organizationId,
+    userId,
+    projectIds: [...new Set(args.projectIds)],
+  });
 }
 
 /** The workspace family a run of the agent works in, by who starts it — as

@@ -40,6 +40,11 @@ export interface WorkspaceActionAuthority {
          * on: its task tools find, read and work their existing tasks too;
          * it creates nothing there. Absent for most agents. */
         reachedProjectIds?: string[];
+        /** Set for a run on a board another project's dispatch serves whose
+         * starter may not read the agent's own project (`projectId`): its
+         * task, document and knowledge tools leave that project out, and
+         * reach only `reachedProjectIds` (`tasks/run-authority.ts`). */
+        ownProjectExcluded?: true;
       }
     | { kind: 'org'; allowedProjectIds?: string[] };
   /**

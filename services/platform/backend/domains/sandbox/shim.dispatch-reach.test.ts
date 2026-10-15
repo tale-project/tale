@@ -6,7 +6,8 @@
  * the boards the agent reaches now that the run's starter may act in, and a
  * run working a board it no longer reaches acts for nobody. A person who
  * edits only the served board gets a confined run: the agent's own project's
- * equipment is not theirs.
+ * equipment is not theirs, and neither are its tasks, documents or knowledge
+ * when they may not read it.
  */
 
 import type { Sql } from 'postgres';
@@ -88,6 +89,20 @@ function fakeSql(
   }) as unknown as Sql;
 }
 
+async function knowledge(sql: Sql): Promise<unknown> {
+  const resolve =
+    sandboxToolShimHandlers(sql)[
+      'sandbox/workspace_access:resolveKnowledgeToolAccess'
+    ];
+  if (resolve === undefined) throw new Error('no handler');
+  return resolve({
+    organizationId: 'org-1',
+    subject: 'documents',
+    sessionId: STANDING,
+    taskRunExecId: 'exec-1',
+  });
+}
+
 async function context(sql: Sql): Promise<unknown> {
   const resolve =
     sandboxToolShimHandlers(sql)[
@@ -150,13 +165,14 @@ describe('the agents of a dispatch work the boards it serves like their own [TAS
 });
 
 describe('a person’s run on a board another project’s dispatch serves answers to both projects [TASK-R79]', () => {
-  it('confines a run started by someone who edits only the served board, and reaches that board alone', async () => {
+  it('confines a run started by someone who edits only the served board, and reaches that board alone [TASK-R82]', async () => {
     vi.mocked(readAgentReach).mockResolvedValue({
       homeProjectId: 'p-dev',
       reachedProjectIds: ['p-tale', 'p-jordi'],
     });
     vi.mocked(agentReachesProject).mockResolvedValue(true);
-    // Ada edits Tale's board, but neither Development nor Jordi's.
+    // Ada edits Tale's board, but neither Development nor Jordi's, and
+    // reads neither: her run leaves Development out as well.
     const sql = fakeSql(
       { projectId: 'p-tale' },
       { 'p-dev': ['team-dev'], 'p-jordi': ['team-jordi'] },
@@ -168,6 +184,7 @@ describe('a person’s run on a board another project’s dispatch serves answer
         kind: 'project',
         projectId: 'p-dev',
         reachedProjectIds: ['p-tale'],
+        ownProjectExcluded: true,
       },
       confinedToTaskId: 'task-tale',
     });
@@ -179,8 +196,8 @@ describe('a person’s run on a board another project’s dispatch serves answer
       reachedProjectIds: ['p-tale', 'p-jordi'],
     });
     vi.mocked(agentReachesProject).mockResolvedValue(true);
-    // Ada edits Development, but neither served board: her run works its
-    // own task, on its own board, and nothing of Jordi's.
+    // Ada edits Development, but neither served board, and reads neither:
+    // her run works its own task alone, and lists nothing of either board.
     const sql = fakeSql(
       { projectId: 'p-tale' },
       { 'p-tale': ['team-tale'], 'p-jordi': ['team-jordi'] },
@@ -188,11 +205,7 @@ describe('a person’s run on a board another project’s dispatch serves answer
     expect(await context(sql)).toEqual({
       allowed: true,
       actorId: 'coder',
-      scope: {
-        kind: 'project',
-        projectId: 'p-dev',
-        reachedProjectIds: ['p-tale'],
-      },
+      scope: { kind: 'project', projectId: 'p-dev' },
       confinedToTaskId: 'task-tale',
     });
   });
@@ -254,6 +267,68 @@ describe('a person’s run on a board another project’s dispatch serves answer
         reachedProjectIds: ['p-tale'],
       },
       confinedToTaskId: 'task-tale',
+    });
+  });
+});
+
+describe('a run on a served board reads only what its starter may read [TASK-R82]', () => {
+  it('searches none of the agent’s own project’s knowledge for a starter who may not read it', async () => {
+    vi.mocked(readAgentReach).mockResolvedValue({
+      homeProjectId: 'p-dev',
+      reachedProjectIds: ['p-tale'],
+    });
+    vi.mocked(agentReachesProject).mockResolvedValue(true);
+    // Development is shared with a team Ada is not in.
+    const sql = fakeSql({ projectId: 'p-tale' }, { 'p-dev': ['team-dev'] });
+    expect(await knowledge(sql)).toEqual({
+      allowed: true,
+      scope: {
+        teamIds: [],
+        projectIds: [],
+        includeHub: true,
+        archivedProjectIds: [],
+      },
+    });
+  });
+
+  it('keeps the agent’s own project’s knowledge for a starter who reads it, and for the dispatch’s run', async () => {
+    vi.mocked(readAgentReach).mockResolvedValue({
+      homeProjectId: 'p-dev',
+      reachedProjectIds: ['p-tale'],
+    });
+    vi.mocked(agentReachesProject).mockResolvedValue(true);
+    vi.mocked(dispatchReachesSource).mockResolvedValue(true);
+    const own = {
+      allowed: true,
+      scope: {
+        teamIds: ['team-dev'],
+        projectIds: ['p-dev'],
+        includeHub: true,
+        archivedProjectIds: [],
+      },
+    };
+    // Ada is in no team: she reads only the organization-wide boards.
+    expect(
+      await knowledge(fakeSql({ projectId: 'p-tale' }, { 'p-dev': [] })),
+    ).toEqual({ ...own, scope: { ...own.scope, teamIds: [] } });
+    expect(
+      await knowledge(
+        fakeSql(
+          { projectId: 'p-tale', startedBy: 'dispatch:p-dev' },
+          { 'p-dev': ['team-dev'] },
+        ),
+      ),
+    ).toEqual(own);
+  });
+
+  it('reads no knowledge for a run on a board its agent no longer reaches', async () => {
+    vi.mocked(readAgentReach).mockResolvedValue({
+      homeProjectId: 'p-dev',
+      reachedProjectIds: [],
+    });
+    expect(await knowledge(fakeSql({ projectId: 'p-tale' }))).toEqual({
+      allowed: false,
+      reason: 'schedule_revoked',
     });
   });
 });

@@ -9,7 +9,10 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { findActingMember, getActingAudience } from '../../auth/membership.ts';
-import { memberEditableProjects } from './edit-right.ts';
+import {
+  memberEditableProjects,
+  memberReadableProjects,
+} from './edit-right.ts';
 
 vi.mock('../../auth/membership.ts', () => ({
   findActingMember: vi.fn(),
@@ -66,5 +69,40 @@ describe('a project’s own API key edits that project alone [TASK-R79]', () => 
         projectIds: ['p-dev', 'p-billing'],
       }),
     ).toEqual(new Set(['p-dev']));
+  });
+});
+
+describe('a person reads the projects of their audience their role may not edit [TASK-R82]', () => {
+  it('reads what a member’s audience reaches, though they edit none of it', async () => {
+    vi.mocked(findActingMember).mockResolvedValue({
+      ...editor,
+      userId: 'bea',
+      role: 'member',
+    } as Awaited<ReturnType<typeof findActingMember>>);
+    vi.mocked(getActingAudience).mockResolvedValue({ teamIds: [] });
+    const args = {
+      organizationId: 'org-1',
+      userId: 'bea',
+      projectIds: ['p-dev', 'p-billing'],
+    };
+    expect(await memberEditableProjects(sql, args)).toEqual(new Set());
+    expect(await memberReadableProjects(sql, args)).toEqual(
+      new Set(['p-dev', 'p-billing']),
+    );
+  });
+
+  it('reads nothing for someone who left, or a disabled member', async () => {
+    vi.mocked(findActingMember).mockResolvedValueOnce(null);
+    const args = {
+      organizationId: 'org-1',
+      userId: 'bea',
+      projectIds: ['p-dev'],
+    };
+    expect(await memberReadableProjects(sql, args)).toEqual(new Set());
+    vi.mocked(findActingMember).mockResolvedValueOnce({
+      ...editor,
+      role: 'disabled',
+    } as Awaited<ReturnType<typeof findActingMember>>);
+    expect(await memberReadableProjects(sql, args)).toEqual(new Set());
   });
 });

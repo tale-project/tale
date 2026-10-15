@@ -4,7 +4,8 @@
  * tasks. The lane saves the dispatch through the save's own checks, runs
  * passes against a stand-in host, assigns and locks agents across the two
  * boards, routes a review, judges people who edit only one of the two
- * projects, takes the served board away twice — by a lost right and by
+ * projects and what their runs there read, switches the dispatch off and on
+ * again, takes the served board away twice — by a lost right and by
  * archiving it — switches the dispatch off from the app with the archived
  * board still listed, and deletes the Coder. Every agent turn, retry, park
  * wake and dispatch pass the two projects enqueue is held a day ahead
@@ -45,6 +46,8 @@ import { resolveTaskReviewer } from './reviews.ts';
 import {
   dispatchMayActInProject,
   isTaskRunConfined,
+  runProjectScope,
+  type RunProjectScope,
   sessionIdForAgentRun,
 } from './run-authority.ts';
 import { snapshotRunInstructions } from './run-instructions.ts';
@@ -519,6 +522,38 @@ export async function checkDispatchAcrossProjects(
         danSession === memberSessionIdForProjectAgent(agents.coder, dan) &&
         ownerSession === standingSessionIdForProjectAgent(agents.coder),
       `start=${JSON.stringify(beaStart)} run=${JSON.stringify(beaRun)} confined=${beaConfined} standingConfined=${beaStandingConfined} dan=${danSession} owner=${ownerSession}`,
+    );
+    // What such a run reads: Bea, who may not read Development, gets none
+    // of it; Dan, who may not read Billing, not even its board; the owner
+    // both; and the dispatch's own run keeps Development and every board
+    // it serves.
+    const scopeOf = (startedBy: string) =>
+      runProjectScope(sql, {
+        organizationId: orgId,
+        homeProjectId: development,
+        reachedProjectIds: [billing],
+        run: { projectId: billing, startedBy },
+      });
+    const scopes = {
+      bea: await scopeOf(beaRun?.startedBy ?? bea),
+      dan: await scopeOf(dan),
+      owner: await scopeOf(userId),
+      dispatch: await scopeOf(`dispatch:${development}`),
+    };
+    const reads = (
+      scope: RunProjectScope,
+      ownProject: boolean,
+      boards: string[],
+    ) =>
+      scope.ownProject === ownProject &&
+      scope.reachedProjectIds.join() === boards.join();
+    record(
+      'dispatch across projects: a run on a served board reads only what its starter may read [TASK-R82]',
+      reads(scopes.bea, false, [billing]) &&
+        reads(scopes.dan, true, []) &&
+        reads(scopes.owner, true, [billing]) &&
+        reads(scopes.dispatch, true, [billing]),
+      `scopes=${JSON.stringify(scopes)}`,
     );
 
     // 9. Dan reads Development but not Billing: its Dispatch page counts the

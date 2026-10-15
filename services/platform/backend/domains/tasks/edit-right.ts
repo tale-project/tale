@@ -2,7 +2,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { findActingMember, getActingAudience } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
-import { checkProjectAccess } from '../../core/projects/access.ts';
+import {
+  checkProjectAccess,
+  type ProjectAccessResult,
+} from '../../core/projects/access.ts';
 
 /**
  * Which of the named projects a member of the organization may edit now: a
@@ -20,18 +23,39 @@ export async function memberEditableProjects(
   sql: Sql | TransactionSql,
   args: { organizationId: string; userId: string; projectIds: string[] },
 ): Promise<Set<string>> {
-  const editable = new Set<string>();
-  if (args.projectIds.length === 0) return editable;
+  return memberProjectsWhere(sql, args, (access) => access.canEdit);
+}
+
+/**
+ * Which of the named projects a member of the organization may read now:
+ * {@link memberEditableProjects}'s rule for any role — a member reads the
+ * projects of their audience they may not edit. What a person's run of an
+ * agent on another project's board reads by (`run-authority.ts`).
+ */
+export async function memberReadableProjects(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; userId: string; projectIds: string[] },
+): Promise<Set<string>> {
+  return memberProjectsWhere(sql, args, (access) => access.canRead);
+}
+
+async function memberProjectsWhere(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; userId: string; projectIds: string[] },
+  allows: (access: ProjectAccessResult) => boolean,
+): Promise<Set<string>> {
+  const allowed = new Set<string>();
+  if (args.projectIds.length === 0) return allowed;
   const member = await findActingMember(sql, args.organizationId, args.userId);
-  if (member === null) return editable;
+  if (member === null) return allowed;
   const role = member.role.toLowerCase();
-  if (role === 'disabled') return editable;
+  if (role === 'disabled') return allowed;
   const projects = await sql<{ id: string; teamIds: string[] | null }[]>`
     SELECT id, ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
     FROM app.projects
     WHERE id = ANY(${args.projectIds}) AND org_id = ${args.organizationId}
   `;
-  if (projects.length === 0) return editable;
+  if (projects.length === 0) return allowed;
   const audience = await getActingAudience(
     sql,
     args.organizationId,
@@ -41,14 +65,16 @@ export async function memberEditableProjects(
     if (
       (audience.projectScope === undefined ||
         audience.projectScope === project.id) &&
-      checkProjectAccess(
-        { teamIds: project.teamIds ?? [] },
-        audience.teamIds,
-        role,
-      ).canEdit
+      allows(
+        checkProjectAccess(
+          { teamIds: project.teamIds ?? [] },
+          audience.teamIds,
+          role,
+        ),
+      )
     ) {
-      editable.add(project.id);
+      allowed.add(project.id);
     }
   }
-  return editable;
+  return allowed;
 }

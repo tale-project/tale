@@ -757,8 +757,8 @@ workspace, and task tools beyond its own task — only while its starter may edi
 project and the agent's own project, and while the dispatch still reaches the board. Any other
 run of that agent there is confined to its own task, in a workspace of its own, as a member's
 run is. Wherever it works, a run's task tools reach only the boards the dispatch serves that its
-starter may edit, besides its own task's; a run the dispatch started reaches every board the
-dispatch serves.
+starter may edit, besides its own task's while its starter may read it (`TASK-R82`); a run the
+dispatch started reaches every board the dispatch serves.
 
 - **Example**: Development's dispatch serves Billing and Payroll. Bea edits Billing and nothing
   else. She chooses Start agent on a Billing task assigned to the Coder → the run works only on
@@ -792,6 +792,26 @@ work, on its own board or another (`TASK-R75`). The boards it lists still name i
   assigned to the Coder → refused, and Billing's assignee list no longer offers the Coder. The
   Coder finishes a Development task → the review goes to Development's default reviewer, not to
   the dispatch's Reviewer.
+
+### TASK-R82 · A run on a served board reads only what its starter may read
+
+On a board another project's dispatch serves, a run a person or an API key started — with Start
+agent, a comment that woke the agent, a move to In progress, a retry of their run, or a start a
+run of theirs handed on — finds and reads tasks, documents and knowledge only of the projects that
+person may read: the agent's own project only while they may read it, and the board's only while
+they may read that. Of the other boards the dispatch serves, it reaches those they may edit
+(`TASK-R79`). A run a schedule began there reads the agent's own project only while the schedule
+may act in it. A run the dispatch started there acts for whoever last saved the dispatch, on whose
+right to edit the board the dispatch serves it (`TASK-R72`): it reads the agent's own project and
+every board the dispatch serves, so whoever may put a ready task on such a board writes the brief
+of a run with the agent's full equipment.
+
+- **Example**: Development is shared with its team only, and its dispatch serves Billing. Bea
+  edits Billing and is not in Development's team. She chooses Start agent on a Billing task
+  assigned to the Coder and asks it to list Development's tasks and documents → it lists
+  Billing's tasks alone, a Development task reads as not found, and its knowledge search finds
+  none of Development's documents. The dispatch starts the Coder on another Billing task → that
+  run reads Development's tasks and documents as its own.
 
 ## What a run is handed
 

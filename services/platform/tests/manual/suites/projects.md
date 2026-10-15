@@ -818,3 +818,14 @@ a few To do tasks.
   project's dispatch, **switched off** (`projects.dispatch.servedBy.off`).
   Switch it on again and save → the assignee list offers the agent again,
   and **Start agent** starts it.
+- [ ] `PROJ-B29` · **A run on a served board reads only what its starter
+  may read** — With the dispatch of `PROJ-F71` serving Billing, share this
+  project with a team, grant the pool's agent **Find tasks** and **Read a
+  task**, and sign in as an editor of Billing who is not in that team.
+  Assign a Billing task to the agent with the description "List every task
+  and document you can find, and read the task of this project I name", name
+  a task of this project, and choose **Start agent** → the run's report lists
+  Billing's tasks only, none of this project's tasks or documents, and the
+  named task reads as not found to it. As an administrator of both projects,
+  choose **Run a pass now** with another such Billing task in To do → the
+  run the dispatch starts lists this project's tasks as well.
