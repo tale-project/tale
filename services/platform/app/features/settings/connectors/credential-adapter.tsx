@@ -47,10 +47,11 @@ import {
 /**
  * How a connector's credentials plug into the shared credential UI.
  *
- * A connector's secret is one token, or a username/password pair, or nothing at
- * all — an OAuth grant arrives from the consent flow, never from a form, which
- * is why `hasFields` is false for it and the row offers Reconnect instead of
- * Replace secret.
+ * A connector's secret is one token, or a username/password pair, or an app's
+ * own registration (directory, client ID and secret — the app signs in as
+ * itself), or nothing at all — an OAuth grant arrives from the consent flow,
+ * never from a form, which is why `hasFields` is false for it and the row
+ * offers Reconnect instead of Replace secret.
  */
 
 export interface SecretDraft {
@@ -64,6 +65,10 @@ export interface SecretDraft {
   smtpSeparate: boolean;
   smtpUsername: string;
   smtpPassword: string;
+  /** `client-credentials`: the app's directory, ID and secret. */
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
 }
 
 /** The methods a connector credential can actually be stored with. */
@@ -72,6 +77,7 @@ const STORABLE_METHODS: readonly StorableAuthMethodName[] = [
   'bearer',
   'basic',
   'oauth2',
+  'client-credentials',
 ];
 
 const emptySecretDraft = (): SecretDraft => ({
@@ -81,7 +87,16 @@ const emptySecretDraft = (): SecretDraft => ({
   smtpSeparate: false,
   smtpUsername: '',
   smtpPassword: '',
+  tenantId: '',
+  clientId: '',
+  clientSecret: '',
 });
+
+/** Whether an app signing in to this vendor names its directory (tenant) —
+ * unknown (no vendor at hand) counts as yes, the shipped case. */
+function needsTenant(vendor: ConnectorVendor | undefined): boolean {
+  return vendor?.summary.clientCredentialsTenant !== false;
+}
 
 /** The vendor projection the shared UI consumes. */
 export interface ConnectorVendor extends CredentialVendor {
@@ -111,11 +126,46 @@ function SecretFields({
   value: SecretDraft;
   onChange: (next: SecretDraft) => void;
   disabled?: boolean;
-  vendor?: CredentialVendor;
+  vendor?: ConnectorVendor;
 }) {
   const { t } = useT('settings');
 
   if (method === 'oauth2') return null;
+
+  if (method === 'client-credentials') {
+    return (
+      <>
+        {needsTenant(vendor) && (
+          <Input
+            label={t('connectors.dialog.tenantId')}
+            description={t('connectors.dialog.tenantIdHelp')}
+            value={value.tenantId}
+            onChange={(e) => onChange({ ...value, tenantId: e.target.value })}
+            autoComplete="off"
+            disabled={disabled}
+            required
+          />
+        )}
+        <Input
+          label={t('connectors.dialog.clientId')}
+          value={value.clientId}
+          onChange={(e) => onChange({ ...value, clientId: e.target.value })}
+          autoComplete="off"
+          disabled={disabled}
+          required
+        />
+        <Input
+          label={t('connectors.dialog.clientSecret')}
+          type="password"
+          value={value.clientSecret}
+          onChange={(e) => onChange({ ...value, clientSecret: e.target.value })}
+          description={t('connectors.dialog.clientSecretHelp')}
+          disabled={disabled}
+          required
+        />
+      </>
+    );
+  }
 
   if (method === 'basic') {
     // Only imap-smtp offers a second login: IMAP stays on the mailbox pair,
@@ -371,8 +421,18 @@ export const connectorCredentialAdapter: CredentialAdapter<
       draft.password.length > 0 ||
       draft.smtpSeparate ||
       draft.smtpUsername.length > 0 ||
-      draft.smtpPassword.length > 0,
-    isComplete: (method, draft) => {
+      draft.smtpPassword.length > 0 ||
+      draft.tenantId.length > 0 ||
+      draft.clientId.length > 0 ||
+      draft.clientSecret.length > 0,
+    isComplete: (method, draft, vendor) => {
+      if (method === 'client-credentials') {
+        return (
+          (!needsTenant(vendor) || draft.tenantId.trim().length > 0) &&
+          draft.clientId.trim().length > 0 &&
+          draft.clientSecret.trim().length > 0
+        );
+      }
       if (method === 'basic') {
         const mailbox =
           draft.username.trim().length > 0 && draft.password.trim().length > 0;
@@ -407,6 +467,18 @@ export const connectorCredentialAdapter: CredentialAdapter<
         };
       }
       if (method === 'oauth2') return { ok: true, args: {} };
+      if (method === 'client-credentials') {
+        return {
+          ok: true,
+          args: {
+            ...(draft.tenantId.trim().length > 0 && {
+              tenantId: draft.tenantId.trim(),
+            }),
+            clientId: draft.clientId.trim(),
+            clientSecret: draft.clientSecret.trim(),
+          },
+        };
+      }
       return { ok: true, args: { token: draft.token.trim() } };
     },
     hasFields: (method) => method !== 'oauth2',
@@ -418,6 +490,8 @@ export const connectorCredentialAdapter: CredentialAdapter<
           return t('connectors.replace.tokenTitle');
         case 'basic':
           return t('connectors.replace.basicTitle');
+        case 'client-credentials':
+          return t('connectors.replace.clientCredentialsTitle');
         default:
           return null;
       }

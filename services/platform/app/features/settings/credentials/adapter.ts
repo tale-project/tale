@@ -176,15 +176,19 @@ export interface CredentialExtraModule<V, Cred, Extra> {
    * Whether the extra fields are filled in enough to submit. Vendor-aware
    * because what is required is declared per vendor (a connector's
    * `configFields`), not per surface. Omit when nothing here is mandatory —
-   * the dialogs treat an absent check as satisfied.
+   * the dialogs treat an absent check as satisfied. `method` is the sign-in
+   * method being authored or edited: a field may be required for one method
+   * only (an app signing in as itself must name the mailbox it acts on).
    */
-  isComplete?: (value: Extra, vendor: V) => boolean;
+  isComplete?: (value: Extra, vendor: V, method?: string) => boolean;
   /** Return `null` to render nothing for this vendor. */
   Fields: ComponentType<{
     vendor: V;
     value: Extra;
     onChange: (next: Extra) => void;
     disabled?: boolean;
+    /** The sign-in method being authored or edited. */
+    method?: string;
   }> | null;
 }
 

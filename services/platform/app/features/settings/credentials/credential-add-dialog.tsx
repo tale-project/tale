@@ -206,7 +206,7 @@ export function CredentialAddDialog<
     // A required extra field (a connector's configFields) is as mandatory as
     // the secret — without this the form submits and the server refuses with
     // "needs <label>", naming a field the user was never asked for.
-    (extra.isComplete?.(extraValue, vendor) ?? true);
+    (extra.isComplete?.(extraValue, vendor, activeMethod) ?? true);
 
   const SecretFields = secret.Fields;
   const ExtraFields = extra.Fields;
@@ -363,6 +363,7 @@ export function CredentialAddDialog<
                     value={extraValue}
                     onChange={setExtraValue}
                     disabled={create.isPending}
+                    method={activeMethod}
                   />
                 )}
               </Stack>

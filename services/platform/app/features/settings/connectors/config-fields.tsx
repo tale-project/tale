@@ -36,14 +36,28 @@ export interface ConnectorVendorLike {
  */
 export type ConnectorConfigValue = Record<string, string | number | boolean>;
 
-/** Declared fields shown on the create/edit form. `fromAddress` is mirrored
- * from the IMAP login username server-side and must not appear as a second
- * input (From and username are the same value). */
+/** Declared fields shown on the create/edit form. `fromAddress` is kept
+ * server-side — mirrored from the IMAP login username, from the mailbox an
+ * Outlook credential names, or learned from the provider — and must not
+ * appear as a second input. */
 const HIDDEN_CONFIG_KEYS = new Set(['fromAddress']);
 
 function fieldsOf(summary: ConnectorSummary): ConnectorSummary['configFields'] {
   return summary.configFields.filter(
     (field) => !HIDDEN_CONFIG_KEYS.has(field.key),
+  );
+}
+
+/** Whether `field` must be filled in for a credential of `method`: always
+ * when it is `required`, else when it is `requiredFor` that method. */
+function isRequired(
+  field: ConnectorSummary['configFields'][number],
+  method: string | undefined,
+): boolean {
+  if (field.required) return true;
+  return (
+    method !== undefined &&
+    (field.requiredFor ?? []).some((required) => required === method)
   );
 }
 
@@ -74,11 +88,13 @@ function ConnectorConfigFields({
   value,
   onChange,
   disabled,
+  method,
 }: {
   vendor: ConnectorVendorLike;
   value: ConnectorConfigValue;
   onChange: (next: ConnectorConfigValue) => void;
   disabled?: boolean;
+  method?: string;
 }) {
   const { t } = useT('settings');
   const localized = useLocalized();
@@ -133,7 +149,7 @@ function ConnectorConfigFields({
                 label: option,
               }))}
               disabled={disabled}
-              required={field.required}
+              required={isRequired(field, method)}
             />
           );
         }
@@ -157,7 +173,7 @@ function ConnectorConfigFields({
             errorMessage={invalid ? t('connectors.invalidPort') : undefined}
             isInvalid={invalid}
             disabled={disabled}
-            required={field.required}
+            required={isRequired(field, method)}
           />
         );
       })}
@@ -182,13 +198,13 @@ export function connectorConfigExtras<
     fromCredential: (credential) => ({ ...credential.config }),
     isDirty: (value, baseline) =>
       JSON.stringify(value) !== JSON.stringify(baseline),
-    isComplete: (value, vendor) =>
+    isComplete: (value, vendor, method) =>
       fieldsOf(vendor.summary).every(
         (field) =>
           (isSupplied(value[field.key]) &&
             isValidFieldValue(field, value[field.key])) ||
           (!isSupplied(value[field.key]) &&
-            (!field.required || field.default !== undefined)),
+            (!isRequired(field, method) || field.default !== undefined)),
       ),
     // Blank entries are dropped rather than sent as '': the server applies the
     // declared default for an ABSENT field, and would reject '' for a number.

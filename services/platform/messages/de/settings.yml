@@ -423,6 +423,7 @@ connectors:
     bearer: Token
     basic: Benutzername & Passwort
     oauth2: OAuth
+    clientCredentials: App-Anmeldung
   card:
     actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
     connect: Verbinden
@@ -462,6 +463,7 @@ connectors:
     apiKeyTitle: API-Schlüssel ersetzen
     tokenTitle: Token ersetzen
     basicTitle: Benutzername & Passwort ersetzen
+    clientCredentialsTitle: App-Zugangsdaten ersetzen
     note:
       Das gespeicherte Secret wird nie angezeigt. Ein neuer Wert ersetzt es
       überall dort, wo dieser Eintrag verwendet wird.
@@ -530,6 +532,13 @@ connectors:
     smtpPassword: SMTP-Passwort
     smtpHint: SMTP-Benutzername und -Passwort deines Relays (Resend, SendGrid,
       Amazon SES, …).
+    tenantId: Verzeichnis-ID (Tenant)
+    tenantIdHelp: Die ID des Verzeichnisses, in dem die App registriert ist.
+    clientId: Anwendungs-ID (Client)
+    clientSecret: Client-Secret
+    clientSecretHelp:
+      Tale holt damit nur das Zugriffstoken der App und erneuert dieses
+      Token selbst.
     endpointUrl: Instanz-URL
     endpointHelpConfluence: Die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest.
     endpointHelpShopify:

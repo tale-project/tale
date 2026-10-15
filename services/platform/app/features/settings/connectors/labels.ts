@@ -19,6 +19,8 @@ export function authMethodLabel(t: Translator, method: string): string {
       return t('connectors.authMethod.basic');
     case 'oauth2':
       return t('connectors.authMethod.oauth2');
+    case 'client-credentials':
+      return t('connectors.authMethod.clientCredentials');
     default:
       return method;
   }

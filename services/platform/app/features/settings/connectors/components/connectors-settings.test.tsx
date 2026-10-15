@@ -218,6 +218,35 @@ const confluenceConnector: ConnectorSummary = {
   iconUrl: '/api/connectors/confluence/icon.svg',
 };
 
+// Outlook takes a person's consent or the organization's own app; the app
+// sign-in names its directory and must name the mailbox it works in.
+const outlookConnector: ConnectorSummary = {
+  slug: 'outlook',
+  displayName: 'Microsoft Outlook',
+  description: 'Manage Outlook mail, calendar, and contacts.',
+  tags: ['Email'],
+  endpointMode: 'fixed',
+  authMethods: ['oauth2', 'client-credentials'],
+  configFields: [
+    {
+      key: 'mailbox',
+      label: 'Mailbox',
+      type: 'string',
+      required: false,
+      requiredFor: ['client-credentials'],
+    },
+    {
+      key: 'fromAddress',
+      label: 'From address',
+      type: 'string',
+      required: false,
+    },
+  ],
+  actionCount: 11,
+  clientCredentialsTenant: true,
+  oauthApp: { configured: true, source: 'env', orgConfigurable: true },
+};
+
 // WebDAV ships no icon — the catalog carries none and the card falls back.
 const webdavConnector: ConnectorSummary = {
   slug: 'webdav',
@@ -636,6 +665,48 @@ describe('ConnectorsSettings', () => {
         // their declared defaults for an absent field.
         config: { imapHost: 'mail.example.com', smtpHost: 'smtp.example.com' },
       });
+    });
+  });
+
+  it('signs an app in to a shared mailbox, asking for its directory, ID, secret and mailbox', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+
+    // The person's consent stays offered beside the app's form.
+    expect(form.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+    const submit = form.getByRole('button', { name: 'Add credential' });
+    await user.type(
+      form.getByLabelText(/^Directory \(tenant\) ID/, { selector: 'input' }),
+      'contoso.onmicrosoft.com',
+    );
+    await user.type(
+      form.getByLabelText(/^Application \(client\) ID/, { selector: 'input' }),
+      'app-client-id',
+    );
+    await user.type(
+      form.getByLabelText(/^Client secret/, { selector: 'input' }),
+      'app-client-secret',
+    );
+    // An app has no mailbox of its own: without one the server would refuse.
+    expect(submit).toBeDisabled();
+    await user.type(
+      form.getByRole('textbox', { name: /^Mailbox/ }),
+      'promotion@example.com',
+    );
+    expect(submit).toBeEnabled();
+
+    await user.click(submit);
+    expect(createCredential).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      connectorSlug: 'outlook',
+      authMethod: 'client-credentials',
+      name: 'Microsoft Outlook',
+      tenantId: 'contoso.onmicrosoft.com',
+      clientId: 'app-client-id',
+      clientSecret: 'app-client-secret',
+      config: { mailbox: 'promotion@example.com' },
     });
   });
 

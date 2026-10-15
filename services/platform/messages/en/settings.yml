@@ -411,6 +411,7 @@ connectors:
     bearer: Token
     basic: Username & password
     oauth2: OAuth
+    clientCredentials: App sign-in
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connect
@@ -447,6 +448,7 @@ connectors:
     apiKeyTitle: Replace API key
     tokenTitle: Replace token
     basicTitle: Replace username & password
+    clientCredentialsTitle: Replace app credentials
     note: The stored secret is never shown. Entering a new one replaces it
       everywhere this credential is used.
   oauthApps:
@@ -511,6 +513,13 @@ connectors:
     smtpPassword: SMTP password
     smtpHint: Enter your relay's SMTP username and password (Resend, SendGrid,
       Amazon SES, …).
+    tenantId: Directory (tenant) ID
+    tenantIdHelp: The ID of the directory the app is registered in.
+    clientId: Application (client) ID
+    clientSecret: Client secret
+    clientSecretHelp:
+      Tale uses it only to fetch the app's access token, and renews that
+      token itself.
     endpointUrl: Instance URL
     endpointHelpConfluence: Your Atlassian site origin — the address you open Confluence at.
     endpointHelpShopify:

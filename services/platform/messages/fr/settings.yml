@@ -435,6 +435,7 @@ connectors:
     bearer: Jeton
     basic: Nom d'utilisateur et mot de passe
     oauth2: OAuth
+    clientCredentials: Connexion de l'app
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connecter
@@ -475,6 +476,7 @@ connectors:
     apiKeyTitle: Remplacer la clé API
     tokenTitle: Remplacer le jeton
     basicTitle: Remplacer le nom d'utilisateur et le mot de passe
+    clientCredentialsTitle: Remplacer les identifiants de l'app
     note:
       Le secret stocké n'est jamais affiché. En saisir un nouveau le remplace
       partout où cet identifiant est utilisé.
@@ -545,6 +547,13 @@ connectors:
     smtpHint:
       Saisis le nom d'utilisateur et le mot de passe SMTP de ton relais
       (Resend, SendGrid, Amazon SES, …).
+    tenantId: ID d'annuaire (tenant)
+    tenantIdHelp: L'ID de l'annuaire dans lequel l'app est enregistrée.
+    clientId: ID d'application (client)
+    clientSecret: Secret client
+    clientSecretHelp:
+      Tale ne s'en sert que pour obtenir le jeton d'accès de l'app, et
+      renouvelle lui-même ce jeton.
     endpointUrl: URL de l'instance
     endpointHelpConfluence: L'adresse de ton site Atlassian — celle où tu ouvres Confluence.
     endpointHelpShopify:

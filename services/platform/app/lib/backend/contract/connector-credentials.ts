@@ -23,9 +23,18 @@ export interface ConnectorCredentialsContract {
       username?: string;
       smtpUsername?: string;
       smtpPassword?: string;
+      /** `client-credentials`: the app's directory, id and secret. */
+      tenantId?: string;
+      clientId?: string;
+      clientSecret?: string;
       organizationId: string;
       name: string;
-      authMethod: 'oauth2' | 'api-key' | 'bearer' | 'basic';
+      authMethod:
+        | 'oauth2'
+        | 'api-key'
+        | 'bearer'
+        | 'basic'
+        | 'client-credentials';
       connectorSlug: string;
     };
     returns: { credentialId: string };
@@ -47,6 +56,9 @@ export interface ConnectorCredentialsContract {
       username?: string;
       smtpUsername?: string;
       smtpPassword?: string;
+      tenantId?: string;
+      clientId?: string;
+      clientSecret?: string;
       organizationId: string;
       credentialId: string;
     };
@@ -70,14 +82,23 @@ export interface ConnectorCredentialsContract {
         min?: number;
         max?: number;
         required: boolean;
+        /** Required only for a credential of these sign-in methods. */
+        requiredFor?: Array<
+          'oauth2' | 'api-key' | 'bearer' | 'basic' | 'client-credentials'
+        >;
         type: 'string' | 'number' | 'boolean';
         key: string;
         label: string;
         /** Per-locale label and description, resolved by the form's locale. */
         i18n?: Record<string, { label?: string; description?: string }>;
       }>;
-      authMethods: Array<'oauth2' | 'api-key' | 'bearer' | 'basic'>;
+      authMethods: Array<
+        'oauth2' | 'api-key' | 'bearer' | 'basic' | 'client-credentials'
+      >;
       actionCount: number;
+      /** Connectors an app can sign in to as itself only: whether that
+       * sign-in names the app's directory (tenant) ID. */
+      clientCredentialsTenant?: boolean;
       /** OAuth2 connectors only: whether an app is available to consent
        * against, where it comes from (org row beats deployment env), and
        * whether this organization could register one itself — a
@@ -174,7 +195,12 @@ export interface ConnectorCredentialsContract {
       endpointUrl?: string;
       id: string;
       connectorSlug: string;
-      authMethod: 'oauth2' | 'api-key' | 'bearer' | 'basic';
+      authMethod:
+        | 'oauth2'
+        | 'api-key'
+        | 'bearer'
+        | 'basic'
+        | 'client-credentials';
       name: string;
       /** On the default only: who deleting it makes the default, or null. */
       defaultSuccessor?: { id: string; name: string } | null;
