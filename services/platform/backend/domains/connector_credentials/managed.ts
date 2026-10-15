@@ -1,6 +1,6 @@
 import {
   connectorCredentialDigestScope,
-  managedSecretDigest,
+  managedSecretDigestAsync,
 } from '@tale/shared/config/managed-secret';
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
@@ -30,7 +30,7 @@ import {
  * What the platform reads back is the credential's name, sign-in method,
  * endpoint, whether it is the connector's default, the names of the secret
  * fields it holds and a slow, salted digest of their values
- * (`managedSecretDigest`), computed here from the stored values and never
+ * (`managedSecretDigestAsync`), computed here from the stored values and never
  * stored itself. A sign-in the outside system renews (`oauth2`) takes a
  * person's consent and is never declared.
  */
@@ -41,10 +41,10 @@ import {
 export type ManagedConnectorCredentialView =
   ManagedObservation<'connector-credential'>;
 
-function credentialView(
+async function credentialView(
   organizationId: string,
   row: CredentialRow,
-): ManagedConnectorCredentialView {
+): Promise<ManagedConnectorCredentialView> {
   if (row.authMethod === 'oauth2')
     throw new ConnectorCredentialError(
       'CREDENTIAL_NOT_DECLARABLE',
@@ -56,7 +56,7 @@ function credentialView(
   try {
     const values = credentialSecretFields(row);
     fields = Object.keys(values).sort();
-    valueDigest = managedSecretDigest({
+    valueDigest = await managedSecretDigestAsync({
       organizationId,
       scope: connectorCredentialDigestScope(row.connectorSlug, row.name),
       value: values,
@@ -106,7 +106,7 @@ export async function readManagedConnectorCredential(
       404,
     );
   }
-  const config = credentialView(organizationId, row);
+  const config = await credentialView(organizationId, row);
   return { config, hash: managedConfigurationHash(config) };
 }
 
@@ -156,7 +156,9 @@ export async function writeManagedConnectorCredential(
     assertExpectedHash(
       row === null
         ? null
-        : managedConfigurationHash(credentialView(args.organizationId, row)),
+        : managedConfigurationHash(
+            await credentialView(args.organizationId, row),
+          ),
       args.expectedHash,
     );
     if (row === null) {

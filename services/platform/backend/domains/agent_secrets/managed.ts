@@ -1,6 +1,6 @@
 import {
   agentSecretDigestScope,
-  managedSecretDigest,
+  managedSecretDigestAsync,
 } from '@tale/shared/config/managed-secret';
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
@@ -27,7 +27,7 @@ import {
  * (`agent-secret`): the declaration names the environment variable its value
  * is read from when it is applied, never the value. What the platform reads
  * back is the secret's name and a slow, salted digest of the value it holds
- * (`managedSecretDigest`), computed here from the stored value and never
+ * (`managedSecretDigestAsync`), computed here from the stored value and never
  * stored itself — so a value a person replaced in Tale reads as differing
  * from the declaration, and the next apply writes the declared one again.
  * The value never leaves: not in a readback, an audit row or a refusal.
@@ -51,13 +51,13 @@ async function storedSecret(
   return rows[0] ?? null;
 }
 
-function secretView(
+async function secretView(
   organizationId: string,
   row: { name: string; encryptedValue: unknown },
-): ManagedAgentSecretView {
+): Promise<ManagedAgentSecretView> {
   let valueDigest: string | null = null;
   try {
-    valueDigest = managedSecretDigest({
+    valueDigest = await managedSecretDigestAsync({
       organizationId,
       scope: agentSecretDigestScope(row.name),
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column stores exactly the encryptSecret envelope
@@ -92,7 +92,7 @@ export async function readManagedAgentSecret(
       404,
     );
   }
-  const config = secretView(organizationId, row);
+  const config = await secretView(organizationId, row);
   return { config, hash: managedConfigurationHash(config) };
 }
 
@@ -125,7 +125,7 @@ export async function writeManagedAgentSecret(
     assertExpectedHash(
       row === null
         ? null
-        : managedConfigurationHash(secretView(args.organizationId, row)),
+        : managedConfigurationHash(await secretView(args.organizationId, row)),
       args.expectedHash,
     );
     if (row === null && args.createIfMissing !== true)

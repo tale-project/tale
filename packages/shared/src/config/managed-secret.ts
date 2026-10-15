@@ -1,4 +1,4 @@
-import { pbkdf2Sync } from 'node:crypto';
+import { pbkdf2, pbkdf2Sync } from 'node:crypto';
 
 import { stableStringify } from '../utils/stable-stringify';
 
@@ -28,24 +28,62 @@ export const MANAGED_SECRET_DIGEST_ITERATIONS = 100_000;
  * fields by name. */
 export type ManagedSecretValue = string | Readonly<Record<string, string>>;
 
-export function managedSecretDigest(args: {
+interface ManagedSecretDigestArgs {
   organizationId: string;
   /** The secret's identity: {@link agentSecretDigestScope} or
    * {@link connectorCredentialDigestScope}. */
   scope: string;
   value: ManagedSecretValue;
-}): string {
-  const material =
-    typeof args.value === 'string' ? args.value : stableStringify(args.value);
-  const salt = `${VERSION}\u0000${args.organizationId}\u0000${args.scope}`;
-  const digest = pbkdf2Sync(
-    material,
-    salt,
-    MANAGED_SECRET_DIGEST_ITERATIONS,
-    32,
-    'sha256',
+}
+
+const KEY_BYTES = 32;
+
+/** What is derived, and under which salt. */
+function digestInput(args: ManagedSecretDigestArgs) {
+  return {
+    material:
+      typeof args.value === 'string' ? args.value : stableStringify(args.value),
+    salt: `${VERSION}\u0000${args.organizationId}\u0000${args.scope}`,
+  };
+}
+
+const formatDigest = (digest: Buffer) =>
+  `pbkdf2-sha256:${digest.toString('hex')}`;
+
+/** The digest, computed on the calling thread: for the CLI, which compares
+ * a declaration's few secrets once per run. */
+export function managedSecretDigest(args: ManagedSecretDigestArgs): string {
+  const { material, salt } = digestInput(args);
+  return formatDigest(
+    pbkdf2Sync(
+      material,
+      salt,
+      MANAGED_SECRET_DIGEST_ITERATIONS,
+      KEY_BYTES,
+      'sha256',
+    ),
   );
-  return `pbkdf2-sha256:${digest.toString('hex')}`;
+}
+
+/** The same digest, derived on the thread pool: for the platform, whose
+ * event loop serves every other request while a declaration is read. */
+export function managedSecretDigestAsync(
+  args: ManagedSecretDigestArgs,
+): Promise<string> {
+  const { material, salt } = digestInput(args);
+  return new Promise((resolve, reject) => {
+    pbkdf2(
+      material,
+      salt,
+      MANAGED_SECRET_DIGEST_ITERATIONS,
+      KEY_BYTES,
+      'sha256',
+      (error, digest) => {
+        if (error) reject(error);
+        else resolve(formatDigest(digest));
+      },
+    );
+  });
 }
 
 /** An agent secret is one per name, and its name is case-sensitive. */

@@ -5,6 +5,7 @@ import {
   agentSecretDigestScope,
   connectorCredentialDigestScope,
   managedSecretDigest,
+  managedSecretDigestAsync,
 } from './managed-secret';
 import {
   PLATFORM_RESOURCES_MAX,
@@ -382,5 +383,18 @@ describe('a declared secret is compared by a slow, salted digest of its value', 
         value: { password: 'x', username: 'ada' },
       }),
     );
+  });
+
+  test('is the same whether the platform derives it on its thread pool or the CLI on its own thread', async () => {
+    for (const value of ['ghp_x', { username: 'ada', password: 'x' }]) {
+      const args = {
+        organizationId: 'org-1',
+        scope: agentSecretDigestScope('TOKEN'),
+        value,
+      };
+      expect(await managedSecretDigestAsync(args)).toBe(
+        managedSecretDigest(args),
+      );
+    }
   });
 });
