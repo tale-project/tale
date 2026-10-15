@@ -326,9 +326,10 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
     expect(view.container.querySelector('[data-flow-engine]')).toBeNull();
     expect(screen.getByRole('group', { name: 'Run timeline' })).toBeVisible();
     const first = TRIAGE.nodes[0]?.id ?? '';
+    // A row names its step as the canvas does (the id, capitalized).
     const row = within(steps)
       .getAllByRole('treeitem')
-      .find((item) => (item.textContent ?? '').includes(first));
+      .find((item) => (item.textContent ?? '').toLowerCase().includes(first));
     expect(row).toBeDefined();
     if (row !== undefined) await userEvent.click(row);
     await waitFor(() => expect(selected).toContain(first));
