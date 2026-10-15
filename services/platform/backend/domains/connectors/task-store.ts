@@ -766,9 +766,11 @@ export function pgTaskStore(
             FROM app.tasks t
             LEFT JOIN "user" u
               ON t.assignee_type = 'user' AND u.id = t.assignee_id
+            -- An agent of another project whose dispatch serves this board
+            -- is named too (tasks/dispatch-reach.ts).
             LEFT JOIN app.project_agents a
               ON t.assignee_type = 'agent' AND a.id = t.assignee_id
-                 AND a.project_id = t.project_id
+                 AND a.org_id = t.org_id
             WHERE t.org_id = ${organizationId} AND t.project_id = ${projectId}
               AND t.archived_at_ms IS NULL
               AND ${statuses === undefined ? tx`TRUE` : tx`t.status = ANY(${[...statuses]})`}
