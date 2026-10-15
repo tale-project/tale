@@ -93,6 +93,47 @@ tools act for nobody (`run_ended`).
 - **Example**: A tool call arrives with the token of a run that has already ended → refused
   as `run_ended`.
 
+## Repository credentials in a sandbox
+
+A connector whose credential also opens git remotes declares it (`git` in its
+`connector.yml`: GitHub opens `github.com`, a Forgejo credential the host of its instance
+address). A turn equipped with such a connector is handed, for that turn alone, the host, the
+username and the credential's token, and the sandbox's git asks Tale's credential helper for
+each remote it reaches. Every hand-over is recorded. A run confined to its task gets none of
+it (`TASK-R79`).
+
+### SBX-R40 · Git in a sandbox signs in only to the hosts of the turn's equipped connectors
+
+The helper answers a host only from what the turn was handed for it, and nothing for any other
+host — not from `GITHUB_TOKEN` or any other variable a secret or a person set. A connector that
+declares no git host hands the sandbox nothing.
+
+- **Example**: The Coder is equipped with GitHub and Forgejo (`git.tale.dev`) and has a secret
+  named `GITHUB_TOKEN`. It pushes to `git.tale.dev` → git signs in with the Forgejo credential,
+  not GitHub's. It pushes to `gitlab.com` → git gets no credential at all.
+- **Example**: Ada removes the GitHub connector from the Coder. Its next push to `github.com` →
+  git gets no credential, although the `GITHUB_TOKEN` secret is still in its environment.
+
+### SBX-R41 · An agent's pinned credential is the only one its connector hands its sandbox
+
+A connector the agent pins a credential for hands the turn that credential, and one it does
+not pin hands the connector's default. A pinned credential that was deleted, disabled or lost
+its sign-in hands the turn nothing for that connector — never the default.
+
+- **Example**: The Client A Coder pins Forgejo credential "Client A". Its turn pushes with
+  "Client A", while the central Coder, which pins none, pushes with the default. Ada deletes
+  "Client A" → the next turn of the Client A Coder gets no Forgejo access at all.
+
+### SBX-R42 · Commits carry the identity of whoever owns the workspace, else the agent's
+
+A workspace a person owns commits under that person's name and email. A project agent's
+workers belong to Tale itself, so every run of the agent — whether a person, the dispatch, a
+standing role or a schedule started it — commits under the agent's commit identity. With
+neither, no identity is set rather than a placeholder.
+
+- **Example**: The Coder's commit identity is "Coder <coder@tale.dev>". The dispatch starts it
+  on a task, and later Bea starts it on another → both runs commit as "Coder".
+
 ## How many sandboxes run at once
 
 Four kinds of work are counted separately, each against a limit the organization can change:

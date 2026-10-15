@@ -306,6 +306,25 @@ agents:
     deleteTitle: Delete secret
     deleteConfirm: 'Delete "{name}"? Every agent and automation node in the organization that uses it stops receiving it on its next run.'
     deleteConfirmButton: Delete secret
+  repository:
+    label: Repository access
+    hint: "An equipped connector that opens git remotes, such as GitHub or Forgejo, lets the agent clone and push with one of the organization's credentials. Choose which one this agent uses."
+    adminOnly: Only Owners and Admins can change which credential this agent uses.
+    none: Equip GitHub or Forgejo under Skills, connectors & tools to give this agent access to their repositories.
+    connectorLabel: '{connector} credential'
+    default: Organization default
+    defaultNamed: 'Organization default ({name})'
+    unusable: '{name} (not usable now)'
+    missing: '{name} (no longer connected)'
+  gitIdentity:
+    label: Commit identity
+    hint: The name and email on the commits this agent makes. Leave both empty to set none.
+    nameLabel: Commit name
+    namePlaceholder: e.g. Release bot
+    emailLabel: Commit email
+    emailPlaceholder: e.g. release-bot@example.com
+    incomplete: Enter both a name and an email, or neither.
+    emailInvalid: Enter a valid email address.
   instructionsLabel: Instructions
   instructionsPlaceholder:
     What this agent owns, how it should work, and the boundaries it must
@@ -405,6 +424,9 @@ errors:
   PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Instructions exceed the 20,000-character limit. Trim before saving.
   PROJECT_AGENT_LIMIT: This project has reached its agent limit.
   PROJECT_AGENT_NOT_FOUND: We couldn't find that agent. It may have been deleted.
+  PROJECT_AGENT_CREDENTIAL_UNKNOWN: That credential is no longer connected. Choose another one or the organization default.
+  PROJECT_AGENT_CREDENTIALS_FORBIDDEN: Only Owners and Admins can change which credential an agent uses.
+  PROJECT_AGENT_GIT_IDENTITY_INVALID: Enter a commit name without < or > and a valid email address.
   PROJECT_LEGAL_HOLD: This project is under legal hold and cannot be deleted.
   PROJECT_CONFIRM_PHRASE_MISMATCH: Type the project name exactly to confirm.
   PROJECT_SHARING_INVALID: Sharing settings are invalid.

@@ -391,7 +391,13 @@ const KEPT_WHEN_OMITTED: Readonly<
 > = {
   'knowledge-embedding': keptSettings,
   project: ['description', 'teamIds'],
-  'project-agent': ['connectors', 'secrets', 'skills'],
+  'project-agent': [
+    'connectors',
+    'secrets',
+    'skills',
+    'connectorCredentials',
+    'gitIdentity',
+  ],
   task: ['labels', 'assigneeAgentId', 'priority'],
   'connector-credential': ['endpoint', 'isDefault'],
 };

@@ -242,14 +242,20 @@ async function listConnectors(
       .filter((summary) =>
         matches(query, summary.slug, summary.displayName, summary.description),
       )
-      .map((summary) => ({
-        slug: summary.slug,
-        name: summary.displayName,
-        description: summary.description,
-        connected: connected.has(summary.slug),
-        actions: summary.actionCount,
-      })),
-    hint: 'an agent step equips a connected one by slug under connectors; a step running one of its actions is typed "<slug>.<action>" (search_catalog lists them); a person connects one in Settings › Connectors',
+      .map((summary) => {
+        const entry: Record<string, unknown> = {
+          slug: summary.slug,
+          name: summary.displayName,
+          description: summary.description,
+          connected: connected.has(summary.slug),
+          actions: summary.actionCount,
+        };
+        // The git host its credential opens for an agent equipped with it:
+        // fixed, or `endpoint` for the host of each credential's endpoint.
+        if (summary.git !== undefined) entry.gitHost = summary.git.host;
+        return entry;
+      }),
+    hint: 'an agent step equips a connected one by slug under connectors; a step running one of its actions is typed "<slug>.<action>" (search_catalog lists them); one with gitHost also lets an equipped agent clone and push to that host with the credential its project agent pins (else the default); a person connects one in Settings › Connectors',
   };
 }
 

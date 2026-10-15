@@ -3,7 +3,7 @@ title: Create and manage project agents
 description: Configure an agent for a project's tasks, grant its equipment and start a task whose result you can review.
 ---
 
-Create a project agent when you want a reusable configuration for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. Each task it works on runs in a [worker](#run-one-agent-on-several-tasks), a running copy of the agent in a sandbox of its own. You need project edit access; the project must be active. Members see the project's agents on its **Agents** tab, which tells them to ask an Editor or Admin for a new one. Until a project has agents of its own, its tasks can go to the organization's [standard agent](#standard-agent). Only Owners and Admins can change secret grants.
+Create a project agent when you want a reusable configuration for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. Each task it works on runs in a [worker](#run-one-agent-on-several-tasks), a running copy of the agent in a sandbox of its own. You need project edit access; the project must be active. Members see the project's agents on its **Agents** tab, which tells them to ask an Editor or Admin for a new one. Until a project has agents of its own, its tasks can go to the organization's [standard agent](#standard-agent). Only Owners and Admins can change secret grants and the credentials an agent uses for [repository access](#repository-access).
 
 ## Prepare the first task
 
@@ -69,15 +69,31 @@ Write **Instructions** that define responsibility, evidence and boundaries. For 
 
 <Step title="Review and save">
 
-If the work needs **Secrets**, an Owner or Admin grants named organization credentials. The running agent can read their values, so use narrowly scoped, replaceable tokens. Shared names affect other agents and workflow nodes when their underlying value changes. A run a Member starts gets none of these secrets, nor the token of an equipped GitHub connection: an Editor or higher has to start work that needs them.
+If the work needs **Secrets**, an Owner or Admin grants named organization credentials. The running agent can read their values, so use narrowly scoped, replaceable tokens. Shared names affect other agents and workflow nodes when their underlying value changes. A run a Member starts gets none of these secrets, nor the Git access of an equipped GitHub or Forgejo connection: an Editor or higher has to start work that needs them.
 
-For a private repository, use a key restricted to that repository and state the allowed Git operations in the agent's instructions. Credentialed turns use the workspace owner's Git author name and email even without a GitHub connector grant. Keep SSH host verification enabled; a self-hosted sandbox routes repository SSH through its existing proxy as described in [SSH repository access](/self-hosted/configuration/environment-reference#ssh-repository-access).
+For a private repository, give the agent [its own repository access](#repository-access) through the GitHub or Forgejo connector, or use a key restricted to that repository, and state the allowed Git operations in the agent's instructions. Commits carry the agent's **Commit identity**. Keep SSH host verification enabled; a self-hosted sandbox routes repository SSH through its existing proxy as described in [SSH repository access](/self-hosted/configuration/environment-reference#ssh-repository-access).
 
 Select **Create agent**. Check the new row’s runtime, provider and model, then reopen it if you need to inspect the saved equipment or instructions.
 
 </Step>
 
 </Steps>
+
+## Give the agent its own repository access {#repository-access}
+
+An agent equipped with the GitHub or Forgejo connector can clone, fetch and push over HTTPS in its sandbox with one of the organization's [connector credentials](/platform/admin/connectors): a GitHub credential opens `github.com`, a Forgejo credential the host of its instance address. Unless you choose otherwise, the agent uses the connector's default credential.
+
+To give agents different reach, store one credential per scope under **Settings > Connectors**, each limited to its repositories in GitHub or Forgejo. For example, a central Coder gets a credential that reaches every repository of the organization, and each client's Coder one that reaches that client's repository alone. Then edit the agent, and under **Repository access** choose the credential for each connector. Only Owners and Admins can change this choice.
+
+- A credential you choose is the only one the agent uses for that connector. If it is deleted later, the agent's runs get no access through that connector until someone chooses another. They never fall back to the default.
+- The agent's Git answers only the hosts of the connectors it is equipped with. A token in a secret, such as `GITHUB_TOKEN`, does not sign Git in.
+- The token reaches only the running turn. Tale never writes it into the workspace or a log, and records every time a turn receives it.
+- A run a Member starts, and a run on another project's board whose starter may not use the agent's full equipment, gets none of these credentials, nor any of the agent's secrets.
+- The agent's connector actions, such as listing GitHub issues, still use the connector's default credential.
+
+Under **Commit identity**, set the name and email the agent's commits carry. An agent's workers belong to no person, so every run of it commits under this identity, whoever or whatever started it: a person, the [dispatch](/platform/projects/dispatch), a standing role or a schedule. Without one, Git has no author configured, and the agent must set one before it commits.
+
+Through the [REST API](/develop/api-reference#manage-a-projects-agents), the same settings are `connectorCredentials` and `gitIdentity`; a [CLI declaration](/self-hosted/install/cli-install) sets them on `project-agent`.
 
 ## Assign and start work
 

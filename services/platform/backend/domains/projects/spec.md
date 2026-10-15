@@ -155,6 +155,35 @@ refused (`PROJECT_FORBIDDEN`).
 
 - **Example**: Mia, a member who can read the project, adds a secret to it → refused.
 
+## Repository access
+
+An agent equipped with a connector that opens git remotes (GitHub, Forgejo) clones and pushes
+with one of the organization's credentials for it: the one the agent pins by name, or the
+connector's default. What a run is handed is the sandbox spec's (`SBX-R40` to `SBX-R42`).
+
+### PROJ-R23 · An agent pins only a credential its organization holds for that connector
+
+A pin the save adds or changes names a credential of that connector, whatever the case of its
+name, and is stored under the credential's own spelling; any other is refused by name
+(`PROJECT_AGENT_CREDENTIAL_UNKNOWN`) and nothing is saved — it is never dropped, since a
+dropped pin would hand the agent the connector's default. A pin kept exactly as stored is not
+checked again, so an unrelated edit of an agent whose pinned credential was since deleted goes
+through.
+
+- **Example**: Ada pins Forgejo credential "client a" on the Client A Coder → it is stored as
+  "Client A", the credential's name. She pins "Client Z", which nobody connected → refused,
+  naming "Client Z".
+
+### PROJ-R24 · Only owners and admins can change which credential an agent acts as
+
+Adding, changing and removing a pin are all refused to anyone else
+(`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`), as a change to the agent's secrets is: removing one
+hands the agent the connector's default, which may reach more. An editor may save the agent's
+other settings while its pins stay as they are, and may set its commit identity.
+
+- **Example**: Mia, an editor, removes the Client A Coder's Forgejo pin → refused. She renames
+  the agent and sets its commit name to "Client A Coder" → saved, the pin unchanged.
+
 ## Deleting a project
 
 ### PROJ-R14 · A project an automation is installed in cannot be deleted with its content

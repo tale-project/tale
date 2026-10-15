@@ -157,6 +157,19 @@ refused there (`CREDENTIAL_CONFIG_REQUIRED`) and connected in Tale instead.
 - **Example**: Ada rotates the Jira token in the deployment's environment → the next plan shows
   the Ops credential changed, and its apply seals the new token; nothing records the token.
 
+## Credentials an agent pins
+
+### CCRED-R13 · Renaming a credential keeps the agents that pin it acting as it
+
+A project agent pins a credential by its name (`PROJ-R23`). Renaming the credential moves
+every such pin to the new name in the same save, so the agents keep acting as that credential.
+Deleting it leaves the pins naming nothing, and those agents get no access through that
+connector until someone pins another (`SBX-R41`).
+
+- **Example**: The Client A Coder pins Forgejo credential "Client A". Ada renames it to
+  "Client A (deploy)" → the Coder's pin reads "Client A (deploy)", and its next turn pushes with
+  it as before.
+
 ## Not yet
 
 - **Who can manage a connector's credentials** (`routes.ts`).

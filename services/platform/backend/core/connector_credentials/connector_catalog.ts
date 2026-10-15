@@ -75,6 +75,10 @@ interface ConnectorSummary {
    * whether that sign-in names the app's directory (tenant) — its token URL
    * carries `{tenantId}`. Absent for a connector without that method. */
   clientCredentialsTenant?: boolean;
+  /** Present when a credential of the connector also opens the vendor's
+   * git remotes: `host` is the fixed git host, or `endpoint` for the host of
+   * each credential's own endpoint. */
+  git?: { host: string };
 }
 
 /**
@@ -161,6 +165,9 @@ export function listConnectorSummaries(): ConnectorSummary[] {
         ...(field.i18n !== undefined && { i18n: field.i18n }),
       })),
       actionCount: connector.actions.length,
+      ...(connector.git !== undefined && {
+        git: { host: connector.git.host },
+      }),
     };
     const appSignIn = connector.auth.find(
       (method) => method.method === 'client-credentials',

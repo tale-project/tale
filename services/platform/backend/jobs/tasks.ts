@@ -105,6 +105,11 @@ export interface TaskPayloads {
     connectors: string[];
     tools: string[];
     secrets: string[];
+    /** The credential the agent acts as per connector; absent from a steer
+     * queued before it was carried. */
+    connectorCredentials?: Record<string, string>;
+    /** The agent's own commit identity; absent likewise. */
+    gitIdentity?: { name: string; email: string } | null;
     feedback: string;
     /** Which text `feedback` is; absent reads as a comment. */
     mentionSource?: 'comment' | 'description';

@@ -179,6 +179,12 @@ export function managedProjectAgentView(
     connectors: [...agent.connectors].sort(byName),
     secrets: [...agent.secrets].sort(byName),
     skills: [...agent.skills].sort(byName),
+    connectorCredentials: Object.fromEntries(
+      Object.entries(agent.connectorCredentials).sort(([left], [right]) =>
+        byName(left, right),
+      ),
+    ),
+    gitIdentity: agent.gitIdentity,
   };
 }
 
@@ -224,8 +230,9 @@ export const managedProjectAgentWriteSchema = z.strictObject({
  * Create the declared agent under its UUID with its seed, or bring an
  * existing one's name and equipment in line, through the writers the
  * project's Agents tab uses: the editor role on an active project, the
- * project's equipment, secret grants only from who may grant them, and a
- * secret the organization does not hold refused rather than dropped. The
+ * project's equipment, secret grants and credential pins only from who may
+ * grant them, and a secret or credential the organization does not hold
+ * refused rather than dropped. The
  * organization's standard agent is never changed here. Its runtime, model,
  * instructions and tools stay as stored.
  */
@@ -271,6 +278,8 @@ export async function writeManagedProjectAgent(
         connectors: config.connectors ?? [],
         ...(args.seed.tools !== undefined ? { tools: args.seed.tools } : {}),
         secrets: config.secrets ?? [],
+        connectorCredentials: config.connectorCredentials ?? {},
+        gitIdentity: config.gitIdentity ?? null,
         ...(args.seed.instructions !== undefined
           ? { instructions: args.seed.instructions }
           : {}),
@@ -294,6 +303,10 @@ export async function writeManagedProjectAgent(
     connectors: config.connectors ?? agent.connectors,
     tools: agent.tools,
     secrets: config.secrets ?? agent.secrets,
+    connectorCredentials:
+      config.connectorCredentials ?? agent.connectorCredentials,
+    gitIdentity:
+      config.gitIdentity !== undefined ? config.gitIdentity : agent.gitIdentity,
     ...(agent.instructions !== null
       ? { instructions: agent.instructions }
       : {}),

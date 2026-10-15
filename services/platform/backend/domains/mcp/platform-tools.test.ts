@@ -255,6 +255,7 @@ describe('the discovery tools answer only what the person may see [MCP-R23]', ()
         displayName: 'GitHub',
         description: 'Issues and pull requests',
         actionCount: 12,
+        git: { host: 'github.com' },
       },
       {
         slug: 'gmail',
@@ -276,6 +277,8 @@ describe('the discovery tools answer only what the person may see [MCP-R23]', ()
         description: 'Issues and pull requests',
         connected: true,
         actions: 12,
+        // The git host its credential opens for an equipped agent.
+        gitHost: 'github.com',
       },
       {
         slug: 'gmail',

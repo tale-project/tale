@@ -355,7 +355,7 @@ export const SETTINGS_KINDS_NOT_OVER_MCP = [
     kind: 'project-agent',
     cli: true,
     reason:
-      'Creating a project agent and granting it connectors, secrets and skills is a person’s decision or a reviewed declaration’s, never an agent’s: an agent could otherwise hand another agent the organization’s secrets.',
+      'Creating a project agent and granting it connectors, secrets, skills and the credentials it acts as is a person’s decision or a reviewed declaration’s, never an agent’s: an agent could otherwise hand another agent the organization’s secrets or repository access.',
   },
   {
     kind: 'task',

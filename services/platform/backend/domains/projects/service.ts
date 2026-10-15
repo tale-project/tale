@@ -1,6 +1,10 @@
 import {
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_INSTRUCTIONS_MAX,
+  projectAgentConnectorCredentialsSchema,
+  projectAgentGitIdentitySchema,
+  type ProjectAgentConnectorCredentials,
+  type ProjectAgentGitIdentity,
   PROJECT_AGENT_MODEL_MAX,
   PROJECT_AGENT_NAME_MAX,
   PROJECT_DESCRIPTION_MAX,
@@ -1518,6 +1522,13 @@ export interface ProjectAgentRow {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  /** Which of the organization's credentials the agent acts as, per
+   * connector, by the credential's name (migration 0219); a connector it
+   * does not name uses the organization's default. */
+  connectorCredentials: ProjectAgentConnectorCredentials;
+  /** The name and email its commits carry where no person owns its
+   * workspace (migration 0219); `null` for none. */
+  gitIdentity: ProjectAgentGitIdentity | null;
   instructions: string | null;
   /** The organization's standard agent (migration 0146): Tale created it
    * and keeps its runtime, model and instructions in line with the
@@ -1543,7 +1554,9 @@ type StoredProjectAgentRow = Omit<ProjectAgentRow, 'handle'> & {
 const PROJECT_AGENT_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId", name, harness,
   model, model_provider AS "modelProvider", skills, connectors, tools,
-  secrets, instructions, managed, created_by AS "createdBy",
+  secrets, connector_credentials AS "connectorCredentials",
+  git_identity AS "gitIdentity", instructions, managed,
+  created_by AS "createdBy",
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt",
   handle
 `;
@@ -1708,6 +1721,8 @@ interface ProjectAgentFields {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  connectorCredentials: ProjectAgentConnectorCredentials;
+  gitIdentity: ProjectAgentGitIdentity | null;
   instructions: string | undefined;
 }
 
@@ -1791,6 +1806,8 @@ function validateProjectAgentFields(args: {
   connectors: string[];
   tools?: string[];
   secrets?: string[];
+  connectorCredentials?: ProjectAgentConnectorCredentials;
+  gitIdentity?: ProjectAgentGitIdentity | null;
   instructions?: string;
 }): ProjectAgentFields {
   const name = args.name.trim();
@@ -1811,6 +1828,25 @@ function validateProjectAgentFields(args: {
   }
   const instructions = validateProjectAgentInstructions(args.instructions);
   const tools = validateProjectAgentTools(args.tools ?? []);
+  const pins = projectAgentConnectorCredentialsSchema.safeParse(
+    args.connectorCredentials ?? {},
+  );
+  if (!pins.success) {
+    throw new ProjectError(
+      'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+      `An agent pins at most ${PROJECT_AGENT_BINDINGS_MAX} credentials, each by a connector slug and a credential name.`,
+    );
+  }
+  const gitIdentity =
+    args.gitIdentity === undefined || args.gitIdentity === null
+      ? null
+      : projectAgentGitIdentitySchema.safeParse(args.gitIdentity);
+  if (gitIdentity !== null && !gitIdentity.success) {
+    throw new ProjectError(
+      'PROJECT_AGENT_GIT_IDENTITY_INVALID',
+      'A commit identity needs a name without <, > or control characters and a valid email address.',
+    );
+  }
   return {
     name,
     ...serving,
@@ -1818,6 +1854,8 @@ function validateProjectAgentFields(args: {
     connectors: [...new Set(args.connectors.filter((c) => c.length > 0))],
     tools,
     secrets: [...new Set((args.secrets ?? []).filter((s) => s.length > 0))],
+    connectorCredentials: sortedPins(pins.data),
+    gitIdentity: gitIdentity === null ? null : gitIdentity.data,
     instructions:
       instructions !== undefined && instructions.length > 0
         ? instructions
@@ -1898,6 +1936,120 @@ export async function detachSkillFromAgents(
     await hintProject(tx, organizationId, projectId);
   }
   return detached;
+}
+
+/** Pins in one order, by connector slug: a save that restates them in
+ * another order is no change. */
+function sortedPins(
+  pins: ProjectAgentConnectorCredentials,
+): ProjectAgentConnectorCredentials {
+  return Object.fromEntries(
+    Object.entries(pins).sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0,
+    ),
+  );
+}
+
+function samePins(
+  left: ProjectAgentConnectorCredentials,
+  right: ProjectAgentConnectorCredentials,
+): boolean {
+  const a = Object.entries(sortedPins(left));
+  const b = Object.entries(sortedPins(right));
+  return (
+    a.length === b.length &&
+    a.every(([slug, name], index) => {
+      const other = b[index];
+      return other !== undefined && other[0] === slug && other[1] === name;
+    })
+  );
+}
+
+function sameGitIdentity(
+  left: ProjectAgentGitIdentity | null,
+  right: ProjectAgentGitIdentity | null,
+): boolean {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      left.name === right.name &&
+      left.email === right.email)
+  );
+}
+
+/**
+ * Resolve the pinned credentials against the organization's own
+ * [PROJ-R23]. A pin the save adds or changes must name a credential the
+ * organization holds for that connector, whatever the case of its name,
+ * and is stored under the credential's own spelling; one it does not hold
+ * is refused by name (`PROJECT_AGENT_CREDENTIAL_UNKNOWN`, the pins under
+ * `data.connectorCredentials`), never dropped — a dropped pin would hand the
+ * agent the connector's default, which may reach more. A pin kept exactly
+ * as stored is not checked again: its credential may since have been
+ * deleted, and the broker then hands the agent nothing for that connector,
+ * so an unrelated edit of the agent is not refused over it.
+ */
+async function resolveCredentialPins(
+  tx: TransactionSql,
+  organizationId: string,
+  requested: ProjectAgentConnectorCredentials,
+  stored: ProjectAgentConnectorCredentials = {},
+): Promise<ProjectAgentConnectorCredentials> {
+  const changed = Object.entries(requested).filter(
+    ([slug, name]) => stored[slug] !== name,
+  );
+  if (changed.length === 0) return requested;
+  const rows = await tx<{ connectorSlug: string; name: string }[]>`
+    SELECT connector_slug AS "connectorSlug", name
+    FROM app.connector_credentials
+    WHERE org_id = ${organizationId}
+      AND connector_slug = ANY(${changed.map(([slug]) => slug)})
+  `;
+  const resolved: Record<string, string> = { ...requested };
+  const unknown: Record<string, string> = {};
+  for (const [slug, name] of changed) {
+    const held = rows.find(
+      (row) =>
+        row.connectorSlug === slug &&
+        row.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (held === undefined) unknown[slug] = name;
+    else resolved[slug] = held.name;
+  }
+  if (Object.keys(unknown).length > 0) {
+    throw new ProjectError(
+      'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+      `Unknown credentials: ${Object.entries(unknown)
+        .map(([slug, name]) => `"${name}" for ${slug}`)
+        .join(
+          ', ',
+        )}. An agent may only pin a credential the organization has connected for that connector — add it under Settings › Connectors first, or drop the pin.`,
+      400,
+      { connectorCredentials: unknown },
+    );
+  }
+  return sortedPins(resolved);
+}
+
+/**
+ * A pin decides which account the agent's runs act as, and dropping one
+ * hands them the connector's default, so only admins may CHANGE the pinned
+ * set, in either direction, as only they may change its secrets
+ * [PROJ-R24].
+ */
+function assertMaySetCredentialPins(
+  auth: ProjectAuthContext,
+  next: ProjectAgentConnectorCredentials,
+  previous: ProjectAgentConnectorCredentials,
+): void {
+  if (!samePins(next, previous) && !ADMIN_ROLES.has(auth.role)) {
+    throw new ProjectError(
+      'PROJECT_AGENT_CREDENTIALS_FORBIDDEN',
+      'Only admins can change which credentials an agent acts as',
+      403,
+    );
+  }
 }
 
 /** What a save does with a referenced secret name the organization does
@@ -2340,6 +2492,8 @@ export async function createProjectAgent(
     connectors: string[];
     tools?: string[];
     secrets?: string[];
+    connectorCredentials?: ProjectAgentConnectorCredentials;
+    gitIdentity?: ProjectAgentGitIdentity | null;
     instructions?: string;
     /** Default `prune` — the app dialog's rule. */
     unknownSecrets?: UnknownSecretsPolicy;
@@ -2363,6 +2517,12 @@ export async function createProjectAgent(
     args.unknownSecrets ?? 'prune',
   );
   assertMaySetSecrets(auth, fields.secrets, []);
+  fields.connectorCredentials = await resolveCredentialPins(
+    tx,
+    auth.organizationId,
+    fields.connectorCredentials,
+  );
+  assertMaySetCredentialPins(auth, fields.connectorCredentials, {});
 
   const existing = await tx<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.project_agents
@@ -2400,13 +2560,16 @@ export async function createProjectAgent(
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.project_agents (
         org_id, project_id, name, harness, model, model_provider, skills,
-        connectors, tools, secrets, instructions, id, created_by,
+        connectors, tools, secrets, connector_credentials, git_identity,
+        instructions, id, created_by,
         created_at_ms, updated_at_ms, handle, legacy_handles
       ) VALUES (
         ${auth.organizationId}, ${args.projectId}, ${fields.name},
         ${fields.harness}, ${fields.model}, ${fields.modelProvider ?? null},
         ${fields.skills}, ${fields.connectors}, ${fields.tools},
-        ${fields.secrets}, ${fields.instructions ?? null},
+        ${fields.secrets}, ${JSON.stringify(fields.connectorCredentials)}::jsonb,
+        ${fields.gitIdentity === null ? null : JSON.stringify(fields.gitIdentity)}::jsonb,
+        ${fields.instructions ?? null},
         ${explicitId === undefined ? tx`DEFAULT` : explicitId}, ${auth.userId},
         ${now}, ${now}, ${handle}, ${[]}::text[]
       )
@@ -2456,6 +2619,8 @@ export async function createProjectAgent(
         connectors: fields.connectors,
         tools: fields.tools,
         secrets: fields.secrets,
+        connectorCredentials: fields.connectorCredentials,
+        gitIdentity: fields.gitIdentity,
       },
       metadata: { op: 'create', projectAgentId: agentId },
     }),
@@ -2624,6 +2789,8 @@ export async function updateProjectAgent(
     connectors: string[];
     tools?: string[];
     secrets?: string[];
+    connectorCredentials?: ProjectAgentConnectorCredentials;
+    gitIdentity?: ProjectAgentGitIdentity | null;
     instructions?: string;
     /** Default `prune` — the app dialog's rule. */
     unknownSecrets?: UnknownSecretsPolicy;
@@ -2679,6 +2846,17 @@ export async function updateProjectAgent(
     args.unknownSecrets ?? 'prune',
   );
   assertMaySetSecrets(auth, fields.secrets, agent.secrets);
+  fields.connectorCredentials = await resolveCredentialPins(
+    tx,
+    auth.organizationId,
+    fields.connectorCredentials,
+    agent.connectorCredentials,
+  );
+  assertMaySetCredentialPins(
+    auth,
+    fields.connectorCredentials,
+    agent.connectorCredentials,
+  );
 
   // A replace that names the configuration already stored is not a change:
   // no write, no audit row, and `updatedAt` — the precondition every other
@@ -2697,6 +2875,8 @@ export async function updateProjectAgent(
     sameList(fields.connectors, agent.connectors) &&
     sameList(fields.tools, agent.tools) &&
     sameList(fields.secrets, agent.secrets) &&
+    samePins(fields.connectorCredentials, agent.connectorCredentials) &&
+    sameGitIdentity(fields.gitIdentity, agent.gitIdentity) &&
     (fields.instructions ?? null) === (agent.instructions ?? null)
   ) {
     return;
@@ -2761,6 +2941,12 @@ export async function updateProjectAgent(
             model = ${fields.model}, model_provider = ${fields.modelProvider ?? null},
             skills = ${fields.skills}, connectors = ${fields.connectors},
             tools = ${fields.tools}, secrets = ${fields.secrets},
+            connector_credentials = ${JSON.stringify(fields.connectorCredentials)}::jsonb,
+            git_identity = ${
+              fields.gitIdentity === null
+                ? null
+                : JSON.stringify(fields.gitIdentity)
+            }::jsonb,
             instructions = ${fields.instructions ?? null},
             handle = ${handle},
             legacy_handles = COALESCE(legacy_handles, ${legacyHandles}::text[]),
@@ -2793,6 +2979,8 @@ export async function updateProjectAgent(
         connectors: agent.connectors,
         tools: agent.tools,
         secrets: agent.secrets,
+        connectorCredentials: agent.connectorCredentials,
+        gitIdentity: agent.gitIdentity,
       },
       newState: {
         name: fields.name,
@@ -2803,6 +2991,8 @@ export async function updateProjectAgent(
         connectors: fields.connectors,
         tools: fields.tools,
         secrets: fields.secrets,
+        connectorCredentials: fields.connectorCredentials,
+        gitIdentity: fields.gitIdentity,
       },
       metadata: { op: 'update', projectAgentId: args.agentId },
     }),

@@ -185,6 +185,54 @@ describe('connectorSchema', () => {
     expect(connectorSchema.safeParse(platform).success).toBe(false);
   });
 
+  it('declares the git host a credential opens: fixed, or the endpoint of a per-credential connector', () => {
+    const github = connectorSchema.parse({
+      ...connectorSchema.parse(GITHUB),
+      git: { host: 'github.com', username: 'x-access-token' },
+    });
+    expect(github.git).toEqual({
+      host: 'github.com',
+      username: 'x-access-token',
+    });
+    const forgejo = {
+      ...connectorSchema.parse(GITHUB),
+      name: 'forgejo',
+      endpointMode: 'per-credential',
+      git: { host: 'endpoint', username: 'x-access-token' },
+    };
+    expect(connectorSchema.safeParse(forgejo).success).toBe(true);
+    // Only a per-credential connector has a credential endpoint to take.
+    expect(
+      connectorSchema.safeParse({ ...forgejo, endpointMode: 'fixed' }).success,
+    ).toBe(false);
+    // A host is a lower-case host name, never a URL or a pattern.
+    for (const host of ['https://github.com', 'GitHub.com', '*.example.com']) {
+      expect(
+        connectorSchema.safeParse({
+          ...github,
+          git: { host, username: 'x-access-token' },
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      connectorSchema.safeParse({
+        ...github,
+        git: { host: 'github.com', username: 'two words' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a git host on a connector that is the platform itself', () => {
+    expect(
+      connectorSchema.safeParse({
+        ...connectorSchema.parse(MAILBOX),
+        name: 'tasks',
+        auth: [{ method: 'platform' }],
+        git: { host: 'github.com', username: 'x-access-token' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects an unknown endpointMode', () => {
     const github = connectorSchema.parse(GITHUB);
     expect(

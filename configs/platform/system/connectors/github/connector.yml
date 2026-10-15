@@ -10,6 +10,12 @@ tags:
   - Developer
 allowedHosts:
   - api.github.com
+# The token also opens github.com's git remotes over HTTPS: an agent equipped
+# with this connector clones and pushes with it (GitHub takes any username
+# beside a token; x-access-token is the one it documents for app tokens).
+git:
+  host: github.com
+  username: x-access-token
 auth:
   - method: bearer
 actions:

@@ -592,7 +592,7 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 ### Enregistrer la configuration complète d’un agent
 
-`POST` et `PUT` exigent `name`, `harness`, `model`, `skills` et `connectors` ; un `harness` hors de l’ensemble admis répond **400**, `PROJECT_AGENT_HARNESS_INVALID`, avec l’ensemble dans `data.harnesses`. `modelProvider`, `tools`, `secrets` et `instructions` sont facultatifs.
+`POST` et `PUT` exigent `name`, `harness`, `model`, `skills` et `connectors` ; un `harness` hors de l’ensemble admis répond **400**, `PROJECT_AGENT_HARNESS_INVALID`, avec l’ensemble dans `data.harnesses`. `modelProvider`, `tools`, `secrets`, `connectorCredentials`, `gitIdentity` et `instructions` sont facultatifs.
 
 `PUT` remplace toute la configuration d’un agent existant. Omettre le fournisseur ou les instructions les remet à `null` ; omettre les outils ou les secrets vide ces listes. Cette opération ne crée pas d’agent si l’ID n’existe pas.
 
@@ -635,6 +635,8 @@ Pour une relecture d’agent enregistrée avec une source exploitable, `task_get
 La même permission `task_review` accepte `{operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}` pour copier un fichier listé et disponible de 20 Mio au plus. Aucun chemin, référence de stockage ou URL fourni par l’appelant n’est accepté. La réponse indique le `path` local choisi par le serveur et le nombre d’octets `bytes` ; l’agent doit lire le fichier avant d’attester de son contenu. L’appartenance à la tâche, la relecture enregistrée, l’exécution appelante active, les droits et la politique sont vérifiés avant le transfert, puis avant le succès. Les liens avec des documents protégés conservent leurs règles d’accès ; les fichiers indisponibles ou non pris en charge sont refusés. Une révocation ou un transfert simultané peut laisser des octets précédemment autorisés dans l’espace de travail tout en refusant le succès et une décision obsolète. Il s’agit d’une opération d’outil natif, pas d’un nouveau point d’entrée REST public pour les fichiers ou les décisions.
 
 `secrets` contient des noms de secrets de l’organisation, jamais leurs valeurs. Un nom inconnu donne **400**, `PROJECT_AGENT_SECRET_UNKNOWN`, et figure dans `data.secrets`. Le formulaire de l’application filtre les noms inconnus ; l’API les refuse explicitement.
+
+`connectorCredentials` fixe, pour chaque connector, les identifiants de l’organisation avec lesquels l’agent agit : `{"forgejo": "Client A"}` (contrat 3.49.0). Un connector équipé qui ouvre un hôte Git, GitHub ou Forgejo, donne alors à la sandbox de l’agent l’accès Git de ces identifiants plutôt que celui des identifiants par défaut ; un connector sans identifiants fixés utilise ceux par défaut, et des identifiants fixés supprimés plus tard ne lui donnent rien. Un nom que l’organisation n’a pas pour ce connector donne **400**, `PROJECT_AGENT_CREDENTIAL_UNKNOWN`, et figure dans `data.connectorCredentials` ; seuls les Propriétaires et les Admins de l’organisation peuvent modifier ces choix (**403**, `PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). `gitIdentity` est le `{name, email}` des commits de l’agent, ou `null` ; le [guide des agents de projet](/fr/platform/projects/project-agents#repository-access) explique les deux.
 
 Seuls les Propriétaires et Admins peuvent modifier les autorisations de secrets. Un Éditeur qui enregistre la configuration complète doit conserver celles qui existent déjà.
 

@@ -4797,9 +4797,13 @@ export async function dispatchMentionedProjectAgent(
         connectors: string[];
         tools: string[];
         secrets: string[];
+        connectorCredentials: Record<string, string>;
+        gitIdentity: { name: string; email: string } | null;
       }[]
     >`
-      SELECT instructions, skills, connectors, tools, secrets
+      SELECT instructions, skills, connectors, tools, secrets,
+             connector_credentials AS "connectorCredentials",
+             git_identity AS "gitIdentity"
       FROM app.project_agents WHERE id = ${run.agentId} LIMIT 1
     `;
     const agent = agents[0];
@@ -4833,6 +4837,8 @@ export async function dispatchMentionedProjectAgent(
       connectors: agent.connectors,
       tools: agent.tools,
       secrets: agent.secrets,
+      connectorCredentials: agent.connectorCredentials,
+      gitIdentity: agent.gitIdentity,
       feedback: args.text,
       mentionSource: args.source,
       author,

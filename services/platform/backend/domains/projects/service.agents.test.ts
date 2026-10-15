@@ -79,6 +79,8 @@ const AGENT = {
   connectors: [] as string[],
   tools: [] as string[],
   secrets: ['REVIEW_TOKEN'],
+  connectorCredentials: {} as Record<string, string>,
+  gitIdentity: null as { name: string; email: string } | null,
   instructions: null,
   createdBy: 'user-1',
   createdAt: 10,
@@ -105,6 +107,10 @@ function fakeTx(
     archived?: boolean;
     instructions?: string;
     updatedAt?: number;
+    /** The agent's stored pins. */
+    pins?: Record<string, string>;
+    /** The organization's connector credentials. */
+    credentials?: Array<{ connectorSlug: string; name: string }>;
   } = {},
 ): {
   tx: TransactionSql;
@@ -120,8 +126,17 @@ function fakeTx(
           ...AGENT,
           instructions: options.instructions ?? AGENT.instructions,
           updatedAt: options.updatedAt ?? AGENT.updatedAt,
+          connectorCredentials: options.pins ?? AGENT.connectorCredentials,
         },
       ]);
+    }
+    if (text.includes('FROM app.connector_credentials')) {
+      const slugs = values[1];
+      return Promise.resolve(
+        (options.credentials ?? []).filter(
+          (row) => Array.isArray(slugs) && slugs.includes(row.connectorSlug),
+        ),
+      );
     }
     if (
       text.startsWith('INSERT INTO app.project_agents') &&
@@ -1110,5 +1125,172 @@ describe('renaming an agent gives it the handle of its new name [PROJ-R19]', () 
     );
     expect(update?.values).toContainEqual(['research.bot', 'researchbot']);
     expect(updatedHandle(statements)).toEqual(['qa-bot']);
+  });
+});
+
+const FORGEJO = [
+  { connectorSlug: 'forgejo', name: 'Client A' },
+  { connectorSlug: 'forgejo', name: 'Central' },
+  { connectorSlug: 'github', name: 'Client Z' },
+];
+
+const editor = { ...auth, role: 'editor' };
+
+/** The value a statement bound right before `marker` in its text. */
+function boundBefore(statement: Statement, marker: string): unknown {
+  // The placeholders before the marker; the last of them is its value.
+  const index =
+    statement.text.slice(0, statement.text.indexOf(marker)).split('?').length -
+    2;
+  return statement.values[index];
+}
+
+describe('an agent pins only a credential its organization holds for that connector [PROJ-R23]', () => {
+  it('stores a pin under the credential’s own spelling', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      insertedId: 'agent-9',
+      credentials: FORGEJO,
+    });
+    await createProjectAgent(tx, auth, {
+      projectId: 'project-1',
+      name: 'Client A Coder',
+      harness: 'claude-code',
+      model: 'test-model',
+      skills: [],
+      connectors: ['forgejo'],
+      connectorCredentials: { forgejo: 'client a' },
+      gitIdentity: { name: 'Client A Coder', email: 'coder@client-a.test' },
+    });
+    const inserted = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.project_agents'),
+    );
+    expect(inserted?.values).toContain(JSON.stringify({ forgejo: 'Client A' }));
+    expect(inserted?.values).toContain(
+      JSON.stringify({
+        name: 'Client A Coder',
+        email: 'coder@client-a.test',
+      }),
+    );
+  });
+
+  it('refuses a credential the organization does not hold for that connector, by name, writing nothing', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      insertedId: 'agent-9',
+      credentials: FORGEJO,
+    });
+    // "Client Z" is GitHub's, not Forgejo's.
+    await expect(
+      createProjectAgent(tx, auth, {
+        projectId: 'project-1',
+        name: 'Client Z Coder',
+        harness: 'claude-code',
+        model: 'test-model',
+        skills: [],
+        connectors: ['forgejo'],
+        connectorCredentials: { forgejo: 'Client Z' },
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+      status: 400,
+      data: { connectorCredentials: { forgejo: 'Client Z' } },
+    });
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.project_agents'),
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps a pin whose credential was since deleted when the save does not change it', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      pins: { forgejo: 'Gone' },
+      credentials: [],
+    });
+    await updateProjectAgent(tx, editor, {
+      ...config,
+      name: 'Renamed',
+      secrets: ['REVIEW_TOKEN'],
+      connectorCredentials: { forgejo: 'Gone' },
+    });
+    expect(
+      statements.some((s) => s.text.includes('FROM app.connector_credentials')),
+    ).toBe(false);
+    const [update] = updates(statements);
+    expect(update).toBeDefined();
+    expect(boundBefore(update!, '::jsonb, git_identity')).toBe(
+      JSON.stringify({ forgejo: 'Gone' }),
+    );
+  });
+});
+
+describe('only owners and admins can change which credential an agent acts as [PROJ-R24]', () => {
+  it('refuses an editor who adds a pin', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      credentials: FORGEJO,
+    });
+    await expect(
+      updateProjectAgent(tx, editor, {
+        ...config,
+        secrets: ['REVIEW_TOKEN'],
+        connectors: ['forgejo'],
+        connectorCredentials: { forgejo: 'Client A' },
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_CREDENTIALS_FORBIDDEN',
+      status: 403,
+    });
+    expect(updates(statements)).toEqual([]);
+  });
+
+  it('refuses an editor who removes one, which would hand the agent the default', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      pins: { forgejo: 'Client A' },
+      credentials: FORGEJO,
+    });
+    await expect(
+      updateProjectAgent(tx, editor, {
+        ...config,
+        secrets: ['REVIEW_TOKEN'],
+        connectors: ['forgejo'],
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_AGENT_CREDENTIALS_FORBIDDEN' });
+    expect(updates(statements)).toEqual([]);
+  });
+
+  it('lets an editor rename the agent and set its commit identity with the pins unchanged', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      pins: { forgejo: 'Client A' },
+      credentials: FORGEJO,
+    });
+    await updateProjectAgent(tx, editor, {
+      ...config,
+      name: 'Client A Coder',
+      secrets: ['REVIEW_TOKEN'],
+      connectors: ['forgejo'],
+      connectorCredentials: { forgejo: 'Client A' },
+      gitIdentity: { name: 'Client A Coder', email: 'coder@client-a.test' },
+    });
+    const [update] = updates(statements);
+    expect(update).toBeDefined();
+    expect(boundBefore(update!, '::jsonb, instructions')).toBe(
+      JSON.stringify({ name: 'Client A Coder', email: 'coder@client-a.test' }),
+    );
+  });
+
+  it('lets an admin change the pins', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      pins: { forgejo: 'Client A' },
+      credentials: FORGEJO,
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+      connectors: ['forgejo'],
+      connectorCredentials: { forgejo: 'Central' },
+    });
+    const [update] = updates(statements);
+    expect(boundBefore(update!, '::jsonb, git_identity')).toBe(
+      JSON.stringify({ forgejo: 'Central' }),
+    );
   });
 });

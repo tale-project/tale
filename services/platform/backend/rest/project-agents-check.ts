@@ -5,6 +5,10 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { upsertAgentSecret } from '../domains/agent_secrets/service.ts';
+import {
+  createCredential,
+  updateCredential,
+} from '../domains/connector_credentials/service.ts';
 
 type Request = (
   method: string,
@@ -48,6 +52,8 @@ export async function checkProjectAgentRest(args: {
       connectors: z.array(z.string()),
       tools: z.array(z.string()),
       secrets: z.array(z.string()),
+      connectorCredentials: z.record(z.string(), z.string()),
+      gitIdentity: z.object({ name: z.string(), email: z.string() }).nullable(),
       updatedAt: z.number(),
     }),
   });
@@ -113,6 +119,11 @@ export async function checkProjectAgentRest(args: {
       { ...config, connectors: ['not-a-real-connector-xyz'] },
       'PROJECT_AGENT_CONNECTOR_UNKNOWN',
     ],
+    // A pinned credential the organization does not hold [PROJ-R23].
+    [
+      { ...config, connectorCredentials: { forgejo: 'not-a-credential-xyz' } },
+      'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+    ],
   ];
   for (const [body, code] of refusedEquipment) {
     const refused = await expectStatus(rest('POST', path, body), 400);
@@ -134,6 +145,57 @@ export async function checkProjectAgentRest(args: {
   // The mention handle is made from the name [PROJ-R18].
   assert.equal(created.handle, 'reviewer');
   const itemPath = `${path}/${created.id}`;
+  // Repository access (migration 0219): nothing pinned and no commit
+  // identity until set; a pin is stored under the credential's own spelling
+  // [PROJ-R23] and moves with a rename of its credential [CCRED-R13].
+  assert.deepEqual(created.connectorCredentials, {});
+  assert.equal(created.gitIdentity, null);
+  const pinName = `Client ${randomBytes(3).toString('hex')}`;
+  const { credentialId } = await createCredential(sql, {
+    organizationId: orgId,
+    connectorSlug: 'forgejo',
+    authMethod: 'bearer',
+    name: pinName,
+    secret: { token: randomBytes(16).toString('hex') },
+    endpointUrl: 'https://git.tale.dev',
+    createdBy: userId,
+  });
+  const pinned = agentEnvelope.parse(
+    await (
+      await expectStatus(
+        rest('PUT', itemPath, {
+          ...richConfig,
+          connectorCredentials: { forgejo: pinName.toUpperCase() },
+          gitIdentity: { name: 'Reviewer', email: 'reviewer@tale.dev' },
+        }),
+        200,
+      )
+    ).json(),
+  ).agent;
+  assert.deepEqual(pinned.connectorCredentials, { forgejo: pinName });
+  assert.deepEqual(pinned.gitIdentity, {
+    name: 'Reviewer',
+    email: 'reviewer@tale.dev',
+  });
+  await updateCredential(sql, {
+    organizationId: orgId,
+    credentialId,
+    name: `${pinName} deploy`,
+    actor: { userId },
+  });
+  const carried = agentEnvelope.parse(
+    await (await expectStatus(rest('GET', itemPath), 200)).json(),
+  ).agent;
+  assert.deepEqual(carried.connectorCredentials, {
+    forgejo: `${pinName} deploy`,
+  });
+  assert.ok(carried.updatedAt > pinned.updatedAt);
+  // A PUT that leaves them out resets them, as every optional field.
+  const reset = agentEnvelope.parse(
+    await (await expectStatus(rest('PUT', itemPath, richConfig), 200)).json(),
+  ).agent;
+  assert.deepEqual(reset.connectorCredentials, {});
+  assert.equal(reset.gitIdentity, null);
   const listed = roster.parse(
     await (await expectStatus(rest('GET', path), 200)).json(),
   );

@@ -316,6 +316,25 @@ agents:
     deleteTitle: Secret löschen
     deleteConfirm: '"{name}" löschen? Jeder Agent und Automatisierungs-Node in der Organisation, der es nutzt, erhält es beim nächsten Lauf nicht mehr.'
     deleteConfirmButton: Secret löschen
+  repository:
+    label: Zugriff auf Repositorys
+    hint: "Mit einem Connector, der Git-Remotes öffnet, etwa GitHub oder Forgejo, kann der Agent mit Zugangsdaten der Organisation klonen und pushen. Wähle, welche dieser Agent verwendet."
+    adminOnly: Nur Inhaber und Admins können ändern, welche Zugangsdaten dieser Agent verwendet.
+    none: Statte den Agenten unter Skills, Connectors & Tools mit GitHub oder Forgejo aus, damit er auf deren Repositorys zugreifen kann.
+    connectorLabel: 'Zugangsdaten für {connector}'
+    default: Standard der Organisation
+    defaultNamed: 'Standard der Organisation ({name})'
+    unusable: '{name} (derzeit nicht nutzbar)'
+    missing: '{name} (nicht mehr verbunden)'
+  gitIdentity:
+    label: Commit-Identität
+    hint: Name und E-Mail-Adresse auf den Commits dieses Agenten. Lass beide Felder leer, um keine festzulegen.
+    nameLabel: Name für Commits
+    namePlaceholder: z. B. Release-Bot
+    emailLabel: E-Mail-Adresse für Commits
+    emailPlaceholder: z. B. release-bot@example.com
+    incomplete: Gib einen Namen und eine E-Mail-Adresse ein oder keines von beiden.
+    emailInvalid: Gib eine gültige E-Mail-Adresse ein.
   instructionsLabel: Anweisungen
   instructionsPlaceholder:
     Was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er
@@ -429,6 +448,9 @@ errors:
     20.000 Zeichen. Kürze sie vor dem Speichern.
   PROJECT_AGENT_LIMIT: Dieses Projekt hat sein Agenten-Limit erreicht.
   PROJECT_AGENT_NOT_FOUND: Wir konnten diesen Agenten nicht finden. Er wurde möglicherweise gelöscht.
+  PROJECT_AGENT_CREDENTIAL_UNKNOWN: Diese Zugangsdaten sind nicht mehr verbunden. Wähle andere oder den Standard der Organisation.
+  PROJECT_AGENT_CREDENTIALS_FORBIDDEN: Nur Inhaber und Admins können ändern, welche Zugangsdaten ein Agent verwendet.
+  PROJECT_AGENT_GIT_IDENTITY_INVALID: Gib einen Namen für Commits ohne < oder > und eine gültige E-Mail-Adresse ein.
   PROJECT_LEGAL_HOLD: Dieses Projekt unterliegt einem Legal Hold und kann nicht gelöscht werden.
   PROJECT_CONFIRM_PHRASE_MISMATCH: Tippe den Projektnamen exakt, um zu bestätigen.
   PROJECT_SHARING_INVALID: Freigabeeinstellungen sind ungültig.

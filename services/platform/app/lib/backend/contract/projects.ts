@@ -48,6 +48,10 @@ export interface ProjectsContract {
     kind: 'mutation';
     args: {
       secrets?: string[];
+      /** The credential the agent acts as per connector, by name. */
+      connectorCredentials?: Record<string, string>;
+      /** The name and email its commits carry; `null` for none. */
+      gitIdentity?: { name: string; email: string } | null;
       modelProvider?: string;
       tools?: string[];
       instructions?: string;
@@ -106,6 +110,8 @@ export interface ProjectsContract {
     args: {
       expectedUpdatedAt?: number;
       secrets?: string[];
+      connectorCredentials?: Record<string, string>;
+      gitIdentity?: { name: string; email: string } | null;
       modelProvider?: string;
       tools?: string[];
       instructions?: string;
@@ -201,6 +207,12 @@ export interface ProjectsContract {
     args: { organizationId: string; projectId: string };
     returns: Array<{
       secrets?: string[];
+      /** The credential the agent acts as per connector, by name; absent
+       * from an older backend. */
+      connectorCredentials?: Record<string, string>;
+      /** The name and email its commits carry; absent from an older
+       * backend. */
+      gitIdentity?: { name: string; email: string } | null;
       model?: string;
       modelProvider?: string;
       tools?: string[];

@@ -313,6 +313,48 @@ describe('a run a member started', () => {
   });
 });
 
+describe('a confined run gets none of the agent’s own repository credentials [TASK-R79]', () => {
+  const EQUIPMENT = {
+    connectors: ['github', 'forgejo'],
+    connectorCredentials: { forgejo: 'Client A' },
+    gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
+  };
+  const PINNED = { ...KEYS, ...EQUIPMENT };
+  // Codex restarts its exec on a steer, so the restart resolves again.
+  const STEERED = { ...STEER, ...EQUIPMENT };
+
+  it('launches and restarts without the pinned credential, naming each git access it goes without', async () => {
+    io.confined = true;
+    const ctx = makeCtx();
+    await startTaskAgentTurnImpl(ctx, { ...PINNED, sweep: true } as never);
+    expect(resolveTurnEquipmentEnv).not.toHaveBeenCalled();
+    expect(lastExec().extraEnv).toBeUndefined();
+    expect(lastExec().instructions).toContain(
+      '(VAT_API_KEY, GITHUB_TOKEN, forgejo git access)',
+    );
+    await steerTaskAgentTurnImpl(ctx, STEERED as never);
+    expect(resolveTurnEquipmentEnv).not.toHaveBeenCalled();
+    expect(lastExec().extraEnv).toBeUndefined();
+  });
+
+  it('hands an editor’s run the pins and the commit identity, at the start and on a steered restart [SBX-R41]', async () => {
+    const ctx = makeCtx();
+    await startTaskAgentTurnImpl(ctx, { ...PINNED, sweep: true } as never);
+    await steerTaskAgentTurnImpl(ctx, STEERED as never);
+    expect(resolveTurnEquipmentEnv).toHaveBeenCalledTimes(2);
+    for (const call of resolveTurnEquipmentEnv.mock.calls) {
+      expect(call[1]).toEqual({
+        organizationId: 'org-1',
+        sessionId: KEYS.sessionId,
+        connectors: ['github', 'forgejo'],
+        secrets: ['VAT_API_KEY'],
+        connectorCredentials: { forgejo: 'Client A' },
+        gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
+      });
+    }
+  });
+});
+
 describe('a run an editor started', () => {
   it('launches with the agent’s equipment, as before', async () => {
     await startTaskAgentTurnImpl(makeCtx(), { ...KEYS, sweep: true } as never);

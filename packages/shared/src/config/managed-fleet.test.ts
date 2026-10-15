@@ -373,6 +373,64 @@ describe('a field a declaration leaves out keeps what is stored', () => {
   });
 });
 
+describe('a declared agent pins its repository credentials and commit identity', () => {
+  const stored = {
+    projectId: PROJECT,
+    agentId: AGENT,
+    name: 'Manager',
+    connectors: ['forgejo'],
+    secrets: ['GITHUB_TOKEN'],
+    skills: [],
+    connectorCredentials: { forgejo: 'Client A' },
+    gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },
+  };
+  // An existing agent, adopted: creating one needs its model beside it.
+  const declared = (config: Record<string, unknown>) =>
+    declare([
+      { kind: 'project-agent', config: { ...agent.config, ...config } },
+    ]);
+
+  test('keeps the stored pins and identity when it leaves them out, and holds stated ones exactly', () => {
+    const omitted = declared({}).data?.resources[0];
+    if (omitted === undefined) throw new Error('no agent');
+    expect(resourceConverged(omitted, stored)).toBe(true);
+    const pinned = declared({
+      connectorCredentials: { forgejo: 'Client A' },
+      gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },
+    }).data?.resources[0];
+    if (pinned === undefined) throw new Error('no agent');
+    expect(resourceConverged(pinned, stored)).toBe(true);
+    expect(
+      resourceConverged(pinned, {
+        ...stored,
+        connectorCredentials: { forgejo: 'Central' },
+      }),
+    ).toBe(false);
+    const cleared = declared({ gitIdentity: null }).data?.resources[0];
+    if (cleared === undefined) throw new Error('no agent');
+    expect(resourceConverged(cleared, stored)).toBe(false);
+    expect(resourceConverged(cleared, { ...stored, gitIdentity: null })).toBe(
+      true,
+    );
+  });
+
+  test('refuses an identity git cannot keep, and a pin that is not a name', () => {
+    expect(
+      declared({ gitIdentity: { name: 'Bot <x>', email: 'bot@tale.dev' } })
+        .success,
+    ).toBe(false);
+    expect(
+      declared({ gitIdentity: { name: 'Bot', email: 'not-an-email' } }).success,
+    ).toBe(false);
+    expect(declared({ connectorCredentials: { forgejo: '' } }).success).toBe(
+      false,
+    );
+    expect(
+      declared({ connectorCredentials: { forgejo: ' Client A' } }).success,
+    ).toBe(false);
+  });
+});
+
 describe('a declared secret is compared by a slow, salted digest of its value', () => {
   const digest = (organizationId: string, scope: string, value: string) =>
     managedSecretDigest({ organizationId, scope, value });

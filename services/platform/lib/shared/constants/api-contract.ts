@@ -851,5 +851,20 @@
  * and not listed, and such a source or serving dispatch answers `name:
  * null`. A dispatch without the two new fields reads, hashes and behaves as
  * before.
+ *
+ * 3.49.0 — 2026-10-15: a project agent carries its own repository access.
+ * `ProjectAgent` answers `connectorCredentials` (a connector slug to the
+ * name of the organization credential the agent acts as; `{}` when it pins
+ * none) and `gitIdentity` (`{name, email}` its commits carry, or `null`),
+ * and `POST`/`PUT /api/v1/projects/{id}/agents…` take both. A pin must name
+ * a credential the organization holds for that connector (400
+ * `PROJECT_AGENT_CREDENTIAL_UNKNOWN`, the pins under
+ * `data.connectorCredentials`), and only an organization admin may change
+ * the pins (403 `PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). A `PUT` that omits
+ * them resets them, as it does every other optional field. An equipped
+ * connector that opens a git host — GitHub, Forgejo — hands the agent's
+ * sandbox the pinned credential's git access instead of the default's; a
+ * pin whose credential is gone hands it nothing. The MCP `list_connectors`
+ * tool names that host as `gitHost`.
  */
-export const API_CONTRACT_VERSION = '3.48.0';
+export const API_CONTRACT_VERSION = '3.49.0';

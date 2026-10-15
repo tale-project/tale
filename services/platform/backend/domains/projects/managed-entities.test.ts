@@ -85,6 +85,8 @@ const manager = {
   connectors: [],
   tools: ['task_get'],
   secrets: ['B', 'A'],
+  connectorCredentials: { github: 'Central', forgejo: 'Client A' },
+  gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },
   instructions: 'Stored policy',
   managed: false,
   createdBy: 'ada',
@@ -253,6 +255,8 @@ describe('a declared agent is created with the runtime and model its declaration
         skills: [],
         connectors: [],
         secrets: ['GITHUB_TOKEN'],
+        connectorCredentials: {},
+        gitIdentity: null,
         instructions: 'Manage.',
         tools: ['task_get'],
         unknownSecrets: 'refuse',
@@ -282,6 +286,8 @@ describe('a declared agent is created with the runtime and model its declaration
       connectors: [],
       secrets: ['A', 'B'],
       skills: ['pdf'],
+      connectorCredentials: { forgejo: 'Client A', github: 'Central' },
+      gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },
     });
     await writeManagedProjectAgent(database([AGENT]), ada, {
       config: { ...declared, name: 'Fleet manager' },
@@ -300,9 +306,34 @@ describe('a declared agent is created with the runtime and model its declaration
         connectors: [],
         tools: ['task_get'],
         secrets: ['GITHUB_TOKEN'],
+        // Kept as stored: the declaration leaves both out.
+        connectorCredentials: { github: 'Central', forgejo: 'Client A' },
+        gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },
         instructions: 'Stored policy',
         unknownSecrets: 'refuse',
       },
+    );
+  });
+
+  it('pins the credentials and sets the commit identity a declaration states, and clears the identity on null [PROJ-R23]', async () => {
+    vi.mocked(service.getProjectAgent).mockResolvedValueOnce(manager);
+    const view = managedProjectAgentView(manager);
+    await writeManagedProjectAgent(database([AGENT]), ada, {
+      config: {
+        ...declared,
+        connectorCredentials: { forgejo: 'Client B' },
+        gitIdentity: null,
+      },
+      expectedHash: managedConfigurationHash(view),
+    });
+    expect(service.updateProjectAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      ada,
+      expect.objectContaining({
+        connectorCredentials: { forgejo: 'Client B' },
+        gitIdentity: null,
+        unknownSecrets: 'refuse',
+      }),
     );
   });
 

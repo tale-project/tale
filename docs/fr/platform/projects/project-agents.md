@@ -3,7 +3,7 @@ title: Créer et gérer des agents de projet
 description: Configure un agent pour les tâches d’un projet, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat.
 ---
 
-Crée un agent de projet pour disposer d’une configuration réutilisable sur les tâches du projet. Il associe un environnement d’agent, un modèle, des instructions et un équipement autorisé. Chaque tâche sur laquelle il travaille s’exécute dans un [worker](#run-one-agent-on-several-tasks), une copie de l’agent en cours d’exécution dans sa propre sandbox. Tu dois pouvoir modifier le projet actif. Les Membres voient les agents du projet dans son onglet **Agents**, qui leur indique de demander un nouvel agent à un Éditeur ou à un Admin. Tant qu’un projet n’a pas d’agents propres, ses tâches peuvent aller à l’[agent standard](#standard-agent) de l’organisation. Seuls un Propriétaire ou un Admin peuvent changer les secrets accordés.
+Crée un agent de projet pour disposer d’une configuration réutilisable sur les tâches du projet. Il associe un environnement d’agent, un modèle, des instructions et un équipement autorisé. Chaque tâche sur laquelle il travaille s’exécute dans un [worker](#run-one-agent-on-several-tasks), une copie de l’agent en cours d’exécution dans sa propre sandbox. Tu dois pouvoir modifier le projet actif. Les Membres voient les agents du projet dans son onglet **Agents**, qui leur indique de demander un nouvel agent à un Éditeur ou à un Admin. Tant qu’un projet n’a pas d’agents propres, ses tâches peuvent aller à l’[agent standard](#standard-agent) de l’organisation. Seuls un Propriétaire ou un Admin peuvent changer les secrets accordés et les identifiants avec lesquels un agent [accède aux dépôts](#repository-access).
 
 ## Préparer la première tâche
 
@@ -69,15 +69,31 @@ Rédige des **Instructions** qui définissent responsabilité, preuves et limite
 
 <Step title="Vérifier et enregistrer">
 
-Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des identifiants nommés de l’organisation. L’agent en cours peut lire leurs valeurs : utilise des jetons limités et remplaçables. Modifier une valeur partagée affecte aussi les autres agents et nœuds de workflow qui utilisent ce nom. Une exécution qu’un Membre démarre ne reçoit aucun de ces secrets, ni le jeton d’une connexion GitHub équipée : un Éditeur ou un rôle supérieur doit démarrer le travail qui en a besoin.
+Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des identifiants nommés de l’organisation. L’agent en cours peut lire leurs valeurs : utilise des jetons limités et remplaçables. Modifier une valeur partagée affecte aussi les autres agents et nœuds de workflow qui utilisent ce nom. Une exécution qu’un Membre démarre ne reçoit aucun de ces secrets, ni l’accès Git d’une connexion GitHub ou Forgejo équipée : un Éditeur ou un rôle supérieur doit démarrer le travail qui en a besoin.
 
-Pour un repository privé, utilise une clé limitée à ce repository et précise les opérations Git autorisées dans les instructions de l’agent. Les exécutions équipées d’identifiants utilisent le nom et l’e-mail Git du propriétaire de l’espace de travail, même sans accès accordé au connector GitHub. Garde la vérification de l’hôte SSH activée. Un sandbox auto-hébergé fait passer le SSH du repository par son proxy existant ; [Accès SSH aux repositories](/fr/self-hosted/configuration/environment-reference#ssh-repository-access) décrit la configuration.
+Pour un repository privé, donne à l’agent [son propre accès](#repository-access) par le connector GitHub ou Forgejo, ou utilise une clé limitée à ce repository, et précise les opérations Git autorisées dans les instructions de l’agent. Les commits portent l’**Identité des commits** de l’agent. Garde la vérification de l’hôte SSH activée. Un sandbox auto-hébergé fait passer le SSH du repository par son proxy existant ; [Accès SSH aux repositories](/fr/self-hosted/configuration/environment-reference#ssh-repository-access) décrit la configuration.
 
 Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le modèle de la nouvelle ligne. Rouvre l’agent pour examiner l’équipement et les instructions enregistrés.
 
 </Step>
 
 </Steps>
+
+## Donner à l’agent son propre accès aux dépôts {#repository-access}
+
+Un agent équipé du connector GitHub ou Forgejo peut cloner, récupérer et pousser en HTTPS dans sa sandbox avec des [identifiants de connector](/fr/platform/admin/connectors) de l’organisation : des identifiants GitHub ouvrent `github.com`, des identifiants Forgejo l’hôte de l’adresse de leur instance. Sauf si tu en choisis d’autres, l’agent utilise les identifiants par défaut du connector.
+
+Pour que des agents aient une portée différente, enregistre sous **Paramètres > Connectors** des identifiants par portée, chacun limité à ses dépôts dans GitHub ou Forgejo. Par exemple, un Coder central reçoit des identifiants qui atteignent tous les dépôts de l’organisation, et le Coder de chaque client des identifiants qui n’atteignent que le dépôt de ce client. Modifie ensuite l’agent et choisis, sous **Accès aux dépôts**, les identifiants de chaque connector. Seuls un Propriétaire ou un Admin peuvent changer ce choix.
+
+- Les identifiants que tu choisis sont les seuls que l’agent utilise pour ce connector. S’ils sont supprimés plus tard, les exécutions de l’agent n’ont plus d’accès par ce connector jusqu’à ce que quelqu’un en choisisse d’autres. Elles ne se rabattent jamais sur ceux par défaut.
+- Git ne répond à l’agent que pour les hôtes des connectors dont il est équipé. Un jeton placé dans un secret, comme `GITHUB_TOKEN`, ne connecte pas Git.
+- Le jeton n’atteint que le tour en cours. Tale ne l’écrit jamais dans l’espace de travail ni dans un journal, et enregistre chaque fois qu’un tour le reçoit.
+- Une exécution qu’un Membre démarre, et une exécution sur le tableau d’un autre projet dont l’initiateur ne peut pas utiliser tout l’équipement de l’agent, ne reçoivent aucun de ces identifiants, ni aucun des secrets de l’agent.
+- Les actions de connector de l’agent, comme lister des issues GitHub, utilisent toujours les identifiants par défaut du connector.
+
+Sous **Identité des commits**, définis le nom et l’adresse e-mail que portent les commits de l’agent. Les workers d’un agent n’appartiennent à personne : chacune de ses exécutions committe donc sous cette identité, quel que soit ce qui l’a démarrée, une personne, la [répartition du travail](/fr/platform/projects/dispatch), un rôle permanent ou une planification. Sans identité, Git n’a pas d’auteur configuré, et l’agent doit en définir un avant de committer.
+
+Dans l’[API REST](/fr/develop/api-reference#gerer-les-agents-dun-projet), ces mêmes réglages s’appellent `connectorCredentials` et `gitIdentity` ; une [déclaration de la CLI](/fr/self-hosted/install/cli-install) les définit sur `project-agent`.
 
 ## Affecter et démarrer le travail
 

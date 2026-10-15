@@ -3,7 +3,7 @@ title: Projektagenten erstellen und verwalten
 description: Konfiguriere einen Agenten für die Aufgaben eines Projekts, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis.
 ---
 
-Erstelle einen Projektagenten, wenn eine wiederverwendbare Konfiguration die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Jede Aufgabe, an der er arbeitet, läuft in einem [Worker](#run-one-agent-on-several-tasks), einer laufenden Kopie des Agenten in einer eigenen Sandbox. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Mitglieder sehen die Agenten des Projekts im Tab **Agenten**, der ihnen sagt, dass sie einen Redakteur oder Admin um einen neuen bitten können. Bis ein Projekt eigene Agenten hat, können seine Aufgaben an den [Standard-Agenten](#standard-agent) der Organisation gehen. Secret-Zuordnungen dürfen nur Inhaber und Admins ändern.
+Erstelle einen Projektagenten, wenn eine wiederverwendbare Konfiguration die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Jede Aufgabe, an der er arbeitet, läuft in einem [Worker](#run-one-agent-on-several-tasks), einer laufenden Kopie des Agenten in einer eigenen Sandbox. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Mitglieder sehen die Agenten des Projekts im Tab **Agenten**, der ihnen sagt, dass sie einen Redakteur oder Admin um einen neuen bitten können. Bis ein Projekt eigene Agenten hat, können seine Aufgaben an den [Standard-Agenten](#standard-agent) der Organisation gehen. Secret-Zuordnungen und die Zugangsdaten, mit denen ein Agent [auf Repositorys zugreift](#repository-access), dürfen nur Inhaber und Admins ändern.
 
 ## Die erste Aufgabe vorbereiten
 
@@ -69,15 +69,31 @@ Beschreibe unter **Anweisungen** Verantwortung, Belege und Grenzen. Für den Lau
 
 <Step title="Prüfen und speichern">
 
-Braucht die Arbeit **Secrets**, ordnet ein Inhaber oder Admin benannte Zugangsdaten der Organisation zu. Der laufende Agent kann ihre Werte lesen. Verwende deshalb eng begrenzte, austauschbare Tokens. Ändert sich ein gemeinsam genutzter Wert, betrifft das auch andere Agenten und Workflow-Nodes mit diesem Namen. Ein Lauf, den ein Mitglied startet, erhält keines dieser Secrets und auch nicht das Token eines zugeordneten GitHub-Zugangs: Arbeit, die sie braucht, muss ein Redakteur oder eine höhere Rolle starten.
+Braucht die Arbeit **Secrets**, ordnet ein Inhaber oder Admin benannte Zugangsdaten der Organisation zu. Der laufende Agent kann ihre Werte lesen. Verwende deshalb eng begrenzte, austauschbare Tokens. Ändert sich ein gemeinsam genutzter Wert, betrifft das auch andere Agenten und Workflow-Nodes mit diesem Namen. Ein Lauf, den ein Mitglied startet, erhält keines dieser Secrets und auch nicht den Git-Zugriff eines zugeordneten GitHub- oder Forgejo-Zugangs: Arbeit, die sie braucht, muss ein Redakteur oder eine höhere Rolle starten.
 
-Nutze für ein privates Repository einen auf dieses Repository beschränkten Schlüssel und lege die erlaubten Git-Operationen in den Anweisungen fest. Läufe mit Zugangsdaten verwenden den Git-Autorennamen und die E-Mail des Workspace-Besitzers auch ohne GitHub-Connector-Freigabe. Lass die SSH-Hostprüfung eingeschaltet. Eine selbst gehostete Sandbox leitet Repository-SSH über ihren bestehenden Proxy weiter; [SSH-Zugang zu Repositories](/de/self-hosted/configuration/environment-reference#ssh-repository-access) beschreibt die Einrichtung.
+Gib dem Agenten für ein privates Repository [eigenen Zugriff](#repository-access) über den GitHub- oder Forgejo-Connector oder nutze einen auf dieses Repository beschränkten Schlüssel, und lege die erlaubten Git-Operationen in den Anweisungen fest. Commits tragen die **Commit-Identität** des Agenten. Lass die SSH-Hostprüfung eingeschaltet. Eine selbst gehostete Sandbox leitet Repository-SSH über ihren bestehenden Proxy weiter; [SSH-Zugang zu Repositories](/de/self-hosted/configuration/environment-reference#ssh-repository-access) beschreibt die Einrichtung.
 
 Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile. Öffne den Agenten erneut, um gespeicherte Ausstattung und Anweisungen zu kontrollieren.
 
 </Step>
 
 </Steps>
+
+## Dem Agenten eigenen Zugriff auf Repositorys geben {#repository-access}
+
+Ein Agent, der mit dem GitHub- oder Forgejo-Connector ausgestattet ist, kann in seiner Sandbox über HTTPS klonen, fetchen und pushen, und zwar mit [Connector-Zugangsdaten](/de/platform/admin/connectors) der Organisation: GitHub-Zugangsdaten öffnen `github.com`, Forgejo-Zugangsdaten den Host ihrer Instanzadresse. Wenn du nichts anderes wählst, verwendet der Agent die Standard-Zugangsdaten des Connectors.
+
+Sollen Agenten unterschiedlich weit reichen, hinterlege unter **Einstellungen > Connectors** je Reichweite eigene Zugangsdaten, die in GitHub oder Forgejo auf ihre Repositorys beschränkt sind. Ein zentraler Coder bekommt zum Beispiel Zugangsdaten für alle Repositorys der Organisation und der Coder jedes Kunden solche, die nur das Repository dieses Kunden erreichen. Bearbeite dann den Agenten und wähle unter **Zugriff auf Repositorys** die Zugangsdaten für jeden Connector. Diese Wahl können nur Inhaber und Admins ändern.
+
+- Gewählte Zugangsdaten sind die einzigen, die der Agent für diesen Connector verwendet. Werden sie später gelöscht, erhalten die Läufe des Agenten über diesen Connector keinen Zugriff mehr, bis jemand andere wählt. Auf den Standard weichen sie nie aus.
+- Git antwortet dem Agenten nur für die Hosts der Connectors, mit denen er ausgestattet ist. Ein Token in einem Secret, etwa `GITHUB_TOKEN`, meldet Git nicht an.
+- Das Token erreicht nur den laufenden Turn. Tale schreibt es nie in den Arbeitsbereich oder in ein Log und protokolliert jedes Mal, wenn ein Turn es erhält.
+- Ein Lauf, den ein Mitglied startet, und ein Lauf auf dem Board eines anderen Projekts, dessen Starter die volle Ausstattung des Agenten nicht nutzen darf, erhalten keine dieser Zugangsdaten und keines der Secrets des Agenten.
+- Die Connector-Aktionen des Agenten, etwa das Auflisten von GitHub-Issues, verwenden weiterhin die Standard-Zugangsdaten des Connectors.
+
+Lege unter **Commit-Identität** den Namen und die E-Mail-Adresse fest, die die Commits des Agenten tragen. Die Worker eines Agenten gehören keiner Person, deshalb committet jeder seiner Läufe unter dieser Identität, egal wer oder was ihn gestartet hat: eine Person, die [Arbeitsverteilung](/de/platform/projects/dispatch), eine ständige Rolle oder ein Zeitplan. Ohne Identität ist in Git kein Autor eingerichtet, und der Agent muss einen festlegen, bevor er committet.
+
+Über die [REST-API](/de/develop/api-reference#agenten-eines-projekts-verwalten) heißen dieselben Einstellungen `connectorCredentials` und `gitIdentity`; eine [CLI-Deklaration](/de/self-hosted/install/cli-install) setzt sie auf `project-agent`.
 
 ## Arbeit zuweisen und starten
 

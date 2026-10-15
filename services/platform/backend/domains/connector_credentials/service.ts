@@ -41,6 +41,7 @@ import {
   applyMicrosoftTenant,
   resolveConnectorOauthApp,
 } from '../connectors/oauth-apps.ts';
+import { carryCredentialPins } from '../projects/credential-pins.ts';
 
 /**
  * Connector credentials — the 0.5 twin of `convex/connector_credentials/*`:
@@ -1060,6 +1061,13 @@ export async function updateCredentialInTransaction(
       updated_at_ms = ${Date.now()}
     WHERE id = ${row.id}
   `;
+  // An agent pinning it by name keeps acting as it under the new name.
+  await carryCredentialPins(tx, {
+    organizationId: args.organizationId,
+    connectorSlug: row.connectorSlug,
+    from: row.name,
+    to: name,
+  });
   await createAuditLog(tx, {
     organizationId: args.organizationId,
     ...actorFields(args.actor),

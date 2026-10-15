@@ -1063,26 +1063,33 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
 - **Tier 2 — managed-entry credentials** (connector secrets — git tokens,
   DB passwords, third-party API keys — that can't be transparently proxied):
   enter the sandbox, but only through one managed pipeline — explicit
-  per-turn grant (default empty; the turn's equipped connectors ∩ the
-  broker's allowlist) → broker fetch (never baked into env/image/PodSpec)
-  → audited (`sandboxCredentialAccess`) → gone with the exec. The broker
-  injects git creds into the exec's PER-EXEC env overlay, never the
-  session env store (the `tale-git-credential` helper reads `GITHUB_TOKEN`
-  per git operation): the agent session is per-user and long-lived while
-  a grant is per-turn, so the overlay's lifetime IS the revocation — a
-  later ungranted turn never inherits the token, and nothing survives a
-  container recreation. True per-operation broker fetch (with immediate
-  per-op revocation) is a planned follow-up.
+  per-turn grant (default empty; the turn's equipped connectors whose
+  `connector.yml` declares a `git` capability) → broker fetch of the
+  credential the project agent pins for that connector, else the
+  connector's default (never baked into env/image/PodSpec) → audited
+  (`sandboxCredentialAccess`) → gone with the exec. The broker injects git
+  creds into the exec's PER-EXEC env overlay, never the session env store:
+  `TALE_GIT_CREDENTIALS` carries one `<host> <username> <token>` line per
+  brokered git host (github.com, a Forgejo instance's own host), and the
+  `tale-git-credential` helper answers each git operation for those hosts
+  alone — never from `GITHUB_TOKEN` or any other ambient variable. The agent
+  session is per-user and long-lived while a grant is per-turn, so the
+  overlay's lifetime IS the revocation — a later ungranted turn never
+  inherits the token, and nothing survives a container recreation. A pinned
+  credential the organization no longer holds brokers nothing for its
+  connector, never the default. True per-operation broker fetch (with
+  immediate per-op revocation) is a planned follow-up.
 
-Beside the credential helper, the broker also provisions the session
-owner's git **author identity** (`user.name`/`user.email`, injected as
-`GIT_CONFIG_*` env — `session_credentials.ts`'s `buildGitConfigEnv`). It is
-non-secret metadata, not a Tier-2 grant, so — unlike the helper above — it
-is never gated on a git credential grant: it runs whenever the session
-resolves to a real platform user, so a fresh container's `git commit` has
-an author without any in-session `git config`. A synthetic/system-owned
-session (automation, workflow) or an owner with a blank name/email
-resolves to no injection rather than a placeholder identity.
+Beside the credential helper, the broker also provisions the git **author
+identity** (`user.name`/`user.email`, injected as `GIT_CONFIG_*` env —
+`session_credentials.ts`'s `buildGitConfigEnv`): the session owner's when
+the session resolves to a real platform user, else the project agent's own
+`gitIdentity` when it has one. A project agent's workers are system-owned,
+so its runs commit as the agent. It is non-secret metadata, not a Tier-2
+grant, so — unlike the helper above — it is never gated on a git credential
+grant, and a fresh container's `git commit` has an author without any
+in-session `git config`. With neither, nothing is injected rather than a
+placeholder identity.
 
 ## Resource profiles
 

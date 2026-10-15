@@ -108,6 +108,63 @@ const projectTeamIdsSchema = z
   .array(teamIdSchema)
   .max(PROJECT_SHARED_TEAMS_MAX + 1);
 
+/** The longest name a connector credential carries — the connector
+ * credentials' own limit. */
+export const PROJECT_AGENT_CREDENTIAL_NAME_MAX = 100;
+/** The longest commit author name and email an agent carries. */
+export const PROJECT_AGENT_GIT_NAME_MAX = 200;
+export const PROJECT_AGENT_GIT_EMAIL_MAX = 254;
+
+/** A connector slug as the catalog names connectors. */
+const connectorSlugSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be a connector slug');
+
+/**
+ * Which of the organization's credentials the agent acts as, per connector:
+ * a connector slug to the name of one of that connector's credentials. A
+ * connector left out uses the organization's default credential for it.
+ */
+export const projectAgentConnectorCredentialsSchema = z
+  .record(
+    connectorSlugSchema,
+    z.string().trim().min(1).max(PROJECT_AGENT_CREDENTIAL_NAME_MAX),
+  )
+  .refine(
+    (pins) => Object.keys(pins).length <= PROJECT_AGENT_BINDINGS_MAX,
+    `An agent pins at most ${PROJECT_AGENT_BINDINGS_MAX} credentials`,
+  );
+export type ProjectAgentConnectorCredentials = z.infer<
+  typeof projectAgentConnectorCredentialsSchema
+>;
+
+/** A commit author name git keeps as written: no angle brackets, line
+ * breaks or other control characters, which git drops or refuses. */
+function isPlainGitName(value: string): boolean {
+  // oxlint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  return !/[<>\x00-\x1f\x7f]/.test(value);
+}
+
+/** The name and email the agent's commits carry, where no person owns its
+ * workspace. */
+export const projectAgentGitIdentitySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(PROJECT_AGENT_GIT_NAME_MAX)
+    .refine(isPlainGitName, 'must not contain <, > or control characters'),
+  email: z
+    .email()
+    .max(PROJECT_AGENT_GIT_EMAIL_MAX)
+    .refine(isPlainGitName, 'must not contain <, > or control characters'),
+});
+export type ProjectAgentGitIdentity = z.infer<
+  typeof projectAgentGitIdentitySchema
+>;
+
 /** Project-agent saves share one input shape across the session and REST
  * doors. The domain owns harness eligibility, normalization and secret grants. */
 export const projectAgentInputSchema = z.object({
@@ -119,6 +176,8 @@ export const projectAgentInputSchema = z.object({
   connectors: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX),
   tools: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
   secrets: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
+  connectorCredentials: projectAgentConnectorCredentialsSchema.optional(),
+  gitIdentity: projectAgentGitIdentitySchema.nullable().optional(),
   instructions: z.string().max(PROJECT_AGENT_INSTRUCTIONS_MAX).optional(),
 });
 

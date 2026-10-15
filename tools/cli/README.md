@@ -600,7 +600,8 @@ names and refuses a missing one. With `createIfMissing: true` beside `kind` and
 UUID as its `projectId`, `agentId` or `taskId`, so a retried apply finds what an
 interrupted one created and an id another organization holds is refused. A
 field a declaration leaves out keeps what is stored (a project's `description`
-and `teamIds`, an agent's `connectors`, `secrets` and `skills`, a task's
+and `teamIds`, an agent's `connectors`, `secrets`, `skills`,
+`connectorCredentials` and `gitIdentity`, a task's
 `labels`, `assigneeAgentId` and `priority`, a credential's `endpoint` and
 `isDefault`); a stated field is reset to the declared value at every apply.
 
@@ -613,8 +614,11 @@ and `teamIds`, an agent's `connectors`, `secrets` and `skills`, a task's
   `agent-tools`: creating an agent requires its `agent-model` in the same
   declaration, and the agent is created with the declared serving, instructions
   and tools, so those resources read back as declared at once. A granted secret
-  the organization lacks is refused, never dropped. The standard agent is never
-  changed.
+  the organization lacks is refused, never dropped, and so is a pinned
+  credential (`connectorCredentials`, connector slug to credential name) the
+  organization does not hold for that connector; declare the
+  `connector-credential` beside it. `gitIdentity` is the `{name, email}` its
+  commits carry. The standard agent is never changed.
 - `task` declares `title`; `initialStatus` (`backlog` or `todo`) beside
   `createIfMissing` chooses its first column, and its description comes from
   `task-instructions`. Its status is never read or reconciled afterwards; a person

@@ -17,6 +17,8 @@
 
 import { randomBytes } from 'node:crypto';
 
+import type { ProjectAgentGitIdentity } from '@tale/shared/schemas/projects';
+
 import {
   composeTaskBrief,
   discussionBeforeFeedback,
@@ -97,6 +99,7 @@ import {
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
+import { brokeredCredentialNames } from '../node_only/sandbox/session_credentials';
 import {
   harvestSessionOutput,
   type HarvestSkippedOutput,
@@ -177,15 +180,13 @@ async function isTurnConfined(
 }
 
 /** The agent's credentials a confined run goes without, by the names the
- * model would look for. */
+ * model would look for: its secrets, and the git access of every equipped
+ * connector that brokers one (pinned or the default alike). */
 function withheldCredentials(args: {
   secrets: readonly string[];
   connectors: readonly string[];
 }): string[] {
-  return [
-    ...args.secrets,
-    ...(args.connectors.includes('github') ? ['GITHUB_TOKEN'] : []),
-  ];
+  return [...args.secrets, ...brokeredCredentialNames(args.connectors)];
 }
 
 /**
@@ -1232,6 +1233,10 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  /** The credential the agent acts as per connector, by name. */
+  connectorCredentials?: Record<string, string>;
+  /** The agent's own commit identity. */
+  gitIdentity?: ProjectAgentGitIdentity | null;
   feedback?: string;
   /** Which text named the agent on a `mention` kick; `'description'` is
    * read from the brief at this start instead of from `feedback`. */
@@ -1620,9 +1625,11 @@ export async function startTaskAgentTurnImpl(
       ].join('\n\n');
 
       // Per-exec credential env: the agent's referenced secrets + any
-      // brokerable connector (github). Dies with the exec, so a revoked grant
-      // is gone next turn; harness env wins on collision (extraEnv is under).
-      // A confined run gets none of it.
+      // brokerable connector (git-capable: GitHub, Forgejo), under the
+      // credential the agent pins. Dies with the exec, so a revoked grant is
+      // gone next turn; harness env wins on collision (extraEnv is under).
+      // A confined run gets none of it — no secret, no credential, pinned or
+      // default [TASK-R79].
       const extraEnv = confined
         ? {}
         : await resolveTurnEquipmentEnv(ctx, {
@@ -1630,6 +1637,12 @@ export async function startTaskAgentTurnImpl(
             sessionId: args.sessionId,
             connectors: args.connectors,
             secrets: args.secrets,
+            ...(args.connectorCredentials !== undefined
+              ? { connectorCredentials: args.connectorCredentials }
+              : {}),
+            ...(args.gitIdentity !== undefined
+              ? { gitIdentity: args.gitIdentity }
+              : {}),
           });
 
       // Everything of the exec except the prompt/resume pair, shared by the
@@ -2573,6 +2586,11 @@ export interface SteerTaskAgentTurnArgs extends TurnKeys {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  /** The credential the agent acts as per connector, by name; absent from a
+   * steer queued before it was carried. */
+  connectorCredentials?: Record<string, string>;
+  /** The agent's own commit identity; absent likewise. */
+  gitIdentity?: ProjectAgentGitIdentity | null;
   feedback: string;
   /** Which text `feedback` is; absent reads as a comment (a steer queued
    * before the field existed). */
@@ -2915,6 +2933,12 @@ export async function steerTaskAgentTurnImpl(
           sessionId: args.sessionId,
           connectors: args.connectors,
           secrets: args.secrets,
+          ...(args.connectorCredentials !== undefined
+            ? { connectorCredentials: args.connectorCredentials }
+            : {}),
+          ...(args.gitIdentity !== undefined
+            ? { gitIdentity: args.gitIdentity }
+            : {}),
         });
     const exec = buildExternalTurnExec({
       harness: args.harness,

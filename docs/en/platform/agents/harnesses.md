@@ -39,7 +39,7 @@ With a stored API key or deployment-environment credential, Tale supplies a sess
 
 Vendor subscriptions use their supported agent runtime and receive the subscription credential in the session environment. Gemini is the exception: its Google sign-in is written to a file in the session’s home folder for the turn, and removed when the turn ends. They cannot be used as ordinary chat credentials or with an incompatible agent runtime, because the vendors permit subscription tokens only in their own runtime; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains this. Their direct provider calls bypass Tale’s gateway metering and spending caps; review usage with the subscription provider.
 
-These model-credential rules do not mean the sandbox contains no secrets. Explicitly granted **Secrets**, and the token supplied for an equipped GitHub connection, can be available inside it. Grant only the access the task needs.
+These model-credential rules do not mean the sandbox contains no secrets. Explicitly granted **Secrets**, and the Git access of an equipped GitHub or Forgejo connection, can be available inside it. Grant only the access the task needs.
 
 ## Understand files and connected tools
 
@@ -49,7 +49,7 @@ Equipped skill bundles are staged as files and named in the run’s instructions
 
 Every runtime also finds Tale’s built-in `visual-aspect-analyzer` skill among its own skills, without equipping it. It drives a real browser over a finished UI change and reports layout shifts, flicker and other visual regressions. A skill of the same name in the workspace repository’s `.claude/skills` and `.agents/skills` folders takes its place in every runtime that reads a repository’s skills.
 
-Tale’s connector broker keeps ordinary connector credentials at the platform and returns action results. It exposes read actions to agents, and refuses writes through that broker. Use an automation connector node for a governed connector write. GitHub tooling and explicitly granted secrets have their own access paths, so the broker’s read-only rule is not a general ban on all shell writes.
+Tale’s connector broker keeps ordinary connector credentials at the platform and returns action results. It exposes read actions to agents, and refuses writes through that broker. Use an automation connector node for a governed connector write. Git access through GitHub or Forgejo, the GitHub CLI and explicitly granted secrets have their own access paths, so the broker’s read-only rule is not a general ban on all shell writes.
 
 Agents with Tale’s MCP channel can also look up which Tale release the platform reports. Along with the platform tools granted to the agent, `workspace_status` returns `platform.version`, the release number that the answering backend’s build is labelled with: for example `0.5.64` for the release whose tag is `v0.5.64`. The backend reads nothing from the request for this value. A build without a release number, such as a development build, returns `null` with a short note instead. Treat the value as a label rather than proof, because any build can carry a release number. It also describes that backend only and does not show whether the rest of the deployment is healthy; the deployment’s [status page](/develop/status-page) reports on its services.
 

@@ -8,10 +8,21 @@ import { act, render, screen, waitFor } from '@/tests/utils/render';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { ProjectAgentDialog } from './project-agent-dialog';
 
-const { createAgent, updateAgent, previewState } = vi.hoisted(() => ({
+const { createAgent, updateAgent, previewState, access } = vi.hoisted(() => ({
   createAgent: vi.fn().mockResolvedValue('agent-new'),
   updateAgent: vi.fn().mockResolvedValue(undefined),
   previewState: { data: undefined as unknown },
+  /** The organization's credentials, and whether the person is an Owner
+   * or Admin. */
+  access: {
+    credentials: [] as Array<{
+      connectorSlug: string;
+      name: string;
+      isDefault: boolean;
+      status: 'active' | 'disabled' | 'needs-reauth';
+    }>,
+    admin: true,
+  },
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -21,6 +32,15 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useAgentSecrets: () => ({ data: [] }),
+  useOrgConnectorCredentials: () => ({ data: access.credentials }),
+}));
+
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({
+    can: () => access.admin,
+    cannot: () => !access.admin,
+  }),
+  useAbilityLoading: () => false,
 }));
 
 // The runtime's own answer for a pinless pick — what the walk would use NOW.
@@ -96,6 +116,8 @@ beforeEach(() => {
   updateAgent.mockClear();
   vi.mocked(toast).mockClear();
   previewState.data = undefined;
+  access.credentials = [];
+  access.admin = true;
 });
 
 describe('ProjectAgentDialog mention handle', () => {
@@ -517,5 +539,123 @@ describe('ProjectAgentDialog document skills', () => {
     expect(await checkedState(user, 'Word documents')).toBe('false');
     expect(await checkedState(user, 'Presentations')).toBe('false');
     expect(await checkedState(user, 'Brief summary')).toBe('true');
+  });
+});
+
+describe('ProjectAgentDialog repository access', () => {
+  const FORGEJO_CONNECTORS = [
+    { slug: 'forgejo', label: 'Forgejo', git: true as const },
+    { slug: 'slack', label: 'Slack' },
+  ];
+  const CODER = {
+    ...LEGACY_AGENT,
+    modelProvider: 'anthropic',
+    connectors: ['forgejo', 'slack'],
+    connectorCredentials: {},
+    gitIdentity: null,
+  } as unknown as ProjectAgentRow;
+
+  function renderCoder(agent = CODER) {
+    return render(
+      <ProjectAgentDialog
+        open
+        onOpenChange={vi.fn()}
+        projectId="p1"
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={[]}
+        connectors={FORGEJO_CONNECTORS}
+        agent={agent}
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    access.credentials = [
+      {
+        connectorSlug: 'forgejo',
+        name: 'Central',
+        isDefault: true,
+        status: 'active',
+      },
+      {
+        connectorSlug: 'forgejo',
+        name: 'Client A',
+        isDefault: false,
+        status: 'active',
+      },
+    ];
+  });
+
+  it('offers a credential choice only for the equipped connector that opens git remotes', () => {
+    renderCoder();
+    expect(
+      screen.getByRole('combobox', { name: 'Forgejo credential' }),
+    ).toHaveTextContent('Organization default (Central)');
+    expect(
+      screen.queryByRole('combobox', { name: 'Slack credential' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('saves the pinned credential and the commit identity', async () => {
+    const { user } = renderCoder();
+    await user.click(
+      screen.getByRole('combobox', { name: 'Forgejo credential' }),
+    );
+    await user.click(await screen.findByRole('option', { name: 'Client A' }));
+    await user.type(
+      screen.getByRole('textbox', { name: 'Commit name' }),
+      'Client A Coder',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'Commit email' }),
+      'coder@client-a.test',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorCredentials: { forgejo: 'Client A' },
+        gitIdentity: { name: 'Client A Coder', email: 'coder@client-a.test' },
+      }),
+    );
+  });
+
+  it('refuses a commit name without an email before saving', async () => {
+    const { user } = renderCoder();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Commit name' }),
+      'Client A Coder',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(
+      await screen.findByText('Enter both a name and an email, or neither.'),
+    ).toBeInTheDocument();
+    expect(updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('shows an editor the pin without letting them change it, and keeps it on save', async () => {
+    access.admin = false;
+    const { user } = renderCoder({
+      ...CODER,
+      connectorCredentials: { forgejo: 'Gone' },
+    } as unknown as ProjectAgentRow);
+    const select = screen.getByRole('combobox', { name: 'Forgejo credential' });
+    expect(select).toBeDisabled();
+    expect(select).toHaveTextContent('Gone (no longer connected)');
+    expect(
+      screen.getByText(
+        'Only Owners and Admins can change which credential this agent uses.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorCredentials: { forgejo: 'Gone' },
+        gitIdentity: null,
+      }),
+    );
   });
 });

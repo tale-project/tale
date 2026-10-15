@@ -15,6 +15,13 @@ endpointMode: per-credential
 allowedHosts:
   - codeberg.org
   - git.tale.dev
+# The token also opens the instance's git remotes over HTTPS, on the host of
+# the credential's own endpoint: an agent equipped with this connector clones
+# and pushes with it. Forgejo reads a token sent as the password and ignores
+# the username beside it.
+git:
+  host: endpoint
+  username: x-access-token
 auth:
   - method: bearer
     scheme: token
