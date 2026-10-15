@@ -1798,7 +1798,9 @@ output:
       its kind, linked to `<instance>/<owner>/<repo>/issues/<n>` or
       `…/pulls/<n>` on that instance, with the Forgejo mark on the template
       card; the two automations never refresh each other's tasks (TASK-R64,
-      TASK-R66).
+      TASK-R66). Name a label the repository does not have under Only items
+      with these labels and run the issue sync again → its output's receipt
+      reads `discovered: 0`, not the repository's open issues (TASK-R64).
 - [ ] `AUTO-F245` · **In the editor, give the GlitchTip source of a sync
       step `taskLabels: ['source:glitchtip']` and the step `failOn: any`,
       revoke the GitHub source's token and select Run now** → the GlitchTip

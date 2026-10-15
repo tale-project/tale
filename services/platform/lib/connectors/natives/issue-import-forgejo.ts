@@ -149,11 +149,31 @@ function forgejoIssue(
   };
 }
 
-/** A label filter as Forgejo reads it: names separated by commas. Forgejo
- * lists the items carrying ANY of them (GitHub: every one). */
-function labelFilter(labels: string | undefined): string | undefined {
-  const names = nameList(labels);
-  return names.length === 0 ? undefined : names.join(',');
+/** Whether a row carries every label of `names`, compared without regard
+ * to case. Forgejo lists the items carrying every label it is asked for,
+ * as GitHub does, but drops a name the repository has no label of without
+ * a word: a misspelt or renamed label would widen the listing to every
+ * open item, so the reader checks each row itself. */
+function carriesLabels(row: unknown, names: readonly string[]): boolean {
+  if (names.length === 0) return true;
+  const labels =
+    typeof row === 'object' &&
+    row !== null &&
+    'labels' in row &&
+    Array.isArray(row.labels)
+      ? row.labels
+      : [];
+  const carried = new Set<string>();
+  for (const label of labels) {
+    if (
+      typeof label === 'object' &&
+      label !== null &&
+      'name' in label &&
+      typeof label.name === 'string'
+    )
+      carried.add(label.name.toLowerCase());
+  }
+  return names.every((name) => carried.has(name.toLowerCase()));
 }
 
 export function forgejoIssueNatives(): Readonly<
@@ -249,7 +269,8 @@ export function forgejoIssueNatives(): Readonly<
         ),
       );
       const type = input.type ?? 'issues';
-      const labels = labelFilter(input.labels);
+      const labelNames = nameList(input.labels);
+      const labels = labelNames.length === 0 ? undefined : labelNames.join(',');
       const author = input.author?.toLowerCase();
       const scope = createHash('sha256')
         .update(
@@ -274,12 +295,14 @@ export function forgejoIssueNatives(): Readonly<
       const result = await discover({
         limit: input.limit,
         start,
-        // The listing asked for one kind and one author; it checks both
-        // again, as an instance that ignores a filter would answer more.
+        // The listing asked for one kind, one author and its labels; it
+        // checks each again, as an instance that ignores a filter (a label
+        // the repository lacks) would answer more.
         normalize: (item) => {
           if (
             isPullRequestRow(item) !== (type === 'pulls') ||
-            !openedBy(item, author)
+            !openedBy(item, author) ||
+            !carriesLabels(item, labelNames)
           )
             return null;
           const issue = forgejoIssue(item, {

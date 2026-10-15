@@ -884,10 +884,11 @@ never adds, removes or restores one.
 ### TASK-R64 · A code host source reads its issues or its pull requests, never both
 
 A GitHub or Forgejo source reads a repository's open issues, or its open pull requests when it
-asks for them (`type: pulls`), and only those its `author` opened when it names one. Its issues
-and its pull requests keep a position each, and a source reads again only the tasks of its own
-kind, so a sync of a repository's issues and one of its pull requests never touch each other's
-tasks.
+asks for them (`type: pulls`), only those its `author` opened when it names one, and only those
+carrying every label it names, even where the tracker ignores a label the repository lacks. Its
+issues and its pull requests keep a position each, and a source reads again only the tasks of its
+own kind, so a sync of a repository's issues and one of its pull requests never touch each
+other's tasks.
 
 - **Example**: Noah syncs the issues of the repository ops and, in another automation, the pull
   requests `renovate[bot]` opened there → the board gets a task per issue and a task per

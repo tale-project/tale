@@ -73,14 +73,14 @@ template:
           title: Reprend là où la dernière exécution s’est arrêtée
           detail: Le projet retient jusqu’où les issues ou pull requests ouvertes du dépôt ont été lues.
     - title: Reads the next batch of open items
-      detail: Up to 100, oldest first. An author and labels can narrow the batch; an item with any of the labels is read.
+      detail: Up to 100, oldest first. An author and labels can narrow the batch; an item needs every one of the labels.
       i18n:
         de:
           title: Liest den nächsten Stapel offener Einträge
-          detail: Bis zu 100, die ältesten zuerst. Ein Autor und Labels können den Stapel eingrenzen; gelesen wird ein Eintrag mit einem der Labels.
+          detail: Bis zu 100, die ältesten zuerst. Ein Autor und Labels können den Stapel eingrenzen; ein Eintrag braucht alle Labels.
         fr:
           title: Lit le lot suivant d’éléments ouverts
-          detail: Jusqu’à 100, les plus anciens d’abord. Un auteur et des étiquettes peuvent restreindre le lot ; un élément avec l’une des étiquettes est lu.
+          detail: Jusqu’à 100, les plus anciens d’abord. Un auteur et des étiquettes peuvent restreindre le lot ; un élément doit avoir toutes les étiquettes.
     - title: Reads items imported earlier again
       detail: Up to 50 per run, the longest-unchecked first, so every task keeps its item's latest title, text and state.
       i18n:
@@ -243,7 +243,7 @@ template:
     - id: labels
       kind: list
       label: Only items with these labels
-      description: Leave it empty to sync every open item. With several labels, an item needs any one of them.
+      description: Leave it empty to sync every open item. With several labels, an item needs all of them.
       placeholder: bug
       maxItems: 10
       itemMaxLength: 50
@@ -253,11 +253,11 @@ template:
       i18n:
         de:
           label: Nur Einträge mit diesen Labels
-          description: Leer lassen, um alle offenen Einträge zu synchronisieren. Bei mehreren Labels genügt eines davon.
+          description: Leer lassen, um alle offenen Einträge zu synchronisieren. Bei mehreren Labels braucht ein Eintrag alle.
           placeholder: bug
         fr:
           label: Seulement les éléments avec ces étiquettes
-          description: Laisse vide pour synchroniser tous les éléments ouverts. Avec plusieurs étiquettes, l’une d’elles suffit.
+          description: Laisse vide pour synchroniser tous les éléments ouverts. Avec plusieurs étiquettes, un élément doit toutes les avoir.
           placeholder: bug
     - id: connection
       kind: credential

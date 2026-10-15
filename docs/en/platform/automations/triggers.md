@@ -297,7 +297,7 @@ The kinds of source:
 | --- | --- | --- |
 | `github` | A repository's open issues, or its open pull requests with `type: pulls`. | `owner`, `repo`; optional `type` (`issues` or `pulls`), `labels` (an item needs every one), `author` (a login, such as `renovate[bot]`). |
 | `github-security` | A repository's open security alerts, one task per alert. | `owner`, `repo`, `alerts` (any of `code-scanning`, `dependabot`, `secret-scanning`); optional `minSeverity` (`low`, `medium`, `high`, `critical`) and `tools` (code scanning tools, such as `CodeQL`). |
-| `forgejo` | A repository's open issues or pull requests on the instance its credentials name. | `owner`, `repo`; optional `type`, `labels` (an item needs any one), `author` (a user name). |
+| `forgejo` | A repository's open issues or pull requests on the instance its credentials name. | `owner`, `repo`; optional `type`, `labels` (an item needs every one), `author` (a user name). |
 | `glitchtip` | A project's unresolved issues. | `organization`, `project`; optional `query` (GlitchTip's search). |
 
 Every kind also takes `credential` and `taskLabels`: up to 10 labels each task the source creates is given, so a board several sources fill shows where a task came from. A task the sync made before keeps the labels it has, and a label the project does not have yet is added to the project.

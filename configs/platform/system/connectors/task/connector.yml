@@ -493,7 +493,7 @@ actions:
                   owner: { type: string, minLength: 1, maxLength: 99, description: The repository's owner. }
                   repo: { type: string, minLength: 1, maxLength: 100, description: The repository's name. }
                   type: { type: string, enum: [issues, pulls], description: 'Its open issues (the default) or its open pull requests.' }
-                  labels: { type: string, maxLength: 1000, description: 'Only items carrying any of these labels, separated by commas; every open item when empty.' }
+                  labels: { type: string, maxLength: 1000, description: 'Only items carrying every one of these labels, separated by commas; every open item when empty.' }
                   author: { type: string, maxLength: 100, description: 'Only the items this user opened, such as renovate; anyone''s when empty.' }
                   credential: { type: string, maxLength: 200, description: 'The Forgejo connection to read with, by name; the default one when empty or left out. The connection names the instance.' }
                   taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:forgejo.' }

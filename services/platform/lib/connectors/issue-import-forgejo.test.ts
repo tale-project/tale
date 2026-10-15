@@ -143,12 +143,13 @@ describe('Forgejo issue intake', () => {
   });
 
   it('reads the open pull requests one user opened [TASK-R64]', async () => {
+    const labels = [{ name: 'dependencies' }, { name: 'UI' }];
     fetchPage.mockResolvedValueOnce(
       response([
-        pullRequest(2),
-        pullRequest(3, 'mia'),
-        forgejoIssue(4, { user: { login: 'renovate' } }),
-        pullRequest(5, 'Renovate'),
+        { ...pullRequest(2), labels },
+        { ...pullRequest(3, 'mia'), labels },
+        forgejoIssue(4, { user: { login: 'renovate' }, labels }),
+        { ...pullRequest(5, 'Renovate'), labels },
       ]),
     );
     const imported = (await list({
@@ -164,6 +165,32 @@ describe('Forgejo issue intake', () => {
     expect(asked.searchParams.get('type')).toBe('pulls');
     expect(asked.searchParams.get('created_by')).toBe('renovate');
     expect(asked.searchParams.get('labels')).toBe('dependencies,ui');
+  });
+
+  it('keeps only the items carrying every label named, though the instance ignores a label the repository lacks [TASK-R64]', async () => {
+    // Forgejo drops a label name the repository has no label of, and
+    // answers as if it had not been asked: here every open issue.
+    fetchPage.mockResolvedValueOnce(
+      response([
+        forgejoIssue(1),
+        forgejoIssue(2, { labels: [{ name: 'bug' }] }),
+        forgejoIssue(3, { labels: [{ name: 'Bug' }, { name: 'typo' }] }),
+        forgejoIssue(4, { labels: [] }),
+        forgejoIssue(5, {
+          labels: [{ name: 'typo' }, { name: 'bug' }, { name: 'ui' }],
+        }),
+      ]),
+    );
+    const imported = (await list({ labels: 'bug, typo' })) as {
+      issues: Array<{ externalId: string }>;
+    };
+    expect(imported.issues.map((issue) => issue.externalId)).toEqual([
+      `${endpoint}/example/web#3`,
+      `${endpoint}/example/web#5`,
+    ]);
+    expect(
+      new URL(String(fetchPage.mock.calls[0]?.[0])).searchParams.get('labels'),
+    ).toBe('bug,typo');
   });
 
   it('follows the next page the instance links, and a full page without one', async () => {

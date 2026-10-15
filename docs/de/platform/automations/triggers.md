@@ -297,7 +297,7 @@ Die Arten von Quellen:
 | --- | --- | --- |
 | `github` | Die offenen Issues eines Repositorys, oder mit `type: pulls` seine offenen Pull Requests. | `owner`, `repo`; optional `type` (`issues` oder `pulls`), `labels` (ein Eintrag braucht alle), `author` (ein Login, etwa `renovate[bot]`). |
 | `github-security` | Die offenen Sicherheitswarnungen eines Repositorys, eine Aufgabe pro Warnung. | `owner`, `repo`, `alerts` (beliebige aus `code-scanning`, `dependabot`, `secret-scanning`); optional `minSeverity` (`low`, `medium`, `high`, `critical`) und `tools` (Code-Scanning-Werkzeuge, etwa `CodeQL`). |
-| `forgejo` | Die offenen Issues oder Pull Requests eines Repositorys auf der Instanz, die seine Zugangsdaten nennen. | `owner`, `repo`; optional `type`, `labels` (ein Eintrag braucht eines davon), `author` (ein Benutzername). |
+| `forgejo` | Die offenen Issues oder Pull Requests eines Repositorys auf der Instanz, die seine Zugangsdaten nennen. | `owner`, `repo`; optional `type`, `labels` (ein Eintrag braucht alle), `author` (ein Benutzername). |
 | `glitchtip` | Die ungelösten Issues eines Projekts. | `organization`, `project`; optional `query` (die Suche von GlitchTip). |
 
 Jede Art nimmt außerdem `credential` und `taskLabels`: bis zu 10 Labels, die jede Aufgabe bekommt, die die Quelle anlegt, sodass ein Board, das mehrere Quellen füllen, zeigt, woher eine Aufgabe kommt. Eine Aufgabe, die die Synchronisierung früher angelegt hat, behält ihre Labels, und ein Label, das das Projekt noch nicht hat, wird ihm hinzugefügt.

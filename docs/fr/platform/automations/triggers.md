@@ -297,7 +297,7 @@ Les types de source :
 | --- | --- | --- |
 | `github` | Les issues ouvertes d’un dépôt, ou ses pull requests ouvertes avec `type: pulls`. | `owner`, `repo` ; facultatifs `type` (`issues` ou `pulls`), `labels` (un élément doit toutes les avoir), `author` (un login, par exemple `renovate[bot]`). |
 | `github-security` | Les alertes de sécurité ouvertes d’un dépôt, une tâche par alerte. | `owner`, `repo`, `alerts` (parmi `code-scanning`, `dependabot`, `secret-scanning`) ; facultatifs `minSeverity` (`low`, `medium`, `high`, `critical`) et `tools` (des outils de code scanning, par exemple `CodeQL`). |
-| `forgejo` | Les issues ou pull requests ouvertes d’un dépôt, sur l’instance que nomment ses identifiants. | `owner`, `repo` ; facultatifs `type`, `labels` (un élément doit en avoir une), `author` (un nom d’utilisateur). |
+| `forgejo` | Les issues ou pull requests ouvertes d’un dépôt, sur l’instance que nomment ses identifiants. | `owner`, `repo` ; facultatifs `type`, `labels` (un élément doit toutes les avoir), `author` (un nom d’utilisateur). |
 | `glitchtip` | Les issues non résolues d’un projet. | `organization`, `project` ; facultatif `query` (la recherche de GlitchTip). |
 
 Chaque type prend aussi `credential` et `taskLabels` : jusqu’à 10 étiquettes que reçoit chaque tâche créée par la source, pour qu’un tableau rempli par plusieurs sources montre d’où vient une tâche. Une tâche que la synchronisation a créée plus tôt garde ses étiquettes, et une étiquette que le projet n’a pas encore lui est ajoutée.

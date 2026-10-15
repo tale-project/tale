@@ -53,7 +53,7 @@ actions:
         title: Issues auflisten
       fr:
         title: Lister les issues
-    description: List a repository's issues, or its pull requests with type pulls. Labels narrow the list to items carrying any of them.
+    description: List a repository's issues, or its pull requests with type pulls. Labels narrow the list to items carrying every one of them; Forgejo ignores a name the repository has no label of, so a misspelt label widens the list.
     effects: read
     input:
       type: object
@@ -64,7 +64,7 @@ actions:
         repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
         state: { type: string, enum: [open, closed, all], description: 'Filter by state; open when left out.' }
         type: { type: string, enum: [issues, pulls], description: 'Issues or pull requests; both when left out.' }
-        labels: { type: string, maxLength: 1000, description: 'Comma-separated label names; items carrying any of them.' }
+        labels: { type: string, maxLength: 1000, description: 'Comma-separated label names; items carrying every one of them. A name the repository has no label of is ignored.' }
         created_by: { type: string, maxLength: 100, description: 'Only items this user opened.' }
         page: { type: integer, minimum: 1, description: 'Page number, from 1.' }
         limit: { type: integer, minimum: 1, maximum: 50, description: 'Results per page (at most 50).' }
@@ -298,7 +298,7 @@ actions:
         title: Issues für den Import auflisten
       fr:
         title: Lister les issues à importer
-    description: Read a repository's open issues (or its open pull requests with type pulls) for task intake, oldest first. Labels narrow the listing to items carrying any of them, author to the items one user opened. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
+    description: Read a repository's open issues (or its open pull requests with type pulls) for task intake, oldest first. Labels narrow the listing to items carrying every one of them, checked again on each item, since Forgejo ignores a name the repository has no label of; author narrows it to the items one user opened. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
     effects: read
     input:
       type: object
