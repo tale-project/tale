@@ -1072,7 +1072,8 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   `TALE_GIT_CREDENTIALS` carries one `<host> <username> <token>` line per
   brokered git host (github.com, a Forgejo instance's own host), and the
   `tale-git-credential` helper answers each git operation for those hosts
-  alone — never from `GITHUB_TOKEN` or any other ambient variable. The agent
+  alone, over HTTPS only — never from `GITHUB_TOKEN` or any other ambient
+  variable, and never a plain `http://` remote. The agent
   session is per-user and long-lived while a grant is per-turn, so the
   overlay's lifetime IS the revocation — a later ungranted turn never
   inherits the token, and nothing survives a container recreation. A pinned

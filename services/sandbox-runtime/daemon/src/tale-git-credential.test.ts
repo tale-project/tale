@@ -91,6 +91,17 @@ describe('tale-git-credential answers each host from the broker map alone [SBX-R
     ).toBe('');
   });
 
+  test('answers a mapped host over HTTPS only, never a plain http remote', () => {
+    expect(
+      ask('get', 'protocol=http\nhost=github.com\n\n', {
+        TALE_GIT_CREDENTIALS: MAP,
+      }),
+    ).toEqual({ status: 0, stdout: '' });
+    expect(
+      ask('get', 'host=github.com\n\n', { TALE_GIT_CREDENTIALS: MAP }).stdout,
+    ).toBe('');
+  });
+
   test('ignores a line missing its token, and every operation but get', () => {
     expect(
       ask('get', request('github.com'), {

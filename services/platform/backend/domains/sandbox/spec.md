@@ -105,8 +105,9 @@ it (`TASK-R79`).
 ### SBX-R40 · Git in a sandbox signs in only to the hosts of the turn's equipped connectors
 
 The helper answers a host only from what the turn was handed for it, and nothing for any other
-host — not from `GITHUB_TOKEN` or any other variable a secret or a person set. A connector that
-declares no git host hands the sandbox nothing.
+host — not from `GITHUB_TOKEN` or any other variable a secret or a person set. It answers over
+HTTPS only, never a plain `http://` remote, which would carry the token in clear. A connector
+that declares no git host hands the sandbox nothing.
 
 - **Example**: The Coder is equipped with GitHub and Forgejo (`git.tale.dev`) and has a secret
   named `GITHUB_TOKEN`. It pushes to `git.tale.dev` → git signs in with the Forgejo credential,
