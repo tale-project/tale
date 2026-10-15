@@ -1,5 +1,6 @@
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
+  foldedLabels,
   MANAGED_TASK_INITIAL_STATUSES,
   managedProjectLabelSchema,
   managedTaskSchema,
@@ -37,9 +38,6 @@ import {
  * starts in, and never reads or moves it afterwards. Nothing absent from a
  * declaration is deleted.
  */
-
-const byName = (left: string, right: string) =>
-  left < right ? -1 : left > right ? 1 : 0;
 
 /** A label's row, matched as the catalog matches it: whatever the case. */
 async function findLabel(
@@ -130,10 +128,12 @@ export async function writeManagedProjectLabel(
     await renameTaskLabel(tx, auth, { labelId: label.id, name: config.name });
 }
 
-/** A task in the shape its declaration reads. Its assignee reads as the
- * project agent it is assigned to, and `null` otherwise — also while a
- * person or an automation holds it, whom a declaration leaves alone until
- * it names an agent. */
+/** A task in the shape its declaration reads. Its labels read case-folded
+ * (`foldedLabels`): a task wears a label by its name whatever its case, and
+ * the spelling is the catalog's, which `project-label` declares. Its
+ * assignee reads as the project agent it is assigned to, and `null`
+ * otherwise — also while a person or an automation holds it, whom a
+ * declaration leaves alone until it names an agent. */
 async function managedTaskView(
   sql: Sql | TransactionSql,
   task: TaskRow,
@@ -149,7 +149,7 @@ async function managedTaskView(
     projectId: task.projectId,
     taskId: task.id,
     title: task.title,
-    labels: labels.map((label) => label.name).sort(byName),
+    labels: foldedLabels(labels.map((label) => label.name)),
     assigneeAgentId: task.assigneeType === 'agent' ? task.assigneeId : null,
     priority: task.priority,
   };

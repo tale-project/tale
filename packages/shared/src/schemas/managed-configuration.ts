@@ -296,10 +296,24 @@ export type ManagedProjectAgent = z.infer<typeof managedProjectAgentSchema>;
  * work's own and never read against the declaration. */
 export const MANAGED_TASK_INITIAL_STATUSES = ['backlog', 'todo'] as const;
 
+/** A task's label names as its declaration and the platform's readback
+ * state them: case-folded, in one order. */
+export function foldedLabels(labels: readonly string[]): string[] {
+  return labels
+    .map((label) => label.toLowerCase())
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+}
+
 /** A standing task: its title and — when stated — its labels, the project
  * agent it is assigned to (`null` for nobody) and its priority (`null` for
  * none). A field left out keeps what is stored. Its description belongs to
- * `task-instructions`; its status is never declared. */
+ * `task-instructions`; its status is never declared.
+ *
+ * A task wears a label by its name whatever its case, as the project's
+ * catalog matches it, and the label's spelling is the catalog's (which
+ * `project-label` declares). So its labels read case-folded, here and in
+ * the platform's readback: `Bug` declared on a task in a project whose
+ * label is `bug` is the same label, and never reads as changed. */
 export const managedTaskSchema = z.strictObject({
   ...project,
   taskId: identity,
@@ -311,6 +325,7 @@ export const managedTaskSchema = z.strictObject({
         labels.length,
       'A label is one label whatever its case',
     )
+    .transform((labels) => foldedLabels(labels))
     .optional(),
   assigneeAgentId: identity.nullable().optional(),
   priority: z.enum(TASK_PRIORITIES).nullable().optional(),

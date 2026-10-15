@@ -234,6 +234,28 @@ describe('a declaration creates projects, labels, agents, tasks, secrets and cre
     ).toBe(false);
   });
 
+  test('names a task’s labels whatever their case, leaving their spelling to the project’s labels', () => {
+    const labelled = (labels: string[]) =>
+      declare([{ ...task, config: { ...task.config, labels } }]).data
+        ?.resources[0];
+    const declared = labelled(['Release', 'Bug']);
+    expect(declared?.config).toMatchObject({ labels: ['bug', 'release'] });
+    if (declared === undefined) throw new Error('no task');
+    // A project whose built-in label is `bug` and whose `Release` label is
+    // declared reads the task's labels back case-folded: the same labels.
+    expect(
+      resourceConverged(declared, {
+        projectId: PROJECT,
+        taskId: TASK,
+        title: 'Manage the fleet',
+        labels: ['bug', 'release'],
+        assigneeAgentId: AGENT,
+        priority: null,
+      }),
+    ).toBe(true);
+    expect(labelled(['Bug', 'bug'])).toBeUndefined();
+  });
+
   test('reads a secret only from a variable under its own prefix, and a credential’s fields as its sign-in takes them', () => {
     for (const envName of ['DATABASE_URL', 'TALE_PROVIDER_KEY_X', ''])
       expect(
@@ -304,7 +326,8 @@ describe('a field a declaration leaves out keeps what is stored', () => {
     projectId: PROJECT,
     taskId: TASK,
     title: 'Manage the fleet',
-    labels: ['Release'],
+    // The platform reads a task's labels case-folded.
+    labels: ['release'],
     assigneeAgentId: AGENT,
     priority: 'p2',
   };

@@ -623,7 +623,8 @@ backlog or todo — and its title, labels, priority and agent; its description c
 declared `task-instructions`. Afterwards its status is the work's own: the declaration never
 reads or moves it. It changes the title, labels, priority and agent only against the version
 its plan read, a field it leaves out keeping what is stored; a person holding the task keeps it
-until the declaration names an agent.
+until the declaration names an agent. A task names its labels whatever their case, and reads
+them back case-folded: their spelling is the project's, which a declared label sets.
 
 - **Example**: The Fleet declaration creates "Manage the fleet" in todo; its agent moves it to
   done → the next plan reads it unchanged and leaves it done.

@@ -100,7 +100,8 @@ const view = {
   projectId: PROJECT,
   taskId: TASK,
   title: 'Manage the fleet',
-  labels: ['Release'],
+  // Case-folded: the catalog's row is spelled `Release`.
+  labels: ['release'],
   assigneeAgentId: null,
   priority: 'p1',
 };
@@ -131,7 +132,7 @@ describe('a declared task starts in the column its declaration names, which it n
         projectId: PROJECT,
         title: 'Manage the fleet',
         status: 'todo',
-        labels: ['Release'],
+        labels: ['release'],
         assigneeType: 'agent',
         assigneeId: AGENT,
         description: 'Keep the fleet moving.',
@@ -178,6 +179,34 @@ describe('a declared task starts in the column its declaration names, which it n
     });
     expect(service.assignTask).not.toHaveBeenCalled();
     expect(service.createTask).not.toHaveBeenCalled();
+  });
+
+  it('wears a label by its name whatever its case: `Bug` declared on the built-in `bug` is unchanged', async () => {
+    const world = {
+      tasks: [TASK],
+      labels: [
+        { id: 'l-1', name: 'Release' },
+        { id: 'l-2', name: 'bug' },
+      ],
+    };
+    const task = { ...stored, labelIds: ['l-1', 'l-2'] };
+    // Read by the plan, then by the write.
+    vi.mocked(service.loadTaskOrThrow)
+      .mockResolvedValueOnce(task)
+      .mockResolvedValueOnce(task);
+    const read = await readManagedTask(database(world), ada, PROJECT, TASK);
+    expect(read.config?.labels).toEqual(['bug', 'release']);
+    await writeManagedTask(database(world), ada, {
+      config: {
+        projectId: PROJECT,
+        taskId: TASK,
+        title: 'Manage the fleet',
+        labels: ['Bug', 'release'],
+      },
+      expectedHash: read.hash,
+    });
+    // The same labels: nothing to change, so the apply's readback matches.
+    expect(service.updateTask).not.toHaveBeenCalled();
   });
 
   it('reads an id nothing holds as absent only when it may create, and creates nothing over a stale hash', async () => {

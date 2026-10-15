@@ -72,7 +72,13 @@ const dispatch = {
   ],
 };
 
-function fleet(overrides: { agentName?: string; dispatch?: object } = {}) {
+function fleet(
+  overrides: {
+    agentName?: string;
+    dispatch?: object;
+    taskLabels?: string[];
+  } = {},
+) {
   return parsePlatformConfiguration({
     schemaVersion: 1,
     resources: [
@@ -97,7 +103,7 @@ function fleet(overrides: { agentName?: string; dispatch?: object } = {}) {
           projectId: PROJECT,
           taskId: TASK,
           title: 'Manage the fleet',
-          labels: ['Release'],
+          labels: overrides.taskLabels ?? ['Release'],
           assigneeAgentId: AGENT,
         },
       },
@@ -251,7 +257,8 @@ function platform() {
           projectId: task.projectId,
           taskId: id,
           title: task.title,
-          labels: sorted(task.labels),
+          // Case-folded, as the platform reads a task's labels.
+          labels: sorted(task.labels.map((label) => label.toLowerCase())),
           assigneeAgentId: task.assigneeAgentId,
           priority: task.priority,
         }
@@ -536,10 +543,22 @@ function platform() {
                 agents.get(config.assigneeAgentId)?.projectId !== projectId
               )
                 throw new NativeRefusal('HTTP 400 TASK_ASSIGNEE_INVALID');
+              // A task wears the catalog's row, matched whatever its case.
+              const catalog = labels.get(projectId) ?? [];
+              const worn = (config?.labels as string[] | undefined)?.map(
+                (name) => {
+                  const row = catalog.find(
+                    (label) => label.toLowerCase() === name.toLowerCase(),
+                  );
+                  if (row === undefined)
+                    throw new NativeRefusal('HTTP 400 TASK_LABEL_UNKNOWN');
+                  return row;
+                },
+              );
               tasks.set(taskId, {
                 projectId,
                 title: config?.title ?? '',
-                labels: config?.labels ?? task?.labels ?? [],
+                labels: worn ?? task?.labels ?? [],
                 assigneeAgentId:
                   config?.assigneeAgentId ?? task?.assigneeAgentId ?? null,
                 priority: config?.priority ?? task?.priority ?? null,
@@ -775,6 +794,29 @@ describe('a declaration creates a fleet whole', () => {
       description: 'Keep the fleet moving.',
       assigneeAgentId: AGENT,
     });
+    const again = await planPlatformConfiguration(configuration, api.client, {
+      environment,
+    });
+    expect(again.resources.every(({ action }) => action === 'unchanged')).toBe(
+      true,
+    );
+  });
+
+  test('converges a task naming its labels in another case than the project spells them [TASK-R67]', async () => {
+    const api = platform();
+    // `Bug` against the built-in `bug`, `release` against the declared
+    // `Release` label.
+    const configuration = fleet({ taskLabels: ['Bug', 'release'] });
+    await applyPlatformConfiguration(
+      configuration,
+      await planPlatformConfiguration(configuration, api.client, {
+        environment,
+      }),
+      api.client,
+      await receiptPath(),
+      { environment },
+    );
+    expect(api.tasks.get(TASK)?.labels).toEqual(['bug', 'Release']);
     const again = await planPlatformConfiguration(configuration, api.client, {
       environment,
     });
