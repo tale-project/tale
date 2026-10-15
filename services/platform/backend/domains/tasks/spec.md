@@ -749,7 +749,7 @@ the project's own agents.
   link to it, even though Billing has no dispatch of its own. A Billing task the Coder took reads
   "Coder", and Billing's assignee list offers the Coder "From Development's dispatch".
 
-### TASK-R79 · A run of another project's agent gets that agent's equipment only from who may edit both projects
+### TASK-R79 · A run on a served board is equipped only for a starter who edits both projects
 
 On a board another project's dispatch serves, a run a person, an API key or a schedule starts
 works with the agent's full equipment — its secrets and brokered credentials, its standing
