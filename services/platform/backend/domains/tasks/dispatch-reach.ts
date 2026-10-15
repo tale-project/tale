@@ -187,8 +187,9 @@ export async function readAgentReach(
   return reachFromHome(sql, { ...args, ...agent });
 }
 
-/** The agent's own project, and whether that project is archived. */
-async function readAgentHome(
+/** The agent's own project, and whether that project is archived; null when
+ * no agent of the organization has that id. */
+export async function readAgentHome(
   sql: Sql | TransactionSql,
   args: { organizationId: string; agentId: string },
 ): Promise<{ projectId: string; archived: boolean } | null> {

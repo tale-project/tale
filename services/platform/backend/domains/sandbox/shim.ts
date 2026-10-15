@@ -35,6 +35,7 @@ import {
 import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
   isTaskRunConfined,
+  runReachedProjects,
   runStarterMayEditProject,
 } from '../tasks/run-authority.ts';
 import { getCurrentUser } from '../users/service.ts';
@@ -170,11 +171,16 @@ async function taskRunConfinement(
   | {
       taskId?: string;
       currentExecution?: Omit<SessionCurrentExecution, 'observedAt'>;
+      /** The other boards this run's task tools reach: of the agent's, the
+       * ones its starter may act in, and its own task's
+       * (`tasks/run-authority.ts`, `runReachedProjects`). */
+      reachedProjectIds: string[];
     }
 > {
   if (args.execId === undefined) {
+    // No run to answer to: nobody's right reaches another board.
     return isStandingProjectAgentSession(args.agentId, args.sessionId)
-      ? {}
+      ? { reachedProjectIds: [] }
       : 'ended';
   }
   const runs = await sql<
@@ -220,6 +226,12 @@ async function taskRunConfinement(
     organizationId: args.organizationId,
     ...run,
   });
+  const reachedProjectIds = await runReachedProjects(sql, {
+    organizationId: args.organizationId,
+    homeProjectId: args.projectId,
+    reachedProjectIds: args.reachedProjectIds ?? [],
+    run,
+  });
   const execution =
     typeof run.runId === 'string' &&
     run.runId.length > 0 &&
@@ -240,7 +252,11 @@ async function taskRunConfinement(
           },
         }
       : {};
-  return { ...(confined ? { taskId: run.taskId } : {}), ...execution };
+  return {
+    ...(confined ? { taskId: run.taskId } : {}),
+    ...execution,
+    reachedProjectIds,
+  };
 }
 
 /** A fresh self read, bound to the token's live task exec, not its hint alone. */
@@ -311,13 +327,12 @@ async function requireProjectTaskRun(
       403,
     );
   }
-  const reachedProjectIds = binding.reachedProjectIds ?? [];
   const confinement = await taskRunConfinement(tx, {
     organizationId: args.organizationId,
     sessionId: args.sessionId,
     agentId: binding.actorId,
     projectId: binding.projectId,
-    reachedProjectIds,
+    reachedProjectIds: binding.reachedProjectIds ?? [],
     execId: args.taskRunExecId,
   });
   if (
@@ -333,7 +348,7 @@ async function requireProjectTaskRun(
   }
   return {
     projectId: binding.projectId,
-    reachedProjectIds,
+    reachedProjectIds: confinement.reachedProjectIds,
     agentId: binding.actorId,
     execId: args.taskRunExecId,
   };
@@ -535,22 +550,23 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
                   ? { execId: args.taskRunExecId }
                   : {}),
               })
-            : {};
+            : { reachedProjectIds: [] };
         if (confinement === 'ended') {
           return { allowed: false, reason: 'run_ended' };
         }
         if (confinement === 'revoked') {
           return { allowed: false, reason: 'schedule_revoked' };
         }
-        const reached = binding.reachedProjectIds ?? [];
+        const reached = confinement.reachedProjectIds;
         return {
           allowed: true,
           actorId: binding.actorId,
           scope: {
             kind: 'project',
             projectId: binding.projectId,
-            // The boards its project's dispatch serves: its task tools reach
-            // their tasks too (`tasks/dispatch-reach.ts`).
+            // The boards its project's dispatch serves that this run's
+            // starter may act in: its task tools reach their tasks too
+            // (`tasks/dispatch-reach.ts`, `tasks/run-authority.ts`).
             ...(reached.length > 0 ? { reachedProjectIds: reached } : {}),
           },
           ...(confinement.taskId !== undefined

@@ -698,7 +698,7 @@ assigned that board's tasks, started on them — by the dispatch, a person or an
 find, read, comment on, move, change the metadata of, review and hand on the reviews of its tasks,
 each as its tools are granted. They create no task there, start no other agent there, and read
 nothing else of that project. A run the dispatch starts there answers to the dispatch
-(`TASK-R47`).
+(`TASK-R47`); a run anyone else starts there answers to both projects (`TASK-R79`).
 
 - **Example**: Bea assigns "Fix the importer" on Billing to the Coder, an agent of Development
   in the dispatch's pool → the Coder is started on it, comments on it and moves it to In review.
@@ -739,6 +739,23 @@ the project's own agents.
 - **Example**: Bea opens Billing's Dispatch tab → it reads "Served by Development's dispatch", a
   link to it, even though Billing has no dispatch of its own. A Billing task the Coder took reads
   "Coder", and Billing's assignee list offers the Coder "From Development's dispatch".
+
+### TASK-R79 · A run of another project's agent gets that agent's equipment only from who may edit both projects
+
+On a board another project's dispatch serves, a run a person, an API key or a schedule starts
+works with the agent's full equipment — its secrets and brokered credentials, its standing
+workspace, and task tools beyond its own task — only while its starter may edit the board's
+project and the agent's own project, and while the dispatch still reaches the board. Any other
+run of that agent there is confined to its own task, in a workspace of its own, as a member's
+run is. Wherever it works, a run's task tools reach only the boards the dispatch serves that its
+starter may edit, besides its own task's; a run the dispatch started reaches every board the
+dispatch serves.
+
+- **Example**: Development's dispatch serves Billing and Payroll. Bea edits Billing and nothing
+  else. She chooses Start agent on a Billing task assigned to the Coder → the run works only on
+  that task, in a workspace of her own, without the Coder's secrets. Ada, who edits Development
+  and Billing but not Payroll, starts the Coder on a Development task → it may work Billing's
+  tasks, but none of Payroll's.
 
 ## What a run is handed
 

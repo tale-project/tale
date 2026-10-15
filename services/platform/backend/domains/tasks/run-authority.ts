@@ -9,7 +9,11 @@ import {
   memberSessionIdForProjectAgent,
   standingSessionIdForProjectAgent,
 } from '../../core/sandbox/session_naming.ts';
-import { dispatchReachesSource } from './dispatch-reach.ts';
+import {
+  agentReachesProject,
+  dispatchReachesSource,
+  readAgentHome,
+} from './dispatch-reach.ts';
 import { memberEditableProjects } from './edit-right.ts';
 
 /**
@@ -43,6 +47,16 @@ import { memberEditableProjects } from './edit-right.ts';
  * of another board only while the dispatch still reaches that board as a
  * source (`dispatch-reach.ts`); switching dispatch off, or the source
  * becoming unreachable, confines its runs the same way.
+ *
+ * A run of an agent on another project's board — one its own project's
+ * dispatch serves — answers to both projects: its starter acts with the
+ * agent's full equipment only while it may act in the board's project AND
+ * in the agent's own, and while the agent still reaches the board
+ * ({@link runStarterMayActWithAgent}). Someone who edits only the served
+ * board gets a confined run in a workspace of their own: the agent's
+ * secrets, credentials and standing workspace belong to its own project.
+ * Its task tools reach, beyond the agent's own project, only the boards
+ * its starter may act in, and its own task's ({@link runReachedProjects}).
  *
  * The workspace family is chosen when the run is kicked, by the starter's
  * rights then, and checked again whenever the run starts: its turn job
@@ -109,37 +123,134 @@ export async function runStarterMayEditProject(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string; startedBy: string },
 ): Promise<boolean> {
+  return (
+    await runStarterActingProjects(sql, {
+      organizationId: args.organizationId,
+      startedBy: args.startedBy,
+      projectIds: [args.projectId],
+    })
+  ).has(args.projectId);
+}
+
+/** Which of the named projects a run's starter may act in with the agent's
+ * full equipment now, each judged as {@link runStarterMayEditProject}
+ * judges one. */
+export async function runStarterActingProjects(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    startedBy: string;
+    projectIds: readonly string[];
+  },
+): Promise<Set<string>> {
+  const projectIds = [...new Set(args.projectIds)];
+  const acting = new Set<string>();
+  if (projectIds.length === 0) return acting;
   const starter = parseRunStarter(args.startedBy);
-  if (starter.kind === 'trigger') {
-    return scheduleMayActInProject(sql, {
-      organizationId: args.organizationId,
-      projectId: args.projectId,
-      triggerId: starter.triggerId,
-    });
-  }
-  if (starter.kind === 'dispatch') {
-    return dispatchMayActInProject(sql, {
-      organizationId: args.organizationId,
-      projectId: args.projectId,
-      dispatchProjectId: starter.projectId,
-    });
+  if (starter.kind === 'trigger' || starter.kind === 'dispatch') {
+    for (const projectId of projectIds) {
+      const may =
+        starter.kind === 'trigger'
+          ? await scheduleMayActInProject(sql, {
+              organizationId: args.organizationId,
+              projectId,
+              triggerId: starter.triggerId,
+            })
+          : await dispatchMayActInProject(sql, {
+              organizationId: args.organizationId,
+              projectId,
+              dispatchProjectId: starter.projectId,
+            });
+      if (may) acting.add(projectId);
+    }
+    return acting;
   }
   const userId = runStarterUserId(args.startedBy);
-  if (userId === null) return false;
+  if (userId === null) return acting;
   // A starter may be an API key that is not a person: it acts with the role
   // it was made with, and the audience it was given.
-  const editable = await memberEditableProjects(sql, {
+  return memberEditableProjects(sql, {
     organizationId: args.organizationId,
     userId,
-    projectIds: [args.projectId],
+    projectIds,
   });
-  return editable.has(args.projectId);
+}
+
+/**
+ * Whether a run's starter may act with the agent's full equipment on a task
+ * of the project now. On the agent's own project's board that is
+ * {@link runStarterMayEditProject}. On a board its project's dispatch serves
+ * (`dispatch-reach.ts`), the agent must still reach that board, and the
+ * starter must be able to act in both the board's project and the agent's
+ * own: the agent's secrets, credentials and standing workspace are its own
+ * project's, and nobody gets them by editing only a board it serves. An
+ * agent no longer in the organization reaches no other board, and its run
+ * is judged on the task's project alone.
+ */
+export async function runStarterMayActWithAgent(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    agentId: string;
+    startedBy: string;
+  },
+): Promise<boolean> {
+  const home = await readAgentHome(sql, args);
+  if (home === null || home.projectId === args.projectId) {
+    return runStarterMayEditProject(sql, args);
+  }
+  if (!(await agentReachesProject(sql, args))) return false;
+  const acting = await runStarterActingProjects(sql, {
+    organizationId: args.organizationId,
+    startedBy: args.startedBy,
+    projectIds: [args.projectId, home.projectId],
+  });
+  return acting.has(args.projectId) && acting.has(home.projectId);
+}
+
+/**
+ * The other boards a run's task tools reach beyond the agent's own project:
+ * of those the agent reaches now (`reachedProjectIds`, `dispatch-reach.ts`),
+ * the ones its starter may act in, and always its own task's board, which a
+ * confined run works too. A run the agent's own project's dispatch started
+ * reaches every board that dispatch serves: the dispatch's reach is the
+ * agent's. Nobody widens what they may do by starting an agent another
+ * project's dispatch puts on their board.
+ */
+export async function runReachedProjects(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    /** The agent's own project. */
+    homeProjectId: string;
+    /** The boards the agent reaches now. */
+    reachedProjectIds: readonly string[];
+    run: { projectId: string; startedBy: string };
+  },
+): Promise<string[]> {
+  if (args.reachedProjectIds.length === 0) return [];
+  const starter = parseRunStarter(args.run.startedBy);
+  if (starter.kind === 'dispatch' && starter.projectId === args.homeProjectId) {
+    return [...args.reachedProjectIds];
+  }
+  const acting = await runStarterActingProjects(sql, {
+    organizationId: args.organizationId,
+    startedBy: args.run.startedBy,
+    projectIds: args.reachedProjectIds.filter(
+      (projectId) => projectId !== args.run.projectId,
+    ),
+  });
+  return args.reachedProjectIds.filter(
+    (projectId) => projectId === args.run.projectId || acting.has(projectId),
+  );
 }
 
 /** The workspace family a run of the agent works in, by who starts it — as
  * its first worker, the session a kick names: the agent's standing family
- * for a project editor (or a schedule that may act in the project), the
- * member's own family with this agent for anyone else. */
+ * for a starter who may act with the agent's full equipment on the task
+ * ({@link runStarterMayActWithAgent}), the member's own family with this
+ * agent for anyone else. */
 export async function sessionIdForAgentRun(
   sql: Sql | TransactionSql,
   args: {
@@ -149,7 +260,7 @@ export async function sessionIdForAgentRun(
     startedBy: string;
   },
 ): Promise<string> {
-  if (await runStarterMayEditProject(sql, args)) {
+  if (await runStarterMayActWithAgent(sql, args)) {
     return standingSessionIdForProjectAgent(args.agentId);
   }
   return memberSessionIdForProjectAgent(
@@ -159,7 +270,8 @@ export async function sessionIdForAgentRun(
 }
 
 /** Whether the run is confined to its own task (see the module comment): it
- * works in a member's workspace, or its starter may not edit the project. */
+ * works in a member's workspace, or its starter may not act with the agent's
+ * full equipment on the task ({@link runStarterMayActWithAgent}). */
 export async function isTaskRunConfined(
   sql: Sql | TransactionSql,
   run: {
@@ -171,5 +283,5 @@ export async function isTaskRunConfined(
   },
 ): Promise<boolean> {
   if (!isStandingProjectAgentSession(run.agentId, run.sessionId)) return true;
-  return !(await runStarterMayEditProject(sql, run));
+  return !(await runStarterMayActWithAgent(sql, run));
 }
