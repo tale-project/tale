@@ -413,6 +413,7 @@ connectors:
   vendorColumn: Connector
   vendorFilterLabel: Connector
   invalidPort: Gib eine ganze Zahl zwischen 1 und 65535 ein.
+  invalidEmailAddress: Gib eine E-Mail-Adresse ein, etwa support@example.com.
   catalog:
     emptyBody: >-
       Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das

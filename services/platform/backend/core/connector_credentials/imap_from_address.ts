@@ -5,12 +5,7 @@
  * public mirror in sync with the username.
  */
 
-/** True when `value` looks like `local@domain` (non-empty local + domain). */
-export function looksLikeEmailAddress(value: string): boolean {
-  const trimmed = value.trim();
-  const at = trimmed.lastIndexOf('@');
-  return at > 0 && at < trimmed.length - 1 && !/\s/.test(trimmed);
-}
+import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
 
 /** The mirrored From already stored on a credential row, when it is usable. */
 export function storedImapFromAddress(row: {

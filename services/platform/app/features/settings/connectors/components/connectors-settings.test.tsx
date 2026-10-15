@@ -234,6 +234,7 @@ const outlookConnector: ConnectorSummary = {
       type: 'string',
       required: false,
       requiredFor: ['client-credentials'],
+      format: 'email',
     },
     {
       key: 'fromAddress',
@@ -736,6 +737,39 @@ describe('ConnectorsSettings', () => {
       kind: 'add',
       config: { mailbox: ' promotion@example.com' },
     });
+  });
+
+  it('refuses a mailbox named by anything but its address, before Connect [CCRED-R12]', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+    const consent = within(
+      form.getByRole('group', {
+        name: 'Connect with your Microsoft Outlook account',
+      }),
+    );
+    const mailbox = consent.getByRole('textbox', { name: /^Mailbox/ });
+    const connect = consent.getByRole('button', { name: 'Connect' });
+
+    // A directory object ID: Graph takes it, the mail sync could not.
+    await user.type(mailbox, '9f1c2b7e-4d3a-4c8e-9b1f-2a6d5e8c7b40');
+    expect(connect).toBeDisabled();
+    expect(mailbox).toHaveAttribute('aria-invalid', 'true');
+    expect(
+      consent.getByText('Enter an email address, such as support@example.com.'),
+    ).toBeInTheDocument();
+    await user.click(connect);
+    expect(goToAuthorization).not.toHaveBeenCalled();
+
+    await user.clear(mailbox);
+    await user.type(mailbox, 'promotion@example.com');
+    expect(connect).toBeEnabled();
+    expect(
+      consent.queryByText(
+        'Enter an email address, such as support@example.com.',
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it('connects a person’s own mailbox when no mailbox is named', async () => {

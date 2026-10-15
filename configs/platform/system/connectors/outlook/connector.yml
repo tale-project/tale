@@ -29,6 +29,9 @@ configFields:
     # credential is added for a mailbox and keeps it; another mailbox is
     # another credential.
     fixed: true
+    # Named by its address, never by an ID Graph also takes: the Inbox, the
+    # composer and the mail sync tell the mailbox's own mail by it.
+    format: email
     description: >-
       The address of the mailbox to work in, such as a shared mailbox like
       support@example.com. Required for an app sign-in. With an OAuth
@@ -107,7 +110,7 @@ livePrelude: |
       return new Error(`${head}: permission denied — verify the app has the ${o.permission ? `${o.permission} Microsoft Graph scope` : 'required Microsoft Graph scopes'}.`);
     }
     if (r.status === 404 && o.notFound) return new Error(`${head}: ${o.notFound} not found.`);
-    if (r.status === 404 && o.mailboxRoot && outlookMailbox) return new Error(`${head}: Microsoft Graph has no mailbox ${outlookMailbox}${o.folder ? ` or no folder "${o.folder}" in it` : ''} — check the address in Settings → Connectors.`);
+    if (r.status === 404 && o.mailboxRoot && outlookMailbox) return new Error(`${head}: Microsoft Graph has no mailbox ${outlookMailbox}${o.folder ? ` or no folder "${o.folder}" in it` : ''} — add a credential with the right address in Settings → Connectors.`);
     // The wait Graph names (Retry-After, in seconds) rides in the sentence, so a sync can report it.
     if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); return new Error(`${head}: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
     if (!r.status || r.status >= 400) return new Error(`${head} (${r.status}): ${r.text()}`);

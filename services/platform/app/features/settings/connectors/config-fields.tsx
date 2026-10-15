@@ -6,6 +6,7 @@ import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 
 import { useLocalized } from '@/app/features/automations/components/settings-field-control';
+import { looksLikeEmailAddress } from '@/lib/shared/utils/email-address';
 
 import { type CredentialExtraModule } from '../credentials/adapter';
 import { type ConnectorSummary } from './hooks/backend';
@@ -73,7 +74,13 @@ function isValidFieldValue(
   field: ConnectorSummary['configFields'][number],
   value: string | number | boolean | undefined,
 ): boolean {
-  if (!isSupplied(value) || field.type !== 'number') return true;
+  if (!isSupplied(value)) return true;
+  // The server's own test: a mailbox named by an ID is refused there, for
+  // good — the setting is fixed — so the form says so before Connect.
+  if (field.format === 'email') {
+    return typeof value === 'string' && looksLikeEmailAddress(value);
+  }
+  if (field.type !== 'number') return true;
   const numberValue = typeof value === 'number' ? value : Number(value);
   return (
     Number.isFinite(numberValue) &&
@@ -178,11 +185,23 @@ export function ConnectorConfigFields({
             }
             value={current === undefined ? '' : String(current)}
             onChange={(e) => set(field.key, e.target.value)}
-            inputMode={field.type === 'number' ? 'numeric' : undefined}
+            inputMode={
+              field.type === 'number'
+                ? 'numeric'
+                : field.format === 'email'
+                  ? 'email'
+                  : undefined
+            }
             min={field.min}
             max={field.max}
             step={field.integer === true ? 1 : undefined}
-            errorMessage={invalid ? t('connectors.invalidPort') : undefined}
+            errorMessage={
+              !invalid
+                ? undefined
+                : field.format === 'email'
+                  ? t('connectors.invalidEmailAddress')
+                  : t('connectors.invalidPort')
+            }
             isInvalid={invalid}
             disabled={disabled === true || locked}
             disabledReason={lockedReason}

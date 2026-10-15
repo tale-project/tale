@@ -425,6 +425,7 @@ connectors:
   vendorColumn: Connector
   vendorFilterLabel: Connector
   invalidPort: Saisis un port entier compris entre 1 et 65535.
+  invalidEmailAddress: Saisis une adresse e-mail, par exemple support@example.com.
   catalog:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la

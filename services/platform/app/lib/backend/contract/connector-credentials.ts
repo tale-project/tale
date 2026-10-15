@@ -88,6 +88,8 @@ export interface ConnectorCredentialsContract {
         >;
         /** Set when the credential is added; an edit cannot change it. */
         fixed?: boolean;
+        /** What a string value must look like: `email`, a mail address. */
+        format?: 'email';
         type: 'string' | 'number' | 'boolean';
         key: string;
         label: string;

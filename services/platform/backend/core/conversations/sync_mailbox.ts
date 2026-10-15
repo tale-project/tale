@@ -28,9 +28,9 @@ import {
   FIRST_PASS_BACKFILL_DAYS,
   type MailboxSyncReceipt,
 } from '../../../lib/connectors/natives/platform-conversations';
+import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
 import { isRecord } from '../../../lib/utils/type-utils';
 import {
-  looksLikeEmailAddress,
   withFromAddress,
   withImapFromAddress,
 } from '../connector_credentials/imap_from_address';

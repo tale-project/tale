@@ -401,6 +401,7 @@ connectors:
   vendorColumn: Connector
   vendorFilterLabel: Connector
   invalidPort: Enter an integer port from 1 to 65535.
+  invalidEmailAddress: Enter an email address, such as support@example.com.
   catalog:
     emptyBody: >-
       This deployment ships no connector files. Check that the config root

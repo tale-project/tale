@@ -333,7 +333,7 @@ describe('a refused Outlook call says how the mailbox is granted [CONN-R30]', ()
         },
       ),
     ).toBe(
-      `Outlook list_messages failed: Microsoft Graph has no mailbox ${SHARED} — check the address in Settings → Connectors.`,
+      `Outlook list_messages failed: Microsoft Graph has no mailbox ${SHARED} — add a credential with the right address in Settings → Connectors.`,
     );
     expect(
       await refusal(
@@ -342,7 +342,7 @@ describe('a refused Outlook call says how the mailbox is granted [CONN-R30]', ()
         { config: { mailbox: SHARED }, http: fake.http },
       ),
     ).toBe(
-      `Outlook list_messages failed: Microsoft Graph has no mailbox ${SHARED} or no folder "archive" in it — check the address in Settings → Connectors.`,
+      `Outlook list_messages failed: Microsoft Graph has no mailbox ${SHARED} or no folder "archive" in it — add a credential with the right address in Settings → Connectors.`,
     );
   });
 

@@ -285,6 +285,25 @@ describe('a setting the connector fixes is kept for the credential’s life [CCR
     ).resolves.toBeUndefined();
   });
 
+  it('refuses a mailbox named by anything but its address, before anything is written', async () => {
+    // A directory object ID reaches the mailbox at Graph, but the Inbox,
+    // the composer and the mail sync tell its own mail by its address.
+    const objectId = '9f1c2b7e-4d3a-4c8e-9b1f-2a6d5e8c7b40';
+    const { sql, statements } = fakeSql();
+
+    await expect(
+      createCredential(sql, { ...APP_SIGN_IN, config: { mailbox: objectId } }),
+    ).rejects.toMatchObject({
+      code: 'CREDENTIAL_CONFIG_INVALID',
+      message: expect.stringContaining('must be an email address'),
+    });
+    expect(statements).toEqual([]);
+    for (const mailbox of [objectId, 'promotion', 'promotion@', '@example.com'])
+      expect(() =>
+        normalizeNewCredentialConfig('outlook', 'oauth2', { mailbox }),
+      ).toThrow(/must be an email address/);
+  });
+
   it('checks a new connection’s settings by the rules it will be created by', () => {
     expect(
       normalizeNewCredentialConfig('outlook', 'oauth2', {

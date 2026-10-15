@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { CONNECTOR_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
 import {
   buildAuthHeader,
   buildSecretBindings,
@@ -330,6 +331,16 @@ function normalizeConfig(
       throw new ConnectorCredentialError(
         'CREDENTIAL_CONFIG_INVALID',
         `"${field.label}" must be one of: ${field.enum.join(', ')}.`,
+      );
+    }
+    // A mailbox the credential is filed under is named by its address: an
+    // ID the vendor also takes would leave the Inbox and the mail sync
+    // without the address they tell its own mail by, for the credential's
+    // life (the setting is fixed).
+    if (field.format === 'email' && !looksLikeEmailAddress(s)) {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_CONFIG_INVALID',
+        `"${field.label}" must be an email address, such as support@example.com.`,
       );
     }
     out[field.key] = s;

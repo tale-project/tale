@@ -400,7 +400,11 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the server page **These settings cannot be used for this connection**
   (German with a German browser), 400, a link back to connector settings; no
   consent screen opens, and nothing is saved. A Slack start link carrying any
-  `config` answers the same.
+  `config` answers the same, and so does a `mailbox` that is no address. In
+  the form, a **Mailbox** holding a directory object ID says "Enter an email
+  address, such as support@example.com."
+  (`settings.connectors.invalidEmailAddress`) and keeps **Connect** and
+  **Add credential** unavailable until it holds an address.
 - [ ] `CONN-B16` · **A start link opened from another site** — Signed in as
   an Admin, put the start URL **Connect** opens for Outlook with a mailbox
   into a link on a page of another site (an HTML file served from

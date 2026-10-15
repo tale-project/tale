@@ -408,6 +408,24 @@ describe('connectorSchema', () => {
       ).toBe(false);
     });
 
+    it('declares a setting that takes a mail address, on a string field only', () => {
+      const parsed = connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        configFields: [{ ...mailbox, requiredFor: undefined, format: 'email' }],
+      });
+      expect(parsed.configFields[0]?.format).toBe('email');
+      for (const field of [
+        { ...mailbox, requiredFor: undefined, format: 'uuid' },
+        { key: 'port', label: 'Port', type: 'number', format: 'email' },
+      ])
+        expect(
+          connectorSchema.safeParse({
+            ...connectorSchema.parse(GITHUB),
+            configFields: [field],
+          }).success,
+        ).toBe(false);
+    });
+
     it('refuses a token URL the client secret would travel to in the clear', () => {
       const bad = {
         ...connectorSchema.parse(GITHUB),

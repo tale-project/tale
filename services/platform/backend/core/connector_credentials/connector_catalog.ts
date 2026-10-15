@@ -59,6 +59,8 @@ interface ConnectorSummary {
     requiredFor?: ConnectorAuthMethod[];
     /** Set when the credential is added; an edit cannot change it. */
     fixed?: boolean;
+    /** What a string value must look like: `email`, a mail address. */
+    format?: 'email';
     enum?: string[];
     integer?: boolean;
     min?: number;
@@ -147,6 +149,7 @@ export function listConnectorSummaries(): ConnectorSummary[] {
           requiredFor: field.requiredFor,
         }),
         ...(field.fixed === true && { fixed: true }),
+        ...(field.format !== undefined && { format: field.format }),
         ...(field.description !== undefined && {
           description: field.description,
         }),

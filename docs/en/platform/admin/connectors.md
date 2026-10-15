@@ -60,7 +60,7 @@ For OneDrive/SharePoint, **Use Entra ID SSO app** can copy an existing SSO regis
 
 ## Connect a shared Outlook mailbox
 
-A shared mailbox, such as `promotion@example.com`, has no sign-in of its own. Tale reaches it in one of two ways: your organization's own Microsoft app signs in as itself and is allowed into that one mailbox, or a person who already has Full Access to the mailbox connects with their own account. Either way, the credential's **Mailbox** field names the shared address, and every Outlook action, the mailbox sync and the Inbox then work in that mailbox and use its address as the sender. You enter the mailbox when you add the credential, and it cannot be changed afterwards: what the credential has read and sent belongs to that mailbox. To work in another mailbox, add another credential.
+A shared mailbox, such as `promotion@example.com`, has no sign-in of its own. Tale reaches it in one of two ways: your organization's own Microsoft app signs in as itself and is allowed into that one mailbox, or a person who already has Full Access to the mailbox connects with their own account. Either way, the credential's **Mailbox** field names the shared address, and every Outlook action, the mailbox sync and the Inbox then work in that mailbox and use its address as the sender. **Mailbox** takes an email address only; Tale refuses an ID such as the mailbox's object ID. You enter the mailbox when you add the credential, and it cannot be changed afterwards: what the credential has read and sent belongs to that mailbox. To work in another mailbox, add another credential.
 
 The app sign-in is the better fit for a team inbox: it does not depend on one person's account, and Exchange limits the app to the mailboxes you choose.
 

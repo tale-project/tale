@@ -116,7 +116,9 @@ it filed and the replies they send. Such a setting is entered when the credentia
 for a sign-in at the outside system, beside **Connect**, so the credential exists with it from
 the start — and an edit that changes or clears it is refused (`CREDENTIAL_CONFIG_INVALID`):
 another value is another credential. Blanks around a value are not part of it, and blanks
-alone are no value.
+alone are no value. A mailbox is named by its address: anything else, such as the mailbox's
+directory object ID, is refused when the credential is added (`CREDENTIAL_CONFIG_INVALID`),
+and **Connect** stays unavailable until the field holds an address.
 
 - **Example**: Lena enters `promotion@example.com` beside **Connect** → the credential works in
   the shared mailbox from its first sync. Later Ada tries to point it at `support@example.com`

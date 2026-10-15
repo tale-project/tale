@@ -216,6 +216,13 @@ const configFieldSchema = z
      * credential.
      */
     fixed: z.boolean().optional(),
+    /**
+     * What a `string` value must look like, checked wherever it is entered:
+     * `email` takes a mail address (`local@domain`) — Outlook's `mailbox`,
+     * which everything the credential does is filed under, so an ID that
+     * names the mailbox to the vendor but is no address is refused up front.
+     */
+    format: z.enum(['email']).optional(),
     /** Closed set of accepted values, for a `string` field rendered as a select. */
     enum: z.array(z.string().min(1)).min(1).optional(),
     /** Numeric constraints for number fields. */
@@ -399,6 +406,12 @@ export const connectorSchema = z
           });
     });
     connector.configFields.forEach((field, index) => {
+      if (field.format !== undefined && field.type !== 'string')
+        context.addIssue({
+          code: 'custom',
+          path: ['configFields', index, 'format'],
+          message: `format ${field.format} applies to a string field, not a ${field.type} one`,
+        });
       for (const method of field.requiredFor ?? [])
         if (!methods.has(method))
           context.addIssue({
