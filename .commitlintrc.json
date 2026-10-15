@@ -6,7 +6,6 @@
       "always",
       [
         "ai",
-        "ai-gateway",
         "claude",
         "cli",
         "db",
