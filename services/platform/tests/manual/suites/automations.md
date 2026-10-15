@@ -1768,6 +1768,44 @@ output:
       the run's output holds one receipt per source in the order listed, each
       source's tasks land in the project, and the run shows one step on the
       canvas.
+- [ ] `AUTO-F241` · **Use Sync GitHub pull requests for a repository with
+      open pull requests by Renovate and by a person, `renovate[bot]` under
+      Only pull requests opened by, and Start it now; then use Sync GitHub
+      issues for the same repository and project** → after their first runs
+      the project holds a task per Renovate pull request, none for the
+      person's, and a task per open issue; each pull request task's source
+      card is headed `tasks.sourceIssue.headingPull` and links to
+      `/pull/<n>`. Merge one Renovate pull request and run both again → its
+      card reads **Closed at source** and the task stays where it was; the
+      issue sync's receipt counts no pull request (TASK-R63).
+- [ ] `AUTO-F242` · **Use Sync GitHub security alerts on a repository with
+      code scanning alerts from two tools, Code scanning, From severity High
+      and one tool under Only code scanning tools** → the run makes a task
+      per open alert of that tool at high or critical (an `error` alert
+      included) and none for the other tool or a lower severity; each card is
+      headed `tasks.sourceIssue.headingAlert`. Dismiss one alert on GitHub
+      and run it again → its card reads **Ignored at source**
+      (`tasks.sourceIssue.state.ignored`) (TASK-R64).
+- [ ] `AUTO-F243` · **Sync secret scanning alerts on a repository with a
+      test secret committed** → the alert's task names the kind of secret
+      and the file and line it was found in; neither the task, its source
+      card, the run's output nor its trace shows the secret's value
+      (TASK-R64).
+- [ ] `AUTO-F244` · **Add a Forgejo connection to a Forgejo instance (its
+      Instance URL and a token with read:repository and read:issue), then use
+      Sync Forgejo issues once with Issues and once with Pull requests for
+      one of its repositories** → each run makes a task per open item of
+      its kind, linked to `<instance>/<owner>/<repo>/issues/<n>` or
+      `…/pulls/<n>` on that instance, with the Forgejo mark on the template
+      card; the two automations never refresh each other's tasks (TASK-R63,
+      TASK-R65).
+- [ ] `AUTO-F245` · **In the editor, give the GlitchTip source of a sync
+      step `taskLabels: ['source:glitchtip']` and the step `failOn: any`,
+      revoke the GitHub source's token and select Run now** → the GlitchTip
+      issues become tasks wearing `source:glitchtip` (the label is added to
+      the project), the run fails naming the GitHub source alone, and its
+      GlitchTip receipt reads `saved: true`; remove the label from one task
+      and run again → it stays off (TASK-R61, TASK-R62).
 - [ ] `AUTO-F184` · **Create a new organization, open Automations, then
       run `tale migrate`** → the list is empty
       (`automations.list.empty.title`) with **Browse templates**
