@@ -136,6 +136,51 @@ export async function readManagedResource(
   return { config: observedConfig, revision: view.hash };
 }
 
+const dispatchCheckSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), changed: z.boolean(), hash: z.string() }),
+  z.object({
+    ok: z.literal(false),
+    issues: z
+      .array(z.object({ path: z.string(), message: z.string() }))
+      .min(1)
+      .max(1_000),
+  }),
+]);
+
+/** A field of the declared dispatch, such as `gates.0.labels.1`. */
+const declaredPath = /^[A-Za-z]+(?:\.(?:[A-Za-z]+|\d+))*$/;
+
+/** A dispatch is the last resource a declaration writes, and the platform
+ * checks what it names (the project's agents, tasks, labels and schedules)
+ * only when it saves it. Ask before anything is written, so a dispatch it
+ * would refuse leaves the declaration unapplied. Only the refused fields'
+ * paths are named: native text never becomes a diagnostic. */
+export async function checkManagedResource(
+  client: PlatformConfigurationClient,
+  resource: ManagedPlatformResource,
+  expectedHash: string | null,
+): Promise<void> {
+  if (resource.kind !== 'project-dispatch') return;
+  const verdict = dispatchCheckSchema.parse(
+    await client.request(`${resourcePath(resource)}/check`, 'POST', {
+      config: resource.config,
+      expectedHash,
+    }),
+  );
+  if (verdict.ok) return;
+  const paths = [
+    ...new Set(
+      verdict.issues
+        .map((issue) => issue.path)
+        .filter((path) => path.length <= 120 && declaredPath.test(path)),
+    ),
+  ];
+  throw preconditionError(
+    `The platform refuses the dispatch declared for project ${resource.config.projectId}${paths.length > 0 ? ` at ${paths.join(', ')}` : ''}.`,
+    'Make the project have what the dispatch names (its agents, the standing roles’ open tasks, the labels of its filters and gates), or change the declaration, then plan again.',
+  );
+}
+
 export async function writeManagedResource(
   client: PlatformConfigurationClient,
   resource: ManagedPlatformResource,

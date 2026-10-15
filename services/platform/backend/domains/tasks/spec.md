@@ -515,6 +515,20 @@ not know. The readback says the project has one this version cannot read.
   planned, never planned as a new dispatch; Ada saves the dispatch → refused, and the stored one
   is kept for the newer version.
 
+### TASK-R61 · A declaration whose dispatch would be refused writes nothing
+
+Managed configuration writes a project's dispatch after everything else it declares, the schedules
+it switches off included. Before it writes anything, it asks whether the dispatch would be saved.
+The check runs exactly as a save does and writes nothing. A dispatch that would be refused stops
+the plan, or the apply, before any resource is written. A dispatch would be refused for an agent, a
+task, a label or a schedule the project cannot use, a stored dispatch changed since it was
+reviewed, or a caller who may not administer the project. The refusal names the declared fields,
+never the platform's words.
+
+- **Example**: The Fleet declaration switches six automations off and declares a dispatch whose
+  `ci` gate holds the label `optional-ci`, which the project lacks → the plan is refused at
+  `gates.0.labels.0`, and all six automations keep running.
+
 ### TASK-R50 · Every switched-on dispatch reports when it last passed
 
 The backend's metrics name, per project, when its switched-on dispatch last completed a pass —

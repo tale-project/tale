@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
 import {
+  checkManagedResource,
   isManagedResource,
   readManagedResource,
   writeManagedResource,
@@ -133,7 +134,8 @@ export async function readResource(
 }
 
 /** Check side effects before any resource is written. A changed vector space
- * cannot be admitted merely because its new dimensions parse successfully. */
+ * cannot be admitted merely because its new dimensions parse successfully,
+ * and a changed dispatch is checked by the platform that would save it. */
 export async function checkResourceChange(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
@@ -141,6 +143,10 @@ export async function checkResourceChange(
   declaredResources: readonly PlatformResource[] = [],
 ) {
   if (resourceConverged(resource, current.config)) return;
+  if (isManagedResource(resource)) {
+    await checkManagedResource(client, resource, current.revision);
+    return;
+  }
   if (resource.kind === 'provider-credential' && resource.config.isDefault) {
     const rows = credentials.parse(
       await client.request('/api/app/provider-credentials'),

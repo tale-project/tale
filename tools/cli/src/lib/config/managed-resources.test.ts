@@ -136,6 +136,8 @@ function native(resources: PlatformResource[]) {
     ]),
   );
   const writes: { kind: string; body: Record<string, unknown> }[] = [];
+  const checks: string[] = [];
+  let refusal: { path: string; message: string }[] | undefined;
   let loseResponse: string | undefined;
   let versions = 0;
   const client: PlatformConfigurationClient = {
@@ -183,6 +185,13 @@ function native(resources: PlatformResource[]) {
         body.expectedHash !== (current === null ? null : valueHash(current))
       )
         throw new Error('stale native preimage');
+      // The platform's check of a dispatch save: its verdict, nothing kept.
+      if (path.endsWith('/configuration/check')) {
+        checks.push(key);
+        return refusal === undefined
+          ? { ok: true, changed: true, hash: valueHash(selected.config) }
+          : { ok: false, issues: refusal };
+      }
       writes.push({ kind: selected.kind, body });
       if (selected.kind === 'automation-schedule') {
         const dependency = resources.find(
@@ -216,11 +225,16 @@ function native(resources: PlatformResource[]) {
     state,
     client,
     writes,
+    checks,
     get versions() {
       return versions;
     },
     lose(kind: string) {
       loseResponse = kind;
+    },
+    /** Make the platform refuse every dispatch it is asked about. */
+    refuse(issues: { path: string; message: string }[]) {
+      refusal = issues;
     },
   };
 }
@@ -885,6 +899,7 @@ describe('managed project dispatch', () => {
     expect(new Set(paths)).toEqual(
       new Set([
         'GET /api/app/tasks/dispatch/by-project/project-1/configuration',
+        'POST /api/app/tasks/dispatch/by-project/project-1/configuration/check',
         'POST /api/app/tasks/dispatch/by-project/project-1/configuration',
       ]),
     );
@@ -964,6 +979,81 @@ describe('managed project dispatch', () => {
       api.writes.filter(({ kind }) => kind === 'project-dispatch'),
     ).toHaveLength(1);
     expect(JSON.parse(await readFile(path, 'utf8')).phase).toBe('ready');
+  });
+
+  test('asks the platform about a changed dispatch while planning, and plans nothing it refuses', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    api.refuse([
+      {
+        path: 'gates.0.labels.0',
+        message: 'No label named "ci" is in this project.',
+      },
+    ]);
+    const planning = planPlatformConfiguration(config, api.client);
+    await expect(planning).rejects.toThrow(
+      'The platform refuses the dispatch declared for project project-1 at gates.0.labels.0.',
+    );
+    expect(api.checks).toEqual([id]);
+    expect(api.writes).toEqual([]);
+  });
+
+  test('writes nothing of a declaration whose dispatch the platform refuses at apply', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    const plan = await planPlatformConfiguration(config, api.client);
+    // Between plan and apply the project loses a label the gate names: the
+    // dispatch is written last, so the schedules switched off before it
+    // must not be written either.
+    api.refuse([
+      {
+        path: 'gates.0.labels.0',
+        message: 'No label named "ci" is in this project.',
+      },
+    ]);
+    const path = await receipt();
+    await expect(
+      applyPlatformConfiguration(config, plan, api.client, path),
+    ).rejects.toThrow('at gates.0.labels.0');
+    expect(api.writes).toEqual([]);
+    await expect(readFile(path, 'utf8')).rejects.toThrow();
+  });
+
+  test('names only the fields the platform refuses, never its words', async () => {
+    const api = native([declared()]);
+    api.refuse([
+      { path: 'standingRoles.0.taskId', message: 'secret-looking words' },
+      { path: 'agents.0', message: 'No agent with the id "agent-1".' },
+      { path: 'agents.0', message: 'the same field twice' },
+      { path: 'gates; rm -rf /', message: 'not a field' },
+    ]);
+    const planning = planPlatformConfiguration(
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [{ kind: 'project-dispatch', config: dispatch }],
+      }),
+      api.client,
+    );
+    await expect(planning).rejects.toThrow(
+      'The platform refuses the dispatch declared for project project-1 at standingRoles.0.taskId, agents.0.',
+    );
+    const error: unknown = await planning.catch((caught: unknown) => caught);
+    expect(String(error)).not.toContain('secret-looking words');
+    expect(String(error)).not.toContain('rm -rf');
+  });
+
+  test('never asks about a dispatch that is already as declared', async () => {
+    const config = withDispatch();
+    const api = native(config.resources);
+    const plan = await planPlatformConfiguration(config, api.client);
+    await applyPlatformConfiguration(config, plan, api.client, await receipt());
+    const asked = api.checks.length;
+    api.refuse([{ path: 'agents.0', message: 'refused' }]);
+    const again = await planPlatformConfiguration(config, api.client);
+    expect(
+      again.resources.every((change) => change.action === 'unchanged'),
+    ).toBe(true);
+    expect(api.checks).toHaveLength(asked);
   });
 
   test('refuses a dispatch edited after planning before any resource is written', async () => {

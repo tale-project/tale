@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   checkProjectDispatch,
+  checkProjectDispatchSave,
   readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
@@ -207,4 +208,161 @@ describe('a stored dispatch this version cannot read is never overwritten [TASK-
       expect(statements.filter((text) => !text.includes('SELECT'))).toEqual([]);
     },
   );
+});
+
+describe('a declaration whose dispatch would be refused writes nothing [TASK-R61]', () => {
+  const ada = {
+    organizationId: 'org-1',
+    userId: 'ada',
+    role: 'admin',
+    teamIds: [],
+  };
+  const gated: ProjectDispatch = {
+    ...dispatch,
+    gates: [{ key: 'ci', labels: ['optional-ci'] }],
+  };
+
+  /** A database that knows the project's agents, tasks, labels and stored
+   * dispatch; it records every statement it is sent. */
+  function recordingDatabase(rows: {
+    agents: string[];
+    labels: string[];
+    stored?: ProjectDispatch;
+  }) {
+    const statements: string[] = [];
+    const query = (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      statements.push(text);
+      if (text.includes('FROM app.project_agents'))
+        return Promise.resolve(rows.agents.map((id) => ({ id })));
+      if (text.includes('FROM app.tasks'))
+        return Promise.resolve([{ id: 'task-manager', archived: false }]);
+      if (text.includes('FROM app.task_labels'))
+        return Promise.resolve(rows.labels.map((name) => ({ name })));
+      if (text.includes('FROM app.project_dispatch') && rows.stored)
+        return Promise.resolve([
+          { config: rows.stored, updatedAt: 1, updatedBy: 'ada' },
+        ]);
+      if (text.includes('RETURNING')) return Promise.resolve([{ id: 'row-1' }]);
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the save and its check use only the tagged template; rows model their reads
+    const sql = query as unknown as TransactionSql;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the save serializes its JSON column through the transaction
+    Object.assign(sql, { json: (value: unknown) => value });
+    // Anything that leaves a trace: a row, an audit entry, a job, a hint.
+    const writes = () =>
+      statements.filter((text) =>
+        /\b(INSERT|UPDATE|DELETE)\b|pg_notify|pgboss/i.test(text),
+      );
+    return { sql, statements, writes };
+  }
+
+  it('answers what a save would answer, and sends no write', async () => {
+    // Switched off, so the save asks for no pass and needs no job queue.
+    const off = { ...gated, enabled: false };
+    const checked = recordingDatabase({
+      agents: ['scribe', 'lector'],
+      labels: ['optional-ci'],
+    });
+    const verdict = await checkProjectDispatchSave(checked.sql, ada, {
+      projectId: 'p-1',
+      dispatch: off,
+      expectedHash: null,
+    });
+    expect(checked.writes()).toEqual([]);
+    const saved = recordingDatabase({
+      agents: ['scribe', 'lector'],
+      labels: ['optional-ci'],
+    });
+    const result = await saveProjectDispatch(saved.sql, ada, {
+      projectId: 'p-1',
+      dispatch: off,
+      expectedHash: null,
+    });
+    expect(verdict).toEqual({ ok: true, ...result });
+    expect(saved.writes()).not.toEqual([]);
+  });
+
+  it('answers unchanged for the dispatch already stored', async () => {
+    const { sql, writes } = recordingDatabase({
+      agents: ['scribe', 'lector'],
+      labels: ['optional-ci'],
+      stored: gated,
+    });
+    await expect(
+      checkProjectDispatchSave(sql, ada, {
+        projectId: 'p-1',
+        dispatch: gated,
+      }),
+    ).resolves.toMatchObject({ ok: true, changed: false });
+    expect(writes()).toEqual([]);
+  });
+
+  it('answers the fields a save would refuse, and sends no write', async () => {
+    const { sql, writes } = recordingDatabase({
+      agents: ['scribe'],
+      labels: [],
+    });
+    const verdict = await checkProjectDispatchSave(sql, ada, {
+      projectId: 'p-1',
+      dispatch: gated,
+      expectedHash: null,
+    });
+    expect(verdict).toEqual({
+      ok: false,
+      issues: [
+        expect.objectContaining({ path: 'agents.1' }),
+        expect.objectContaining({ path: 'gates.0.labels.0' }),
+      ],
+    });
+    expect(writes()).toEqual([]);
+    await expect(
+      saveProjectDispatch(
+        recordingDatabase({ agents: ['scribe'], labels: [] }).sql,
+        ada,
+        {
+          projectId: 'p-1',
+          dispatch: gated,
+          expectedHash: null,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'DISPATCH_INVALID',
+      data: { issues: verdict.ok ? [] : verdict.issues },
+    });
+  });
+
+  it('refuses who may not administer the project and a stored dispatch the caller did not review, as a save does', async () => {
+    vi.mocked(service.assertProjectAdministrable).mockImplementationOnce(() => {
+      throw new service.ProjectError(
+        'PROJECT_FORBIDDEN',
+        'No project access',
+        403,
+      );
+    });
+    const tx = vi.fn();
+    await expect(
+      checkProjectDispatchSave(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the refusal comes before any statement
+        tx as unknown as TransactionSql,
+        { ...ada, userId: 'mia', role: 'member' },
+        { projectId: 'p-1', dispatch: gated, expectedHash: null },
+      ),
+    ).rejects.toMatchObject({ code: 'PROJECT_FORBIDDEN' });
+    expect(tx).not.toHaveBeenCalled();
+    const { sql, writes } = recordingDatabase({
+      agents: ['scribe', 'lector'],
+      labels: ['optional-ci'],
+      stored: dispatch,
+    });
+    await expect(
+      checkProjectDispatchSave(sql, ada, {
+        projectId: 'p-1',
+        dispatch: gated,
+        expectedHash: null,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
+    expect(writes()).toEqual([]);
+  });
 });
