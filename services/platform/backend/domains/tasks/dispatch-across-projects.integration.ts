@@ -640,6 +640,67 @@ export async function checkDispatchAcrossProjects(
       agentId: agents.coder,
       projectId: billing,
     });
+
+    // Switched off, the dispatch serves Billing no more, whoever saved it:
+    // the Coder is offered there to nobody, a person's Start agent is
+    // refused, and its reviewer receives no review on either board.
+    // Switched on again, it serves Billing at once.
+    const releaseNotes = await loadTaskOrThrow(sql, tasks.releaseNotes, orgId);
+    const coderWorkOnDevelopment = {
+      ...releaseNotes,
+      assigneeType: 'agent' as const,
+      assigneeId: agents.coder,
+    };
+    await transactSerializable(sql, (tx) =>
+      saveProjectDispatch(tx, owner, {
+        projectId: development,
+        dispatch: { ...dispatch, enabled: false },
+      }),
+    );
+    const off = {
+      reach: await agentReachesProject(sql, {
+        organizationId: orgId,
+        agentId: agents.coder,
+        projectId: billing,
+      }),
+      serving: await agentsServingProject(sql, {
+        organizationId: orgId,
+        projectId: billing,
+      }),
+      start: await transactSerializable(sql, (tx) =>
+        startTaskAgentRunManual(tx, owner, tasks.importer),
+      ),
+      billingReview: await resolveTaskReviewer(sql, importer),
+      developmentReview: await resolveTaskReviewer(sql, coderWorkOnDevelopment),
+    };
+    await transactSerializable(sql, (tx) =>
+      saveProjectDispatch(tx, owner, { projectId: development, dispatch }),
+    );
+    const on = {
+      reach: await agentReachesProject(sql, {
+        organizationId: orgId,
+        agentId: agents.coder,
+        projectId: billing,
+      }),
+      developmentReview: await resolveTaskReviewer(sql, coderWorkOnDevelopment),
+    };
+    const reviewedBy = (
+      recipient: Awaited<ReturnType<typeof resolveTaskReviewer>>,
+      agentId: string,
+    ) => recipient?.kind === 'agent' && recipient.agentId === agentId;
+    record(
+      'dispatch across projects: a switched-off dispatch serves no board [TASK-R81]',
+      !off.reach &&
+        off.serving.length === 0 &&
+        !off.start.started &&
+        off.start.reason === 'agent_out_of_reach' &&
+        reviewedBy(off.billingReview, agents.auditor) &&
+        !reviewedBy(off.developmentReview, agents.reviewer) &&
+        on.reach &&
+        reviewedBy(on.developmentReview, agents.reviewer),
+      `off=${JSON.stringify(off)} on=${JSON.stringify(on)}`,
+    );
+
     await sql`
       UPDATE app.projects SET archived_at_ms = ${Date.now()} WHERE id = ${billing}
     `;
