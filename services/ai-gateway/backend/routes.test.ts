@@ -20,6 +20,8 @@ const view: AccountView = {
   accountEmail: 'you@example.com',
   subscription: null,
   status: 'active',
+  state: 'available',
+  limitedUntil: null,
   expiresAt: null,
   scopes: null,
   createdAt: '2026-09-21T10:00:00.000Z',
@@ -87,6 +89,7 @@ function build(overrides: Partial<AccountService> = {}) {
 
   const accounts: AccountService = {
     list: vi.fn(() => Promise.resolve([view])),
+    get: vi.fn((id: string) => Promise.resolve(id === view.id ? view : null)),
     beginAuthorization: vi.fn(() =>
       Promise.resolve({
         state: 'state-1',

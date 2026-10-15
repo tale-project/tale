@@ -243,6 +243,107 @@ describe('createAccountService', () => {
     expect(cipher.open(stored?.accessToken ?? '')).toBe('access-1');
   });
 
+  describe('what state an account is in', () => {
+    const MINUTE = 60_000;
+    const DAY = 24 * 60 * MINUTE;
+    const at = (offsetMs: number) =>
+      new Date(now.getTime() + offsetMs).toISOString();
+    const window = (
+      kind: 'session' | 'weekly',
+      resetsInMs: number,
+      utilization = 100,
+    ) => ({
+      kind,
+      label: null,
+      utilization,
+      resetsAt: at(resetsInMs),
+      windowSeconds: kind === 'session' ? 18_000 : 604_800,
+    });
+
+    /** Put a reading on the stored row, read just now, so no re-read follows. */
+    async function readAs(
+      id: string,
+      windows: ReturnType<typeof window>[],
+    ): Promise<void> {
+      await store.updateAccount(id, (row) => {
+        row.usage = { windows, checkedAt: at(0), limited: null };
+        row.usageAttemptedAt = at(0);
+      });
+    }
+
+    it('reads one account as the list shows it, and none for an id it does not hold', async () => {
+      const connected = await connect();
+      const [listed] = await service.list();
+      expect(await service.get(connected.id)).toEqual(listed);
+      expect(await service.get('gone')).toBeNull();
+    });
+
+    it('is back when the last spent window rolls over, by the service’s own clock', async () => {
+      const connected = await connect();
+      await readAs(connected.id, [
+        window('session', 2 * MINUTE),
+        window('weekly', 3 * DAY),
+      ]);
+
+      expect(await service.get(connected.id)).toMatchObject({
+        state: 'limited',
+        limitedUntil: at(3 * DAY),
+        usage: {
+          stale: false,
+          windows: [{ blocking: true }, { blocking: true }],
+        },
+      });
+
+      // Two and a half minutes on — inside the polling floor, so nothing is
+      // read again: the session has rolled over and the week has not.
+      now = new Date(now.getTime() + 150_000);
+      expect(await service.get(connected.id)).toMatchObject({
+        state: 'limited',
+        limitedUntil: new Date(
+          Date.parse('2026-09-21T10:00:00.000Z') + 3 * DAY,
+        ).toISOString(),
+        usage: {
+          // The figure beside the passed rollover is the last of the window
+          // before it, and says so.
+          stale: true,
+          windows: [{ blocking: false }, { blocking: true }],
+        },
+      });
+    });
+
+    it('frees an account the moment its only spent window rolls over', async () => {
+      const connected = await connect();
+      await readAs(connected.id, [
+        window('session', 2 * MINUTE),
+        window('weekly', 3 * DAY, 41),
+      ]);
+      expect(await service.get(connected.id)).toMatchObject({
+        state: 'limited',
+        limitedUntil: at(2 * MINUTE),
+      });
+
+      now = new Date(now.getTime() + 150_000);
+      expect(await service.get(connected.id)).toMatchObject({
+        state: 'available',
+        limitedUntil: null,
+        usage: { stale: true },
+      });
+    });
+
+    it('puts a credential that needs attention before any quota', async () => {
+      const connected = await connect();
+      await readAs(connected.id, [window('weekly', 3 * DAY)]);
+      await store.updateAccount(connected.id, (row) => {
+        row.status = 'expired';
+      });
+      expect(await service.get(connected.id)).toMatchObject({
+        status: 'expired',
+        state: 'expired',
+        limitedUntil: null,
+      });
+    });
+  });
+
   it('takes a name given at the start over the provider identity', async () => {
     const { state } = await service.beginAuthorization({
       provider: 'anthropic',
