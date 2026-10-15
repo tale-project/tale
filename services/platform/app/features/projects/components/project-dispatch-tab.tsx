@@ -231,13 +231,23 @@ function DispatchServedBy({
           <ul className="list-disc pl-5">
             {servedBy.map((serving) => (
               <li key={serving.projectId}>
-                <Link
-                  to="/dashboard/$id/projects/$projectId/dispatch"
-                  params={{ id: organizationId, projectId: serving.projectId }}
-                  className="focus-visible:ring-ring rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
-                >
-                  {t('dispatch.servedBy.item', { project: serving.name })}
-                </Link>
+                {serving.name === null ? (
+                  // A project the reader may not read: unnamed, unlinked.
+                  <span className="font-medium">
+                    {t('dispatch.servedBy.hiddenItem')}
+                  </span>
+                ) : (
+                  <Link
+                    to="/dashboard/$id/projects/$projectId/dispatch"
+                    params={{
+                      id: organizationId,
+                      projectId: serving.projectId,
+                    }}
+                    className="focus-visible:ring-ring rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+                  >
+                    {t('dispatch.servedBy.item', { project: serving.name })}
+                  </Link>
+                )}
                 {!serving.enabled ? ` (${t('dispatch.servedBy.off')})` : null}
                 {serving.skipped !== null
                   ? ` — ${t(SOURCE_SKIPPED_KEYS[serving.skipped])}`

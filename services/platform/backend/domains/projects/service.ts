@@ -2857,6 +2857,24 @@ function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
   return audienceClause(sql, 'project_team_ids', auth);
 }
 
+/** Which of the named projects the caller may read, archived ones
+ * included: the many-project form of {@link assertReadable}, for a read
+ * that names other projects only to who may read them. */
+export async function readableProjectsAmong(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectIds: readonly string[],
+): Promise<Set<string>> {
+  const ids = [...new Set(projectIds)];
+  if (ids.length === 0 || auth.role === 'disabled') return new Set();
+  const rows = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE org_id = ${auth.organizationId} AND id = ANY(${ids})
+      AND ${visibilityClause(sql, auth)}
+  `;
+  return new Set(rows.map((row) => row.id));
+}
+
 /** Every project visible to the caller (admins: all; else org-wide + team). */
 export async function listProjects(
   sql: Sql,

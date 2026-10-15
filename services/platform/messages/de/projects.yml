@@ -558,6 +558,7 @@ dispatch:
       archived: 'Übersprungen: Das Projekt ist archiviert'
       no_authority: 'Übersprungen: Wer diese Arbeitsverteilung zuletzt gespeichert hat, darf jenes Projekt nicht mehr bearbeiten'
     unknownProject: Ein Projekt, das nicht mehr in dieser Organisation ist
+    hiddenProject: Ein Projekt, das du nicht öffnen kannst
     allWork: Alle bereiten Aufgaben
     only: 'Nur {labels}'
     never: 'Nie {labels}'
@@ -570,6 +571,7 @@ dispatch:
     title: '{count, plural, one {Die Arbeitsverteilung eines anderen Projekts bedient dieses Board} other {Die Arbeitsverteilungen von # anderen Projekten bedienen dieses Board}}'
     body: Ihre Agenten dürfen den bereiten Aufgaben dieses Projekts zugewiesen, darauf gestartet werden und daran arbeiten.
     item: 'Bedient von der Arbeitsverteilung von {project}'
+    hiddenItem: Bedient von der Arbeitsverteilung eines anderen Projekts
     off: ausgeschaltet
   gates:
     title: Schranken

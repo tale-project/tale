@@ -3872,9 +3872,12 @@ export function buildSpec(): Json {
         "judges them now, the organization's agent workers against the " +
         'pool, and its last 20 passes. `servedBy` names the dispatches of ' +
         'other projects that list this one as a source, the other ' +
-        'direction. A project without a dispatch answers `configured: ' +
-        'false` (and still its `servedBy`). Project readers; the same ' +
-        'answer as the project’s Dispatch page.',
+        'direction. Another project is named only to a caller who may ' +
+        'read it: a run on a board the caller may not read is counted in ' +
+        '`runCounts` and not listed in `runs`, and such a source or ' +
+        'serving dispatch answers `name: null`. A project without a ' +
+        'dispatch answers `configured: false` (and still its `servedBy`). ' +
+        'Project readers; the same answer as the project’s Dispatch page.',
       operationId: 'getProjectDispatch',
       security: sec,
       parameters: dispatchParameters,

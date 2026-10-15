@@ -548,6 +548,7 @@ dispatch:
       archived: 'Ignoré : le projet est archivé'
       no_authority: 'Ignoré : la dernière personne à avoir enregistré cette répartition ne peut plus modifier ce projet'
     unknownProject: Un projet qui n’est plus dans cette organisation
+    hiddenProject: Un projet que tu ne peux pas ouvrir
     allWork: Toutes les tâches prêtes
     only: 'Seulement {labels}'
     never: 'Jamais {labels}'
@@ -560,6 +561,7 @@ dispatch:
     title: '{count, plural, one {La répartition du travail d’un autre projet dessert ce tableau} other {Les répartitions du travail de # autres projets desservent ce tableau}}'
     body: Leurs agents peuvent se voir attribuer les tâches prêtes de ce projet, y être lancés et y travailler.
     item: 'Desservi par la répartition du travail de {project}'
+    hiddenItem: Desservi par la répartition du travail d’un autre projet
     off: désactivée
   gates:
     title: Barrières

@@ -757,6 +757,20 @@ dispatch serves.
   and Billing but not Payroll, starts the Coder on a Development task → it may work Billing's
   tasks, but none of Payroll's.
 
+### TASK-R80 · The dispatch readback names another project only to who may read it
+
+Anyone who reads a project reads its dispatch, but a board it serves, the runs of its agents on
+that board and a dispatch serving it are named only to who may read that other project. To
+anyone else, a run there is counted and never listed, and the project is listed without its
+name. A board's list of agents that may be assigned there says only that an agent comes from
+another project's dispatch.
+
+- **Example**: Development's dispatch serves Billing, which is shared with one team. Noah
+  reads Development but is not in that team. The Coder works one task on each board. Noah opens
+  Development's Dispatch page → the Coder holds two runs and only Development's is listed, the
+  served board reads "A project you cannot open", and neither "Fix the importer" nor the name
+  Billing appears.
+
 ## What a run is handed
 
 ### TASK-R49 · Every turn gets its project's current instructions, and its run records them

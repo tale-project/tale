@@ -441,11 +441,12 @@ export type DispatchAgentRunCounts = z.infer<
   typeof dispatchAgentRunCountsSchema
 >;
 
-/** A source of a dispatch as its readback names it: the project (its name
- * while it is in the organization), whether the dispatch reaches it now, and
- * why not when it does not. */
+/** A source of a dispatch as its readback names it: the project, whether
+ * the dispatch reaches it now, and why not when it does not. */
 export const dispatchSourceStatusSchema = z.object({
   projectId: z.string(),
+  /** Its name, while it is in the organization and the reader may read
+   * it; null otherwise. */
   name: z.string().nullable(),
   reachable: z.boolean(),
   skipped: z.enum(DISPATCH_SOURCE_SKIP_REASONS).nullable(),
@@ -459,7 +460,8 @@ export type DispatchSourceStatus = z.infer<typeof dispatchSourceStatusSchema>;
  * its agents may work this board while it reaches it. */
 export const dispatchServedByStatusSchema = z.object({
   projectId: z.string(),
-  name: z.string(),
+  /** Its project's name; null for a reader who may not read that project. */
+  name: z.string().nullable(),
   enabled: z.boolean(),
   reachable: z.boolean(),
   skipped: z.enum(DISPATCH_SOURCE_SKIP_REASONS).nullable(),
@@ -477,7 +479,8 @@ export const dispatchServingAgentSchema = z.object({
   /** Its granted platform tools: whether it may review (`task_review`). */
   tools: z.array(z.string()),
   projectId: z.string(),
-  projectName: z.string(),
+  /** Its project's name; null for a reader who may not read that project. */
+  projectName: z.string().nullable(),
 });
 export type DispatchServingAgent = z.infer<typeof dispatchServingAgentSchema>;
 
@@ -520,8 +523,9 @@ export const projectDispatchStatusSchema = z.object({
       name: z.string(),
       model: z.string(),
       modelProvider: z.string().nullable(),
-      /** The runs it holds, oldest first: at most
-       * {@link DISPATCH_RUNS_LISTED}; `runCounts` counts them all. */
+      /** The runs it holds on the boards the reader may read, oldest
+       * first: at most {@link DISPATCH_RUNS_LISTED}; `runCounts` counts
+       * them all, on every board. */
       runs: z.array(dispatchAgentRunSchema).max(DISPATCH_RUNS_LISTED),
       runCounts: dispatchAgentRunCountsSchema,
       /** Runs it may hold at once. */

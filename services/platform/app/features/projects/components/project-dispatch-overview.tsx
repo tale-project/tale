@@ -603,8 +603,12 @@ export function ProjectDispatchOverview({
         size: 180,
         cell: ({ row }) =>
           row.original.name === null ? (
+            // Gone from the organization, or a project the reader may not
+            // read: the readback withholds its name.
             <span className="text-muted-foreground">
-              {t('dispatch.sources.unknownProject')}
+              {row.original.skipped === 'missing'
+                ? t('dispatch.sources.unknownProject')
+                : t('dispatch.sources.hiddenProject')}
             </span>
           ) : (
             <Link

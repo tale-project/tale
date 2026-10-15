@@ -15,6 +15,7 @@ import {
   assertReadable,
   checkProjectAdministrable,
   loadProjectOrThrow,
+  readableProjectsAmong,
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { projectSessionRoom } from '../sandbox/sessions.ts';
@@ -47,6 +48,11 @@ import { listModelCapacityHolds } from './model-capacity-holds.ts';
  * that serve this one, the models it waits on, the organization's agent
  * workers against the pool, and its recent passes. The answer to "why is this agent idle" is read here, from the run
  * ledger and the passes, never from where the cards stand on the board.
+ *
+ * Another project is named only to a reader who may read it: a run on a
+ * board the reader may not read is counted, never listed (its task's title
+ * and number stay on that board), and a board it serves or a dispatch that
+ * serves it answers without its name ({@link nameIfReadable}).
  */
 
 /** Why an agent of the pool works on nothing now. */
@@ -66,12 +72,31 @@ export async function readAgentsServingProject(
 ): Promise<{ agents: DispatchServingAgent[] }> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
+  const agents = await agentsServingProject(sql, {
+    organizationId: auth.organizationId,
+    projectId,
+  });
+  const readable = await readableProjectsAmong(
+    sql,
+    auth,
+    agents.map((agent) => agent.projectId),
+  );
   return {
-    agents: await agentsServingProject(sql, {
-      organizationId: auth.organizationId,
-      projectId,
-    }),
+    agents: agents.map((agent) => ({
+      ...agent,
+      projectName: nameIfReadable(readable, agent.projectId, agent.projectName),
+    })),
   };
+}
+
+/** Another project's name, for a reader who may read that project; null
+ * otherwise, so nothing of it reaches who may not. */
+export function nameIfReadable(
+  readable: ReadonlySet<string>,
+  projectId: string,
+  name: string | null,
+): string | null {
+  return readable.has(projectId) ? name : null;
 }
 
 export async function readProjectDispatchStatus(
@@ -93,8 +118,17 @@ export async function readProjectDispatchStatus(
   const holds = await listModelCapacityHolds(sql, organizationId);
   const now = Date.now();
   const activeHolds = holds.filter((hold) => hold.heldUntilMs > now);
-  const servedBy = await dispatchesServing(sql, { organizationId, projectId });
+  const serving = await dispatchesServing(sql, { organizationId, projectId });
   if (stored === null) {
+    const readable = await readableProjectsAmong(
+      sql,
+      auth,
+      serving.map((row) => row.projectId),
+    );
+    const servedBy = serving.map((row) => ({
+      ...row,
+      name: nameIfReadable(readable, row.projectId, row.name),
+    }));
     return {
       configured: unreadable,
       unreadable,
@@ -162,17 +196,34 @@ export async function readProjectDispatchStatus(
     agentIds.length === 0
       ? []
       : await sql<RunTally[]>`
-          SELECT r.agent_id AS "agentId", r.status,
+          SELECT r.agent_id AS "agentId", r.project_id AS "projectId",
+                 r.status,
                  r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
                  r.waiting_reason AS reason, count(*)::int AS count
           FROM app.project_agent_runs r
           WHERE r.org_id = ${organizationId}
             AND r.agent_id = ANY(${agentIds})
             AND r.status IN ('queued', 'running')
-          GROUP BY r.agent_id, r.status, parked, r.waiting_reason
+          GROUP BY r.agent_id, r.project_id, r.status, parked, r.waiting_reason
         `;
+  // The other projects this answer would name — the boards of those runs,
+  // the boards it serves and the dispatches serving it — and which of them
+  // the reader may read.
+  const readable = await readableProjectsAmong(sql, auth, [
+    projectId,
+    ...tallies.map((tally) => tally.projectId),
+    ...(config.sources ?? []).map((source) => source.projectId),
+    ...serving.map((row) => row.projectId),
+  ]);
+  const listedBoards = [
+    ...new Set(
+      tallies
+        .map((tally) => tally.projectId)
+        .filter((board) => readable.has(board)),
+    ),
+  ];
   const runs =
-    agentIds.length === 0
+    listedBoards.length === 0
       ? []
       : await sql<
           (Omit<DispatchAgentRun, 'waitingReason'> & {
@@ -197,6 +248,7 @@ export async function readProjectDispatchStatus(
             FROM app.project_agent_runs r
             WHERE r.org_id = ${organizationId}
               AND r.agent_id = ANY(${agentIds})
+              AND r.project_id = ANY(${listedBoards})
               AND r.status IN ('queued', 'running')
           ) listed
           JOIN app.tasks t ON t.id = listed."taskId"
@@ -343,12 +395,21 @@ export async function readProjectDispatchStatus(
     canEdit,
     state,
     pool,
-    sources: sources.map((source) => sourceView(config, source)),
+    sources: sources.map((source) => {
+      const view = sourceView(config, source);
+      return {
+        ...view,
+        name: nameIfReadable(readable, view.projectId, view.name),
+      };
+    }),
     reviewers: (config.reviewers ?? []).map((agentId) => ({
       agentId,
       name: agentById.get(agentId)?.name ?? null,
     })),
-    servedBy,
+    servedBy: serving.map((row) => ({
+      ...row,
+      name: nameIfReadable(readable, row.projectId, row.name),
+    })),
     standingRoles: roles.map((role) => {
       const last = lastOf.get(role.key);
       return {
@@ -398,10 +459,11 @@ function holdView(hold: {
   };
 }
 
-/** One group of an agent's live runs: its status, whether it waits, why,
- * and how many runs share all three. */
+/** One group of an agent's live runs: the board they are on, their
+ * status, whether they wait, why, and how many runs share all four. */
 export interface RunTally {
   agentId: string;
+  projectId: string;
   status: 'queued' | 'running';
   parked: boolean;
   reason: string | null;

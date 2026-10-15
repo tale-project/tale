@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { countRunsByAgent, idleReason } from './dispatch-readback.ts';
+import {
+  countRunsByAgent,
+  idleReason,
+  nameIfReadable,
+} from './dispatch-readback.ts';
 
 describe('the readback says why an idle agent of the pool is idle [TASK-R46]', () => {
   it('names a switched-off dispatch first, then the model the agent waits on', () => {
@@ -37,6 +41,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
     const counts = countRunsByAgent([
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'running',
         parked: false,
         reason: null,
@@ -44,6 +49,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: false,
         reason: null,
@@ -51,6 +57,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: 'model_capacity',
@@ -58,6 +65,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: 'org_limit',
@@ -65,6 +73,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'scribe',
+        projectId: 'p-dev',
         status: 'running',
         parked: false,
         reason: null,
@@ -90,6 +99,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
     const counts = countRunsByAgent([
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: 'a_newer_reason',
@@ -97,6 +107,7 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
       {
         agentId: 'coder',
+        projectId: 'p-dev',
         status: 'queued',
         parked: true,
         reason: null,
@@ -104,5 +115,15 @@ describe('the readback counts the runs an agent of the pool holds, by what they 
       },
     ]);
     expect(counts.get('coder')?.waiting).toEqual({ unknown: 5 });
+  });
+});
+
+describe('the readback names another project only to who may read it [TASK-R80]', () => {
+  it('keeps the name of a project the reader may read, and withholds the rest', () => {
+    const readable = new Set(['p-dev', 'p-billing']);
+    expect(nameIfReadable(readable, 'p-billing', 'Billing')).toBe('Billing');
+    expect(nameIfReadable(readable, 'p-payroll', 'Payroll')).toBeNull();
+    // A project gone from the organization has no name to withhold.
+    expect(nameIfReadable(readable, 'p-dev', null)).toBeNull();
   });
 });

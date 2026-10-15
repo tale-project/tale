@@ -530,6 +530,7 @@ dispatch:
       archived: 'Skipped: the project is archived'
       no_authority: 'Skipped: whoever last saved this dispatch can no longer edit that project'
     unknownProject: A project no longer in this organization
+    hiddenProject: A project you cannot open
     allWork: Every ready task
     only: 'Only {labels}'
     never: 'Never {labels}'
@@ -542,6 +543,7 @@ dispatch:
     title: '{count, plural, one {Another project''s dispatch serves this board} other {# other projects'' dispatches serve this board}}'
     body: Their agents may be assigned to, started on and work this project's ready tasks.
     item: "Served by {project}'s dispatch"
+    hiddenItem: Served by another project's dispatch
     off: switched off
   gates:
     title: Gates

@@ -943,6 +943,69 @@ describe('a board says which other projects’ dispatches serve it [TASK-R76]', 
   });
 });
 
+describe('the Dispatch page names another project only to who may read it [TASK-R80]', () => {
+  it('lists a served board the reader may not read without its name, and tells it from one that is gone', async () => {
+    answer(
+      readback({
+        sources: [
+          {
+            projectId: 'proj-payroll',
+            name: null,
+            reachable: true,
+            skipped: null,
+            statuses: ['todo'],
+            labels: null,
+          },
+          {
+            projectId: 'proj-gone',
+            name: null,
+            reachable: false,
+            skipped: 'missing',
+            statuses: ['todo'],
+            labels: null,
+          },
+        ],
+      }),
+    );
+    renderTab();
+    const sources = await table(t('dispatch.sources.caption'));
+    const hidden = rowOf(sources, t('dispatch.sources.hiddenProject'));
+    expect(
+      within(hidden).getByText(t('dispatch.sources.served')),
+    ).toBeInTheDocument();
+    expect(within(hidden).queryByRole('link')).not.toBeInTheDocument();
+    expect(
+      within(rowOf(sources, t('dispatch.sources.unknownProject'))).getByText(
+        t('dispatch.sources.skipped.missing'),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says a dispatch the reader may not read serves the board, without naming or linking it', async () => {
+    answer({
+      ...NOT_SET_UP,
+      servedBy: [
+        {
+          projectId: 'proj-dev',
+          name: null,
+          enabled: true,
+          reachable: true,
+          skipped: null,
+        },
+      ],
+    });
+    renderTab();
+    expect(
+      await screen.findByText(t('dispatch.servedBy.hiddenItem')),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', {
+        name: t('dispatch.servedBy.hiddenItem'),
+      }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('what an administrator does on the Dispatch page', () => {
   it('asks for a pass, once, and says so', async () => {
     answer(readback());
