@@ -816,13 +816,15 @@ counts as no failure, neither for the step (`TASK-R54`) nor for the position (`T
 
 ### TASK-R57 · Each run of an issue sync reads a source's next batch from where it stopped
 
-A source's position is kept per project, source name (`owner/repo`, `organization/project`) and
-filter: each run reads the next batch of open issues from there and saves where it stopped, and
-after the last issue the next run starts the next pass from the first. Automations naming the
-same source under the same filter in the same project share one position; a source narrowed by
-labels or a search keeps a position of its own, and one without keeps the plain name a
-hand-built import chain uses. A new issue becomes a task in Backlog, and an issue imported
-before is written into its task again, never into a second one (`CONN-R12`).
+A source's position is kept per project, source name (`owner/repo`, `organization/project`),
+filter and, where a connection names the tracker's instance (Forgejo, GlitchTip), connection: each
+run reads the next batch of open issues from there and saves where it stopped, and after the last
+issue the next run starts the next pass from the first. Automations naming the same source under
+the same filter in the same project share one position; a source narrowed by labels or a search,
+or read through a connection it names on Forgejo or GlitchTip, keeps a position of its own, and
+one with neither keeps the plain name a hand-built import chain uses. A new issue becomes a task
+in Backlog, and an issue imported before is written into its task again, never into a second one
+(`CONN-R12`).
 
 - **Example**: Mia's repository has 250 open issues and her sync reads 100 a run → the first
   three runs import 100, 100 and 50, and the fourth starts again from the oldest.
@@ -908,12 +910,12 @@ one task, its source card shows it open, resolved (fixed, or a revoked secret) o
 
 A Forgejo connection names its instance. A task's source is that instance and the issue's id on
 it, and its link is built from the instance's own address. One repository on two instances is
-two sources with tasks of their own, and a task is read again only through a connection to its
-own instance.
+two sources with tasks and positions of their own, and a task is read again only through a
+connection to its own instance.
 
 - **Example**: Noah syncs ops from git.tale.dev and a mirror of ops from Codeberg into one project
-  → each instance's issues become tasks of their own, and a refresh through the Codeberg
-  connection never reads git.tale.dev's.
+  → each instance's issues become tasks of their own, each sync goes on with its own pass from
+  run to run, and a refresh through the Codeberg connection never reads git.tale.dev's.
 
 ## Not yet
 

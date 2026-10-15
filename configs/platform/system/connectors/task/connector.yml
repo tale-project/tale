@@ -439,9 +439,10 @@ actions:
       credential names the stored connection a source is read with, by name;
       the organization's default when it is empty. Positions are kept per
       project, tracker, source (owner/repo, organization/project) and filter,
-      so automations naming the same source under the same filter share one
-      pass and a source under another filter keeps its own. Runs only as an
-      automation step.
+      and for forgejo and glitchtip, whose connection names the instance, per
+      credential, so automations naming the same source under the same filter
+      share one pass, and a source under another filter or on another
+      instance keeps its own. Runs only as an automation step.
     effects: write
     # Safe to repeat: issues are written by their source identity and a
     # position moves only from the revision its run read, so a repeated sync

@@ -70,7 +70,12 @@ interface FakePosition {
   retryAfter: number | null;
 }
 
-type Script = (input: Record<string, unknown>) => unknown;
+/** A tracker's answer to one call: its input, and the connection it was
+ * read with. */
+type Script = (
+  input: Record<string, unknown>,
+  call: { credential?: string },
+) => unknown;
 
 function fakes(
   options: {
@@ -123,7 +128,7 @@ function fakes(
       if (script === undefined) {
         throw new Error(`no script for ${args.connector}.${args.action}`);
       }
-      return script(args.input);
+      return script(args.input, args);
     },
     positions: {
       read: async (key) => {
@@ -720,6 +725,117 @@ describe('task.sync_issues sources', () => {
     const result = await syncIssueSources(harness.deps, input([forgejo]));
     expect(result.sources[0]).toMatchObject({ ok: false });
     expect(harness.queries).toEqual([]);
+  });
+
+  it('keeps one repository read through two Forgejo instances’ connections apart, each pass its own across runs [TASK-R66]', async () => {
+    // Each listing's cursor belongs to its instance, as the real reader's
+    // does: read through the other instance's connection, it is stale.
+    const harness = fakes({
+      list: {
+        forgejo: (listInput, call) => {
+          const instance = call.credential ?? 'default';
+          const cursor = listInput.cursor;
+          if (typeof cursor === 'string' && !cursor.startsWith(`${instance}:`))
+            throw new IssueCursorError(
+              'The issue cursor belongs to another source or filter. Start a new import.',
+            );
+          const page =
+            typeof cursor === 'string' ? Number(cursor.split(':')[1]) : 0;
+          return {
+            issues: [],
+            truncated: true,
+            nextCursor: `${instance}:${page + 1}`,
+            repositoryId: 30,
+            sourceOrigin: `https://${instance}.example.org`,
+          };
+        },
+      },
+    });
+    const sources = [
+      { ...forgejo, credential: 'git-tale-dev' },
+      { ...forgejo, credential: 'codeberg' },
+    ];
+    expect(
+      issueSyncInputSchema.safeParse({ projectId: 'project-1', sources })
+        .success,
+    ).toBe(true);
+    const runs = [];
+    for (let run = 0; run < 3; run++) {
+      runs.push(await syncIssueSources(harness.deps, input(sources)));
+    }
+    expect(
+      runs.flatMap((result) =>
+        result.sources.map((receipt) => [
+          receipt.batch,
+          receipt.resumed,
+          receipt.restarted,
+          receipt.saved,
+        ]),
+      ),
+    ).toEqual([
+      [1, false, false, true],
+      [1, false, false, true],
+      [2, true, false, true],
+      [2, true, false, true],
+      [3, true, false, true],
+      [3, true, false, true],
+    ]);
+    expect(harness.positions.size).toBe(2);
+    expect(
+      harness.calls.map((call) => [call.credential, call.input.cursor]),
+    ).toEqual([
+      ['git-tale-dev', undefined],
+      ['codeberg', undefined],
+      ['git-tale-dev', 'git-tale-dev:1'],
+      ['codeberg', 'codeberg:1'],
+      ['git-tale-dev', 'git-tale-dev:2'],
+      ['codeberg', 'codeberg:2'],
+    ]);
+  });
+
+  it('names a position after the connection only where the connection names the instance [TASK-R66]', async () => {
+    const harness = fakes({
+      list: {
+        forgejo: forgejoListing,
+        glitchtip: glitchListing,
+        github: listing([], null),
+      },
+    });
+    await syncIssueSources(
+      harness.deps,
+      input([
+        forgejo,
+        { ...forgejo, credential: 'codeberg' },
+        { ...glitch, credential: 'GlitchTip eu' },
+        { ...web, credential: 'GitHub work' },
+      ]),
+    );
+    const keys = [...harness.positions.keys()];
+    // The default connection keeps the plain name; a named one on a tracker
+    // of instances keeps its own. GitHub is one instance, whatever reads it.
+    expect(keys[0]).toBe('forgejo:example/web');
+    expect(keys[1]).toMatch(/^forgejo:example\/web~[0-9a-f]{12}$/);
+    expect(keys[2]).toMatch(/^glitchtip:example\/web~[0-9a-f]{12}$/);
+    expect(keys[3]).toBe('github:example/web');
+    // One connection named twice is still one source.
+    expect(
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [
+          { ...forgejo, credential: 'codeberg' },
+          { ...forgejo, owner: 'Example', credential: 'codeberg' },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [
+          { ...web, credential: 'GitHub work' },
+          { ...web, credential: 'GitHub bot' },
+        ],
+      }).success,
+    ).toBe(false);
   });
 
   it('keeps one GitHub repository’s issues and its Forgejo twin apart', () => {

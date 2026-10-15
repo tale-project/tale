@@ -34,6 +34,7 @@ import { createHash } from 'node:crypto';
 
 import {
   ISSUE_TRACKER_SYSTEMS,
+  ISSUE_TRACKERS,
   taskExternalIssueSchema,
   type IssueTrackerSystem,
   type TaskExternalIssue,
@@ -491,19 +492,36 @@ function adapterFor(source: IssueSource): IssueSourceAdapter<IssueSource> {
 /** The longest name a position takes (the store's own limit). */
 const POSITION_KEY_MAX = 200;
 
+/** The stored connection a source names, or undefined for the
+ * organization's default one. */
+function connectionOf(source: IssueSource): string | undefined {
+  return source.credential === undefined || source.credential === ''
+    ? undefined
+    : source.credential;
+}
+
 /**
  * The name a source's position is kept under: the source's own name, and
- * — when a filter narrows its listing — a digest of the filter. Two syncs
- * of one repository under two filters keep two passes instead of starting
- * each other's over, and a source without a filter keeps the plain name a
- * hand-built chain uses.
+ * — when a filter narrows its listing, or the source names the connection
+ * of a tracker whose connections each name an instance — a digest of
+ * both. Two syncs of one repository under two filters, or on two
+ * instances, keep two passes instead of starting each other's over; a
+ * source with neither keeps the plain name a hand-built chain uses, and a
+ * filter alone keeps the digest it always had.
  */
 function positionKey(source: IssueSource): string {
   const adapter = adapterFor(source);
   const name = adapter.name(source);
   const filter = adapter.filter(source);
-  if (filter === undefined) return name;
-  const digest = createHash('sha256').update(filter).digest('hex').slice(0, 12);
+  const instance = ISSUE_TRACKERS[adapter.system].perInstance
+    ? connectionOf(source)
+    : undefined;
+  const scope =
+    instance === undefined
+      ? filter
+      : JSON.stringify({ filter: filter ?? null, connection: instance });
+  if (scope === undefined) return name;
+  const digest = createHash('sha256').update(scope).digest('hex').slice(0, 12);
   return `${name}~${digest}`;
 }
 
@@ -552,11 +570,14 @@ export const issueSyncInputSchema = z
           path: ['sources', at],
         });
       }
-      const name = `${adapterFor(source).system}:${key.toLowerCase()}`;
+      const system = adapterFor(source).system;
+      const name = `${system}:${key.toLowerCase()}`;
       if (seen.has(name)) {
         ctx.addIssue({
           code: 'custom',
-          message: 'names a source the list already has, under the same filter',
+          message: ISSUE_TRACKERS[system].perInstance
+            ? 'names a source the list already has, under the same filter and connection'
+            : 'names a source the list already has, under the same filter',
           path: ['sources', at],
         });
       }
@@ -851,10 +872,7 @@ async function syncSource(
     ...emptyReceipt(source.kind, adapter.name(source)),
     ...(filter !== undefined && { filter }),
   };
-  const connection =
-    source.credential === undefined || source.credential === ''
-      ? undefined
-      : source.credential;
+  const connection = connectionOf(source);
   const fail = (failure: {
     error: IssueSyncErrorCode;
     message: string;
