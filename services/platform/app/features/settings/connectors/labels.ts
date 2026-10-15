@@ -53,6 +53,8 @@ export function endpointHelp(t: Translator, connectorSlug: string): string {
       return t('connectors.dialog.endpointHelpConfluence');
     case 'shopify':
       return t('connectors.dialog.endpointHelpShopify');
+    case 'forgejo':
+      return t('connectors.dialog.endpointHelpForgejo');
     case 'glitchtip':
       return t('connectors.dialog.endpointHelpGlitchtip');
     default:
@@ -68,6 +70,8 @@ export function endpointPlaceholder(connectorSlug: string): string {
       return 'https://your-site.atlassian.net';
     case 'shopify':
       return 'https://your-store.myshopify.com';
+    case 'forgejo':
+      return 'https://codeberg.org';
     case 'glitchtip':
       return 'https://app.glitchtip.com';
     default:

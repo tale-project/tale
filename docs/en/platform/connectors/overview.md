@@ -15,7 +15,8 @@ Use a connector when Tale needs to read or change data in an external service. T
 | --- | --- | --- |
 | Confluence | Import Confluence Cloud pages into knowledge. | Username and password/token pair. |
 | Discord | Work with messages and channels. | Token. |
-| GitHub | Read or manage repositories, issues and pull requests. | Token. |
+| Forgejo | Read or manage a Forgejo instance's repositories, issues and pull requests, and turn them into tasks. | Token and an Instance URL. |
+| GitHub | Read or manage repositories, issues and pull requests, and read security alerts so the issue sync can turn them into tasks. | Token. |
 | GlitchTip | Read a project's issues so the GlitchTip importer can turn them into tasks. | Token and an Instance URL. |
 | Gmail | Read, send and organize mail. | OAuth. |
 | Google Drive | Import files into knowledge. | OAuth. |
@@ -46,7 +47,7 @@ Select **Add credential**, search for the service and choose its card. Connector
 
 The **Name** field starts with the connector’s name. When you add several accounts for the same service, change it to one that identifies the purpose, such as `Support inbox` or `Release bot`. Use the external service’s credentials, not a Tale API key. For OAuth, sign in to the provider as the account you want to add and complete its consent. Each connection adds a new credential named after the connector and numbered (`Gmail`, then `Gmail 2`); Slack keeps one per workspace. Rename a new credential so the accounts stay distinguishable. If consent cannot start, an administrator may need to configure its OAuth app first.
 
-Confluence, GlitchTip and Shopify require an **Instance URL** per credential. Use the Atlassian site origin, the GlitchTip instance origin such as `https://app.glitchtip.com`, or the store’s `myshopify.com` origin, rather than an unrelated page or customer-facing domain. A self-hosted GlitchTip instance must also be allowed by the deployment's connector host policy. [Connector credentials](/platform/admin/connectors) covers setup fields, reconnection and rotation.
+Confluence, Forgejo, GlitchTip and Shopify require an **Instance URL** per credential. Use the Atlassian site origin, the Forgejo instance origin such as `https://codeberg.org`, the GlitchTip instance origin such as `https://app.glitchtip.com`, or the store’s `myshopify.com` origin, rather than an unrelated page or customer-facing domain. A self-hosted Forgejo or GlitchTip instance must also be allowed by the deployment's connector host policy. [Connector credentials](/platform/admin/connectors) covers setup fields, reconnection and rotation.
 
 ## Choose which account an action uses
 
@@ -58,7 +59,7 @@ Disabling a credential retains its configuration but stops use through it. Repla
 
 ## Understand reads and writes
 
-Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. GlitchTip and Jev decisions only read: the GlitchTip importer writes Tale tasks and never changes the upstream issue, and a Jev decision answers each question with its probabilities and writes nothing. Each decision is billed to the OpenRouter account whose key the credential holds. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
+Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. GlitchTip and Jev decisions only read: the issue sync writes Tale tasks and never changes the upstream issue, pull request or security alert, and a Jev decision answers each question with its probabilities and writes nothing. Each decision is billed to the OpenRouter account whose key the credential holds. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
 
 Equipped project agents receive supported read actions through Tale’s connector broker. It keeps those connector credentials outside the sandbox and returns results. The broker refuses connector writes. Direct GitHub tooling or explicit agent secrets use separate paths and must be reviewed separately.
 

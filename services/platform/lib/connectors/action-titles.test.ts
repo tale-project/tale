@@ -36,6 +36,7 @@ const KNOWN_LOCALES = new Set(['de', 'fr', 'de-CH']);
 const BRAND_CONNECTORS = new Set([
   'confluence',
   'discord',
+  'forgejo',
   'github',
   'glitchtip',
   'gmail',

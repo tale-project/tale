@@ -1,0 +1,380 @@
+# Connector — the Forgejo API (`/api/v1`, which Gitea shares). Each credential
+# names its own instance, so the live bodies build every URL from
+# `ctx.endpoint` (the credential's https origin) rather than a fixed host. An
+# access token authorizes every action; the platform sends it as
+# `Authorization: token <token>`, the form Forgejo documents. Deployments
+# hosting Forgejo elsewhere add that instance hostname to this catalog
+# allowlist. Reads return the resource(s) under a named key; writes return the
+# identifiers a caller routes on. Every mock is deterministic — same input,
+# same output, no IO.
+name: forgejo
+displayName: Forgejo
+description: Manage the repositories, issues and pull requests of a Forgejo instance, and read its issues and pull requests for task intake. Connect with an access token carrying read:repository and read:issue access (write:issue to create, change or comment on issues).
+tags: [Developer]
+endpointMode: per-credential
+allowedHosts:
+  - codeberg.org
+  - git.tale.dev
+auth:
+  - method: bearer
+    scheme: token
+actions:
+  - name: list_repos
+    title: List repositories
+    i18n:
+      de:
+        title: Repositories auflisten
+      fr:
+        title: Lister les dépôts
+    description: List the repositories the connected account can read.
+    effects: read
+    input:
+      type: object
+      additionalProperties: false
+      properties:
+        page: { type: integer, minimum: 1, description: 'Page number, from 1.' }
+        limit: { type: integer, minimum: 1, maximum: 50, description: 'Results per page (at most 50).' }
+    output: '{ repos: Array<{ id: number, name: string, full_name: string, private: boolean, html_url: string }> }'
+    mock: |
+      return { repos: [{ id: 1, name: 'demo-repo', full_name: 'example/demo-repo', private: false, html_url: 'https://codeberg.org/example/demo-repo' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = [];
+        for (const k of ['page', 'limit']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(ctx.endpoint + '/api/v1/user/repos' + (q.length ? '?' + q.join('&') : ''), { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_repos failed (${r.status})`);
+        return { repos: r.json() };
+    exampleInput: { limit: 20 }
+  - name: list_issues
+    title: List issues
+    i18n:
+      de:
+        title: Issues auflisten
+      fr:
+        title: Lister les issues
+    description: List a repository's issues, or its pull requests with type pulls. Labels narrow the list to items carrying any of them.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        state: { type: string, enum: [open, closed, all], description: 'Filter by state; open when left out.' }
+        type: { type: string, enum: [issues, pulls], description: 'Issues or pull requests; both when left out.' }
+        labels: { type: string, maxLength: 1000, description: 'Comma-separated label names; items carrying any of them.' }
+        created_by: { type: string, maxLength: 100, description: 'Only items this user opened.' }
+        page: { type: integer, minimum: 1, description: 'Page number, from 1.' }
+        limit: { type: integer, minimum: 1, maximum: 50, description: 'Results per page (at most 50).' }
+    output: '{ issues: Array<{ number: number, title: string, state: string, html_url: string }> }'
+    mock: |
+      return { issues: [{ number: 1, title: 'Example issue', state: input.state || 'open', html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/1' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = [];
+        for (const k of ['state', 'type', 'labels', 'created_by', 'page', 'limit']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues' + (q.length ? '?' + q.join('&') : ''), { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_issues failed (${r.status})`);
+        return { issues: r.json() };
+    exampleInput: { owner: example, repo: web, state: open }
+  - name: get_issue
+    title: Get issue
+    i18n:
+      de:
+        title: Issue abrufen
+      fr:
+        title: Récupérer une issue
+    description: Get a single issue (or pull request) by its number.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo, issue_number]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        issue_number: { type: integer, minimum: 1, description: Issue number. }
+    output: '{ issue: { number: number, title: string, state: string, body: string, html_url: string } }'
+    mock: |
+      return { issue: { number: input.issue_number, title: 'Example issue', state: 'open', body: 'Mock issue body.', html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + input.issue_number } };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number), { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo get_issue failed (${r.status})`);
+        return { issue: r.json() };
+    exampleInput: { owner: example, repo: web, issue_number: 1 }
+  - name: create_issue
+    title: Create issue
+    i18n:
+      de:
+        title: Issue erstellen
+      fr:
+        title: Créer une issue
+    description: Create a new issue in a repository.
+    effects: write
+    input:
+      type: object
+      required: [owner, repo, title]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        title: { type: string, minLength: 1, maxLength: 255, description: Issue title. }
+        body: { type: string, description: 'Issue body (Markdown supported).' }
+        assignees: { type: array, items: { type: string }, description: Usernames to assign. }
+    output: '{ number: number, url: string }'
+    mock: |
+      const number = 1 + (input.title.length % 999);
+      return { number, url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + number };
+    backend:
+      kind: yaml-js
+      live: |
+        const payload = { title: input.title };
+        if (input.body != null) payload.body = input.body;
+        if (input.assignees != null) payload.assignees = input.assignees;
+        const r = await ctx.http.post(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues', { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo create_issue failed (${r.status})`);
+        const j = r.json();
+        return { number: j.number, url: j.html_url };
+    exampleInput: { owner: example, repo: web, title: Something is broken }
+  - name: update_issue
+    title: Update issue
+    i18n:
+      de:
+        title: Issue aktualisieren
+      fr:
+        title: Mettre à jour une issue
+    description: Update an issue's title, body, state or assignees.
+    effects: write
+    input:
+      type: object
+      required: [owner, repo, issue_number]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        issue_number: { type: integer, minimum: 1, description: Issue number. }
+        title: { type: string, minLength: 1, maxLength: 255, description: New title. }
+        body: { type: string, description: 'New body (Markdown).' }
+        state: { type: string, enum: [open, closed], description: Open or close the issue. }
+        assignees: { type: array, items: { type: string }, description: "Replace the issue's assignees (usernames)." }
+    output: '{ number: number, state: string, url: string }'
+    mock: |
+      return { number: input.issue_number, state: input.state || 'open', url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + input.issue_number };
+    backend:
+      kind: yaml-js
+      live: |
+        const payload = {};
+        for (const k of ['title', 'body', 'state', 'assignees']) if (input[k] !== undefined) payload[k] = input[k];
+        const r = await ctx.http.patch(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number), { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo update_issue failed (${r.status})`);
+        const j = r.json();
+        return { number: j.number, state: j.state, url: j.html_url };
+    exampleInput: { owner: example, repo: web, issue_number: 1, state: closed }
+  - name: list_issue_comments
+    title: List issue comments
+    i18n:
+      de:
+        title: Kommentare eines Issues auflisten
+      fr:
+        title: Lister les commentaires d’une issue
+    description: List the comments on an issue or pull request conversation.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo, issue_number]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        issue_number: { type: integer, minimum: 1, description: Issue or pull request number. }
+    output: '{ comments: Array<{ id: number, body: string, user: object, html_url: string }> }'
+    mock: |
+      return { comments: [{ id: 1, body: 'Mock comment.', user: { login: 'example' }, html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + input.issue_number + '#issuecomment-1' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number) + '/comments', { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_issue_comments failed (${r.status})`);
+        return { comments: r.json() };
+    exampleInput: { owner: example, repo: web, issue_number: 1 }
+  - name: create_issue_comment
+    title: Comment on issue
+    i18n:
+      de:
+        title: Issue kommentieren
+      fr:
+        title: Commenter une issue
+    description: Add a comment to an issue or pull request conversation.
+    effects: write
+    input:
+      type: object
+      required: [owner, repo, issue_number, body]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        issue_number: { type: integer, minimum: 1, description: Issue or pull request number. }
+        body: { type: string, minLength: 1, description: 'Comment body (Markdown).' }
+    output: '{ id: number, url: string }'
+    mock: |
+      const id = 1 + (input.body.length % 999);
+      return { id, url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + input.issue_number + '#issuecomment-' + id };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.post(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number) + '/comments', { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ body: input.body }) });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo create_issue_comment failed (${r.status})`);
+        const j = r.json();
+        return { id: j.id, url: j.html_url };
+    exampleInput: { owner: example, repo: web, issue_number: 1, body: Thanks for the report! }
+  - name: list_pull_requests
+    title: List pull requests
+    i18n:
+      de:
+        title: Pull Requests auflisten
+      fr:
+        title: Lister les pull requests
+    description: List a repository's pull requests.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        state: { type: string, enum: [open, closed, all], description: 'Filter by state; open when left out.' }
+        sort: { type: string, enum: [oldest, recentupdate, leastupdate, mostcomment, leastcomment, priority], description: 'Sort order; newest first when left out.' }
+        page: { type: integer, minimum: 1, description: 'Page number, from 1.' }
+        limit: { type: integer, minimum: 1, maximum: 50, description: 'Results per page (at most 50).' }
+    output: '{ pull_requests: Array<{ number: number, title: string, state: string, html_url: string }> }'
+    mock: |
+      return { pull_requests: [{ number: 1, title: 'Example pull request', state: input.state || 'open', html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/pulls/1' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = [];
+        for (const k of ['state', 'sort', 'page', 'limit']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/pulls' + (q.length ? '?' + q.join('&') : ''), { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_pull_requests failed (${r.status})`);
+        return { pull_requests: r.json() };
+    exampleInput: { owner: example, repo: web, state: open }
+  - name: get_pull_request
+    title: Get pull request
+    i18n:
+      de:
+        title: Pull Request abrufen
+      fr:
+        title: Récupérer une pull request
+    description: Get a single pull request by its number.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo, pull_number]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
+        repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
+        pull_number: { type: integer, minimum: 1, description: Pull request number. }
+    output: '{ pull_request: { number: number, title: string, state: string, merged: boolean, html_url: string } }'
+    mock: |
+      return { pull_request: { number: input.pull_number, title: 'Example pull request', state: 'open', merged: false, html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/pulls/' + input.pull_number } };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/pulls/' + encodeURIComponent(input.pull_number), { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Forgejo get_pull_request failed (${r.status})`);
+        return { pull_request: r.json() };
+    exampleInput: { owner: example, repo: web, pull_number: 1 }
+  - name: list_import_issues
+    title: List issues to import
+    i18n:
+      de:
+        title: Issues für den Import auflisten
+      fr:
+        title: Lister les issues à importer
+    description: Read a repository's open issues (or its open pull requests with type pulls) for task intake, oldest first. Labels narrow the listing to items carrying any of them, author to the items one user opened. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100 }
+        repo: { type: string, minLength: 1, maxLength: 100 }
+        type: { type: string, enum: [issues, pulls] }
+        labels: { type: string, maxLength: 1000 }
+        author: { type: string, maxLength: 100 }
+        limit: { type: integer, minimum: 1, maximum: 500 }
+        cursor: { type: string, maxLength: 12000 }
+    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string }'
+    mock: |
+      const origin = 'https://codeberg.org';
+      const kind = input.type === 'pulls' ? 'pulls' : 'issues';
+      const name = String(input.owner).toLowerCase() + '/' + String(input.repo).toLowerCase();
+      const url = origin + '/' + input.owner + '/' + input.repo + '/' + kind + '/1';
+      const issue = { externalSystem: 'forgejo', externalId: origin + '/' + name + '#1', title: 'Example issue', description: 'Mock issue body.', externalUrl: url, externalIssue: { id: origin + '#1', title: 'Example issue', description: 'Mock issue body.', url, state: 'open', syncedAt: 0, repositoryId: 1, number: 1 } };
+      return { issues: [issue], truncated: false, nextCursor: null, repositoryId: 1, sourceOrigin: origin };
+    backend:
+      kind: native
+      impl: forgejo.list_import_issues
+    exampleInput: { owner: example, repo: web, limit: 100 }
+  - name: get_import_issue
+    title: Refresh imported issue
+    i18n:
+      de:
+        title: Importiertes Issue aktualisieren
+      fr:
+        title: Actualiser une issue importée
+    description: Refresh a previously imported issue or pull request by its immutable source identity, including closed ones outside the discovery filter, through its repository's current name. Marks a missing source unavailable without changing its Tale task.
+    effects: read
+    input:
+      type: object
+      required: [issue]
+      additionalProperties: false
+      properties:
+        issue: { type: object }
+        repositoryId: { type: integer, minimum: 1 }
+    output: '{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }'
+    mock: |
+      const source = input.issue.externalIssue;
+      return { externalSystem: 'forgejo', externalId: input.issue.externalId, externalUrl: source.url, title: source.title, description: source.description, externalIssue: source };
+    backend:
+      kind: native
+      impl: forgejo.get_import_issue
+    exampleInput:
+      issue:
+        externalId: 'https://codeberg.org/example/web#1'
+        externalIssue: { id: 'https://codeberg.org#1', title: Example, description: Details, url: 'https://codeberg.org/example/web/issues/1', state: open, syncedAt: 0, repositoryId: 1, number: 1 }
+  - name: refresh_import_issues
+    title: Refresh imported issues
+    i18n:
+      de:
+        title: Importierte Issues aktualisieren
+      fr:
+        title: Actualiser les issues importées
+    description: Refresh up to 500 linked source snapshots, four at a time, each on its own, reading each repository's current name once. An issue the instance refuses is skipped and tried again on a later run, without failing the others; a rate limit stops the batch, and the issues after it wait for a later run. Closed and unavailable issues remain linked to their existing Tale tasks. With report, the answer also names the issues skipped, how many were not read, and the rate limit's wait.
+    effects: read
+    input:
+      type: object
+      required: [issues]
+      additionalProperties: false
+      properties:
+        issues: { type: array, maxItems: 500, items: { type: object } }
+        repositoryId: { type: integer, minimum: 1 }
+        report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the issues alone.' }
+    # `report: true` answers { issues, failed, notRead, retryAfter } instead
+    # (the issue sync's own reading); the signature types the plain answer.
+    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
+    mock: |
+      const issues = input.issues.map((issue) => ({ externalSystem: 'forgejo', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;
+    backend:
+      kind: native
+      impl: forgejo.refresh_import_issues
+    exampleInput: { issues: [] }

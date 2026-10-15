@@ -11,6 +11,8 @@ sourceStatus:
   retry: Réessayer
 sourceIssue:
   heading: 'Issue {provider}'
+  headingPull: 'Pull request {provider}'
+  headingAlert: 'Alerte de sécurité {provider}'
   state:
     open: Ouverte à la source
     closed: Fermée à la source

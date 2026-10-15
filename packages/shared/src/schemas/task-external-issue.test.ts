@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { taskExternalIssueSchema } from './task-external-issue';
+import {
+  ISSUE_TRACKER_SYSTEMS,
+  isIssueTrackerSystem,
+  isPullRequestUrl,
+  issueSourceScope,
+  issueTracker,
+  issueTrackersScopedBy,
+  taskExternalIssueSchema,
+} from './task-external-issue';
 
 const source = {
   id: 'https://errors.example.test#42',
@@ -74,5 +82,55 @@ describe('external issue snapshot boundary', () => {
         taskExternalIssueSchema.safeParse({ ...source, ...patch }).success,
       ).toBe(false);
     }
+  });
+});
+
+describe('the trackers the issue sync reads', () => {
+  it('knows each by the system its tasks carry, and nothing else', () => {
+    expect(ISSUE_TRACKER_SYSTEMS).toEqual([
+      'github',
+      'github-security',
+      'forgejo',
+      'glitchtip',
+    ]);
+    for (const system of ISSUE_TRACKER_SYSTEMS)
+      expect(isIssueTrackerSystem(system)).toBe(true);
+    for (const other of ['crm', 'GitHub', 'toString', '', null, undefined])
+      expect(isIssueTrackerSystem(other)).toBe(false);
+  });
+
+  it('finds a code host’s issues by repository and an error tracker’s by project', () => {
+    expect(issueTrackersScopedBy('repositoryId')).toEqual([
+      'github',
+      'github-security',
+      'forgejo',
+    ]);
+    expect(issueTrackersScopedBy('sourceProjectId')).toEqual(['glitchtip']);
+    const issue = taskExternalIssueSchema.parse({
+      ...source,
+      repositoryId: 30,
+      sourceProjectId: '17',
+    });
+    expect(issueSourceScope('forgejo', issue)).toBe('30');
+    expect(issueSourceScope('glitchtip', issue)).toBe('17');
+    expect(issueSourceScope('crm', issue)).toBeUndefined();
+  });
+
+  it('names the trackers each connection names an instance of', () => {
+    expect(
+      ISSUE_TRACKER_SYSTEMS.filter(
+        (system) => issueTracker(system)?.perInstance === true,
+      ),
+    ).toEqual(['forgejo', 'glitchtip']);
+  });
+
+  it.each([
+    ['https://github.com/acme/web/pull/7', true],
+    ['https://git.example.org/acme/web/pulls/7', true],
+    ['https://github.com/acme/web/issues/7', false],
+    ['https://github.com/acme/web/security/dependabot/7', false],
+    ['https://github.com/acme/pull/web/issues/7', false],
+  ])('reads %s as a pull request: %s', (url, expected) => {
+    expect(isPullRequestUrl(url)).toBe(expected);
   });
 });

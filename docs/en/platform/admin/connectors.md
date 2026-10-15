@@ -19,11 +19,11 @@ The connector determines which fields appear. Use the account's actual credentia
 | Method | Required information |
 | --- | --- |
 | API key | The key issued by the service, such as Tavily or Shopify. Jev decisions takes an OpenRouter API key. |
-| Token | A service token, such as a GitHub personal access token, a Discord bot token, or a GlitchTip API token with `project:read` and `event:read`. |
+| Token | A service token, such as a GitHub personal access token, a Forgejo access token with `read:repository` and `read:issue` (`write:issue` to change issues), a Discord bot token, or a GlitchTip API token with `project:read` and `event:read`. A GitHub token that syncs security alerts also needs read access to the repository's code scanning, Dependabot and secret scanning alerts. |
 | Username and password | The service's expected pair. This can be a login and app password, or a vendor-specific ID and token. |
 | OAuth | Authorization in the vendor's browser flow; Tale stores the returned authorization. |
 
-Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For GlitchTip, use the instance origin, such as `https://app.glitchtip.com`; a self-hosted instance must also be allowed by the deployment's connector host policy. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
+Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For Forgejo, use the instance origin without a path, such as `https://codeberg.org`, and for GlitchTip the instance origin, such as `https://app.glitchtip.com`; a self-hosted Forgejo or GlitchTip instance must also be allowed by the deployment's connector host policy. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
 
 ## Choose the default
 

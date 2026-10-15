@@ -76,3 +76,60 @@ it('links historical tasks without a snapshot and refuses unsafe URLs', () => {
   );
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
 });
+
+it('names a pull request, a Forgejo item and a security alert for what they are', () => {
+  const { rerender } = render(
+    <TaskExternalIssueCard
+      externalSystem="github"
+      externalIssue={{
+        ...snapshot,
+        url: 'https://github.com/example/app/pull/8',
+      }}
+    />,
+  );
+  expect(
+    screen.getByRole('region', { name: 'GitHub pull request' }),
+  ).toBeVisible();
+  rerender(
+    <TaskExternalIssueCard
+      externalSystem="forgejo"
+      externalIssue={{
+        ...snapshot,
+        url: 'https://git.example.org/example/app/issues/9',
+      }}
+    />,
+  );
+  expect(screen.getByRole('region', { name: 'Forgejo issue' })).toBeVisible();
+  rerender(
+    <TaskExternalIssueCard
+      externalSystem="forgejo"
+      externalIssue={{
+        ...snapshot,
+        url: 'https://git.example.org/example/app/pulls/10',
+      }}
+    />,
+  );
+  expect(
+    screen.getByRole('region', { name: 'Forgejo pull request' }),
+  ).toBeVisible();
+  rerender(
+    <TaskExternalIssueCard
+      externalSystem="github-security"
+      externalIssue={{
+        ...snapshot,
+        url: 'https://github.com/example/app/security/code-scanning/3',
+        state: 'ignored',
+      }}
+    />,
+  );
+  expect(
+    screen.getByRole('region', { name: 'GitHub security alert' }),
+  ).toBeVisible();
+});
+
+it('shows no card for a source the issue sync does not read', () => {
+  render(
+    <TaskExternalIssueCard externalSystem="crm" externalIssue={snapshot} />,
+  );
+  expect(screen.queryByRole('region')).not.toBeInTheDocument();
+});

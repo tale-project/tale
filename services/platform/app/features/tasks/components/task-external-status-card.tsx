@@ -1,5 +1,6 @@
 'use client';
 
+import { isIssueTrackerSystem } from '@tale/shared/schemas/task-external-issue';
 import {
   externalStatusRequestValues,
   type ExternalStatusAction,
@@ -235,7 +236,7 @@ export function TaskExternalStatusCard({
   const { t } = useT('tasks');
   const eligible =
     externalSystem !== undefined &&
-    !['github', 'glitchtip'].includes(externalSystem.toLowerCase());
+    !isIssueTrackerSystem(externalSystem.toLowerCase());
   const query = useBackendQuery(
     'tasks/queries:getExternalStatus',
     eligible ? { organizationId, taskId } : 'skip',

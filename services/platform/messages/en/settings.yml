@@ -516,6 +516,9 @@ connectors:
     endpointHelpShopify:
       Your store's myshopify.com origin — the admin address, not the
       storefront domain.
+    endpointHelpForgejo:
+      Your Forgejo instance origin, such as https://codeberg.org, without a
+      path. A self-hosted instance works once the deployment allows its host.
     endpointHelpGlitchtip:
       Your GlitchTip instance origin, such as https://app.glitchtip.com. A
       self-hosted instance works once the deployment allows its host.

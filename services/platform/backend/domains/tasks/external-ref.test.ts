@@ -1147,6 +1147,96 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
   });
 
+  it('gives a task the sync creates its source’s labels [TASK-R62]', async () => {
+    const statements: string[] = [];
+    let inserted: unknown[] = [];
+    const { tx } = fakeDb((text, values) => {
+      statements.push(text);
+      if (text.startsWith('INSERT INTO app.task_labels'))
+        return [{ id: 'label-1' }];
+      if (text.startsWith('INSERT INTO app.tasks')) {
+        inserted = values;
+        return [{ id: 't-new' }];
+      }
+      if (text.startsWith('SELECT id FROM app.projects'))
+        return [{ id: 'p-1' }];
+      if (text.startsWith('UPDATE app.projects SET task_counter'))
+        return [{ taskCounter: 43 }];
+      return [];
+    });
+    await expect(
+      upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: 'Issue 42',
+        externalIssue: snapshot,
+        labels: ['source:github'],
+      }),
+    ).resolves.toMatchObject({ taskId: 't-new', created: true });
+    expect(
+      statements.filter((text) =>
+        text.startsWith('INSERT INTO app.task_labels'),
+      ),
+    ).toHaveLength(1);
+    expect(inserted).toContainEqual(['label-1']);
+  });
+
+  it('leaves the labels of a task the sync made before as they are [TASK-R62]', async () => {
+    const updates: string[] = [];
+    const { tx, statements } = fakeDb((text) => {
+      if (text.startsWith('UPDATE app.tasks SET')) {
+        updates.push(text);
+        return [{ id: stored.id }];
+      }
+      return text.includes('FROM app.tasks WHERE org_id = ?')
+        ? [{ ...stored, labelIds: ['triaged'] }]
+        : [];
+    });
+    await expect(
+      upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: 'Issue 42',
+        externalIssue: snapshot,
+        labels: ['source:github'],
+      }),
+    ).resolves.toMatchObject({ taskId: 't-42', created: false });
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).not.toMatch(/label_ids/);
+    expect(statements.some((text) => text.includes('app.task_labels'))).toBe(
+      false,
+    );
+  });
+
+  it.each(['github', 'github-security', 'forgejo', 'glitchtip'])(
+    'never moves a %s mirror by the state its intake names',
+    async (externalSystem) => {
+      const updates: Array<{ text: string; values: unknown[] }> = [];
+      const { tx } = fakeDb((text, values) => {
+        if (text.startsWith('UPDATE app.tasks SET')) {
+          updates.push({ text, values });
+          return [{ id: stored.id }];
+        }
+        return text.includes('FROM app.tasks WHERE org_id = ?')
+          ? [{ ...stored, status: 'in_progress', externalSystem }]
+          : [];
+      });
+      await upsertTaskByExternalRef(tx, {
+        ...intake,
+        externalSystem,
+        title: 'Closed upstream',
+        externalState: 'closed',
+      });
+      const [update] = updates;
+      const columns = [...(update?.text ?? '').matchAll(/(\w+) = \?/g)].map(
+        (match) => match[1],
+      );
+      expect(update?.values[columns.indexOf('status')]).toBe('in_progress');
+      expect(update?.values[columns.indexOf('external_closed_at_ms')]).toBe(
+        null,
+      );
+      expect(requestTaskReview).not.toHaveBeenCalled();
+    },
+  );
+
   it('answers the cut title when nothing was materialized', async () => {
     const { tx } = fakeDb(() => []);
     await expect(

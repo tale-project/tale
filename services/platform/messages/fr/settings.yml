@@ -550,6 +550,10 @@ connectors:
     endpointHelpShopify:
       L'adresse myshopify.com de ta boutique — l'adresse d'administration,
       pas le domaine de la vitrine.
+    endpointHelpForgejo:
+      L'adresse de ton instance Forgejo, sans chemin, par exemple
+      https://codeberg.org. Une instance auto-hébergée fonctionne dès que le
+      déploiement autorise son hôte.
     endpointHelpGlitchtip:
       L'adresse de ton instance GlitchTip, par exemple
       https://app.glitchtip.com. Une instance auto-hébergée fonctionne dès

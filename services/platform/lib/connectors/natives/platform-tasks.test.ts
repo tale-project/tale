@@ -803,6 +803,73 @@ describe('task.get_import_cursor / task.save_import_cursor', () => {
   });
 });
 
+/**
+ * `task.list_external_issues`: the tasks a source made, found by the
+ * immutable listing they were read from — a repository or a project, and
+ * the instance for a tracker each connection names.
+ */
+describe('task.list_external_issues', () => {
+  const ctx = {
+    organizationId: 'org-1',
+    caller: { kind: 'workflow', runId: 'run-1', nodeId: 'sync' },
+  };
+  const list = (store: Record<string, unknown>) =>
+    platformTaskNatives(store as never)['task.list_external_issues'];
+
+  it.each([
+    { externalSystem: 'github', repositoryId: 10, itemKind: 'pulls' },
+    { externalSystem: 'github-security', repositoryId: 10 },
+    {
+      externalSystem: 'forgejo',
+      repositoryId: 30,
+      sourceOrigin: 'https://git.example.org',
+      itemKind: 'issues',
+    },
+    {
+      externalSystem: 'glitchtip',
+      sourceOrigin: 'https://glitchtip.example.org',
+      sourceProjectId: '20',
+    },
+  ])('finds the tasks of %j [TASK-R65]', async (query) => {
+    const listExternalIssues = vi
+      .fn()
+      .mockResolvedValue({ issues: [], hasMore: false });
+    await expect(
+      list({ listExternalIssues })?.(
+        { projectId: 'project-1', ...query },
+        ctx as never,
+      ),
+    ).resolves.toEqual({ issues: [], hasMore: false });
+    expect(listExternalIssues).toHaveBeenCalledWith({
+      ...ctx,
+      projectId: 'project-1',
+      limit: 500,
+      ...query,
+    });
+  });
+
+  it.each([
+    // A Forgejo repository id is unique on its instance only.
+    { externalSystem: 'forgejo', repositoryId: 30 },
+    {
+      externalSystem: 'forgejo',
+      sourceOrigin: 'https://git.example.org',
+    },
+    { externalSystem: 'github-security' },
+    { externalSystem: 'github', repositoryId: 10, itemKind: 'alerts' },
+    { externalSystem: 'jira', repositoryId: 10 },
+  ])('refuses %j before the store is asked [TASK-R65]', async (query) => {
+    const listExternalIssues = vi.fn();
+    await expect(
+      list({ listExternalIssues })?.(
+        { projectId: 'project-1', ...query },
+        ctx as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(listExternalIssues).not.toHaveBeenCalled();
+  });
+});
+
 describe('task.create as an automation step', () => {
   const step = {
     organizationId: 'org-1',
@@ -1214,6 +1281,54 @@ describe('task.sync_issues as an automation step', () => {
     });
   });
 
+  it('fails as soon as one source failed when the step asks to, naming that source alone [TASK-R61]', async () => {
+    const refused = receipt({
+      kind: 'glitchtip',
+      ok: false,
+      error: 'unauthorized',
+      message: 'GlitchTip issue sync failed (HTTP 401).',
+      saved: false,
+    });
+    const syncIssues = vi.fn().mockResolvedValue(answer([receipt(), refused]));
+    await expect(
+      nativeWith(syncIssues)?.(
+        { projectId: 'project-1', sources, failOn: 'any' },
+        step as never,
+      ),
+    ).rejects.toMatchObject({
+      connector: 'task',
+      action: 'sync_issues',
+      message: expect.stringMatching(
+        /1 of 2 issue sources failed — glitchtip example\/web: GlitchTip issue sync failed \(HTTP 401\)\.$/,
+      ),
+      failure: {
+        reason: 'CONNECTOR_AUTH',
+        params: { connector: 'glitchtip' },
+      },
+    });
+    // The store syncs every source as always; the option is the rim's.
+    expect(syncIssues.mock.calls[0]?.[0]).not.toHaveProperty('failOn');
+  });
+
+  it('succeeds when the step asks to fail on any source and only a rate limit held one back [TASK-R61]', async () => {
+    const result = answer([
+      receipt(),
+      receipt({
+        kind: 'glitchtip',
+        ok: false,
+        error: 'rate_limited',
+        saved: false,
+        retryAfter: Date.parse('2026-10-14T19:00:00Z'),
+      }),
+    ]);
+    await expect(
+      nativeWith(vi.fn().mockResolvedValue(result))?.(
+        { projectId: 'project-1', sources, failOn: 'any' },
+        step as never,
+      ),
+    ).resolves.toEqual(result);
+  });
+
   it('fails before any tracker is read when the run may not write in the project [CONN-R11]', async () => {
     const syncIssues = vi
       .fn()
@@ -1272,6 +1387,32 @@ describe('task.sync_issues as an automation step', () => {
     [{ projectId: 'project-1', sources, limit: 501 }],
     [{ projectId: 'project-1', sources, refreshLimit: -1 }],
     [{ projectId: 'project-1', sources, cursor: '' }],
+    [{ projectId: 'project-1', sources, failOn: 'some' }],
+    [
+      {
+        projectId: 'project-1',
+        sources: [{ ...sources[0], taskLabels: ['x'.repeat(51)] }],
+      },
+    ],
+    [
+      {
+        projectId: 'project-1',
+        sources: [
+          {
+            kind: 'github-security',
+            owner: 'example',
+            repo: 'web',
+            alerts: [],
+          },
+        ],
+      },
+    ],
+    [
+      {
+        projectId: 'project-1',
+        sources: [{ kind: 'forgejo', owner: 'example', repo: 'web/x' }],
+      },
+    ],
   ])('refuses %j before the store is asked', async (input) => {
     const syncIssues = vi.fn();
     await expect(

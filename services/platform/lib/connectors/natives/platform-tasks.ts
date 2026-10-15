@@ -12,7 +12,10 @@
  */
 
 import {
+  ISSUE_TRACKERS,
+  ISSUE_TRACKER_SYSTEMS,
   taskExternalIssueSchema,
+  type IssueTrackerSystem,
   type TaskExternalIssue,
 } from '@tale/shared/schemas/task-external-issue';
 import { z } from 'zod';
@@ -31,7 +34,9 @@ import type {
 import { ConnectorError } from '../errors';
 import {
   IssueSyncProjectRefusal,
+  failedSources,
   issueSyncFailure,
+  issueSyncFails,
   issueSyncInputSchema,
   type IssueSyncInput,
   type IssueSyncResult,
@@ -114,6 +119,9 @@ export interface WorkflowIssueInput {
   description?: string;
   externalUrl?: string;
   externalIssue?: TaskExternalIssue;
+  /** Labels a task this write creates is given; a task that exists keeps
+   * its own. */
+  labels?: string[];
 }
 
 /** One imported issue as the task domain settled it. `title` is the title
@@ -197,12 +205,14 @@ export interface WorkflowTaskStore {
     organizationId: string;
     caller: ConnectorCaller;
     projectId: string;
-    externalSystem: 'github' | 'glitchtip';
+    externalSystem: IssueTrackerSystem;
     repositoryId?: number;
     sourceOrigin?: string;
     sourceProjectId?: string;
     limit: number;
     legacyPrefixes?: string[];
+    /** Only a code host's issues, or only its pull requests. */
+    itemKind?: 'issues' | 'pulls';
   }): Promise<{
     issues: Array<{
       taskId: string;
@@ -289,7 +299,7 @@ export interface WorkflowTaskStore {
    * each. Throws {@link IssueSyncProjectRefusal} when the run may not write
    * in the project. */
   syncIssues(
-    args: IssueSyncInput & {
+    args: Omit<IssueSyncInput, 'failOn'> & {
       organizationId: string;
       caller: ConnectorCaller;
       signal?: AbortSignal;
@@ -302,7 +312,7 @@ interface WorkflowImportCursorKey {
   organizationId: string;
   caller: ConnectorCaller;
   projectId: string;
-  externalSystem: 'github' | 'glitchtip';
+  externalSystem: IssueTrackerSystem;
   source: string;
 }
 
@@ -392,20 +402,28 @@ const upsertIssuesInput = z
 const listExternalInput = z
   .object({
     projectId: z.string().trim().min(1),
-    externalSystem: z.enum(['github', 'glitchtip']),
+    externalSystem: z.enum(ISSUE_TRACKER_SYSTEMS),
     repositoryId: z.number().int().positive().safe().optional(),
     sourceOrigin: z.url({ protocol: /^https$/ }).optional(),
     sourceProjectId: z.string().min(1).max(2000).optional(),
     legacyPrefixes: z.array(z.string().min(1).max(4000)).max(2).optional(),
+    itemKind: z.enum(['issues', 'pulls']).optional(),
     limit: z.number().int().min(1).max(500).default(500),
   })
   .strict()
   .refine(
-    (value) =>
-      value.externalSystem === 'github'
-        ? value.repositoryId !== undefined
-        : value.sourceOrigin !== undefined &&
-          value.sourceProjectId !== undefined,
+    (value) => {
+      // The immutable listing a tracker's tasks are found by: the
+      // repository or the project, and the instance of a tracker each
+      // connection names.
+      const tracker = ISSUE_TRACKERS[value.externalSystem];
+      return (
+        (tracker.scope === 'repositoryId'
+          ? value.repositoryId !== undefined
+          : value.sourceProjectId !== undefined) &&
+        (!tracker.perInstance || value.sourceOrigin !== undefined)
+      );
+    },
     { message: 'Supply the immutable source repository or project identity.' },
   );
 
@@ -446,7 +464,7 @@ const startAgentInput = taskRef
 const importCursorKeyInput = z
   .object({
     projectId: z.string().trim().min(1),
-    externalSystem: z.enum(['github', 'glitchtip']),
+    externalSystem: z.enum(ISSUE_TRACKER_SYSTEMS),
     source: z.string().trim().min(1).max(200),
   })
   .strict();
@@ -989,20 +1007,24 @@ export function platformTaskNatives(
   };
   /**
    * The issue sync. Each source answers for itself in its receipt; the step
-   * fails only when the run may not write in the project, or when every
-   * source failed — a source a rate limit holds back is waiting, not
-   * failed — so the trigger's failure streak and its notifications speak
-   * for a sync that is broken, never for one tracker that is down.
+   * fails when the run may not write in the project, or when every source
+   * failed — a source a rate limit holds back is waiting, not failed — so
+   * the trigger's failure streak and its notifications speak for a sync
+   * that is broken, never for one tracker that is down. A step that asks
+   * (`failOn: any`) fails as soon as one source failed, for a schedule
+   * that should count a dead source; the other sources' work is done and
+   * saved all the same.
    */
   const syncIssues: NativeConnectorImpl = async (input, ctx) => {
     const parsed = issueSyncInputSchema.safeParse(input);
     if (!parsed.success) refuse('sync_issues', parsed.error);
     const caller = workflowCaller('sync_issues', ctx);
-    const { projectId } = parsed.data;
+    const { failOn, ...sync } = parsed.data;
+    const { projectId } = sync;
     let result: IssueSyncResult;
     try {
       result = await store.syncIssues({
-        ...parsed.data,
+        ...sync,
         organizationId: ctx.organizationId,
         caller,
         ...(ctx.signal !== undefined && { signal: ctx.signal }),
@@ -1018,17 +1040,22 @@ export function platformTaskNatives(
       }
       throw error;
     }
-    if (result.failed === result.sources.length) {
+    if (issueSyncFails(result, failOn)) {
+      const failed = failedSources(result.sources);
       throw new TaskStepRefusal(
         'sync_issues',
-        `task.sync_issues: every issue source failed — ${result.sources
+        `task.sync_issues: ${
+          failed.length === result.sources.length
+            ? 'every issue source failed'
+            : `${failed.length} of ${result.sources.length} issue sources failed`
+        } — ${failed
           .map(
             (receipt) =>
               `${receipt.kind} ${receipt.source}: ${receipt.message ?? receipt.error ?? 'failed'}`,
           )
           .join('; ')}`,
-        issueSyncFailure(result.sources),
-        'check each source’s connection, its access to the repository or project, and the names in the step',
+        issueSyncFailure(failed),
+        'check each failed source’s connection, its access to the repository or project, and the names in the step',
       );
     }
     return result;

@@ -240,6 +240,41 @@ describe('pgTaskStore.syncIssues', () => {
     });
   });
 
+  it('hands the source’s task labels to the task domain with each issue it writes [TASK-R62]', async () => {
+    const runConnector = vi.fn().mockResolvedValue({
+      status: 'ok',
+      output: {
+        issues: [imported(1)],
+        truncated: false,
+        nextCursor: null,
+        repositoryId: 10,
+      },
+    });
+    vi.mocked(upsertTaskByExternalRef).mockResolvedValue({
+      taskId: 'task-1',
+      created: true,
+      title: 'Issue 1',
+    });
+    await pgTaskStore(sql, { runConnector }).syncIssues({
+      ...sync,
+      sources: [
+        {
+          kind: 'github',
+          owner: 'example',
+          repo: 'web',
+          taskLabels: ['source:github'],
+        },
+      ],
+    });
+    expect(vi.mocked(upsertTaskByExternalRef).mock.calls[0]?.[1]).toMatchObject(
+      {
+        externalSystem: 'github',
+        externalId: 'example/web#1',
+        labels: ['source:github'],
+      },
+    );
+  });
+
   it('passes a failure of the database itself on, instead of skipping the issue', async () => {
     const runConnector = vi.fn().mockResolvedValue({
       status: 'ok',

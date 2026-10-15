@@ -10,7 +10,10 @@
  * restarts it at once; two overlapping runs of one source save once and the
  * other's receipt says conflict; an issue closed upstream leaves its task's
  * status alone; the store takes any adapter slug and refuses a malformed
- * one; and an archived project stops the step before any tracker is read. */
+ * one; a repository's issues and its pull requests keep their own tasks,
+ * each source reading again only its own kind; a source's task labels are
+ * given to the tasks it creates and never again; and an archived project
+ * stops the step before any tracker is read. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
@@ -42,6 +45,7 @@ type Recorder = (name: string, ok: boolean, detail: string) => void;
 const callInput = z
   .object({
     repo: z.string().optional(),
+    type: z.string().optional(),
     labels: z.string().optional(),
     limit: z.number().optional(),
     cursor: z.string().optional(),
@@ -127,8 +131,10 @@ export async function checkIssueSync(
     repositories.set(repo, created);
     return created;
   };
+  // A pull request shares the issues' numbers on GitHub: the stand-in
+  // numbers its pull requests from 101 and links them to `/pull/<n>`.
   const issue = (repo: string, at: FakeRepository, n: number) => {
-    const url = `https://github.com/${owner}/${repo}/issues/${n}`;
+    const url = `https://github.com/${owner}/${repo}/${n > 100 ? 'pull' : 'issues'}/${n}`;
     const title = at.nulTitles.has(n)
       ? `Broken\u0000 issue ${n}`
       : `Source issue ${n}`;
@@ -206,7 +212,9 @@ export async function checkIssueSync(
       const offset = at0.offset;
       const end = Math.min(offset + (input.limit ?? 100), at.total);
       const issues = [];
-      for (let n = offset + 1; n <= end; n++) issues.push(issue(repo, at, n));
+      const first = input.type === 'pulls' ? 100 : 0;
+      for (let n = offset + 1; n <= end; n++)
+        issues.push(issue(repo, at, first + n));
       return ok({
         issues,
         truncated: end < at.total,
@@ -625,6 +633,76 @@ export async function checkIssueSync(
     'issue sync: a save that carries no wait keeps the wait a rate limit stored',
     keptSave.saved && keptRows[0]?.retryAfter === kept,
     `saved=${keptSave.saved}, kept=${keptRows[0]?.retryAfter}, expected=${kept}`,
+  );
+
+  // 13. A repository's issues and its pull requests keep tasks of their
+  // own: each source reads again only its own kind, and the pull request
+  // source's task labels go to the tasks it creates, never again.
+  repository('kinds', 2);
+  const kindsSources = [
+    { kind: 'github' as const, owner, repo: 'kinds' },
+    {
+      kind: 'github' as const,
+      owner,
+      repo: 'kinds',
+      type: 'pulls' as const,
+      taskLabels: ['source:renovate'],
+    },
+  ];
+  const kindsSync = () =>
+    store.syncIssues({
+      organizationId: orgId,
+      caller,
+      projectId,
+      sources: kindsSources,
+      limit: 10,
+      refreshLimit: 10,
+    });
+  await kindsSync();
+  const labelled = await sql<{ externalId: string; labels: string[] }[]>`
+    SELECT t.external_id AS "externalId",
+           ARRAY(SELECT l.name FROM app.task_labels l
+                 WHERE l.id = ANY(t.label_ids) ORDER BY l.name) AS labels
+    FROM app.tasks t
+    WHERE t.org_id = ${orgId} AND t.project_id = ${projectId}
+      AND t.external_system = 'github'
+      AND t.external_id LIKE ${`${owner}/kinds#%`.toLowerCase()}
+  `;
+  // A label taken off a task the sync made stays off.
+  await sql`
+    UPDATE app.tasks SET label_ids = '{}'
+    WHERE org_id = ${orgId} AND project_id = ${projectId}
+      AND external_id = ${`${owner}/kinds#101`.toLowerCase()}
+  `;
+  const kindsFrom = calls.length;
+  await kindsSync();
+  const kindRefreshes = calls
+    .slice(kindsFrom)
+    .filter((call) => call.repo === 'refresh')
+    .map((call) =>
+      (call.ids ?? [])
+        .map((id) => Number(id.split('#')[1]))
+        .sort((a, b) => a - b)
+        .join(','),
+    );
+  const relabelled = await sql<{ labels: string[] }[]>`
+    SELECT label_ids AS labels FROM app.tasks
+    WHERE org_id = ${orgId} AND project_id = ${projectId}
+      AND external_id = ${`${owner}/kinds#101`.toLowerCase()}
+  `;
+  record(
+    'issue sync: a repository’s issues and pull requests keep their own tasks, and a source’s task labels go only to the tasks it creates',
+    labelled
+      .map((row) => ({
+        number: Number(row.externalId.split('#')[1]),
+        labels: row.labels.join('+'),
+      }))
+      .sort((a, b) => a.number - b.number)
+      .map((row) => `${row.number}:${row.labels}`)
+      .join(',') === '1:,2:,101:source:renovate,102:source:renovate' &&
+      kindRefreshes.join('|') === '1,2|101,102' &&
+      relabelled[0]?.labels.length === 0,
+    JSON.stringify({ labelled, kindRefreshes, relabelled }),
   );
 
   // 9. An archived project stops the step before any tracker is read.

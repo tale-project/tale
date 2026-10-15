@@ -35,13 +35,13 @@ facet**
   seeded FROM the URL, not bound to it: the facet is multi-select, so the moment
   the operator touches the facet (or clears filters) the param is removed from
   the URL and the facet takes over.
-- The catalog ships 22 connector definitions
+- The catalog ships 23 connector definitions
   (`configs/platform/system/connectors/`), but the six **platform-auth**
   connectors (conversation, document, knowledge, notify, sandbox, task) never
   reach the client — the listing drops them, so the add-dialog
-  picker offers **16** vendors: confluence, discord, github, glitchtip, gmail,
-  google-drive, http, imap-smtp, jev (**Jev decisions**), outlook, shopify,
-  slack, tavily, teams, twilio, webdav.
+  picker offers **17** vendors: confluence, discord, forgejo, github, glitchtip,
+  gmail, google-drive, http, imap-smtp, jev (**Jev decisions**), outlook,
+  shopify, slack, tavily, teams, twilio, webdav.
 - Both legacy MCP routes redirect in **one hop** to `…/settings/connectors`.
   The MCP **endpoint** section (the platform's own inbound MCP surface) renders
   on `/dashboard/{org}/settings/api/mcp`.
@@ -101,7 +101,7 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the way in — never a bare empty grid.
 - [ ] `CONN-F3` · **Catalog picker (step 1)** — **Add credential** → A dialog
   titled **Add credential** (`settings.credentials.catalog.title`) with its
-  own search (`settings.connectors.searchPlaceholder`). 16 vendors in one list
+  own search (`settings.connectors.searchPlaceholder`). 17 vendors in one list
   (each row: icon, name, tags + action count meta
   `settings.connectors.card.actionCount`); configured vendors carry a
   **Configured** badge (`settings.credentials.catalog.configured`). The
@@ -135,6 +135,12 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   (`settings.connectors.dialog.endpointHelpShopify`), and GlitchTip with its
   instance origin (`settings.connectors.dialog.endpointHelpGlitchtip`,
   placeholder `https://app.glitchtip.com`) beside a masked **Token**.
+- [ ] `CONN-F23` · **Forgejo names its instance** — Picker → **Forgejo** →
+  name + token → the required **Instance URL** field
+  (`settings.connectors.dialog.endpointUrl`) carries the Forgejo help copy
+  (`settings.connectors.dialog.endpointHelpForgejo`) and the placeholder
+  `https://codeberg.org`, beside a masked **Token**; Submit stays disabled
+  until it is filled, and the saved row names the instance.
 - [ ] `CONN-F7` · **Mailbox connector config** — Picker → **IMAP / SMTP
   Mailbox** → Beyond username/password, the connector's declared config fields
   render: **IMAP server** (required), **IMAP port** (placeholder `993`),

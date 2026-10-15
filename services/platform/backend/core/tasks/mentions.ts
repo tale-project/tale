@@ -16,6 +16,7 @@
  * surface, so this stays testable without a database.
  */
 
+import { isIssueTrackerSystem } from '@tale/shared/schemas/task-external-issue';
 import {
   formatMentionToken,
   formatMentionUrl,
@@ -377,6 +378,7 @@ export function editIntroducesMentions(
 export function descriptionMentionMode(
   externalSystem: string | null | undefined,
 ): MentionTextMode {
-  const system = externalSystem?.toLowerCase();
-  return system === 'github' || system === 'glitchtip' ? 'tokens' : 'full';
+  return isIssueTrackerSystem(externalSystem?.toLowerCase())
+    ? 'tokens'
+    : 'full';
 }

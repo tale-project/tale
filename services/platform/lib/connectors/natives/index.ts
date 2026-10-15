@@ -25,6 +25,8 @@ import {
   type MailTransport,
 } from './imap-smtp';
 import { issueImportNatives } from './issue-import';
+import { securityAlertNatives } from './issue-import-alerts';
+import { forgejoIssueNatives } from './issue-import-forgejo';
 import {
   platformAutomationNatives,
   type WorkflowAutomationPositions,
@@ -160,8 +162,14 @@ export const NATIVE_IMPL_IDS = [
   'conversation.sync_mailbox',
   'document.create',
   'document.list',
+  'forgejo.get_import_issue',
+  'forgejo.list_import_issues',
+  'forgejo.refresh_import_issues',
+  'github.get_import_alert',
   'github.get_import_issue',
+  'github.list_import_alerts',
   'github.list_import_issues',
+  'github.refresh_import_alerts',
   'github.refresh_import_issues',
   'glitchtip.get_import_issue',
   'glitchtip.list_import_issues',
@@ -205,6 +213,8 @@ export function registerNativeConnectors(
 ): () => void {
   const impls = {
     ...issueImportNatives(),
+    ...forgejoIssueNatives(),
+    ...securityAlertNatives(),
     ...httpNatives(deps.http ?? {}),
     ...imapSmtpNatives({
       transport: deps.mailTransport ?? nodeMailTransport(),

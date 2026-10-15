@@ -5,7 +5,7 @@
 # routes on. Every mock is deterministic — same input, same output, no IO.
 name: github
 displayName: GitHub
-description: Manage repositories, issues, and pull requests on GitHub.
+description: Manage repositories, issues, and pull requests on GitHub, and read their code scanning, Dependabot and secret scanning alerts.
 tags:
   - Developer
 allowedHosts:
@@ -920,7 +920,7 @@ actions:
         title: Issues für den Import auflisten
       fr:
         title: Lister les issues à importer
-    description: Read matching issues for task intake. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
+    description: Read matching open issues for task intake, oldest first, or the open pull requests with type pulls. Labels narrow the listing to items carrying every one of them, author to the items one login opened (an app's login ends in [bot], such as renovate[bot]). Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
     effects: read
     input:
       type: object
@@ -930,12 +930,14 @@ actions:
         owner: { type: string, minLength: 1, maxLength: 100 }
         repo: { type: string, minLength: 1, maxLength: 100 }
         labels: { type: string, maxLength: 1000 }
+        type: { type: string, enum: [issues, pulls], description: 'Issues (the default) or pull requests.' }
+        author: { type: string, maxLength: 100, description: 'Only the items this login opened.' }
         limit: { type: integer, minimum: 1, maximum: 500 }
         cursor: { type: string, maxLength: 12000 }
     output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string, legacyPrefixes?: Array<string> }'
     mock: |
       const externalId = String(input.owner).toLowerCase() + '/' + String(input.repo).toLowerCase() + '#1';
-      const url = 'https://github.com/' + input.owner + '/' + input.repo + '/issues/1';
+      const url = 'https://github.com/' + input.owner + '/' + input.repo + (input.type === 'pulls' ? '/pull/1' : '/issues/1');
       const issue = { externalSystem: 'github', externalId, title: 'Example issue', description: 'Mock issue body.', externalUrl: url, externalIssue: { id: '1', title: 'Example issue', description: 'Mock issue body.', url, state: 'open', syncedAt: 0, repositoryId: 1, number: 1 } };
       return { issues: [issue], truncated: false, nextCursor: null, repositoryId: 1 };
     backend:
@@ -1001,3 +1003,104 @@ actions:
       kind: native
       impl: github.refresh_import_issues
     exampleInput: { issues: [] }
+  - name: list_import_alerts
+    title: List security alerts to import
+    i18n:
+      de:
+        title: Sicherheitswarnungen für den Import auflisten
+      fr:
+        title: Lister les alertes de sécurité à importer
+    description: >-
+      Read a repository's open security alerts for task intake, oldest first:
+      the kinds listed in alerts (code-scanning, dependabot, secret-scanning).
+      tools narrows code scanning to those tools (CodeQL, Trivy, Opengrep); minSeverity
+      reads only alerts at or above it, on one scale over GitHub's two (a
+      security alert's critical, high, medium, low; an alert that is not one's
+      error, warning, note as high, medium, low; a secret as critical). GitHub
+      itself narrows each listing, so a repository with thousands of alerts
+      from one scanner is read only as far as the filters reach. The secret of
+      a secret scanning alert is never read. Follows up to 20 pages per run,
+      returning an opaque nextCursor for continuation. The token needs read
+      access to the repository's code scanning, Dependabot and secret scanning
+      alerts.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo, alerts]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100 }
+        repo: { type: string, minLength: 1, maxLength: 100 }
+        alerts: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: string, enum: [code-scanning, dependabot, secret-scanning] } }
+        minSeverity: { type: string, enum: [low, medium, high, critical] }
+        tools: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 100 } }
+        limit: { type: integer, minimum: 1, maximum: 500 }
+        cursor: { type: string, maxLength: 12000 }
+    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId: number, repository: string }'
+    mock: |
+      const kind = input.alerts[0];
+      const name = String(input.owner).toLowerCase() + '/' + String(input.repo).toLowerCase();
+      const url = 'https://github.com/' + input.owner + '/' + input.repo + '/security/' + kind + '/1';
+      const issue = { externalSystem: 'github-security', externalId: name + '/' + kind + '#1', title: 'Example alert', description: '- Severity: high', externalUrl: url, externalIssue: { id: '1/' + kind + '/1', title: 'Example alert', description: '- Severity: high', url, state: 'open', syncedAt: 0, repositoryId: 1, number: 1 } };
+      return { issues: [issue], truncated: false, nextCursor: null, repositoryId: 1, repository: input.owner + '/' + input.repo };
+    backend:
+      kind: native
+      impl: github.list_import_alerts
+    exampleInput: { owner: example, repo: web, alerts: [code-scanning, dependabot], minSeverity: high, tools: [CodeQL] }
+  - name: get_import_alert
+    title: Refresh imported security alert
+    i18n:
+      de:
+        title: Importierte Sicherheitswarnung aktualisieren
+      fr:
+        title: Actualiser une alerte de sécurité importée
+    description: Refresh a previously imported security alert by its immutable source identity, whatever its state. Marks a missing alert unavailable without changing its Tale task. repository is the owner/name the listing answered.
+    effects: read
+    input:
+      type: object
+      required: [issue, repository]
+      additionalProperties: false
+      properties:
+        issue: { type: object }
+        repository: { type: string, minLength: 3, maxLength: 201 }
+        repositoryId: { type: integer, minimum: 1 }
+    output: '{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }'
+    mock: |
+      const source = input.issue.externalIssue;
+      return { externalSystem: 'github-security', externalId: input.issue.externalId, externalUrl: source.url, title: source.title, description: source.description, externalIssue: source };
+    backend:
+      kind: native
+      impl: github.get_import_alert
+    exampleInput:
+      repository: example/web
+      issue:
+        externalId: example/web/code-scanning#1
+        externalIssue: { id: 1/code-scanning/1, title: Example, description: Details, url: 'https://github.com/example/web/security/code-scanning/1', state: open, syncedAt: 0, repositoryId: 1, number: 1 }
+  - name: refresh_import_alerts
+    title: Refresh imported security alerts
+    i18n:
+      de:
+        title: Importierte Sicherheitswarnungen aktualisieren
+      fr:
+        title: Actualiser les alertes de sécurité importées
+    description: Refresh up to 500 linked alert snapshots, four at a time, each on its own. An alert GitHub refuses is skipped and tried again on a later run, without failing the others; a rate limit stops the batch, and the alerts after it wait for a later run. Fixed, dismissed and unavailable alerts remain linked to their existing Tale tasks. With report, the answer also names the alerts skipped, how many were not read, and the rate limit's wait.
+    effects: read
+    input:
+      type: object
+      required: [issues, repository]
+      additionalProperties: false
+      properties:
+        issues: { type: array, maxItems: 500, items: { type: object } }
+        repository: { type: string, minLength: 3, maxLength: 201 }
+        repositoryId: { type: integer, minimum: 1 }
+        report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the alerts alone.' }
+    # `report: true` answers { issues, failed, notRead, retryAfter } instead
+    # (the issue sync's own reading); the signature types the plain answer.
+    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
+    mock: |
+      const issues = input.issues.map((issue) => ({ externalSystem: 'github-security', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;
+    backend:
+      kind: native
+      impl: github.refresh_import_alerts
+    exampleInput: { repository: example/web, issues: [] }

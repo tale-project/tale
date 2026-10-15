@@ -810,5 +810,16 @@
  * `runCounts` for each agent of the pool — every run it holds, `running`,
  * `queued`, and `waiting` by reason — and lists its 50 oldest runs at most
  * under `runs`, where it listed every one.
+ *
+ * 3.47.0 — 2026-10-15: the issue sync reads two more trackers, and the task
+ * intake treats their tasks as it treats GitHub's and GlitchTip's: for
+ * `externalSystem` `github-security` (a GitHub repository's security alerts)
+ * and `forgejo` (a Forgejo instance's issues and pull requests),
+ * `externalState` no longer moves the task (new tasks enter `backlog`, local
+ * progress stays), a description keeps that tracker's `@names` as written,
+ * and `PUT …/tasks/{taskId}/external-status` refuses the task
+ * (`TASK_EXTERNAL_REF_INVALID`). Before, a task under either name was a
+ * custom source whose `closed` parked it at `in_review`. No operation or
+ * schema changes.
  */
-export const API_CONTRACT_VERSION = '3.46.0';
+export const API_CONTRACT_VERSION = '3.47.0';

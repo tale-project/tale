@@ -11,6 +11,8 @@ sourceStatus:
   retry: Retry
 sourceIssue:
   heading: '{provider} issue'
+  headingPull: '{provider} pull request'
+  headingAlert: '{provider} security alert'
   state:
     open: Open at source
     closed: Closed at source
