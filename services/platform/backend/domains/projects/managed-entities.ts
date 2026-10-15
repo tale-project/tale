@@ -150,7 +150,14 @@ export async function writeManagedProject(
       ? { description: config.description }
       : {}),
   });
-  if (config.teamIds !== undefined)
+  // Only a changed audience goes through its writer, which takes an owner or
+  // admin even to restate it: an editor renaming the project while its
+  // declaration names the teams it already has is not changing who sees it.
+  // Order counts: the first team is the project's owning team.
+  if (
+    config.teamIds !== undefined &&
+    config.teamIds.join('\u0000') !== project.teamIds.join('\u0000')
+  )
     await updateProjectSharing(tx, auth, {
       projectId: config.projectId,
       teamIds: config.teamIds,

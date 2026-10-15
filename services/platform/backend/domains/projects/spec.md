@@ -226,6 +226,8 @@ project is created there by someone who may create projects, with the labels eve
 gets and the key the declaration chooses; a project holding it in another organization is not
 found. An existing project's name, description and teams change through their own writers, only
 against the version its plan read; a field the declaration leaves out keeps what is stored.
+Renaming it takes whoever may edit it; changing its teams takes an owner or admin, and teams the
+declaration restates as they are change nothing.
 
 - **Example**: The Fleet declaration names project `6f1c…3b11` with key `FLT` → the first apply
   creates it with the labels bug, feature and improvement; the next apply, after Ada renamed it

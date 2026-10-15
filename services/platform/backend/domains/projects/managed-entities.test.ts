@@ -171,6 +171,53 @@ describe('a declaration creates a project under the id it chooses, or changes th
       }),
     ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
   });
+
+  it('lets an editor rename a project whose declaration restates its teams, and leaves a changed audience to an owner or admin', async () => {
+    const shared = { ...fleet, teamIds: ['team-a', 'team-b'] };
+    const hash = managedConfigurationHash(managedProjectView(shared));
+    const grace = {
+      organizationId: 'org-1',
+      userId: 'grace',
+      role: 'member',
+      teamIds: ['team-a'],
+    };
+    // The audience's writer refuses whoever is not an owner or admin, even
+    // when it is told what is already stored.
+    const forbidden = new service.ProjectError(
+      'ROLE_FORBIDDEN',
+      'Only an owner or admin changes who sees a project',
+      403,
+    );
+    vi.mocked(service.updateProjectSharing).mockRejectedValue(forbidden);
+    vi.mocked(service.loadProjectOrThrow).mockResolvedValueOnce(shared);
+    await writeManagedProject(database([PROJECT]), grace, {
+      config: {
+        projectId: PROJECT,
+        name: 'Fleet ops',
+        teamIds: ['team-a', 'team-b'],
+      },
+      expectedHash: hash,
+    });
+    expect(service.updateProjectIdentity).toHaveBeenCalledWith(
+      expect.anything(),
+      grace,
+      { projectId: PROJECT, name: 'Fleet ops' },
+    );
+    expect(service.updateProjectSharing).not.toHaveBeenCalled();
+    // Another first team is another owning team: a change of audience.
+    vi.mocked(service.loadProjectOrThrow).mockResolvedValueOnce(shared);
+    await expect(
+      writeManagedProject(database([PROJECT]), grace, {
+        config: {
+          projectId: PROJECT,
+          name: 'Fleet ops',
+          teamIds: ['team-b', 'team-a'],
+        },
+        expectedHash: hash,
+      }),
+    ).rejects.toBe(forbidden);
+    vi.mocked(service.updateProjectSharing).mockReset();
+  });
 });
 
 describe('a declared agent is created with the runtime and model its declaration names [PROJ-R22]', () => {
