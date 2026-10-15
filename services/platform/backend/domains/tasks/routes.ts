@@ -72,6 +72,7 @@ import {
   taskCommentCursorSchema,
 } from './comments.ts';
 import {
+  checkProjectDispatchSave,
   readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
@@ -250,6 +251,39 @@ function invalidBody<E extends OrgEnv>(
     }
   }
   return invalidBodyResponse(c, error);
+}
+
+const managedDispatchBodySchema = z.strictObject({
+  config: managedProjectDispatchSchema,
+  expectedHash: expectedConfigurationHashSchema,
+});
+
+/** The body of a managed dispatch save or check, for the project in the
+ * path: its dispatch and the hash the caller reviewed, or the 400 that
+ * refuses it. */
+async function managedDispatchBody<E extends OrgEnv>(
+  c: Context<E>,
+  projectId: string,
+): Promise<
+  | { refused: Response }
+  | {
+      dispatch: Omit<z.infer<typeof managedProjectDispatchSchema>, 'projectId'>;
+      expectedHash: z.infer<typeof expectedConfigurationHashSchema>;
+    }
+> {
+  const body = managedDispatchBodySchema.safeParse(await c.req.json());
+  if (!body.success) return { refused: invalidBodyResponse(c, body.error) };
+  if (body.data.config.projectId !== projectId)
+    return {
+      refused: invalidBodyIssuesResponse(c, [
+        {
+          path: 'config.projectId',
+          message: 'must name the project in the request path',
+        },
+      ]),
+    };
+  const { projectId: _projectId, ...dispatch } = body.data.config;
+  return { dispatch, expectedHash: body.data.expectedHash };
 }
 
 /** A start or due date: an instant a `Date` can hold, which a safe integer
@@ -673,32 +707,33 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.post('/dispatch/by-project/:projectId/configuration', async (c) => {
-    const body = z
-      .strictObject({
-        config: managedProjectDispatchSchema,
-        expectedHash: expectedConfigurationHashSchema,
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
     const projectId = c.req.param('projectId');
-    if (body.data.config.projectId !== projectId)
-      return invalidBodyIssuesResponse(c, [
-        {
-          path: 'config.projectId',
-          message: 'must name the project in the request path',
-        },
-      ]);
+    const body = await managedDispatchBody(c, projectId);
+    if ('refused' in body) return body.refused;
     try {
       const auth = await authCtx(c);
-      const { projectId: _projectId, ...dispatch } = body.data.config;
       const saved = await transactSerializable(deps.sql, (tx) =>
-        saveProjectDispatch(tx, auth, {
-          projectId,
-          dispatch,
-          expectedHash: body.data.expectedHash,
-        }),
+        saveProjectDispatch(tx, auth, { projectId, ...body }),
       );
       return c.json({ ok: true, changed: saved.changed, hash: saved.hash });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // What the save above would do, writing nothing: managed configuration
+  // asks it for every changed dispatch before it writes any resource.
+  app.post('/dispatch/by-project/:projectId/configuration/check', async (c) => {
+    const projectId = c.req.param('projectId');
+    const body = await managedDispatchBody(c, projectId);
+    if ('refused' in body) return body.refused;
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await transactSerializable(deps.sql, (tx) =>
+          checkProjectDispatchSave(tx, auth, { projectId, ...body }),
+        ),
+      );
     } catch (error) {
       return handleError(c, error);
     }

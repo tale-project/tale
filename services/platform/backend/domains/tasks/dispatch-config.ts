@@ -182,27 +182,23 @@ export async function checkProjectDispatch(
   return issues;
 }
 
-/**
- * Write a project's dispatch, in the caller's serializable transaction:
- * the caller may administer the project, the project is active, the
- * document the caller reviewed is still the stored one (`expectedHash`,
- * null for none), and everything it names checks out. A stored document
- * this image cannot read is never replaced (`CONFIG_UNREADABLE`). Writing
- * the stored document again changes nothing. A change is audited and asks
- * for a pass at once, so switching dispatch on or widening its pool takes
- * effect without waiting for the next minute.
- */
-export async function saveProjectDispatch(
+interface DispatchSaveArgs {
+  projectId: string;
+  dispatch: ProjectDispatch;
+  /** The hash of the document the caller reviewed; undefined skips the
+   * comparison (the app's own form, which always saves what it read). */
+  expectedHash?: string | null;
+}
+
+/** Everything a save checks before it writes, in the caller's transaction:
+ * the caller may administer the project, the project is active, the stored
+ * document is the one the caller reviewed and this image can read, and what
+ * the document names checks out (`issues`, empty when it does). */
+async function prepareDispatchSave(
   tx: TransactionSql,
   auth: ProjectAuthContext,
-  args: {
-    projectId: string;
-    dispatch: ProjectDispatch;
-    /** The hash of the document the caller reviewed; undefined skips the
-     * comparison (the app's own form, which always saves what it read). */
-    expectedHash?: string | null;
-  },
-): Promise<{ changed: boolean; hash: string }> {
+  args: DispatchSaveArgs,
+) {
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertProjectAdministrable(project, auth);
   assertProjectActive(project);
@@ -224,14 +220,60 @@ export async function saveProjectDispatch(
     projectId: args.projectId,
     dispatch: args.dispatch,
   });
+  const next = dispatchConfigurationValue(args.projectId, args.dispatch);
+  const hash = managedConfigurationHash(next) ?? '';
+  const changed =
+    current === null || managedConfigurationHash(current) !== hash;
+  return { project, stored, issues, hash, changed };
+}
+
+/**
+ * What saving a project's dispatch would do, checked exactly as the save
+ * checks it and writing nothing: no document, audit, pass or hint. Managed
+ * configuration asks it before it writes anything of a declaration, since a
+ * dispatch is written last and a refusal there would leave the rest applied.
+ * A refusal of the caller or of the stored document still throws, as the
+ * save does; what the document itself names wrongly is answered as issues.
+ */
+export async function checkProjectDispatchSave(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: DispatchSaveArgs,
+): Promise<
+  | { ok: true; changed: boolean; hash: string }
+  | { ok: false; issues: DispatchIssue[] }
+> {
+  const prepared = await prepareDispatchSave(tx, auth, args);
+  if (prepared.issues.length > 0) {
+    return { ok: false, issues: prepared.issues };
+  }
+  return { ok: true, changed: prepared.changed, hash: prepared.hash };
+}
+
+/**
+ * Write a project's dispatch, in the caller's serializable transaction,
+ * once `prepareDispatchSave` passes. A stored document this image cannot
+ * read is never replaced (`CONFIG_UNREADABLE`). Writing the stored document
+ * again changes nothing. A change is audited and asks for a pass at once,
+ * so switching dispatch on or widening its pool takes effect without
+ * waiting for the next minute.
+ */
+export async function saveProjectDispatch(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: DispatchSaveArgs,
+): Promise<{ changed: boolean; hash: string }> {
+  const { project, stored, issues, hash, changed } = await prepareDispatchSave(
+    tx,
+    auth,
+    args,
+  );
   if (issues.length > 0) {
     throw new TaskError('DISPATCH_INVALID', DISPATCH_INVALID_SENTENCE, 400, {
       issues,
     });
   }
-  const next = dispatchConfigurationValue(args.projectId, args.dispatch);
-  const hash = managedConfigurationHash(next) ?? '';
-  if (current !== null && managedConfigurationHash(current) === hash) {
+  if (!changed) {
     return { changed: false, hash };
   }
   const now = Date.now();

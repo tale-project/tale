@@ -31,6 +31,7 @@ import { claimAgentWorker } from './agent-workers.ts';
 import { holdAgentJobs } from './delegated-start.integration.ts';
 import { admitAutomatedStart } from './delegated-start.ts';
 import {
+  checkProjectDispatchSave,
   readProjectDispatchConfiguration,
   saveProjectDispatch,
 } from './dispatch-config.ts';
@@ -542,6 +543,38 @@ export async function checkFleetDispatch(
     // 9. A gate: the CI queue is full, so the work labelled `ci` waits and
     // the rest starts; the queue drains below the recover value, the gate
     // opens, a pass is asked for at once, and the held work starts.
+    // Managed configuration asks before it writes anything: while the
+    // project lacks the label the gate names, the check refuses it at that
+    // field and leaves the stored dispatch and its audit as they were.
+    const gatedDispatch: ProjectDispatch = {
+      ...dispatch,
+      gates: [{ key: 'ci', labels: ['ci'], holdAt: 20 }],
+    };
+    const dispatchAudits = async () =>
+      (
+        await sql<{ count: number }[]>`
+          SELECT count(*)::int AS count FROM app.audit_logs
+          WHERE org_id = ${orgId} AND resource_id = ${projectId}
+        `
+      )[0]?.count ?? 0;
+    const beforeCheck = await readProjectDispatchConfiguration(
+      sql,
+      auth,
+      projectId,
+    );
+    const auditsBeforeCheck = await dispatchAudits();
+    const refusedCheck = await transactSerializable(sql, (tx) =>
+      checkProjectDispatchSave(tx, auth, {
+        projectId,
+        dispatch: gatedDispatch,
+        expectedHash: beforeCheck.hash,
+      }),
+    );
+    const afterRefusedCheck = await readProjectDispatchConfiguration(
+      sql,
+      auth,
+      projectId,
+    );
     const ciLabel = randomUUID();
     await sql`
       INSERT INTO app.task_labels (id, org_id, project_id, name, color,
@@ -549,6 +582,14 @@ export async function checkFleetDispatch(
       VALUES (${ciLabel}, ${orgId}, ${projectId}, 'ci', 'blue', ${userId},
         ${now}, ${now})
     `;
+    const passingCheck = await transactSerializable(sql, (tx) =>
+      checkProjectDispatchSave(tx, auth, {
+        projectId,
+        dispatch: gatedDispatch,
+        expectedHash: beforeCheck.hash,
+      }),
+    );
+    const auditsAfterChecks = await dispatchAudits();
     await sql`
       INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
         label_ids, created_by, created_by_type, created_at_ms, updated_at_ms)
@@ -563,15 +604,26 @@ export async function checkFleetDispatch(
       auth,
       projectId,
     );
-    await transactSerializable(sql, (tx) =>
+    const gatedSave = await transactSerializable(sql, (tx) =>
       saveProjectDispatch(tx, auth, {
         projectId,
-        dispatch: {
-          ...dispatch,
-          gates: [{ key: 'ci', labels: ['ci'], holdAt: 20 }],
-        },
+        dispatch: gatedDispatch,
         expectedHash: current.hash,
       }),
+    );
+    record(
+      'fleet dispatch: a check refuses a gate label the project lacks at its field, writes nothing, and answers what the save then does [TASK-R61]',
+      !refusedCheck.ok &&
+        refusedCheck.issues.map((issue) => issue.path).join() ===
+          'gates.0.labels.0' &&
+        afterRefusedCheck.hash === beforeCheck.hash &&
+        current.hash === beforeCheck.hash &&
+        auditsAfterChecks === auditsBeforeCheck &&
+        passingCheck.ok &&
+        passingCheck.changed &&
+        passingCheck.hash === gatedSave.hash &&
+        gatedSave.changed,
+      `refused=${JSON.stringify(refusedCheck)} passing=${JSON.stringify(passingCheck)} saved=${JSON.stringify(gatedSave)} audits=${auditsBeforeCheck}->${auditsAfterChecks}`,
     );
     const report = (value: number) =>
       transactSerializable(sql, (tx) =>

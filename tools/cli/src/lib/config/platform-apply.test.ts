@@ -151,13 +151,20 @@ async function fixture(
       )
         id = `project-instructions/${url.pathname.split('/')[4]}`;
       else if (
-        /^\/api\/app\/tasks\/dispatch\/by-project\/[^/]+\/configuration$/.test(
+        /^\/api\/app\/tasks\/dispatch\/by-project\/[^/]+\/configuration(?:\/check)?$/.test(
           url.pathname,
         )
       )
         id = `project-dispatch/${url.pathname.split('/')[6]}`;
       else throw new Error(`Unexpected fixture API: ${path}`);
       const current = entries.get(id);
+      // The platform's check of a dispatch save answers a verdict and keeps
+      // nothing.
+      if (url.pathname.endsWith('/check')) {
+        if (payload!.expectedHash !== (current?.hash ?? null))
+          throw preconditionError('CONFIG_VERSION_CONFLICT');
+        return { ok: true, changed: true, hash: valueHash(payload!.config) };
+      }
       if (method === 'GET') {
         if (id.startsWith('governance/'))
           return {
