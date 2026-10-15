@@ -545,6 +545,121 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   });
 });
 
+describe('POST /api/connectors/* — the credential a pinned agent acts as [SBX-R43]', () => {
+  const PINNED_TURN = {
+    ...TASK_TURN,
+    connectorGrants: ['forgejo', 'glitchtip'],
+    connectorCredentials: { forgejo: 'Client A' },
+  };
+  const LIST_REPOS = JSON.stringify({
+    slug: 'forgejo',
+    operation: 'list_repos',
+    args: {},
+  });
+
+  beforeEach(() => {
+    runBridgeConnectorImpl.mockImplementation(
+      bridgeDecisions.runBridgeConnectorImpl,
+    );
+    bridgeConnectorStatusImpl.mockImplementation(
+      bridgeDecisions.bridgeConnectorStatusImpl,
+    );
+    runConnectorAction.mockResolvedValue({ status: 'ok', output: [] });
+    members = new Map([['user_starter', 'member']]);
+    runs = new Map([
+      ['exec_1', { status: 'running', startedBy: 'user_starter' }],
+    ]);
+  });
+
+  it('reads through the pinned credential, and a connector without a pin through the default', async () => {
+    tokenWith(PINNED_TURN);
+
+    await post('/execute', LIST_REPOS);
+    await post('/execute', LIST_ISSUES);
+
+    expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
+      connector: 'forgejo',
+      credentialRef: 'Client A',
+    });
+    expect(runConnectorAction.mock.calls[1]?.[1]).not.toHaveProperty(
+      'credentialRef',
+    );
+  });
+
+  it('fails a call whose pinned credential is gone, never reading through the default', async () => {
+    tokenWith(PINNED_TURN);
+    runConnectorAction.mockRejectedValue(
+      new ConnectorError(
+        'CREDENTIAL_UNRESOLVED',
+        'no usable credential for forgejo: No credential "Client A" is configured for "forgejo"',
+      ),
+    );
+
+    const res = await post('/execute', LIST_REPOS);
+
+    // The pinned credential, by name, as the listing names it: marking
+    // another credential the default would not help.
+    const body: unknown = await res.json();
+    expect(body).toMatchObject({
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'no_credential',
+          guidance: expect.stringContaining(
+            'acts as the "Client A" credential for "Forgejo"',
+          ),
+        },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toContain('as the default, under');
+    // One dispatch, under the pin: nothing retried it without one.
+    expect(runConnectorAction).toHaveBeenCalledTimes(1);
+    expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
+      credentialRef: 'Client A',
+    });
+  });
+
+  it('reports the pinned credential’s state in the listing, by its name', async () => {
+    tokenWith(PINNED_TURN);
+    resolveConnectorCredential.mockImplementation(
+      (_sql: unknown, args: { credentialRef?: string }) =>
+        args.credentialRef === undefined
+          ? Promise.resolve({ credentialId: 'cred_default' })
+          : Promise.reject(new Error('No credential "Client A"')),
+    );
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const res = await post('/status', '{}');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the listing shape is the decision body's own
+    const body = (await res.json()) as {
+      connectors: Array<{
+        slug: string;
+        usable: boolean;
+        blockers: Array<{ code: string; guidance: string }>;
+      }>;
+    };
+
+    expect(resolveConnectorCredential).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      connectorSlug: 'forgejo',
+      credentialRef: 'Client A',
+    });
+    expect(body.connectors).toEqual([
+      expect.objectContaining({
+        slug: 'forgejo',
+        usable: false,
+        blockers: [
+          expect.objectContaining({
+            code: 'no_credential',
+            guidance: expect.stringContaining('"Client A"'),
+          }),
+        ],
+      }),
+      expect.objectContaining({ slug: 'glitchtip', usable: true }),
+    ]);
+  });
+});
+
 describe('POST /api/connectors/status — whom a call acts for', () => {
   beforeEach(() => {
     bridgeConnectorStatusImpl.mockImplementation(

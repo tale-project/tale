@@ -124,10 +124,12 @@ export type BridgeDispatch = (args: {
 }) => Promise<unknown>;
 
 /** Whether the org has an ACTIVE credential for a connector (the status
- * face's only host dependency). */
+ * face's only host dependency): the one the agent pins (`credentialRef`, by
+ * name), else the connector's default. */
 export type BridgeCredentialProbe = (args: {
   organizationId: string;
   connectorSlug: string;
+  credentialRef?: string;
 }) => Promise<boolean>;
 
 /** `text` ending in a full stop, whatever its source ended with. */
@@ -136,13 +138,22 @@ function asSentence(text: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+/** What an agent is told when the credential it pins for a connector is
+ * not connected or not active [SBX-R43]: that one, by name, since marking
+ * another credential the default would not help. */
+function pinnedCredentialGuidance(displayName: string, pinned: string): string {
+  return `This agent acts as the "${pinned}" credential for "${displayName}", which is not connected or not active, and it never falls back to the default. An Owner or Admin can reconnect it under Settings → Connectors, or choose another credential for the agent on the project Agents tab.`;
+}
+
 /** A coded connector refusal in the bridge's dialect: arguments the model
  * can correct read as `invalid_args`, a missing credential as the
- * `no_credential` blocker the status listing names, and the rest as an
- * error, each with the refusal's own sentence and hint. */
+ * `no_credential` blocker the status listing names (the pinned one by name,
+ * where the agent pins one), and the rest as an error, each with the
+ * refusal's own sentence and hint. */
 function connectorRefusal(
   displayName: string,
   error: ConnectorError,
+  pinned: string | undefined,
 ): BridgeExecuteResult {
   const message =
     asSentence(error.message) +
@@ -160,8 +171,10 @@ function connectorRefusal(
           {
             code: 'no_credential',
             guidance:
-              `"${displayName}" cannot run: ${asSentence(error.message)} ` +
-              'The user can connect a credential, or mark one of its credentials as the default, under Settings → Connectors.',
+              pinned !== undefined
+                ? pinnedCredentialGuidance(displayName, pinned)
+                : `"${displayName}" cannot run: ${asSentence(error.message)} ` +
+                  'The user can connect a credential, or mark one of its credentials as the default, under Settings → Connectors.',
           },
         ],
       };
@@ -178,6 +191,9 @@ export async function runBridgeConnectorImpl(
     slug: string;
     operation: string;
     callArgs: unknown;
+    /** The credential the agent pins for this connector, by name, which
+     * `dispatch` acts as: named in a refusal when it is gone. */
+    pinned?: string;
   },
 ): Promise<BridgeExecuteResult> {
   const connector = findConnector(args.slug);
@@ -250,7 +266,7 @@ export async function runBridgeConnectorImpl(
     // its arguments or tell the user what to reconnect, so they cross as
     // they are; the automation lane surfaces the same two.
     if (error instanceof ConnectorError) {
-      return connectorRefusal(connector.displayName, error);
+      return connectorRefusal(connector.displayName, error, args.pinned);
     }
     // A dispatch seam that wraps its refusals in a coded AppError.
     if (error instanceof AppError) {
@@ -280,6 +296,9 @@ export async function bridgeConnectorStatusImpl(
      * member, or for one who has left): every shipped connector reports it,
      * so `usable` never promises a call `execute` refuses. */
     callerBlocker?: BridgeBlocker;
+    /** The credential the agent pins per connector, by name: the one its
+     * calls act as, and so the one whose state the listing reports. */
+    pins?: Readonly<Record<string, string>>;
   },
 ): Promise<unknown> {
   {
@@ -310,9 +329,11 @@ export async function bridgeConnectorStatusImpl(
         });
         continue;
       }
+      const pinned = args.pins?.[slug];
       const credentialActive = await hasActiveCredential({
         organizationId: args.organizationId,
         connectorSlug: slug,
+        ...(pinned !== undefined ? { credentialRef: pinned } : {}),
       });
       const blockers: BridgeBlocker[] = [
         ...(args.callerBlocker !== undefined ? [args.callerBlocker] : []),
@@ -321,7 +342,10 @@ export async function bridgeConnectorStatusImpl(
           : [
               {
                 code: 'no_credential',
-                guidance: `"${connector.displayName}" has no active credential. The user can connect one under Settings → Connectors.`,
+                guidance:
+                  pinned !== undefined
+                    ? pinnedCredentialGuidance(connector.displayName, pinned)
+                    : `"${connector.displayName}" has no active credential. The user can connect one under Settings → Connectors.`,
               },
             ]),
       ];

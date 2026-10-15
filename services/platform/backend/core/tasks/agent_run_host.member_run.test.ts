@@ -45,7 +45,8 @@ const LAUNCH_READS = [
   'governance/internal_queries:getPolicyConfigInternal',
 ];
 
-const { resolveTurnEquipmentEnv } = vi.hoisted(() => ({
+const { resolveConfinedTurnEnv, resolveTurnEquipmentEnv } = vi.hoisted(() => ({
+  resolveConfinedTurnEnv: vi.fn(),
   resolveTurnEquipmentEnv: vi.fn(),
 }));
 
@@ -117,6 +118,7 @@ vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   }),
 }));
 vi.mock('../node_only/sandbox/turn_equipment', () => ({
+  resolveConfinedTurnEnv,
   resolveTurnEquipmentEnv,
 }));
 
@@ -266,6 +268,8 @@ beforeEach(() => {
     VAT_API_KEY: 'vat-secret',
     GITHUB_TOKEN: 'gh-token',
   });
+  // An agent without a commit identity: a confined run gets no env at all.
+  resolveConfinedTurnEnv.mockResolvedValue({});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -335,6 +339,61 @@ describe('a confined run gets none of the agent’s own repository credentials [
     await steerTaskAgentTurnImpl(ctx, STEERED as never);
     expect(resolveTurnEquipmentEnv).not.toHaveBeenCalled();
     expect(lastExec().extraEnv).toBeUndefined();
+  });
+
+  it('names the pins in its token, so the bridge reads as the pinned credential, confined or not [SBX-R43]', async () => {
+    io.confined = true;
+    const ctx = makeCtx();
+    const pinnedScope = {
+      connectorGrants: ['github', 'forgejo'],
+      connectorCredentials: { forgejo: 'Client A' },
+    };
+    await startTaskAgentTurnImpl(ctx, { ...PINNED, sweep: true } as never);
+    expect([...io.tokens.values()].map((row) => row.scope)).toEqual([
+      expect.objectContaining(pinnedScope),
+    ]);
+    // The steer restart mints its own token, which names them too.
+    io.tokens.clear();
+    await steerTaskAgentTurnImpl(ctx, STEERED as never);
+    expect([...io.tokens.values()].map((row) => row.scope)).toEqual([
+      expect.objectContaining(pinnedScope),
+    ]);
+  });
+
+  it('names no pin of a connector the agent is not equipped with', async () => {
+    await startTaskAgentTurnImpl(makeCtx(), {
+      ...PINNED,
+      connectors: ['github'],
+      sweep: true,
+    } as never);
+    const [row] = [...io.tokens.values()];
+    expect(row?.scope).not.toHaveProperty('connectorCredentials');
+  });
+
+  it('still commits under the agent’s identity, at the start and on a steered restart [SBX-R42]', async () => {
+    io.confined = true;
+    const identityEnv = {
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'user.name',
+      GIT_CONFIG_VALUE_0: 'Coder',
+      GIT_CONFIG_KEY_1: 'user.email',
+      GIT_CONFIG_VALUE_1: 'coder@tale.dev',
+    };
+    resolveConfinedTurnEnv.mockResolvedValue(identityEnv);
+    const ctx = makeCtx();
+    await startTaskAgentTurnImpl(ctx, { ...PINNED, sweep: true } as never);
+    // The identity, and nothing that is a credential.
+    expect(lastExec().extraEnv).toEqual(identityEnv);
+    await steerTaskAgentTurnImpl(ctx, STEERED as never);
+    expect(lastExec().extraEnv).toEqual(identityEnv);
+    expect(resolveTurnEquipmentEnv).not.toHaveBeenCalled();
+    expect(resolveConfinedTurnEnv).toHaveBeenCalledTimes(2);
+    for (const call of resolveConfinedTurnEnv.mock.calls) {
+      expect(call[1]).toEqual({
+        sessionId: KEYS.sessionId,
+        gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
+      });
+    }
   });
 
   it('hands an editor’s run the pins and the commit identity, at the start and on a steered restart [SBX-R41]', async () => {

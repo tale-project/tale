@@ -88,8 +88,9 @@ Pour que des agents aient une portée différente, enregistre sous **Paramètres
 - Les identifiants que tu choisis sont les seuls que l’agent utilise pour ce connector. S’ils sont supprimés plus tard, les exécutions de l’agent n’ont plus d’accès par ce connector jusqu’à ce que quelqu’un en choisisse d’autres. Elles ne se rabattent jamais sur ceux par défaut.
 - Git ne répond à l’agent que pour les hôtes des connectors dont il est équipé. Un jeton placé dans un secret, comme `GITHUB_TOKEN`, ne connecte pas Git.
 - Le jeton n’atteint que le tour en cours. Tale ne l’écrit jamais dans l’espace de travail ni dans un journal, et enregistre chaque fois qu’un tour le reçoit.
-- Une exécution qu’un Membre démarre, et une exécution sur le tableau d’un autre projet dont l’initiateur ne peut pas utiliser tout l’équipement de l’agent, ne reçoivent aucun de ces identifiants, ni aucun des secrets de l’agent.
-- Les actions de connector de l’agent, comme lister des issues GitHub, utilisent toujours les identifiants par défaut du connector.
+- Une exécution qu’un Membre démarre, et une exécution sur le tableau d’un autre projet dont l’initiateur ne peut pas utiliser tout l’équipement de l’agent, ne reçoivent aucun de ces identifiants, ni aucun des secrets de l’agent. Elles committent tout de même sous l’**Identité des commits** de l’agent.
+- Les actions de connector que l’agent mène depuis sa sandbox, comme lister des dépôts Forgejo, utilisent les mêmes identifiants dans chacune de ses exécutions, y compris celle d’un Membre. Ces appels s’exécutent dans Tale et ne donnent jamais les identifiants à la sandbox. Si les identifiants choisis n’existent plus, ils échouent.
+- Seuls GitHub et Forgejo, les connectors dont les identifiants ouvrent des dépôts Git distants, acceptent ce choix.
 
 Sous **Identité des commits**, définis le nom et l’adresse e-mail que portent les commits de l’agent. Les workers d’un agent n’appartiennent à personne : chacune de ses exécutions committe donc sous cette identité, quel que soit ce qui l’a démarrée, une personne, la [répartition du travail](/fr/platform/projects/dispatch), un rôle permanent ou une planification. Sans identité, Git n’a pas d’auteur configuré, et l’agent doit en définir un avant de committer.
 

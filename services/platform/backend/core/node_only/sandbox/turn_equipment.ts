@@ -29,6 +29,7 @@ import { internal } from '../../lib/handler_names';
 import {
   isBrokerableGrant,
   resolveSessionCredentialEnv,
+  resolveSessionGitIdentityEnv,
 } from './session_credentials';
 
 /**
@@ -102,4 +103,35 @@ export async function resolveTurnEquipmentEnv(
   }
 
   return env;
+}
+
+/**
+ * The per-exec env of a CONFINED turn (TASK-R79): none of the agent's
+ * secrets and no credential, pinned or default, but still the git author
+ * identity its commits carry (the session owner's, else the agent's own
+ * [SBX-R42]) — non-secret, so a confined run commits under the same name as
+ * any other run of the agent instead of failing with "Author identity
+ * unknown". Best-effort like {@link resolveTurnEquipmentEnv}.
+ */
+export async function resolveConfinedTurnEnv(
+  ctx: ActionCtx,
+  args: {
+    sessionId: string;
+    gitIdentity?: ProjectAgentGitIdentity | null;
+  },
+): Promise<Record<string, string>> {
+  try {
+    return await resolveSessionGitIdentityEnv(ctx, {
+      sessionId: args.sessionId,
+      ...(args.gitIdentity !== undefined
+        ? { gitIdentity: args.gitIdentity }
+        : {}),
+    });
+  } catch (err) {
+    console.warn(
+      '[turn-equipment] commit identity resolution failed (continuing):',
+      err instanceof Error ? err.message : String(err),
+    );
+    return {};
+  }
 }

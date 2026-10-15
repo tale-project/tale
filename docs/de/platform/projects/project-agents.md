@@ -88,8 +88,9 @@ Sollen Agenten unterschiedlich weit reichen, hinterlege unter **Einstellungen > 
 - Gewählte Zugangsdaten sind die einzigen, die der Agent für diesen Connector verwendet. Werden sie später gelöscht, erhalten die Läufe des Agenten über diesen Connector keinen Zugriff mehr, bis jemand andere wählt. Auf den Standard weichen sie nie aus.
 - Git antwortet dem Agenten nur für die Hosts der Connectors, mit denen er ausgestattet ist. Ein Token in einem Secret, etwa `GITHUB_TOKEN`, meldet Git nicht an.
 - Das Token erreicht nur den laufenden Turn. Tale schreibt es nie in den Arbeitsbereich oder in ein Log und protokolliert jedes Mal, wenn ein Turn es erhält.
-- Ein Lauf, den ein Mitglied startet, und ein Lauf auf dem Board eines anderen Projekts, dessen Starter die volle Ausstattung des Agenten nicht nutzen darf, erhalten keine dieser Zugangsdaten und keines der Secrets des Agenten.
-- Die Connector-Aktionen des Agenten, etwa das Auflisten von GitHub-Issues, verwenden weiterhin die Standard-Zugangsdaten des Connectors.
+- Ein Lauf, den ein Mitglied startet, und ein Lauf auf dem Board eines anderen Projekts, dessen Starter die volle Ausstattung des Agenten nicht nutzen darf, erhalten keine dieser Zugangsdaten und keines der Secrets des Agenten. Sie committen trotzdem unter der **Commit-Identität** des Agenten.
+- Die Connector-Aktionen des Agenten aus seiner Sandbox, etwa das Auflisten von Forgejo-Repositorys, laufen in jedem Lauf des Agenten mit denselben Zugangsdaten, auch im Lauf eines Mitglieds. Diese Aufrufe laufen in Tale und geben die Zugangsdaten nie an die Sandbox. Sind die gewählten Zugangsdaten nicht mehr vorhanden, scheitern sie.
+- Diese Wahl gibt es nur für GitHub und Forgejo, die Connectors, deren Zugangsdaten Git-Remotes öffnen.
 
 Lege unter **Commit-Identität** den Namen und die E-Mail-Adresse fest, die die Commits des Agenten tragen. Die Worker eines Agenten gehören keiner Person, deshalb committet jeder seiner Läufe unter dieser Identität, egal wer oder was ihn gestartet hat: eine Person, die [Arbeitsverteilung](/de/platform/projects/dispatch), eine ständige Rolle oder ein Zeitplan. Ohne Identität ist in Git kein Autor eingerichtet, und der Agent muss einen festlegen, bevor er committet.
 

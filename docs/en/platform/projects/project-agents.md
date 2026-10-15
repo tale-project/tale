@@ -88,8 +88,9 @@ To give agents different reach, store one credential per scope under **Settings 
 - A credential you choose is the only one the agent uses for that connector. If it is deleted later, the agent's runs get no access through that connector until someone chooses another. They never fall back to the default.
 - The agent's Git answers only the hosts of the connectors it is equipped with. A token in a secret, such as `GITHUB_TOKEN`, does not sign Git in.
 - The token reaches only the running turn. Tale never writes it into the workspace or a log, and records every time a turn receives it.
-- A run a Member starts, and a run on another project's board whose starter may not use the agent's full equipment, gets none of these credentials, nor any of the agent's secrets.
-- The agent's connector actions, such as listing GitHub issues, still use the connector's default credential.
+- A run a Member starts, and a run on another project's board whose starter may not use the agent's full equipment, gets none of these credentials, nor any of the agent's secrets. It still commits under the agent's **Commit identity**.
+- The agent's connector actions from its sandbox, such as listing Forgejo repositories, act as the same credential in every run of the agent, a Member's included. Those calls run in Tale and never hand the credential to the sandbox. If the chosen credential is gone, they fail.
+- Only GitHub and Forgejo take this choice, the connectors whose credentials open Git remotes.
 
 Under **Commit identity**, set the name and email the agent's commits carry. An agent's workers belong to no person, so every run of it commits under this identity, whoever or whatever started it: a person, the [dispatch](/platform/projects/dispatch), a standing role or a schedule. Without one, Git has no author configured, and the agent must set one before it commits.
 

@@ -1067,7 +1067,9 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   `connector.yml` declares a `git` capability) → broker fetch of the
   credential the project agent pins for that connector, else the
   connector's default (never baked into env/image/PodSpec) → audited
-  (`sandboxCredentialAccess`) → gone with the exec. The broker injects git
+  (`sandboxCredentialAccess`, naming the credential) → gone with the exec. A
+  per-credential host must pass the connector's own `allowedHosts` and the
+  private-address policy, as its HTTP calls do, or it is not brokered. The broker injects git
   creds into the exec's PER-EXEC env overlay, never the session env store:
   `TALE_GIT_CREDENTIALS` carries one `<host> <username> <token>` line per
   brokered git host (github.com, a Forgejo instance's own host), and the
@@ -1078,8 +1080,12 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   overlay's lifetime IS the revocation — a later ungranted turn never
   inherits the token, and nothing survives a container recreation. A pinned
   credential the organization no longer holds brokers nothing for its
-  connector, never the default. True per-operation broker fetch (with
-  immediate per-op revocation) is a planned follow-up.
+  connector, never the default. The turn's session token also names the
+  pins (`connectorCredentials`), so the agent's connector calls through the
+  bridge act as the same credential, on every run including a confined one —
+  the call runs in the platform and never hands the credential to the box.
+  True per-operation broker fetch (with immediate per-op revocation) is a
+  planned follow-up.
 
 Beside the credential helper, the broker also provisions the git **author
 identity** (`user.name`/`user.email`, injected as `GIT_CONFIG_*` env —
@@ -1088,7 +1094,8 @@ the session resolves to a real platform user, else the project agent's own
 `gitIdentity` when it has one. A project agent's workers are system-owned,
 so its runs commit as the agent. It is non-secret metadata, not a Tier-2
 grant, so — unlike the helper above — it is never gated on a git credential
-grant, and a fresh container's `git commit` has an author without any
+grant, a run confined to its task (which gets no credential) still carries
+it, and a fresh container's `git commit` has an author without any
 in-session `git config`. With neither, nothing is injected rather than a
 placeholder identity.
 

@@ -6,7 +6,15 @@
 // owner's, else the agent's own), and every failure mode downgrades instead of
 // throwing. Mocks the credential seam + api refs so the broker is callable
 // directly with a fake ctx — no spawner, no real DB. The connector catalog is
-// the shipped one (`configs/platform/system/connectors`).
+// the shipped one (`configs/platform/system/connectors`). The runtime image's
+// helper (`services/sandbox-runtime/tale-git-credential`) runs under /bin/sh
+// on what the broker writes, so the env name, the line format and the path
+// the image installs it at are held from both ends.
+
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,10 +40,17 @@ vi.mock('../../connector_credentials/resolve_credential', () => ({
 const {
   brokeredCredentialNames,
   buildGitConfigEnv,
+  GIT_CREDENTIAL_HELPER,
   GIT_CREDENTIALS_ENV,
+  gitCredentialLine,
   isBrokerableGrant,
   resolveSessionCredentialEnv,
 } = await import('./session_credentials');
+
+const SANDBOX_RUNTIME = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../../sandbox-runtime',
+);
 
 function makeCtx(opts: { identity?: { name: string; email: string } | null }) {
   const runQuery = vi.fn((ref: unknown) => {
@@ -114,6 +129,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       sessionId: 'sess-1',
       slug: 'github',
       kind: 'bootstrap',
+      credentialId: 'cred-github',
     });
   });
 
@@ -149,7 +165,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
   it('keeps a port the endpoint names, which git sends as part of the host', async () => {
     resolveConnectorCredential.mockResolvedValue(
       credential('forgejo', 'fj-token', {
-        endpoint: 'https://git.example.com:3000',
+        endpoint: 'https://git.tale.dev:3000',
       }),
     );
     const out = await resolveSessionCredentialEnv(
@@ -157,9 +173,52 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       { ...ARGS, grants: ['forgejo'] },
     );
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe(
-      'git.example.com:3000 x-access-token fj-token',
+      'git.tale.dev:3000 x-access-token fj-token',
     );
   });
+
+  it('maps a subdomain of an allowed host, as the connector’s own calls reach it', async () => {
+    resolveConnectorCredential.mockResolvedValue(
+      credential('forgejo', 'fj-token', {
+        endpoint: 'https://client-a.git.tale.dev',
+      }),
+    );
+    const out = await resolveSessionCredentialEnv(
+      makeCtx({ identity: null }) as never,
+      { ...ARGS, grants: ['forgejo'] },
+    );
+    expect(out.env[GIT_CREDENTIALS_ENV]).toBe(
+      'client-a.git.tale.dev x-access-token fj-token',
+    );
+  });
+
+  it.each([
+    ['outside the connector’s allowed hosts', 'https://forge.example.com'],
+    ['a look-alike of an allowed host', 'https://evil-git.tale.dev'],
+    ['a cloud-metadata address', 'https://169.254.169.254'],
+    ['a private address', 'https://10.0.0.5'],
+  ])(
+    'opens no git host for an endpoint %s, which the connector’s calls are refused',
+    async (_why, endpoint) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      resolveConnectorCredential.mockResolvedValue(
+        credential('forgejo', 'fj-token', { endpoint }),
+      );
+      const ctx = makeCtx({ identity: null });
+      const out = await resolveSessionCredentialEnv(ctx as never, {
+        ...ARGS,
+        grants: ['forgejo'],
+      });
+      expect(out.env[GIT_CREDENTIALS_ENV]).toBeUndefined();
+      expect(out.git).toEqual([]);
+      expect(Object.values(out.env)).not.toContain('fj-token');
+      expect(ctx.runMutation).not.toHaveBeenCalled();
+      // The warning names the refusal, never the token.
+      expect(warn).toHaveBeenCalled();
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('fj-token');
+      warn.mockRestore();
+    },
+  );
 
   it('sends a basic credential’s own username beside its password', async () => {
     resolveConnectorCredential.mockResolvedValue(
@@ -219,6 +278,93 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       'GITHUB_TOKEN',
       'forgejo git access',
     ]);
+  });
+});
+
+/** What the runtime image's helper answers git for a request on `host`,
+ * given the env the broker wrote. */
+function helperAnswers(
+  env: Record<string, string>,
+  request: { protocol: string; host: string },
+): string {
+  const run = spawnSync(
+    '/bin/sh',
+    [path.join(SANDBOX_RUNTIME, 'tale-git-credential'), 'get'],
+    {
+      env: { PATH: '/usr/bin:/bin', ...env },
+      input: `protocol=${request.protocol}\nhost=${request.host}\n\n`,
+      encoding: 'utf8',
+    },
+  );
+  expect(run.status).toBe(0);
+  return run.stdout;
+}
+
+describe('the runtime image’s helper reads what the broker writes [SBX-R40]', () => {
+  beforeEach(() => {
+    resolveConnectorCredential.mockReset();
+  });
+
+  it('answers each brokered host from the broker’s own env, and no other host', async () => {
+    resolveConnectorCredential.mockImplementation(
+      (_ctx: unknown, args: { connectorSlug: string }) =>
+        Promise.resolve(
+          args.connectorSlug === 'github'
+            ? credential('github', 'gh-token')
+            : credential('forgejo', 'fj-token', {
+                endpoint: 'https://git.tale.dev:3000',
+              }),
+        ),
+    );
+    const out = await resolveSessionCredentialEnv(
+      makeCtx({ identity: null }) as never,
+      { ...ARGS, grants: ['github', 'forgejo'] },
+    );
+
+    expect(
+      helperAnswers(out.env, { protocol: 'https', host: 'github.com' }),
+    ).toBe('username=x-access-token\npassword=gh-token\n');
+    expect(
+      helperAnswers(out.env, { protocol: 'https', host: 'Git.Tale.dev:3000' }),
+    ).toBe('username=x-access-token\npassword=fj-token\n');
+    expect(
+      helperAnswers(out.env, { protocol: 'https', host: 'gitlab.com' }),
+    ).toBe('');
+    expect(
+      helperAnswers(out.env, { protocol: 'http', host: 'github.com' }),
+    ).toBe('');
+    // The token variable GitHub's CLI reads is no answer for git.
+    expect(
+      helperAnswers(
+        { GITHUB_TOKEN: 'gh-token' },
+        { protocol: 'https', host: 'github.com' },
+      ),
+    ).toBe('');
+  });
+
+  it('reads one entry per line as the broker formats it', () => {
+    const env = {
+      [GIT_CREDENTIALS_ENV]: [
+        gitCredentialLine('github.com', 'x-access-token', 'gh-token'),
+        gitCredentialLine('git.tale.dev', 'deploy-bot', 'pw'),
+      ].join('\n'),
+    };
+    expect(
+      helperAnswers(env, { protocol: 'https', host: 'git.tale.dev' }),
+    ).toBe('username=deploy-bot\npassword=pw\n');
+  });
+
+  it('arms the helper at the path the runtime image installs it', () => {
+    const dockerfile = readFileSync(
+      path.join(SANDBOX_RUNTIME, 'Dockerfile'),
+      'utf8',
+    );
+    expect(dockerfile).toContain(
+      `COPY services/sandbox-runtime/tale-git-credential ${GIT_CREDENTIAL_HELPER}\n`,
+    );
+    expect(dockerfile).toMatch(
+      new RegExp(`RUN chmod \\+x [^\\n]*${GIT_CREDENTIAL_HELPER}`),
+    );
   });
 });
 

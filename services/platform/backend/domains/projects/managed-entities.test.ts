@@ -260,6 +260,7 @@ describe('a declared agent is created with the runtime and model its declaration
         instructions: 'Manage.',
         tools: ['task_get'],
         unknownSecrets: 'refuse',
+        exactCredentialNames: true,
       },
       { agentId: AGENT },
     );
@@ -311,6 +312,7 @@ describe('a declared agent is created with the runtime and model its declaration
         gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },
         instructions: 'Stored policy',
         unknownSecrets: 'refuse',
+        exactCredentialNames: true,
       },
     );
   });
@@ -333,6 +335,8 @@ describe('a declared agent is created with the runtime and model its declaration
         connectorCredentials: { forgejo: 'Client B' },
         gitIdentity: null,
         unknownSecrets: 'refuse',
+        // A pin declared otherwise than stored would never converge.
+        exactCredentialNames: true,
       }),
     );
   });

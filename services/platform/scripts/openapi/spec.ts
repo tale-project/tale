@@ -1395,16 +1395,19 @@ const projectAgentInputSpec: Json = (() => {
     description:
       'Which of the organization’s credentials the agent acts as, per ' +
       'connector: a connector slug to the name of one of its credentials ' +
-      '(Settings › Connectors lists them). An equipped connector that opens ' +
-      'a git host (the MCP `list_connectors` tool names it as `gitHost`: ' +
-      'GitHub, Forgejo) hands the agent’s sandbox that credential’s git ' +
-      'access instead of the default’s; a pinned credential later deleted ' +
-      'hands it ' +
-      'nothing, never the default. A connector left out uses the default. ' +
-      'A name the organization does not hold for that connector is refused ' +
+      '(Settings › Connectors lists them). Only a connector that opens a ' +
+      'git host takes a pin (the MCP `list_connectors` tool names it as ' +
+      '`gitHost`: GitHub, Forgejo). An equipped pinned connector hands the ' +
+      'agent’s sandbox that credential’s git access instead of the ' +
+      'default’s, and the agent’s connector calls from the sandbox act as ' +
+      'it too; a pinned credential later deleted hands it nothing and fails ' +
+      'those calls, never falling back to the default. A connector left out ' +
+      'uses the default. A pin on a connector without a git host, or a name ' +
+      'the organization does not hold for that connector, is refused ' +
       '(`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` ' +
       'names it), and only organization admins may change the pins ' +
-      '(`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). Omitted resets to none',
+      '(`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). Omitted on a `PUT` keeps ' +
+      'the stored pins; `{}` clears them',
   };
   properties.gitIdentity = {
     type: 'object',
@@ -1420,7 +1423,8 @@ const projectAgentInputSpec: Json = (() => {
       'no person, so every run of it commits as this identity, whoever or ' +
       'whatever started it; a workspace a person owns commits as that ' +
       'person instead. The name takes no `<`, `>` or control characters. ' +
-      '`null` or omitted: no identity is configured',
+      '`null` clears it; omitted, an update keeps the stored one and a ' +
+      'creation sets none',
   };
   return {
     ...rendered,
@@ -1436,8 +1440,10 @@ const projectAgentInputSpec: Json = (() => {
       'connectors against the connected set, tools against the grant ' +
       'catalog — and refused by name otherwise. Omitted ' +
       'modelProvider/instructions reset to null; omitted tools/secrets reset ' +
-      'to empty arrays, omitted connectorCredentials to none and omitted ' +
-      'gitIdentity to null. secrets contains organization secret NAMES, ' +
+      'to empty arrays; omitted connectorCredentials and gitIdentity keep ' +
+      'what is stored, since dropping a pin would widen the agent to the ' +
+      'connector’s default (`{}` and `null` clear them). secrets contains ' +
+      'organization secret NAMES, ' +
       'never values; only organization admins may change these grants or ' +
       'the credential pins, and a name the organization has not stored is ' +
       'refused (`PROJECT_AGENT_SECRET_UNKNOWN`, ' +

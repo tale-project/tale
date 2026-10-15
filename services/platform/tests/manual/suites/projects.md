@@ -852,8 +852,10 @@ reach under Settings › Connectors, one of them the default.
   reopen → both are kept. Start the agent on a task asking it to clone a
   repository only that credential reaches, commit a file and push → the push
   lands, authored under the commit identity, and a repository only the
-  default reaches is refused. By keyboard alone the select opens and closes
-  with Enter and Escape, and no German or French label clips.
+  default reaches is refused. Ask it to list the Forgejo repositories its
+  connector sees → only those the chosen credential reaches. By keyboard
+  alone the select opens and closes with Enter and Escape, and no German or
+  French label clips.
 - [ ] `PROJ-B30` · **An editor sees the pin but cannot change it, and a gone
   pin opens nothing** — As an Editor, open the agent of `PROJ-F74` → the
   credential select is disabled and its description reads
@@ -862,7 +864,9 @@ reach under Settings › Connectors, one of them the default.
   Settings › Connectors and reopen the agent → the select reads
   `projects.agents.repository.missing` with the old name; start the agent and
   ask it to push → Git gets no credential, and the default's repositories
-  stay out of reach too.
+  stay out of reach too; ask it to list the Forgejo repositories its
+  connector sees → the call fails naming the deleted credential, and lists
+  none of the default's.
 - [ ] `PROJ-B31` · **A run on a served board gets only the skills its starter
   sees** — With the dispatch of `PROJ-F71` serving Billing, equip the pool's
   agent with an organization skill and a team skill shared only with this

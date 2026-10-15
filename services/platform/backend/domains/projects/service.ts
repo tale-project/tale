@@ -25,6 +25,10 @@ import {
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
+import {
+  findConnector,
+  loadConnectorDefinitions,
+} from '../../../lib/connectors/catalog.ts';
 import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import {
   agentHandleBase,
@@ -1980,26 +1984,48 @@ function sameGitIdentity(
 
 /**
  * Resolve the pinned credentials against the organization's own
- * [PROJ-R23]. A pin the save adds or changes must name a credential the
- * organization holds for that connector, whatever the case of its name,
- * and is stored under the credential's own spelling; one it does not hold
- * is refused by name (`PROJECT_AGENT_CREDENTIAL_UNKNOWN`, the pins under
- * `data.connectorCredentials`), never dropped — a dropped pin would hand the
- * agent the connector's default, which may reach more. A pin kept exactly
- * as stored is not checked again: its credential may since have been
- * deleted, and the broker then hands the agent nothing for that connector,
- * so an unrelated edit of the agent is not refused over it.
+ * [PROJ-R23]. A pin the save adds or changes must name a connector whose
+ * credential opens git remotes (its manifest declares `git`: GitHub,
+ * Forgejo) and a credential the organization holds for it, whatever the
+ * case of its name, and is stored under the credential's own spelling; one
+ * that names neither is refused by name (`PROJECT_AGENT_CREDENTIAL_UNKNOWN`,
+ * the pins under `data.connectorCredentials`), never dropped — a dropped pin
+ * would hand the agent the connector's default, which may reach more. The
+ * managed door (`exactNames`) also refuses a name spelled otherwise than
+ * stored: a declaration states what Tale stores, and one that never could
+ * would never converge. A pin kept exactly as stored is not checked again:
+ * its credential may since have been deleted, and the broker then hands the
+ * agent nothing for that connector, so an unrelated edit of the agent is not
+ * refused over it.
  */
 async function resolveCredentialPins(
   tx: TransactionSql,
   organizationId: string,
   requested: ProjectAgentConnectorCredentials,
   stored: ProjectAgentConnectorCredentials = {},
+  options: { exactNames?: boolean } = {},
 ): Promise<ProjectAgentConnectorCredentials> {
   const changed = Object.entries(requested).filter(
     ([slug, name]) => stored[slug] !== name,
   );
   if (changed.length === 0) return requested;
+  const notGit = changed.filter(
+    ([slug]) => findConnector(slug)?.git === undefined,
+  );
+  if (notGit.length > 0) {
+    const gitConnectors = loadConnectorDefinitions()
+      .filter((connector) => connector.git !== undefined)
+      .map((connector) => connector.name)
+      .sort();
+    throw new ProjectError(
+      'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+      `An agent pins a credential only for a connector whose credential opens git remotes (${gitConnectors.join(', ')}); ${notGit
+        .map(([slug]) => `"${slug}"`)
+        .join(', ')} ${notGit.length === 1 ? 'does' : 'do'} not. Drop the pin.`,
+      400,
+      { connectorCredentials: Object.fromEntries(notGit) },
+    );
+  }
   const rows = await tx<{ connectorSlug: string; name: string }[]>`
     SELECT connector_slug AS "connectorSlug", name
     FROM app.connector_credentials
@@ -2008,6 +2034,7 @@ async function resolveCredentialPins(
   `;
   const resolved: Record<string, string> = { ...requested };
   const unknown: Record<string, string> = {};
+  const respelled: Array<[string, string, string]> = [];
   for (const [slug, name] of changed) {
     const held = rows.find(
       (row) =>
@@ -2015,6 +2042,8 @@ async function resolveCredentialPins(
         row.name.toLowerCase() === name.toLowerCase(),
     );
     if (held === undefined) unknown[slug] = name;
+    else if (options.exactNames === true && held.name !== name)
+      respelled.push([slug, name, held.name]);
     else resolved[slug] = held.name;
   }
   if (Object.keys(unknown).length > 0) {
@@ -2027,6 +2056,20 @@ async function resolveCredentialPins(
         )}. An agent may only pin a credential the organization has connected for that connector — add it under Settings › Connectors first, or drop the pin.`,
       400,
       { connectorCredentials: unknown },
+    );
+  }
+  if (respelled.length > 0) {
+    throw new ProjectError(
+      'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+      `Declare each pinned credential as the organization stores its name: ${respelled
+        .map(([slug, name, held]) => `"${held}" for ${slug}, not "${name}"`)
+        .join(', ')}.`,
+      400,
+      {
+        connectorCredentials: Object.fromEntries(
+          respelled.map(([slug, name]) => [slug, name]),
+        ),
+      },
     );
   }
   return sortedPins(resolved);
@@ -2497,6 +2540,9 @@ export async function createProjectAgent(
     instructions?: string;
     /** Default `prune` — the app dialog's rule. */
     unknownSecrets?: UnknownSecretsPolicy;
+    /** Refuse a pin spelled otherwise than its credential's stored name,
+     * rather than storing that spelling — the managed door's rule. */
+    exactCredentialNames?: boolean;
   },
   options: {
     /** Managed configuration's caller-chosen stable UUID; no other door
@@ -2521,6 +2567,8 @@ export async function createProjectAgent(
     tx,
     auth.organizationId,
     fields.connectorCredentials,
+    {},
+    { exactNames: args.exactCredentialNames === true },
   );
   assertMaySetCredentialPins(auth, fields.connectorCredentials, {});
 
@@ -2794,6 +2842,9 @@ export async function updateProjectAgent(
     instructions?: string;
     /** Default `prune` — the app dialog's rule. */
     unknownSecrets?: UnknownSecretsPolicy;
+    /** Refuse a pin spelled otherwise than its credential's stored name,
+     * rather than storing that spelling — the managed door's rule. */
+    exactCredentialNames?: boolean;
     /** The `updatedAt` the caller last read: a save is refused
      * (`PROJECT_AGENT_STALE`, 409) when the agent changed since — the
      * optimistic precondition every full-replace door needs, so two
@@ -2832,7 +2883,18 @@ export async function updateProjectAgent(
       409,
     );
   }
-  const fields = validateProjectAgentFields(args);
+  // An omitted pin set or commit identity keeps what is stored: dropping
+  // the pins would widen the agent to the connectors' defaults [PROJ-R23],
+  // so a writer that does not know these fields (an older client's
+  // read-modify-write, a stale app bundle during a roll) must not clear
+  // them. `{}` and `null` clear them.
+  const fields = validateProjectAgentFields({
+    ...args,
+    connectorCredentials:
+      args.connectorCredentials ?? agent.connectorCredentials,
+    gitIdentity:
+      args.gitIdentity !== undefined ? args.gitIdentity : agent.gitIdentity,
+  });
   await assertAgentEquipment(tx, auth, agent.projectId, fields, {
     skills: agent.skills,
     connectors: agent.connectors,
@@ -2851,6 +2913,7 @@ export async function updateProjectAgent(
     auth.organizationId,
     fields.connectorCredentials,
     agent.connectorCredentials,
+    { exactNames: args.exactCredentialNames === true },
   );
   assertMaySetCredentialPins(
     auth,

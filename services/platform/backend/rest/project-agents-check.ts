@@ -119,9 +119,14 @@ export async function checkProjectAgentRest(args: {
       { ...config, connectors: ['not-a-real-connector-xyz'] },
       'PROJECT_AGENT_CONNECTOR_UNKNOWN',
     ],
-    // A pinned credential the organization does not hold [PROJ-R23].
+    // A pinned credential the organization does not hold, and a pin on a
+    // connector whose credential opens no git remotes [PROJ-R23].
     [
       { ...config, connectorCredentials: { forgejo: 'not-a-credential-xyz' } },
+      'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
+    ],
+    [
+      { ...config, connectorCredentials: { slack: 'not-a-credential-xyz' } },
       'PROJECT_AGENT_CREDENTIAL_UNKNOWN',
     ],
   ];
@@ -190,9 +195,30 @@ export async function checkProjectAgentRest(args: {
     forgejo: `${pinName} deploy`,
   });
   assert.ok(carried.updatedAt > pinned.updatedAt);
-  // A PUT that leaves them out resets them, as every optional field.
-  const reset = agentEnvelope.parse(
+  // A PUT that leaves them out keeps them: dropping the pins would widen
+  // the agent to the connector's default [PROJ-R23]. `{}` and `null` clear
+  // them.
+  const kept = agentEnvelope.parse(
     await (await expectStatus(rest('PUT', itemPath, richConfig), 200)).json(),
+  ).agent;
+  assert.deepEqual(kept.connectorCredentials, {
+    forgejo: `${pinName} deploy`,
+  });
+  assert.deepEqual(kept.gitIdentity, {
+    name: 'Reviewer',
+    email: 'reviewer@tale.dev',
+  });
+  const reset = agentEnvelope.parse(
+    await (
+      await expectStatus(
+        rest('PUT', itemPath, {
+          ...richConfig,
+          connectorCredentials: {},
+          gitIdentity: null,
+        }),
+        200,
+      )
+    ).json(),
   ).agent;
   assert.deepEqual(reset.connectorCredentials, {});
   assert.equal(reset.gitIdentity, null);

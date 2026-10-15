@@ -617,8 +617,12 @@ and `teamIds`, an agent's `connectors`, `secrets`, `skills`,
   the organization lacks is refused, never dropped, and so is a pinned
   credential (`connectorCredentials`, connector slug to credential name) the
   organization does not hold for that connector; declare the
-  `connector-credential` beside it. `gitIdentity` is the `{name, email}` its
-  commits carry. The standard agent is never changed.
+  `connector-credential` beside it. Only a connector that opens git remotes
+  (GitHub, Forgejo) takes a pin, and a pin names the credential exactly as its
+  name is stored: one spelled in another case is refused, since it could never
+  read back as declared. `gitIdentity` is the `{name, email}` its commits
+  carry. A declaration that leaves either field out keeps what is stored. The
+  standard agent is never changed.
 - `task` declares `title`; `initialStatus` (`backlog` or `todo`) beside
   `createIfMissing` chooses its first column, and its description comes from
   `task-instructions`. Its status is never read or reconciled afterwards; a person

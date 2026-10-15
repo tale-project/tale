@@ -163,16 +163,22 @@ connector's default. What a run is handed is the sandbox spec's (`SBX-R40` to `S
 
 ### PROJ-R23 · An agent pins only a credential its organization holds for that connector
 
-A pin the save adds or changes names a credential of that connector, whatever the case of its
-name, and is stored under the credential's own spelling; any other is refused by name
+A pin the save adds or changes names a connector whose credential opens git remotes (GitHub,
+Forgejo) and a credential of that connector, whatever the case of its name, and is stored under
+the credential's own spelling; any other is refused by name
 (`PROJECT_AGENT_CREDENTIAL_UNKNOWN`) and nothing is saved — it is never dropped, since a
-dropped pin would hand the agent the connector's default. A pin kept exactly as stored is not
-checked again, so an unrelated edit of an agent whose pinned credential was since deleted goes
-through.
+dropped pin would hand the agent the connector's default. For the same reason a save that
+leaves the pins out keeps them, and so does one that leaves the commit identity out; only an
+explicit empty set (or no identity) clears them. A declaration (`project-agent`) must spell a
+pin as the credential's name is stored, or it is refused, naming that spelling: a pin declared
+otherwise could never read back as declared. A pin kept exactly as stored is not checked again,
+so an unrelated edit of an agent whose pinned credential was since deleted goes through.
 
 - **Example**: Ada pins Forgejo credential "client a" on the Client A Coder → it is stored as
   "Client A", the credential's name. She pins "Client Z", which nobody connected → refused,
-  naming "Client Z".
+  naming "Client Z". She pins a Slack credential → refused: Slack opens no git remotes.
+- **Example**: A script reads the Client A Coder over the REST API without the new fields and
+  saves it back with a new name → the agent keeps its pin on "Client A".
 
 ### PROJ-R24 · Only owners and admins can change which credential an agent acts as
 

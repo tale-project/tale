@@ -19,3 +19,10 @@
 ALTER TABLE app.project_agents
   ADD COLUMN IF NOT EXISTS connector_credentials jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS git_identity jsonb;
+
+-- With pins, one connector may hand different agents different credentials,
+-- so the Tier-2 audit of every credential a sandbox received names which one
+-- it was: the connector credential's id. NULL for an agent secret, which has
+-- no connector credential, and for every row written before this column.
+ALTER TABLE app.sandbox_credential_access
+  ADD COLUMN IF NOT EXISTS credential_id text;

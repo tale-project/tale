@@ -284,6 +284,8 @@ export async function writeManagedProjectAgent(
           ? { instructions: args.seed.instructions }
           : {}),
         unknownSecrets: 'refuse',
+        // A pin declared otherwise than stored would never converge.
+        exactCredentialNames: true,
       },
       { agentId: config.agentId },
     );
@@ -311,5 +313,6 @@ export async function writeManagedProjectAgent(
       ? { instructions: agent.instructions }
       : {}),
     unknownSecrets: 'refuse',
+    exactCredentialNames: true,
   });
 }
