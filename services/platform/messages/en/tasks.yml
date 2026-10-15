@@ -388,6 +388,7 @@ assignee:
   standardAgent: Standard agent
   standardAgentHint: The organization's agent for projects without their own
   servedFrom: "From {project}'s dispatch"
+  servedFromHidden: From another project's dispatch
   standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
 activity:
   reviewResponded: "Review decided"

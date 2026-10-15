@@ -390,6 +390,7 @@ assignee:
   standardAgent: Agent standard
   standardAgentHint: L'agent de l'organisation pour les projets sans agent propre
   servedFrom: De la répartition du travail de {project}
+  servedFromHidden: De la répartition du travail d’un autre projet
   standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
 activity:
   reviewResponded: "Décision de relecture"

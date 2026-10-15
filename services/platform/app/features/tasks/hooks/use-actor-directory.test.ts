@@ -98,9 +98,15 @@ let servingAgents:
       projectName: string;
     }>
   | undefined;
+/** Whether `listServingAgents` is still being read. */
+let servingLoading = false;
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) => ({
+    isLoading:
+      args !== 'skip' &&
+      name === 'projects/queries:listServingAgents' &&
+      servingLoading,
     data:
       args === 'skip'
         ? undefined
@@ -215,6 +221,23 @@ describe('useActorDirectory — members + project-agent instances', () => {
       expect(result.current.resolveAssigneeId('coder')).toBe('Coder');
     } finally {
       servingAgents = undefined;
+    }
+  });
+
+  it('counts the agents as loading until the agents serving the board are read too', () => {
+    const settled = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(settled.result.current.agentsLoading).toBe(false);
+    servingLoading = true;
+    try {
+      const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+      expect(result.current.agentsLoading).toBe(true);
+      // A mention names the project's own agents alone: it does not wait
+      // for the agents serving the board.
+      expect(result.current.mentionsPending).toBe(
+        settled.result.current.mentionsPending,
+      );
+    } finally {
+      servingLoading = false;
     }
   });
 

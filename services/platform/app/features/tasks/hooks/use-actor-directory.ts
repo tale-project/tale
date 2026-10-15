@@ -69,8 +69,9 @@ export interface AssignableActor {
   managed?: boolean;
   /** An agent of another project whose dispatch serves this board (agents
    * only): it may be assigned and review here, but it is not this
-   * project's to mention. */
-  servedFrom?: { projectId: string; projectName: string };
+   * project's to mention. Its project's name is null for a viewer who may
+   * not read that project. */
+  servedFrom?: { projectId: string; projectName: string | null };
 }
 
 // Shared frozen instances keep hook results referentially stable across
@@ -146,11 +147,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [members],
   );
 
-  const { agents: projectAgents, isLoading: agentsLoading } = useProjectAgents(
-    projectId !== undefined && projectId !== ''
-      ? asProjectId(projectId)
-      : undefined,
-  );
+  const { agents: projectAgents, isLoading: ownAgentsLoading } =
+    useProjectAgents(
+      projectId !== undefined && projectId !== ''
+        ? asProjectId(projectId)
+        : undefined,
+    );
   // The agents other projects' dispatches put to work on this board: they
   // are named here and may be assigned and review here, as the project's own.
   const serving = useBackendQuery(
@@ -160,6 +162,9 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       : 'skip',
   );
   const servingAgents = serving.data ?? EMPTY_SERVING;
+  // An empty list is "no agent here" only once both reads settle: the
+  // board's own agents and those serving it.
+  const agentsLoading = ownAgentsLoading || serving.isLoading;
   const agentList = useMemo<AssignableActor[]>(() => {
     if (projectAgents.length === 0 && servingAgents.length === 0) {
       return EMPTY_AGENT_LIST;
@@ -377,14 +382,15 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       automations: automationList,
       /** The same automations as listed, for the task-contract surfaces. */
       contractAutomations: automations,
-      /** True while the project's agent list is still being fetched — an empty
+      /** True while the project's agent list, or the agents other projects'
+       * dispatches put on its board, are still being fetched — an empty
        * `agents` is only "this project HAS no agents" once this settles. */
       agentsLoading,
       /** True until the people, agents and automations a mention can name
        * have all arrived: a mention of someone not listed yet is not yet
-       * someone gone. */
+       * someone gone. A mention names the project's own agents alone. */
       mentionsPending:
-        members === undefined || agentsLoading || automationsPending,
+        members === undefined || ownAgentsLoading || automationsPending,
       currentUserId,
       organizationId,
       // `useActorDirectory` stays org-wide — it also resolves *historical* actors
@@ -404,6 +410,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       automationList,
       automations,
       agentsLoading,
+      ownAgentsLoading,
       members,
       automationsPending,
       currentUserId,

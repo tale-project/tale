@@ -392,6 +392,7 @@ assignee:
   standardAgent: Standard-Agent
   standardAgentHint: Der Agent der Organisation für Projekte ohne eigene Agenten
   servedFrom: Aus der Arbeitsverteilung von {project}
+  servedFromHidden: Aus der Arbeitsverteilung eines anderen Projekts
   standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
 activity:
   reviewResponded: "Review entschieden"
