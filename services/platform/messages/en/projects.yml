@@ -325,6 +325,7 @@ agents:
     emailPlaceholder: e.g. release-bot@example.com
     incomplete: Enter both a name and an email, or neither.
     emailInvalid: Enter a valid email address.
+    nameInvalid: Enter a name without <, > or line breaks.
   instructionsLabel: Instructions
   instructionsPlaceholder:
     What this agent owns, how it should work, and the boundaries it must

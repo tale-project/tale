@@ -10,6 +10,7 @@
  * `agent` present means edit, absent means create.
  */
 
+import { projectAgentGitIdentitySchema } from '@tale/shared/schemas/projects';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { SearchableSelect } from '@tale/ui/searchable-select';
@@ -85,9 +86,29 @@ interface ProjectAgentDialogProps {
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
 const INSTRUCTIONS_MAX = 20_000;
 
-/** A plausible email: what the server's schema refuses, caught before a
- * round trip. */
-const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+/** Which message key each commit identity field fails with, by the shared
+ * schema the server validates against; neither key when both pass. Both
+ * empty is no identity at all. */
+function validateGitIdentity(
+  name: string,
+  email: string,
+): {
+  name?: 'nameInvalid' | 'incomplete';
+  email?: 'emailInvalid' | 'incomplete';
+} {
+  if (name === '' && email === '') return {};
+  if (name === '') return { name: 'incomplete' };
+  if (email === '') return { email: 'incomplete' };
+  const { shape } = projectAgentGitIdentitySchema;
+  return {
+    ...(shape.name.safeParse(name).success
+      ? {}
+      : { name: 'nameInvalid' as const }),
+    ...(shape.email.safeParse(email).success
+      ? {}
+      : { email: 'emailInvalid' as const }),
+  };
+}
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -129,7 +150,10 @@ export function ProjectAgentDialog({
   const [pins, setPins] = useState<Record<string, string>>({});
   const [gitName, setGitName] = useState('');
   const [gitEmail, setGitEmail] = useState('');
-  const [gitIdentityError, setGitIdentityError] = useState<string | undefined>(
+  const [gitNameError, setGitNameError] = useState<string | undefined>(
+    undefined,
+  );
+  const [gitEmailError, setGitEmailError] = useState<string | undefined>(
     undefined,
   );
   const [instructions, setInstructions] = useState('');
@@ -167,7 +191,8 @@ export function ProjectAgentDialog({
     setPins({ ...agent?.connectorCredentials });
     setGitName(agent?.gitIdentity?.name ?? '');
     setGitEmail(agent?.gitIdentity?.email ?? '');
-    setGitIdentityError(undefined);
+    setGitNameError(undefined);
+    setGitEmailError(undefined);
     setInstructions(agent?.instructions ?? '');
     setNameError(undefined);
     documentSkillsSeeded.current = false;
@@ -265,12 +290,20 @@ export function ProjectAgentDialog({
     if (!canSubmit || isSubmitting) return;
     const commitName = gitName.trim();
     const commitEmail = gitEmail.trim();
-    if ((commitName === '') !== (commitEmail === '')) {
-      setGitIdentityError(t('agents.gitIdentity.incomplete'));
-      return;
-    }
-    if (commitEmail !== '' && !EMAIL_RE.test(commitEmail)) {
-      setGitIdentityError(t('agents.gitIdentity.emailInvalid'));
+    // The server's own rule for each field, so the error lands on the field
+    // at fault instead of coming back as one refusal of the whole save.
+    const identity = validateGitIdentity(commitName, commitEmail);
+    if (identity.name !== undefined || identity.email !== undefined) {
+      setGitNameError(
+        identity.name === undefined
+          ? undefined
+          : t(`agents.gitIdentity.${identity.name}`),
+      );
+      setGitEmailError(
+        identity.email === undefined
+          ? undefined
+          : t(`agents.gitIdentity.${identity.email}`),
+      );
       return;
     }
     setIsSubmitting(true);
@@ -318,7 +351,9 @@ export function ProjectAgentDialog({
       ) {
         setNameError(t(`errors.${code}`));
       } else if (code === 'PROJECT_AGENT_GIT_IDENTITY_INVALID') {
-        setGitIdentityError(t(`errors.${code}`));
+        // The checks above mirror the server's, so this is a rule they do
+        // not know yet; its message names both fields.
+        setGitNameError(t(`errors.${code}`));
       } else if (
         code === 'PROJECT_AGENT_HARNESS_INVALID' ||
         code === 'PROJECT_AGENT_STALE' ||
@@ -485,13 +520,14 @@ export function ProjectAgentDialog({
         gitEmail={gitEmail}
         onGitNameChange={(value) => {
           setGitName(value);
-          setGitIdentityError(undefined);
+          setGitNameError(undefined);
         }}
         onGitEmailChange={(value) => {
           setGitEmail(value);
-          setGitIdentityError(undefined);
+          setGitEmailError(undefined);
         }}
-        {...(gitIdentityError !== undefined ? { gitIdentityError } : {})}
+        {...(gitNameError !== undefined ? { gitNameError } : {})}
+        {...(gitEmailError !== undefined ? { gitEmailError } : {})}
         canChangePins={canChangePins}
         disabled={isSubmitting}
       />

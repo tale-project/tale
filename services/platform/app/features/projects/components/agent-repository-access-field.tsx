@@ -50,7 +50,10 @@ interface AgentRepositoryAccessFieldProps {
   gitEmail: string;
   onGitNameChange: (value: string) => void;
   onGitEmailChange: (value: string) => void;
-  gitIdentityError?: string;
+  /** Why the commit name cannot be saved, shown on that field. */
+  gitNameError?: string;
+  /** Why the commit email cannot be saved, shown on that field. */
+  gitEmailError?: string;
   /** Whether the person may change the pins (Owners and Admins). */
   canChangePins: boolean;
   disabled?: boolean;
@@ -66,7 +69,8 @@ export function AgentRepositoryAccessField({
   gitEmail,
   onGitNameChange,
   onGitEmailChange,
-  gitIdentityError,
+  gitNameError,
+  gitEmailError,
   canChangePins,
   disabled,
 }: AgentRepositoryAccessFieldProps) {
@@ -188,6 +192,7 @@ export function AgentRepositoryAccessField({
             placeholder={t('agents.gitIdentity.namePlaceholder')}
             value={gitName}
             disabled={disabled}
+            errorMessage={gitNameError}
             onChange={(e) => onGitNameChange(e.target.value)}
           />
           <Input
@@ -197,7 +202,7 @@ export function AgentRepositoryAccessField({
             placeholder={t('agents.gitIdentity.emailPlaceholder')}
             value={gitEmail}
             disabled={disabled}
-            errorMessage={gitIdentityError}
+            errorMessage={gitEmailError}
             onChange={(e) => onGitEmailChange(e.target.value)}
           />
         </Stack>

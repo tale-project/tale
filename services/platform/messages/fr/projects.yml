@@ -333,6 +333,7 @@ agents:
     emailPlaceholder: p. ex. release-bot@example.com
     incomplete: Saisis un nom et une adresse e-mail, ou aucun des deux.
     emailInvalid: Saisis une adresse e-mail valide.
+    nameInvalid: Saisis un nom sans <, > ni saut de ligne.
   instructionsLabel: Instructions
   instructionsPlaceholder:
     Ce que cet agent prend en charge, comment il doit travailler et les

@@ -635,6 +635,36 @@ describe('ProjectAgentDialog repository access', () => {
     expect(updateAgent).not.toHaveBeenCalled();
   });
 
+  it('refuses a commit name with angle brackets on the name field, before saving', async () => {
+    const { user } = renderCoder();
+    const name = screen.getByRole('textbox', { name: 'Commit name' });
+    const email = screen.getByRole('textbox', { name: 'Commit email' });
+    await user.type(name, 'Coder <coder@tale.dev>');
+    await user.type(email, 'coder@tale.dev');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(
+      await screen.findByText('Enter a name without <, > or line breaks.'),
+    ).toBeInTheDocument();
+    expect(name).toHaveAttribute('aria-invalid', 'true');
+    expect(email).not.toHaveAttribute('aria-invalid', 'true');
+    expect(updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('refuses an email the server would refuse on the email field, before saving', async () => {
+    const { user } = renderCoder();
+    const name = screen.getByRole('textbox', { name: 'Commit name' });
+    const email = screen.getByRole('textbox', { name: 'Commit email' });
+    await user.type(name, 'Coder');
+    await user.type(email, 'coder@tale..dev');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(
+      await screen.findByText('Enter a valid email address.'),
+    ).toBeInTheDocument();
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    expect(name).not.toHaveAttribute('aria-invalid', 'true');
+    expect(updateAgent).not.toHaveBeenCalled();
+  });
+
   it('shows an editor the pin without letting them change it, and keeps it on save', async () => {
     access.admin = false;
     const { user } = renderCoder({
