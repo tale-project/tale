@@ -114,10 +114,12 @@ has switched the standard agent off, and an archived project gets none.
 ### PROJ-R12 · Deleting an agent clears it from the tasks it was assigned to
 
 The tasks stay and lose their assignee, in the same step as the delete, and the audit log
-records how many.
+records how many. That holds on every board: its own project's, and the boards of other
+projects its project's dispatch served, where each task's history says so in that project.
 
-- **Example**: An agent is assigned to four tasks. Noah deletes the agent → the four tasks
-  are unassigned.
+- **Example**: An agent is assigned to four tasks of its own project and one on another
+  project's board its dispatch serves. Noah deletes the agent → all five tasks are
+  unassigned.
 
 ### PROJ-R18 · An agent's mention handle is its name in plain letters, unique in its project
 
@@ -176,10 +178,14 @@ this.
 ### PROJ-R16 · Deleting a project retires every task in it
 
 Whether the content is deleted or kept, each task of the project is deleted the way a single
-task is: its running agents are stopped and its reviews closed.
+task is: its running agents are stopped and its reviews closed. Its agents go with it, so
+their runs on other projects' boards its dispatch served stop too, and those tasks lose them
+as assignee.
 
 - **Example**: A project has a task whose agent is running. Ada deletes the project → the run
   is stopped and the task is gone.
+- **Example**: Development's Coder works a Billing task its dispatch serves. Ada deletes
+  Development → that run is stopped, and the Billing task stays, unassigned.
 
 ## Managed tools
 
