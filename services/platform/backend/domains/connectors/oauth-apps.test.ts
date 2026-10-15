@@ -99,6 +99,30 @@ describe('resolveConnectorOauthApp', () => {
     });
   });
 
+  test('a deployment app names its Microsoft directory with CONNECTOR_OAUTH_<SLUG>_TENANT_ID', async () => {
+    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_ID', 'env-client-id');
+    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_CLIENT_SECRET', 'env-secret');
+    vi.stubEnv('CONNECTOR_OAUTH_OUTLOOK_TENANT_ID', ' tenant-123 ');
+    const resolved = await resolveConnectorOauthApp(
+      fakeSql([]),
+      'org-1',
+      'outlook',
+    );
+    expect(resolved).toEqual({
+      clientId: 'env-client-id',
+      clientSecret: 'env-secret',
+      tenantId: 'tenant-123',
+      source: 'env',
+    });
+    // The single-tenant app then signs in on its own directory.
+    expect(
+      applyMicrosoftTenant(
+        'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        resolved?.tenantId,
+      ),
+    ).toBe('https://login.microsoftonline.com/tenant-123/oauth2/v2.0/token');
+  });
+
   test('an unreadable org envelope falls through to env, never fails closed', async () => {
     vi.stubEnv('ENCRYPTION_SECRET_HEX', 'test-key-material');
     const row = orgRow();
