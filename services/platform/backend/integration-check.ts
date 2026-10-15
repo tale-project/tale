@@ -28217,7 +28217,7 @@ async function checkConnectorOauth(
       `start=${startedAgain.status}, stranger=${stranger.status} (want 400), pendingLeft=${afterStranger[0]?.count} (want 0), vendorCalls=${seen.length} (want 0)`,
     );
 
-    // ---- start: an Add's settings (0217) --------------------------------
+    // ---- start: an Add's settings (0218) --------------------------------
     // Settings the connector does not take are refused at the door, before
     // anything is minted; settings it takes ride the pending row as the
     // door normalized them, for the callback to create the credential with.
@@ -29203,7 +29203,7 @@ async function checkConnectorCredentials(
     `create=${created.success}, listed=${mainRow !== undefined} default=${mainRow?.isDefault} preview=${typeof mainRow?.maskedPreview === 'string'} cfg=${String(mainRow?.config?.imapHost)}/${String(mainRow?.config?.imapPort)}/from=${String(mainRow?.config?.fromAddress)} secretLeak=${listedRaw.includes('imap-pass-1')}, clash=${clash.status} unknown=${unknownConnector.status} wrongMethod=${wrongMethod.status} (want 409/404/400), resolve=${resolved.credentialId === mainId}/${resolved.secrets.password === 'imap-pass-1'}/basic=${resolved.authHeader === expectedBasic}, byName=${byName.credentialId === secondId}, promote=${promoted} del=${deleted.status} repromote=${rePromoted}, disabled=${disabledCode}`,
   );
 
-  // An app that signs in as itself (0216): the widened method check stores
+  // An app that signs in as itself (0217): the widened method check stores
   // it, the listing shows its client secret's excerpt, the app it is
   // (`client_app`) and its mailbox as the From, and the resolve seam fetches
   // the app's token once and keeps it sealed on the row.
