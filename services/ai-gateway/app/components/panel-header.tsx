@@ -1,8 +1,8 @@
+import { AdaptiveHeaderTitle } from '@tale/ui/adaptive-header';
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { GithubIcon } from '@tale/ui/icons/github';
 import { LanguageSwitcher } from '@tale/ui/language-switcher';
-import { TaleLogo } from '@tale/ui/logo';
 import { ThemeSwitcher } from '@tale/ui/theme-switcher';
 
 import { useT } from '@/lib/i18n/client';
@@ -11,14 +11,17 @@ import { useT } from '@/lib/i18n/client';
 const REPOSITORY_URL = 'https://github.com/tale-project/tale';
 
 /**
- * The panel's title strip — the documentation frame's header row, reused
- * measure for measure: one `h-13` box whose own border is the line under it
- * (`border-box`, never a bordered wrapper around a fixed-height row), a
- * blurred background, and the same `px-4 lg:px-6` gutter. The left is the
- * Tale mark and this service's name; the right is the docs footer's cluster
- * — language, theme, repository — in that order.
+ * The panel's title strip — the platform's own page header, measure for
+ * measure: one `h-13` box whose own border is the line under it (`border-box`,
+ * never a bordered wrapper around a fixed-height row), the blurred
+ * `bg-background/80` the platform's sticky header sits on, and the same `px-4`
+ * gutter the page below keeps, so the title and the table start on one edge.
+ * The title is the platform's too — `AdaptiveHeaderTitle`, the very component
+ * "Automations" and "Knowledge" are set in — so the service's name reads in
+ * the weight and size every page title does. The right is the documentation
+ * footer's cluster — language, theme, repository — in that order.
  *
- * Deliberately not the platform's `AdaptiveHeader`: that machinery portals a
+ * Deliberately not the platform's `AdaptiveHeader` machinery: that portals a
  * page's chrome into a shared shell across breakpoints, and this service is
  * one screen with no shell. The language picker runs in `LanguageSwitcher`'s
  * state-driven mode — this panel is served as one untranslated tree, so it
@@ -30,28 +33,12 @@ export function PanelHeader() {
   const { locale, setLocale } = useLocale();
 
   return (
-    <header className="border-border bg-background/95 z-20 flex h-13 shrink-0 items-center gap-3 border-b px-4 backdrop-blur-md lg:px-6">
-      {/* The mark is decorative — the name beside it already says whose
-          panel this is — and it steps aside on a phone so the title and the
-          three controls both fit. */}
-      <TaleLogo
-        aria-hidden
-        className="text-foreground hidden h-5 w-auto shrink-0 sm:block"
-      />
-      <span
-        aria-hidden
-        className="text-muted-foreground hidden shrink-0 sm:inline"
-      >
-        /
-      </span>
-      {/* `title`: the name is longer than a phone's share of this row, and a
-          truncated heading should still be readable somewhere. */}
-      <h1
-        className="text-foreground min-w-0 truncate text-sm font-medium"
-        title={t('title')}
-      >
+    <header className="border-border bg-background/80 z-20 flex h-13 shrink-0 items-center gap-3 border-b px-4 backdrop-blur-md">
+      {/* `min-w-0`: the title is the one thing in this row allowed to give way
+          on a phone, so the three controls beside it always fit. */}
+      <AdaptiveHeaderTitle className="min-w-0">
         {t('title')}
-      </h1>
+      </AdaptiveHeaderTitle>
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <LanguageSwitcher onSelect={setLocale} value={locale} />
         <ThemeSwitcher />
