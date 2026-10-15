@@ -43,7 +43,8 @@ accounts:
   removed: '{label} is no longer in the pool.'
   removeFailed: That account could not be removed.
 status:
-  active: Active
+  available: Available
+  limited: Limit reached
   expired: Needs reauthentication
   error: Last call failed
 providers:
@@ -56,6 +57,9 @@ usage:
   spent: '{percent}% spent'
   spentAsOf: '{percent}% spent, read {when}'
   resets: Resets {when}
+  resetsNow: Resets now
+  resetUnknown: Reset time unknown
+  rolledOver: Now
   untilReset: '{window}: time until the window resets'
 addAccount:
   title: Add account

@@ -43,7 +43,8 @@ accounts:
   removed: '{label} ne fait plus partie du pool.'
   removeFailed: Ce compte n’a pas pu être retiré.
 status:
-  active: Actif
+  available: Disponible
+  limited: Limite atteinte
   expired: Réautorisation nécessaire
   error: Dernier appel en échec
 providers:
@@ -56,6 +57,9 @@ usage:
   spent: '{percent} % consommés'
   spentAsOf: '{percent} % consommés, lu {when}'
   resets: Réinitialisation {when}
+  resetsNow: Se réinitialise maintenant
+  resetUnknown: Heure de réinitialisation inconnue
+  rolledOver: Maintenant
   untilReset: '{window} : temps restant avant la réinitialisation'
 addAccount:
   title: Ajouter un compte

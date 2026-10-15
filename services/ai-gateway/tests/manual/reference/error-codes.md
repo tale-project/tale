@@ -27,9 +27,11 @@ Never a UI message — seeing one of these in the UI is itself a bug.
 
 | Code | Where it shows up |
 |---|---|
-| `invalid_api_key` | Any `GET /api/tokens…` with a wrong key or no key. The panel's routes never answer this — the key is not their door. |
+| `invalid_api_key` | Any `GET /api/tokens…` or `/api/v1…` call with a wrong key or no key. The panel's routes never answer this — the key is not their door. |
+| `admin_key_required` | A change on `/api/v1` (start or complete an authorization, remove an account) with the API key rather than the admin key: `DELETE /api/v1/accounts/<id>` with `AI_GATEWAY_API_KEY` while `AI_GATEWAY_ADMIN_API_KEY` is set to something else. A 403: the caller is known, and the key is not enough. |
+| `control_disabled` | The same change while the gateway has no `AI_GATEWAY_ADMIN_API_KEY` at all, with a valid API key. A 403 as well; it says why nothing can be changed over REST here, and reading still works. |
 | `unknown_provider` | `GET /api/tokens/<anything the registry does not know>` with a valid key — `/api/tokens/gemini`. A vendor that exists but holds no accounts is a 200 and an empty list instead. |
-| `invalid_request` | A malformed body: a `provider` the registry does not know, a complete with no paste. The panel's own controls cannot produce these. |
+| `invalid_request` | A malformed body: a `provider` the registry does not know, a complete with no paste — or a `?provider=` / `?state=` on `GET /api/v1/accounts` that names nothing the gateway knows. The panel's own controls cannot produce these. |
 
 ## Must never appear
 

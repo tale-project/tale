@@ -20,6 +20,11 @@ import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
 
+import {
+  deriveAccountState,
+  rolledOverSince,
+  type AccountState,
+} from './account-state';
 import { isRecord } from './providers/oauth';
 import { PROVIDER_IDS } from './providers/types';
 import type { ProviderId, Subscription, UsageWindow } from './providers/types';
@@ -433,6 +438,12 @@ export function createMemoryAccountStore(): AccountStore {
   };
 }
 
+/** A usage window as the panel and the REST API draw it. */
+export interface ViewWindow extends UsageWindow {
+  /** This window is why the account is limited: spent, and not yet rolled over. */
+  blocking: boolean;
+}
+
 /** What the panel may see: every field except the credentials themselves. */
 export interface AccountView {
   id: string;
@@ -440,38 +451,59 @@ export interface AccountView {
   label: string;
   accountEmail: string | null;
   subscription: Subscription | null;
+  /** The credential's own status; `state` refines it with the quota. */
   status: AccountStatus;
+  /** What the account is now — see `deriveAccountState`. */
+  state: AccountState;
+  /** When a limited account's spent windows have all rolled over, if known. */
+  limitedUntil: string | null;
   expiresAt: string | null;
   scopes: string | null;
   createdAt: string;
   lastRefreshedAt: string | null;
   /**
    * The last reading, when it was read, and whether it is stale: the latest
-   * attempt to read it failed, or the account cannot be read at all until it
-   * is signed in again. A stale reading is still the best figure there is,
-   * so it is shown — as what it is.
+   * attempt to read it failed, the account cannot be read at all until it is
+   * signed in again, or a window rolled over after the reading was taken. A
+   * stale reading is still the best figure there is, so it is shown — as what
+   * it is.
    */
   usage: {
-    windows: UsageWindow[];
+    windows: ViewWindow[];
     checkedAt: string;
     stale: boolean;
+    /** The vendor's own "limit reached" signal; null when it sends none. */
+    limited: boolean | null;
   } | null;
 }
 
-/** Whether an account's figures are older than its latest try at them. */
-function readingIsStale(account: StoredAccount): boolean {
+/**
+ * Whether an account's figures no longer describe it: the latest try at them
+ * failed, the account cannot be read until someone signs it in again, or a
+ * window rolled over since they were taken — the figure is then the last of
+ * the window before, not of the one running now.
+ */
+function readingIsStale(account: StoredAccount, nowMs: number): boolean {
   if (!account.usage) return false;
   if (account.status === 'expired') return true;
   const attempted = account.usageAttemptedAt
     ? new Date(account.usageAttemptedAt).getTime()
     : Number.NaN;
   const read = new Date(account.usage.checkedAt).getTime();
+  if (Number.isFinite(attempted) && Number.isFinite(read) && attempted > read) {
+    return true;
+  }
   return (
-    Number.isFinite(attempted) && Number.isFinite(read) && attempted > read
+    Number.isFinite(read) &&
+    account.usage.windows.some((window) => rolledOverSince(window, read, nowMs))
   );
 }
 
-export function toAccountView(account: StoredAccount): AccountView {
+export function toAccountView(
+  account: StoredAccount,
+  nowMs: number,
+): AccountView {
+  const { state, limitedUntil, blocking } = deriveAccountState(account, nowMs);
   return {
     id: account.id,
     provider: account.provider,
@@ -479,12 +511,22 @@ export function toAccountView(account: StoredAccount): AccountView {
     accountEmail: account.accountEmail,
     subscription: account.subscription,
     status: account.status,
+    state,
+    limitedUntil,
     expiresAt: account.expiresAt,
     scopes: account.scopes,
     createdAt: account.createdAt,
     lastRefreshedAt: account.lastRefreshedAt,
     usage: account.usage
-      ? { ...account.usage, stale: readingIsStale(account) }
+      ? {
+          windows: account.usage.windows.map((window, index) => ({
+            ...window,
+            blocking: blocking[index],
+          })),
+          checkedAt: account.usage.checkedAt,
+          stale: readingIsStale(account, nowMs),
+          limited: account.usage.limited ?? null,
+        }
       : null,
   };
 }

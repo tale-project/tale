@@ -38,17 +38,20 @@ The dev server up on :3004 per [`../setup.md`](../setup.md), devtools open, a
 - [ ] `SMOKE-8` · **Open a route the panel does not define** → a real not-found
   renders; no white screen, no unhandled rejection in the console.
 - [ ] `SMOKE-9` · **Narrow the viewport to 390×844** → the header stays one
-  row: the Tale mark steps aside, the name truncates, and the language, theme
-  and GitHub controls all stay on screen. The table scrolls horizontally
+  row: the name truncates before anything else gives way, and the language,
+  theme and GitHub controls all stay on screen. The table scrolls horizontally
   inside its own frame; no control leaves the viewport.
 - [ ] `SMOKE-10` · **Open `/` in a fresh private window, with no cookie and no
   storage for the origin** → the same accounts screen, immediately. The panel
   keeps no door of its own, so a first-time browser reaches everything a
   returning one does — and a deployment that wants a door puts one in front.
-- [ ] `SMOKE-11` · **Read the header row** → one `h-13` strip, the same height
-  as the documentation site's, carrying the Tale mark, the panel's name, and —
-  on the right — the language picker, the theme picker and a GitHub button, in
-  that order. Its bottom border is one line: nothing sits a pixel below it.
+- [ ] `SMOKE-11` · **Read the header row, beside the platform's Automations or
+  Knowledge page** → one `h-13` strip, the same height as the platform's page
+  header, carrying only the panel's name — no logo — set in the same type as a
+  platform page title (16 px, semibold) and starting on the same left edge as
+  the table below it; and, on the right, the language picker, the theme picker
+  and a GitHub button, in that order. Its bottom border is one line: nothing
+  sits a pixel below it.
 - [ ] `SMOKE-12` · **Follow the GitHub button** → the repository opens in a new
   tab; the panel is still where it was, with nothing reloaded.
 - [ ] `SMOKE-13` · **Search until exactly one account matches** → the frame
@@ -60,12 +63,13 @@ The dev server up on :3004 per [`../setup.md`](../setup.md), devtools open, a
   is a skip link that reveals itself; activating it moves focus into the
   account list rather than only scrolling to it.
 - [ ] `SMOKE-15` · **Narrow the viewport until the Status column loses its
-  words** → each row still says which state it is in: a tick, a warning
-  triangle or a cross, in the state's own colour, and hovering one names it.
-  The column never shows a bare dot with no other cue. Widen it again at
-  1440 px in each language: every label reads whole, the longest ones
-  ("Letzter Aufruf fehlgeschlagen", "Réautorisation nécessaire") on two
-  lines rather than cut off.
+  words** → each row still says which state it is in: a tick, an hourglass, a
+  warning triangle or a cross, and hovering one names it — for an account at its
+  limit, with when it comes back. The column never shows a bare dot with no
+  other cue. Widen it again at 1440 px in each language: every label reads
+  whole, the longest ones ("Letzter Aufruf fehlgeschlagen", "Réautorisation
+  nécessaire") on two lines rather than cut off, and the line under Limit
+  reached ("Setzt sich in 3 Tagen zurück") wraps rather than truncates.
 - [ ] `SMOKE-16` · **Hover a date in the last column** → the exact instant,
   with the time, in the language the panel is set to — a German panel gives
   `22. Oktober 2026 06:25`, an English one `October 22, 2026 6:25 AM`.

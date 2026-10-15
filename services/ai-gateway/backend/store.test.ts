@@ -265,8 +265,11 @@ describe('createFileAccountStore', () => {
 });
 
 describe('toAccountView', () => {
+  // Ten past ten: the instant every reading below was taken is behind it.
+  const NOW = Date.parse('2026-09-21T10:10:00.000Z');
+
   it('drops both credentials', () => {
-    const view = toAccountView(account());
+    const view = toAccountView(account(), NOW);
     expect(view).not.toHaveProperty('accessToken');
     expect(view).not.toHaveProperty('refreshToken');
     expect(view.label).toBe('you@example.com');
@@ -280,6 +283,7 @@ describe('toAccountView', () => {
   it('calls a reading current when the latest try at it succeeded', () => {
     const view = toAccountView(
       account({ usage: reading, usageAttemptedAt: reading.checkedAt }),
+      NOW,
     );
     expect(view.usage?.stale).toBe(false);
   });
@@ -291,6 +295,7 @@ describe('toAccountView', () => {
         usage: reading,
         usageAttemptedAt: '2026-09-21T13:00:00.000Z',
       }),
+      NOW,
     );
     expect(view.usage).toMatchObject({
       checkedAt: '2026-09-21T10:00:00.000Z',
@@ -299,7 +304,84 @@ describe('toAccountView', () => {
   });
 
   it('calls an expired account’s reading stale, since nothing reads it', () => {
-    const view = toAccountView(account({ status: 'expired', usage: reading }));
+    const view = toAccountView(
+      account({ status: 'expired', usage: reading }),
+      NOW,
+    );
     expect(view.usage?.stale).toBe(true);
+  });
+
+  const weekly = (resetsAt: string, utilization = 100) => ({
+    kind: 'weekly' as const,
+    label: null,
+    utilization,
+    resetsAt,
+    windowSeconds: 604_800,
+  });
+
+  it('calls a reading stale once a window has rolled over since it was taken', () => {
+    const view = toAccountView(
+      account({
+        usage: {
+          windows: [weekly('2026-09-21T10:05:00.000Z')],
+          checkedAt: reading.checkedAt,
+        },
+        usageAttemptedAt: reading.checkedAt,
+      }),
+      NOW,
+    );
+    expect(view.usage?.stale).toBe(true);
+    // The rollover is behind the clock, so the spent window stops blocking
+    // even though the figure beside it still says 100.
+    expect(view.state).toBe('available');
+    expect(view.usage?.windows[0]).toMatchObject({
+      utilization: 100,
+      blocking: false,
+    });
+  });
+
+  it('does not doubt a reading for a rollover it already knew about', () => {
+    // A vendor that stamps a reset earlier than its own reading is the
+    // reading's oddity, not news: it would otherwise be stale for ever.
+    const view = toAccountView(
+      account({
+        usage: {
+          windows: [weekly('2026-09-21T09:00:00.000Z', 30)],
+          checkedAt: reading.checkedAt,
+        },
+        usageAttemptedAt: reading.checkedAt,
+      }),
+      NOW,
+    );
+    expect(view.usage?.stale).toBe(false);
+  });
+
+  it('carries the state, when a limited account comes back, and which window blocks', () => {
+    const view = toAccountView(
+      account({
+        usage: {
+          windows: [
+            { ...weekly('2026-09-21T10:30:00.000Z'), kind: 'session' },
+            weekly('2026-09-24T10:00:00.000Z'),
+            { ...weekly('2026-09-24T10:00:00.000Z', 100), kind: 'scoped' },
+          ],
+          checkedAt: reading.checkedAt,
+          limited: true,
+        },
+        usageAttemptedAt: reading.checkedAt,
+      }),
+      NOW,
+    );
+    expect(view).toMatchObject({
+      status: 'active',
+      state: 'limited',
+      limitedUntil: '2026-09-24T10:00:00.000Z',
+    });
+    expect(view.usage?.windows.map((window) => window.blocking)).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    expect(view.usage?.limited).toBe(true);
   });
 });

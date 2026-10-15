@@ -20,10 +20,13 @@ one that serves the whole pool.
 | **Two providers, one shape** | Anthropic and OpenAI differ in their OAuth callback, their identity claims and their usage payload; the panel and the endpoint do not |
 | **Connects on its own** | A ChatGPT account connects through OpenAI's device sign-in, and a Claude account — when the panel is opened on localhost — through a redirect straight back to the gateway; there is no code to carry back |
 | **Token refresh** | Each account's token is refreshed on a schedule of its own, spread across the pool and spaced out per vendor, with a shared-expiry exception; while another account can take new work, one whose planned refresh (`refresh_at`) is closer than the hand-out floor waits for it; transient failures pause retries, an authenticated usage rejection refreshes that exact token generation through the same single-flight path, and refused refresh grants require a new sign-in |
-| **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars coloured by how much is spent (green, yellow from half, orange from three quarters, red at the ceiling), beside a short grey one counting the window down to its rollover, which turns green when that is within the hour. An account whose session or weekly window is spent greys out like a disabled row until that window rolls over — only the look: its row menu keeps working |
+| **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars coloured by how much is spent (green, yellow from half, orange from three quarters, red at the ceiling), beside a short grey one counting the window down to its rollover |
+| **When an account is back** | An account whose session or weekly window is spent is **Limit reached**, and comes back when its *last* spent window rolls over — a session that resets in five minutes beside a spent week is back in three days, and the row says so (**Resets in 3 days**) and reads the week's clock in full strength while the session's steps back. Within the hour the clock turns green. The row greys out like a disabled row until then — only the look: its menu keeps working, and so do its state and its clock |
+| **Grouped by what each account is doing** | Vendors together, in the catalog's order; inside a vendor the accounts that can take work, then the ones that hit their limit — soonest back first, no known return last — then the ones that need a person (**Needs reauthentication**, **Last call failed**). The filter and the search know the same states |
+| **A REST API for accounts** | `/api/v1/accounts` lists and reads the pool, with the same state and return time the panel shows; with a second key it also starts and completes an authorization and removes an account — see [Manage accounts over REST](#manage-accounts-over-rest) |
 | **The plan, named** | Each account's plan as its vendor sells it — Max 20x, Pro, Plus, Pro Lite — read from Anthropic's profile and from ChatGPT's own usage answer |
 | **Encrypted at rest** | AES-256-GCM under `AI_GATEWAY_ENCRYPTION_KEY`; a tampered store fails loudly rather than decrypting to something plausible |
-| **One lock, on the tokens** | The token endpoints are behind an API key. The panel has no login of its own — whatever fronts this service decides who reaches it |
+| **Locks on the machine doors** | The token endpoints and `/api/v1` are behind API keys — one that reads, and a separate admin key that changes the pool. The panel has no login of its own — whatever fronts this service decides who reaches it |
 
 ## Run it
 
@@ -86,6 +89,125 @@ unless Codex is listening, so you paste the whole address bar.
 
 Every flow is the public OAuth client each vendor's own CLI uses, with a PKCE
 S256 challenge. Closing the dialog abandons the attempt.
+
+## Manage accounts over REST
+
+Everything the panel shows about an account — and the three things it lets you do to
+one — is also a REST API, for a script or another service. It lives under `/api/v1`, on
+its own prefix, so a proxy that lets machines reach `/api/tokens*` can let them reach
+this the same way without opening a single panel route.
+
+Two keys, because reading a pool and changing it are not the same trust:
+
+| Key | May | Where it is set |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` — the token key | **Read** accounts (`GET`) | Required; it is the key the token endpoints already ask for. Everything an account's figures show is a subset of what that key reads from `/api/tokens` already |
+| `AI_GATEWAY_ADMIN_API_KEY` — the admin key | Read, and **change**: start and complete an authorization, remove an account | Optional. Without it, changing answers `403 control_disabled` and nothing can be added or removed over the API |
+
+Adding an account puts someone else's subscription into the pool the platform draws
+from, which is not something every holder of a token key should be able to do — so the
+two are apart by default. To run with one key, set both variables to the same value.
+
+Send a key as `Authorization: Bearer <key>` or `x-api-key: <key>`. A missing or wrong key
+is `401 invalid_api_key`; a right key that may not do this is `403`
+(`admin_key_required`, or `control_disabled` while no admin key is set). Every answer from
+these routes, a refusal included, is `Cache-Control: no-store`, and names are snake_case
+like the token endpoints'.
+
+```bash
+curl localhost:3004/api/v1/accounts -H "Authorization: Bearer $AI_GATEWAY_API_KEY"
+```
+
+```json
+{
+  "accounts": [
+    {
+      "id": "gateway-account-1",
+      "provider": "anthropic",
+      "label": "you@example.com",
+      "account_email": "you@example.com",
+      "subscription": { "plan": "max", "tier": "5x" },
+      "status": "active",
+      "state": "limited",
+      "limited_until": "2026-10-18T10:00:00.000Z",
+      "expires_at": "2026-10-21T09:40:00.000Z",
+      "scopes": "org:create_api_key user:profile user:inference",
+      "created_at": "2026-09-26T10:00:00.000Z",
+      "last_refreshed_at": "2026-10-15T07:12:30.000Z",
+      "usage": {
+        "checked_at": "2026-10-15T10:00:00.000Z",
+        "stale": false,
+        "limited": null,
+        "windows": [
+          {
+            "kind": "session",
+            "label": null,
+            "utilization": 100,
+            "resets_at": "2026-10-15T10:05:00.000Z",
+            "window_seconds": 18000,
+            "blocking": true
+          },
+          {
+            "kind": "weekly",
+            "label": null,
+            "utilization": 100,
+            "resets_at": "2026-10-18T10:00:00.000Z",
+            "window_seconds": 604800,
+            "blocking": true
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+No token, refresh token or other credential is ever in an answer; the token endpoints are
+the only door that hands those out.
+
+**`state`** says what the account is now, in one word, and is what the panel groups on:
+
+| `state` | Means |
+| --- | --- |
+| `available` | Nothing stops it taking work, as far as its latest reading shows |
+| `limited` | Its session or weekly window is spent. `limited_until` is when it is back: the **latest** rollover among its spent windows — five minutes for a spent session beside a spent week is still three days. Null when a spent window has no stated rollover, or when only the vendor's own `usage.limited` flag says so |
+| `expired` | The vendor refused a refresh; someone must sign the account in again. `status` says the same |
+| `error` | The latest call to the vendor failed; the gateway keeps trying. `status` says the same |
+
+`status` stays the credential's own (`active`, `expired`, `error`), as on the token
+endpoints; `state` refines `active` into `available` and `limited`. A window's
+`blocking` is true when it is why the account is limited — spent, a session or weekly
+window rather than a per-model cap, and not yet rolled over. A window whose rollover
+has already passed stops blocking at once, before the next reading says so, and
+`usage.stale` turns true: the figures are those of the window before. This describes the
+account as its own reading shows it; whether the pool will hand it out for *new* work —
+which also weighs how fresh the reading is and how close its token is to refresh — is
+still the token endpoints' `available`.
+
+| Method | Path | Key | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/accounts` | token or admin | The pool, oldest account first. `?provider=anthropic\|openai` and `?state=available\|limited\|expired\|error` narrow it; an unknown value is `400 invalid_request` |
+| `GET` | `/api/v1/accounts/{id}` | token or admin | One account, or `404 unknown_account` |
+| `POST` | `/api/v1/authorizations` | admin | Start an authorization: `{"provider": "anthropic" \| "openai", "label"?, "account_id"?, "method"?: "browser"}`. `account_id` signs an existing account in again. Answers `201` with how it finishes — `flow: "device"` (`verification_url`, `user_code`, `expires_at`, `poll_interval_seconds`: approve the code in a browser, and the gateway connects the account itself) or `flow: "paste"` (`authorize_url`, `paste_style`: approve, then send what the browser shows) |
+| `GET` | `/api/v1/authorizations/{state}` | admin | Where it stands: `pending`, `connected` (with the `account`) or `failed` (with a `code`). For a device code each read may ask the vendor, so poll no faster than `poll_interval_seconds` |
+| `POST` | `/api/v1/authorizations/{state}/complete` | admin | Finish a paste flow: `{"pasted": "<what the browser gave back>"}`. Answers `201` with the `account` |
+| `DELETE` | `/api/v1/accounts/{id}` | admin | Remove an account and its stored tokens: `204`, or `404 unknown_account` |
+
+A script never gets a redirect flow: that one needs a browser on a loopback address of
+the gateway's own machine, which only the panel can offer. For a Claude account it asks
+for the `paste` flow, and a ChatGPT account for its device code.
+
+```bash
+# Add a ChatGPT account from a script: approve the code in a browser, and wait.
+curl -X POST localhost:3004/api/v1/authorizations \
+  -H "Authorization: Bearer $AI_GATEWAY_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" -d '{"provider": "openai"}'
+curl localhost:3004/api/v1/authorizations/$STATE \
+  -H "Authorization: Bearer $AI_GATEWAY_ADMIN_API_KEY"
+```
+
+Behind a proxy that fronts the panel with a sign-in, `/api/v1/*` has to be passed past that
+sign-in the way `/api/tokens*` is — it carries its own keys, and nothing else guards it.
 
 ## Use the tokens
 
@@ -271,6 +393,11 @@ offline. Token and copied-command responses use `Cache-Control: no-store`.
 | `DELETE` | `/api/accounts/{id}` | none | Remove an account |
 | `GET` | `/api/tokens/{provider}` | API key | One vendor's tokens, in cc-gateway's shape |
 | `GET` | `/api/tokens` | API key | The whole pool, each token named by vendor |
+| `GET` | `/api/v1/accounts`, `/api/v1/accounts/{id}` | API key or admin key | The pool and one account, without any credential — [Manage accounts over REST](#manage-accounts-over-rest) |
+| `POST` | `/api/v1/authorizations` | admin key | Start an authorization (device code or paste) |
+| `GET` | `/api/v1/authorizations/{state}` | admin key | Where an authorization stands |
+| `POST` | `/api/v1/authorizations/{state}/complete` | admin key | Finish a paste flow |
+| `DELETE` | `/api/v1/accounts/{id}` | admin key | Remove an account |
 | `GET` | `/api/health` | none | Liveness probe |
 
 "None" means the app checks nothing — see [Who may open the panel](#who-may-open-the-panel).
@@ -279,7 +406,8 @@ offline. Token and copied-command responses use `Cache-Control: no-store`.
 
 | Variable | Default | What it is |
 | --- | --- | --- |
-| `AI_GATEWAY_API_KEY` | — | Guards every `GET /api/tokens*`. Required |
+| `AI_GATEWAY_API_KEY` | — | Guards every `GET /api/tokens*`, and may read accounts on `/api/v1`. Required |
+| `AI_GATEWAY_ADMIN_API_KEY` | — | May also change accounts on `/api/v1`: start and complete an authorization, remove an account. Optional; unset, the REST API is read-only. Set it to the same value as `AI_GATEWAY_API_KEY` to run with one key. Never generated for development |
 | `AI_GATEWAY_ENCRYPTION_KEY` | — | 32 base64-encoded bytes; encrypts the stored tokens. Required, and irreplaceable — a new key cannot read the old store |
 | `AI_GATEWAY_DATA_DIR` | `.data` | Where `accounts.json` lives. Back this up; it is the pool |
 | `AI_GATEWAY_REFRESH_INTERVAL_SECONDS` | `300` | Cadence of the background refresh pass |
@@ -309,16 +437,21 @@ its `/api/tokens/<id>` endpoint comes with the id. A new id needs a
 | `backend/accounts.ts` | The lifecycle: authorize, refresh, read usage, hand out |
 | `backend/store.ts` | The account document, written atomically and serialized |
 | `backend/routes.ts` | The HTTP surface, and the API key that guards the tokens |
+| `backend/accounts-api.ts` | The REST door for accounts under `/api/v1`, with its read key and its admin key |
+| `backend/account-state.ts` | What state an account is in, and until when it is limited — a pure function of the reading and a clock |
 | `backend/gateway.ts` | Composition root; used by `server.ts` and the Vite dev plugin alike |
 | `app/` | The panel — one screen, no door, built on `@tale/ui` |
 
-The panel is one screen in the documentation frame's chrome: an `h-13` header
-strip carrying the Tale mark, the service's name and the language / theme /
-repository cluster, over one account table built as a list page — the same
-`useListPage` state Projects and Automations run on, so it scrolls, loads and
-counts its rows the way they do. Language is a stored preference here, not a
-path segment — the panel ships as one untranslated tree — so the shared
-`LanguageSwitcher` runs in its state-driven mode.
+The panel is one screen in the platform's page chrome: an `h-13` header strip
+carrying the service's name — set as every platform page title is, in
+`AdaptiveHeaderTitle` — and the language / theme / repository cluster, over one
+account table built as a list page — the same `useListPage` state Projects and
+Automations run on, so it scrolls, loads and counts its rows the way they do. The
+rows are ordered vendor, then state, then soonest back (`app/lib/account-order.ts`),
+and `backend/account-state.ts` is the one place that decides what state an account
+is in — the panel and `/api/v1` both read its answer. Language is a stored
+preference here, not a path segment — the panel ships as one untranslated tree — so
+the shared `LanguageSwitcher` runs in its state-driven mode.
 
 ## Develop
 

@@ -31,8 +31,20 @@ const positiveSeconds = (fallback: number) =>
 const nonNegativeSeconds = (fallback: number) =>
   z.coerce.number().int().nonnegative().default(fallback);
 
+/**
+ * A variable that may be left blank. A deployment pipeline that passes every
+ * secret it knows of hands an unset one over as an empty string, which must
+ * read as "not configured", not as a key that is invalid.
+ */
+const optionalSecret = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().min(1).optional(),
+);
+
 const schema = z.object({
   AI_GATEWAY_API_KEY: z.string().min(1),
+  AI_GATEWAY_ADMIN_API_KEY: optionalSecret,
   AI_GATEWAY_ENCRYPTION_KEY: z.string().min(1),
   AI_GATEWAY_DATA_DIR: z.string().min(1).default('.data'),
   AI_GATEWAY_REFRESH_INTERVAL_SECONDS: positiveSeconds(300),
@@ -46,6 +58,12 @@ const schema = z.object({
 
 export interface GatewayConfig {
   apiKey: string;
+  /**
+   * The key that may change accounts over the REST API; null when none is
+   * set, which leaves the API read-only. Never generated for development —
+   * switching a way to change the pool on is the operator's choice.
+   */
+  adminApiKey: string | null;
   encryptionKey: Buffer;
   dataDir: string;
   refreshIntervalSeconds: number;
@@ -139,6 +157,7 @@ export function loadConfig(
   return {
     config: {
       apiKey: parsed.data.AI_GATEWAY_API_KEY,
+      adminApiKey: parsed.data.AI_GATEWAY_ADMIN_API_KEY ?? null,
       encryptionKey,
       dataDir: parsed.data.AI_GATEWAY_DATA_DIR,
       refreshIntervalSeconds: parsed.data.AI_GATEWAY_REFRESH_INTERVAL_SECONDS,

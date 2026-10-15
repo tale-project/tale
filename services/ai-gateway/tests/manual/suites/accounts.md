@@ -1,6 +1,6 @@
 # Accounts
 
-> **Prefix** `ACCT-` · **Reset** before the suite · **Cost** ~30 min
+> **Prefix** `ACCT-` · **Reset** before the suite · **Cost** ~40 min
 
 The credential lifecycle, end to end, against the real vendors: add a Claude
 account, add a ChatGPT account, watch their tokens stay fresh, hand them to the
@@ -35,7 +35,7 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
 - [ ] `ACCT-2` · **Open that URL, approve, copy the value the console page
   shows, paste it, Connect** → the dialog closes, a toast names the account,
   and a row appears carrying the Claude mark, the account's own e-mail, its
-  plan in the Plan column, **Active**, and usage bars that are already
+  plan in the Plan column, **Available**, and usage bars that are already
   populated — not "No usage read yet".
 - [ ] `ACCT-3` · **Add account → OpenAI (ChatGPT) → Continue** → no paste
   step: the dialog shows a one-time code with a copy button, a link to
@@ -113,15 +113,51 @@ in the pool**, so they run before the removals.
   its `access_token` and `account_id` in the README's Codex command** → only the ChatGPT row, and
   Codex starts on it.
 
+### Over REST
+
+`/api/v1` is the machine door to the same pool: the API key reads, a separate
+admin key changes. The keys, the scopes and every refusal are pinned by specs
+([`../reference/automation.md`](../reference/automation.md)); what no spec can
+do is run the changes against a real vendor, and compare the answers with what
+the panel shows. **These boxes need `AI_GATEWAY_ADMIN_API_KEY` set** in the
+server's environment. They take an account out and put it back, so the pool is
+whole again for the boxes after them.
+
+- [ ] `ACCT-50` · **`curl localhost:3004/api/v1/accounts -H "Authorization:
+  Bearer $AI_GATEWAY_API_KEY"` with the pool open in the panel** → every account
+  in the panel, each with the `state` and `limited_until` the panel shows for it
+  and its windows' `blocking` flags — the account the panel says is back in
+  three days says `limited_until` three days out. No token, refresh token or
+  secret appears anywhere in the body. `?provider=openai` and `?state=limited`
+  narrow the list to what the panel's own filters would.
+- [ ] `ACCT-51` · **With the admin key, `DELETE /api/v1/accounts/<the ChatGPT
+  account's id>`, then `POST /api/v1/authorizations` for `openai`, approve the
+  code the answer names at OpenAI, and poll `GET
+  /api/v1/authorizations/<state>`** → the delete answers `204`, the panel's row
+  is gone at its next read, and `/api/tokens/openai` answers `{"tokens": []}`.
+  The poll answers `pending` until the approval, then `connected` with the new
+  account, within the interval the start named; the pool has its ChatGPT row
+  again, usage bars populated.
+- [ ] `ACCT-52` · **Start an authorization for `anthropic` with the admin key
+  and the Claude account's `account_id`, approve it at Anthropic, and send what
+  the console prints to `POST …/complete`** → the answer is `201` with the
+  account, and its row is updated in place: the pool does not grow, and the
+  account keeps its id and its usage history.
+
 ### Finding an account
 
-- [ ] `ACCT-27` · **Read the row order with both vendors in the pool** → every
-  Claude account first, then every ChatGPT one, and inside each vendor the
-  rows in order of the address rather than the label. A renamed account sits
-  where its e-mail puts it, not where its name would.
+- [ ] `ACCT-27` · **Read the row order with both vendors in the pool, and
+  accounts in several states** → every Claude account first, then every
+  ChatGPT one; inside each vendor the accounts that can take work (Available),
+  then the ones that hit their limit with the soonest back first and any with
+  no known return last, then Needs reauthentication, then Last call failed.
+  Inside a state the rows are in order of the address rather than the label. A
+  renamed account sits where its e-mail puts it, not where its name would.
 - [ ] `ACCT-28` · **Filter → Provider → one vendor** → only that vendor's rows,
-  and the count footer agrees. Add a Status facet on top and the two narrow
-  together; **Clear all** puts every row back.
+  and the count footer agrees. Add the Status facet on top — it lists Available,
+  Limit reached, Needs reauthentication and Last call failed, in that order —
+  and the two narrow together; **Clear all** puts every row back. Searching for
+  "limit" finds the accounts that hit theirs, by the words the row shows.
 - [ ] `ACCT-29` · **Filter down to nothing** → the no-results state, with the
   search and the filter button still reachable so the reader can undo it.
 
@@ -138,12 +174,12 @@ in the pool**, so they run before the removals.
   green: a spent plan is not a completed task. A window at 99.6 % reads
   99 % and orange-into-red, not 100 % and red.
 - [ ] `ACCT-47` · **Find an account whose session or weekly window reads
-  100 %** → its whole row greys out like a disabled one — name, plan, status,
-  bars, countdown and date — yet stays readable, keeps its place in the
-  order, and keeps its row menu at full strength: every action in it still
-  works. A per-model window at 100 % (Fable), or a session at 99 %, leaves
-  its row as it is. Once the spent window rolls over, the next reading brings
-  the row back by itself.
+  100 %** → its row greys out like a disabled one — name, plan, bars and
+  date — yet stays readable, keeps its place in the order, and keeps its row
+  menu at full strength: every action in it still works. Its Status and Resets
+  in cells are not greyed: they say why the row is, and when it stops being. A
+  per-model window at 100 % (Fable), or a session at 99 %, leaves its row as it
+  is. Once the spent window rolls over, the row comes back by itself.
 - [ ] `ACCT-26` · **Hover a usage bar, then the grey bar beside it** → the
   first names the percentage, the second the exact instant that window
   resets — the date and the hour, in the panel's language, and the instant the
@@ -159,11 +195,30 @@ in the pool**, so they run before the removals.
   as a coloured bar further along than its grey one. A window the vendor gave
   no rollover for leaves the grey track empty rather than drawing a fraction
   of nothing.
-- [ ] `ACCT-35` · **Find a window that rolls over within the hour** → its
-  distance ("25 minutes") reads in green and medium weight behind a timer
-  glyph, and its clock bar turns green; a window an hour or more away stays
-  grey. The cue survives without colour: the glyph and the weight still set
-  it apart in grayscale.
+- [ ] `ACCT-35` · **Find an account that hit its limit and comes back within
+  the hour** → the hourglass beside its state is a green timer, and the clock
+  that decides its return — "25 minutes" in the Resets in column — reads in
+  green and medium weight behind a timer glyph, with its clock bar green too;
+  the line under its state ("Resets in 25 minutes") keeps the ordinary caption
+  grey. A return an hour or more away stays in the neutral tones. An account
+  with room left, whose window merely resets within the hour, gets none of it.
+  The cue survives without colour: the glyphs and the weight still set it
+  apart in grayscale.
+- [ ] `ACCT-48` · **Find an account whose session reads 100 % and resets in
+  minutes while its weekly window also reads 100 % and resets in days** → its
+  state reads Limit reached, and the line under it says *Resets in 3 days*
+  (the week's distance, whatever it is) — never the session's. In the Resets in
+  column the weekly row is in full strength behind a timer glyph, with a darker
+  clock bar, and the session row is the plain grey one: it is spent too, but
+  the account does not come back with it. Nothing on the row can be read as
+  "back in five minutes".
+- [ ] `ACCT-49` · **Find an account whose session reads 100 % and whose weekly
+  window has room** → Limit reached, *Resets in* the session's distance; the
+  session row is the one in full strength, and the weekly row stays plain grey.
+  Put the session inside the hour and the account reads in green — the
+  state's glyph, the distance in the Resets in column and its clock bar — but
+  the weekly row never does.
+
 - [ ] `ACCT-36` · **Widen and narrow the window between 1280 and 1920 px** →
   every usage bar keeps one length in every row and at every width, and every
   clock bar keeps its own shorter one; only the space around them changes.
@@ -188,8 +243,9 @@ in the pool**, so they run before the removals.
   usage figures move on their own, and the reset countdowns stay consistent
   with the wall clock rather than drifting by your UTC offset (`ACCT-12`).
 - [ ] `ACCT-13` · **Restart the server with the same secrets and reload** →
-  both accounts are still there, still Active: the document on disk survived,
-  and the stored tokens decrypt.
+  both accounts are still there, each in the state it had (Available, or Limit
+  reached until its own reset): the document on disk survived, and the stored
+  tokens decrypt.
 - [ ] `ACCT-14` · **Restart the server with a different
   `AI_GATEWAY_ENCRYPTION_KEY` and reload** → the panel does not pretend: every
   row reads as failing — its bars dimmed, with the time they were read — and

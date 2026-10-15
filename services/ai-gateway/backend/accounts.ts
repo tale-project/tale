@@ -356,6 +356,8 @@ export type AuthorizationStatus =
 
 export interface AccountService {
   list(): Promise<AccountView[]>;
+  /** One account as the list shows it, or null when there is none by that id. */
+  get(id: string): Promise<AccountView | null>;
   beginAuthorization(input: {
     provider: ProviderId;
     accountId?: string | null;
@@ -930,7 +932,7 @@ export function createAccountService(
     try {
       return {
         status: 'connected',
-        account: toAccountView(await finish(pending, grant)),
+        account: toAccountView(await finish(pending, grant), now().getTime()),
       };
     } catch (error) {
       if (error instanceof AccountError && error.code !== 'unknown_account') {
@@ -948,7 +950,10 @@ export function createAccountService(
       const account = await store.getAccount(pending.accountId);
       // Connected, then removed before anyone asked: nothing to show.
       return account
-        ? { status: 'connected', account: toAccountView(account) }
+        ? {
+            status: 'connected',
+            account: toAccountView(account, now().getTime()),
+          }
         : { status: 'failed', code: 'unknown_state' };
     }
     if (pending.phase === 'failed') {
@@ -1047,7 +1052,14 @@ export function createAccountService(
       const refreshed = await Promise.all(
         accounts.map((account) => refreshUsage(account)),
       );
-      return refreshed.map(toAccountView);
+      const nowMs = now().getTime();
+      return refreshed.map((account) => toAccountView(account, nowMs));
+    },
+
+    async get(id) {
+      const account = await store.getAccount(id);
+      if (!account) return null;
+      return toAccountView(await refreshUsage(account), now().getTime());
     },
 
     async beginAuthorization({
@@ -1177,6 +1189,7 @@ export function createAccountService(
           codeVerifier: claimed.codeVerifier,
           redirectUri: claimed.redirectUri,
         }),
+        now().getTime(),
       );
     },
 

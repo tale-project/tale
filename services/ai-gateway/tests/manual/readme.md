@@ -36,7 +36,7 @@ prefix may shadow another.
 | Suite | Prefix | What it is | Resets | Rough cost |
 |---|---|---|---|---|
 | [smoke](suites/smoke.md) | `SMOKE-` | is this build even drivable — run it before investing in anything bigger | once, at the start | 10 min |
-| [accounts](suites/accounts.md) | `ACCT-` | the credential lifecycle against the real vendors — the one thing no spec can drive | before the suite | 30 min |
+| [accounts](suites/accounts.md) | `ACCT-` | the credential lifecycle against the real vendors — the one thing no spec can drive | before the suite | 40 min |
 
 ## How a round runs
 
@@ -74,7 +74,10 @@ Change-scoped, by area:
 | copy or catalogs (any locale) | `SMOKE-4` |
 | controls, focus, geometry | `SMOKE-5` · [`automation.md`](reference/automation.md) first |
 | how the panel reads a failed request (`app/lib/api.ts`, the list's re-read) | `ACCT-19`, `ACCT-45`, `ACCT-46` |
-| how the panel draws a reading (`app/lib/usage-tint.ts`, `app/lib/usage-windows.ts`, the Usage and Resets in cells, a spent row) | `ACCT-25`, `ACCT-26`, `ACCT-30`, `ACCT-31`, `ACCT-35`, `ACCT-36`, `ACCT-47` |
+| how the panel draws a reading (`app/lib/usage-tint.ts`, `app/lib/usage-windows.ts`, the Usage, Status and Resets in cells, a spent row) | `ACCT-25`, `ACCT-26`, `ACCT-30`, `ACCT-31`, `ACCT-35`, `ACCT-36`, `ACCT-47`, `ACCT-48`, `ACCT-49` |
+| what state an account is in, or the order of the rows (`backend/account-state.ts`, `app/lib/account-order.ts`) | `ACCT-27`, `ACCT-28`, `ACCT-47`, `ACCT-48`, `ACCT-49`, `ACCT-50` |
+| the REST door (`backend/accounts-api.ts`, the admin key in `backend/config.ts`) | `ACCT-50`, `ACCT-51`, `ACCT-52` |
+| the header strip | `SMOKE-9`, `SMOKE-11` |
 
 ## How a box works
 

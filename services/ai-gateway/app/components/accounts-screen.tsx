@@ -20,14 +20,15 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { compareAccounts } from '@/app/lib/account-order';
 import {
+  ACCOUNT_STATES,
   gatewayApi,
   isSignedOut,
   type AccountView,
   type ProviderId,
 } from '@/app/lib/api';
 import { reloadPage } from '@/app/lib/leave-for';
-import { planSpent } from '@/app/lib/usage-windows';
 import { useT } from '@/lib/i18n/client';
 
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
@@ -38,22 +39,28 @@ import { ResetsCell } from './resets-cell';
 import { StatusCell } from './status-cell';
 import { UsageCell } from './usage-cell';
 
-/** The order the status filter offers, worst last. */
-const STATUS_ORDER = ['active', 'expired', 'error'] as const;
+/**
+ * The class a column carries to say its cells are the explanation of a dimmed
+ * row, not part of what recedes. A marker the row's own selector reads.
+ */
+const STAYS_BRIGHT = 'stays-bright';
 
 /**
  * An account whose session or weekly window is spent recedes the way a
  * disabled row does, until that window rolls over.
  *
  * Only the look changes. Nothing about the account is switched off: it keeps
- * its place in the order, its figures stay readable — the reason it is spent,
- * and the countdown to when it is not — and its menu keeps full strength,
- * because every action in it still works. The menu is the last column, so the
- * dim stops one cell short of the end of the row.
+ * its place in the order, and its menu keeps full strength, because every
+ * action in it still works. The menu is the last column, so the dim stops one
+ * cell short of the end of the row. Two cells are spared as well — the state
+ * and the clock — because they are why the row is dimmed and when it stops
+ * being: a dimmed explanation would be a dimmed row nobody can account for.
  */
-function spentRowClassName(row: Row<AccountView>): string {
-  return planSpent(row.original.usage?.windows ?? [])
-    ? '[&>td:not(:last-child)]:opacity-60'
+function limitedRowClassName(row: Row<AccountView>): string {
+  // Spelled out whole: Tailwind finds a class by reading it in the source, so
+  // one assembled from `STAYS_BRIGHT` would never be generated.
+  return row.original.state === 'limited'
+    ? '[&>td:not(:last-child):not(.stays-bright)]:opacity-60'
     : '';
 }
 
@@ -197,19 +204,25 @@ export function AccountsScreen({
       },
       {
         id: 'status',
-        accessorFn: (account) => account.status,
+        accessorFn: (account) => account.state,
         header: t('columns.status'),
-        // A glyph and one short phrase. Sized so the common labels sit on one
-        // line; the longest ("Letzter Aufruf fehlgeschlagen", "Réautorisation
-        // nécessaire") wrap to two, which the row already has room for — a
-        // wider column would be empty gutter on every other row.
+        // A glyph and one short phrase, and under it, for an account that has
+        // hit its limit, when it comes back. Sized so the common labels sit
+        // on one line; the longest ("Letzter Aufruf fehlgeschlagen",
+        // "Réautorisation nécessaire") wrap to two, which the row already has
+        // room for — a wider column would be empty gutter on every other row.
         size: 170,
         // `icon-text`: the loaded cell is a glyph plus one phrase, not a pill.
         meta: {
-          className: 'overflow-hidden',
+          className: `overflow-hidden ${STAYS_BRIGHT}`,
           skeleton: { type: 'icon-text', iconGap: 2 },
         },
-        cell: ({ row }) => <StatusCell status={row.original.status} />,
+        cell: ({ row }) => (
+          <StatusCell
+            limitedUntil={row.original.limitedUntil}
+            state={row.original.state}
+          />
+        ),
       },
       {
         id: 'usage',
@@ -220,7 +233,12 @@ export function AccountsScreen({
         // column needs at the table's narrowest.
         size: 250,
         meta: { skeleton: { type: 'text', lines: 2 } },
-        cell: ({ row }) => <UsageCell usage={row.original.usage} />,
+        cell: ({ row }) => (
+          <UsageCell
+            limited={row.original.state === 'limited'}
+            usage={row.original.usage}
+          />
+        ),
       },
       {
         id: 'resets',
@@ -232,9 +250,12 @@ export function AccountsScreen({
         // "2 Tage") fit whole at the narrowest, and the rare longest
         // ("quelques secondes", the last minute) truncates onto `title`.
         size: 160,
-        meta: { skeleton: { type: 'text', lines: 2 } },
+        meta: { className: STAYS_BRIGHT, skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
-          <ResetsCell windows={row.original.usage?.windows ?? []} />
+          <ResetsCell
+            limitedUntil={row.original.limitedUntil}
+            windows={row.original.usage?.windows ?? []}
+          />
         ),
       },
       {
@@ -323,9 +344,10 @@ export function AccountsScreen({
       {
         key: 'status',
         title: t('filters.status'),
-        options: STATUS_ORDER.map((status) => ({
-          value: status,
-          label: tStatus(status),
+        // Best to worst, the order the rows sit in within a vendor.
+        options: ACCOUNT_STATES.map((state) => ({
+          value: state,
+          label: tStatus(state),
         })),
         selectedValues: statusFilter,
         onChange: setStatusFilter,
@@ -345,13 +367,9 @@ export function AccountsScreen({
    * box and the count footer work on, the way Projects hands its list the
    * rows its team facet leaves.
    *
-   * The order is the pool's own shape rather than an alphabet — vendors in
-   * the catalog's order, and inside a vendor the accounts by address. An
-   * operator opens this screen to answer "how is my Claude pool doing", which
-   * a vendor's rows sitting together answers in one glance; sorting on the
-   * address rather than the label keeps a renamed account where its e-mail
-   * says it belongs. The comparison runs through `localeCompare` in the
-   * reader's own locale, so an umlaut sorts where that reader expects it.
+   * The order is the pool's own shape rather than an alphabet: vendors in the
+   * catalog's order, inside a vendor what each account is doing, and inside a
+   * state the soonest to come back first — see `compareAccounts`.
    */
   const rows = useMemo(() => {
     const matches = (accounts ?? []).filter((account) => {
@@ -361,25 +379,10 @@ export function AccountsScreen({
       ) {
         return false;
       }
-      return statusFilter.length === 0 || statusFilter.includes(account.status);
+      return statusFilter.length === 0 || statusFilter.includes(account.state);
     });
 
-    const providerRank = (id: ProviderId) => {
-      const index = providers.indexOf(id);
-      // A provider the catalog no longer offers still has rows; park them
-      // after the ones it does rather than at the top.
-      return index === -1 ? providers.length : index;
-    };
-
-    return matches.toSorted((a, b) => {
-      const byProvider = providerRank(a.provider) - providerRank(b.provider);
-      if (byProvider !== 0) return byProvider;
-      return (a.accountEmail ?? a.label).localeCompare(
-        b.accountEmail ?? b.label,
-        locale,
-        { sensitivity: 'base' },
-      );
-    });
+    return matches.toSorted(compareAccounts(providers, locale));
   }, [accounts, locale, providerFilter, providers, statusFilter]);
 
   /**
@@ -387,9 +390,10 @@ export function AccountsScreen({
    * state, so this table pages and counts exactly the way Projects and
    * Automations do: the rows scroll inside the frame, more load as the reader
    * nears the end, and the frame closes on "Showing all N accounts" (or
-   * "N of M" while a search narrows it). The provider rides as a searched
-   * value too, so "claude" or "chatgpt" finds a vendor's accounts by the name
-   * the reader sees rather than by the id the row carries.
+   * "N of M" while a search narrows it). The provider and the state ride as
+   * searched values too, so "claude" or "chatgpt" finds a vendor's accounts,
+   * and "limit" the ones that hit theirs, by the words the reader sees rather
+   * than by the ids the row carries.
    */
   const list = useListPage<AccountView>({
     dataSource: { type: 'query', data: isLoading ? undefined : rows },
@@ -399,6 +403,7 @@ export function AccountsScreen({
         'label',
         'accountEmail',
         (account) => tProviders(account.provider),
+        (account) => tStatus(account.state),
       ],
       placeholder: t('searchPlaceholder'),
     },
@@ -485,7 +490,7 @@ export function AccountsScreen({
               // with a session that ran out, only a page load gets back in.
               error={accounts === null ? error : null}
               onRetry={signedOut ? reloadPage : onReload}
-              rowClassName={spentRowClassName}
+              rowClassName={limitedRowClassName}
             />
           </ContentArea>
         </PageLayout>

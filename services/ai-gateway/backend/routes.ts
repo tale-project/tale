@@ -1,11 +1,13 @@
 /**
  * The gateway's HTTP surface.
  *
- * One door, and it guards the tokens. `GET /api/tokens*` sits behind the API
- * key and returns nothing but credentials; the panel's routes carry no
- * credential of their own, because the panel has no login — whatever fronts
- * this service decides who reaches it. Keeping the key OFF the panel routes is
- * deliberate: a machine holding it still cannot add or remove an account.
+ * Three audiences, three doors. `GET /api/tokens*` sits behind the API key and
+ * returns nothing but credentials. `/api/v1/*` (`accounts-api.ts`) is how a
+ * script reads and changes the pool: the API key reads, a separate admin key
+ * changes. The panel's routes carry no credential of their own, because the
+ * panel has no login — whatever fronts this service decides who reaches it.
+ * Keeping the keys OFF the panel routes is deliberate: it is what lets a
+ * proxy pass the machine doors and nothing else without opening the panel.
  *
  * The token endpoints answer in the shape the retired cc-gateway used —
  * `{"tokens": [{ id, label, account_email, status, access_token, expires_at,
@@ -22,8 +24,10 @@ import {
   type AccountService,
   type TokenHandout,
 } from './accounts';
+import { createAccountsApi } from './accounts-api';
 import { readApiKey } from './api-key';
 import { secretsMatch } from './crypto';
+import { fail } from './envelope';
 import { describeProviders, type ProviderRegistry } from './providers/index';
 import { isProviderId, PROVIDER_IDS } from './providers/types';
 
@@ -31,6 +35,8 @@ export interface ApiOptions {
   accounts: AccountService;
   providers: ProviderRegistry;
   apiKey: string;
+  /** May change accounts over `/api/v1`; null or absent leaves it read-only. */
+  adminApiKey?: string | null;
 }
 
 const authorizeSchema = z.object({
@@ -48,11 +54,6 @@ const completeSchema = z.object({
   /** Whatever the person copied out of the browser. */
   pasted: z.string().min(1),
 });
-
-/** The error envelope every failing route answers with. */
-function fail(code: string, message: string) {
-  return { error: { code, message } } as const;
-}
 
 /**
  * One handed-out credential, in cc-gateway's wire shape.
@@ -243,6 +244,20 @@ export function createApi(options: ApiOptions) {
         : await accounts.handOutTokens(provider);
     return c.json({ tokens: tokens.map(serializeToken) });
   });
+
+  // --- The accounts API ----------------------------------------------------
+
+  // Its own prefix, and a router of its own whose every route names its guard:
+  // nothing here is the panel's, so a proxy rule that lets `/api/v1` through
+  // can never open a panel route by accident.
+  api.route(
+    '/v1',
+    createAccountsApi({
+      accounts,
+      apiKey: options.apiKey,
+      adminApiKey: options.adminApiKey ?? null,
+    }),
+  );
 
   // --- The vendor's way back ----------------------------------------------
 

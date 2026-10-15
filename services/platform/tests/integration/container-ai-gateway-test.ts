@@ -27,11 +27,13 @@ await runStaticSiteTest({
       contentTypeIncludes: 'html',
       bodyIncludes: '<div id="root"',
     },
-    // The one door the app itself keeps: every token endpoint wants the API
-    // key, and a caller with nothing gets none of them.
+    // The doors the app itself keeps: every token endpoint, and the accounts
+    // API beside them, want an API key, and a caller with nothing gets none of
+    // them.
     { path: '/api/tokens', status: 401, contentTypeIncludes: 'json' },
     { path: '/api/tokens/anthropic', status: 401, contentTypeIncludes: 'json' },
     { path: '/api/tokens/openai', status: 401, contentTypeIncludes: 'json' },
+    { path: '/api/v1/accounts', status: 401, contentTypeIncludes: 'json' },
     // The panel's own routes answer without one.
     { path: '/api/accounts', status: 200, contentTypeIncludes: 'json' },
     { path: '/api/providers', status: 200, contentTypeIncludes: 'json' },
