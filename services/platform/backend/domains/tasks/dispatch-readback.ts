@@ -5,9 +5,10 @@ import {
   type DispatchAgentRun,
   type DispatchAgentRunCounts,
   type DispatchIdleReason,
+  type ProjectDispatch,
   type ProjectDispatchStatus,
 } from '@tale/shared/schemas/project-dispatch';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { isAgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
@@ -86,6 +87,101 @@ export async function readAgentsServingProject(
       withReadableName(readable, agent, 'projectName'),
     ),
   };
+}
+
+/**
+ * The dispatch as a reader who may not administer it reads it: a board it
+ * serves that they may not read is listed without the labels that select
+ * its work, and each gate without the labels that name a label of none of
+ * the projects they read (`readLabels`, case-folded: the dispatch's own and
+ * the boards it serves they may read) — and without the gate itself once
+ * none of its labels is left, since it governs only work on boards they may
+ * not read. Whoever administers the dispatch reads it whole
+ * ({@link readDispatchAsReader}): a save names the version it read.
+ */
+export function dispatchAsReadBy(
+  config: ProjectDispatch,
+  readable: ReadonlySet<string>,
+  readLabels: ReadonlySet<string>,
+): ProjectDispatch {
+  const hidden = (config.sources ?? []).filter(
+    (source) => !readable.has(source.projectId),
+  );
+  if (hidden.length === 0) return config;
+  const { sources, gates, ...rest } = config;
+  const shownGates = (gates ?? []).flatMap((gate) => {
+    if (gate.labels === undefined) return [gate];
+    const labels = gate.labels.filter((name) =>
+      readLabels.has(name.toLowerCase()),
+    );
+    return labels.length === 0 ? [] : [{ ...gate, labels }];
+  });
+  return {
+    ...rest,
+    ...(sources !== undefined
+      ? {
+          sources: sources.map((source) => {
+            if (readable.has(source.projectId)) return source;
+            const { labels: _withheld, ...shown } = source;
+            return shown;
+          }),
+        }
+      : {}),
+    ...(gates !== undefined ? { gates: shownGates } : {}),
+  };
+}
+
+/**
+ * The dispatch of a project as the caller reads it: whole for whoever may
+ * administer it, else {@link dispatchAsReadBy} — reading the labels of the
+ * projects they may read only when a board it serves is hidden from them
+ * and a gate names labels.
+ */
+export async function readDispatchAsReader(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: {
+    projectId: string;
+    config: ProjectDispatch;
+    administers: boolean;
+    /** The projects the caller may read, when the caller already knows. */
+    readable?: ReadonlySet<string>;
+  },
+): Promise<ProjectDispatch> {
+  const sourceIds = (args.config.sources ?? []).map(
+    (source) => source.projectId,
+  );
+  if (args.administers || sourceIds.length === 0) return args.config;
+  const readable =
+    args.readable ?? (await readableProjectsAmong(sql, auth, sourceIds));
+  if (sourceIds.every((projectId) => readable.has(projectId))) {
+    return args.config;
+  }
+  const names = [
+    ...new Set(
+      (args.config.gates ?? []).flatMap((gate) =>
+        (gate.labels ?? []).map((name) => name.toLowerCase()),
+      ),
+    ),
+  ];
+  const readProjects = [
+    args.projectId,
+    ...sourceIds.filter((projectId) => readable.has(projectId)),
+  ];
+  const rows =
+    names.length === 0
+      ? []
+      : await sql<{ name: string }[]>`
+          SELECT DISTINCT lower(name) AS name FROM app.task_labels
+          WHERE org_id = ${auth.organizationId}
+            AND project_id = ANY(${readProjects})
+            AND lower(name) = ANY(${names})
+        `;
+  return dispatchAsReadBy(
+    args.config,
+    readable,
+    new Set(rows.map((row) => row.name)),
+  );
 }
 
 /** Another project's name, for a reader who may read that project; null
@@ -378,11 +474,20 @@ export async function readProjectDispatchStatus(
     ORDER BY started_at_ms DESC
     LIMIT ${PASSES_SHOWN}
   `;
+  // What of the dispatch the reader reads: a board it serves that they may
+  // not read is listed without its labels, and so are the gates
+  // (`dispatchAsReadBy`).
+  const shown = await readDispatchAsReader(sql, auth, {
+    projectId,
+    config,
+    administers: canEdit,
+    readable,
+  });
   const gateStates =
-    (config.gates ?? []).length === 0
+    (shown.gates ?? []).length === 0
       ? new Map<string, GateState>()
       : await readGateStates(sql, projectId);
-  const gates = (config.gates ?? []).map((gate) => {
+  const gates = (shown.gates ?? []).map((gate) => {
     const gateState = gateStates.get(gate.key);
     const verdict = judgeGate(gate, gateState, now);
     return {
@@ -402,20 +507,20 @@ export async function readProjectDispatchStatus(
   });
   const sources = await judgeDispatchSources(sql, {
     organizationId,
-    sources: config.sources ?? [],
+    sources: shown.sources ?? [],
     authorityUserId: stored.updatedBy,
   });
-  const configValue = dispatchConfigurationValue(projectId, config);
+  const configValue = dispatchConfigurationValue(projectId, shown);
   return {
     configured: true,
     unreadable: false,
-    config,
+    config: shown,
     hash: managedConfigurationHash(configValue),
     canEdit,
     state,
     pool,
     sources: sources.map((source) =>
-      withReadableName(readable, sourceView(config, source), 'name'),
+      withReadableName(readable, sourceView(shown, source), 'name'),
     ),
     reviewers: (config.reviewers ?? []).map((agentId) => ({
       agentId,

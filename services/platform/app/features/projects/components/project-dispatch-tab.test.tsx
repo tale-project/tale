@@ -974,6 +974,12 @@ describe('the Dispatch page names another project only to who may read it [TASK-
       within(hidden).getByText(t('dispatch.sources.served')),
     ).toBeInTheDocument();
     expect(within(hidden).queryByRole('link')).not.toBeInTheDocument();
+    // Its labels are withheld: the row claims none of them, not even that
+    // it takes every ready task.
+    expect(within(hidden).getByText('—')).toBeInTheDocument();
+    expect(
+      within(hidden).queryByText(t('dispatch.sources.allWork')),
+    ).not.toBeInTheDocument();
     expect(
       within(rowOf(sources, t('dispatch.sources.unknownProject'))).getByText(
         t('dispatch.sources.skipped.missing'),

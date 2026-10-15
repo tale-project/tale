@@ -25,6 +25,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { judgeDispatchSources } from './dispatch-reach.ts';
+import { readDispatchAsReader } from './dispatch-readback.ts';
 import { requestDispatchPassInTx } from './dispatch-requests.ts';
 import {
   dispatchConfigurationValue,
@@ -71,10 +72,19 @@ export async function readProjectDispatchConfiguration(
     auth.organizationId,
     projectId,
   );
+  // Whole for whoever may save it; without what of a board it serves the
+  // reader may not read (`dispatch-readback.ts`).
   const config =
     stored === null
       ? null
-      : dispatchConfigurationValue(projectId, stored.config);
+      : dispatchConfigurationValue(
+          projectId,
+          await readDispatchAsReader(sql, auth, {
+            projectId,
+            config: stored.config,
+            administers: checkProjectAdministrable(project, auth),
+          }),
+        );
   const servesAgain =
     stored !== null && (await savingServesAgain(sql, auth, project, stored));
   return {

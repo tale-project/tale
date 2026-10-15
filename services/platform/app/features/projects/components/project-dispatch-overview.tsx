@@ -648,6 +648,12 @@ export function ProjectDispatchOverview({
         size: 180,
         meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
+          // A project gone, or one the reader may not read: the readback
+          // withholds the labels that select its work from who may not
+          // read it, so nothing is claimed of them.
+          if (row.original.name === null && row.original.labels === null) {
+            return <span className="text-muted-foreground">—</span>;
+          }
           const include = row.original.labels?.include ?? [];
           const exclude = row.original.labels?.exclude ?? [];
           if (include.length === 0 && exclude.length === 0) {
