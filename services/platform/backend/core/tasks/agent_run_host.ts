@@ -17,6 +17,8 @@
 
 import { randomBytes } from 'node:crypto';
 
+import type { ProjectAgentGitIdentity } from '@tale/shared/schemas/projects';
+
 import {
   composeTaskBrief,
   discussionBeforeFeedback,
@@ -97,6 +99,7 @@ import {
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
+import { brokeredCredentialNames } from '../node_only/sandbox/session_credentials';
 import {
   harvestSessionOutput,
   type HarvestSkippedOutput,
@@ -106,7 +109,10 @@ import {
   readReserveTurnBudgetResult,
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
-import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
+import {
+  resolveConfinedTurnEnv,
+  resolveTurnEquipmentEnv,
+} from '../node_only/sandbox/turn_equipment';
 import type { BrokerTransportScope } from '../provider_credentials/broker_transport';
 import {
   credentialRetryAtMs,
@@ -177,15 +183,13 @@ async function isTurnConfined(
 }
 
 /** The agent's credentials a confined run goes without, by the names the
- * model would look for. */
+ * model would look for: its secrets, and the git access of every equipped
+ * connector that brokers one (pinned or the default alike). */
 function withheldCredentials(args: {
   secrets: readonly string[];
   connectors: readonly string[];
 }): string[] {
-  return [
-    ...args.secrets,
-    ...(args.connectors.includes('github') ? ['GITHUB_TOKEN'] : []),
-  ];
+  return [...args.secrets, ...brokeredCredentialNames(args.connectors)];
 }
 
 /**
@@ -1111,6 +1115,8 @@ export async function insertTaskTurnSessionToken(
     execId: string;
     harness: string;
     connectors: readonly string[];
+    /** The agent's pinned credential per connector, by name. */
+    connectorCredentials?: Readonly<Record<string, string>>;
     tools: readonly string[];
     /** The organization's image generation is on and a model resolved. */
     imageGeneration: boolean;
@@ -1129,6 +1135,15 @@ export async function insertTaskTurnSessionToken(
     args.connectors.length > 0
       ? { kind: 'task-run', execId: args.execId }
       : undefined;
+  // The pins of the connectors the turn is equipped with: the bridge's
+  // calls to each act as the pinned credential, never the default
+  // [SBX-R43] — on every run of the agent, a confined one included, since a
+  // bridge call runs in Tale and hands the sandbox no credential.
+  const pins = Object.fromEntries(
+    Object.entries(args.connectorCredentials ?? {}).filter(([slug]) =>
+      args.connectors.includes(slug),
+    ),
+  );
   await ctx.runMutation(internal.sandbox.session_mutations.insertSessionToken, {
     organizationId: args.organizationId,
     sessionId: args.sessionId,
@@ -1159,6 +1174,7 @@ export async function insertTaskTurnSessionToken(
       // a user-keyed session, and would fall back to reading org-wide as the
       // starter wherever this session's project binding stops resolving.
       ...(connectorCaller !== undefined ? { connectorCaller } : {}),
+      ...(Object.keys(pins).length > 0 ? { connectorCredentials: pins } : {}),
       // The run this turn serves, for the workspace tools: they judge each
       // call by the live run on this exec — a run a member started acts on
       // its own task alone.
@@ -1232,6 +1248,10 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  /** The credential the agent acts as per connector, by name. */
+  connectorCredentials?: Record<string, string>;
+  /** The agent's own commit identity. */
+  gitIdentity?: ProjectAgentGitIdentity | null;
   feedback?: string;
   /** Which text named the agent on a `mention` kick; `'description'` is
    * read from the brief at this start instead of from `feedback`. */
@@ -1405,7 +1425,7 @@ export async function startTaskAgentTurnImpl(
       const [projectScope, brief] = await Promise.all([
         ctx.runQuery(
           internal.projects.internal_queries.getProjectAgentSkillScope,
-          { agentId: args.agentId },
+          { agentId: args.agentId, runId: args.runId },
         ),
         ctx.runQuery(internal.tasks.agent_runs.getTaskBriefForAgentRun, {
           taskId: args.taskId,
@@ -1423,6 +1443,11 @@ export async function startTaskAgentTurnImpl(
           projectScope === null
             ? { kind: 'org' }
             : { kind: 'project', teamIds: projectScope.teamIds },
+          // A run whose starter may not read the agent's own project stages
+          // only the skills that starter may see as well [TASK-R82].
+          projectScope?.starter !== undefined
+            ? { alsoVisibleTo: projectScope.starter }
+            : {},
         ),
         stageTaskInputs(ctx, {
           organizationId: args.organizationId,
@@ -1511,6 +1536,9 @@ export async function startTaskAgentTurnImpl(
         execId: args.execId,
         harness: args.harness,
         connectors: args.connectors,
+        ...(args.connectorCredentials !== undefined
+          ? { connectorCredentials: args.connectorCredentials }
+          : {}),
         tools: args.tools,
         imageGeneration: imageModel !== null,
         hostLeases: harnessMountsMcp(args.harness),
@@ -1620,16 +1648,30 @@ export async function startTaskAgentTurnImpl(
       ].join('\n\n');
 
       // Per-exec credential env: the agent's referenced secrets + any
-      // brokerable connector (github). Dies with the exec, so a revoked grant
-      // is gone next turn; harness env wins on collision (extraEnv is under).
-      // A confined run gets none of it.
+      // brokerable connector (git-capable: GitHub, Forgejo), under the
+      // credential the agent pins. Dies with the exec, so a revoked grant is
+      // gone next turn; harness env wins on collision (extraEnv is under).
+      // A confined run gets none of it — no secret, no credential, pinned or
+      // default [TASK-R79] — only the commit identity, which is no secret
+      // [SBX-R42].
       const extraEnv = confined
-        ? {}
+        ? await resolveConfinedTurnEnv(ctx, {
+            sessionId: args.sessionId,
+            ...(args.gitIdentity !== undefined
+              ? { gitIdentity: args.gitIdentity }
+              : {}),
+          })
         : await resolveTurnEquipmentEnv(ctx, {
             organizationId: args.organizationId,
             sessionId: args.sessionId,
             connectors: args.connectors,
             secrets: args.secrets,
+            ...(args.connectorCredentials !== undefined
+              ? { connectorCredentials: args.connectorCredentials }
+              : {}),
+            ...(args.gitIdentity !== undefined
+              ? { gitIdentity: args.gitIdentity }
+              : {}),
           });
 
       // Everything of the exec except the prompt/resume pair, shared by the
@@ -2573,6 +2615,11 @@ export interface SteerTaskAgentTurnArgs extends TurnKeys {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  /** The credential the agent acts as per connector, by name; absent from a
+   * steer queued before it was carried. */
+  connectorCredentials?: Record<string, string>;
+  /** The agent's own commit identity; absent likewise. */
+  gitIdentity?: ProjectAgentGitIdentity | null;
   feedback: string;
   /** Which text `feedback` is; absent reads as a comment (a steer queued
    * before the field existed). */
@@ -2744,6 +2791,7 @@ export async function steerTaskAgentTurnImpl(
       internal.projects.internal_queries.getProjectAgentSkillScope,
       {
         agentId: args.agentId,
+        runId: args.runId,
       },
     );
     const skillsAddendum = await stageWorkflowSkills(
@@ -2754,6 +2802,10 @@ export async function steerTaskAgentTurnImpl(
       projectScope === null
         ? { kind: 'org' }
         : { kind: 'project', teamIds: projectScope.teamIds },
+      // Judged again for the restart, as at the start [TASK-R82].
+      projectScope?.starter !== undefined
+        ? { alsoVisibleTo: projectScope.starter }
+        : {},
     );
     // The reservation belongs to the ROTATED exec, like every stamp below.
     const prepared = await mintTurnServing(ctx, { ...args, execId }, resolved);
@@ -2778,6 +2830,9 @@ export async function steerTaskAgentTurnImpl(
       execId,
       harness: args.harness,
       connectors: args.connectors,
+      ...(args.connectorCredentials !== undefined
+        ? { connectorCredentials: args.connectorCredentials }
+        : {}),
       tools: args.tools,
       imageGeneration: imageModel !== null,
       hostLeases: harnessMountsMcp(args.harness),
@@ -2907,14 +2962,26 @@ export async function steerTaskAgentTurnImpl(
     ].join('\n\n');
 
     // Judged again for the restart: the steer re-books the run to the person
-    // who steered it, and a run in a member's workspace stays confined.
+    // who steered it, and a run in a member's workspace stays confined,
+    // keeping only its commit identity.
     const extraEnv = confined
-      ? {}
+      ? await resolveConfinedTurnEnv(ctx, {
+          sessionId: args.sessionId,
+          ...(args.gitIdentity !== undefined
+            ? { gitIdentity: args.gitIdentity }
+            : {}),
+        })
       : await resolveTurnEquipmentEnv(ctx, {
           organizationId: args.organizationId,
           sessionId: args.sessionId,
           connectors: args.connectors,
           secrets: args.secrets,
+          ...(args.connectorCredentials !== undefined
+            ? { connectorCredentials: args.connectorCredentials }
+            : {}),
+          ...(args.gitIdentity !== undefined
+            ? { gitIdentity: args.gitIdentity }
+            : {}),
         });
     const exec = buildExternalTurnExec({
       harness: args.harness,

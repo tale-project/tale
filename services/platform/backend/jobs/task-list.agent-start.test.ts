@@ -1,7 +1,10 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { startTaskAgentTurnImpl } from '../core/tasks/agent_run_host.ts';
+import {
+  startTaskAgentTurnImpl,
+  steerTaskAgentTurnImpl,
+} from '../core/tasks/agent_run_host.ts';
 import { releaseProjectAgentSessionSlot } from '../domains/sandbox/sessions.ts';
 import { claimAgentWorker } from '../domains/tasks/agent-workers.ts';
 import { createTaskList } from './task-list.ts';
@@ -9,6 +12,7 @@ import { createTaskList } from './task-list.ts';
 vi.mock('../core/tasks/agent_run_host.ts', async (original) => ({
   ...(await original<typeof import('../core/tasks/agent_run_host.ts')>()),
   startTaskAgentTurnImpl: vi.fn(async () => null),
+  steerTaskAgentTurnImpl: vi.fn(async () => null),
 }));
 vi.mock('../domains/tasks/kick-plan.ts', async (original) => ({
   ...(await original<typeof import('../domains/tasks/kick-plan.ts')>()),
@@ -72,14 +76,82 @@ function turnSql(run: Record<string, unknown> = {}): Sql {
         {
           instructions: null,
           skills: [],
-          connectors: [],
+          connectors: ['forgejo'],
           tools: [],
           secrets: [],
+          connectorCredentials: { forgejo: 'Client A' },
+          gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
         },
       ]);
     throw new Error('Unexpected start query');
   }) as unknown as Sql;
 }
+
+describe('a turn carries the agent’s pinned credentials and commit identity [SBX-R41]', () => {
+  const STEER = {
+    organizationId: 'org-1',
+    runId: 'run-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+    execId: 'exec-1',
+    sessionId: 'session-1',
+    harness: 'codex',
+    deadlineAt: Date.now() + 60_000,
+    model: 'model',
+    skills: [],
+    connectors: ['forgejo'],
+    tools: [],
+    secrets: [],
+    feedback: 'Push it.',
+    author: 'Ada',
+    authorId: 'ada',
+    attempt: 0,
+  };
+
+  it('starts a run with the agent’s pins as stored', async () => {
+    await createTaskList({ sql: turnSql() })['task.agent_turn']?.({
+      organizationId: 'org-1',
+      runId: 'run-1',
+      execId: 'exec-1',
+    });
+    expect(startTaskAgentTurnImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connectorCredentials: { forgejo: 'Client A' },
+        gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
+      }),
+      undefined,
+    );
+  });
+
+  it('reads the pins for a steer an older image queued without them, never leaving it on the default', async () => {
+    vi.mocked(steerTaskAgentTurnImpl).mockClear();
+    await createTaskList({ sql: turnSql() })['task.agent_steer']?.(STEER);
+    expect(steerTaskAgentTurnImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connectorCredentials: { forgejo: 'Client A' },
+        gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
+      }),
+    );
+  });
+
+  it('keeps the pins a steer carries', async () => {
+    vi.mocked(steerTaskAgentTurnImpl).mockClear();
+    const sql = (() => {
+      throw new Error('a steer carrying its pins reads nothing');
+    }) as unknown as Sql;
+    await createTaskList({ sql })['task.agent_steer']?.({
+      ...STEER,
+      connectorCredentials: {},
+      gitIdentity: null,
+    });
+    expect(steerTaskAgentTurnImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ connectorCredentials: {}, gitIdentity: null }),
+    );
+  });
+});
 
 it('hands the admitted queued start its existing job cancellation signal', async () => {
   const sql = turnSql();

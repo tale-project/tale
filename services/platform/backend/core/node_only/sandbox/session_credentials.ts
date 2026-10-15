@@ -8,50 +8,97 @@
 // session is per-user and long-lived while a grant is per-turn, so a
 // session-level patch would leak a granted turn's token into every later
 // ungranted turn, would need an explicit unset to revoke, and is lost on
-// container recreation anyway. The per-exec overlay dies with the exec. The
-// in-image `tale-git-credential` helper reads the resulting GITHUB_TOKEN per
-// git operation. Alongside the credential helper, this also provisions the
-// session owner's git author identity (user.name / user.email) so a fresh
-// container can `git commit` without a manual `git config` — see
-// `getSessionOwnerIdentity` + `buildGitConfigEnv` below.
+// container recreation anyway. The per-exec overlay dies with the exec.
+//
+// A grant is brokerable when its connector declares a git capability
+// (`git` in its `connector.yml`): the credential's token also opens the
+// vendor's git remotes. Every such grant adds one line to
+// `TALE_GIT_CREDENTIALS` — the git host, the username git sends and the
+// token — and the in-image `tale-git-credential` helper answers each host
+// from those lines and nothing else, github.com and a Forgejo instance
+// alike. A project agent may pin which of the organization's credentials a
+// connector resolves to (`connectorCredentials`); a pin the organization no
+// longer holds hands the turn nothing for that connector, never the default.
+//
+// Alongside the credential helper, this also provisions the git author
+// identity (user.name / user.email) so a fresh container can `git commit`
+// without a manual `git config`: the person who owns the session, else the
+// agent's own commit identity — see `resolveGitIdentity` below.
 //
 // Secrets are decrypted in this Node module and returned to the caller (which
 // carries them in the exec body) — they are NEVER baked into the container
-// image / Pod spec / docker inspect, and every fetch is audited
-// (sandboxCredentialAccess). This is the deliberate, scoped Tier-2
-// relaxation: explicit per-turn grant + audit + per-exec lifetime.
+// image / Pod spec / docker inspect, never written into the workspace, and
+// never logged; every fetch is audited (sandboxCredentialAccess). This is the
+// deliberate, scoped Tier-2 relaxation: explicit per-turn grant + audit +
+// per-exec lifetime.
 
+import type { ProjectAgentGitIdentity } from '@tale/shared/schemas/projects';
+
+import {
+  checkConnectorRequestUrl,
+  type LiveHostConnector,
+} from '../../../../lib/connectors/live-host';
+import { findConnector } from '../../connector_credentials/connector_catalog';
 import { resolveConnectorCredential } from '../../connector_credentials/resolve_credential';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 
-/**
- * The connector grants the broker may resolve into in-container env — an
- * explicit allowlist, extended one deliberate entry at a time. Every other
- * granted connector stays dispatch-only behind the MCP bridge (its secret
- * never enters the box); an entry here is the exception, made because the
- * capability lives in a CLI the agent drives directly (git).
- */
-export const BROKERABLE_GRANTS: readonly string[] = ['github'];
+/** The env variable the git credential helper reads its host map from: one
+ * {@link gitCredentialLine} per brokered git host. The runtime image's
+ * `services/sandbox-runtime/tale-git-credential` reads it under this name;
+ * `session_credentials.test.ts` runs that helper on what this module writes. */
+export const GIT_CREDENTIALS_ENV = 'TALE_GIT_CREDENTIALS';
 
-/** Map a connector slug + its decrypted secret to session env. v1 is a
- * small static map (github) + a generic fallback; new connector types add
- * one case here, the pipeline is unchanged. */
-function toSessionEnv(
-  slug: string,
-  secret: string,
-): {
-  env: Record<string, string>;
-  git?: { hosts: string[]; username: string };
-} {
-  if (slug === 'github') {
-    return {
-      env: { GITHUB_TOKEN: secret, GH_TOKEN: secret },
-      git: { hosts: ['github.com'], username: 'x-access-token' },
-    };
-  }
-  const envName = `TALE_CONNECTOR_${slug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_TOKEN`;
-  return { env: { [envName]: secret } };
+/** Where the runtime image installs the helper (its Dockerfile's `COPY`). */
+export const GIT_CREDENTIAL_HELPER = '/usr/local/bin/tale-git-credential';
+
+/** One entry of the helper's host map: `<host> <username> <token>`, which
+ * the helper reads with `read -r entry_host entry_user entry_token`. Every
+ * value must already be a {@link PLAIN_VALUE_RE} value: one word, one line. */
+export function gitCredentialLine(
+  host: string,
+  username: string,
+  token: string,
+): string {
+  return `${host} ${username} ${token}`;
+}
+
+/** A git host as git names it in a credential request: a lower-case host
+ * name, with a port when the remote is not on 443. */
+const GIT_HOST_RE = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/;
+
+/** A value that can ride one helper line unchanged: printable ASCII with no
+ * space (git's credential protocol forbids line breaks in values too). */
+const PLAIN_VALUE_RE = /^[\x21-\x7e]+$/;
+
+/**
+ * Whether a granted connector's credential is resolved into the sandbox:
+ * its connector declares a git capability. Every other granted connector
+ * stays dispatch-only behind the MCP bridge (its secret never enters the
+ * box); a git-capable one is the exception, made because the capability
+ * lives in a CLI the agent drives directly (git).
+ */
+export function isBrokerableGrant(slug: string): boolean {
+  return findConnector(slug)?.git !== undefined;
+}
+
+/**
+ * The credentials a confined run goes without, by the names the model would
+ * look for: for each equipped git-capable connector, `GITHUB_TOKEN` for
+ * GitHub (the variable its CLI reads) and `<slug> git access` for any other.
+ */
+export function brokeredCredentialNames(
+  connectors: readonly string[],
+): string[] {
+  return connectors
+    .filter(isBrokerableGrant)
+    .map((slug) => (slug === 'github' ? 'GITHUB_TOKEN' : `${slug} git access`));
+}
+
+/** Env a connector's token is also offered under, for its own CLI: GitHub's
+ * `gh` reads GITHUB_TOKEN / GH_TOKEN. Others need none beyond git. */
+function cliEnv(slug: string, token: string): Record<string, string> {
+  return slug === 'github' ? { GITHUB_TOKEN: token, GH_TOKEN: token } : {};
 }
 
 /** The single secret string to expose for a credential, from the named
@@ -65,6 +112,32 @@ function pickSecret(secrets: Record<string, string>): string | null {
     secrets.password ??
     null
   );
+}
+
+/** The git host a credential opens: the connector's fixed host, or the host
+ * of the credential's own endpoint. `null` when there is none to take, or
+ * when the connector itself would refuse that endpoint: an address outside
+ * its `allowedHosts`, or a private or cloud-metadata one. The git capability
+ * must not open a host the connector's own calls may not reach. */
+function gitHostOf(
+  connector: LiveHostConnector,
+  declared: string,
+  endpoint: string | undefined,
+): string | null {
+  if (declared !== 'endpoint') return declared;
+  if (endpoint === undefined) return null;
+  let url: URL;
+  try {
+    url = checkConnectorRequestUrl(endpoint, connector);
+  } catch (error) {
+    console.warn(
+      `[sandbox.broker] grant '${connector.name}' names an endpoint its connector refuses:`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
+  const host = url.host.toLowerCase();
+  return GIT_HOST_RE.test(host) ? host : null;
 }
 
 /** Assemble contiguous `GIT_CONFIG_COUNT`/`KEY_i`/`VALUE_i` env pairs
@@ -85,12 +158,20 @@ export function buildGitConfigEnv(
   return env;
 }
 
+/** One brokered git host, as the turn's audit and tests read it — never the
+ * token. */
+export interface BrokeredGitHost {
+  slug: string;
+  host: string;
+  username: string;
+}
+
 /**
- * Resolve a turn's brokerable grants (plus the session owner's git identity)
- * into exec env. Best-effort per grant: a missing/disabled/undecryptable
- * credential is skipped with a warning — the turn runs without it and git
- * reports the absence loudly — never thrown, so a broker gap can only ever
- * downgrade a turn, not kill it.
+ * Resolve a turn's brokerable grants (plus its git identity) into exec env.
+ * Best-effort per grant: a missing/disabled/undecryptable credential is
+ * skipped with a warning — the turn runs without it and git reports the
+ * absence loudly — never thrown, so a broker gap can only ever downgrade a
+ * turn, not kill it.
  */
 export async function resolveSessionCredentialEnv(
   ctx: ActionCtx,
@@ -99,28 +180,54 @@ export async function resolveSessionCredentialEnv(
     sessionId: string;
     grants: readonly string[];
     kind: 'bootstrap' | 'git';
+    /** The credential each connector resolves to, by name, where the agent
+     * pins one; any other grant takes the connector's default. */
+    connectorCredentials?: Readonly<Record<string, string>>;
+    /** The agent's own commit identity, for a session no person owns. */
+    gitIdentity?: ProjectAgentGitIdentity | null;
   },
 ): Promise<{
   env: Record<string, string>;
-  git: Array<{ slug: string; hosts: string[]; username: string }>;
+  git: BrokeredGitHost[];
 }> {
   const env: Record<string, string> = {};
-  const git: Array<{ slug: string; hosts: string[]; username: string }> = [];
+  const git: BrokeredGitHost[] = [];
+  const lines: string[] = [];
 
   for (const slug of args.grants) {
+    const connector = findConnector(slug);
+    const capability = connector?.git;
+    if (connector === undefined || capability === undefined) continue;
+    const pinned = args.connectorCredentials?.[slug];
     let secret: string | null;
+    let username = capability.username;
+    let host: string | null;
+    let credentialId: string;
     try {
       const credential = await resolveConnectorCredential(ctx, {
         organizationId: args.organizationId,
         connectorSlug: slug,
+        // A pinned credential and nothing else: one that is gone fails here,
+        // and the turn goes without, rather than falling back to a default
+        // that may reach more.
+        ...(pinned !== undefined ? { credentialRef: pinned } : {}),
       });
       secret = pickSecret(credential.secrets);
+      // A username-and-password credential sends its own username.
+      if (
+        credential.authMethod === 'basic' &&
+        credential.secrets.username !== undefined
+      ) {
+        username = credential.secrets.username;
+      }
+      host = gitHostOf(connector, capability.host, credential.endpoint);
+      credentialId = credential.credentialId;
     } catch (err) {
       // No credential, disabled, needs-reauth, or an undecryptable envelope —
       // each already a typed refusal with no secret material. Skip the grant
       // like a missing credential; the message says which case it was.
       console.warn(
-        `[sandbox.broker] grant '${slug}' is not resolvable:`,
+        `[sandbox.broker] grant '${slug}'${pinned !== undefined ? ' (pinned)' : ''} is not resolvable:`,
         err instanceof Error ? err.message : String(err),
       );
       continue;
@@ -129,11 +236,31 @@ export async function resolveSessionCredentialEnv(
       console.warn(`[sandbox.broker] grant '${slug}' has no usable secret`);
       continue;
     }
-    const mapped = toSessionEnv(slug, secret);
-    Object.assign(env, mapped.env);
-    if (mapped.git) git.push({ slug, ...mapped.git });
+    if (host === null) {
+      console.warn(
+        `[sandbox.broker] grant '${slug}' names no git host its credential can open`,
+      );
+      continue;
+    }
+    if (!PLAIN_VALUE_RE.test(secret) || !PLAIN_VALUE_RE.test(username)) {
+      console.warn(
+        `[sandbox.broker] grant '${slug}' carries a token or username git cannot be handed`,
+      );
+      continue;
+    }
+    if (git.some((entry) => entry.host === host)) {
+      console.warn(
+        `[sandbox.broker] grant '${slug}' opens ${host}, which an earlier grant already opens; keeping the earlier one`,
+      );
+      continue;
+    }
+    lines.push(gitCredentialLine(host, username, secret));
+    git.push({ slug, host, username });
+    Object.assign(env, cliEnv(slug, secret));
 
-    // Audit every fetch (the Tier-2 traceability requirement).
+    // Audit every fetch (the Tier-2 traceability requirement), naming the
+    // credential that reached the sandbox: with pins, one connector may
+    // hand different agents different credentials.
     await ctx.runMutation(
       internal.sandbox.session_mutations.recordCredentialAccess,
       {
@@ -141,6 +268,7 @@ export async function resolveSessionCredentialEnv(
         sessionId: args.sessionId,
         slug,
         kind: args.kind,
+        credentialId,
       },
     );
   }
@@ -150,40 +278,83 @@ export async function resolveSessionCredentialEnv(
   // Activate the in-image `tale-git-credential` helper for every git op in the
   // exec. The helper is installed in the runtime image but inert until git
   // is told to use it — without this, `git push` to https finds no credentials
-  // and aborts ("could not read Username"), even though GITHUB_TOKEN is set.
-  // Injected via GIT_CONFIG_* env (equivalent to `-c credential.helper=…`) so
-  // it needs no in-session `git config` exec and covers clone/fetch/push. The
-  // helper answers only for hosts it has a token for and emits nothing
-  // otherwise, so this is safe to set whenever any git grant is present.
-  if (git.length > 0) {
+  // and aborts ("could not read Username"). Injected via GIT_CONFIG_* env
+  // (equivalent to `-c credential.helper=…`) so it needs no in-session
+  // `git config` exec and covers clone/fetch/push. The helper answers only
+  // for the hosts in TALE_GIT_CREDENTIALS and emits nothing otherwise.
+  if (lines.length > 0) {
+    env[GIT_CREDENTIALS_ENV] = lines.join('\n');
     gitConfigPairs.push({
       key: 'credential.helper',
-      value: '/usr/local/bin/tale-git-credential',
+      value: GIT_CREDENTIAL_HELPER,
     });
   }
 
-  // Provision the session owner's git AUTHOR IDENTITY beside the credential
-  // helper, resolved from the platform user who owns the session (never
-  // gated on git.length, unlike the helper above): name/email are non-secret
-  // metadata, not a credential, and Claude Code's `Git user:` context line
-  // reads `git config user.name` at conversation start regardless of
-  // whether the turn was granted git access — gating it on git.length
-  // would leave that line blank/stale on every non-git turn. A
-  // synthetic/system-owned session (no resolvable platform user) or a user
-  // with a blank name/email resolves to null and is skipped rather than
-  // injecting a placeholder identity.
-  const identity = await ctx.runQuery(
-    internal.sandbox.session_queries.getSessionOwnerIdentity,
-    { sessionId: args.sessionId },
-  );
-  if (identity) {
-    gitConfigPairs.push(
-      { key: 'user.name', value: identity.name },
-      { key: 'user.email', value: identity.email },
-    );
-  }
+  // Provision the git AUTHOR IDENTITY beside the credential helper (never
+  // gated on a git grant, unlike the helper above): name/email are
+  // non-secret metadata, not a credential, and Claude Code's `Git user:`
+  // context line reads `git config user.name` at conversation start
+  // regardless of whether the turn was granted git access.
+  gitConfigPairs.push(...(await gitIdentityPairs(ctx, args)));
 
   Object.assign(env, buildGitConfigEnv(gitConfigPairs));
 
   return { env, git };
+}
+
+/**
+ * The turn's git author identity alone, as exec env, with no credential: what
+ * a confined run gets, which goes without every credential of the agent
+ * (TASK-R79) but still commits under a name [SBX-R42]. The identity is
+ * non-secret, so it is not audited.
+ */
+export async function resolveSessionGitIdentityEnv(
+  ctx: ActionCtx,
+  args: {
+    sessionId: string;
+    gitIdentity?: ProjectAgentGitIdentity | null;
+  },
+): Promise<Record<string, string>> {
+  return buildGitConfigEnv(await gitIdentityPairs(ctx, args));
+}
+
+/** The `user.name` / `user.email` config pairs of {@link resolveGitIdentity},
+ * or none. */
+async function gitIdentityPairs(
+  ctx: ActionCtx,
+  args: {
+    sessionId: string;
+    gitIdentity?: ProjectAgentGitIdentity | null;
+  },
+): Promise<Array<{ key: string; value: string }>> {
+  const identity = await resolveGitIdentity(ctx, args);
+  return identity
+    ? [
+        { key: 'user.name', value: identity.name },
+        { key: 'user.email', value: identity.email },
+      ]
+    : [];
+}
+
+/**
+ * Whose name and email the turn's commits carry [SBX-R42]: the person who
+ * owns the session, when one does; otherwise the agent's own commit
+ * identity, when it has one. A project agent's workers are owned by Tale
+ * itself, so its runs — whoever or whatever started them: a person, the
+ * dispatch, a standing role, a schedule, confined or not — commit as the
+ * agent. With neither, no identity is set, rather than a placeholder.
+ */
+async function resolveGitIdentity(
+  ctx: ActionCtx,
+  args: {
+    sessionId: string;
+    gitIdentity?: ProjectAgentGitIdentity | null;
+  },
+): Promise<{ name: string; email: string } | null> {
+  const owner: { name: string; email: string } | null = await ctx.runQuery(
+    internal.sandbox.session_queries.getSessionOwnerIdentity,
+    { sessionId: args.sessionId },
+  );
+  if (owner) return owner;
+  return args.gitIdentity ?? null;
 }

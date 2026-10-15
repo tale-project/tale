@@ -235,6 +235,13 @@ const steerSchema = z.object({
   connectors: z.array(z.string()),
   tools: z.array(z.string()),
   secrets: z.array(z.string()),
+  // Absent from a steer queued before they were carried: the turn then runs
+  // on the connectors' defaults and no agent identity, as it did then.
+  connectorCredentials: z.record(z.string(), z.string()).optional(),
+  gitIdentity: z
+    .object({ name: z.string(), email: z.string() })
+    .nullable()
+    .optional(),
   feedback: z.string(),
   mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
@@ -251,6 +258,30 @@ const reindexBm25Schema = z.object({
 
 export interface TaskDeps {
   sql: Sql;
+}
+
+/** An agent's pinned credentials and commit identity as stored now; none
+ * for an agent that is gone, whose turn then fails on its own checks. */
+async function readAgentRepositoryAccess(
+  sql: Sql,
+  args: { organizationId: string; agentId: string },
+): Promise<{
+  connectorCredentials: Record<string, string>;
+  gitIdentity: { name: string; email: string } | null;
+}> {
+  const rows = await sql<
+    {
+      connectorCredentials: Record<string, string>;
+      gitIdentity: { name: string; email: string } | null;
+    }[]
+  >`
+    SELECT connector_credentials AS "connectorCredentials",
+           git_identity AS "gitIdentity"
+    FROM app.project_agents
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  return rows[0] ?? { connectorCredentials: {}, gitIdentity: null };
 }
 
 /**
@@ -1408,7 +1439,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
 
     'task.agent_steer': async (payload) => {
-      const input = steerSchema.parse(payload);
+      const parsed = steerSchema.parse(payload);
+      // A steer an older image queued carries no pins: read them from the
+      // agent, so a pinned agent's restart never falls back to a connector's
+      // default credential while a deployment rolls.
+      const input =
+        parsed.connectorCredentials !== undefined &&
+        parsed.gitIdentity !== undefined
+          ? parsed
+          : {
+              ...parsed,
+              ...(await readAgentRepositoryAccess(deps.sql, parsed)),
+            };
       // The REUSED 0.4 steer host on the ctx shim. It owns the whole
       // decision — stdin injection vs exec rotation, the retry ladder, and
       // the settled-turn fallback that turns the comment into a fresh
@@ -1536,9 +1578,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           connectors: string[];
           tools: string[];
           secrets: string[];
+          connectorCredentials: Record<string, string>;
+          gitIdentity: { name: string; email: string } | null;
         }[]
       >`
-        SELECT instructions, skills, connectors, tools, secrets
+        SELECT instructions, skills, connectors, tools, secrets,
+               connector_credentials AS "connectorCredentials",
+               git_identity AS "gitIdentity"
         FROM app.project_agents
         WHERE id = ${run.agentId} AND org_id = ${input.organizationId}
         LIMIT 1
@@ -1621,6 +1667,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           connectors: agent.connectors,
           tools: agent.tools,
           secrets: agent.secrets,
+          connectorCredentials: agent.connectorCredentials,
+          gitIdentity: agent.gitIdentity,
           ...(run.feedback !== null ? { feedback: run.feedback } : {}),
           ...(run.mentionSource !== null
             ? { mentionSource: run.mentionSource }

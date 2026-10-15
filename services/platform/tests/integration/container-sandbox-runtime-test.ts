@@ -240,6 +240,40 @@ await assertOk(
   10001,
   'command -v git && command -v rg && command -v fd',
 );
+// The broker's git credential helper, armed as the platform arms it
+// (`credential.helper` through GIT_CONFIG_*, the host map in
+// TALE_GIT_CREDENTIALS): the image's git answers each mapped host with its
+// own entry and an unmapped one with nothing, GITHUB_TOKEN notwithstanding
+// [SBX-R40]. `git credential fill` only asks the helper; no network.
+{
+  const helperEnv = [
+    'GIT_CONFIG_COUNT=1',
+    'GIT_CONFIG_KEY_0=credential.helper',
+    'GIT_CONFIG_VALUE_0=/usr/local/bin/tale-git-credential',
+    'GIT_TERMINAL_PROMPT=0',
+    'GITHUB_TOKEN=ghp_ambient',
+    `TALE_GIT_CREDENTIALS="$(printf 'github.com x-access-token ghp_central\\ngit.tale.dev x-access-token forgejo_client')"`,
+  ].join(' ');
+  const fill = (host: string) =>
+    `printf 'protocol=https\\nhost=${host}\\n\\n' | env ${helperEnv} git credential fill`;
+  await assertContains(
+    "git signs in to a Forgejo host with that host's own broker entry",
+    10001,
+    'password=forgejo_client',
+    fill('git.tale.dev'),
+  );
+  await assertContains(
+    "git signs in to github.com with GitHub's broker entry, not GITHUB_TOKEN",
+    10001,
+    'password=ghp_central',
+    fill('github.com'),
+  );
+  await assertOk(
+    'git gets no credential for a host the broker map does not name',
+    10001,
+    `! ${fill('gitlab.com')} 2>/dev/null | grep -q '^password='`,
+  );
+}
 await assertOk(
   'playwright MCP server present',
   10001,

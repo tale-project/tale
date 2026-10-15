@@ -318,9 +318,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Projects: the door validates the name (`nonBlank`), description and
   // external key (`externalKeySchema`) at the domain's own caps before the
   // create or the PATCH reaches the cores, and the agent name and
-  // instructions the same way (`projectAgentInputSchema`); instructions
-  // and sharing are the app's settings dialogs — no REST body carries
-  // them.
+  // instructions the same way (`projectAgentInputSchema`), and its commit
+  // identity (`projectAgentGitIdentitySchema`); instructions and sharing
+  // are the app's settings dialogs — no REST body carries them.
+  'PROJECT_AGENT_GIT_IDENTITY_INVALID',
   'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
   'PROJECT_AGENT_NAME_INVALID',
   'PROJECT_DESCRIPTION_INVALID',

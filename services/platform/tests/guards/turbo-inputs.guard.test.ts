@@ -179,9 +179,17 @@ const OUTSIDE_READS = [
     readers: 'lib/harnesses/gemini-settings-build.test.ts',
   },
   {
-    // Its engine install RUN, run under /bin/sh with recording doubles.
+    // Its engine install RUN, run under /bin/sh with recording doubles; and
+    // the path it installs the git credential helper at.
     path: 'services/sandbox-runtime/Dockerfile',
-    readers: 'tests/guards/dockerfile-fail-closed.guard.test.ts',
+    readers:
+      'tests/guards/dockerfile-fail-closed.guard.test.ts and backend/core/node_only/sandbox/session_credentials.test.ts',
+  },
+  {
+    // Run under /bin/sh, not imported: the git credential helper, on the
+    // host map the broker writes.
+    path: 'services/sandbox-runtime/tale-git-credential',
+    readers: 'backend/core/node_only/sandbox/session_credentials.test.ts',
   },
   {
     path: 'services/sandbox/src/config.ts',

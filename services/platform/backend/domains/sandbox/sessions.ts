@@ -649,6 +649,12 @@ export interface SessionTokenScope {
    * no identity (the connectors bridge reads it; the workspace tools never
    * do). */
   connectorCaller?: TurnConnectorCaller;
+  /** The credential each connector's bridge calls act as, by name, where
+   * the turn's project agent pins one [SBX-R43]: the bridge resolves that
+   * credential and nothing else, so a pin whose credential is gone fails the
+   * call rather than falling back to the connector's default. Names, never
+   * secrets. */
+  connectorCredentials?: Record<string, string>;
   /** The task run a task turn serves — every task turn's token names its
    * exec. The workspace tools read the live run on it: a run its starter
    * could not have edited the project for acts on its own task alone. */

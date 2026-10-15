@@ -116,6 +116,8 @@ export interface ChatContract {
         icon?: string;
         slug: string;
         label: string;
+        /** Its credential also opens the vendor's git remotes. */
+        git?: true;
       }>;
     };
   };

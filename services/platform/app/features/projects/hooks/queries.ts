@@ -59,6 +59,16 @@ export function useAgentSecrets(organizationId: string | undefined) {
 export type AgentSecretSummary =
   ItemOf<'agent_secrets/queries:listAgentSecrets'>;
 
+/** The org's connector credentials by name (masked; never a value), for
+ * the credential an agent acts as per connector — the settings listing,
+ * under the same cache entry, so a credential added there shows here. */
+export function useOrgConnectorCredentials(organizationId: string | undefined) {
+  return useBackendQuery(
+    'connector_credentials/queries:listCredentials',
+    organizationId !== undefined ? { organizationId } : 'skip',
+  );
+}
+
 export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
 
 /** The project's agents, oldest first — its standard agent among them once

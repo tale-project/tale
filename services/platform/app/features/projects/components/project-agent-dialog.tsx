@@ -3,11 +3,14 @@
 /**
  * Create/edit form for a project agent: a name, the harness it runs on, the
  * skills/connectors/tools it comes pre-equipped with, the org secrets it
- * receives as env vars, and an instructions addendum the run lane delivers
+ * receives as env vars, the credential it acts as for each connector that
+ * opens git remotes and the identity its commits carry, and an
+ * instructions addendum the run lane delivers
  * through the harness's system-prompt channel. One dialog serves both modes —
  * `agent` present means edit, absent means create.
  */
 
+import { projectAgentGitIdentitySchema } from '@tale/shared/schemas/projects';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { SearchableSelect } from '@tale/ui/searchable-select';
@@ -21,6 +24,7 @@ import {
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
+import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
@@ -36,10 +40,18 @@ import {
   useCreateProjectAgent,
   useUpdateProjectAgent,
 } from '../hooks/mutations';
-import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
+import {
+  useAgentSecrets,
+  useOrgConnectorCredentials,
+  type AgentSecretSummary,
+} from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useAgentToolOptions } from '../hooks/use-agent-tool-options';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
+import {
+  AgentRepositoryAccessField,
+  type RepositoryConnectorOption,
+} from './agent-repository-access-field';
 import { AgentSecretsField } from './agent-secrets-field';
 
 /** One harness the agent can run on (the composer's managed roster entry). */
@@ -61,7 +73,9 @@ interface ProjectAgentDialogProps {
   models: readonly ModelOption[];
   /** Undefined until the project's capability catalog has loaded. */
   skills: readonly SkillOption[] | undefined;
-  connectors: readonly SkillOption[];
+  /** The connectors it may be equipped with; `git` on one whose credential
+   * also opens git remotes. */
+  connectors: readonly RepositoryConnectorOption[];
   /** The row being edited; absent = create. */
   agent?: ProjectAgentRow;
   /** Create mode: the new agent's id, once it exists and before the dialog
@@ -71,6 +85,30 @@ interface ProjectAgentDialogProps {
 
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
 const INSTRUCTIONS_MAX = 20_000;
+
+/** Which message key each commit identity field fails with, by the shared
+ * schema the server validates against; neither key when both pass. Both
+ * empty is no identity at all. */
+function validateGitIdentity(
+  name: string,
+  email: string,
+): {
+  name?: 'nameInvalid' | 'incomplete';
+  email?: 'emailInvalid' | 'incomplete';
+} {
+  if (name === '' && email === '') return {};
+  if (name === '') return { name: 'incomplete' };
+  if (email === '') return { email: 'incomplete' };
+  const { shape } = projectAgentGitIdentitySchema;
+  return {
+    ...(shape.name.safeParse(name).success
+      ? {}
+      : { name: 'nameInvalid' as const }),
+    ...(shape.email.safeParse(email).success
+      ? {}
+      : { email: 'emailInvalid' as const }),
+  };
+}
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -96,6 +134,12 @@ export function ProjectAgentDialog({
   const { data: orgSecrets } = useAgentSecrets(
     open ? organizationId : undefined,
   );
+  const { data: orgCredentials } = useOrgConnectorCredentials(
+    open ? organizationId : undefined,
+  );
+  // Which credential an agent acts as is an Owner's or Admin's decision,
+  // as its secrets are; the server refuses anyone else's change.
+  const canChangePins = useAbility().can('write', 'orgSettings');
 
   const [name, setName] = useState('');
   const [harness, setHarness] = useState('');
@@ -103,6 +147,15 @@ export function ProjectAgentDialog({
   const [modelProvider, setModelProvider] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
+  const [pins, setPins] = useState<Record<string, string>>({});
+  const [gitName, setGitName] = useState('');
+  const [gitEmail, setGitEmail] = useState('');
+  const [gitNameError, setGitNameError] = useState<string | undefined>(
+    undefined,
+  );
+  const [gitEmailError, setGitEmailError] = useState<string | undefined>(
+    undefined,
+  );
   const [instructions, setInstructions] = useState('');
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,6 +188,11 @@ export function ProjectAgentDialog({
         : EMPTY_BINDING,
     );
     setSecretNames(agent?.secrets ?? []);
+    setPins({ ...agent?.connectorCredentials });
+    setGitName(agent?.gitIdentity?.name ?? '');
+    setGitEmail(agent?.gitIdentity?.email ?? '');
+    setGitNameError(undefined);
+    setGitEmailError(undefined);
     setInstructions(agent?.instructions ?? '');
     setNameError(undefined);
     documentSkillsSeeded.current = false;
@@ -230,6 +288,24 @@ export function ProjectAgentDialog({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || isSubmitting) return;
+    const commitName = gitName.trim();
+    const commitEmail = gitEmail.trim();
+    // The server's own rule for each field, so the error lands on the field
+    // at fault instead of coming back as one refusal of the whole save.
+    const identity = validateGitIdentity(commitName, commitEmail);
+    if (identity.name !== undefined || identity.email !== undefined) {
+      setGitNameError(
+        identity.name === undefined
+          ? undefined
+          : t(`agents.gitIdentity.${identity.name}`),
+      );
+      setGitEmailError(
+        identity.email === undefined
+          ? undefined
+          : t(`agents.gitIdentity.${identity.email}`),
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       const payload = {
@@ -245,6 +321,9 @@ export function ProjectAgentDialog({
         connectors: [...binding.connectors],
         tools: [...binding.tools],
         secrets: [...secretNames],
+        connectorCredentials: { ...pins },
+        gitIdentity:
+          commitName === '' ? null : { name: commitName, email: commitEmail },
         ...(instructions.trim() !== ''
           ? { instructions: instructions.trim() }
           : {}),
@@ -271,12 +350,18 @@ export function ProjectAgentDialog({
         code === 'PROJECT_AGENT_NAME_TAKEN'
       ) {
         setNameError(t(`errors.${code}`));
+      } else if (code === 'PROJECT_AGENT_GIT_IDENTITY_INVALID') {
+        // The checks above mirror the server's, so this is a rule they do
+        // not know yet; its message names both fields.
+        setGitNameError(t(`errors.${code}`));
       } else if (
         code === 'PROJECT_AGENT_HARNESS_INVALID' ||
         code === 'PROJECT_AGENT_STALE' ||
         code === 'PROJECT_AGENT_MODEL_INVALID' ||
         code === 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' ||
         code === 'PROJECT_AGENT_LIMIT' ||
+        code === 'PROJECT_AGENT_CREDENTIAL_UNKNOWN' ||
+        code === 'PROJECT_AGENT_CREDENTIALS_FORBIDDEN' ||
         code === 'PROJECT_ARCHIVED' ||
         code === 'RBAC_FORBIDDEN'
       ) {
@@ -423,6 +508,27 @@ export function ProjectAgentDialog({
         secrets={secrets}
         selected={secretNames}
         onChange={setSecretNames}
+        disabled={isSubmitting}
+      />
+      <AgentRepositoryAccessField
+        connectors={connectors}
+        equipped={binding.connectors}
+        credentials={orgCredentials ?? []}
+        pins={pins}
+        onPinsChange={setPins}
+        gitName={gitName}
+        gitEmail={gitEmail}
+        onGitNameChange={(value) => {
+          setGitName(value);
+          setGitNameError(undefined);
+        }}
+        onGitEmailChange={(value) => {
+          setGitEmail(value);
+          setGitEmailError(undefined);
+        }}
+        {...(gitNameError !== undefined ? { gitNameError } : {})}
+        {...(gitEmailError !== undefined ? { gitEmailError } : {})}
+        canChangePins={canChangePins}
         disabled={isSubmitting}
       />
       <Textarea

@@ -409,13 +409,15 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         sessionId: string;
         slug: string;
         kind: 'bootstrap' | 'git';
+        /** The connector credential that reached the sandbox (0219). */
+        credentialId?: string;
       };
       await sql`
         INSERT INTO app.sandbox_credential_access (
-          org_id, session_id, slug, kind, fetched_at_ms
+          org_id, session_id, slug, kind, credential_id, fetched_at_ms
         ) VALUES (
           ${args.organizationId}, ${args.sessionId}, ${args.slug},
-          ${args.kind}, ${Date.now()}
+          ${args.kind}, ${args.credentialId ?? null}, ${Date.now()}
         )
       `;
       return null;

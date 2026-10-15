@@ -47,6 +47,8 @@ export interface ComposerCapability {
   label: string;
   description?: string;
   icon?: string;
+  /** A connector whose credential also opens the vendor's git remotes. */
+  git?: true;
 }
 
 /** A skill on offer, with who created it — the picker names the creator on
@@ -118,6 +120,7 @@ async function listConnectorCapabilities(
       };
       if (summary.description !== '') option.description = summary.description;
       if (summary.iconUrl !== undefined) option.icon = summary.iconUrl;
+      if (summary.git !== undefined) option.git = true;
       return option;
     })
     .sort((a, b) => a.label.localeCompare(b.label));

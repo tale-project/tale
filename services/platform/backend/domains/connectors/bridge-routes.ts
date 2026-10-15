@@ -130,6 +130,9 @@ interface BridgeAuth {
    * token's own user, else the task run its turn serves. Absent when the
    * token records neither. */
   caller?: { kind: 'user'; userId: string } | TurnConnectorCaller;
+  /** The credential the turn's agent pins per connector, by name [SBX-R43]:
+   * a call to that connector acts as it, never the default. */
+  pins: Record<string, string>;
 }
 
 async function authSessionToken(
@@ -154,6 +157,7 @@ async function authSessionToken(
     sessionId: row.sessionId,
     connectorGrants: row.scope.connectorGrants,
     ...(caller !== undefined ? { caller } : {}),
+    pins: stringRecord(row.scope.connectorCredentials) ?? {},
   };
 }
 
@@ -317,6 +321,10 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
       });
     }
     bridgeCallsInFlight.set(auth.sessionId, running + 1);
+    // The agent's pinned credential and nothing else: one that is gone
+    // fails the call rather than reading through the default, which may
+    // reach more [SBX-R43].
+    const pinned = auth.pins[slug];
     let result: Awaited<ReturnType<typeof runBridgeConnectorImpl>>;
     try {
       result = await runBridgeConnectorImpl(
@@ -328,6 +336,7 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
             input: dispatchArgs.input,
             mode: 'live',
             caller: { kind: 'user', userId: dispatchArgs.userId },
+            ...(pinned !== undefined ? { credentialRef: pinned } : {}),
             ...(caller.spender !== undefined
               ? { spender: caller.spender }
               : {}),
@@ -341,6 +350,7 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
           slug,
           operation,
           callArgs,
+          ...(pinned !== undefined ? { pinned } : {}),
         },
       );
     } finally {
@@ -379,6 +389,9 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
             const credential = await resolveConnectorCredential(deps.sql, {
               organizationId: probe.organizationId,
               connectorSlug: probe.connectorSlug,
+              ...(probe.credentialRef !== undefined
+                ? { credentialRef: probe.credentialRef }
+                : {}),
             });
             return credential !== null;
           } catch (error) {
@@ -392,6 +405,7 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
         {
           organizationId: auth.organizationId,
           grants: auth.connectorGrants,
+          pins: auth.pins,
           ...(caller !== null && 'blocker' in caller
             ? { callerBlocker: caller.blocker }
             : {}),

@@ -45,6 +45,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     isLoading: false,
   }),
   useAgentSecrets: () => ({ data: [] }),
+  useOrgConnectorCredentials: () => ({ data: [] }),
 }));
 
 vi.mock('@/app/features/projects/hooks/mutations', () => ({

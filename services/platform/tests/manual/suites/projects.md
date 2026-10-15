@@ -829,3 +829,51 @@ a few To do tasks.
   named task reads as not found to it. As an administrator of both projects,
   choose **Run a pass now** with another such Billing task in To do → the
   run the dispatch starts lists this project's tasks as well.
+
+## Repository access
+
+The agent dialog's **Repository access** (`projects.agents.repository.label`)
+and **Commit identity** (`projects.agents.gitIdentity.label`), judged against
+the user guide (`docs/en/platform/projects/project-agents.md`, *Give the agent
+its own repository access*). The pin rules, the broker's host map, the
+helper's answers and the identity order are held by specs
+([`reference/automation/projects.md`](../reference/automation/projects.md));
+these boxes are the live halves: a real Forgejo or GitHub, a real push, two
+roles and the three languages. Store two Forgejo credentials of different
+reach under Settings › Connectors, one of them the default.
+
+- [ ] `PROJ-F74` · **Pin the credential an agent pushes with** — As an Owner,
+  edit an agent equipped with Forgejo → **Repository access** offers
+  **Forgejo credential** (`projects.agents.repository.connectorLabel`)
+  reading **Organization default (…)**
+  (`projects.agents.repository.defaultNamed`); choose the other credential,
+  fill in **Commit name** (`projects.agents.gitIdentity.nameLabel`) and
+  **Commit email** (`projects.agents.gitIdentity.emailLabel`), save and
+  reopen → both are kept. Start the agent on a task asking it to clone a
+  repository only that credential reaches, commit a file and push → the push
+  lands, authored under the commit identity, and a repository only the
+  default reaches is refused. Ask it to list the Forgejo repositories its
+  connector sees → only those the chosen credential reaches. By keyboard
+  alone the select opens and closes with Enter and Escape, and no German or
+  French label clips.
+- [ ] `PROJ-B30` · **An editor sees the pin but cannot change it, and a gone
+  pin opens nothing** — As an Editor, open the agent of `PROJ-F74` → the
+  credential select is disabled and its description reads
+  `projects.agents.repository.adminOnly`; rename the agent and save → saved,
+  with the pin unchanged. As an Owner, delete the pinned credential under
+  Settings › Connectors and reopen the agent → the select reads
+  `projects.agents.repository.missing` with the old name; start the agent and
+  ask it to push → Git gets no credential, and the default's repositories
+  stay out of reach too; ask it to list the Forgejo repositories its
+  connector sees → the call fails naming the deleted credential, and lists
+  none of the default's.
+- [ ] `PROJ-B31` · **A run on a served board gets only the skills its starter
+  sees** — With the dispatch of `PROJ-F71` serving Billing, equip the pool's
+  agent with an organization skill and a team skill shared only with this
+  project's team, and sign in as an editor of Billing who is not in that
+  team. Start the agent on a Billing task asking it to list the skills its
+  instructions name and the skill folders in its workspace's `.tale`
+  folder →
+  only the organization skill appears in either. The run the dispatch starts
+  on another such Billing task lists both.
+

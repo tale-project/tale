@@ -177,6 +177,44 @@ export type ConnectorEffect = z.infer<typeof effectSchema>;
  */
 const endpointModeSchema = z.enum(['fixed', 'per-credential']);
 
+/** A git host as git names it in a credential request: lower-case DNS labels,
+ * at least two of them. */
+const gitHostSchema = z
+  .string()
+  .max(253)
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/,
+    'must be a lower-case host name such as github.com',
+  );
+
+/**
+ * Whether a credential of this connector also opens the vendor's git
+ * remotes over HTTPS, so an agent's sandbox can clone, fetch and push with
+ * it. For every equipped connector that declares it, the credential broker
+ * hands the sandbox one entry — the host git asks for, the username git
+ * sends and the credential's token as the password — and the sandbox's git
+ * credential helper answers that host from it and no other.
+ *
+ *  - `host` — the git host: a fixed host name (`github.com`, whose API lives
+ *             on another host), or `endpoint` for the host of each
+ *             credential's own endpoint (per-credential connectors only: a
+ *             Forgejo credential for `https://git.example.com` opens
+ *             `git.example.com`).
+ *  - `username` — what git sends beside the token (`x-access-token`). A
+ *             `basic` credential sends its own username instead.
+ */
+const gitCapabilitySchema = z
+  .object({
+    host: z.union([z.literal('endpoint'), gitHostSchema]),
+    username: z
+      .string()
+      .min(1)
+      .max(100)
+      .regex(/^[A-Za-z0-9._@-]+$/, 'must be a plain user name'),
+  })
+  .strict();
+export type ConnectorGitCapability = z.infer<typeof gitCapabilitySchema>;
+
 /**
  * A non-secret per-credential setting a connector needs but which is neither a
  * secret nor an https origin — the IMAP/SMTP server host and port, a Shopify
@@ -374,6 +412,9 @@ export const connectorSchema = z
      * declares names the bodies then use; it returns nothing.
      */
     livePrelude: z.string().min(1).optional(),
+    /** Whether its credential also opens the vendor's git remotes; see
+     * {@link gitCapabilitySchema}. Absent for every other connector. */
+    git: gitCapabilitySchema.optional(),
     actions: z
       .array(connectorActionSchema)
       .min(1)
@@ -390,6 +431,26 @@ export const connectorSchema = z
       message:
         'a connector that is the platform itself holds no credential to make optional',
       path: ['credential'],
+    },
+  )
+  .refine(
+    (connector) =>
+      connector.git === undefined ||
+      !connector.auth.some((method) => method.method === 'platform'),
+    {
+      message:
+        'a connector that is the platform itself holds no token to open a git remote with',
+      path: ['git'],
+    },
+  )
+  .refine(
+    (connector) =>
+      connector.git?.host !== 'endpoint' ||
+      connector.endpointMode === 'per-credential',
+    {
+      message:
+        'git.host endpoint takes the host of each credential’s own endpoint, which only a per-credential connector has',
+      path: ['git', 'host'],
     },
   )
   .superRefine((connector, context) => {

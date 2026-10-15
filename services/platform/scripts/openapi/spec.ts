@@ -1388,6 +1388,44 @@ const projectAgentInputSpec: Json = (() => {
       'Connector slugs the organization has connected; an unknown or ' +
       'unconnected one is refused',
   };
+  properties.connectorCredentials = {
+    type: 'object',
+    maxProperties: PROJECT_AGENT_BINDINGS_MAX,
+    additionalProperties: { type: 'string', minLength: 1, maxLength: 100 },
+    description:
+      'Which of the organization’s credentials the agent acts as, per ' +
+      'connector: a connector slug to the name of one of its credentials ' +
+      '(Settings › Connectors lists them). Only a connector that opens a ' +
+      'git host takes a pin (the MCP `list_connectors` tool names it as ' +
+      '`gitHost`: GitHub, Forgejo). An equipped pinned connector hands the ' +
+      'agent’s sandbox that credential’s git access instead of the ' +
+      'default’s, and the agent’s connector calls from the sandbox act as ' +
+      'it too; a pinned credential later deleted hands it nothing and fails ' +
+      'those calls, never falling back to the default. A connector left out ' +
+      'uses the default. A pin on a connector without a git host, or a name ' +
+      'the organization does not hold for that connector, is refused ' +
+      '(`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` ' +
+      'names it), and only organization admins may change the pins ' +
+      '(`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). Omitted on a `PUT` keeps ' +
+      'the stored pins; `{}` clears them',
+  };
+  properties.gitIdentity = {
+    type: 'object',
+    nullable: true,
+    required: ['name', 'email'],
+    additionalProperties: false,
+    properties: {
+      name: { type: 'string', minLength: 1, maxLength: 200 },
+      email: { type: 'string', format: 'email', maxLength: 254 },
+    },
+    description:
+      'The name and email the agent’s commits carry. Its workers belong to ' +
+      'no person, so every run of it commits as this identity, whoever or ' +
+      'whatever started it; a workspace a person owns commits as that ' +
+      'person instead. The name takes no `<`, `>` or control characters. ' +
+      '`null` clears it; omitted, an update keeps the stored one and a ' +
+      'creation sets none',
+  };
   return {
     ...rendered,
     properties,
@@ -1402,10 +1440,14 @@ const projectAgentInputSpec: Json = (() => {
       'connectors against the connected set, tools against the grant ' +
       'catalog — and refused by name otherwise. Omitted ' +
       'modelProvider/instructions reset to null; omitted tools/secrets reset ' +
-      'to empty arrays. secrets contains organization secret NAMES, never ' +
-      'values; only organization admins may change these grants, and a ' +
-      'name the organization has not stored is refused ' +
-      '(`PROJECT_AGENT_SECRET_UNKNOWN`), never pruned.',
+      'to empty arrays; omitted connectorCredentials and gitIdentity keep ' +
+      'what is stored, since dropping a pin would widen the agent to the ' +
+      'connector’s default (`{}` and `null` clear them). secrets contains ' +
+      'organization secret NAMES, ' +
+      'never values; only organization admins may change these grants or ' +
+      'the credential pins, and a name the organization has not stored is ' +
+      'refused (`PROJECT_AGENT_SECRET_UNKNOWN`, ' +
+      '`PROJECT_AGENT_CREDENTIAL_UNKNOWN`), never pruned.',
   };
 })();
 
@@ -3715,15 +3757,18 @@ export function buildSpec(): Json {
         'pairs; a tool grant outside the catalog ' +
         '(`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see ' +
         '(`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization ' +
-        'has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret ' +
+        'has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret ' +
         'name the organization has not stored ' +
-        '(`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or ' +
-        'the 50-agent limit (`PROJECT_AGENT_LIMIT`)',
+        '(`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a ' +
+        'pinned credential it does not hold for that connector ' +
+        '(`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` ' +
+        'names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)',
     ),
     '403': errorResponse(
       'Project is not editable or is archived, or the caller changes secret ' +
-        'grants without being an organization admin ' +
-        '(`PROJECT_AGENT_SECRETS_FORBIDDEN`)',
+        'grants (`PROJECT_AGENT_SECRETS_FORBIDDEN`) or credential pins ' +
+        '(`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`) without being an ' +
+        'organization admin',
     ),
     '404': errorResponse(
       'Project is missing or invisible, or the agent does not belong to ' +
@@ -3785,7 +3830,7 @@ export function buildSpec(): Json {
       summary: 'Get a project agent',
       operationId: 'getProjectAgent',
       description:
-        'One project agent with its full configuration — the model pair, skills, connectors, tool grants and the names (never the values) of its secrets.',
+        'One project agent with its full configuration — the model pair, skills, connectors, tool grants, the names (never the values) of its secrets, the credential it acts as per connector and its commit identity.',
       security: sec,
       parameters: [
         ...projectAgentParameters,
@@ -13312,6 +13357,8 @@ curl -H "Authorization: Bearer <api-key>" \\
             'connectors',
             'tools',
             'secrets',
+            'connectorCredentials',
+            'gitIdentity',
             'instructions',
             'managed',
             'createdBy',
@@ -13350,6 +13397,22 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'Granted organization secret names. Secret values are never returned.',
             },
+            connectorCredentials: {
+              type: 'object',
+              additionalProperties: str,
+              description:
+                'The credential the agent acts as per connector, by name; a ' +
+                'connector it does not name uses the organization’s default. ' +
+                'Values are names, never secrets.',
+            },
+            gitIdentity: nullable({
+              type: 'object',
+              required: ['name', 'email'],
+              properties: { name: str, email: str },
+              description:
+                'The name and email its commits carry where no person owns ' +
+                'its workspace; `null` for none.',
+            }),
             instructions: nullable(str),
             managed: {
               type: 'boolean',

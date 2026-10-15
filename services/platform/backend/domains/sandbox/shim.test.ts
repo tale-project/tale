@@ -113,3 +113,45 @@ describe('agentTurnShimHandlers', () => {
     );
   });
 });
+
+describe('the credential-access audit names the credential that reached the sandbox [SBX-R41]', () => {
+  it('binds the broker’s credentialId to the credential_id column', async () => {
+    const inserts: { text: string; values: unknown[] }[] = [];
+    const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      inserts.push({
+        text: strings.join('?').replaceAll(/\s+/g, ' ').trim(),
+        values,
+      });
+      return [];
+    };
+    await sandboxToolShimHandlers(sql as never)[
+      'sandbox/session_mutations:recordCredentialAccess'
+    ]({
+      organizationId: 'org',
+      sessionId: 'session',
+      slug: 'forgejo',
+      kind: 'git',
+      credentialId: 'cred-client-a',
+    });
+    expect(inserts).toHaveLength(1);
+    const insert = inserts.at(0);
+    const columns = /^INSERT INTO app\.sandbox_credential_access \(([^)]*)\)/
+      .exec(insert?.text ?? '')?.[1]
+      ?.split(',')
+      .map((column) => column.trim());
+    // Column i takes value i: a column without its value shifts every
+    // later value onto the wrong column.
+    expect(columns).toHaveLength(insert?.values.length ?? -1);
+    expect(
+      Object.fromEntries(
+        (columns ?? []).map((column, i) => [column, insert?.values[i]]),
+      ),
+    ).toMatchObject({
+      org_id: 'org',
+      session_id: 'session',
+      slug: 'forgejo',
+      kind: 'git',
+      credential_id: 'cred-client-a',
+    });
+  });
+});

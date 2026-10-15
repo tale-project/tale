@@ -83,6 +83,7 @@ vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   }),
 }));
 vi.mock('../node_only/sandbox/turn_equipment', () => ({
+  resolveConfinedTurnEnv: async () => ({}),
   resolveTurnEquipmentEnv: async () => ({}),
 }));
 

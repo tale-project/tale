@@ -669,9 +669,10 @@ COPY services/sandbox-runtime/tale-steer-hook /usr/local/bin/tale-steer-hook
 # approved by the user in chat — never self-approved in the sandbox.
 COPY services/sandbox-runtime/tale-plan-gate /usr/local/bin/tale-plan-gate
 
-# Git credential helper for the Tier 2 broker (fetches per-operation creds
-# from runnerd's local credential endpoint). Installed for the `agent` user
-# via the session entrypoint; baked here so it exists read-only.
+# Git credential helper for the Tier 2 broker: armed per exec through
+# GIT_CONFIG_* (credential.helper) by the platform's session_credentials.ts,
+# it answers each host only from the TALE_GIT_CREDENTIALS map, over HTTPS.
+# Baked here so it exists read-only.
 COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-credential
 
 # Playwright MCP launcher: appends --proxy-server/--proxy-bypass from the

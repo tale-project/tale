@@ -314,6 +314,26 @@ agents:
     deleteTitle: Supprimer le secret
     deleteConfirm: Supprimer « {name} » ? Chaque agent et nœud d'automatisation de l'organisation qui l'utilise cesse de le recevoir à sa prochaine exécution.
     deleteConfirmButton: Supprimer le secret
+  repository:
+    label: Accès aux dépôts
+    hint: "Un connector qui ouvre des remotes Git, comme GitHub ou Forgejo, permet à l’agent de cloner et de pousser avec des identifiants de l’organisation. Choisis ceux que cet agent utilise."
+    adminOnly: Seuls les propriétaires et les admins peuvent changer les identifiants utilisés par cet agent.
+    none: Équipe l’agent de GitHub ou de Forgejo sous Skills, connectors & outils pour lui donner accès à leurs dépôts.
+    connectorLabel: 'Identifiants {connector}'
+    default: Par défaut de l’organisation
+    defaultNamed: 'Par défaut de l’organisation ({name})'
+    unusable: '{name} (inutilisable pour le moment)'
+    missing: '{name} (plus connecté)'
+  gitIdentity:
+    label: Identité des commits
+    hint: Le nom et l’adresse e-mail des commits de cet agent. Laisse les deux champs vides pour n’en définir aucune.
+    nameLabel: Nom des commits
+    namePlaceholder: p. ex. Bot de release
+    emailLabel: E-mail des commits
+    emailPlaceholder: p. ex. release-bot@example.com
+    incomplete: Saisis un nom et une adresse e-mail, ou aucun des deux.
+    emailInvalid: Saisis une adresse e-mail valide.
+    nameInvalid: Saisis un nom sans <, > ni saut de ligne.
   instructionsLabel: Instructions
   instructionsPlaceholder:
     Ce que cet agent prend en charge, comment il doit travailler et les
@@ -422,6 +442,9 @@ errors:
     20 000 caractères. Raccourcis-les avant d'enregistrer.
   PROJECT_AGENT_LIMIT: Ce projet a atteint sa limite d'agents.
   PROJECT_AGENT_NOT_FOUND: Impossible de trouver cet agent. Il a peut-être été supprimé.
+  PROJECT_AGENT_CREDENTIAL_UNKNOWN: Ces identifiants ne sont plus connectés. Choisis-en d’autres ou ceux par défaut de l’organisation.
+  PROJECT_AGENT_CREDENTIALS_FORBIDDEN: Seuls les propriétaires et les admins peuvent changer les identifiants utilisés par un agent.
+  PROJECT_AGENT_GIT_IDENTITY_INVALID: Saisis un nom de commit sans < ni > et une adresse e-mail valide.
   PROJECT_ORG_MISMATCH: Ce projet appartient à une autre organisation.
   RATE_LIMITED: Tu fais ça trop souvent. Réessaie dans un instant.
   PROJECT_LEGAL_HOLD: Ce projet est sous conservation légale et ne peut pas être supprimé.

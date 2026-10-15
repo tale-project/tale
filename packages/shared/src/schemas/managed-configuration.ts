@@ -19,6 +19,9 @@ import {
   storedProjectDispatchSchema,
 } from './project-dispatch';
 import {
+  PROJECT_AGENT_CREDENTIAL_NAME_MAX,
+  PROJECT_AGENT_GIT_EMAIL_MAX,
+  PROJECT_AGENT_GIT_NAME_MAX,
   PROJECT_AGENT_INSTRUCTIONS_MAX,
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_NAME_MAX,
@@ -296,6 +299,16 @@ export const agentSecretNameSchema = z
  * it may use. Its harness and model belong to `agent-model`, its
  * instructions to `agent-instructions` and its tools to `agent-tools`, so
  * no two kinds own one field. A list left out keeps what is stored. */
+/** The commit identity a declared agent carries, as Tale stores it. */
+const managedGitIdentitySchema = z.strictObject({
+  name: storedText(PROJECT_AGENT_GIT_NAME_MAX).refine(
+    // oxlint-disable-next-line no-control-regex -- control characters are exactly what is refused
+    (value) => !/[<>\x00-\x1f\x7f]/.test(value),
+    'A commit name takes no <, > or control characters',
+  ),
+  email: z.email().max(PROJECT_AGENT_GIT_EMAIL_MAX),
+});
+
 export const managedProjectAgentSchema = z.strictObject({
   ...project,
   agentId: identity,
@@ -306,6 +319,18 @@ export const managedProjectAgentSchema = z.strictObject({
     PROJECT_AGENT_BINDINGS_MAX,
   ).optional(),
   skills: nameSet(identity, PROJECT_AGENT_BINDINGS_MAX).optional(),
+  /** The credential the agent acts as, per equipped connector, by name; a
+   * connector left out uses the organization's default. */
+  connectorCredentials: z
+    .record(identity, storedText(PROJECT_AGENT_CREDENTIAL_NAME_MAX))
+    .refine(
+      (pins) => Object.keys(pins).length <= PROJECT_AGENT_BINDINGS_MAX,
+      `An agent pins at most ${PROJECT_AGENT_BINDINGS_MAX} credentials`,
+    )
+    .optional(),
+  /** The name and email its commits carry where no person owns its
+   * workspace; `null` for none. */
+  gitIdentity: managedGitIdentitySchema.nullable().optional(),
 });
 export type ManagedProjectAgent = z.infer<typeof managedProjectAgentSchema>;
 
@@ -472,6 +497,13 @@ export const managedObservationSchemas = {
     connectors: z.array(z.string()),
     secrets: z.array(z.string()),
     skills: z.array(z.string()),
+    // A platform that predates them answers neither; the readback is
+    // hashed as it came, so neither is filled in here.
+    connectorCredentials: z.record(z.string(), z.string()).optional(),
+    gitIdentity: z
+      .strictObject({ name: z.string(), email: z.string() })
+      .nullable()
+      .optional(),
   }),
   task: z.strictObject({
     projectId: z.string(),
