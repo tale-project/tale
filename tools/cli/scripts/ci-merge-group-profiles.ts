@@ -62,14 +62,24 @@ const closure = {
   'tools/cli/scripts/ci-ready.ts':
     'b7431aa1aa71a03dc8df35c393452b274de9f443f86b4881f86acc431dd28e63',
 };
+// The ready-check script no longer lists the removed ai-gateway container test;
+// every other node and verdict is unchanged. The profiles above keep the
+// previous script: a group started before the change executes its own source.
+const currentClosure = {
+  '.github/actions/ci-ready/action.yml':
+    FINISH_SOURCE['.github/actions/ci-ready/action.yml'],
+  'tools/cli/scripts/ci-ready.ts':
+    '167244a47187012f79a0d77a563643a5a6a6c8e9df12b2b232b89941d1350fa1',
+};
 function profile(
   workflow: FinishProfile['workflow'],
   hash: string,
   matrices: FinishProfile['matrices'] = {},
+  sourceClosure: Record<string, string> = closure,
 ): FinishProfile {
   return {
     workflow,
-    hashes: { [FINISH_WORKFLOWS[workflow]]: hash, ...closure },
+    hashes: { [FINISH_WORKFLOWS[workflow]]: hash, ...sourceClosure },
     verdicts:
       workflow === 'Checks' ? ['test', 'test-ui', 'ci-ready'] : ['ci-ready'],
     // These event guards are false for merge_group. Build's candidate-gate
@@ -228,6 +238,68 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
   profile(
     'Commitlint',
     'f399156ada061c4ef50e93c7c4fc265f712a16526a446ba890cc95de4aeafe08',
+  ),
+  // Current sources: the ready-check script without the ai-gateway container
+  // test, and Build without that job. Jobs, conditions and matrices otherwise
+  // match the profile of the same workflow above.
+  profile(
+    'Checks',
+    '7f1958d88c3b9dbd6403f6044ef10d04a18ea741a75235f7771204a2852ca881',
+    shards,
+    currentClosure,
+  ),
+  profile(
+    'CLI',
+    '9b9b32c6c5336a29372723408e4e7eea215bf5145cee23956340d138f6af9084',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+    currentClosure,
+  ),
+  profile(
+    'Build',
+    '57bc6a462b8da858eee42357133f33fd81ffd783f959f2fb817d80fbed3073f8',
+    buildMatrices,
+    currentClosure,
+  ),
+  profile(
+    'E2E',
+    'f3107852e2afeb469fe123e5b8f4d0cf6cc2962501e18d7558ea4d5231bce48a',
+    {
+      e2e: {
+        variable: 'shard',
+        values: [1, 2, 3, 4],
+        requiresSuccess: 'build',
+      },
+      'static-sites': {
+        variable: 'service',
+        values: ['web', 'docs'],
+        requiresSuccess: 'scope',
+      },
+    },
+    currentClosure,
+  ),
+  profile(
+    'SAST',
+    '7399619a671aabe29b8386985ddc7c52faf6e6a2246428267089d6b2e0824ac3',
+    {},
+    currentClosure,
+  ),
+  profile(
+    'Security',
+    '63e1415220f1bf5b228de826474466af8e4ed2d4d12a906e956661f1e16d721c',
+    {},
+    currentClosure,
+  ),
+  profile(
+    'Commitlint',
+    'f399156ada061c4ef50e93c7c4fc265f712a16526a446ba890cc95de4aeafe08',
+    {},
+    currentClosure,
   ),
 ];
 

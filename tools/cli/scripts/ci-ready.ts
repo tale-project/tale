@@ -55,7 +55,6 @@ export const CI_JOBS = {
     'web-test',
     'docs-test',
     'ui-docs-test',
-    'ai-gateway-test',
     'image-validate',
     'image-validate-fork',
     'vulnerability-scan',
@@ -131,7 +130,6 @@ export const BUILD_SERVICES = [
   'web',
   'docs',
   'ui-docs',
-  'ai-gateway',
 ] as const;
 export const BUILD_FILTERS = [
   ...BUILD_SERVICES,
@@ -438,7 +436,7 @@ export function evaluateReadiness(input: {
         requireResult(job, compose && !fork ? 'success' : 'skipped');
         requireResult(`${job}-fork`, compose && fork ? 'success' : 'skipped');
       }
-      for (const service of ['web', 'docs', 'ui-docs', 'ai-gateway'])
+      for (const service of ['web', 'docs', 'ui-docs'])
         requireResult(
           `${service}-test`,
           services.includes(service) ? 'success' : 'skipped',

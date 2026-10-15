@@ -29,7 +29,6 @@
         "web-test",
         "docs-test",
         "ui-docs-test",
-        "ai-gateway-test",
         "storybook"
       ],
       "names": [
@@ -48,7 +47,6 @@
         "Web container test",
         "Docs container test",
         "UI docs container test",
-        "AI gateway container test",
         "Storybook",
         "Candidate gate"
       ]

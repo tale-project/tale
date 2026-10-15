@@ -506,13 +506,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         ].toSorted(),
       ).toEqual(filters.toSorted());
       expect(JSON.parse(candidate.list!)).toEqual(
-        expect.arrayContaining([
-          ...BUILT,
-          'web',
-          'docs',
-          'ui-docs',
-          'ai-gateway',
-        ]),
+        expect.arrayContaining([...BUILT, 'web', 'docs', 'ui-docs']),
       );
 
       // Any other run keeps what the filter found.
@@ -1626,7 +1620,7 @@ test.skipIf(process.platform === 'win32')(
 );
 
 describe('standalone container CI efficiency', () => {
-  const SERVICES = ['web', 'docs', 'ui-docs', 'ai-gateway'] as const;
+  const SERVICES = ['web', 'docs', 'ui-docs'] as const;
   const workflow = async () =>
     parse(
       await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),

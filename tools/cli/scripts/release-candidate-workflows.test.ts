@@ -118,7 +118,7 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
             ? 'skipped'
             : 'success',
         outputs: {
-          services: '["platform","web","docs","ui-docs","ai-gateway"]',
+          services: '["platform","web","docs","ui-docs"]',
           scannable_services: candidateEvent(stem, event)
             ? '[]'
             : '["platform"]',
@@ -383,7 +383,7 @@ describe('ordinary CI source admission', () => {
         }
       }
     }
-    expect(count).toBe(37);
+    expect(count).toBe(36);
   });
 
   test('direct source disposition and every other required predecessor fail closed', async () => {

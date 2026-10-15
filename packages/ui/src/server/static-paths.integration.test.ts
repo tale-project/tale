@@ -2,7 +2,7 @@
 // `Bun.file` throws, where `exists()` would answer false, for a name holding
 // a NUL and for one of PATH_MAX bytes or more (1024 on macOS, 4096 on Linux).
 // Either used to reach `Bun.serve`'s `error()`, so the request was reported
-// as a server failure and answered 500. Web, docs, ui-docs and ai-gateway all
+// as a server failure and answered 500. Web, docs and ui-docs all
 // serve through this code, in both URL-tree shapes.
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

@@ -7,7 +7,7 @@ Bun applies each patch here at install time, through the root `package.json`'s
 
 `bun install` refuses to run when a listed patch file is missing, so every Dockerfile that installs
 from the root manifests copies this directory (`COPY patches/ ./patches/`): the platform (its
-`workspace-deps` stage and its pruner), web, docs, ui-docs, ai-gateway and the service template in
+`workspace-deps` stage and its pruner), web, docs, ui-docs and the service template in
 `tools/plop`.
 
 ## `postgres@3.4.7.patch`

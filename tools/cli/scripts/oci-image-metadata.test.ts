@@ -271,7 +271,7 @@ describe('every image declares the OCI labels a registry and docker inspect read
   test('the guard sees every image the repository builds', () => {
     expect(services).toContain('platform');
     expect(services).toContain('sandbox-runtime');
-    expect(services.length).toBeGreaterThanOrEqual(12);
+    expect(services.length).toBeGreaterThanOrEqual(11);
   });
 
   test.each(services)(

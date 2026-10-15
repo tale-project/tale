@@ -194,11 +194,11 @@ jobs:
             # Candidates, merge groups, conservative scope and shared build
             # inputs run every service and test. A skipped candidate check
             # never passed; shared dependencies can alter every Dockerfile.
-            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
+            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
             CI_TESTS=true
             STORYBOOK=true
           elif [ "${IMAGE_INPUTS:-false}" = true ]; then
-            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
+            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
             CI_TESTS=true
             STORYBOOK=true
           fi
@@ -988,80 +988,6 @@ jobs:
         if: always()
         run: echo "## tale-ui-docs container test complete" >> "$GITHUB_STEP_SUMMARY"
 
-  # The AI gateway is a standalone service too (its own compose stack, outside
-  # the platform smoke-test), and release.yml publishes its image — so its
-  # Dockerfile has to build here, on the pull request, not first at the tag.
-  ai-gateway-test:
-    name: AI gateway container test
-    needs: changes
-    if: >-
-      !cancelled() &&
-      needs.changes.result == 'success' &&
-      (contains(fromJson(needs.changes.outputs.services), 'ai-gateway') && github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          ref: ${{ needs.changes.outputs.candidate_sha }}
-
-      - name: Reclaim disk space if needed
-        env:
-          MIN_FREE_GIB: '20'
-        run: *reclaim-ci-disk
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: '1.4.2'
-
-      - name: Setup Docker builder
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-        with:
-          # Hosted runners are discarded; large layer teardown delayed
-          # downstream checks by 47–132 seconds in measured builds.
-          cleanup: false
-
-      # Keep Compose's build arguments, context, Dockerfile and image tags as
-      # the source of truth; only add a persistent layer cache and local load.
-      - name: Resolve site build
-        env:
-          SERVICE: ai-gateway
-        run: |
-          set -euo pipefail
-          # The existing probe creates this placeholder before Compose too.
-          if [ ! -e "services/$SERVICE/.env" ]; then touch "services/$SERVICE/.env"; fi
-          docker compose -f "compose.$SERVICE.yml" -f "compose.$SERVICE.test.yml" \
-            --env-file .env.test -p "tale-$SERVICE-test" build --print "$SERVICE" \
-            > "$RUNNER_TEMP/site-build.json"
-
-      - name: Build site image
-        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
-        with:
-          source: .
-          files: ${{ runner.temp }}/site-build.json
-          targets: ai-gateway
-          load: true
-          set: |
-            *.cache-from=type=gha,scope=ai-gateway
-            ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('*.cache-to=type=gha,scope=ai-gateway,mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}
-          provenance: false
-
-      - name: Run ai-gateway container test
-        run: bun services/platform/tests/integration/container-ai-gateway-test.ts
-        env:
-          SKIP_BUILD: 'true'
-          PULL_POLICY: never
-
-      - name: Summary
-        if: always()
-        run: echo "## tale-ai-gateway container test complete" >> "$GITHUB_STEP_SUMMARY"
-
   # ---------------------------------------------------------------------------
   # Validate container image metadata, healthchecks, entrypoints. Pulls images
   # built by the `build` job from GHCR.
@@ -1425,7 +1351,6 @@ jobs:
       - web-test
       - docs-test
       - ui-docs-test
-      - ai-gateway-test
       - storybook
     if: always() && needs.changes.outputs.candidate_sha != ''
     runs-on: ubuntu-latest
@@ -1511,7 +1436,7 @@ jobs:
   ci-ready:
     name: CI ready (Build)
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
-    needs: [pr-scope, candidate-source, changes, build, smoke-test, smoke-test-fork, web-test, docs-test, ui-docs-test, ai-gateway-test, image-validate, image-validate-fork, vulnerability-scan, storybook, candidate-gate]
+    needs: [pr-scope, candidate-source, changes, build, smoke-test, smoke-test-fork, web-test, docs-test, ui-docs-test, image-validate, image-validate-fork, vulnerability-scan, storybook, candidate-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:

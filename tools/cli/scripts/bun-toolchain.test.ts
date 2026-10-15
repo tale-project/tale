@@ -9,7 +9,7 @@ const version = JSON.parse(read('package.json')).packageManager.replace(
   'bun@',
   '',
 );
-const clients = ['platform', 'web', 'docs', 'ui-docs', 'ai-gateway'];
+const clients = ['platform', 'web', 'docs', 'ui-docs'];
 const helper = '../../packages/ui/bin/build-client.ts';
 
 describe('one pinned Bun toolchain for CI, builds and runtimes', () => {
@@ -25,7 +25,7 @@ describe('one pinned Bun toolchain for CI, builds and runtimes', () => {
         (match) => ({ file, image: match[1]! }),
       ),
     );
-    expect(new Set(images.map(({ file }) => file)).size).toBe(8);
+    expect(new Set(images.map(({ file }) => file)).size).toBe(7);
     const flavors = new Map<string, string>();
     for (const { file, image } of images) {
       const pin =
