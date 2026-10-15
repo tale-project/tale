@@ -29144,6 +29144,81 @@ async function checkConnectorCredentials(
       disabledCode === 'CREDENTIAL_DISABLED',
     `create=${created.success}, listed=${mainRow !== undefined} default=${mainRow?.isDefault} preview=${typeof mainRow?.maskedPreview === 'string'} cfg=${String(mainRow?.config?.imapHost)}/${String(mainRow?.config?.imapPort)}/from=${String(mainRow?.config?.fromAddress)} secretLeak=${listedRaw.includes('imap-pass-1')}, clash=${clash.status} unknown=${unknownConnector.status} wrongMethod=${wrongMethod.status} (want 409/404/400), resolve=${resolved.credentialId === mainId}/${resolved.secrets.password === 'imap-pass-1'}/basic=${resolved.authHeader === expectedBasic}, byName=${byName.credentialId === secondId}, promote=${promoted} del=${deleted.status} repromote=${rePromoted}, disabled=${disabledCode}`,
   );
+
+  // An app that signs in as itself (0216): the widened method check stores
+  // it, the listing shows its client secret's excerpt and its mailbox as
+  // the From, and the resolve seam fetches the app's token once and keeps
+  // it sealed on the row.
+  const appCreated = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await api('', {
+        body: {
+          connectorSlug: 'outlook',
+          authMethod: 'client-credentials',
+          name: 'Promotion mailbox',
+          secret: {
+            tenantId: 'contoso.onmicrosoft.com',
+            clientId: 'app-client-id',
+            clientSecret: 'app-client-secret-value',
+          },
+          config: { mailbox: 'promotion@door.test' },
+        },
+      })
+    ).json(),
+  );
+  const appId = appCreated.success ? appCreated.data.credentialId : '';
+  const appListedRaw = await (await api('')).text();
+  const appRow = z
+    .object({
+      credentials: z.array(
+        z.looseObject({
+          id: z.string(),
+          authMethod: z.string(),
+          maskedPreview: z.string().optional(),
+          config: z.record(z.string(), z.unknown()).optional(),
+        }),
+      ),
+    })
+    .safeParse(JSON.parse(appListedRaw));
+  const app = appRow.success
+    ? appRow.data.credentials.find((row) => row.id === appId)
+    : undefined;
+  const tokenRequests: string[] = [];
+  const fakeTokenEndpoint = (url: string): Promise<Response> => {
+    tokenRequests.push(url);
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ access_token: 'app-token-1', expires_in: 3599 }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+  };
+  const appFirst = await resolveConnectorCredential(
+    sql,
+    { organizationId: orgId, connectorSlug: 'outlook', credentialRef: appId },
+    { fetchImpl: fakeTokenEndpoint },
+  );
+  const appSecond = await resolveConnectorCredential(
+    sql,
+    { organizationId: orgId, connectorSlug: 'outlook', credentialRef: appId },
+    { fetchImpl: fakeTokenEndpoint },
+  );
+  const appDeleted = await api(`/${appId}`, { method: 'DELETE' });
+  record(
+    'connector credentials (an app signing in as itself)',
+    appCreated.success &&
+      app?.authMethod === 'client-credentials' &&
+      app.maskedPreview === 'app-…ue' &&
+      app.config?.fromAddress === 'promotion@door.test' &&
+      !appListedRaw.includes('app-client-secret-value') &&
+      appFirst.authHeader === 'Bearer app-token-1' &&
+      appSecond.authHeader === 'Bearer app-token-1' &&
+      tokenRequests.length === 1 &&
+      tokenRequests[0] ===
+        'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token' &&
+      appDeleted.status === 204,
+    `create=${appCreated.success} method=${String(app?.authMethod)} preview=${String(app?.maskedPreview)} from=${String(app?.config?.fromAddress)} secretLeak=${appListedRaw.includes('app-client-secret-value')} header=${appFirst.authHeader === 'Bearer app-token-1'}/${appSecond.authHeader === 'Bearer app-token-1'} tokenRequests=${tokenRequests.length} del=${appDeleted.status}`,
+  );
 }
 
 /**

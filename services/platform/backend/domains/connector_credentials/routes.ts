@@ -61,6 +61,10 @@ const secretInput = z.object({
   // number is not.
   expiresAt: epochMsSchema.optional(),
   scopes: z.array(z.string().max(256)).max(64).optional(),
+  // An app that signs in as itself: its directory, id and secret.
+  tenantId: z.string().max(256).optional(),
+  clientId: z.string().max(256).optional(),
+  clientSecret: z.string().max(8192).optional(),
 });
 
 const configInput = z.record(
@@ -255,7 +259,13 @@ export function createConnectorCredentialRoutes(deps: {
     const body = z
       .object({
         connectorSlug: z.string().min(1).max(100),
-        authMethod: z.enum(['api-key', 'bearer', 'basic', 'oauth2']),
+        authMethod: z.enum([
+          'api-key',
+          'bearer',
+          'basic',
+          'oauth2',
+          'client-credentials',
+        ]),
         name: z.string().min(1).max(100),
         secret: secretInput,
         endpointUrl: z.string().max(512).optional(),

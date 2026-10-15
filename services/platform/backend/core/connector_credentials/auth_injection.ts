@@ -11,7 +11,9 @@
  *
  * Two rules encode how the platform and the connector bodies split the work:
  *
- *  - The platform injects the header for `bearer`, `basic`, and `oauth2`. An
+ *  - The platform injects the header for `bearer`, `basic`, `oauth2`, and
+ *    `client-credentials` (the access token the platform fetched for the
+ *    app, never the app's client secret). An
  *    `api-key` credential gets NO header — those vendors place the secret
  *    themselves (Tavily in the JSON body, Shopify in `X-Shopify-Access-Token`),
  *    so the body reads it from `secrets` instead.
@@ -32,7 +34,7 @@ const DEFAULT_BEARER_SCHEME = 'Bearer';
 /**
  * A decrypted `encryptedData` envelope, tagged with the row's `authMethod`.
  * The STORED JSON is untagged (`{ token }`, `{ username, password }`,
- * `{ accessToken, … }` — see `schema.ts`); the tag is added on parse so every
+ * `{ accessToken, … }`, `{ clientId, clientSecret, … }`); the tag is added on parse so every
  * consumer switches exhaustively instead of sniffing fields.
  */
 export type ConnectorSecretPayload =
@@ -56,6 +58,21 @@ export type ConnectorSecretPayload =
       readonly refreshToken?: string;
       readonly expiresAt?: number;
       readonly scopes?: readonly string[];
+    }
+  | {
+      /**
+       * An app that signs in as itself. The app's own registration is the
+       * secret (`clientSecret`); `tenantId` is its directory, where the
+       * connector's token URL names one. The last access token the
+       * platform fetched rides along with its expiry, so a call within the
+       * hour reuses it instead of asking the token endpoint again.
+       */
+      readonly authMethod: 'client-credentials';
+      readonly tenantId?: string;
+      readonly clientId: string;
+      readonly clientSecret: string;
+      readonly accessToken?: string;
+      readonly expiresAt?: number;
     };
 
 const tokenPayloadSchema = z.object({ token: z.string().min(1) }).strict();
@@ -87,6 +104,27 @@ const oauth2PayloadSchema = z
   })
   .strict();
 
+/**
+ * A directory (tenant) id as it goes into a token URL's path: a GUID or a
+ * verified domain name. Nothing that could leave the path segment (`/`,
+ * `?`, `#`, `%`) passes, so a credential cannot point the client secret at
+ * another endpoint of the same host.
+ */
+const TENANT_ID_RE = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,253}[A-Za-z0-9])?$/;
+
+const clientCredentialsPayloadSchema = z
+  .object({
+    tenantId: z
+      .string()
+      .regex(TENANT_ID_RE, 'is a directory GUID or domain name')
+      .optional(),
+    clientId: z.string().min(1).max(256),
+    clientSecret: z.string().min(1),
+    accessToken: z.string().min(1).optional(),
+    expiresAt: z.number().optional(),
+  })
+  .strict();
+
 /** Thrown for a payload that does not match its method — a row written by a
  * bad caller, or one whose method was changed under it. */
 export class SecretPayloadError extends Error {
@@ -102,7 +140,7 @@ export class SecretPayloadError extends Error {
  * callers map that onto their own actionable refusal.
  */
 export function parseSecretPayload(
-  authMethod: 'api-key' | 'bearer' | 'basic' | 'oauth2',
+  authMethod: 'api-key' | 'bearer' | 'basic' | 'oauth2' | 'client-credentials',
   raw: unknown,
 ): ConnectorSecretPayload {
   switch (authMethod) {
@@ -130,6 +168,15 @@ export function parseSecretPayload(
       if (!parsed.success) {
         throw new SecretPayloadError(
           `An oauth2 credential stores { accessToken, refreshToken?, expiresAt?, scopes? }: ${issueOf(parsed.error)}`,
+        );
+      }
+      return { authMethod, ...parsed.data };
+    }
+    case 'client-credentials': {
+      const parsed = clientCredentialsPayloadSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new SecretPayloadError(
+          `A client-credentials credential stores { tenantId?, clientId, clientSecret, accessToken?, expiresAt? }: ${issueOf(parsed.error)}`,
         );
       }
       return { authMethod, ...parsed.data };
@@ -181,6 +228,12 @@ export function buildAuthHeader(
       return `Basic ${base64Utf8(`${payload.username}:${payload.password}`)}`;
     case 'oauth2':
       return `Bearer ${payload.accessToken}`;
+    // The token the platform fetched for the app; none yet means the call
+    // goes out unsigned and the vendor's refusal names it.
+    case 'client-credentials':
+      return payload.accessToken === undefined
+        ? undefined
+        : `Bearer ${payload.accessToken}`;
     default: {
       const _exhaustive: never = payload;
       return _exhaustive;
@@ -194,7 +247,9 @@ export function buildAuthHeader(
  * `apiKey` (Tavily), `accessToken` (Shopify, and every oauth2 connector),
  * `username`/`password` (Twilio, Confluence, WebDAV, IMAP/SMTP), and
  * `smtpUsername`/`smtpPassword` when an IMAP/SMTP credential relays through a
- * separate SMTP provider.
+ * separate SMTP provider. An app signing in as itself publishes only the
+ * access token fetched for it: its client secret signs nothing but the
+ * token request, which the platform makes.
  */
 export function buildSecretBindings(
   payload: ConnectorSecretPayload,
@@ -228,6 +283,10 @@ export function buildSecretBindings(
           refreshToken: payload.refreshToken,
         }),
       };
+    case 'client-credentials':
+      return payload.accessToken === undefined
+        ? {}
+        : { token: payload.accessToken, accessToken: payload.accessToken };
     default: {
       const _exhaustive: never = payload;
       return _exhaustive;

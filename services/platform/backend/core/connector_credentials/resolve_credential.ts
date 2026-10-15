@@ -42,8 +42,7 @@ import {
   type ConnectorSecretPayload,
 } from './auth_injection';
 import { connectorBearerScheme, findConnector } from './connector_catalog';
-
-type ConnectorAuthMethodName = 'api-key' | 'bearer' | 'basic' | 'oauth2';
+import type { ConnectorAuthMethod as ConnectorAuthMethodName } from './types';
 
 /** The full row shape the internal queries return (`returns: v.any()`
  * erases it on the wire). */

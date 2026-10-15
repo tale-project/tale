@@ -256,3 +256,33 @@ export async function refreshAccessToken(
     fetchImpl,
   );
 }
+
+export interface ClientCredentialsTokenParams {
+  /** The connector's token URL with the credential's directory in place. */
+  readonly tokenUrl: string;
+  readonly clientId: string;
+  readonly clientSecret: string;
+  /** Space-joined into `scope`; Microsoft asks for `<resource>/.default`. */
+  readonly scopes: readonly string[];
+}
+
+/**
+ * Ask for an access token as the app itself — the client credentials grant
+ * (RFC 6749 §4.4): no person, no code, no refresh token. Same scrubbed call
+ * as the two grants above: `vendor_rejected` means the vendor refused the
+ * app's registration (`invalid_client`: a wrong or expired secret, a wrong
+ * tenant, `unauthorized_client`), which a person fixes by replacing it; the
+ * other two reasons say nothing about the registration.
+ */
+export async function requestClientCredentialsToken(
+  params: ClientCredentialsTokenParams,
+  fetchImpl: FetchLike = fetch,
+): Promise<TokenExchangeResult> {
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: params.clientId,
+    client_secret: params.clientSecret,
+  });
+  if (params.scopes.length > 0) body.set('scope', params.scopes.join(' '));
+  return postTokenGrant(params.tokenUrl, body, fetchImpl);
+}

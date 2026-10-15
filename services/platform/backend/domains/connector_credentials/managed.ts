@@ -33,7 +33,9 @@ import {
  * fields it holds and a slow, salted digest of their values
  * (`managedSecretDigestAsync`), computed here from the stored values and never
  * stored itself. A sign-in the outside system renews (`oauth2`) takes a
- * person's consent and is never declared.
+ * person's consent, and an app that signs in as itself (`client-credentials`)
+ * keeps the access token Tale fetched for it beside its secret: neither is
+ * declared.
  */
 
 /** The credential's identity, the names of the secret fields it holds and
@@ -42,16 +44,23 @@ import {
 export type ManagedConnectorCredentialView =
   ManagedObservation<'connector-credential'>;
 
+/** A credential whose access Tale renews — an `oauth2` grant, or an app's
+ * token fetched with its client secret — is connected in Tale, never
+ * declared: its stored values move without a declaration changing. */
+function refuseUndeclarable(row: CredentialRow | null): void {
+  if (row?.authMethod === 'oauth2' || row?.authMethod === 'client-credentials')
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_NOT_DECLARABLE',
+      'A credential whose access Tale renews is connected in Tale, never declared.',
+      409,
+    );
+}
+
 async function credentialView(
   organizationId: string,
   row: CredentialRow,
 ): Promise<ManagedConnectorCredentialView> {
-  if (row.authMethod === 'oauth2')
-    throw new ConnectorCredentialError(
-      'CREDENTIAL_NOT_DECLARABLE',
-      'A credential the connector renews is connected in Tale, never declared.',
-      409,
-    );
+  refuseUndeclarable(row);
   let fields: string[] = [];
   let valueDigest: string | null = null;
   try {
@@ -157,12 +166,7 @@ export async function checkManagedConnectorCredential(
     name: config.name,
   });
   try {
-    if (row?.authMethod === 'oauth2')
-      throw new ConnectorCredentialError(
-        'CREDENTIAL_NOT_DECLARABLE',
-        'A credential the connector renews is connected in Tale, never declared.',
-        409,
-      );
+    refuseUndeclarable(row);
     if (row !== null && row.authMethod !== config.authMethod)
       throw new ConnectorCredentialError(
         'CREDENTIAL_AUTH_METHOD_FIXED',

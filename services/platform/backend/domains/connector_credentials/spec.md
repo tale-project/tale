@@ -3,8 +3,8 @@
 > **Prefix** `CCRED-` · **Docs** [`admin/connectors`](../../../../../docs/en/platform/admin/connectors.md)
 
 A connector reaches an outside system, such as a mail account or a ticketing tool, with a
-credential the organization stores for it: a key, a user name and password, or a sign-in the
-outside system lets Tale renew. A connector can have several credentials, one of which is its
+credential the organization stores for it: a key, a user name and password, a sign-in the
+outside system lets Tale renew, or the organization's own app, which signs in as itself. A connector can have several credentials, one of which is its
 default. These rules cover what is shown of a credential, which credential is the default,
 what keeps a renewable sign-in working, and what the audit log records. Who can manage
 credentials and how a connector uses one are not covered; see Not yet.
@@ -14,8 +14,9 @@ credentials and how a connector uses one are not covered; see Not yet.
 ### CCRED-R1 · A stored secret is shown only as its first four and last two characters
 
 For a user name and password the excerpt is of the password, never the user name. For a
-renewable sign-in it is of the access token, never the token that renews it. A secret too
-short to excerpt safely is not shown at all.
+renewable sign-in it is of the access token, never the token that renews it. For an app that
+signs in as itself it is of the client secret, never the access token fetched with it. A
+secret too short to excerpt safely is not shown at all.
 
 - **Example**: Ada stores an API key for a ticketing connector → the list shows the first four
   and last two characters of the key.
@@ -67,6 +68,31 @@ When the outside system cannot be reached, the use is refused as something to tr
 - **Example**: The outside system is down for ten minutes while an automation runs → the step
   fails with an error that can be retried, and the credential is still active afterwards.
 
+## Apps that sign in as themselves
+
+### CCRED-R9 · An app's access is fetched when it is needed and kept until it expires
+
+The credential stores the app's client ID and secret, and the directory its sign-in names.
+When a call finds no access, or access about to expire, Tale asks the outside system for new
+access as the app and stores it with the credential; a call before it expires uses it as it
+is. Only the access is sent with a call, never the client secret, and neither is written to
+the log.
+
+- **Example**: The mail sync reads the shared mailbox every few minutes → the first pass of
+  the hour fetches the app's access, and the other passes of that hour use it.
+
+### CCRED-R10 · An app the outside system refuses is refused with what to check
+
+When the outside system refuses the app's sign-in, for example because its client secret
+expired, using the credential is refused (`CREDENTIAL_APP_REFUSED`), naming the outside
+system's reason and the directory ID, client ID and client secret to check. The credential
+stays active, so replacing the secret is all it takes. An outside system that cannot be
+reached is a retryable refusal, as for a renewable sign-in (`CCRED-R6`).
+
+- **Example**: The app's client secret expired over the weekend → Monday's mail sync fails
+  with `invalid_client` and the advice to replace the secret; Ada replaces it and the next
+  pass reads the mailbox again.
+
 ## What the audit log records
 
 ### CCRED-R7 · Every change to a credential is written to the audit log, never its secret
@@ -89,8 +115,9 @@ read from, never the values. Managed configuration reads back the credential's n
 method, endpoint, default, the names of its secret fields and a slow, salted digest of their
 values, so a value changed in the environment or in Tale reads as differing and the next apply
 writes the declared ones. A credential keeps the sign-in method it was created with, and a
-sign-in the outside system renews is connected in Tale, never declared
-(`CREDENTIAL_NOT_DECLARABLE`). Before anything of the declaration is written, its plan asks
+sign-in the outside system renews, or an app that signs in as itself, is connected in Tale,
+never declared (`CREDENTIAL_NOT_DECLARABLE`): the access Tale renews for it would read as a
+change. Before anything of the declaration is written, its plan asks
 whether the connector takes the credential — the connector, its sign-in method, its endpoint —
 without sending a value. A declaration states none of a connector's per-credential settings,
 so a new credential for a connector that requires some, such as an IMAP/SMTP mailbox or HTTP, is

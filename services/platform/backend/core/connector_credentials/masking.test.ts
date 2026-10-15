@@ -54,6 +54,19 @@ describe('maskPayload [CCRED-R1]', () => {
     expect(preview).not.toContain('refresh');
   });
 
+  it('previews the CLIENT SECRET of an app sign-in, never the access token fetched with it', () => {
+    const preview = maskPayload({
+      authMethod: 'client-credentials',
+      tenantId: 'contoso.onmicrosoft.com',
+      clientId: '11111111-2222-3333-4444-555555555555',
+      clientSecret: 'Xy8Q~app-secret-value-42',
+      accessToken: 'eyJ0eXAiOiJKV1QiLCJhbGciOi',
+      expiresAt: 1,
+    });
+    expect(preview).toBe('Xy8Q…42');
+    expect(preview).not.toContain('eyJ');
+  });
+
   it('omits the preview when the method secret is too short', () => {
     expect(
       maskPayload({ authMethod: 'basic', username: 'bot', password: 'pw' }),
