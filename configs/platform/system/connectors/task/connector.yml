@@ -416,27 +416,33 @@ actions:
       fr:
         title: Synchroniser les issues
     description: >-
-      Keep a project's tasks in step with a list of issue sources, GitHub
-      repositories and GlitchTip projects, in one step. For each source, in the
-      order listed: read the next batch of open issues (limit, 100 by default)
-      from where its last saved batch stopped, refresh up to refreshLimit (50)
-      issues imported earlier, the longest-unchecked first, write every issue
-      into its task, and save where the batch stopped; once the listing is
-      drained, the next run starts the next pass. A new issue becomes a task in
-      Backlog; an issue imported before refreshes its task's source snapshot
-      (title, description, state) and leaves the task's own title, description,
-      status and assignee alone, closed upstream or not. Pull requests are left
-      out. Each source answers for itself in its receipt: one whose tracker
-      fails does not stop the others, an issue the tracker refuses or a task
-      write refused is skipped and tried again later, and a source the tracker
-      rate-limits stops for this run, keeps what it did, and is left alone until
-      the time it named (retryAfter). The step fails only when every source
-      failed. credential names the stored connection a source is read with, by
-      name; the organization's default when it is empty. Positions are kept per
-      project, source (owner/repo, organization/project) and filter, so
-      automations naming the same source under the same filter share one pass
-      and a source under another filter keeps its own. Runs only as an
-      automation step.
+      Keep a project's tasks in step with a list of issue sources in one step:
+      a GitHub repository's issues or pull requests (github), its security
+      alerts (github-security), a Forgejo repository's issues or pull requests
+      (forgejo), a GlitchTip project's issues (glitchtip). For each source, in
+      the order listed: read the next batch of open items (limit, 100 by
+      default) from where its last saved batch stopped, refresh up to
+      refreshLimit (50) items imported earlier, the longest-unchecked first,
+      write every item into its task, and save where the batch stopped; once
+      the listing is drained, the next run starts the next pass. A new item
+      becomes a task in Backlog, given the source's taskLabels; an item
+      imported before refreshes its task's source snapshot (title,
+      description, state) and leaves the task's own title, description,
+      status, labels and assignee alone, closed upstream or not. Each alert is
+      one task, and a secret is never read. Each source answers for itself in
+      its receipt: one whose tracker fails does not stop the others, an item
+      the tracker refuses or a task write refused is skipped and tried again
+      later, and a source the tracker rate-limits stops for this run, keeps
+      what it did, and is left alone until the time it named (retryAfter).
+      The step fails only when every source failed, or with failOn any as
+      soon as one did; a source waiting out a rate limit has not failed.
+      credential names the stored connection a source is read with, by name;
+      the organization's default when it is empty. Positions are kept per
+      project, tracker, source (owner/repo, organization/project) and filter,
+      and for forgejo and glitchtip, whose connection names the instance, per
+      credential, so automations naming the same source under the same filter
+      share one pass, and a source under another filter or on another
+      instance keeps its own. Runs only as an automation step.
     effects: write
     # Safe to repeat: issues are written by their source identity and a
     # position moves only from the revision its run read, so a repeated sync
@@ -462,8 +468,35 @@ actions:
                   kind: { type: string, enum: [github] }
                   owner: { type: string, minLength: 1, maxLength: 99, description: The repository's owner. }
                   repo: { type: string, minLength: 1, maxLength: 100, description: The repository's name. }
-                  labels: { type: string, maxLength: 1000, description: 'Only issues carrying every one of these labels, separated by commas; every open issue when empty.' }
+                  type: { type: string, enum: [issues, pulls], description: 'Its open issues (the default) or its open pull requests.' }
+                  labels: { type: string, maxLength: 1000, description: 'Only items carrying every one of these labels, separated by commas; every open item when empty.' }
+                  author: { type: string, maxLength: 100, description: 'Only the items this login opened, such as renovate[bot]; anyone''s when empty.' }
                   credential: { type: string, maxLength: 200, description: 'The GitHub connection to read with, by name; the default one when empty or left out.' }
+                  taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:github.' }
+              - type: object
+                required: [kind, owner, repo, alerts]
+                additionalProperties: false
+                properties:
+                  kind: { type: string, enum: [github-security] }
+                  owner: { type: string, minLength: 1, maxLength: 99, description: The repository's owner. }
+                  repo: { type: string, minLength: 1, maxLength: 100, description: The repository's name. }
+                  alerts: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: string, enum: [code-scanning, dependabot, secret-scanning] }, description: The kinds of security alert to read. }
+                  minSeverity: { type: string, enum: [low, medium, high, critical], description: 'Only alerts at or above this severity (error counts as high, warning as medium, note as low, a secret as critical); every alert when left out.' }
+                  tools: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000-\u001f\u007f]*$' }, description: 'Only code scanning alerts from these tools, such as CodeQL; every tool when empty.' }
+                  credential: { type: string, maxLength: 200, description: 'The GitHub connection to read with, by name; the default one when empty or left out.' }
+                  taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:security.' }
+              - type: object
+                required: [kind, owner, repo]
+                additionalProperties: false
+                properties:
+                  kind: { type: string, enum: [forgejo] }
+                  owner: { type: string, minLength: 1, maxLength: 99, description: The repository's owner. }
+                  repo: { type: string, minLength: 1, maxLength: 100, description: The repository's name. }
+                  type: { type: string, enum: [issues, pulls], description: 'Its open issues (the default) or its open pull requests.' }
+                  labels: { type: string, maxLength: 1000, description: 'Only items carrying every one of these labels, separated by commas; every open item when empty.' }
+                  author: { type: string, maxLength: 100, description: 'Only the items this user opened, such as renovate; anyone''s when empty.' }
+                  credential: { type: string, maxLength: 200, description: 'The Forgejo connection to read with, by name; the default one when empty or left out. The connection names the instance.' }
+                  taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:forgejo.' }
               - type: object
                 required: [kind, organization, project]
                 additionalProperties: false
@@ -473,13 +506,15 @@ actions:
                   project: { type: string, minLength: 1, maxLength: 99, description: The GlitchTip project's slug. }
                   query: { type: string, maxLength: 2000, description: 'A GlitchTip search for the issues to read; is:unresolved when empty.' }
                   credential: { type: string, maxLength: 200, description: 'The GlitchTip connection to read with, by name; the default one when empty or left out.' }
-        limit: { type: integer, minimum: 1, maximum: 500, description: 'New open issues read per source and run; 100 when left out.' }
-        refreshLimit: { type: integer, minimum: 0, maximum: 500, description: 'Issues imported earlier refreshed per source and run, the longest-unchecked first; 50 when left out, 0 for none.' }
+                  taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:glitchtip.' }
+        limit: { type: integer, minimum: 1, maximum: 500, description: 'New open items read per source and run; 100 when left out.' }
+        refreshLimit: { type: integer, minimum: 0, maximum: 500, description: 'Items imported earlier refreshed per source and run, the longest-unchecked first; 50 when left out, 0 for none.' }
+        failOn: { type: string, enum: [all, any], description: 'When the step fails: all (the default) only when every source failed, any as soon as one did. A source waiting out a rate limit has not failed.' }
     output: '{ sources: Array<{ kind: string, source: string, filter?: string, ok: boolean, error: string | null, message?: string, status?: number, batch: number, resumed: boolean, restarted: boolean, saved: boolean, conflict: boolean, drained: boolean, discovered: number, created: number, refreshed: number, unchanged: number, skipped: number, closedUpstream: number, reopenedUpstream: number, unavailableUpstream: number, retryAfter: number | null, skippedIssues?: Array<{ externalId: string, reason: string }> }>, failed: number, rateLimited: number, created: number, refreshed: number, unchanged: number, skipped: number, closedUpstream: number }'
     mock: |
       const receipts = input.sources.map((source) => ({
         kind: source.kind,
-        source: source.kind === 'github' ? source.owner + '/' + source.repo : source.organization + '/' + source.project,
+        source: source.kind === 'glitchtip' ? source.organization + '/' + source.project : source.owner + '/' + source.repo,
         ok: true, error: null, batch: 1, resumed: false, restarted: false, saved: true, conflict: false, drained: true,
         discovered: 1, created: 1, refreshed: 0, unchanged: 0, skipped: 0,
         closedUpstream: 0, reopenedUpstream: 0, unavailableUpstream: 0, retryAfter: null,
@@ -491,7 +526,10 @@ actions:
     exampleInput:
       projectId: proj_mock
       sources:
-        - { kind: github, owner: example, repo: web, labels: bug }
+        - { kind: github, owner: example, repo: web, labels: bug, taskLabels: ['source:github'] }
+        - { kind: github, owner: example, repo: web, type: pulls, author: 'renovate[bot]' }
+        - { kind: github-security, owner: example, repo: web, alerts: [code-scanning, dependabot], minSeverity: high, tools: [CodeQL] }
+        - { kind: forgejo, owner: example, repo: web, type: issues }
         - { kind: glitchtip, organization: example, project: web }
   - name: upsert
     title: Import issue as task
@@ -538,7 +576,7 @@ actions:
         title: Importierte Issues auflisten
       fr:
         title: Lister les issues importées
-    description: List previously imported issue sources for this project and immutable upstream repository/project. Oldest snapshots come first so repeated runs make progress through large boards.
+    description: List previously imported issue sources for this project and immutable upstream repository/project (and, for a tracker each connection names, its instance as sourceOrigin). itemKind narrows a code host's tasks to its issues or its pull requests. Oldest snapshots come first so repeated runs make progress through large boards.
     effects: read
     input:
       type: object
@@ -546,10 +584,11 @@ actions:
       additionalProperties: false
       properties:
         projectId: { type: string, minLength: 1 }
-        externalSystem: { type: string, enum: [github, glitchtip] }
+        externalSystem: { type: string, enum: [github, github-security, forgejo, glitchtip] }
         repositoryId: { type: integer, minimum: 1 }
         sourceOrigin: { type: string }
         sourceProjectId: { type: string, minLength: 1 }
+        itemKind: { type: string, enum: [issues, pulls] }
         limit: { type: integer, minimum: 1, maximum: 500 }
         legacyPrefixes: { type: array, maxItems: 2, items: { type: string, minLength: 1, maxLength: 4000 } }
     output: '{ issues: Array<{ taskId: string, externalId: string, externalIssue: object }>, hasMore: boolean }'
@@ -584,7 +623,7 @@ actions:
       additionalProperties: false
       properties:
         projectId: { type: string, minLength: 1 }
-        externalSystem: { type: string, enum: [github, glitchtip] }
+        externalSystem: { type: string, enum: [github, github-security, forgejo, glitchtip] }
         source:
           type: string
           minLength: 1
@@ -620,7 +659,7 @@ actions:
       additionalProperties: false
       properties:
         projectId: { type: string, minLength: 1 }
-        externalSystem: { type: string, enum: [github, glitchtip] }
+        externalSystem: { type: string, enum: [github, github-security, forgejo, glitchtip] }
         source: { type: string, minLength: 1, maxLength: 200 }
         revision: { type: string, minLength: 1, maxLength: 40, description: The revision get_import_cursor answered for this batch. }
         next: { type: string, maxLength: 12000, description: "The importer's nextCursor; '' once the listing is drained." }

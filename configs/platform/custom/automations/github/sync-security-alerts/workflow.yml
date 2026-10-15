@@ -1,0 +1,75 @@
+# Keeps a project's tasks in step with the open security alerts of one GitHub
+# repository: one task per alert. One step does the whole sync
+# (task.sync_issues, a github-security source): it reads the next batch of
+# open alerts of the kind asked for, at or above the severity floor and from
+# the tools named, from where the last run stopped; reads alerts imported
+# earlier again (the longest-unchecked first); writes every alert into its
+# task and saves where it stopped. GitHub narrows each listing itself, so a
+# repository with thousands of alerts from one scanner is read only as far as
+# the filters reach. The project, the repository, the kind of alert, the
+# floor, the tools and the credentials are the creator's answers; the platform
+# keeps the position between runs.
+version: 1
+name: github-sync-security-alerts
+description: Sync the open security alerts of a GitHub repository into a project's tasks, from a severity floor up, one batch per run, and keep the tasks made from them current.
+inputs:
+  type: object
+  properties:
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md).
+    trigger:
+      type: string
+      description: Which trigger started the run; a schedule sends "schedule".
+    firedAt:
+      type: number
+      description: Epoch-ms occurrence the schedule fired for.
+nodes:
+  - id: sync
+    type: task.sync_issues
+    input:
+      projectId: the-project
+      sources:
+        - kind: github-security
+          owner: your-organization
+          repo: your-repository
+          alerts: [code-scanning]
+          minSeverity: high
+          tools: []
+          credential: ''
+      limit: 100
+      refreshLimit: 50
+output: '{{ nodes.sync.output }}'
+tests:
+  - name: reads the repository's next batch of alerts into the project and answers its receipt
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    # The project, the source and its filters are the creator's answers:
+    # the test holds what any answers make of them.
+    expect:
+      outputIncludes:
+        sources:
+          - kind: github-security
+            ok: true
+            error: null
+            saved: true
+            drained: true
+            created: 1
+            retryAfter: null
+        failed: 0
+        rateLimited: 0
+        created: 1
+      effects:
+        - connector: task.sync_issues
+          node: sync
+          inputIncludes:
+            sources:
+              - kind: github-security
+            refreshLimit: 50
+  - name: a run that could read no source fails, so the schedule counts it
+    input: {}
+    failures:
+      sync: 'task.sync_issues: every issue source failed'
+    expect:
+      failure:
+        node: sync

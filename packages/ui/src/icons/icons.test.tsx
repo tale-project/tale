@@ -5,6 +5,7 @@ import { render } from '@/tests/utils/render';
 
 import { ClaudeIcon } from './claude-icon';
 import { EnterKeyIcon } from './enter-key-icon';
+import { ForgejoIcon } from './forgejo-icon';
 import { GlitchTipIcon } from './glitchtip-icon';
 import { GmailIcon } from './gmail-icon';
 import { GoogleDriveIcon } from './google-drive-icon';
@@ -23,6 +24,7 @@ import { WebsiteIcon } from './website-icon';
 const icons = [
   { name: 'ClaudeIcon', Component: ClaudeIcon },
   { name: 'EnterKeyIcon', Component: EnterKeyIcon },
+  { name: 'ForgejoIcon', Component: ForgejoIcon },
   { name: 'GlitchTipIcon', Component: GlitchTipIcon },
   { name: 'GmailIcon', Component: GmailIcon },
   { name: 'GoogleDriveIcon', Component: GoogleDriveIcon },

@@ -210,6 +210,7 @@
     "./icons/claude-icon": "./src/icons/claude-icon.tsx",
     "./icons/enter-key-icon": "./src/icons/enter-key-icon.tsx",
     "./icons/flags": "./src/icons/flags.tsx",
+    "./icons/forgejo-icon": "./src/icons/forgejo-icon.tsx",
     "./icons/github": "./src/icons/github-icon.tsx",
     "./icons/glitchtip-icon": "./src/icons/glitchtip-icon.tsx",
     "./icons/gmail-icon": "./src/icons/gmail-icon.tsx",

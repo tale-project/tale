@@ -1,0 +1,279 @@
+name: Sync GitHub pull requests
+description: Turns the open pull requests of a GitHub repository into tasks and keeps them current, one batch every run.
+icon: brand:github
+category: issues
+labels: [GitHub, Pull requests]
+scope: project
+requires:
+  connectors: [github, task]
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: minutely
+      interval: 15
+    timezone: UTC
+i18n:
+  de:
+    name: GitHub-Pull-Requests synchronisieren
+    description: Macht aus den offenen Pull Requests eines GitHub-Repositorys Aufgaben und hält sie aktuell, mit jedem Lauf einen Stapel weiter.
+  fr:
+    name: Synchroniser les pull requests GitHub
+    description: Transforme les pull requests ouvertes d’un dépôt GitHub en tâches et les tient à jour, un lot à chaque exécution.
+template:
+  details: >-
+    Every 15 minutes to start with, the automation reads the next batch of open pull requests of
+    the repository you name, oldest first, and makes a task in Backlog for each one the project
+    does not have yet. Name an author to sync only the pull requests one account opened, such as
+    renovate[bot] for Renovate's dependency updates. Every run picks up where the last one
+    stopped; after the last pull request, the next run starts again from the first. Each run also
+    reads up to 50 pull requests it imported earlier again, the longest-unchecked first, and
+    updates what their tasks show of them: the title, the description and whether the pull
+    request is open or closed. Your own changes to a task (its title, description, status and
+    assignee) are never overwritten, and a task stays where it is when its pull request is merged
+    or closed on GitHub. Issues are left out.
+  i18n:
+    de:
+      details: >-
+        Anfangs alle 15 Minuten liest die Automatisierung den nächsten Stapel offener Pull Requests
+        des Repositorys, das du angibst, die ältesten zuerst, und legt für jeden, den das Projekt
+        noch nicht hat, eine Aufgabe im Backlog an. Gib einen Autor an, um nur die Pull Requests
+        eines Kontos zu synchronisieren, etwa renovate[bot] für die Abhängigkeits-Updates von
+        Renovate. Jeder Lauf macht dort weiter, wo der letzte aufgehört hat; nach dem letzten Pull
+        Request beginnt der nächste Lauf wieder beim ersten. Jeder Lauf liest außerdem bis zu 50
+        früher importierte Pull Requests erneut, die am längsten nicht geprüften zuerst, und
+        aktualisiert, was ihre Aufgaben von ihnen zeigen: den Titel, die Beschreibung und ob der
+        Pull Request offen oder geschlossen ist. Deine eigenen Änderungen an einer Aufgabe (Titel,
+        Beschreibung, Status und Zuständigkeit) werden nie überschrieben, und eine Aufgabe bleibt,
+        wo sie ist, wenn ihr Pull Request auf GitHub gemergt oder geschlossen wird. Issues bleiben
+        außen vor.
+    fr:
+      details: >-
+        Toutes les 15 minutes pour commencer, l’automatisation lit le lot suivant de pull requests
+        ouvertes du dépôt que tu indiques, les plus anciennes d’abord, et crée une tâche dans
+        Backlog pour chaque pull request que le projet n’a pas encore. Indique un auteur pour ne
+        synchroniser que les pull requests d’un compte, par exemple renovate[bot] pour les mises à
+        jour de dépendances de Renovate. Chaque exécution reprend là où la précédente s’est
+        arrêtée ; après la dernière pull request, l’exécution suivante recommence à la première.
+        Chaque exécution relit aussi jusqu’à 50 pull requests importées plus tôt, les moins
+        récemment vérifiées d’abord, et met à jour ce que leurs tâches en montrent : le titre, la
+        description et si la pull request est ouverte ou fermée. Tes propres modifications d’une
+        tâche (titre, description, statut et personne assignée) ne sont jamais écrasées, et une
+        tâche reste où elle est quand sa pull request est fusionnée ou fermée sur GitHub. Les issues
+        sont laissées de côté.
+  steps:
+    - title: Picks up where the last run stopped
+      detail: The project keeps how far the repository's open pull requests have been read.
+      i18n:
+        de:
+          title: Macht dort weiter, wo der letzte Lauf aufgehört hat
+          detail: Das Projekt merkt sich, wie weit die offenen Pull Requests des Repositorys gelesen sind.
+        fr:
+          title: Reprend là où la dernière exécution s’est arrêtée
+          detail: Le projet retient jusqu’où les pull requests ouvertes du dépôt ont été lues.
+    - title: Reads the next batch of open pull requests
+      detail: Up to the number you choose, oldest first. An author and labels can narrow the batch; issues are left out.
+      i18n:
+        de:
+          title: Liest den nächsten Stapel offener Pull Requests
+          detail: Bis zur gewählten Anzahl, die ältesten zuerst. Ein Autor und Labels können den Stapel eingrenzen; Issues bleiben außen vor.
+        fr:
+          title: Lit le lot suivant de pull requests ouvertes
+          detail: Jusqu’au nombre choisi, les plus anciennes d’abord. Un auteur et des étiquettes peuvent restreindre le lot ; les issues sont laissées de côté.
+    - title: Reads pull requests imported earlier again
+      detail: Up to 50 per run, the longest-unchecked first, so every task keeps its pull request's latest title, text and state.
+      i18n:
+        de:
+          title: Liest früher importierte Pull Requests erneut
+          detail: Bis zu 50 pro Lauf, die am längsten nicht geprüften zuerst, damit jede Aufgabe Titel, Text und Stand ihres Pull Requests aktuell hält.
+        fr:
+          title: Relit les pull requests importées plus tôt
+          detail: Jusqu’à 50 par exécution, les moins récemment vérifiées d’abord, pour que chaque tâche garde le dernier titre, texte et état de sa pull request.
+    - title: Writes each pull request into its task
+      detail: A new pull request becomes a task in Backlog; one imported before only updates what its task shows of it.
+      i18n:
+        de:
+          title: Schreibt jeden Pull Request in seine Aufgabe
+          detail: Ein neuer Pull Request wird zu einer Aufgabe im Backlog; ein früher importierter aktualisiert nur, was seine Aufgabe von ihm zeigt.
+        fr:
+          title: Écrit chaque pull request dans sa tâche
+          detail: Une nouvelle pull request devient une tâche dans Backlog ; une pull request importée plus tôt met seulement à jour ce que sa tâche en montre.
+    - title: Saves where it stopped
+      detail: The next run continues from there; after the last pull request, it starts again from the first.
+      i18n:
+        de:
+          title: Merkt sich, wo er aufgehört hat
+          detail: Der nächste Lauf macht dort weiter; nach dem letzten Pull Request beginnt er wieder beim ersten.
+        fr:
+          title: Enregistre où elle s’est arrêtée
+          detail: L’exécution suivante reprend à cet endroit ; après la dernière pull request, elle recommence à la première.
+  outcomes:
+    - kind: creates
+      text: A task in Backlog for each open pull request the project does not have yet.
+      i18n:
+        de:
+          text: Eine Aufgabe im Backlog für jeden offenen Pull Request, den das Projekt noch nicht hat.
+        fr:
+          text: Une tâche dans Backlog pour chaque pull request ouverte que le projet n’a pas encore.
+    - kind: changes
+      text: 'What each task shows of its pull request: the title, the description, open or closed.'
+      i18n:
+        de:
+          text: 'Was jede Aufgabe von ihrem Pull Request zeigt: Titel, Beschreibung, offen oder geschlossen.'
+        fr:
+          text: 'Ce que chaque tâche montre de sa pull request : le titre, la description, ouverte ou fermée.'
+    - kind: never
+      text: Never reviews, comments on, merges or closes anything on GitHub.
+      i18n:
+        de:
+          text: Prüft, kommentiert, mergt oder schließt nie etwas auf GitHub.
+        fr:
+          text: Ne relit, ne commente, ne fusionne et ne ferme jamais rien sur GitHub.
+    - kind: never
+      text: Never overwrites your changes to a task, nor moves it when its pull request is merged.
+      i18n:
+        de:
+          text: Überschreibt nie deine Änderungen an einer Aufgabe und verschiebt sie nicht, wenn ihr Pull Request gemergt wird.
+        fr:
+          text: N’écrase jamais tes modifications d’une tâche et ne la déplace pas quand sa pull request est fusionnée.
+  worksWith:
+    - github/review-pull-requests
+    - github/sync-issues
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose tasks the pull requests become.
+      writes:
+        - node: sync
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, in dem die Pull Requests zu Aufgaben werden.
+        fr:
+          label: Projet
+          description: Le projet dans lequel les pull requests deviennent des tâches.
+    - id: owner
+      kind: text
+      label: Owner
+      description: The user or organization the repository belongs to, as in github.com/owner/repository.
+      placeholder: tale-project
+      maxLength: 99
+      pattern: '^[A-Za-z0-9-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/owner
+      i18n:
+        de:
+          label: Besitzer
+          description: Die Person oder Organisation, der das Repository gehört, wie in github.com/besitzer/repository.
+          placeholder: tale-project
+        fr:
+          label: Propriétaire
+          description: L’utilisateur ou l’organisation à qui appartient le dépôt, comme dans github.com/proprietaire/depot.
+          placeholder: tale-project
+    - id: repo
+      kind: text
+      label: Repository
+      description: The repository's name.
+      placeholder: tale
+      maxLength: 100
+      pattern: '^[A-Za-z0-9_.-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/repo
+      i18n:
+        de:
+          label: Repository
+          description: Der Name des Repositorys.
+          placeholder: tale
+        fr:
+          label: Dépôt
+          description: Le nom du dépôt.
+          placeholder: tale
+    - id: author
+      kind: text
+      label: Only pull requests opened by
+      description: An account's login, such as renovate[bot] for Renovate. Leave it empty to sync every open pull request.
+      placeholder: renovate[bot]
+      required: false
+      maxLength: 100
+      pattern: '^[A-Za-z0-9-]+(\[bot\])?$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/author
+      i18n:
+        de:
+          label: Nur Pull Requests von
+          description: Der Login eines Kontos, etwa renovate[bot] für Renovate. Leer lassen, um alle offenen Pull Requests zu synchronisieren.
+          placeholder: renovate[bot]
+        fr:
+          label: Seulement les pull requests ouvertes par
+          description: L’identifiant d’un compte, par exemple renovate[bot] pour Renovate. Laisse vide pour synchroniser toutes les pull requests ouvertes.
+          placeholder: renovate[bot]
+    - id: labels
+      kind: list
+      label: Only pull requests with these labels
+      description: Leave it empty to sync every open pull request. With several labels, a pull request needs all of them.
+      placeholder: dependencies
+      maxItems: 10
+      itemMaxLength: 50
+      writes:
+        - node: sync
+          pointer: /input/sources/0/labels
+      i18n:
+        de:
+          label: Nur Pull Requests mit diesen Labels
+          description: Leer lassen, um alle offenen Pull Requests zu synchronisieren. Bei mehreren Labels braucht ein Pull Request alle.
+          placeholder: dependencies
+        fr:
+          label: Seulement les pull requests avec ces étiquettes
+          description: Laisse vide pour synchroniser toutes les pull requests ouvertes. Avec plusieurs étiquettes, une pull request doit toutes les avoir.
+          placeholder: dependencies
+    - id: connection
+      kind: credential
+      connector: github
+      required: false
+      label: GitHub credentials
+      description: The credentials the repository is read with. Leave it empty to use the default GitHub credentials.
+      placeholder: The default GitHub connection
+      writes:
+        - node: sync
+          pointer: /input/sources/0/credential
+      i18n:
+        de:
+          label: GitHub-Zugangsdaten
+          description: Die Zugangsdaten, mit denen das Repository gelesen wird. Leer lassen, um die Standard-Zugangsdaten für GitHub zu nutzen.
+          placeholder: Die Standardverbindung zu GitHub
+        fr:
+          label: Identifiants GitHub
+          description: Les identifiants avec lesquels le dépôt est lu. Laisse vide pour utiliser les identifiants GitHub par défaut.
+          placeholder: La connexion GitHub par défaut
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the repository is read; each run reads one batch.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft das Repository gelesen wird; jeder Lauf liest einen Stapel.
+        fr:
+          label: Quand
+          description: À quelle fréquence le dépôt est lu ; chaque exécution lit un lot.
+    - id: batch
+      kind: number
+      label: New pull requests per run
+      description: The most open pull requests one run reads; the rest follow in the next runs.
+      min: 1
+      max: 500
+      default: 100
+      writes:
+        - node: sync
+          pointer: /input/limit
+      i18n:
+        de:
+          label: Neue Pull Requests pro Lauf
+          description: Höchstens so viele offene Pull Requests liest ein Lauf; der Rest folgt in den nächsten Läufen.
+        fr:
+          label: Nouvelles pull requests par exécution
+          description: Le nombre maximal de pull requests ouvertes qu’une exécution lit ; les autres suivent aux exécutions suivantes.

@@ -769,9 +769,10 @@ identity and hash precondition. Tenant collisions never overwrite existing work.
 ## Issue sync
 
 An issue sync is one automation step (`task.sync_issues`) that keeps a project's tasks in step
-with a list of issue sources: GitHub repositories and GlitchTip projects. Each run reads every
-source in turn, and answers one receipt per source: what it read and wrote, where it stopped,
-and why it did not go as planned.
+with a list of issue sources: a GitHub repository's issues, pull requests or security alerts, a
+Forgejo repository's issues or pull requests, and a GlitchTip project's issues. Each run reads
+every source in turn, and answers one receipt per source: what it read and wrote, where it
+stopped, and why it did not go as planned.
 
 ### TASK-R53 · One source that fails never stops the other sources of an issue sync
 
@@ -782,11 +783,12 @@ The failed source saves nothing, and reads the same batch on the next run.
 - **Example**: Mia's sync lists the repositories web and mobile. GitHub refuses the token for web
   → mobile's new issues become tasks, and web's receipt says `unauthorized`.
 
-### TASK-R54 · An issue sync fails only when every one of its sources failed
+### TASK-R54 · By default an issue sync fails only when every one of its sources failed
 
 While some sources succeed, the step succeeds, with the failed sources' errors in their receipts.
 When every source failed, the step fails with the cause they share, so the schedule counts the
-failure like any other. A source that waits out a rate limit has not failed.
+failure like any other. A source that waits out a rate limit has not failed. A step can ask to
+fail sooner (`TASK-R77`).
 
 - **Example**: Both of Mia's repositories refuse the token → the step fails, named as refused
   credentials, and the schedule counts a failed run.
@@ -814,13 +816,15 @@ counts as no failure, neither for the step (`TASK-R54`) nor for the position (`T
 
 ### TASK-R57 · Each run of an issue sync reads a source's next batch from where it stopped
 
-A source's position is kept per project, source name (`owner/repo`, `organization/project`) and
-filter: each run reads the next batch of open issues from there and saves where it stopped, and
-after the last issue the next run starts the next pass from the first. Automations naming the
-same source under the same filter in the same project share one position; a source narrowed by
-labels or a search keeps a position of its own, and one without keeps the plain name a
-hand-built import chain uses. A new issue becomes a task in Backlog, and an issue imported
-before is written into its task again, never into a second one (`CONN-R12`).
+A source's position is kept per project, source name (`owner/repo`, `organization/project`),
+filter and, where a connection names the tracker's instance (Forgejo, GlitchTip), connection: each
+run reads the next batch of open issues from there and saves where it stopped, and after the last
+issue the next run starts the next pass from the first. Automations naming the same source under
+the same filter in the same project share one position; a source narrowed by labels or a search,
+or read through a connection it names on Forgejo or GlitchTip, keeps a position of its own, and
+one with neither keeps the plain name a hand-built import chain uses. A new issue becomes a task
+in Backlog, and an issue imported before is written into its task again, never into a second one
+(`CONN-R12`).
 
 - **Example**: Mia's repository has 250 open issues and her sync reads 100 a run → the first
   three runs import 100, 100 and 50, and the fourth starts again from the oldest.
@@ -856,6 +860,66 @@ they were last read. The tracker itself is only ever read.
 - **Example**: Noah closes an issue on GitHub while its task is In progress in Tale → after the
   next run the task's source card shows Closed, and the task stays In progress.
 
+### TASK-R77 · An issue sync that asks to fails as soon as one of its sources failed
+
+A step that sets `failOn: any` fails when one source failed, naming the failed sources alone and
+the cause they share. Every other source has still read, written and saved its batch. A source
+that waits out a rate limit has not failed here either.
+
+- **Example**: Mia's sync reads GitHub and GlitchTip with `failOn: any`. GlitchTip refuses its
+  token → GitHub's new issues become tasks, the step fails naming GlitchTip, and the schedule
+  counts a failed run.
+
+### TASK-R78 · A task an issue sync creates wears its source's labels
+
+A source can name labels (`taskLabels`) that every task it creates is given, so a board several
+sources fill shows where each task came from. A label the project does not have yet is added
+where the run may add labels. A task the sync made before keeps the labels it has: a refresh
+never adds, removes or restores one.
+
+- **Example**: Mia's ops board takes GitHub issues and GlitchTip errors, and the GlitchTip source
+  names `source:glitchtip` → each new error's task wears `source:glitchtip`; when Noah takes the
+  label off one, the next run leaves it off.
+
+### TASK-R64 · A code host source reads its issues or its pull requests, never both
+
+A GitHub or Forgejo source reads a repository's open issues, or its open pull requests when it
+asks for them (`type: pulls`), only those its `author` opened when it names one, and only those
+carrying every label it names, even where the tracker ignores a label the repository lacks. Its
+issues and its pull requests keep a position each, and a source reads again only the tasks of its
+own kind, so a sync of a repository's issues and one of its pull requests never touch each
+other's tasks.
+
+- **Example**: Noah syncs the issues of the repository ops and, in another automation, the pull
+  requests `renovate[bot]` opened there → the board gets a task per issue and a task per
+  Renovate pull request, and no pull request of a person.
+
+### TASK-R65 · A security alert source reads only the alerts it asks for, one task each
+
+A GitHub security source reads the kinds of alert it names (code scanning, Dependabot, secret
+scanning), code scanning from the tools it names, and every kind from its severity floor up:
+critical, high, medium and low, with a code scanning error read as high, a warning as medium and
+a note as low, and a secret always as critical. GitHub narrows each listing itself. Each alert is
+one task, its source card shows it open, resolved (fixed, or a revoked secret) or ignored
+(dismissed), and the value of a secret is never read or kept. A source reads again only the
+tasks of the kinds it names, so two sources of one repository's alerts, each with a connection of
+its own, never read each other's.
+
+- **Example**: The repository tale holds 7,000 open code scanning alerts, most from Trivy. Mia
+  syncs code scanning from CodeQL and Opengrep at high and above → only those alerts become
+  tasks, and a Trivy alert never does.
+
+### TASK-R66 · A Forgejo task belongs to the instance its connection names
+
+A Forgejo connection names its instance. A task's source is that instance and the issue's id on
+it, and its link is built from the instance's own address. One repository on two instances is
+two sources with tasks and positions of their own, and a task is read again only through a
+connection to its own instance.
+
+- **Example**: Noah syncs ops from git.tale.dev and a mirror of ops from Codeberg into one project
+  → each instance's issues become tasks of their own, each sync goes on with its own pass from
+  run to run, and a refresh through the Codeberg connection never reads git.tale.dev's.
+
 ## Not yet
 
 - **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38` and `TASK-R40`, and how a run moves the card between statuses (`agent-runs.ts`,
@@ -867,7 +931,7 @@ they were last read. The tracker itself is only ever read.
 - **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).
 - **Imported and externally referenced tasks** beyond `TASK-R9`, `TASK-R14`–`TASK-R20` and the
-  issue sync's `TASK-R53`–`TASK-R60` (`external-ref.ts`, `import-cursors.ts`): the hand-built import
+  issue sync's `TASK-R53`–`TASK-R66` (`external-ref.ts`, `import-cursors.ts`): the hand-built import
   chains' reads and saves of a position (`task.get_import_cursor`, `task.save_import_cursor`).
 - **Undecided: can a task with an old, over-long description still be edited?** Some tasks
   hold a description over 20,000, left by an import made before `TASK-R9`. The server checks

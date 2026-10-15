@@ -1,6 +1,9 @@
 'use client';
 
-import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
+import {
+  isPullRequestUrl,
+  taskExternalIssueSchema,
+} from '@tale/shared/schemas/task-external-issue';
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
@@ -10,6 +13,15 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 
 import { useT } from '@/lib/i18n/client';
 import { isHttpUrl } from '@/lib/utils/url';
+
+/** The tracker each issue-sync system is shown as — a brand name, the same
+ * in every language. */
+const PROVIDERS: Record<string, string> = {
+  github: 'GitHub',
+  'github-security': 'GitHub',
+  forgejo: 'Forgejo',
+  glitchtip: 'GlitchTip',
+};
 
 /** The external snapshot has its own identity and state. It is evidence for
  * the task, never an instruction to replace a person's title or status. */
@@ -27,26 +39,28 @@ export function TaskExternalIssueCard({
   const { t } = useT('tasks');
   const { formatDate } = useFormatDate();
   const provider =
-    externalSystem === 'github'
-      ? 'GitHub'
-      : externalSystem === 'glitchtip'
-        ? 'GlitchTip'
-        : null;
-  if (provider === null) return null;
+    externalSystem !== undefined && Object.hasOwn(PROVIDERS, externalSystem)
+      ? PROVIDERS[externalSystem]
+      : undefined;
+  if (provider === undefined) return null;
   const parsed = taskExternalIssueSchema.safeParse(externalIssue);
   const issue = parsed.success ? parsed.data : null;
   const url = issue?.url ?? externalUrl;
   if (url === undefined || !isHttpUrl(url)) return null;
   const title = issue?.title ?? externalId ?? provider;
+  // What the source is: a security alert, a pull request, or an issue.
+  const heading =
+    externalSystem === 'github-security'
+      ? t('sourceIssue.headingAlert', { provider })
+      : isPullRequestUrl(url)
+        ? t('sourceIssue.headingPull', { provider })
+        : t('sourceIssue.heading', { provider });
   return (
     <Card asChild padding="md">
-      <section
-        aria-label={t('sourceIssue.heading', { provider })}
-        className="flex min-w-0 flex-col gap-3"
-      >
+      <section aria-label={heading} className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Text as="h3" variant="label">
-            {t('sourceIssue.heading', { provider })}
+            {heading}
           </Text>
           {issue && (
             <Badge variant={issue.state === 'open' ? 'blue' : 'slate'}>

@@ -932,3 +932,119 @@ describe.each(['github', 'glitchtip'])(
     });
   },
 );
+
+describe('GitHub pull request intake', () => {
+  function pullRequest(number: number, login = 'renovate[bot]') {
+    return {
+      ...githubIssue(number),
+      title: `Update dependency ${number}`,
+      html_url: `https://github.com/Example/Web/pull/${number}`,
+      pull_request: { url: `https://api.github.com/pulls/${number}` },
+      user: { login },
+    };
+  }
+
+  it('reads the open pull requests one login opened, and leaves the issues out [TASK-R64]', async () => {
+    fetchPage.mockResolvedValueOnce(
+      response([
+        { ...githubIssue(1), user: { login: 'renovate[bot]' } },
+        pullRequest(2),
+        pullRequest(3, 'octocat'),
+        pullRequest(4, 'Renovate[bot]'),
+      ]),
+    );
+    const imported = (await run('github', {
+      type: 'pulls',
+      author: 'renovate[bot]',
+    })) as {
+      issues: Array<{ externalId: string; externalUrl: string }>;
+      legacyPrefixes?: string[];
+    };
+    expect(imported.issues).toEqual([
+      expect.objectContaining({
+        externalId: 'example/web#2',
+        externalUrl: 'https://github.com/Example/Web/pull/2',
+      }),
+      expect.objectContaining({ externalId: 'example/web#4' }),
+    ]);
+    // A pull request listing has no tasks from before snapshots to adopt.
+    expect(imported).not.toHaveProperty('legacyPrefixes');
+    expect(fetchPage.mock.calls[0]?.[0]).toContain('creator=renovate%5Bbot%5D');
+  });
+
+  it('reads the issues one login opened, and leaves the pull requests out [TASK-R64]', async () => {
+    fetchPage.mockResolvedValueOnce(
+      response([
+        { ...githubIssue(1), user: { login: 'mia' } },
+        { ...githubIssue(2), user: { login: 'noah' } },
+        pullRequest(3, 'mia'),
+      ]),
+    );
+    await expect(run('github', { author: 'mia' })).resolves.toMatchObject({
+      issues: [{ externalId: 'example/web#1' }],
+    });
+  });
+
+  it('keeps an issue cursor out of a pull request listing [TASK-R64]', async () => {
+    fetchPage.mockResolvedValue(response([githubIssue(1), githubIssue(2)]));
+    const first = (await run('github', { limit: 1 })) as { nextCursor: string };
+    await expect(
+      run('github', { type: 'pulls', cursor: first.nextCursor }),
+    ).rejects.toThrow(/another source or filter/);
+  });
+
+  it('refuses a pull request whose link is an issue’s, and an issue whose link is a pull request’s', async () => {
+    fetchPage.mockResolvedValueOnce(
+      response([
+        {
+          ...pullRequest(2),
+          html_url: 'https://github.com/Example/Web/issues/2',
+        },
+      ]),
+    );
+    await expect(run('github', { type: 'pulls' })).rejects.toMatchObject({
+      code: 'INPUT_INVALID',
+    });
+    fetchPage.mockResolvedValueOnce(
+      response([
+        {
+          ...githubIssue(1),
+          html_url: 'https://github.com/Example/Web/pull/1',
+        },
+      ]),
+    );
+    await expect(run('github')).rejects.toMatchObject({
+      code: 'INPUT_INVALID',
+    });
+  });
+
+  it('reads a linked pull request again, merged or closed [TASK-R64]', async () => {
+    fetchPage.mockResolvedValueOnce(
+      response({ ...pullRequest(2), state: 'closed' }),
+    );
+    await expect(
+      refresh('github', {
+        externalId: 'example/web#2',
+        externalIssue: {
+          ...source('github').externalIssue,
+          id: '1002',
+          number: 2,
+          url: 'https://github.com/Example/Web/pull/2',
+        },
+      }),
+    ).resolves.toMatchObject({
+      externalUrl: 'https://github.com/Example/Web/pull/2',
+      externalIssue: { id: '1002', state: 'closed' },
+    });
+  });
+
+  it.each(['a b', 'renovate[app]'])(
+    'refuses the author %j before GitHub is asked',
+    async (author) => {
+      await expect(run('github', { author })).rejects.toMatchObject({
+        code: 'INPUT_INVALID',
+      });
+      expect(fetchPage).not.toHaveBeenCalled();
+    },
+  );
+});

@@ -1,4 +1,7 @@
 import {
+  issueSourceScope,
+  issueTracker,
+  issueTrackersScopedBy,
   taskExternalIssueSchema,
   type TaskExternalIssue,
 } from '@tale/shared/schemas/task-external-issue';
@@ -257,10 +260,10 @@ export interface UpsertTaskByExternalRefResult {
 /**
  * The description an intake stores. Text a caller writes (a script, a
  * workflow) stores its mentions as whom they name, as the app does; an issue
- * mirrored from GitHub or GlitchTip keeps its `@people` as written, since
- * they are that tracker's. Either way a mention token must name someone who
- * can be mentioned on the task, or it is stored as plain text. An intake
- * notifies nobody it names, as before.
+ * mirrored from a tracker the issue sync reads keeps its `@people` as
+ * written, since they are that tracker's. Either way a mention token must
+ * name someone who can be mentioned on the task, or it is stored as plain
+ * text. An intake notifies nobody it names, as before.
  */
 async function storedIntakeDescription(
   tx: TransactionSql,
@@ -318,10 +321,8 @@ export async function upsertTaskByExternalRef(
   const { externalSystem, externalId } = canonicalExternalRef(args);
   // Issue state is evidence for triage, including old source-less REST
   // intakes. Generic desk mirrors keep their explicit lifecycle contract.
-  const lifecycleState =
-    externalSystem === 'github' || externalSystem === 'glitchtip'
-      ? undefined
-      : args.externalState;
+  const tracker = issueTracker(externalSystem);
+  const lifecycleState = tracker !== null ? undefined : args.externalState;
   // Imported text is cut to the board's caps, never refused: one long issue
   // body must not fail its item's create and every reconcile after it. A
   // door where the caller writes the text refuses it by name before here.
@@ -342,13 +343,7 @@ export async function upsertTaskByExternalRef(
   }
   const source = parsedSource?.data;
   const sourceScope =
-    source === undefined
-      ? undefined
-      : externalSystem === 'github'
-        ? source.repositoryId?.toString()
-        : externalSystem === 'glitchtip'
-          ? source.sourceProjectId
-          : undefined;
+    source === undefined ? undefined : issueSourceScope(externalSystem, source);
   if (source !== undefined && args.projectId === undefined) {
     throw new TaskError(
       'TASK_EXTERNAL_REF_INVALID',
@@ -370,7 +365,7 @@ export async function upsertTaskByExternalRef(
           AND (external_source_id = ${source.id}
             OR (external_source_id IS NULL AND (
               external_id = ${externalId}
-              OR (${externalSystem} = 'github' AND lower(external_id) = lower(${externalId}))
+              OR (${tracker?.foldsCase === true} AND lower(external_id) = lower(${externalId}))
             )))
         ORDER BY (external_source_id = ${source.id}) DESC NULLS LAST,
           (external_id = ${externalId}) DESC, id ASC
@@ -407,8 +402,10 @@ export async function upsertTaskByExternalRef(
             external_issue_source_scopes = ARRAY(
               SELECT DISTINCT scope FROM unnest(
                 COALESCE(external_issue_source_scopes, ARRAY[]::text[]) || ARRAY[
-                  CASE WHEN external_system = 'github' THEN external_issue->>'repositoryId'
-                    WHEN external_system = 'glitchtip' THEN external_issue->>'sourceProjectId' END,
+                  CASE WHEN external_system = ANY(${issueTrackersScopedBy('repositoryId')}::text[])
+                      THEN external_issue->>'repositoryId'
+                    WHEN external_system = ANY(${issueTrackersScopedBy('sourceProjectId')}::text[])
+                      THEN external_issue->>'sourceProjectId' END,
                   ${sourceScope ?? null}
                 ]::text[]
               ) AS scope WHERE scope IS NOT NULL

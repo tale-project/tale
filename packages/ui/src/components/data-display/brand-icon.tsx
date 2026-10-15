@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Puzzle } from 'lucide-react';
 import type { ComponentType } from 'react';
 
+import { ForgejoIcon } from '../../icons/forgejo-icon';
 import { GithubIcon } from '../../icons/github-icon';
 import { GlitchTipIcon } from '../../icons/glitchtip-icon';
 import { GmailIcon } from '../../icons/gmail-icon';
@@ -26,6 +27,7 @@ import { cn } from '../../lib/cn';
 export const BRAND_ICON_SLUGS = [
   'github',
   'glitchtip',
+  'forgejo',
   'gmail',
   'outlook',
   'imap-smtp',
@@ -49,6 +51,7 @@ export function isBrandIconSlug(value: string): value is BrandIconSlug {
 const MARKS: Record<BrandIconSlug, ComponentType<{ className?: string }>> = {
   github: GithubIcon,
   glitchtip: GlitchTipIcon,
+  forgejo: ForgejoIcon,
   gmail: GmailIcon,
   outlook: OutlookIcon,
   'imap-smtp': MailServerIcon,

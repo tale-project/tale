@@ -1,0 +1,323 @@
+name: Sync GitHub security alerts
+description: Turns the open security alerts of a GitHub repository into tasks, from the severity you choose up, and keeps them current.
+icon: brand:github
+category: issues
+labels: [GitHub, Security]
+scope: project
+requires:
+  connectors: [github, task]
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: hourly
+      interval: 1
+      minute: 0
+    timezone: UTC
+i18n:
+  de:
+    name: GitHub-Sicherheitswarnungen synchronisieren
+    description: Macht aus den offenen Sicherheitswarnungen eines GitHub-Repositorys Aufgaben, ab dem gewählten Schweregrad, und hält sie aktuell.
+  fr:
+    name: Synchroniser les alertes de sécurité GitHub
+    description: Transforme les alertes de sécurité ouvertes d’un dépôt GitHub en tâches, à partir de la gravité choisie, et les tient à jour.
+template:
+  details: >-
+    Every hour to start with, the automation reads the next batch of open security alerts of the
+    repository you name — code scanning, Dependabot or secret scanning — and makes a task in
+    Backlog for each alert the project does not have yet. Only alerts at or above the severity you
+    choose are read, and code scanning can be narrowed to the tools you name, so a repository with
+    thousands of alerts from one scanner turns into the few that matter. GitHub does the
+    narrowing, and every run picks up where the last one stopped. Each run also reads up to 50
+    alerts it imported earlier again and updates what their tasks show of them: the title, the
+    details and whether the alert is open, fixed or dismissed. The secret of a secret scanning
+    alert is never read or stored. Your own changes to a task are never overwritten, and a task
+    stays where it is when its alert is fixed or dismissed on GitHub.
+  i18n:
+    de:
+      details: >-
+        Anfangs stündlich liest die Automatisierung den nächsten Stapel offener
+        Sicherheitswarnungen des Repositorys, das du angibst — Code Scanning, Dependabot oder
+        Secret Scanning — und legt für jede Warnung, die das Projekt noch nicht hat, eine Aufgabe
+        im Backlog an. Gelesen werden nur Warnungen ab dem gewählten Schweregrad, und Code Scanning
+        lässt sich auf die genannten Werkzeuge eingrenzen, sodass aus einem Repository mit
+        Tausenden Warnungen eines Scanners die wenigen werden, auf die es ankommt. GitHub grenzt
+        dabei selbst ein, und jeder Lauf macht dort weiter, wo der letzte aufgehört hat. Jeder Lauf
+        liest außerdem bis zu 50 früher importierte Warnungen erneut und aktualisiert, was ihre
+        Aufgaben von ihnen zeigen: den Titel, die Details und ob die Warnung offen, behoben oder
+        verworfen ist. Das Geheimnis einer Secret-Scanning-Warnung wird nie gelesen oder
+        gespeichert. Deine eigenen Änderungen an einer Aufgabe werden nie überschrieben, und eine
+        Aufgabe bleibt, wo sie ist, wenn ihre Warnung auf GitHub behoben oder verworfen wird.
+    fr:
+      details: >-
+        Toutes les heures pour commencer, l’automatisation lit le lot suivant d’alertes de
+        sécurité ouvertes du dépôt que tu indiques — code scanning, Dependabot ou secret scanning
+        — et crée une tâche dans Backlog pour chaque alerte que le projet n’a pas encore. Seules
+        les alertes à partir de la gravité choisie sont lues, et le code scanning peut être
+        restreint aux outils que tu nommes, si bien qu’un dépôt aux milliers d’alertes d’un même
+        scanner se réduit aux quelques-unes qui comptent. GitHub fait ce tri lui-même, et chaque
+        exécution reprend là où la précédente s’est arrêtée. Chaque exécution relit aussi jusqu’à
+        50 alertes importées plus tôt et met à jour ce que leurs tâches en montrent : le titre, les
+        détails et si l’alerte est ouverte, corrigée ou écartée. Le secret d’une alerte de secret
+        scanning n’est jamais lu ni enregistré. Tes propres modifications d’une tâche ne sont
+        jamais écrasées, et une tâche reste où elle est quand son alerte est corrigée ou écartée
+        sur GitHub.
+  steps:
+    - title: Picks up where the last run stopped
+      detail: The project keeps how far the repository's open alerts have been read.
+      i18n:
+        de:
+          title: Macht dort weiter, wo der letzte Lauf aufgehört hat
+          detail: Das Projekt merkt sich, wie weit die offenen Warnungen des Repositorys gelesen sind.
+        fr:
+          title: Reprend là où la dernière exécution s’est arrêtée
+          detail: Le projet retient jusqu’où les alertes ouvertes du dépôt ont été lues.
+    - title: Reads the next batch of open alerts
+      detail: Up to 100, oldest first, of the kind you choose, at or above its severity and from the tools you name.
+      i18n:
+        de:
+          title: Liest den nächsten Stapel offener Warnungen
+          detail: Bis zu 100, die ältesten zuerst, der gewählten Art, ab ihrem Schweregrad und von den genannten Werkzeugen.
+        fr:
+          title: Lit le lot suivant d’alertes ouvertes
+          detail: Jusqu’à 100, les plus anciennes d’abord, du type choisi, à partir de sa gravité et des outils nommés.
+    - title: Reads alerts imported earlier again
+      detail: Up to 50 per run, the longest-unchecked first, so every task keeps its alert's latest state.
+      i18n:
+        de:
+          title: Liest früher importierte Warnungen erneut
+          detail: Bis zu 50 pro Lauf, die am längsten nicht geprüften zuerst, damit jede Aufgabe den aktuellen Stand ihrer Warnung zeigt.
+        fr:
+          title: Relit les alertes importées plus tôt
+          detail: Jusqu’à 50 par exécution, les moins récemment vérifiées d’abord, pour que chaque tâche garde le dernier état de son alerte.
+    - title: Writes each alert into its task
+      detail: A new alert becomes a task in Backlog; one imported before only updates what its task shows of it.
+      i18n:
+        de:
+          title: Schreibt jede Warnung in ihre Aufgabe
+          detail: Eine neue Warnung wird zu einer Aufgabe im Backlog; eine früher importierte aktualisiert nur, was ihre Aufgabe von ihr zeigt.
+        fr:
+          title: Écrit chaque alerte dans sa tâche
+          detail: Une nouvelle alerte devient une tâche dans Backlog ; une alerte importée plus tôt met seulement à jour ce que sa tâche en montre.
+    - title: Saves where it stopped
+      detail: The next run continues from there; after the last alert, it starts again from the first.
+      i18n:
+        de:
+          title: Merkt sich, wo er aufgehört hat
+          detail: Der nächste Lauf macht dort weiter; nach der letzten Warnung beginnt er wieder bei der ersten.
+        fr:
+          title: Enregistre où elle s’est arrêtée
+          detail: L’exécution suivante reprend à cet endroit ; après la dernière alerte, elle recommence à la première.
+  outcomes:
+    - kind: creates
+      text: A task in Backlog for each open alert the project does not have yet.
+      i18n:
+        de:
+          text: Eine Aufgabe im Backlog für jede offene Warnung, die das Projekt noch nicht hat.
+        fr:
+          text: Une tâche dans Backlog pour chaque alerte ouverte que le projet n’a pas encore.
+    - kind: changes
+      text: 'What each task shows of its alert: the title, the details, open, fixed or dismissed.'
+      i18n:
+        de:
+          text: 'Was jede Aufgabe von ihrer Warnung zeigt: Titel, Details, offen, behoben oder verworfen.'
+        fr:
+          text: 'Ce que chaque tâche montre de son alerte : le titre, les détails, ouverte, corrigée ou écartée.'
+    - kind: never
+      text: Never reads or stores the secret of a secret scanning alert.
+      i18n:
+        de:
+          text: Liest oder speichert nie das Geheimnis einer Secret-Scanning-Warnung.
+        fr:
+          text: Ne lit ni n’enregistre jamais le secret d’une alerte de secret scanning.
+    - kind: never
+      text: Never dismisses, reopens or changes an alert on GitHub.
+      i18n:
+        de:
+          text: Verwirft, öffnet oder ändert nie eine Warnung auf GitHub.
+        fr:
+          text: N’écarte, ne rouvre et ne modifie jamais une alerte sur GitHub.
+  worksWith:
+    - github/sync-issues
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose tasks the alerts become.
+      writes:
+        - node: sync
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, in dem die Warnungen zu Aufgaben werden.
+        fr:
+          label: Projet
+          description: Le projet dans lequel les alertes deviennent des tâches.
+    - id: owner
+      kind: text
+      label: Owner
+      description: The user or organization the repository belongs to, as in github.com/owner/repository.
+      placeholder: tale-project
+      maxLength: 99
+      pattern: '^[A-Za-z0-9-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/owner
+      i18n:
+        de:
+          label: Besitzer
+          description: Die Person oder Organisation, der das Repository gehört, wie in github.com/besitzer/repository.
+          placeholder: tale-project
+        fr:
+          label: Propriétaire
+          description: L’utilisateur ou l’organisation à qui appartient le dépôt, comme dans github.com/proprietaire/depot.
+          placeholder: tale-project
+    - id: repo
+      kind: text
+      label: Repository
+      description: The repository's name.
+      placeholder: tale
+      maxLength: 100
+      pattern: '^[A-Za-z0-9_.-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/repo
+      i18n:
+        de:
+          label: Repository
+          description: Der Name des Repositorys.
+          placeholder: tale
+        fr:
+          label: Dépôt
+          description: Le nom du dépôt.
+          placeholder: tale
+    - id: alerts
+      kind: choice
+      label: Alerts
+      description: The kind of alert to sync. To sync several kinds in one automation, list them in its step.
+      default: code-scanning
+      options:
+        - value: code-scanning
+          label: Code scanning
+          i18n:
+            de:
+              label: Code Scanning
+            fr:
+              label: Code scanning
+        - value: dependabot
+          label: Dependabot
+          i18n:
+            de:
+              label: Dependabot
+            fr:
+              label: Dependabot
+        - value: secret-scanning
+          label: Secret scanning
+          i18n:
+            de:
+              label: Secret Scanning
+            fr:
+              label: Secret scanning
+      writes:
+        - node: sync
+          pointer: /input/sources/0/alerts
+      i18n:
+        de:
+          label: Warnungen
+          description: Die Art von Warnung, die synchronisiert wird. Um mehrere Arten in einer Automatisierung zu synchronisieren, liste sie in ihrem Schritt auf.
+        fr:
+          label: Alertes
+          description: Le type d’alerte à synchroniser. Pour en synchroniser plusieurs dans une automatisation, liste-les dans son étape.
+    - id: severity
+      kind: choice
+      label: From severity
+      description: Only alerts at or above it. Error counts as high, warning as medium, note as low; a secret always counts as critical.
+      default: high
+      options:
+        - value: critical
+          label: Critical
+          i18n:
+            de:
+              label: Kritisch
+            fr:
+              label: Critique
+        - value: high
+          label: High
+          i18n:
+            de:
+              label: Hoch
+            fr:
+              label: Élevée
+        - value: medium
+          label: Medium
+          i18n:
+            de:
+              label: Mittel
+            fr:
+              label: Moyenne
+        - value: low
+          label: Every alert
+          i18n:
+            de:
+              label: Jede Warnung
+            fr:
+              label: Toutes les alertes
+      writes:
+        - node: sync
+          pointer: /input/sources/0/minSeverity
+      i18n:
+        de:
+          label: Ab Schweregrad
+          description: Nur Warnungen ab diesem Schweregrad. Error zählt als hoch, Warning als mittel, Note als niedrig; ein Geheimnis zählt immer als kritisch.
+        fr:
+          label: À partir de la gravité
+          description: Seulement les alertes de cette gravité ou plus. Error compte comme élevée, warning comme moyenne, note comme faible ; un secret compte toujours comme critique.
+    - id: tools
+      kind: list
+      label: Only code scanning tools
+      description: Tool names as GitHub shows them, such as CodeQL or Trivy. Leave it empty for every tool.
+      placeholder: CodeQL
+      maxItems: 10
+      itemMaxLength: 100
+      writes:
+        - node: sync
+          pointer: /input/sources/0/tools
+      i18n:
+        de:
+          label: Nur diese Code-Scanning-Werkzeuge
+          description: Werkzeugnamen, wie GitHub sie zeigt, etwa CodeQL oder Trivy. Leer lassen für alle Werkzeuge.
+          placeholder: CodeQL
+        fr:
+          label: Seulement ces outils de code scanning
+          description: Les noms d’outils tels que GitHub les montre, par exemple CodeQL ou Trivy. Laisse vide pour tous les outils.
+          placeholder: CodeQL
+    - id: connection
+      kind: credential
+      connector: github
+      required: false
+      label: GitHub credentials
+      description: The credentials the alerts are read with; they need read access to the repository's security alerts. Leave it empty to use the default GitHub credentials.
+      placeholder: The default GitHub connection
+      writes:
+        - node: sync
+          pointer: /input/sources/0/credential
+      i18n:
+        de:
+          label: GitHub-Zugangsdaten
+          description: Die Zugangsdaten, mit denen die Warnungen gelesen werden; sie brauchen Lesezugriff auf die Sicherheitswarnungen des Repositorys. Leer lassen, um die Standard-Zugangsdaten für GitHub zu nutzen.
+          placeholder: Die Standardverbindung zu GitHub
+        fr:
+          label: Identifiants GitHub
+          description: Les identifiants avec lesquels les alertes sont lues ; ils doivent pouvoir lire les alertes de sécurité du dépôt. Laisse vide pour utiliser les identifiants GitHub par défaut.
+          placeholder: La connexion GitHub par défaut
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the alerts are read; each run reads one batch.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft die Warnungen gelesen werden; jeder Lauf liest einen Stapel.
+        fr:
+          label: Quand
+          description: À quelle fréquence les alertes sont lues ; chaque exécution lit un lot.

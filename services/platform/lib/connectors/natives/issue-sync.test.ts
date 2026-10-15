@@ -7,8 +7,11 @@ import {
   IssueSourceHttpError,
   type ImportedIssue,
 } from './issue-import';
+import { securityToolName } from './issue-import-alerts';
 import {
+  failedSources,
   issueSyncFailure,
+  issueSyncFails,
   issueSyncInputSchema,
   syncIssueSources,
   type IssueSourceReceipt,
@@ -68,7 +71,12 @@ interface FakePosition {
   retryAfter: number | null;
 }
 
-type Script = (input: Record<string, unknown>) => unknown;
+/** A tracker's answer to one call: its input, and the connection it was
+ * read with. */
+type Script = (
+  input: Record<string, unknown>,
+  call: { credential?: string },
+) => unknown;
 
 function fakes(
   options: {
@@ -91,6 +99,8 @@ function fakes(
   }> = [];
   const failures: string[] = [];
   const writes: string[] = [];
+  const labelled: Array<{ externalId: string; labels?: string[] }> = [];
+  const queries: Array<Parameters<IssueSyncDeps['linked']>[0]> = [];
   const name = (key: SyncPositionKey) => `${key.externalSystem}:${key.source}`;
   const row = (key: SyncPositionKey): FakePosition => {
     const found = positions.get(name(key));
@@ -108,14 +118,18 @@ function fakes(
   const deps: IssueSyncDeps = {
     call: async (args) => {
       calls.push(args);
+      // A script answers one action (`github.list_import_alerts`), or every
+      // listing or every refresh of its connector.
+      const scripts = args.action.startsWith('list_')
+        ? options.list
+        : options.refresh;
       const script =
-        args.action === 'list_import_issues'
-          ? options.list?.[args.connector]
-          : options.refresh?.[args.connector];
+        scripts?.[`${args.connector}.${args.action}`] ??
+        scripts?.[args.connector];
       if (script === undefined) {
         throw new Error(`no script for ${args.connector}.${args.action}`);
       }
-      return script(args.input);
+      return script(args.input, args);
     },
     positions: {
       read: async (key) => {
@@ -201,12 +215,21 @@ function fakes(
         );
       },
     },
-    linked: async (query) => ({
-      issues: (options.linked ?? []).slice(0, query.limit),
-      hasMore: false,
-    }),
-    write: async (written): Promise<IssueWrite> => {
+    linked: async (query) => {
+      queries.push(query);
+      return {
+        issues: (options.linked ?? []).slice(0, query.limit),
+        hasMore: false,
+      };
+    },
+    write: async (written, writeOptions): Promise<IssueWrite> => {
       writes.push(written.externalId);
+      labelled.push({
+        externalId: written.externalId,
+        ...(writeOptions?.labels !== undefined && {
+          labels: writeOptions.labels,
+        }),
+      });
       if (options.refuse?.has(written.externalId)) {
         return { ok: false, reason: 'TASK_EXTERNAL_REF_INVALID' };
       }
@@ -222,7 +245,17 @@ function fakes(
     now: () => NOW,
     ...(options.signal !== undefined && { signal: options.signal }),
   };
-  return { deps, positions, tasks, calls, failures, writes, row };
+  return {
+    deps,
+    positions,
+    tasks,
+    calls,
+    failures,
+    writes,
+    labelled,
+    queries,
+    row,
+  };
 }
 
 /** A listing that answers the given issues and next cursor. */
@@ -560,6 +593,487 @@ describe('task.sync_issues positions', () => {
       batch: 1,
     });
     expect(harness.calls.at(-1)?.input).not.toHaveProperty('cursor');
+  });
+});
+
+describe('task.sync_issues sources', () => {
+  const pulls = {
+    ...web,
+    type: 'pulls',
+    author: 'renovate[bot]',
+  };
+  const forgejo = { kind: 'forgejo', owner: 'example', repo: 'web' };
+  const security = {
+    kind: 'github-security',
+    owner: 'example',
+    repo: 'web',
+    alerts: ['dependabot', 'code-scanning'],
+    minSeverity: 'high',
+    tools: ['Trivy', ' CodeQL', 'Trivy'],
+  };
+  const forgejoOrigin = 'https://git.example.org';
+  const forgejoListing = listing([], null, {
+    repositoryId: 30,
+    sourceOrigin: forgejoOrigin,
+  });
+  const alertListing = listing([], null, {
+    repositoryId: 10,
+    repository: 'example/web',
+  });
+  const linkedTask = (id: string): LinkedIssue => ({
+    taskId: `task-${id}`,
+    externalId: `example/web#${id}`,
+    externalIssue: snapshot(id, { syncedAt: NOW - 1000 }),
+  });
+
+  it('reads a repository’s pull requests apart from its issues, each pass and its tasks its own [TASK-R64]', async () => {
+    const harness = fakes({
+      list: { github: listing([], null) },
+      refresh: { github: () => ({ issues: [], failed: [], notRead: 0 }) },
+      linked: [linkedTask('1')],
+    });
+    await syncIssueSources(harness.deps, input([web, pulls]));
+    expect(harness.calls.map((call) => call.input)).toEqual([
+      { owner: 'example', repo: 'web', limit: 100 },
+      expect.objectContaining({ issues: expect.any(Array), repositoryId: 10 }),
+      {
+        owner: 'example',
+        repo: 'web',
+        type: 'pulls',
+        author: 'renovate[bot]',
+        limit: 100,
+      },
+      expect.objectContaining({ issues: expect.any(Array), repositoryId: 10 }),
+    ]);
+    // The issues keep the plain position a hand-built chain names; the
+    // pull requests keep one of their own.
+    const keys = [...harness.positions.keys()];
+    expect(keys[0]).toBe('github:example/web');
+    expect(keys[1]).toMatch(/^github:example\/web~[0-9a-f]{12}$/);
+    // Each refresh reads only the tasks of its own kind.
+    expect(harness.queries.map((query) => query.itemKind)).toEqual([
+      'issues',
+      'pulls',
+    ]);
+  });
+
+  it('keeps one position for one author however it is written [TASK-R64]', async () => {
+    const harness = fakes({ list: { github: listing([], null) } });
+    await syncIssueSources(harness.deps, input([pulls]));
+    await syncIssueSources(
+      harness.deps,
+      input([{ ...pulls, author: ' Renovate[bot] ' }]),
+    );
+    expect(harness.positions.size).toBe(1);
+    expect(harness.calls.map((call) => call.input.author)).toEqual([
+      'renovate[bot]',
+      'renovate[bot]',
+    ]);
+  });
+
+  it('refuses an author that is no login', () => {
+    for (const author of ['a b', 'renovate[app]', 'x'.repeat(101)]) {
+      expect(
+        issueSyncInputSchema.safeParse({
+          projectId: 'project-1',
+          sources: [{ ...pulls, author }],
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('reads a Forgejo repository through its connection, and finds its tasks by instance and repository [TASK-R66]', async () => {
+    const harness = fakes({
+      list: { forgejo: forgejoListing },
+      refresh: { forgejo: () => ({ issues: [], failed: [], notRead: 0 }) },
+      linked: [linkedTask('1')],
+    });
+    const result = await syncIssueSources(
+      harness.deps,
+      input([{ ...forgejo, type: 'pulls', credential: 'Forgejo ops' }]),
+    );
+    expect(result.sources[0]).toMatchObject({
+      kind: 'forgejo',
+      source: 'example/web',
+      ok: true,
+    });
+    expect(harness.calls[0]).toEqual({
+      connector: 'forgejo',
+      action: 'list_import_issues',
+      input: { owner: 'example', repo: 'web', type: 'pulls', limit: 100 },
+      credential: 'Forgejo ops',
+    });
+    expect(harness.queries[0]).toMatchObject({
+      externalSystem: 'forgejo',
+      repositoryId: 30,
+      sourceOrigin: forgejoOrigin,
+      itemKind: 'pulls',
+    });
+    expect(harness.calls[1]).toMatchObject({
+      connector: 'forgejo',
+      action: 'refresh_import_issues',
+      input: { repositoryId: 30, report: true },
+    });
+    expect([...harness.positions.keys()][0]).toMatch(
+      /^forgejo:example\/web~[0-9a-f]{12}$/,
+    );
+  });
+
+  it('fails a Forgejo source whose listing names no instance, before any task is read [TASK-R66]', async () => {
+    const harness = fakes({
+      list: { forgejo: listing([], null, { repositoryId: 30 }) },
+    });
+    const result = await syncIssueSources(harness.deps, input([forgejo]));
+    expect(result.sources[0]).toMatchObject({ ok: false });
+    expect(harness.queries).toEqual([]);
+  });
+
+  it('keeps one repository read through two Forgejo instances’ connections apart, each pass its own across runs [TASK-R66]', async () => {
+    // Each listing's cursor belongs to its instance, as the real reader's
+    // does: read through the other instance's connection, it is stale.
+    const harness = fakes({
+      list: {
+        forgejo: (listInput, call) => {
+          const instance = call.credential ?? 'default';
+          const cursor = listInput.cursor;
+          if (typeof cursor === 'string' && !cursor.startsWith(`${instance}:`))
+            throw new IssueCursorError(
+              'The issue cursor belongs to another source or filter. Start a new import.',
+            );
+          const page =
+            typeof cursor === 'string' ? Number(cursor.split(':')[1]) : 0;
+          return {
+            issues: [],
+            truncated: true,
+            nextCursor: `${instance}:${page + 1}`,
+            repositoryId: 30,
+            sourceOrigin: `https://${instance}.example.org`,
+          };
+        },
+      },
+    });
+    const sources = [
+      { ...forgejo, credential: 'git-tale-dev' },
+      { ...forgejo, credential: 'codeberg' },
+    ];
+    expect(
+      issueSyncInputSchema.safeParse({ projectId: 'project-1', sources })
+        .success,
+    ).toBe(true);
+    const runs = [];
+    for (let run = 0; run < 3; run++) {
+      runs.push(await syncIssueSources(harness.deps, input(sources)));
+    }
+    expect(
+      runs.flatMap((result) =>
+        result.sources.map((receipt) => [
+          receipt.batch,
+          receipt.resumed,
+          receipt.restarted,
+          receipt.saved,
+        ]),
+      ),
+    ).toEqual([
+      [1, false, false, true],
+      [1, false, false, true],
+      [2, true, false, true],
+      [2, true, false, true],
+      [3, true, false, true],
+      [3, true, false, true],
+    ]);
+    expect(harness.positions.size).toBe(2);
+    expect(
+      harness.calls.map((call) => [call.credential, call.input.cursor]),
+    ).toEqual([
+      ['git-tale-dev', undefined],
+      ['codeberg', undefined],
+      ['git-tale-dev', 'git-tale-dev:1'],
+      ['codeberg', 'codeberg:1'],
+      ['git-tale-dev', 'git-tale-dev:2'],
+      ['codeberg', 'codeberg:2'],
+    ]);
+  });
+
+  it('names a position after the connection only where the connection names the instance [TASK-R66]', async () => {
+    const harness = fakes({
+      list: {
+        forgejo: forgejoListing,
+        glitchtip: glitchListing,
+        github: listing([], null),
+      },
+    });
+    await syncIssueSources(
+      harness.deps,
+      input([
+        forgejo,
+        { ...forgejo, credential: 'codeberg' },
+        { ...glitch, credential: 'GlitchTip eu' },
+        { ...web, credential: 'GitHub work' },
+      ]),
+    );
+    const keys = [...harness.positions.keys()];
+    // The default connection keeps the plain name; a named one on a tracker
+    // of instances keeps its own. GitHub is one instance, whatever reads it.
+    expect(keys[0]).toBe('forgejo:example/web');
+    expect(keys[1]).toMatch(/^forgejo:example\/web~[0-9a-f]{12}$/);
+    expect(keys[2]).toMatch(/^glitchtip:example\/web~[0-9a-f]{12}$/);
+    expect(keys[3]).toBe('github:example/web');
+    // One connection named twice is still one source.
+    expect(
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [
+          { ...forgejo, credential: 'codeberg' },
+          { ...forgejo, owner: 'Example', credential: 'codeberg' },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [
+          { ...web, credential: 'GitHub work' },
+          { ...web, credential: 'GitHub bot' },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('keeps one GitHub repository’s issues and its Forgejo twin apart', () => {
+    expect(
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [web, forgejo],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('reads a repository’s security alerts through their own actions, under a position of their own [TASK-R65]', async () => {
+    const harness = fakes({
+      list: { 'github.list_import_alerts': alertListing },
+      refresh: {
+        'github.refresh_import_alerts': () => ({
+          issues: [],
+          failed: [],
+          notRead: 0,
+        }),
+      },
+      linked: [linkedTask('1')],
+    });
+    const result = await syncIssueSources(harness.deps, input([security]));
+    expect(result.sources[0]).toMatchObject({
+      kind: 'github-security',
+      source: 'example/web',
+      ok: true,
+    });
+    expect(harness.calls[0]).toEqual({
+      connector: 'github',
+      action: 'list_import_alerts',
+      input: {
+        owner: 'example',
+        repo: 'web',
+        alerts: ['code-scanning', 'dependabot'],
+        minSeverity: 'high',
+        tools: ['CodeQL', 'Trivy'],
+        limit: 100,
+      },
+    });
+    expect(harness.queries[0]).toEqual({
+      externalSystem: 'github-security',
+      repositoryId: 10,
+      alertKinds: ['code-scanning', 'dependabot'],
+      limit: 50,
+    });
+    expect(harness.calls[1]).toMatchObject({
+      connector: 'github',
+      action: 'refresh_import_alerts',
+      input: { repositoryId: 10, repository: 'example/web', report: true },
+    });
+    expect([...harness.positions.keys()][0]).toMatch(
+      /^github-security:example\/web~[0-9a-f]{12}$/,
+    );
+  });
+
+  it('reads one alert filter however its kinds and tools are written [TASK-R65]', async () => {
+    const harness = fakes({
+      list: { 'github.list_import_alerts': alertListing },
+    });
+    await syncIssueSources(harness.deps, input([security]));
+    await syncIssueSources(
+      harness.deps,
+      input([
+        {
+          ...security,
+          alerts: ['code-scanning', 'dependabot'],
+          tools: ['CodeQL', 'Trivy'],
+        },
+      ]),
+    );
+    expect(harness.positions.size).toBe(1);
+    // A security source and the repository's issues are two trackers.
+    expect(
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [web, security],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('refuses a security source that names no kind of alert, or one twice', () => {
+    for (const alerts of [[], ['dependabot', 'dependabot'], ['issues']]) {
+      expect(
+        issueSyncInputSchema.safeParse({
+          projectId: 'project-1',
+          sources: [{ ...security, alerts }],
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('reads again only the alerts of the kinds a security source reads [TASK-R65]', async () => {
+    const harness = fakes({
+      list: { 'github.list_import_alerts': alertListing },
+      refresh: {
+        'github.refresh_import_alerts': () => ({
+          issues: [],
+          failed: [],
+          notRead: 0,
+        }),
+      },
+      linked: [linkedTask('1')],
+    });
+    await syncIssueSources(
+      harness.deps,
+      input([
+        {
+          kind: 'github-security',
+          owner: 'example',
+          repo: 'web',
+          alerts: ['code-scanning'],
+          credential: 'GitHub code scanning',
+        },
+        {
+          kind: 'github-security',
+          owner: 'example',
+          repo: 'web',
+          alerts: ['secret-scanning', 'dependabot'],
+          credential: 'GitHub secrets',
+        },
+      ]),
+    );
+    expect(
+      harness.queries.map((query) => [query.repositoryId, query.alertKinds]),
+    ).toEqual([
+      [10, ['code-scanning']],
+      [10, ['dependabot', 'secret-scanning']],
+    ]);
+    expect(
+      harness.calls
+        .filter((call) => call.action === 'refresh_import_alerts')
+        .map((call) => call.credential),
+    ).toEqual(['GitHub code scanning', 'GitHub secrets']);
+  });
+
+  it.each([
+    ['CodeQL', true],
+    ['Black Duck & Polaris', true],
+    ['C# scanner?', true],
+    [' Trivy ', true],
+    ['', false],
+    ['Code\nQL', false],
+    ['Trivy\n', false],
+    ['Code\u0000QL', false],
+    ['x'.repeat(101), false],
+  ])(
+    'takes the code scanning tool %j where the source is written as the listing takes it: %s',
+    (tool, takes) => {
+      expect(securityToolName.safeParse(tool).success).toBe(takes);
+      expect(
+        issueSyncInputSchema.safeParse({
+          projectId: 'project-1',
+          sources: [{ ...security, tools: [tool] }],
+        }).success,
+      ).toBe(takes);
+    },
+  );
+
+  it('names the security alert listing when every security source failed [TASK-R54]', async () => {
+    const harness = fakes({
+      list: {
+        'github.list_import_alerts': () => {
+          throw new IssueSourceHttpError(
+            'GitHub issue sync failed (HTTP 403).',
+            {
+              status: 403,
+              retryAfter: null,
+              action: 'github.list_import_alerts',
+            },
+          );
+        },
+      },
+    });
+    const result = await syncIssueSources(harness.deps, input([security]));
+    expect(issueSyncFailure(result.sources)).toEqual({
+      reason: 'CONNECTOR_AUTH',
+      params: {
+        connector: 'github',
+        action: 'github.list_import_alerts',
+        status: 403,
+      },
+    });
+  });
+});
+
+describe('task.sync_issues task labels', () => {
+  it('gives a task its source creates the source’s labels, and the other sources’ tasks none [TASK-R78]', async () => {
+    const harness = fakes({
+      list: {
+        github: listing([issue('1')], null),
+        glitchtip: listing(
+          [
+            {
+              ...issue('2'),
+              externalSystem: 'glitchtip',
+              externalId: 'https://glitchtip.example.com/example/web#2',
+            },
+          ],
+          null,
+          {
+            sourceOrigin: 'https://glitchtip.example.com',
+            sourceProjectId: '20',
+          },
+        ),
+      },
+    });
+    await syncIssueSources(
+      harness.deps,
+      input([
+        web,
+        { ...glitch, taskLabels: [' source:glitchtip ', 'repo:ops'] },
+      ]),
+    );
+    expect(harness.labelled).toEqual([
+      { externalId: 'example/web#1' },
+      {
+        externalId: 'https://glitchtip.example.com/example/web#2',
+        labels: ['source:glitchtip', 'repo:ops'],
+      },
+    ]);
+  });
+
+  it('refuses a task label that is no label name [TASK-R78]', () => {
+    for (const taskLabels of [
+      [''],
+      ['x'.repeat(51)],
+      Array.from({ length: 11 }, (_, at) => `label-${at}`),
+    ]) {
+      expect(
+        issueSyncInputSchema.safeParse({
+          projectId: 'project-1',
+          sources: [{ ...web, taskLabels }],
+        }).success,
+      ).toBe(false);
+    }
   });
 });
 
@@ -907,6 +1421,50 @@ describe('task.sync_issues upstream lifecycle', () => {
       created: 0,
     });
     expect(result.closedUpstream).toBe(1);
+  });
+});
+
+describe('when the step fails', () => {
+  const result = (failed: number, sources: number) => ({
+    sources: Array.from({ length: sources }, () => ({}) as IssueSourceReceipt),
+    failed,
+    rateLimited: 0,
+    created: 0,
+    refreshed: 0,
+    unchanged: 0,
+    skipped: 0,
+    closedUpstream: 0,
+  });
+
+  it('fails by default only when every source failed [TASK-R54]', () => {
+    expect(issueSyncFails(result(1, 2))).toBe(false);
+    expect(issueSyncFails(result(2, 2))).toBe(true);
+    expect(issueSyncFails(result(1, 2), 'all')).toBe(false);
+  });
+
+  it('fails as soon as one source failed when the step asks to [TASK-R77]', () => {
+    expect(issueSyncFails(result(0, 2), 'any')).toBe(false);
+    expect(issueSyncFails(result(1, 2), 'any')).toBe(true);
+    expect(issueSyncFails(result(2, 2), 'any')).toBe(true);
+  });
+
+  it('counts a source waiting out a rate limit as no failure, either way [TASK-R77]', async () => {
+    const harness = fakes({
+      list: {
+        github: listing([], null),
+        glitchtip: () => {
+          throw new IssueSourceHttpError('GlitchTip rate-limited the sync.', {
+            status: 429,
+            retryAfter: NOW + 60_000,
+            action: 'glitchtip.list_import_issues',
+          });
+        },
+      },
+    });
+    const synced = await syncIssueSources(harness.deps, input([web, glitch]));
+    expect(synced.failed).toBe(0);
+    expect(failedSources(synced.sources)).toEqual([]);
+    expect(issueSyncFails(synced, 'any')).toBe(false);
   });
 });
 

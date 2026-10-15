@@ -2,13 +2,16 @@ import { createHash } from 'node:crypto';
 
 import {
   taskExternalIssueSchema,
+  type IssueTrackerSystem,
   type TaskExternalIssue,
 } from '@tale/shared/schemas/task-external-issue';
 import PQueue from 'p-queue';
-/** Read-only vendor issue synchronization. Both providers share bounded,
- * resumable discovery and return the same task-intake shape. Source snapshots
- * are separate from local task edits; missing upstream rows are marked
- * unavailable and never interpreted as a request to delete or complete work. */
+/** Read-only vendor issue synchronization. Every tracker shares bounded,
+ * resumable discovery and returns the same task-intake shape. Source
+ * snapshots are separate from local task edits; missing upstream rows are
+ * marked unavailable and never interpreted as a request to delete or
+ * complete work. The GitHub and GlitchTip readers live here; Forgejo's and
+ * GitHub's security alerts' build on the same pieces in their own modules. */
 import { z } from 'zod';
 
 import { truncateImportedDescription } from '../../../backend/core/tasks/helpers';
@@ -22,7 +25,7 @@ import { ConnectorError } from '../errors';
 
 /** One issue as a tracker answered it, in the shape a task takes it. */
 export interface ImportedIssue {
-  externalSystem: 'github' | 'glitchtip';
+  externalSystem: IssueTrackerSystem;
   externalId: string;
   externalUrl: string;
   title: string;
@@ -130,8 +133,14 @@ function safeText(response: ConnectorHttpResponse): string {
 // (`truncateImportedDescription`: the board's cap, on a grapheme boundary),
 // so the run carries what the task will hold and every door can save it
 // again. The source snapshot keeps its separate, larger limit.
-const limit = z.number().int().min(1).max(500).default(100);
-const cursor = z.string().max(12000).optional();
+export const limit = z.number().int().min(1).max(500).default(100);
+export const cursor = z.string().max(12000).optional();
+/** Which of a code host's items a listing reads: its issues, or its pull
+ * requests. */
+export const itemTypeSchema = z.enum(['issues', 'pulls']);
+/** A GitHub login, an app's included (`renovate[bot]`). */
+export const GITHUB_LOGIN = /^[A-Za-z0-9-]+(\[bot\])?$/;
+const githubLoginSchema = z.string().regex(GITHUB_LOGIN).max(100);
 const githubInput = z
   .object({
     owner: z
@@ -143,6 +152,10 @@ const githubInput = z
       .regex(/^[A-Za-z0-9_.-]+$/)
       .max(100),
     labels: z.string().max(1000).optional(),
+    /** Issues (the default) or pull requests. */
+    type: itemTypeSchema.optional(),
+    /** Only the items this login opened. */
+    author: githubLoginSchema.optional(),
     limit,
     cursor,
   })
@@ -179,9 +192,12 @@ const sourceInput = z
       .optional(),
   })
   .strict();
-const positionSchema = z
+export const positionSchema = z
   .object({
     scope: z.string(),
+    /** Which of a source's listings the position is in, for a source read
+     * through several (one per kind of security alert); 0 when absent. */
+    lane: z.number().int().min(1).max(100).optional(),
     page: z.number().int().min(1),
     offset: z.number().int().min(0).max(100),
     upstream: z
@@ -192,12 +208,12 @@ const positionSchema = z
     anchor: z.string().min(1).max(2000).optional(),
   })
   .strict();
-type Position = z.infer<typeof positionSchema>;
+export type Position = z.infer<typeof positionSchema>;
 
-function invalid(message: string): never {
+export function invalid(message: string): never {
   throw new ConnectorError('INPUT_INVALID', message, {});
 }
-function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success)
     invalid(
@@ -210,7 +226,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 function staleCursor(message: string): never {
   throw new IssueCursorError(message);
 }
-function position(raw: string | undefined, scope: string): Position {
+export function position(raw: string | undefined, scope: string): Position {
   if (!raw) return { scope, page: 1, offset: 0, upstream: '' };
   let data: unknown;
   try {
@@ -232,7 +248,7 @@ const githubHeaders = {
   'X-GitHub-Api-Version': '2022-11-28',
   'User-Agent': 'Tale',
 };
-async function get(
+export async function get(
   ctx: NativeConnectorContext,
   provider: string,
   url: string,
@@ -242,7 +258,12 @@ async function get(
       provider === 'GitHub' ? githubHeaders : { Accept: 'application/json' },
   });
 }
-function requireSuccess(
+/** What a tracker's token needs, said where its refusal is. */
+const TOKEN_NEEDS: Record<string, string> = {
+  GlitchTip: '; the token needs event:read and project:read',
+  Forgejo: '; the token needs read:issue and read:repository',
+};
+export function requireSuccess(
   response: ConnectorHttpResponse,
   provider: string,
   action: string,
@@ -252,7 +273,7 @@ function requireSuccess(
     throw new IssueSourceHttpError(
       retryAfter !== null
         ? `${provider} rate-limited the issue sync (HTTP ${response.status}) until ${new Date(retryAfter).toISOString()}.`
-        : `${provider} issue sync failed (HTTP ${response.status}). Check the connection, source access, and rate limit${provider === 'GlitchTip' ? '; the token needs event:read and project:read' : ''}.`,
+        : `${provider} issue sync failed (HTTP ${response.status}). Check the connection, source access, and rate limit${TOKEN_NEEDS[provider] ?? ''}.`,
       { status: response.status, retryAfter, action },
     );
   }
@@ -272,9 +293,9 @@ function requireSuccess(
     );
   }
 }
-function unavailable(
+export function unavailable(
   provider: ImportedIssue['externalSystem'],
-  source: z.infer<typeof sourceInput>['issue'],
+  source: { externalId: string; externalIssue: TaskExternalIssue | null },
   syncedAt: number,
 ): ImportedIssue {
   if (!source.externalIssue)
@@ -298,22 +319,77 @@ const githubIssueSchema = z
     state: z.enum(['open', 'closed']),
     html_url: z.string().url(),
     updated_at: z.string().optional(),
+    /** Present, and not null, on a pull request read as an issue. */
+    pull_request: z.object({}).passthrough().nullable().optional(),
+    user: z.object({ login: z.string() }).passthrough().nullable().optional(),
   })
   .passthrough();
+/** Whether a code host's issue row is a pull request: GitHub carries a
+ * `pull_request` object on one, Forgejo a non-null one. */
+export function isPullRequestRow(row: unknown): boolean {
+  return (
+    typeof row === 'object' &&
+    row !== null &&
+    'pull_request' in row &&
+    row.pull_request !== null &&
+    row.pull_request !== undefined
+  );
+}
+/** Whether an issue row was opened by `author`, a login compared without
+ * regard to case; every row when no author is asked for. */
+export function openedBy(row: unknown, author: string | undefined): boolean {
+  if (author === undefined) return true;
+  const user =
+    typeof row === 'object' && row !== null && 'user' in row
+      ? row.user
+      : undefined;
+  const login =
+    typeof user === 'object' && user !== null && 'login' in user
+      ? user.login
+      : undefined;
+  return (
+    typeof login === 'string' && login.toLowerCase() === author.toLowerCase()
+  );
+}
+/** An upstream timestamp a snapshot can keep, or nothing for one it could
+ * not: the snapshot takes an ISO date and time only. */
+export function sourceTime(
+  value: string | null | undefined,
+): string | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  return taskExternalIssueSchema.shape.updatedAt.safeParse(value).success
+    ? value
+    : undefined;
+}
+/** Names separated by commas, each trimmed, blanks and repeats dropped, in
+ * one order — so `ui, bug` and `bug,ui,bug` are the one filter `bug,ui`. */
+export function nameList(
+  names: string | readonly string[] | undefined,
+): string[] {
+  const list = typeof names === 'string' ? names.split(',') : (names ?? []);
+  return [
+    ...new Set(list.map((name) => name.trim()).filter((name) => name !== '')),
+  ].sort();
+}
 /** Text as Postgres can store it: a NUL character, which a tracker may
  * carry and no text or JSON column takes, is dropped. */
-function storable(text: string): string {
+export function storable(text: string): string {
   return text.replaceAll('\u0000', '');
 }
 function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
   const row = parse(githubIssueSchema, raw);
   const title = storable(row.title).trim() || `#${row.number}`;
   const url = new URL(row.html_url);
-  const ref = /^\/([^/]+)\/([^/]+)\/issues\/([1-9][0-9]*)$/.exec(url.pathname);
+  // A pull request read as an issue links to `/pull/<n>`, an issue to
+  // `/issues/<n>`; each must say what the row is.
+  const ref = /^\/([^/]+)\/([^/]+)\/(issues|pull)\/([1-9][0-9]*)$/.exec(
+    url.pathname,
+  );
   if (
     url.origin !== 'https://github.com' ||
     !ref ||
-    Number(ref[3]) !== row.number
+    (ref[3] === 'pull') !== isPullRequestRow(row) ||
+    Number(ref[4]) !== row.number
   )
     invalid('GitHub returned an invalid issue URL.');
   const description = storable(row.body ?? '').slice(0, 100000);
@@ -389,7 +465,7 @@ function glitchtipIssue(
     },
   };
 }
-interface Page {
+export interface Page {
   rows: unknown[];
   next: Position | null;
 }
@@ -398,16 +474,35 @@ function rowIdentity(row: unknown): string {
     invalid('The source returned an issue without an identity.');
   return String(row.id);
 }
-async function discover(options: {
+/** The first position of `lane` in a listing read through several. */
+export function laneStart(scope: string, lane: number): Position {
+  return { scope, ...(lane > 0 && { lane }), page: 1, offset: 0, upstream: '' };
+}
+/**
+ * Read a source's open issues from `start` until `limit` are found or the
+ * listing ends: at most 20 pages a call, a partly read page resumed after
+ * its last issue taken (its anchor), and a page that changed under the
+ * anchor read again from the top. A source read through several listings
+ * (lanes) goes on with the next one where one ends (`nextLane`), within the
+ * same 20 pages. Answers the issues and where the next call starts.
+ */
+export async function discover(options: {
   limit: number;
   start: Position;
   fetch: (position: Position) => Promise<Page>;
   normalize: (raw: unknown) => ImportedIssue | null;
+  /** A row's identity on its page, the anchor a resumed page is found by;
+   * its `id` when left out. */
+  identity?: (row: unknown) => string;
+  /** Where the listing goes once `current`'s lane is read to its end:
+   * the next lane's start, or null after the last lane. */
+  nextLane?: (current: Position) => Position | null;
 }): Promise<{
   issues: ImportedIssue[];
   truncated: boolean;
   nextCursor: string | null;
 }> {
+  const identity = options.identity ?? rowIdentity;
   const issues: ImportedIssue[] = [];
   const seen = new Set<string>();
   const positions = new Set<string>();
@@ -415,7 +510,7 @@ async function discover(options: {
   let continuation = current;
   let restarted = false;
   for (let count = 0; count < 20; count++) {
-    const key = `${current.page}:${current.upstream}`;
+    const key = `${current.lane ?? 0}:${current.page}:${current.upstream}`;
     if (positions.has(key))
       invalid(
         'The source repeated an issue pagination cursor. Retry the import.',
@@ -424,7 +519,7 @@ async function discover(options: {
     const page = await options.fetch(current);
     if (current.offset > 0) {
       const anchor = page.rows.findIndex(
-        (row) => rowIdentity(row) === current.anchor,
+        (row) => identity(row) === current.anchor,
       );
       if (anchor < 0) {
         // A numeric offset silently skips work when a source filter changes.
@@ -436,11 +531,14 @@ async function discover(options: {
           );
         restarted = true;
         positions.clear();
-        current = { scope: current.scope, page: 1, offset: 0, upstream: '' };
+        current = laneStart(current.scope, current.lane ?? 0);
         continue;
       }
       current = { ...current, offset: anchor + 1 };
     }
+    // Where the listing goes once this page is read: its next page, the
+    // next lane's start, or nowhere.
+    const after = page.next ?? options.nextLane?.(current) ?? null;
     for (let at = current.offset; at < page.rows.length; at++) {
       const issue = options.normalize(page.rows[at]);
       if (!issue || seen.has(issue.externalIssue.id)) continue;
@@ -449,8 +547,8 @@ async function discover(options: {
       if (issues.length === options.limit) {
         const next =
           at + 1 < page.rows.length || page.next !== null
-            ? { ...current, offset: at + 1, anchor: rowIdentity(page.rows[at]) }
-            : null;
+            ? { ...current, offset: at + 1, anchor: identity(page.rows[at]) }
+            : after;
         return {
           issues,
           truncated: next !== null,
@@ -458,21 +556,20 @@ async function discover(options: {
         };
       }
     }
-    if (page.next === null)
-      return { issues, truncated: false, nextCursor: null };
+    if (after === null) return { issues, truncated: false, nextCursor: null };
     continuation =
-      page.rows.length > 0
+      page.next !== null && page.rows.length > 0
         ? {
             ...current,
             offset: page.rows.length,
-            anchor: rowIdentity(page.rows.at(-1)),
+            anchor: identity(page.rows.at(-1)),
           }
-        : page.next;
-    current = page.next;
+        : after;
+    current = after;
   }
   return { issues, truncated: true, nextCursor: JSON.stringify(continuation) };
 }
-function rows(
+export function rows(
   response: ConnectorHttpResponse,
   provider: string,
   action: string,
@@ -506,20 +603,23 @@ export function issueImportNatives(): Readonly<
           'github.list_import_issues',
         ),
       );
+      const pulls = input.type === 'pulls';
+      // The issues listing keeps the scope a cursor saved before pull
+      // requests and authors could be asked for, so those carry on.
       const start = position(
         input.cursor,
-        `${metadata.id}:${input.labels ?? ''}`,
+        !pulls && input.author === undefined
+          ? `${metadata.id}:${input.labels ?? ''}`
+          : `${metadata.id}:${input.labels ?? ''}:${pulls ? 'pulls' : 'issues'}:${input.author?.toLowerCase() ?? ''}`,
       );
       const syncedAt = Date.now();
       const result = await discover({
         limit: input.limit,
         start,
+        // GitHub lists pull requests among the issues: the listing keeps
+        // the kind it was asked for, and checks the author itself too.
         normalize: (item) => {
-          if (
-            typeof item === 'object' &&
-            item !== null &&
-            'pull_request' in item
-          )
+          if (isPullRequestRow(item) !== pulls || !openedBy(item, input.author))
             return null;
           const issue = githubIssue(item, metadata.id);
           issue.externalIssue.syncedAt = syncedAt;
@@ -529,7 +629,7 @@ export function issueImportNatives(): Readonly<
           const response = await get(
             ctx,
             'GitHub',
-            `https://api.github.com/repositories/${metadata.id}/issues?state=open&sort=created&direction=asc&per_page=100&page=${at.page}${input.labels ? `&labels=${encodeURIComponent(input.labels)}` : ''}`,
+            `https://api.github.com/repositories/${metadata.id}/issues?state=open&sort=created&direction=asc&per_page=100&page=${at.page}${input.labels ? `&labels=${encodeURIComponent(input.labels)}` : ''}${input.author ? `&creator=${encodeURIComponent(input.author)}` : ''}`,
           );
           const data = rows(response, 'GitHub', 'github.list_import_issues');
           const link = response.headers.link ?? response.headers.Link;
@@ -543,12 +643,16 @@ export function issueImportNatives(): Readonly<
       return {
         ...result,
         repositoryId: metadata.id,
-        legacyPrefixes: [
-          ...new Set([
-            `${input.owner}/${input.repo}#`.toLowerCase(),
-            `${metadata.full_name ?? `${input.owner}/${input.repo}`}#`.toLowerCase(),
-          ]),
-        ],
+        // Tasks imported before snapshots were kept are issues: a pull
+        // request listing has none to adopt.
+        ...(!pulls && {
+          legacyPrefixes: [
+            ...new Set([
+              `${input.owner}/${input.repo}#`.toLowerCase(),
+              `${metadata.full_name ?? `${input.owner}/${input.repo}`}#`.toLowerCase(),
+            ]),
+          ],
+        }),
       };
     },
     'github.get_import_issue': async (raw, ctx) => {
@@ -750,7 +854,7 @@ export function issueImportNatives(): Readonly<
       );
       const refresh = natives[`${provider}.get_import_issue`];
       if (!refresh) throw new Error('Missing issue refresh backend');
-      const outcome = await refreshEach(input.issues, (issue) =>
+      return answerRefresh(provider, input.issues, input.report, (issue) =>
         refresh(
           {
             issue,
@@ -763,17 +867,31 @@ export function issueImportNatives(): Readonly<
           ctx,
         ),
       );
-      if (input.report === true) return outcome;
-      const [first] = outcome.failed;
-      if (first !== undefined) {
-        console.warn(
-          `[issue-import] ${provider}: ${outcome.failed.length} of ${input.issues.length} linked issues could not be refreshed and are tried again on a later run (first: ${first.error}${first.status !== undefined ? ` HTTP ${first.status}` : ''})`,
-        );
-      }
-      return outcome.issues;
     };
   }
   return natives;
+}
+
+/**
+ * A refresh of linked issues as every tracker answers it: each issue read on
+ * its own ({@link refreshEach}); with `report`, the whole report; without,
+ * the issues read, and the ones skipped said in the log.
+ */
+export async function answerRefresh(
+  provider: string,
+  issues: ReadonlyArray<{ externalId: string }>,
+  report: boolean | undefined,
+  read: (issue: { externalId: string }) => Promise<unknown>,
+): Promise<IssueRefreshReport | ImportedIssue[]> {
+  const outcome = await refreshEach(issues, read);
+  if (report === true) return outcome;
+  const [first] = outcome.failed;
+  if (first !== undefined) {
+    console.warn(
+      `[issue-import] ${provider}: ${outcome.failed.length} of ${issues.length} linked issues could not be refreshed and are tried again on a later run (first: ${first.error}${first.status !== undefined ? ` HTTP ${first.status}` : ''})`,
+    );
+  }
+  return outcome.issues;
 }
 
 /** What went wrong reading a tracker, in the words a sync receipt uses. */

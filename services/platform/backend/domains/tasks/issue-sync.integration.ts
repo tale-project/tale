@@ -10,7 +10,11 @@
  * restarts it at once; two overlapping runs of one source save once and the
  * other's receipt says conflict; an issue closed upstream leaves its task's
  * status alone; the store takes any adapter slug and refuses a malformed
- * one; and an archived project stops the step before any tracker is read. */
+ * one; a repository's issues and its pull requests keep their own tasks,
+ * each source reading again only its own kind; two security sources of
+ * one repository read again only the alerts of their own kinds; a source's
+ * task labels are given to the tasks it creates and never again; and an
+ * archived project stops the step before any tracker is read. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
@@ -42,6 +46,7 @@ type Recorder = (name: string, ok: boolean, detail: string) => void;
 const callInput = z
   .object({
     repo: z.string().optional(),
+    type: z.string().optional(),
     labels: z.string().optional(),
     limit: z.number().optional(),
     cursor: z.string().optional(),
@@ -49,6 +54,11 @@ const callInput = z
       .array(z.object({ externalId: z.string() }).passthrough())
       .optional(),
   })
+  .passthrough();
+
+/** What the sync hands the stand-in's security alert listing. */
+const alertCallInput = z
+  .object({ repo: z.string(), alerts: z.array(z.string()) })
   .passthrough();
 
 /** The stand-in tracker's own cursor. */
@@ -127,8 +137,10 @@ export async function checkIssueSync(
     repositories.set(repo, created);
     return created;
   };
+  // A pull request shares the issues' numbers on GitHub: the stand-in
+  // numbers its pull requests from 101 and links them to `/pull/<n>`.
   const issue = (repo: string, at: FakeRepository, n: number) => {
-    const url = `https://github.com/${owner}/${repo}/issues/${n}`;
+    const url = `https://github.com/${owner}/${repo}/${n > 100 ? 'pull' : 'issues'}/${n}`;
     const title = at.nulTitles.has(n)
       ? `Broken\u0000 issue ${n}`
       : `Source issue ${n}`;
@@ -150,13 +162,77 @@ export async function checkIssueSync(
       },
     };
   };
+  // A security alert of the stand-in: `1..total` of each kind.
+  const alert = (repo: string, at: FakeRepository, kind: string, n: number) => {
+    const url = `https://github.com/${owner}/${repo}/security/${kind}/${n}`;
+    const title = `Synthetic ${kind} alert ${n}`;
+    return {
+      externalSystem: 'github-security',
+      externalId: `${owner}/${repo}/${kind}#${n}`.toLowerCase(),
+      externalUrl: url,
+      title,
+      description: 'Synthetic',
+      externalIssue: {
+        id: `${at.repositoryId}/${kind}/${n}`,
+        title,
+        description: 'Synthetic',
+        url,
+        state: 'open',
+        syncedAt: Date.now(),
+        repositoryId: at.repositoryId,
+        number: n,
+      },
+    };
+  };
   // The stand-in tracker, behind the same door the sync reads GitHub
   // through: the listing pages by an offset cursor, the refresh answers its
-  // report.
+  // report. Its security alerts answer every alert of the kinds asked for,
+  // and their refresh each alert it is handed.
   const runConnector = async (args: {
     action: string;
     input: unknown;
   }): Promise<ConnectorDispatchResult> => {
+    if (args.action === 'list_import_alerts') {
+      const input = alertCallInput.parse(args.input);
+      const at = repositories.get(input.repo);
+      if (at === undefined)
+        throw new Error(`no synthetic repository ${input.repo}`);
+      calls.push({ action: args.action, repo: input.repo });
+      return ok({
+        issues: input.alerts.flatMap((kind) =>
+          Array.from({ length: at.total }, (_, n) =>
+            alert(input.repo, at, kind, n + 1),
+          ),
+        ),
+        truncated: false,
+        nextCursor: null,
+        repositoryId: at.repositoryId,
+        repository: `${owner}/${input.repo}`,
+      });
+    }
+    if (args.action === 'refresh_import_alerts') {
+      const input = callInput.parse(args.input);
+      const refreshed = (input.issues ?? []).map((linked) => {
+        const [, repo = '', kind = '', number = '0'] =
+          /\/([^/]+)\/([a-z-]+)#(\d+)$/.exec(linked.externalId) ?? [];
+        const at = [...repositories.entries()].find(
+          ([name]) => name.toLowerCase() === repo,
+        );
+        if (at === undefined) throw new Error(`no synthetic ${repo}`);
+        return alert(at[0], at[1], kind, Number(number));
+      });
+      calls.push({
+        action: args.action,
+        repo: 'alert-refresh',
+        ids: (input.issues ?? []).map((linked) => linked.externalId),
+      });
+      return ok({
+        issues: refreshed,
+        failed: [],
+        notRead: 0,
+        retryAfter: null,
+      });
+    }
     const input = callInput.parse(args.input);
     if (args.action === 'list_import_issues') {
       const repo = input.repo ?? '';
@@ -206,7 +282,9 @@ export async function checkIssueSync(
       const offset = at0.offset;
       const end = Math.min(offset + (input.limit ?? 100), at.total);
       const issues = [];
-      for (let n = offset + 1; n <= end; n++) issues.push(issue(repo, at, n));
+      const first = input.type === 'pulls' ? 100 : 0;
+      for (let n = offset + 1; n <= end; n++)
+        issues.push(issue(repo, at, first + n));
       return ok({
         issues,
         truncated: end < at.total,
@@ -625,6 +703,121 @@ export async function checkIssueSync(
     'issue sync: a save that carries no wait keeps the wait a rate limit stored',
     keptSave.saved && keptRows[0]?.retryAfter === kept,
     `saved=${keptSave.saved}, kept=${keptRows[0]?.retryAfter}, expected=${kept}`,
+  );
+
+  // 13. A repository's issues and its pull requests keep tasks of their
+  // own: each source reads again only its own kind, and the pull request
+  // source's task labels go to the tasks it creates, never again.
+  repository('kinds', 2);
+  const kindsSources = [
+    { kind: 'github' as const, owner, repo: 'kinds' },
+    {
+      kind: 'github' as const,
+      owner,
+      repo: 'kinds',
+      type: 'pulls' as const,
+      taskLabels: ['source:renovate'],
+    },
+  ];
+  const kindsSync = () =>
+    store.syncIssues({
+      organizationId: orgId,
+      caller,
+      projectId,
+      sources: kindsSources,
+      limit: 10,
+      refreshLimit: 10,
+    });
+  await kindsSync();
+  const labelled = await sql<{ externalId: string; labels: string[] }[]>`
+    SELECT t.external_id AS "externalId",
+           ARRAY(SELECT l.name FROM app.task_labels l
+                 WHERE l.id = ANY(t.label_ids) ORDER BY l.name) AS labels
+    FROM app.tasks t
+    WHERE t.org_id = ${orgId} AND t.project_id = ${projectId}
+      AND t.external_system = 'github'
+      AND t.external_id LIKE ${`${owner}/kinds#%`.toLowerCase()}
+  `;
+  // A label taken off a task the sync made stays off.
+  await sql`
+    UPDATE app.tasks SET label_ids = '{}'
+    WHERE org_id = ${orgId} AND project_id = ${projectId}
+      AND external_id = ${`${owner}/kinds#101`.toLowerCase()}
+  `;
+  const kindsFrom = calls.length;
+  await kindsSync();
+  const kindRefreshes = calls
+    .slice(kindsFrom)
+    .filter((call) => call.repo === 'refresh')
+    .map((call) =>
+      (call.ids ?? [])
+        .map((id) => Number(id.split('#')[1]))
+        .sort((a, b) => a - b)
+        .join(','),
+    );
+  const relabelled = await sql<{ labels: string[] }[]>`
+    SELECT label_ids AS labels FROM app.tasks
+    WHERE org_id = ${orgId} AND project_id = ${projectId}
+      AND external_id = ${`${owner}/kinds#101`.toLowerCase()}
+  `;
+  record(
+    'issue sync: a repository’s issues and pull requests keep their own tasks, and a source’s task labels go only to the tasks it creates',
+    labelled
+      .map((row) => ({
+        number: Number(row.externalId.split('#')[1]),
+        labels: row.labels.join('+'),
+      }))
+      .sort((a, b) => a.number - b.number)
+      .map((row) => `${row.number}:${row.labels}`)
+      .join(',') === '1:,2:,101:source:renovate,102:source:renovate' &&
+      kindRefreshes.join('|') === '1,2|101,102' &&
+      relabelled[0]?.labels.length === 0,
+    JSON.stringify({ labelled, kindRefreshes, relabelled }),
+  );
+
+  // 14. Two security sources of one repository, each read through its own
+  // connection, read again only the alerts of their own kinds.
+  repository('alerts', 2);
+  const alertSync = () =>
+    store.syncIssues({
+      organizationId: orgId,
+      caller,
+      projectId,
+      sources: [
+        {
+          kind: 'github-security' as const,
+          owner,
+          repo: 'alerts',
+          alerts: ['code-scanning' as const],
+        },
+        {
+          kind: 'github-security' as const,
+          owner,
+          repo: 'alerts',
+          alerts: ['secret-scanning' as const, 'dependabot' as const],
+        },
+      ],
+      limit: 10,
+      refreshLimit: 10,
+    });
+  const firstAlerts = await alertSync();
+  const alertsFrom = calls.length;
+  await alertSync();
+  const alertRefreshes = calls
+    .slice(alertsFrom)
+    .filter((call) => call.repo === 'alert-refresh')
+    .map((call) =>
+      (call.ids ?? [])
+        .map((id) => id.split('/').at(-1) ?? '')
+        .sort()
+        .join(','),
+    );
+  record(
+    'issue sync: two security sources of one repository read again only the alerts of their own kinds',
+    firstAlerts.created === 6 &&
+      alertRefreshes.join('|') ===
+        'code-scanning#1,code-scanning#2|dependabot#1,dependabot#2,secret-scanning#1,secret-scanning#2',
+    JSON.stringify({ created: firstAlerts.created, alertRefreshes }),
   );
 
   // 9. An archived project stops the step before any tracker is read.

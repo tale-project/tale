@@ -8,8 +8,9 @@ import type { TransactionSql } from 'postgres';
  * run, from where the last saved batch stopped, until the listing is
  * drained; the run after that starts the next pass. The schedule is the
  * clock; this module only remembers the position. One row per organization,
- * project, source adapter (`github`, `glitchtip`, any slug a new adapter
- * brings) and source name (`owner/repo`).
+ * project, source adapter (`github`, `github-security`, `forgejo`,
+ * `glitchtip`, any slug a new adapter brings) and source name
+ * (`owner/repo`).
  *
  * Two kinds of caller share the rows. The `task.sync_issues` step reads a
  * position without counting anything ({@link readSyncPosition}), and counts
@@ -48,7 +49,7 @@ export interface ImportCursorKey {
   organizationId: string;
   projectId: string;
   /** The source adapter's slug — the tracker's name on the tasks it makes
-   * (`github`, `glitchtip`). */
+   * (`github`, `github-security`, `forgejo`, `glitchtip`). */
   externalSystem: string;
   /** The caller's name for the listing, such as `owner/repo`. */
   source: string;

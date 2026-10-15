@@ -1,4 +1,5 @@
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
+import { isIssueTrackerSystem } from '@tale/shared/schemas/task-external-issue';
 import {
   externalStatusDecisionSchema,
   externalStatusRequestValues,
@@ -346,7 +347,7 @@ export async function requestExternalTaskStatus(
     task.externalSystem === null ||
     task.externalId === null ||
     task.externalIssue != null ||
-    ['github', 'glitchtip'].includes(task.externalSystem.toLowerCase())
+    isIssueTrackerSystem(task.externalSystem.toLowerCase())
   )
     throw new TaskError(
       'TASK_EXTERNAL_REF_INVALID',
@@ -455,8 +456,7 @@ export async function projectExternalTaskStatus(
   if (
     task.externalSystem !== input.externalSystem ||
     task.externalId !== input.externalId ||
-    input.externalSystem.toLowerCase() === 'github' ||
-    input.externalSystem.toLowerCase() === 'glitchtip' ||
+    isIssueTrackerSystem(input.externalSystem.toLowerCase()) ||
     task.externalIssue != null
   ) {
     throw new TaskError(

@@ -3,6 +3,7 @@ import { Webhook } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { describe, expect, it } from 'vitest';
 
+import { ForgejoIcon } from '../../icons/forgejo-icon';
 import { GithubIcon } from '../../icons/github-icon';
 import { GlitchTipIcon } from '../../icons/glitchtip-icon';
 import { GmailIcon } from '../../icons/gmail-icon';
@@ -24,6 +25,7 @@ const EXPECTED: {
 }[] = [
   { brand: 'github', Mark: GithubIcon },
   { brand: 'glitchtip', Mark: GlitchTipIcon },
+  { brand: 'forgejo', Mark: ForgejoIcon },
   { brand: 'gmail', Mark: GmailIcon },
   { brand: 'outlook', Mark: OutlookIcon },
   { brand: 'imap-smtp', Mark: MailServerIcon },
@@ -73,6 +75,16 @@ describe('BrandIcon', () => {
     expect(container.querySelector('g')).toHaveClass(
       'stroke-[#681C89]',
       'dark:stroke-[#C79BE0]',
+    );
+  });
+
+  it('draws Forgejo in an orange a dark tile still shows', () => {
+    // The light tile takes the darker orange, the dark muted tile the
+    // lighter one of the same hue (WCAG 1.4.11).
+    const { container } = render(<BrandIcon brand="forgejo" />);
+    expect(container.querySelector('g')).toHaveClass(
+      'stroke-[#C2410C]',
+      'dark:stroke-[#FDBA74]',
     );
   });
 

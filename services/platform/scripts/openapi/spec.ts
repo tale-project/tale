@@ -4756,7 +4756,8 @@ export function buildSpec(): Json {
             enum: ['open', 'closed'],
             description:
               'The source item’s lifecycle (default `open`). For externalSystem ' +
-              '`github` or `glitchtip`, this field never changes Tale status: new ' +
+              '`github`, `github-security`, `forgejo` or `glitchtip` (the ' +
+              'trackers the issue sync reads), this field never changes Tale status: new ' +
               'tasks enter `backlog`, and local progress stays authoritative on ' +
               'every repeat. Issue import automations show source status separately. ' +
               'For other source systems, `closed` parks ' +

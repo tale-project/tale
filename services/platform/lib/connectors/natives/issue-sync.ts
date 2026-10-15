@@ -1,7 +1,9 @@
 /**
  * The issue sync — one platform step that keeps a project's tasks in step
- * with a list of issue sources (GitHub repositories, GlitchTip projects, any
- * tracker a source adapter is written for). Per source, on every run:
+ * with a list of issue sources (a GitHub repository's issues, pull requests
+ * or security alerts, a Forgejo repository's issues or pull requests, a
+ * GlitchTip project's issues, any tracker a source adapter is written for).
+ * Per source, on every run:
  *
  *  1. read where the source's pass stands (the sync position store);
  *  2. read the next bounded batch of open issues from there;
@@ -15,9 +17,13 @@
  * refused never rolls back the rest. A tracker that rate-limits the sync
  * stops that source for the run, keeps what was done, and its wait is
  * honoured by the runs after. A position whose cursor belongs to another
- * filter starts its pass over at once. The step fails only when every source
- * failed, so a schedule's failure streak and its notifications speak for a
- * sync that is broken, not for one tracker that is down.
+ * filter starts its pass over at once. By default the step fails only when
+ * every source failed, so a schedule's failure streak and its notifications
+ * speak for a sync that is broken, not for one tracker that is down; a step
+ * that asks (`failOn: any`) fails as soon as one source did, for a schedule
+ * that should count one dead source. A task a source creates can be given
+ * labels of the source's own (`taskLabels`), so a shared board shows where
+ * it came from.
  *
  * Pure orchestration: the trackers are read through the connector door, the
  * positions and the tasks through the task domain, all injected — the unit
@@ -27,20 +33,36 @@
 import { createHash } from 'node:crypto';
 
 import {
+  ISSUE_TRACKER_SYSTEMS,
+  ISSUE_TRACKERS,
   taskExternalIssueSchema,
+  type IssueTrackerSystem,
   type TaskExternalIssue,
 } from '@tale/shared/schemas/task-external-issue';
 import { z } from 'zod';
 
+import {
+  TASK_LABEL_CHARS_MAX,
+  taskLabelNameRefusal,
+} from '../../../backend/core/tasks/helpers';
 import type { FailureCause } from '../../engine/core/record/failure';
 import { ConnectorError } from '../errors';
 import {
+  GITHUB_LOGIN,
   IssueCursorError,
   issueSourceFailure,
+  itemTypeSchema,
+  nameList,
   type ImportedIssue,
   type IssueRefreshReport,
   type IssueSourceErrorCode,
 } from './issue-import';
+import {
+  SECURITY_ALERT_KINDS,
+  SECURITY_SEVERITIES,
+  securityToolName,
+  type SecurityAlertKind,
+} from './issue-import-alerts';
 
 // ------------------------------------------------------------------ sources
 
@@ -50,20 +72,93 @@ import {
  * empty answer for a person who has one connection. */
 const credential = z.string().trim().max(200).optional();
 
+/** The labels a task the source creates is given, so a board shared by
+ * several sources shows where each task came from (`source:glitchtip`,
+ * `repo:ops`). Distinct from a tracker's `labels`, which narrows what is
+ * read. A task the sync made before keeps the labels it has. */
+const taskLabels = z
+  .array(
+    z
+      .string()
+      .trim()
+      .refine((name) => taskLabelNameRefusal(name) === null, {
+        message: `is a label name of 1 to ${TASK_LABEL_CHARS_MAX} UTF-16 code units`,
+      }),
+  )
+  .max(10)
+  .optional();
+
+/** Who opened an item, or empty for anyone (a template's blank answer). */
+const author = (login: RegExp) =>
+  z
+    .string()
+    .trim()
+    .max(100)
+    .refine((value) => value === '' || login.test(value), {
+      message: 'is not a user name',
+    })
+    .optional();
+
+const githubOwner = z
+  .string()
+  .regex(/^[A-Za-z0-9-]+$/)
+  .max(99);
+const githubRepo = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]+$/)
+  .max(100);
+
 const githubSourceSchema = z
   .object({
     kind: z.literal('github'),
     // The position's name is `owner/repo`, at most 200 characters.
-    owner: z
-      .string()
-      .regex(/^[A-Za-z0-9-]+$/)
-      .max(99),
-    repo: z
-      .string()
-      .regex(/^[A-Za-z0-9_.-]+$/)
-      .max(100),
+    owner: githubOwner,
+    repo: githubRepo,
+    /** Issues (the default) or pull requests. */
+    type: itemTypeSchema.optional(),
     labels: z.string().max(1000).optional(),
+    /** Only the items this login opened — `renovate[bot]` for Renovate's
+     * pull requests. */
+    author: author(GITHUB_LOGIN),
     credential,
+    taskLabels,
+  })
+  .strict();
+
+const githubSecuritySourceSchema = z
+  .object({
+    kind: z.literal('github-security'),
+    owner: githubOwner,
+    repo: githubRepo,
+    alerts: z
+      .array(z.enum(SECURITY_ALERT_KINDS))
+      .min(1)
+      .max(SECURITY_ALERT_KINDS.length)
+      .refine((kinds) => new Set(kinds).size === kinds.length, {
+        message: 'names a kind of alert twice',
+      }),
+    /** Only alerts at or above this severity. */
+    minSeverity: z.enum(SECURITY_SEVERITIES).optional(),
+    /** Only code scanning alerts from these tools (`CodeQL`, `Trivy`),
+     * named as the listing takes them. */
+    tools: z.array(securityToolName).max(10).optional(),
+    credential,
+    taskLabels,
+  })
+  .strict();
+
+const forgejoName = /^[A-Za-z0-9_.-]+$/;
+
+const forgejoSourceSchema = z
+  .object({
+    kind: z.literal('forgejo'),
+    owner: z.string().regex(forgejoName).max(99),
+    repo: z.string().regex(forgejoName).max(100),
+    type: itemTypeSchema.optional(),
+    labels: z.string().max(1000).optional(),
+    author: author(forgejoName),
+    credential,
+    taskLabels,
   })
   .strict();
 
@@ -80,20 +175,41 @@ const glitchtipSourceSchema = z
       .max(99),
     query: z.string().max(2000).optional(),
     credential,
+    taskLabels,
   })
   .strict();
 
 type GithubSource = z.infer<typeof githubSourceSchema>;
+type GithubSecuritySource = z.infer<typeof githubSecuritySourceSchema>;
+type ForgejoSource = z.infer<typeof forgejoSourceSchema>;
 type GlitchtipSource = z.infer<typeof glitchtipSourceSchema>;
-export type IssueSource = GithubSource | GlitchtipSource;
+export type IssueSource =
+  | GithubSource
+  | GithubSecuritySource
+  | ForgejoSource
+  | GlitchtipSource;
+
+/** The kinds of source the step reads. */
+const ISSUE_SOURCE_KINDS = [
+  'github',
+  'github-security',
+  'forgejo',
+  'glitchtip',
+] as const satisfies readonly IssueSource['kind'][];
 
 /** Where a source's linked tasks are, as the task domain looks them up. */
 export interface LinkedIssueQuery {
-  externalSystem: 'github' | 'glitchtip';
+  externalSystem: IssueTrackerSystem;
   repositoryId?: number;
   sourceOrigin?: string;
   sourceProjectId?: string;
   legacyPrefixes?: string[];
+  /** Only a code host's issues, or only its pull requests; every task of
+   * the listing when left out. */
+  itemKind?: 'issues' | 'pulls';
+  /** Only the alerts of these kinds; every alert of the repository when
+   * left out. */
+  alertKinds?: SecurityAlertKind[];
 }
 
 /** One batch as the sync reads a listing's answer. */
@@ -108,14 +224,19 @@ interface ListedBatch {
 
 /**
  * What the sync needs to know about one kind of tracker. A new tracker is
- * one adapter here, beside its connector's `list_import_issues` and
- * `refresh_import_issues` actions.
+ * one adapter here, beside its connector's listing and refresh actions.
  */
 interface IssueSourceAdapter<S extends IssueSource> {
   readonly kind: S['kind'];
-  /** The connector that reads the tracker; also the tracker's name on the
-   * tasks and positions the sync writes. */
-  readonly connector: 'github' | 'glitchtip';
+  /** The connector that reads the tracker. */
+  readonly connector: 'github' | 'glitchtip' | 'forgejo';
+  /** The tracker's name on the tasks and positions the sync writes — the
+   * connector's, unless one connector reads two trackers (GitHub's issues
+   * and its security alerts). */
+  readonly system: IssueTrackerSystem;
+  /** The connector's actions that list the open items, and read linked
+   * ones again. */
+  readonly actions: { list: string; refresh: string };
   /** The source's name — `owner/repo`, `organization/project` — the name
    * the hand-built chains gave its position, so a pass they started carries
    * on. */
@@ -135,7 +256,7 @@ interface IssueSourceAdapter<S extends IssueSource> {
 
 const importedIssueSchema = z
   .object({
-    externalSystem: z.enum(['github', 'glitchtip']),
+    externalSystem: z.enum(ISSUE_TRACKER_SYSTEMS),
     externalId: z.string().min(1).max(2000),
     externalUrl: z.string().min(1).max(4000),
     title: z.string().min(1),
@@ -149,6 +270,9 @@ const listingSchema = z
     issues: z.array(importedIssueSchema).max(500),
     nextCursor: z.string().min(1).max(12000).nullable(),
     repositoryId: z.number().int().positive().safe().optional(),
+    /** The repository's current `owner/name`, as a listing that refreshes
+     * by name answers it. */
+    repository: z.string().min(3).max(201).optional(),
     sourceOrigin: z.string().min(1).optional(),
     sourceProjectId: z.string().min(1).optional(),
     legacyPrefixes: z.array(z.string().min(1).max(4000)).max(2).optional(),
@@ -157,19 +281,37 @@ const listingSchema = z
 
 type Listing = z.infer<typeof listingSchema>;
 
-/** A label filter as GitHub reads it: names separated by commas, each
- * trimmed, blanks and repeats dropped, in one order — GitHub wants every
- * label named, so `ui, bug` and `bug,ui,bug` are the one filter `bug,ui`. */
+/** A label filter as GitHub reads it: every label named, written one way. */
 function githubLabels(labels: string | undefined): string | undefined {
-  const names = [
-    ...new Set(
-      (labels ?? '')
-        .split(',')
-        .map((name) => name.trim())
-        .filter((name) => name !== ''),
-    ),
-  ].sort();
+  const names = nameList(labels);
   return names.length === 0 ? undefined : names.join(',');
+}
+
+/** An author as the listing reads it — logins are compared without regard
+ * to case — or none. */
+function authorOf(value: string | undefined): string | undefined {
+  const login = (value ?? '').trim().toLowerCase();
+  return login === '' ? undefined : login;
+}
+
+/**
+ * The filter a code host's listing is read under. Its open issues narrowed
+ * by labels alone keep the label list a hand-built chain and the sync before
+ * pull requests used, so their positions carry on; pull requests and an
+ * author add their own words.
+ */
+function codeHostFilter(
+  source: GithubSource | ForgejoSource,
+): string | undefined {
+  const labels = githubLabels(source.labels);
+  const login = authorOf(source.author);
+  if ((source.type ?? 'issues') === 'issues' && login === undefined)
+    return labels;
+  return [
+    source.type === 'pulls' ? 'is:pr' : 'is:issue',
+    ...(labels !== undefined ? [`label:${labels}`] : []),
+    ...(login !== undefined ? [`author:${login}`] : []),
+  ].join(' ');
 }
 
 /** A GlitchTip search as the listing reads it: trimmed, and none when it
@@ -186,28 +328,45 @@ function missingIdentity(field: string): never {
   );
 }
 
+/** The listing input a code host's issue or pull request source sends. */
+function codeHostListInput(
+  source: GithubSource | ForgejoSource,
+  batch: { cursor: string; limit: number },
+): Record<string, unknown> {
+  const labels = githubLabels(source.labels);
+  const login = authorOf(source.author);
+  return {
+    owner: source.owner,
+    repo: source.repo,
+    ...(source.type === 'pulls' && { type: 'pulls' }),
+    ...(labels !== undefined && { labels }),
+    ...(login !== undefined && { author: login }),
+    limit: batch.limit,
+    ...(batch.cursor !== '' && { cursor: batch.cursor }),
+  };
+}
+
+const ISSUE_ACTIONS = {
+  list: 'list_import_issues',
+  refresh: 'refresh_import_issues',
+} as const;
+
 const githubAdapter: IssueSourceAdapter<GithubSource> = {
   kind: 'github',
   connector: 'github',
+  system: 'github',
+  actions: ISSUE_ACTIONS,
   name: (source) => `${source.owner}/${source.repo}`,
-  filter: (source) => githubLabels(source.labels),
-  listInput: (source, batch) => {
-    const labels = githubLabels(source.labels);
-    return {
-      owner: source.owner,
-      repo: source.repo,
-      ...(labels !== undefined && { labels }),
-      limit: batch.limit,
-      ...(batch.cursor !== '' && { cursor: batch.cursor }),
-    };
-  },
-  listed: (_source, output) => {
+  filter: codeHostFilter,
+  listInput: codeHostListInput,
+  listed: (source, output) => {
     const repositoryId =
       output.repositoryId ?? missingIdentity('repository id');
     return {
       linked: {
         externalSystem: 'github',
         repositoryId,
+        itemKind: source.type ?? 'issues',
         ...(output.legacyPrefixes !== undefined && {
           legacyPrefixes: output.legacyPrefixes,
         }),
@@ -217,9 +376,81 @@ const githubAdapter: IssueSourceAdapter<GithubSource> = {
   },
 };
 
+const githubSecurityAdapter: IssueSourceAdapter<GithubSecuritySource> = {
+  kind: 'github-security',
+  connector: 'github',
+  system: 'github-security',
+  actions: { list: 'list_import_alerts', refresh: 'refresh_import_alerts' },
+  name: (source) => `${source.owner}/${source.repo}`,
+  filter: (source) =>
+    [
+      `alerts:${nameList(source.alerts).join(',')}`,
+      ...(source.minSeverity !== undefined
+        ? [`severity:${source.minSeverity}`]
+        : []),
+      ...(nameList(source.tools).length > 0
+        ? [`tools:${nameList(source.tools).join(',')}`]
+        : []),
+    ].join(' '),
+  listInput: (source, batch) => ({
+    owner: source.owner,
+    repo: source.repo,
+    alerts: nameList(source.alerts),
+    ...(source.minSeverity !== undefined && {
+      minSeverity: source.minSeverity,
+    }),
+    ...(nameList(source.tools).length > 0 && {
+      tools: nameList(source.tools),
+    }),
+    limit: batch.limit,
+    ...(batch.cursor !== '' && { cursor: batch.cursor }),
+  }),
+  listed: (source, output) => {
+    const repositoryId =
+      output.repositoryId ?? missingIdentity('repository id');
+    const repository = output.repository ?? missingIdentity('repository');
+    return {
+      // Only the kinds the source reads: another source's alerts of the
+      // repository are read again through its own connection.
+      linked: {
+        externalSystem: 'github-security',
+        repositoryId,
+        alertKinds: [...source.alerts].sort(),
+      },
+      refreshInput: { repositoryId, repository },
+    };
+  },
+};
+
+const forgejoAdapter: IssueSourceAdapter<ForgejoSource> = {
+  kind: 'forgejo',
+  connector: 'forgejo',
+  system: 'forgejo',
+  actions: ISSUE_ACTIONS,
+  name: (source) => `${source.owner}/${source.repo}`,
+  filter: codeHostFilter,
+  listInput: codeHostListInput,
+  listed: (source, output) => {
+    const repositoryId =
+      output.repositoryId ?? missingIdentity('repository id');
+    const sourceOrigin = output.sourceOrigin ?? missingIdentity('instance');
+    return {
+      linked: {
+        externalSystem: 'forgejo',
+        repositoryId,
+        sourceOrigin,
+        itemKind: source.type ?? 'issues',
+      },
+      refreshInput: { repositoryId },
+    };
+  },
+};
+
 const glitchtipAdapter: IssueSourceAdapter<GlitchtipSource> = {
   kind: 'glitchtip',
   connector: 'glitchtip',
+  system: 'glitchtip',
+  actions: ISSUE_ACTIONS,
   name: (source) => `${source.organization}/${source.project}`,
   filter: (source) => glitchtipQuery(source.query),
   listInput: (source, batch) => {
@@ -250,27 +481,59 @@ const glitchtipAdapter: IssueSourceAdapter<GlitchtipSource> = {
   },
 };
 
+const ADAPTERS: {
+  [K in IssueSource['kind']]: IssueSourceAdapter<
+    Extract<IssueSource, { kind: K }>
+  >;
+} = {
+  github: githubAdapter,
+  'github-security': githubSecurityAdapter,
+  forgejo: forgejoAdapter,
+  glitchtip: glitchtipAdapter,
+};
+
+function isSourceKind(kind: string): kind is IssueSource['kind'] {
+  return (ISSUE_SOURCE_KINDS as readonly string[]).includes(kind);
+}
+
 /** The adapter for a source's kind. */
 function adapterFor(source: IssueSource): IssueSourceAdapter<IssueSource> {
-  return source.kind === 'github' ? githubAdapter : glitchtipAdapter;
+  return ADAPTERS[source.kind];
 }
 
 /** The longest name a position takes (the store's own limit). */
 const POSITION_KEY_MAX = 200;
 
+/** The stored connection a source names, or undefined for the
+ * organization's default one. */
+function connectionOf(source: IssueSource): string | undefined {
+  return source.credential === undefined || source.credential === ''
+    ? undefined
+    : source.credential;
+}
+
 /**
  * The name a source's position is kept under: the source's own name, and
- * — when a filter narrows its listing — a digest of the filter. Two syncs
- * of one repository under two filters keep two passes instead of starting
- * each other's over, and a source without a filter keeps the plain name a
- * hand-built chain uses.
+ * — when a filter narrows its listing, or the source names the connection
+ * of a tracker whose connections each name an instance — a digest of
+ * both. Two syncs of one repository under two filters, or on two
+ * instances, keep two passes instead of starting each other's over; a
+ * source with neither keeps the plain name a hand-built chain uses, and a
+ * filter alone keeps the digest it always had.
  */
 function positionKey(source: IssueSource): string {
   const adapter = adapterFor(source);
   const name = adapter.name(source);
   const filter = adapter.filter(source);
-  if (filter === undefined) return name;
-  const digest = createHash('sha256').update(filter).digest('hex').slice(0, 12);
+  const instance = ISSUE_TRACKERS[adapter.system].perInstance
+    ? connectionOf(source)
+    : undefined;
+  const scope =
+    instance === undefined
+      ? filter
+      : JSON.stringify({ filter: filter ?? null, connection: instance });
+  if (scope === undefined) return name;
+  const digest = createHash('sha256').update(scope).digest('hex').slice(0, 12);
   return `${name}~${digest}`;
 }
 
@@ -289,6 +552,8 @@ export const issueSyncInputSchema = z
       .array(
         z.discriminatedUnion('kind', [
           githubSourceSchema,
+          githubSecuritySourceSchema,
+          forgejoSourceSchema,
           glitchtipSourceSchema,
         ]),
       )
@@ -299,6 +564,11 @@ export const issueSyncInputSchema = z
     /** Linked tasks refreshed per source and run, the longest-unchecked
      * first; 0 refreshes none. */
     refreshLimit: z.number().int().min(0).max(ISSUE_SYNC_MAX_BATCH).default(50),
+    /** When the step fails: `all` (the default) only when every source
+     * failed, `any` as soon as one did — so a schedule counts one dead
+     * source as a failed run. A source waiting out a rate limit has not
+     * failed either way. */
+    failOn: z.enum(['all', 'any']).optional(),
   })
   .strict()
   .superRefine((input, ctx) => {
@@ -312,11 +582,14 @@ export const issueSyncInputSchema = z
           path: ['sources', at],
         });
       }
-      const name = `${source.kind}:${key.toLowerCase()}`;
+      const system = adapterFor(source).system;
+      const name = `${system}:${key.toLowerCase()}`;
       if (seen.has(name)) {
         ctx.addIssue({
           code: 'custom',
-          message: 'names a source the list already has, under the same filter',
+          message: ISSUE_TRACKERS[system].perInstance
+            ? 'names a source the list already has, under the same filter and connection'
+            : 'names a source the list already has, under the same filter',
           path: ['sources', at],
         });
       }
@@ -482,8 +755,12 @@ export interface IssueSyncDeps {
   linked(
     query: LinkedIssueQuery & { limit: number },
   ): Promise<{ issues: LinkedIssue[]; hasMore: boolean }>;
-  /** Write one issue into its task, in a transaction of its own. */
-  write(issue: ImportedIssue): Promise<IssueWrite>;
+  /** Write one issue into its task, in a transaction of its own; a task
+   * the write creates is given `labels`. */
+  write(
+    issue: ImportedIssue,
+    options?: { labels?: string[] },
+  ): Promise<IssueWrite>;
   now(): number;
   /** The step's stop: the server is shutting down. */
   signal?: AbortSignal;
@@ -599,7 +876,7 @@ async function syncSource(
 ): Promise<IssueSourceReceipt> {
   const adapter = adapterFor(source);
   const key: SyncPositionKey = {
-    externalSystem: adapter.connector,
+    externalSystem: adapter.system,
     source: positionKey(source),
   };
   const filter = adapter.filter(source);
@@ -607,10 +884,7 @@ async function syncSource(
     ...emptyReceipt(source.kind, adapter.name(source)),
     ...(filter !== undefined && { filter }),
   };
-  const connection =
-    source.credential === undefined || source.credential === ''
-      ? undefined
-      : source.credential;
+  const connection = connectionOf(source);
   const fail = (failure: {
     error: IssueSyncErrorCode;
     message: string;
@@ -643,14 +917,14 @@ async function syncSource(
   const list = async (cursor: string): Promise<ListedBatch> => {
     const output = await deps.call({
       connector: adapter.connector,
-      action: 'list_import_issues',
+      action: adapter.actions.list,
       input: adapter.listInput(source, { cursor, limit: limits.limit }),
       ...(connection !== undefined && { credential: connection }),
     });
     const parsed = listingSchema.safeParse(output);
     if (!parsed.success) {
       throw invalidAnswer(
-        `${adapter.connector}.list_import_issues`,
+        `${adapter.connector}.${adapter.actions.list}`,
         parsed.error,
       );
     }
@@ -737,7 +1011,7 @@ async function syncSource(
       try {
         const output = await deps.call({
           connector: adapter.connector,
-          action: 'refresh_import_issues',
+          action: adapter.actions.refresh,
           input: {
             issues: linked.issues.map((issue) => ({
               externalId: issue.externalId,
@@ -753,7 +1027,7 @@ async function syncSource(
         const parsed = refreshReportSchema.safeParse(output);
         if (!parsed.success) {
           throw invalidAnswer(
-            `${adapter.connector}.refresh_import_issues`,
+            `${adapter.connector}.${adapter.actions.refresh}`,
             parsed.error,
           );
         }
@@ -793,9 +1067,13 @@ async function syncSource(
     written.add(id);
     return true;
   });
+  const labels =
+    source.taskLabels !== undefined && source.taskLabels.length > 0
+      ? { labels: source.taskLabels }
+      : undefined;
   for (const issue of items) {
     throwIfStopped(deps.signal);
-    const result = await deps.write(issue);
+    const result = await deps.write(issue, labels);
     if (!result.ok) {
       skip(issue.externalId, result.reason);
       continue;
@@ -836,7 +1114,44 @@ async function syncSource(
   };
 }
 
-/** The step's failure when every source failed: the cause they share, in
+/** The receipts of the sources that failed: refused or broken, not waiting
+ * out a rate limit. */
+export function failedSources(
+  receipts: readonly IssueSourceReceipt[],
+): IssueSourceReceipt[] {
+  return receipts.filter(
+    (receipt) => !receipt.ok && receipt.error !== 'rate_limited',
+  );
+}
+
+/** Whether the step fails: when every source failed, or — asked to fail on
+ * `any` — when one did. */
+export function issueSyncFails(
+  result: IssueSyncResult,
+  failOn: 'all' | 'any' = 'all',
+): boolean {
+  return failOn === 'any'
+    ? result.failed > 0
+    : result.failed === result.sources.length;
+}
+
+/** The connector and listing action a receipt's kind of source is read
+ * with. */
+function listingOf(kind: string): { connector: string; action: string } {
+  const adapter: IssueSourceAdapter<IssueSource> | undefined = isSourceKind(
+    kind,
+  )
+    ? ADAPTERS[kind]
+    : undefined;
+  return adapter === undefined
+    ? { connector: kind, action: `${kind}.list_import_issues` }
+    : {
+        connector: adapter.connector,
+        action: `${adapter.connector}.${adapter.actions.list}`,
+      };
+}
+
+/** The step's failure for the sources that failed: the cause they share, in
  * the words of the listing that failed, or a connector failure naming each
  * source. */
 export function issueSyncFailure(receipts: IssueSourceReceipt[]): FailureCause {
@@ -848,9 +1163,9 @@ export function issueSyncFailure(receipts: IssueSourceReceipt[]): FailureCause {
     ? first?.kind
     : undefined;
   // One tracker: its listing failed. Several: the step itself.
-  const connector = kind ?? 'task';
-  const action =
-    kind === undefined ? 'task.sync_issues' : `${kind}.list_import_issues`;
+  const listing = kind === undefined ? undefined : listingOf(kind);
+  const connector = listing?.connector ?? 'task';
+  const action = listing?.action ?? 'task.sync_issues';
   const status = receipts.find(
     (receipt) => receipt.status !== undefined,
   )?.status;
@@ -909,9 +1224,7 @@ export async function syncIssueSources(
     }, 0);
   return {
     sources: receipts,
-    failed: receipts.filter(
-      (receipt) => !receipt.ok && receipt.error !== 'rate_limited',
-    ).length,
+    failed: failedSources(receipts).length,
     rateLimited: receipts.filter((receipt) => receipt.retryAfter !== null)
       .length,
     created: total('created'),

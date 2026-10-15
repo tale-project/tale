@@ -19,11 +19,11 @@ Le connector détermine les champs. Utilise les identifiants du compte externe, 
 | Méthode | Informations nécessaires |
 | --- | --- |
 | Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. Jev decisions demande une clé API OpenRouter. |
-| Token | Un jeton du service, comme un token d’accès personnel GitHub, un token de bot Discord ou un token d’API GlitchTip avec `project:read` et `event:read`. |
+| Token | Un jeton du service, comme un token d’accès personnel GitHub, un token d’accès Forgejo avec `read:repository` et `read:issue` (`write:issue` pour modifier des issues), un token de bot Discord ou un token d’API GlitchTip avec `project:read` et `event:read`. Un token GitHub qui synchronise des alertes de sécurité doit aussi pouvoir lire les alertes de code scanning, Dependabot et secret scanning du dépôt. |
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 
-Certains connectors demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique des hôtes du connector. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
+Certains connectors demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour Forgejo, utilise l’origine de l’instance sans chemin, par exemple `https://codeberg.org`, et pour GlitchTip l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance Forgejo ou GlitchTip auto-hébergée doit aussi être autorisée par la politique des hôtes du connector. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
 ## Choisir les identifiants par défaut
 

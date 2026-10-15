@@ -123,13 +123,13 @@ On its schedule — weekdays at 08:00 in your time zone, unless you change it �
 
 ## Issues
 
-The issue templates read the source and write Tale tasks. They never comment on, close or change the upstream issue, and they do not start an agent.
+The issue templates read the source and write Tale tasks. They never comment on, close or change the upstream issue, pull request or alert, and they do not start an agent.
 
 ### Sync GitHub issues {#github-sync-issues}
 
 Keeps a project's tasks in step with the open issues of a GitHub repository, one batch every run, every 15 minutes to start with. It needs the GitHub connector with read access to the repository's issues.
 
-Each run reads the next batch of open issues from where the last run stopped, oldest first, up to **New issues per run** (100 to start with, 1–500), and makes a task in **Backlog** for each issue the project does not have yet. A large repository therefore arrives over several runs; after the last issue, the next run starts again from the first, and an issue the project already has is refreshed, never made twice. **Only issues with these labels** narrows what it reads: with several labels, an issue needs all of them. Pull requests are left out.
+Each run reads the next batch of open issues from where the last run stopped, oldest first, up to **New issues per run** (100 to start with, 1–500), and makes a task in **Backlog** for each issue the project does not have yet. A large repository therefore arrives over several runs; after the last issue, the next run starts again from the first, and an issue the project already has is refreshed, never made twice. **Only issues with these labels** narrows what it reads: with several labels, an issue needs all of them. Pull requests are left out; [Sync GitHub pull requests](#github-sync-pull-requests) reads them.
 
 Each run also reads up to 50 issues imported earlier again, the longest-unchecked first, closed ones and ones that no longer match the labels included, and updates the task's source card: the title, the description and whether the issue is open or closed. The task's own title, description, status, assignee and priority stay as they are in Tale, and a task stays where it is when its issue is closed on GitHub. An issue GitHub no longer shows keeps its last known details and is marked unavailable. When it imports an issue, Tale cuts a title over 200 UTF-16 code units or a description over 20,000 (most emoji count as 2) to that length on the task, ending it in "…"; the source card and the issue keep the full text.
 
@@ -140,6 +140,22 @@ The run's output is a receipt for the repository: what it read, created, refresh
 Keeps a project's tasks in step with the unresolved issues of a GlitchTip project, one batch every run, the way [Sync GitHub issues](#github-sync-issues) does for a repository. It needs the GlitchTip connector with its instance URL and a token with `project:read` and `event:read`; a token that can only set up projects cannot read issues. A self-hosted instance must be allowed by the deployment's connector host policy.
 
 Each run reads the next batch, the first seen first, and **Search** narrows it in GlitchTip's search syntax; empty, it reads every unresolved issue. Each run also reads up to 50 issues imported earlier again and updates the task's source card: the title, the details and whether the issue is unresolved, resolved or ignored. A task stays where it is when its issue is resolved. **GlitchTip credentials** names the instance and token to read with; empty uses the default ones. Changing the search starts the next run from the first matching issue.
+
+### Sync GitHub pull requests {#github-sync-pull-requests}
+
+Keeps a project's tasks in step with the open pull requests of a GitHub repository, one batch every run, the way [Sync GitHub issues](#github-sync-issues) does for its issues. **Only pull requests opened by** narrows it to one account's pull requests: `renovate[bot]` for Renovate's dependency updates, `dependabot[bot]` for Dependabot's; empty reads everyone's. **Only pull requests with these labels** narrows it further, and a pull request needs every label named. **New pull requests per run** sets the batch (100 to start with, 1–500). Its tasks and its place in the repository are its own, so it can run beside **Sync GitHub issues** for the same repository and project without either touching the other's tasks. A task's source card shows whether the pull request is open or closed; a merged pull request reads as closed.
+
+### Sync GitHub security alerts {#github-sync-security-alerts}
+
+Keeps a project's tasks in step with the open security alerts of a GitHub repository: one task per alert, every hour to start with. Choose the kind of alert under **Alerts**: code scanning, Dependabot or secret scanning. **From severity** reads only alerts at or above it, on one scale for all three kinds: critical, high, medium, or every alert. A code scanning alert that is not a security alert counts its error as high, its warning as medium and its note as low, and a secret always counts as critical. **Only code scanning tools** reads the alerts of the tools you name as GitHub shows them, such as `CodeQL` or `Trivy`; empty reads every tool's.
+
+GitHub narrows each listing itself, so a repository with thousands of open alerts from one scanner is read only as far as the filters reach: a floor of high and the tools you act on keep the board to the alerts worth a task. Each run reads up to 100 new alerts and up to 50 alerts imported earlier again, and the source card shows an alert open, resolved (fixed, or a secret that was revoked) or ignored (dismissed). A task never shows a secret's value: the sync asks GitHub to leave it out and names only the kind of secret and where it was found. The GitHub credentials need read access to the repository's code scanning, Dependabot or secret scanning alerts, whichever you sync. To read several kinds in one automation, list them in the step's `alerts`.
+
+### Sync Forgejo issues {#forgejo-sync-issues}
+
+Keeps a project's tasks in step with the open issues, or the open pull requests, of a repository on a Forgejo instance, such as Codeberg or your own, one batch every run, the way [Sync GitHub issues](#github-sync-issues) does on GitHub. It needs the Forgejo connector with its instance URL and an access token that can read the repository and its issues; a self-hosted instance must be allowed by the deployment's connector host policy. **Sync** chooses whether it reads issues or pull requests, **Only items opened by** narrows them to one user's, such as `renovate`, and **Only items with these labels** to items carrying every label named, as on GitHub. **Forgejo credentials** names the instance and token to read with; empty uses the default ones. Each run reads up to 100 new items and up to 50 items imported earlier again.
+
+Each task links to the item on the instance its credentials name. The same repository on two instances makes two sets of tasks, and a task is read again only through credentials for its own instance.
 
 ### Triage GitHub issues {#github-triage-issues}
 

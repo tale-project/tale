@@ -5,7 +5,11 @@ import {
   RETRY_QUEUE_LOCK_CLASS,
   transactSerializable,
 } from '@tale/shared/db/serializable';
-import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
+import {
+  ISSUE_TRACKERS,
+  PULL_REQUEST_PATH,
+  taskExternalIssueSchema,
+} from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
 import type {
@@ -488,11 +492,28 @@ export function pgTaskStore(
       sourceProjectId,
       limit,
       legacyPrefixes,
+      itemKind,
+      alertKinds,
     }) {
+      const tracker = ISSUE_TRACKERS[externalSystem];
       const sourceScope =
-        externalSystem === 'github'
+        tracker.scope === 'repositoryId'
           ? repositoryId?.toString()
           : sourceProjectId;
+      // A code host's pull request links to `/pull/<n>` or `/pulls/<n>`, an
+      // issue to `/issues/<n>`; a task imported before snapshots were kept
+      // is an issue.
+      const kindMatches = (tx: TransactionSql) =>
+        itemKind === undefined
+          ? tx`TRUE`
+          : itemKind === 'pulls'
+            ? tx`(external_issue->>'url') ~ ${PULL_REQUEST_PATH.source}`
+            : tx`(external_issue->>'url') !~ ${PULL_REQUEST_PATH.source}`;
+      // A security alert's id is `<repository id>/<kind>/<number>`.
+      const alertMatches = (tx: TransactionSql) =>
+        alertKinds === undefined
+          ? tx`TRUE`
+          : tx`split_part(external_source_id, '/', 2) = ANY(${alertKinds}::text[])`;
       return sql.begin(async (tx) => {
         // Selection now writes its own attempt clock. Share the batch queue
         // so refresh bookkeeping and source upserts never lock a project's
@@ -511,10 +532,11 @@ export function pgTaskStore(
             AND external_system = ${externalSystem} AND ( (external_issue IS NOT NULL
             AND ${repositoryId === undefined ? tx`TRUE` : tx`(external_issue->>'repositoryId' = ${String(repositoryId)} OR ${String(repositoryId)} = ANY(external_issue_source_scopes))`}
             AND ${sourceProjectId === undefined ? tx`TRUE` : tx`(external_issue->>'sourceProjectId' = ${sourceProjectId} OR ${sourceProjectId} = ANY(external_issue_source_scopes))`}
-            AND ${sourceOrigin === undefined ? tx`TRUE` : tx`split_part(external_source_id, '#', 1) = ${sourceOrigin}`})
-              OR (external_issue IS NULL AND EXISTS (
+            AND ${sourceOrigin === undefined ? tx`TRUE` : tx`split_part(external_source_id, '#', 1) = ${sourceOrigin}`}
+            AND ${kindMatches(tx)} AND ${alertMatches(tx)})
+              OR (external_issue IS NULL AND ${itemKind !== 'pulls'} AND EXISTS (
                 SELECT 1 FROM unnest(${legacyPrefixes ?? []}::text[]) AS prefix
-                WHERE CASE WHEN ${externalSystem} = 'github'
+                WHERE CASE WHEN ${tracker.foldsCase}
                   THEN starts_with(lower(external_id), lower(prefix))
                   ELSE starts_with(external_id, prefix) END
               )) )
@@ -1122,7 +1144,7 @@ export function pgTaskStore(
               throw asProjectRefusal(error);
             }
           },
-          write: async (issue): Promise<IssueWrite> => {
+          write: async (issue, written): Promise<IssueWrite> => {
             const queueKey = issueImportQueueKey(organizationId, projectId);
             try {
               return await transactSerializable(sql, async (tx) => {
@@ -1158,7 +1180,12 @@ export function pgTaskStore(
                     organizationId,
                     caller,
                     scope,
-                    issue,
+                    {
+                      ...issue,
+                      ...(written?.labels !== undefined && {
+                        labels: written.labels,
+                      }),
+                    },
                   );
                   return {
                     ok: true as const,
