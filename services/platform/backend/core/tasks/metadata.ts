@@ -1,6 +1,7 @@
+import { TASK_PRIORITIES } from '@tale/shared/task-limits';
 import { z } from 'zod';
 
-export const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const;
+export { TASK_PRIORITIES } from '@tale/shared/task-limits';
 
 const id = z.string().trim().min(1).max(200);
 const priority = z.enum(TASK_PRIORITIES).nullable();

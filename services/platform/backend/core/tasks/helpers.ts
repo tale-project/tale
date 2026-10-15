@@ -8,15 +8,22 @@
  * ranks, activity) have their live twins in `domains/tasks/service.ts`.
  */
 
-import { TASK_DESCRIPTION_MAX } from '@tale/shared/task-limits';
-export { TASK_DESCRIPTION_MAX } from '@tale/shared/task-limits';
+import {
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '@tale/shared/task-limits';
+export {
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '@tale/shared/task-limits';
 
 import { parseIssueNumber, parseRepoRef } from './issue_ref';
 
-export const TASK_TITLE_MAX = 200;
 export const TASK_COMMENT_MAX = 10_000;
-export const TASK_LABELS_MAX = 50;
-export const TASK_LABEL_CHARS_MAX = 50;
 /** Files a person can hang on one task (the dialog's attachments list). */
 export const TASK_ATTACHMENTS_MAX = 50;
 
