@@ -188,6 +188,19 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
             ],
       );
     }
+    // The agent's own project, as the run's authority reads it
+    // (`dispatch-reach.ts` readAgentHome): the task's, so no other
+    // project's dispatch is consulted.
+    if (
+      text.includes('FROM app.project_agents') &&
+      text.includes('AS archived')
+    ) {
+      return Promise.resolve(
+        world.agentGone === true
+          ? []
+          : [{ projectId: 'project-1', archived: false }],
+      );
+    }
     if (text.includes('FROM app.project_agents')) {
       return Promise.resolve(
         world.agentGone === true
