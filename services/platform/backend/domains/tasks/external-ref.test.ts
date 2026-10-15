@@ -1147,7 +1147,7 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
   });
 
-  it('gives a task the sync creates its source’s labels [TASK-R62]', async () => {
+  it('gives a task the sync creates its source’s labels [TASK-R63]', async () => {
     const statements: string[] = [];
     let inserted: unknown[] = [];
     const { tx } = fakeDb((text, values) => {
@@ -1180,7 +1180,7 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     expect(inserted).toContainEqual(['label-1']);
   });
 
-  it('leaves the labels of a task the sync made before as they are [TASK-R62]', async () => {
+  it('leaves the labels of a task the sync made before as they are [TASK-R63]', async () => {
     const updates: string[] = [];
     const { tx, statements } = fakeDb((text) => {
       if (text.startsWith('UPDATE app.tasks SET')) {

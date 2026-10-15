@@ -1777,7 +1777,7 @@ output:
       card is headed `tasks.sourceIssue.headingPull` and links to
       `/pull/<n>`. Merge one Renovate pull request and run both again → its
       card reads **Closed at source** and the task stays where it was; the
-      issue sync's receipt counts no pull request (TASK-R63).
+      issue sync's receipt counts no pull request (TASK-R64).
 - [ ] `AUTO-F242` · **Use Sync GitHub security alerts on a repository with
       code scanning alerts from two tools, Code scanning, From severity High
       and one tool under Only code scanning tools** → the run makes a task
@@ -1785,27 +1785,27 @@ output:
       included) and none for the other tool or a lower severity; each card is
       headed `tasks.sourceIssue.headingAlert`. Dismiss one alert on GitHub
       and run it again → its card reads **Ignored at source**
-      (`tasks.sourceIssue.state.ignored`) (TASK-R64).
+      (`tasks.sourceIssue.state.ignored`) (TASK-R65).
 - [ ] `AUTO-F243` · **Sync secret scanning alerts on a repository with a
       test secret committed** → the alert's task names the kind of secret
       and the file and line it was found in; neither the task, its source
       card, the run's output nor its trace shows the secret's value
-      (TASK-R64).
+      (TASK-R65).
 - [ ] `AUTO-F244` · **Add a Forgejo connection to a Forgejo instance (its
       Instance URL and a token with read:repository and read:issue), then use
       Sync Forgejo issues once with Issues and once with Pull requests for
       one of its repositories** → each run makes a task per open item of
       its kind, linked to `<instance>/<owner>/<repo>/issues/<n>` or
       `…/pulls/<n>` on that instance, with the Forgejo mark on the template
-      card; the two automations never refresh each other's tasks (TASK-R63,
-      TASK-R65).
+      card; the two automations never refresh each other's tasks (TASK-R64,
+      TASK-R66).
 - [ ] `AUTO-F245` · **In the editor, give the GlitchTip source of a sync
       step `taskLabels: ['source:glitchtip']` and the step `failOn: any`,
       revoke the GitHub source's token and select Run now** → the GlitchTip
       issues become tasks wearing `source:glitchtip` (the label is added to
       the project), the run fails naming the GitHub source alone, and its
       GlitchTip receipt reads `saved: true`; remove the label from one task
-      and run again → it stays off (TASK-R61, TASK-R62).
+      and run again → it stays off (TASK-R62, TASK-R63).
 - [ ] `AUTO-F184` · **Create a new organization, open Automations, then
       run `tale migrate`** → the list is empty
       (`automations.list.empty.title`) with **Browse templates**

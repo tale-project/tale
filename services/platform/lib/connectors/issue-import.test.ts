@@ -944,7 +944,7 @@ describe('GitHub pull request intake', () => {
     };
   }
 
-  it('reads the open pull requests one login opened, and leaves the issues out [TASK-R63]', async () => {
+  it('reads the open pull requests one login opened, and leaves the issues out [TASK-R64]', async () => {
     fetchPage.mockResolvedValueOnce(
       response([
         { ...githubIssue(1), user: { login: 'renovate[bot]' } },
@@ -972,7 +972,7 @@ describe('GitHub pull request intake', () => {
     expect(fetchPage.mock.calls[0]?.[0]).toContain('creator=renovate%5Bbot%5D');
   });
 
-  it('reads the issues one login opened, and leaves the pull requests out [TASK-R63]', async () => {
+  it('reads the issues one login opened, and leaves the pull requests out [TASK-R64]', async () => {
     fetchPage.mockResolvedValueOnce(
       response([
         { ...githubIssue(1), user: { login: 'mia' } },
@@ -985,7 +985,7 @@ describe('GitHub pull request intake', () => {
     });
   });
 
-  it('keeps an issue cursor out of a pull request listing [TASK-R63]', async () => {
+  it('keeps an issue cursor out of a pull request listing [TASK-R64]', async () => {
     fetchPage.mockResolvedValue(response([githubIssue(1), githubIssue(2)]));
     const first = (await run('github', { limit: 1 })) as { nextCursor: string };
     await expect(
@@ -1018,7 +1018,7 @@ describe('GitHub pull request intake', () => {
     });
   });
 
-  it('reads a linked pull request again, merged or closed [TASK-R63]', async () => {
+  it('reads a linked pull request again, merged or closed [TASK-R64]', async () => {
     fetchPage.mockResolvedValueOnce(
       response({ ...pullRequest(2), state: 'closed' }),
     );

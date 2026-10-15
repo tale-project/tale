@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 
 describe('Forgejo issue intake', () => {
-  it('reads the open issues oldest first, and leaves the pull requests out [TASK-R63]', async () => {
+  it('reads the open issues oldest first, and leaves the pull requests out [TASK-R64]', async () => {
     fetchPage.mockResolvedValueOnce(
       response([forgejoIssue(1), pullRequest(2), forgejoIssue(3)]),
     );
@@ -142,7 +142,7 @@ describe('Forgejo issue intake', () => {
     });
   });
 
-  it('reads the open pull requests one user opened [TASK-R63]', async () => {
+  it('reads the open pull requests one user opened [TASK-R64]', async () => {
     fetchPage.mockResolvedValueOnce(
       response([
         pullRequest(2),
@@ -200,7 +200,7 @@ describe('Forgejo issue intake', () => {
     ).rejects.toThrow(/another source or filter/);
   });
 
-  it('builds a link from the connection’s own instance, whatever address the answer names [TASK-R65]', async () => {
+  it('builds a link from the connection’s own instance, whatever address the answer names [TASK-R66]', async () => {
     fetchPage.mockResolvedValueOnce(
       response([
         forgejoIssue(1, { html_url: 'https://elsewhere.example/x/y/issues/1' }),
@@ -216,7 +216,7 @@ describe('Forgejo issue intake', () => {
     });
   });
 
-  it('keeps one repository on two instances apart [TASK-R65]', async () => {
+  it('keeps one repository on two instances apart [TASK-R66]', async () => {
     const other = 'https://code.example.net';
     const otherHttp = {
       get: async (url: string) =>
@@ -285,7 +285,7 @@ describe('Forgejo issue intake', () => {
 });
 
 describe('Forgejo refresh of linked issues', () => {
-  it('reads an issue again through its repository’s current name, closed or open [TASK-R65]', async () => {
+  it('reads an issue again through its repository’s current name, closed or open [TASK-R66]', async () => {
     currentName = 'example/renamed';
     fetchPage.mockResolvedValueOnce(
       response(forgejoIssue(1, { state: 'closed', title: 'Changed upstream' })),
@@ -311,7 +311,7 @@ describe('Forgejo refresh of linked issues', () => {
     });
   });
 
-  it('refuses an issue of another instance [TASK-R65]', async () => {
+  it('refuses an issue of another instance [TASK-R66]', async () => {
     await expect(
       refresh(linked(1), 'https://code.example.net'),
     ).rejects.toMatchObject({ code: 'INPUT_INVALID' });

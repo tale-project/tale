@@ -830,7 +830,7 @@ describe('task.list_external_issues', () => {
       sourceOrigin: 'https://glitchtip.example.org',
       sourceProjectId: '20',
     },
-  ])('finds the tasks of %j [TASK-R65]', async (query) => {
+  ])('finds the tasks of %j [TASK-R66]', async (query) => {
     const listExternalIssues = vi
       .fn()
       .mockResolvedValue({ issues: [], hasMore: false });
@@ -858,7 +858,7 @@ describe('task.list_external_issues', () => {
     { externalSystem: 'github-security' },
     { externalSystem: 'github', repositoryId: 10, itemKind: 'alerts' },
     { externalSystem: 'jira', repositoryId: 10 },
-  ])('refuses %j before the store is asked [TASK-R65]', async (query) => {
+  ])('refuses %j before the store is asked [TASK-R66]', async (query) => {
     const listExternalIssues = vi.fn();
     await expect(
       list({ listExternalIssues })?.(
@@ -1281,7 +1281,7 @@ describe('task.sync_issues as an automation step', () => {
     });
   });
 
-  it('fails as soon as one source failed when the step asks to, naming that source alone [TASK-R61]', async () => {
+  it('fails as soon as one source failed when the step asks to, naming that source alone [TASK-R62]', async () => {
     const refused = receipt({
       kind: 'glitchtip',
       ok: false,
@@ -1310,7 +1310,7 @@ describe('task.sync_issues as an automation step', () => {
     expect(syncIssues.mock.calls[0]?.[0]).not.toHaveProperty('failOn');
   });
 
-  it('succeeds when the step asks to fail on any source and only a rate limit held one back [TASK-R61]', async () => {
+  it('succeeds when the step asks to fail on any source and only a rate limit held one back [TASK-R62]', async () => {
     const result = answer([
       receipt(),
       receipt({

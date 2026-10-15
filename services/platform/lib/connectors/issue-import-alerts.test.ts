@@ -131,7 +131,7 @@ function asked(call: unknown[] | undefined) {
 beforeEach(() => vi.resetAllMocks());
 
 describe('the listings a security source is read through', () => {
-  it('reads code scanning per tool and severity at or above its floor, one scale over GitHub’s two [TASK-R64]', () => {
+  it('reads code scanning per tool and severity at or above its floor, one scale over GitHub’s two [TASK-R65]', () => {
     expect(
       alertLanes({
         alerts: ['secret-scanning', 'code-scanning', 'dependabot'],
@@ -150,7 +150,7 @@ describe('the listings a security source is read through', () => {
     ]);
   });
 
-  it('reads every alert of a kind without a floor or tools [TASK-R64]', () => {
+  it('reads every alert of a kind without a floor or tools [TASK-R65]', () => {
     expect(alertLanes({ alerts: ['code-scanning', 'dependabot'] })).toEqual([
       { kind: 'code-scanning' },
       { kind: 'dependabot' },
@@ -167,7 +167,7 @@ describe('the listings a security source is read through', () => {
 });
 
 describe('a security alert as a task takes it', () => {
-  it('names a code scanning alert by its rule and place, with its facts [TASK-R64]', () => {
+  it('names a code scanning alert by its rule and place, with its facts [TASK-R65]', () => {
     expect(securityAlert('code-scanning', codeScanning(7), 10)).toEqual({
       externalSystem: 'github-security',
       externalId: 'example/web/code-scanning#7',
@@ -203,7 +203,7 @@ describe('a security alert as a task takes it', () => {
     });
   });
 
-  it('names a secret by its kind and place, and never keeps the secret [TASK-R64]', () => {
+  it('names a secret by its kind and place, and never keeps the secret [TASK-R65]', () => {
     const alert = securityAlert('secret-scanning', secretScanning(2), 10);
     expect(alert).toMatchObject({
       title: 'GitHub Personal Access Token exposed in .env:3',
@@ -224,7 +224,7 @@ describe('a security alert as a task takes it', () => {
     ['secret-scanning', 'resolved', 'pattern_edited', 'closed'],
     ['code-scanning', 'closed', null, 'closed'],
   ] as const)(
-    'reads a %s alert %s (%s) as %s [TASK-R64]',
+    'reads a %s alert %s (%s) as %s [TASK-R65]',
     (kind, state, resolution, expected) => {
       expect(alertState(kind, state, resolution)).toBe(expected);
     },
@@ -242,7 +242,7 @@ describe('a security alert as a task takes it', () => {
 });
 
 describe('GitHub security alert intake', () => {
-  it('asks GitHub for each listing with its own filters, and walks them in order [TASK-R64]', async () => {
+  it('asks GitHub for each listing with its own filters, and walks them in order [TASK-R65]', async () => {
     fetchPage.mockImplementation(async (url: string) => {
       const kind = new URL(url).pathname.split('/')[4];
       if (kind === 'code-scanning')
@@ -284,7 +284,7 @@ describe('GitHub security alert intake', () => {
     expect(JSON.stringify(imported)).not.toContain(SECRET);
   });
 
-  it('leaves out an alert of another tool or under the floor that a listing answered anyway [TASK-R64]', async () => {
+  it('leaves out an alert of another tool or under the floor that a listing answered anyway [TASK-R65]', async () => {
     fetchPage.mockImplementation(async (url: string) =>
       new URL(url).searchParams.get('severity') === 'critical'
         ? response([
@@ -324,7 +324,7 @@ describe('GitHub security alert intake', () => {
     ['dependabot', { security_advisory: { severity: 'high' } }, 'high'],
     ['secret-scanning', {}, 'critical'],
   ] as const)(
-    'reads a %s alert %j at level %s [TASK-R64]',
+    'reads a %s alert %j at level %s [TASK-R65]',
     (kind, row, level) => {
       expect(alertLevel(kind, row)).toBe(level);
     },
@@ -350,7 +350,7 @@ describe('GitHub security alert intake', () => {
     expect(second.searchParams.has('page')).toBe(false);
   });
 
-  it('carries on in the listing it stopped in, from the alert after the last one taken [TASK-R64]', async () => {
+  it('carries on in the listing it stopped in, from the alert after the last one taken [TASK-R65]', async () => {
     fetchPage.mockImplementation(async (url: string) =>
       new URL(url).pathname.includes('code-scanning')
         ? response([codeScanning(1), codeScanning(2)])
@@ -372,7 +372,7 @@ describe('GitHub security alert intake', () => {
     expect(second.nextCursor).toBeNull();
   });
 
-  it('starts over when the filter changed under its cursor [TASK-R64]', async () => {
+  it('starts over when the filter changed under its cursor [TASK-R65]', async () => {
     fetchPage.mockResolvedValue(response([codeScanning(1), codeScanning(2)]));
     const first = (await list({ alerts: ['code-scanning'], limit: 1 })) as {
       nextCursor: string;
@@ -421,7 +421,7 @@ describe('GitHub security alert refresh', () => {
     },
   });
 
-  it('reads a fixed alert again as resolved, and leaves the secret hidden [TASK-R64]', async () => {
+  it('reads a fixed alert again as resolved, and leaves the secret hidden [TASK-R65]', async () => {
     fetchPage.mockImplementation(async (url: string) =>
       url.includes('/secret-scanning/')
         ? response(

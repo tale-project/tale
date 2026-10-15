@@ -788,7 +788,7 @@ The failed source saves nothing, and reads the same batch on the next run.
 While some sources succeed, the step succeeds, with the failed sources' errors in their receipts.
 When every source failed, the step fails with the cause they share, so the schedule counts the
 failure like any other. A source that waits out a rate limit has not failed. A step can ask to
-fail sooner (`TASK-R61`).
+fail sooner (`TASK-R62`).
 
 - **Example**: Both of Mia's repositories refuse the token → the step fails, named as refused
   credentials, and the schedule counts a failed run.
@@ -858,7 +858,7 @@ they were last read. The tracker itself is only ever read.
 - **Example**: Noah closes an issue on GitHub while its task is In progress in Tale → after the
   next run the task's source card shows Closed, and the task stays In progress.
 
-### TASK-R61 · An issue sync that asks to fails as soon as one of its sources failed
+### TASK-R62 · An issue sync that asks to fails as soon as one of its sources failed
 
 A step that sets `failOn: any` fails when one source failed, naming the failed sources alone and
 the cause they share. Every other source has still read, written and saved its batch. A source
@@ -868,7 +868,7 @@ that waits out a rate limit has not failed here either.
   token → GitHub's new issues become tasks, the step fails naming GlitchTip, and the schedule
   counts a failed run.
 
-### TASK-R62 · A task an issue sync creates wears its source's labels
+### TASK-R63 · A task an issue sync creates wears its source's labels
 
 A source can name labels (`taskLabels`) that every task it creates is given, so a board several
 sources fill shows where each task came from. A label the project does not have yet is added
@@ -879,7 +879,7 @@ never adds, removes or restores one.
   names `source:glitchtip` → each new error's task wears `source:glitchtip`; when Noah takes the
   label off one, the next run leaves it off.
 
-### TASK-R63 · A code host source reads its issues or its pull requests, never both
+### TASK-R64 · A code host source reads its issues or its pull requests, never both
 
 A GitHub or Forgejo source reads a repository's open issues, or its open pull requests when it
 asks for them (`type: pulls`), and only those its `author` opened when it names one. Its issues
@@ -891,7 +891,7 @@ tasks.
   requests `renovate[bot]` opened there → the board gets a task per issue and a task per
   Renovate pull request, and no pull request of a person.
 
-### TASK-R64 · A security alert source reads only the alerts it asks for, one task each
+### TASK-R65 · A security alert source reads only the alerts it asks for, one task each
 
 A GitHub security source reads the kinds of alert it names (code scanning, Dependabot, secret
 scanning), code scanning from the tools it names, and every kind from its severity floor up:
@@ -904,7 +904,7 @@ one task, its source card shows it open, resolved (fixed, or a revoked secret) o
   syncs code scanning from CodeQL and Opengrep at high and above → only those alerts become
   tasks, and a Trivy alert never does.
 
-### TASK-R65 · A Forgejo task belongs to the instance its connection names
+### TASK-R66 · A Forgejo task belongs to the instance its connection names
 
 A Forgejo connection names its instance. A task's source is that instance and the issue's id on
 it, and its link is built from the instance's own address. One repository on two instances is
@@ -926,7 +926,7 @@ own instance.
 - **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).
 - **Imported and externally referenced tasks** beyond `TASK-R9`, `TASK-R14`–`TASK-R20` and the
-  issue sync's `TASK-R53`–`TASK-R65` (`external-ref.ts`, `import-cursors.ts`): the hand-built import
+  issue sync's `TASK-R53`–`TASK-R66` (`external-ref.ts`, `import-cursors.ts`): the hand-built import
   chains' reads and saves of a position (`task.get_import_cursor`, `task.save_import_cursor`).
 - **Undecided: can a task with an old, over-long description still be edited?** Some tasks
   hold a description over 20,000, left by an import made before `TASK-R9`. The server checks

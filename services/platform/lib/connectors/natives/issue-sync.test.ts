@@ -620,7 +620,7 @@ describe('task.sync_issues sources', () => {
     externalIssue: snapshot(id, { syncedAt: NOW - 1000 }),
   });
 
-  it('reads a repository’s pull requests apart from its issues, each pass and its tasks its own [TASK-R63]', async () => {
+  it('reads a repository’s pull requests apart from its issues, each pass and its tasks its own [TASK-R64]', async () => {
     const harness = fakes({
       list: { github: listing([], null) },
       refresh: { github: () => ({ issues: [], failed: [], notRead: 0 }) },
@@ -651,7 +651,7 @@ describe('task.sync_issues sources', () => {
     ]);
   });
 
-  it('keeps one position for one author however it is written [TASK-R63]', async () => {
+  it('keeps one position for one author however it is written [TASK-R64]', async () => {
     const harness = fakes({ list: { github: listing([], null) } });
     await syncIssueSources(harness.deps, input([pulls]));
     await syncIssueSources(
@@ -676,7 +676,7 @@ describe('task.sync_issues sources', () => {
     }
   });
 
-  it('reads a Forgejo repository through its connection, and finds its tasks by instance and repository [TASK-R65]', async () => {
+  it('reads a Forgejo repository through its connection, and finds its tasks by instance and repository [TASK-R66]', async () => {
     const harness = fakes({
       list: { forgejo: forgejoListing },
       refresh: { forgejo: () => ({ issues: [], failed: [], notRead: 0 }) },
@@ -713,7 +713,7 @@ describe('task.sync_issues sources', () => {
     );
   });
 
-  it('fails a Forgejo source whose listing names no instance, before any task is read [TASK-R65]', async () => {
+  it('fails a Forgejo source whose listing names no instance, before any task is read [TASK-R66]', async () => {
     const harness = fakes({
       list: { forgejo: listing([], null, { repositoryId: 30 }) },
     });
@@ -731,7 +731,7 @@ describe('task.sync_issues sources', () => {
     ).toBe(true);
   });
 
-  it('reads a repository’s security alerts through their own actions, under a position of their own [TASK-R64]', async () => {
+  it('reads a repository’s security alerts through their own actions, under a position of their own [TASK-R65]', async () => {
     const harness = fakes({
       list: { 'github.list_import_alerts': alertListing },
       refresh: {
@@ -776,7 +776,7 @@ describe('task.sync_issues sources', () => {
     );
   });
 
-  it('reads one alert filter however its kinds and tools are written [TASK-R64]', async () => {
+  it('reads one alert filter however its kinds and tools are written [TASK-R65]', async () => {
     const harness = fakes({
       list: { 'github.list_import_alerts': alertListing },
     });
@@ -840,7 +840,7 @@ describe('task.sync_issues sources', () => {
 });
 
 describe('task.sync_issues task labels', () => {
-  it('gives a task its source creates the source’s labels, and the other sources’ tasks none [TASK-R62]', async () => {
+  it('gives a task its source creates the source’s labels, and the other sources’ tasks none [TASK-R63]', async () => {
     const harness = fakes({
       list: {
         github: listing([issue('1')], null),
@@ -876,7 +876,7 @@ describe('task.sync_issues task labels', () => {
     ]);
   });
 
-  it('refuses a task label that is no label name [TASK-R62]', () => {
+  it('refuses a task label that is no label name [TASK-R63]', () => {
     for (const taskLabels of [
       [''],
       ['x'.repeat(51)],
@@ -1257,13 +1257,13 @@ describe('when the step fails', () => {
     expect(issueSyncFails(result(1, 2), 'all')).toBe(false);
   });
 
-  it('fails as soon as one source failed when the step asks to [TASK-R61]', () => {
+  it('fails as soon as one source failed when the step asks to [TASK-R62]', () => {
     expect(issueSyncFails(result(0, 2), 'any')).toBe(false);
     expect(issueSyncFails(result(1, 2), 'any')).toBe(true);
     expect(issueSyncFails(result(2, 2), 'any')).toBe(true);
   });
 
-  it('counts a source waiting out a rate limit as no failure, either way [TASK-R61]', async () => {
+  it('counts a source waiting out a rate limit as no failure, either way [TASK-R62]', async () => {
     const harness = fakes({
       list: {
         github: listing([], null),
