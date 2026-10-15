@@ -5,8 +5,11 @@
 # Never edit this file by hand: change the analysis or the document, review
 # the diff, and regenerate with
 #   CORPUS_UPDATE=1 bunx vitest --run --project server lib/engine/core/analysis/corpus
+pack forgejo/sync-issues: []
 pack github/review-pull-requests: []
 pack github/sync-issues: []
+pack github/sync-pull-requests: []
+pack github/sync-security-alerts: []
 pack github/triage-issues: []
 pack glitchtip/sync-issues: []
 pack gmail/sync-emails: []

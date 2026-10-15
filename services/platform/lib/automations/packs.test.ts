@@ -47,8 +47,11 @@ function connectorsUsedBy(automation: Automation): string[] {
 describe('the shipped automation packs', () => {
   it('are all discovered, each with a manifest, a document and an icon', () => {
     expect(packs.map((pack) => pack.slug)).toEqual([
+      'forgejo/sync-issues',
       'github/review-pull-requests',
       'github/sync-issues',
+      'github/sync-pull-requests',
+      'github/sync-security-alerts',
       'github/triage-issues',
       'glitchtip/sync-issues',
       'gmail/sync-emails',
@@ -359,10 +362,44 @@ describe('a pack trigger starts runs its inputs take, or ships off', () => {
 });
 
 describe('issue synchronization stays inside the engine execution ceiling', () => {
-  it.each(['github', 'glitchtip'])(
+  const sources: Record<string, (at: number) => Record<string, unknown>> = {
+    'github/sync-issues': (at) => ({
+      kind: 'github',
+      owner: 'example',
+      repo: `web-${at}`,
+    }),
+    'github/sync-pull-requests': (at) => ({
+      kind: 'github',
+      owner: 'example',
+      repo: `web-${at}`,
+      type: 'pulls',
+      author: 'renovate[bot]',
+    }),
+    'github/sync-security-alerts': (at) => ({
+      kind: 'github-security',
+      owner: 'example',
+      repo: `web-${at}`,
+      alerts: ['code-scanning', 'dependabot', 'secret-scanning'],
+      minSeverity: 'high',
+    }),
+    'forgejo/sync-issues': (at) => ({
+      kind: 'forgejo',
+      owner: 'example',
+      repo: `web-${at}`,
+      type: at % 2 === 0 ? 'issues' : 'pulls',
+    }),
+    'glitchtip/sync-issues': (at) => ({
+      kind: 'glitchtip',
+      organization: 'example',
+      project: `web-${at}`,
+    }),
+  };
+  it.each(Object.keys(sources))(
     'the %s sync is one step, whatever its sources and batches',
-    async (provider) => {
-      const pack = packBySlug(`${provider}/sync-issues`);
+    async (slug) => {
+      const pack = packBySlug(slug);
+      const source = sources[slug];
+      if (source === undefined) throw new Error(`no sources for ${slug}`);
       // Twenty sources at the largest batch: the reading, refreshing and
       // writing happen inside the one task.sync_issues step, so a run spends
       // one node execution of its budget however much there is to sync.
@@ -372,15 +409,7 @@ describe('issue synchronization stays inside the engine execution ceiling', () =
         throw new Error('the sync template lost its step');
       sync.input = {
         projectId: 'project-1',
-        sources: Array.from({ length: 20 }, (_, at) =>
-          provider === 'github'
-            ? { kind: 'github', owner: 'example', repo: `web-${at}` }
-            : {
-                kind: 'glitchtip',
-                organization: 'example',
-                project: `web-${at}`,
-              },
-        ),
+        sources: Array.from({ length: 20 }, (_, at) => source(at)),
         limit: 500,
         refreshLimit: 500,
       };

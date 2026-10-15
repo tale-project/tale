@@ -1,0 +1,291 @@
+name: Sync Forgejo issues
+description: Turns the open issues or pull requests of a Forgejo repository into tasks and keeps them current, one batch every run.
+icon: brand:forgejo
+category: issues
+labels: [Forgejo, Issues]
+scope: project
+requires:
+  connectors: [forgejo, task]
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: minutely
+      interval: 15
+    timezone: UTC
+i18n:
+  de:
+    name: Forgejo-Issues synchronisieren
+    description: Macht aus den offenen Issues oder Pull Requests eines Forgejo-Repositorys Aufgaben und hält sie aktuell, mit jedem Lauf einen Stapel weiter.
+  fr:
+    name: Synchroniser les issues Forgejo
+    description: Transforme les issues ou pull requests ouvertes d’un dépôt Forgejo en tâches et les tient à jour, un lot à chaque exécution.
+template:
+  details: >-
+    Every 15 minutes to start with, the automation reads the next batch of open issues — or open
+    pull requests, if you choose them — of the Forgejo repository you name, oldest first, and
+    makes a task in Backlog for each one the project does not have yet. The credentials name the
+    Forgejo instance. Name an author to sync only what one user opened, such as Renovate's
+    dependency updates. Every run picks up where the last one stopped, so a large repository
+    arrives over several runs; after the last one, the next run starts again from the first. Each
+    run also reads up to 50 items it imported earlier again, the longest-unchecked first, and
+    updates what their tasks show of them: the title, the description and whether the item is open
+    or closed. Your own changes to a task (its title, description, status and assignee) are never
+    overwritten, and a task stays where it is when its issue or pull request is closed on Forgejo.
+  i18n:
+    de:
+      details: >-
+        Anfangs alle 15 Minuten liest die Automatisierung den nächsten Stapel offener Issues —
+        oder offener Pull Requests, wenn du sie wählst — des Forgejo-Repositorys, das du angibst,
+        die ältesten zuerst, und legt für jedes, das das Projekt noch nicht hat, eine Aufgabe im
+        Backlog an. Die Zugangsdaten bestimmen die Forgejo-Instanz. Gib einen Autor an, um nur zu
+        synchronisieren, was eine Person eröffnet hat, etwa die Abhängigkeits-Updates von
+        Renovate. Jeder Lauf macht dort weiter, wo der letzte aufgehört hat, sodass ein großes
+        Repository über mehrere Läufe ankommt; nach dem letzten beginnt der nächste Lauf wieder
+        beim ersten. Jeder Lauf liest außerdem bis zu 50 früher importierte Einträge erneut, die am
+        längsten nicht geprüften zuerst, und aktualisiert, was ihre Aufgaben von ihnen zeigen: den
+        Titel, die Beschreibung und ob der Eintrag offen oder geschlossen ist. Deine eigenen
+        Änderungen an einer Aufgabe (Titel, Beschreibung, Status und Zuständigkeit) werden nie
+        überschrieben, und eine Aufgabe bleibt, wo sie ist, wenn ihr Issue oder Pull Request auf
+        Forgejo geschlossen wird.
+    fr:
+      details: >-
+        Toutes les 15 minutes pour commencer, l’automatisation lit le lot suivant d’issues
+        ouvertes — ou de pull requests ouvertes, si tu les choisis — du dépôt Forgejo que tu
+        indiques, les plus anciennes d’abord, et crée une tâche dans Backlog pour chacune que le
+        projet n’a pas encore. Les identifiants désignent l’instance Forgejo. Indique un auteur
+        pour ne synchroniser que ce qu’une personne a ouvert, par exemple les mises à jour de
+        dépendances de Renovate. Chaque exécution reprend là où la précédente s’est arrêtée, si
+        bien qu’un grand dépôt arrive en plusieurs exécutions ; après la dernière, l’exécution
+        suivante recommence à la première. Chaque exécution relit aussi jusqu’à 50 éléments
+        importés plus tôt, les moins récemment vérifiés d’abord, et met à jour ce que leurs tâches
+        en montrent : le titre, la description et si l’élément est ouvert ou fermé. Tes propres
+        modifications d’une tâche (titre, description, statut et personne assignée) ne sont
+        jamais écrasées, et une tâche reste où elle est quand son issue ou sa pull request est
+        fermée sur Forgejo.
+  steps:
+    - title: Picks up where the last run stopped
+      detail: The project keeps how far the repository's open issues or pull requests have been read.
+      i18n:
+        de:
+          title: Macht dort weiter, wo der letzte Lauf aufgehört hat
+          detail: Das Projekt merkt sich, wie weit die offenen Issues oder Pull Requests des Repositorys gelesen sind.
+        fr:
+          title: Reprend là où la dernière exécution s’est arrêtée
+          detail: Le projet retient jusqu’où les issues ou pull requests ouvertes du dépôt ont été lues.
+    - title: Reads the next batch of open items
+      detail: Up to 100, oldest first. An author and labels can narrow the batch; an item with any of the labels is read.
+      i18n:
+        de:
+          title: Liest den nächsten Stapel offener Einträge
+          detail: Bis zu 100, die ältesten zuerst. Ein Autor und Labels können den Stapel eingrenzen; gelesen wird ein Eintrag mit einem der Labels.
+        fr:
+          title: Lit le lot suivant d’éléments ouverts
+          detail: Jusqu’à 100, les plus anciens d’abord. Un auteur et des étiquettes peuvent restreindre le lot ; un élément avec l’une des étiquettes est lu.
+    - title: Reads items imported earlier again
+      detail: Up to 50 per run, the longest-unchecked first, so every task keeps its item's latest title, text and state.
+      i18n:
+        de:
+          title: Liest früher importierte Einträge erneut
+          detail: Bis zu 50 pro Lauf, die am längsten nicht geprüften zuerst, damit jede Aufgabe Titel, Text und Stand ihres Eintrags aktuell hält.
+        fr:
+          title: Relit les éléments importés plus tôt
+          detail: Jusqu’à 50 par exécution, les moins récemment vérifiés d’abord, pour que chaque tâche garde le dernier titre, texte et état de son élément.
+    - title: Writes each item into its task
+      detail: A new issue or pull request becomes a task in Backlog; one imported before only updates what its task shows of it.
+      i18n:
+        de:
+          title: Schreibt jeden Eintrag in seine Aufgabe
+          detail: Ein neues Issue oder ein neuer Pull Request wird zu einer Aufgabe im Backlog; ein früher importierter Eintrag aktualisiert nur, was seine Aufgabe von ihm zeigt.
+        fr:
+          title: Écrit chaque élément dans sa tâche
+          detail: Une nouvelle issue ou pull request devient une tâche dans Backlog ; un élément importé plus tôt met seulement à jour ce que sa tâche en montre.
+    - title: Saves where it stopped
+      detail: The next run continues from there; after the last item, it starts again from the first.
+      i18n:
+        de:
+          title: Merkt sich, wo er aufgehört hat
+          detail: Der nächste Lauf macht dort weiter; nach dem letzten Eintrag beginnt er wieder beim ersten.
+        fr:
+          title: Enregistre où elle s’est arrêtée
+          detail: L’exécution suivante reprend à cet endroit ; après le dernier élément, elle recommence au premier.
+  outcomes:
+    - kind: creates
+      text: A task in Backlog for each open issue or pull request the project does not have yet.
+      i18n:
+        de:
+          text: Eine Aufgabe im Backlog für jedes offene Issue und jeden offenen Pull Request, den das Projekt noch nicht hat.
+        fr:
+          text: Une tâche dans Backlog pour chaque issue ou pull request ouverte que le projet n’a pas encore.
+    - kind: changes
+      text: 'What each task shows of its item: the title, the description, open or closed.'
+      i18n:
+        de:
+          text: 'Was jede Aufgabe von ihrem Eintrag zeigt: Titel, Beschreibung, offen oder geschlossen.'
+        fr:
+          text: 'Ce que chaque tâche montre de son élément : le titre, la description, ouvert ou fermé.'
+    - kind: never
+      text: Never changes, comments on or closes anything on Forgejo.
+      i18n:
+        de:
+          text: Ändert, kommentiert oder schließt nie etwas auf Forgejo.
+        fr:
+          text: Ne modifie, ne commente et ne ferme jamais rien sur Forgejo.
+    - kind: never
+      text: Never overwrites your changes to a task, nor moves it when its item is closed.
+      i18n:
+        de:
+          text: Überschreibt nie deine Änderungen an einer Aufgabe und verschiebt sie nicht, wenn ihr Eintrag geschlossen wird.
+        fr:
+          text: N’écrase jamais tes modifications d’une tâche et ne la déplace pas quand son élément est fermé.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose tasks the issues or pull requests become.
+      writes:
+        - node: sync
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, in dem die Issues oder Pull Requests zu Aufgaben werden.
+        fr:
+          label: Projet
+          description: Le projet dans lequel les issues ou pull requests deviennent des tâches.
+    - id: owner
+      kind: text
+      label: Owner
+      description: The user or organization the repository belongs to, as in the repository's address on Forgejo.
+      placeholder: tale-project
+      maxLength: 99
+      pattern: '^[A-Za-z0-9_.-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/owner
+      i18n:
+        de:
+          label: Besitzer
+          description: Die Person oder Organisation, der das Repository gehört, wie in seiner Adresse auf Forgejo.
+          placeholder: tale-project
+        fr:
+          label: Propriétaire
+          description: L’utilisateur ou l’organisation à qui appartient le dépôt, comme dans son adresse sur Forgejo.
+          placeholder: tale-project
+    - id: repo
+      kind: text
+      label: Repository
+      description: The repository's name.
+      placeholder: tale
+      maxLength: 100
+      pattern: '^[A-Za-z0-9_.-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/repo
+      i18n:
+        de:
+          label: Repository
+          description: Der Name des Repositorys.
+          placeholder: tale
+        fr:
+          label: Dépôt
+          description: Le nom du dépôt.
+          placeholder: tale
+    - id: type
+      kind: choice
+      label: Sync
+      description: The repository's open issues, or its open pull requests.
+      default: issues
+      options:
+        - value: issues
+          label: Issues
+          i18n:
+            de:
+              label: Issues
+            fr:
+              label: Issues
+        - value: pulls
+          label: Pull requests
+          i18n:
+            de:
+              label: Pull Requests
+            fr:
+              label: Pull requests
+      writes:
+        - node: sync
+          pointer: /input/sources/0/type
+      i18n:
+        de:
+          label: Synchronisieren
+          description: Die offenen Issues des Repositorys oder seine offenen Pull Requests.
+        fr:
+          label: Synchroniser
+          description: Les issues ouvertes du dépôt, ou ses pull requests ouvertes.
+    - id: author
+      kind: text
+      label: Only items opened by
+      description: A user name, such as renovate for Renovate's pull requests. Leave it empty to sync every open item.
+      placeholder: renovate
+      required: false
+      maxLength: 100
+      pattern: '^[A-Za-z0-9_.-]+$'
+      writes:
+        - node: sync
+          pointer: /input/sources/0/author
+      i18n:
+        de:
+          label: Nur Einträge von
+          description: Ein Benutzername, etwa renovate für die Pull Requests von Renovate. Leer lassen, um alle offenen Einträge zu synchronisieren.
+          placeholder: renovate
+        fr:
+          label: Seulement les éléments ouverts par
+          description: Un nom d’utilisateur, par exemple renovate pour les pull requests de Renovate. Laisse vide pour synchroniser tous les éléments ouverts.
+          placeholder: renovate
+    - id: labels
+      kind: list
+      label: Only items with these labels
+      description: Leave it empty to sync every open item. With several labels, an item needs any one of them.
+      placeholder: bug
+      maxItems: 10
+      itemMaxLength: 50
+      writes:
+        - node: sync
+          pointer: /input/sources/0/labels
+      i18n:
+        de:
+          label: Nur Einträge mit diesen Labels
+          description: Leer lassen, um alle offenen Einträge zu synchronisieren. Bei mehreren Labels genügt eines davon.
+          placeholder: bug
+        fr:
+          label: Seulement les éléments avec ces étiquettes
+          description: Laisse vide pour synchroniser tous les éléments ouverts. Avec plusieurs étiquettes, l’une d’elles suffit.
+          placeholder: bug
+    - id: connection
+      kind: credential
+      connector: forgejo
+      required: false
+      label: Forgejo credentials
+      description: The credentials the repository is read with; they name the Forgejo instance. Leave it empty to use the default Forgejo credentials.
+      placeholder: The default Forgejo connection
+      writes:
+        - node: sync
+          pointer: /input/sources/0/credential
+      i18n:
+        de:
+          label: Forgejo-Zugangsdaten
+          description: Die Zugangsdaten, mit denen das Repository gelesen wird; sie bestimmen die Forgejo-Instanz. Leer lassen, um die Standard-Zugangsdaten für Forgejo zu nutzen.
+          placeholder: Die Standardverbindung zu Forgejo
+        fr:
+          label: Identifiants Forgejo
+          description: Les identifiants avec lesquels le dépôt est lu ; ils désignent l’instance Forgejo. Laisse vide pour utiliser les identifiants Forgejo par défaut.
+          placeholder: La connexion Forgejo par défaut
+    - id: schedule
+      kind: schedule
+      label: When
+      description: How often the repository is read; each run reads one batch.
+      i18n:
+        de:
+          label: Wann
+          description: Wie oft das Repository gelesen wird; jeder Lauf liest einen Stapel.
+        fr:
+          label: Quand
+          description: À quelle fréquence le dépôt est lu ; chaque exécution lit un lot.
