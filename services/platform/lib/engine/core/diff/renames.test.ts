@@ -168,6 +168,25 @@ describe('rewriting references', () => {
     ).toBe('{{ nodes.fresh.output }}');
   });
 
+  it('reads a node through a `nodes` spelled with an escape, and skips no text that could', () => {
+    // `\u006eodes` is the identifier `nodes` in code: text without the plain
+    // name is still read when it holds an escape.
+    const escaped = {
+      id: 'a',
+      type: 'transform',
+      code: 'return \\u006eodes.old.output;',
+    };
+    expect([...nodeReferences(escaped).reads]).toEqual(['old']);
+    // A long body that never reads a node reads none.
+    const plain = {
+      id: 'b',
+      type: 'transform',
+      input: { items: '{{ input.items }}' },
+      code: 'return input.items.map((item) => item.id);',
+    };
+    expect([...nodeReferences(plain).reads]).toEqual([]);
+  });
+
   it('returns the value itself when it reads no renamed node', () => {
     const node = { id: 'a', type: 'llm', prompt: '{{ nodes.other.output }}' };
     expect(rewriteNode(node, nodeReferences(node), RENAME)).toBe(node);
