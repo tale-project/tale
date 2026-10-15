@@ -306,6 +306,33 @@ describe('storeOauth2Grant', () => {
     expect(createCredentialInTransaction).not.toHaveBeenCalled();
   });
 
+  it('refuses an Add whose settings the workspace’s credential would drop, writing nothing [CONN-R10]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const routedGrant = credential('cred-1', 'Slack', {
+      connectorSlug: 'slack',
+    });
+    listCredentials.mockResolvedValue([routedGrant]);
+    findOauth2Grant.mockResolvedValue(routedGrant);
+    const { sql } = sqlWithRoutes({
+      'T-1': { organizationId: 'org-1', credentialId: 'cred-1' },
+    });
+    const outcome = await storeOauth2Grant(sql, {
+      organizationId: 'org-1',
+      connectorSlug: 'slack',
+      userId: 'user-1',
+      displayName: 'Slack',
+      intent: { kind: 'add', config: { region: 'eu' } },
+      tokens: { ...TOKENS, teamId: 'T-1' },
+    });
+    expect(outcome).toEqual({ ok: false, reason: 'invalid_settings' });
+    expect(updateCredentialInTransaction).not.toHaveBeenCalled();
+    expect(createCredentialInTransaction).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('invalid_settings (add)'),
+    );
+    warn.mockRestore();
+  });
+
   it('never keeps a credential for a workspace another organization claims — the transaction rolls back', async () => {
     const { sql, state } = sqlWithRoutes({
       'T-1': { organizationId: 'org-other', credentialId: 'cred-x' },

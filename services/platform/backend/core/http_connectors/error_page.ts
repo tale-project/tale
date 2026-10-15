@@ -34,7 +34,8 @@ export type ConnectorErrorKind =
   /** The slug is not a shipped connector, or it offers no OAuth2 method. */
   | 'unsupported_connector'
   /** The settings a connection was started with are not ones the connector
-   * takes, or a Reconnect carried settings of its own. */
+   * takes, a Reconnect carried settings of its own, or an Add's settings
+   * met a credential it would renew, which keeps its own. */
   | 'invalid_settings'
   /** The Slack workspace is already connected to a different organization. */
   | 'workspace_claimed'
@@ -90,7 +91,7 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
   invalid_settings: {
     title: 'These settings cannot be used for this connection',
     detail:
-      'The settings entered beside Connect are not ones this connector accepts, so nothing was saved and you were not sent to the provider. Go back to your connector settings, check them, and connect again.',
+      'The settings entered beside Connect cannot be used for this connection, so nothing was saved. Go back to your connector settings, check them, and connect again.',
     status: 400,
   },
   workspace_claimed: {
@@ -144,12 +145,12 @@ const LOCALIZED_COPY: Partial<
     de: {
       title: 'Diese Einstellungen passen nicht zu dieser Verbindung',
       detail:
-        'Die neben „Verbinden“ eingegebenen Einstellungen nimmt dieser Connector nicht an. Deshalb wurde nichts gespeichert, und du wurdest nicht zum Anbieter weitergeleitet. Prüfe sie in deinen Connector-Einstellungen und verbinde erneut.',
+        'Die neben „Verbinden“ eingegebenen Einstellungen passen nicht zu dieser Verbindung. Deshalb wurde nichts gespeichert. Prüfe sie in deinen Connector-Einstellungen und verbinde erneut.',
     },
     fr: {
       title: 'Ces paramètres ne conviennent pas à cette connexion',
       detail:
-        'Les paramètres saisis à côté de « Connecter » ne sont pas acceptés par ce connecteur. Rien n’a donc été enregistré et tu n’as pas été redirigé vers le fournisseur. Vérifie-les dans les paramètres de tes connecteurs, puis connecte-toi à nouveau.',
+        'Les paramètres saisis à côté de « Connecter » ne conviennent pas à cette connexion. Rien n’a donc été enregistré. Vérifie-les dans les paramètres de tes connecteurs, puis connecte-toi à nouveau.',
     },
   },
   credential_missing: {

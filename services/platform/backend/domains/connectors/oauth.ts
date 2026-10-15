@@ -335,6 +335,7 @@ export type StoreGrantOutcome =
         | 'credential_missing'
         | 'account_mismatch'
         | 'workspace_claimed'
+        | 'invalid_settings'
         | 'forbidden';
     };
 

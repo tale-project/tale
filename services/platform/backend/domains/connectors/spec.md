@@ -95,8 +95,9 @@ is allowed to manage connectors. Nothing in the returning request can change it.
 ### CONN-R10 · A Slack workspace has one credential, however often it is connected
 
 Connecting a workspace that is already connected renews its credential, even when the person
-chose to add an account. A second workspace gets a credential of its own, named after the
-workspace.
+chose to add an account. An added account that carries settings is refused there instead
+(`invalid_settings`) and nothing is written: the workspace's credential keeps its own. A
+second workspace gets a credential of its own, named after the workspace.
 
 - **Example**: Ada connects the same Slack workspace a second time through **Add** → the
   existing credential is renewed, and no duplicate appears.
