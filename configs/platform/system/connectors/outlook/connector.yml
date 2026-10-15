@@ -82,7 +82,10 @@ auth:
 # means. `graphRoot` is the mailbox's Graph root — `/users/<mailbox>` when the
 # credential names one (an app has no `/me`), else the signed-in account's
 # `/me`. `graphCheck` throws the sentence a person can act on: a 403 on a
-# named mailbox says how the mailbox is granted, a 429 names Graph's wait.
+# named mailbox says how the mailbox is granted, a 429 names Graph's wait,
+# and a 404 names the mailbox only for a call on the mailbox itself
+# (`mailboxRoot`) — a message, attachment or folder Graph no longer finds
+# keeps Graph's own `(404)`, which the mail sync reads as gone.
 livePrelude: |
   const outlookMailbox = String((ctx.config && ctx.config.mailbox) || '').trim();
   const graphRoot = 'https://graph.microsoft.com/v1.0/' + (outlookMailbox ? 'users/' + encodeURIComponent(outlookMailbox).replace(/%40/g, '@') : 'me');
@@ -96,7 +99,7 @@ livePrelude: |
       return new Error(`${head}: permission denied — verify the app has the ${o.permission ? `${o.permission} Microsoft Graph scope` : 'required Microsoft Graph scopes'}.`);
     }
     if (r.status === 404 && o.notFound) return new Error(`${head}: ${o.notFound} not found.`);
-    if (r.status === 404 && outlookMailbox) return new Error(`${head}: Microsoft Graph has no mailbox ${outlookMailbox} — check the address in Settings → Connectors.`);
+    if (r.status === 404 && o.mailboxRoot && outlookMailbox) return new Error(`${head}: Microsoft Graph has no mailbox ${outlookMailbox}${o.folder ? ` or no folder "${o.folder}" in it` : ''} — check the address in Settings → Connectors.`);
     // The wait Graph names (Retry-After, in seconds) rides in the sentence, so a sync can report it.
     if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); return new Error(`${head}: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
     if (!r.status || r.status >= 400) return new Error(`${head} (${r.status}): ${r.text()}`);
@@ -204,7 +207,7 @@ actions:
           ? `${graphRoot}/mailFolders/${encodeURIComponent(folder)}/messages`
           : `${graphRoot}/messages`;
         const r = await ctx.http.get(`${base}?${q.join('&')}`, { headers: h });
-        graphCheck('list_messages', r);
+        graphCheck('list_messages', r, { mailboxRoot: true, folder });
         const j = r.json();
         let messages = j.value || [];
         if (input.format === 'email') {
@@ -347,7 +350,7 @@ actions:
         if (graphId.indexOf('<') !== -1 || graphId.indexOf('@') !== -1) {
           const f = encodeURIComponent(`internetMessageId eq '${graphId.replace(/'/g, "''")}'`);
           const lr = await ctx.http.get(`${graphRoot}/messages?$filter=${f}&$select=id&$top=1`, { headers: h });
-          graphCheck('get_attachments', lr, { during: 'internet message ID lookup' });
+          graphCheck('get_attachments', lr, { during: 'internet message ID lookup', mailboxRoot: true });
           const hit = (lr.json().value || [])[0];
           if (!hit) throw new Error(`Outlook get_attachments failed: no message matches the internet message ID ${graphId}.`);
           graphId = hit.id;
@@ -413,7 +416,7 @@ actions:
           '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
         ];
         const r = await ctx.http.get(`${graphRoot}/messages?${q.join('&')}`, { headers: h });
-        graphCheck('search_messages', r);
+        graphCheck('search_messages', r, { mailboxRoot: true });
         const j = r.json();
         return { messages: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { query: 'invoice', top: 25 }
@@ -457,7 +460,9 @@ actions:
       live: |
         const h = { Accept: 'application/json', 'Content-Type': 'application/json' };
         // The draft and its attachments are written to the mailbox (Mail.ReadWrite); only the send itself needs Mail.Send.
-        const check = (r, what) => graphCheck('send_message', r, { during: what, permission: what === 'send' ? 'Mail.Send' : 'Mail.ReadWrite' });
+        // Only the draft is created on the mailbox itself; the upload and
+        // the send act on that draft.
+        const check = (r, what) => graphCheck('send_message', r, { during: what, permission: what === 'send' ? 'Mail.Send' : 'Mail.ReadWrite', mailboxRoot: what === 'draft creation' });
         const addresses = (v) => (Array.isArray(v) ? v : [v]).filter((x) => x != null && x !== '').map(String);
         const to = addresses(input.to);
         const draft = {
@@ -512,7 +517,7 @@ actions:
         // would need a directory permission the mailbox grant never carries.
         if (outlookMailbox) return { emailAddress: outlookMailbox };
         const r = await ctx.http.get(`${graphRoot}?$select=mail,userPrincipalName`, { headers: { Accept: 'application/json' } });
-        graphCheck('get_profile', r, { permission: 'User.Read' });
+        graphCheck('get_profile', r, { permission: 'User.Read', mailboxRoot: true });
         const j = r.json();
         return { emailAddress: String(j.mail || j.userPrincipalName || '') };
     exampleInput: {}
@@ -567,7 +572,7 @@ actions:
           q.push('$filter=' + encodeURIComponent(`start/dateTime ge '${from}' and end/dateTime le '${to}'`));
         }
         const r = await ctx.http.get(`${graphRoot}/events?${q.join('&')}`, { headers: h });
-        graphCheck('list_events', r, { permission: 'Calendars.Read' });
+        graphCheck('list_events', r, { permission: 'Calendars.Read', mailboxRoot: true });
         const j = r.json();
         return { events: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput:
@@ -676,7 +681,7 @@ actions:
         if (input.attendees != null) event.attendees = (Array.isArray(input.attendees) ? input.attendees : [input.attendees]).filter((x) => x != null && x !== '').map((address) => ({ emailAddress: { address: String(address) }, type: 'required' }));
         if (input.isAllDay) event.isAllDay = true;
         const r = await ctx.http.post(`${graphRoot}/events`, { headers: h, body: JSON.stringify(event) });
-        graphCheck('create_event', r, { permission: 'Calendars.ReadWrite' });
+        graphCheck('create_event', r, { permission: 'Calendars.ReadWrite', mailboxRoot: true });
         const j = r.json();
         return {
           id: j.id,
@@ -745,7 +750,7 @@ actions:
         }
         if (input.skip) q.push('$skip=' + encodeURIComponent(String(input.skip)));
         const r = await ctx.http.get(`${graphRoot}/contacts?${q.join('&')}`, { headers: h });
-        graphCheck('list_contacts', r, { permission: 'Contacts.Read' });
+        graphCheck('list_contacts', r, { permission: 'Contacts.Read', mailboxRoot: true });
         const j = r.json();
         return { contacts: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { top: 25, search: 'Ada' }

@@ -335,6 +335,58 @@ describe('a refused Outlook call says how the mailbox is granted [CONN-R30]', ()
     ).toBe(
       `Outlook list_messages failed: Microsoft Graph has no mailbox ${SHARED} — check the address in Settings → Connectors.`,
     );
+    expect(
+      await refusal(
+        'list_messages',
+        { folder: 'archive' },
+        { config: { mailbox: SHARED }, http: fake.http },
+      ),
+    ).toBe(
+      `Outlook list_messages failed: Microsoft Graph has no mailbox ${SHARED} or no folder "archive" in it — check the address in Settings → Connectors.`,
+    );
+  });
+
+  it('keeps Graph’s own 404 for what is gone inside the mailbox, never blaming the mailbox', async () => {
+    // The message was read, then deleted before its attachments were listed.
+    const fake = graph((call) =>
+      call.url.endsWith('/attachments')
+        ? { status: 404, body: { error: { code: 'ErrorItemNotFound' } } }
+        : {
+            status: 200,
+            body: {
+              id: 'AAMk-1',
+              subject: 'Spring offer',
+              hasAttachments: true,
+            },
+          },
+    );
+    const listing = await refusal(
+      'get_message',
+      { messageId: 'AAMk-1', includeAttachments: true },
+      // Never reached: the listing fails before any bytes are stored.
+      { config: { mailbox: SHARED }, http: fake.http, files: {} },
+    );
+    expect(listing).toContain(
+      'Outlook get_message failed during attachment listing (404)',
+    );
+    expect(listing).not.toContain('has no mailbox');
+    expect(classifyMailFailure(new Error(listing), 'read').kind).toBe('gone');
+
+    // The draft was created, then removed before it could be sent.
+    const send = await refusal(
+      'send_message',
+      { to: 'mia@example.net', subject: 'Re: Spring offer', body: 'Thanks' },
+      {
+        config: { mailbox: SHARED },
+        http: graph((call) =>
+          call.url.endsWith('/send')
+            ? { status: 404 }
+            : { status: 201, body: { id: 'draft-1' } },
+        ).http,
+      },
+    );
+    expect(send).toContain('Outlook send_message failed during send (404)');
+    expect(send).not.toContain('has no mailbox');
   });
 
   it('keeps a message gone since the listing a message, and Graph’s wait a wait', async () => {

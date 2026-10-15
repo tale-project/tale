@@ -337,7 +337,9 @@ its own, so its credential is refused until it names one (`CREDENTIAL_CONFIG_REQ
 When Microsoft Graph denies access to the named mailbox, the refusal names the mailbox, the
 Exchange application role the app needs for the action, scoped to the mailbox with RBAC for
 Applications, and for a person Full Access (and Send As, to send) followed by a reconnect. A
-mailbox Graph does not know is refused as such, and a throttled call still names Graph's wait.
+mailbox Graph does not know is refused as such, but only by a call on the mailbox itself: a message, attachment or
+draft Graph no longer finds inside it keeps Graph's own not-found answer, which the mail sync
+reads as gone. A throttled call still names Graph's wait.
 
 - **Example**: The app was granted reading but not sending, and Ada's automation replies from
   `promotion@example.com` → the step fails, saying the app needs "Application Mail.Send" for
