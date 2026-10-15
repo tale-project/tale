@@ -74,10 +74,10 @@ Pour une boîte d’équipe, la connexion de l’app convient mieux : elle ne d�
    ```
 
    `Application Mail.ReadWrite` permet à Tale de lire la boîte et d’y écrire des brouillons de réponse ; `Application Mail.Send` lui permet d’envoyer. Si des automatisations utilisent le calendrier ou les contacts de la boîte, attribue de la même façon `Application Calendars.ReadWrite` ou `Application Contacts.Read`. Exchange peut mettre jusqu’à deux heures à appliquer une nouvelle attribution.
-3. Dans Tale, sélectionne **Ajouter des identifiants**, puis **Microsoft Outlook**. Dans le formulaire, saisis l’ID d’annuaire (tenant), l’ID d’application (client), le secret client et, sous **Boîte aux lettres**, l’adresse partagée, puis ajoute les identifiants. Leur ligne affiche **Connexion de l'app**.
+3. Dans Tale, sélectionne **Ajouter des identifiants**, puis **Microsoft Outlook**. Dans le formulaire, saisis l’ID d’annuaire (tenant), l’ID d’application (client), le secret client et, sous **Boîte aux lettres**, l’adresse partagée, puis ajoute les identifiants. Leur ligne affiche **Connexion de l'app** et l’application utilisée, par son ID d’application et son annuaire ; du secret client, elle n’affiche que les premiers et derniers caractères.
 4. Envoie un message de test à l’adresse partagée et vérifie qu’il apparaît dans la boîte de réception. Pour confier ses conversations à l’équipe qui s’en occupe, ajoute pour cette boîte une règle de [routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations).
 
-Quand le secret client expire, remplace-le avec **Remplacer les identifiants de l'app** dans le menu de la ligne ; les identifiants gardent leur nom, leur boîte et leurs références.
+Quand le secret client expire, remplace-le avec **Remplacer les identifiants de l'app** dans le menu de la ligne. Le formulaire s’ouvre avec l’ID d’annuaire et l’ID d’application déjà remplis : tu ne saisis que le nouveau secret client. Les identifiants gardent leur nom, leur boîte et leurs références.
 
 Si c’est une personne qui gère la boîte, connecte Outlook avec **Connecter** en tant que cette personne. Ouvre ensuite **Modifier les identifiants**, saisis l’adresse partagée sous **Boîte aux lettres**, enregistre, puis choisis **Reconnecter**. Le nouvel écran de consentement demande l’accès aux boîtes que ce compte peut ouvrir. La personne a besoin d’un accès complet à la boîte et, pour envoyer, de l’autorisation « Envoyer en tant que ».
 

@@ -29146,9 +29146,9 @@ async function checkConnectorCredentials(
   );
 
   // An app that signs in as itself (0216): the widened method check stores
-  // it, the listing shows its client secret's excerpt and its mailbox as
-  // the From, and the resolve seam fetches the app's token once and keeps
-  // it sealed on the row.
+  // it, the listing shows its client secret's excerpt, the app it is
+  // (`client_app`) and its mailbox as the From, and the resolve seam fetches
+  // the app's token once and keeps it sealed on the row.
   const appCreated = z.object({ credentialId: z.string() }).safeParse(
     await (
       await api('', {
@@ -29175,6 +29175,9 @@ async function checkConnectorCredentials(
           id: z.string(),
           authMethod: z.string(),
           maskedPreview: z.string().optional(),
+          clientApp: z
+            .object({ tenantId: z.string().optional(), clientId: z.string() })
+            .optional(),
           config: z.record(z.string(), z.unknown()).optional(),
         }),
       ),
@@ -29209,6 +29212,8 @@ async function checkConnectorCredentials(
     appCreated.success &&
       app?.authMethod === 'client-credentials' &&
       app.maskedPreview === 'app-…ue' &&
+      app.clientApp?.tenantId === 'contoso.onmicrosoft.com' &&
+      app.clientApp.clientId === 'app-client-id' &&
       app.config?.fromAddress === 'promotion@door.test' &&
       !appListedRaw.includes('app-client-secret-value') &&
       appFirst.authHeader === 'Bearer app-token-1' &&
@@ -29217,7 +29222,7 @@ async function checkConnectorCredentials(
       tokenRequests[0] ===
         'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token' &&
       appDeleted.status === 204,
-    `create=${appCreated.success} method=${String(app?.authMethod)} preview=${String(app?.maskedPreview)} from=${String(app?.config?.fromAddress)} secretLeak=${appListedRaw.includes('app-client-secret-value')} header=${appFirst.authHeader === 'Bearer app-token-1'}/${appSecond.authHeader === 'Bearer app-token-1'} tokenRequests=${tokenRequests.length} del=${appDeleted.status}`,
+    `create=${appCreated.success} method=${String(app?.authMethod)} preview=${String(app?.maskedPreview)} app=${JSON.stringify(app?.clientApp)} from=${String(app?.config?.fromAddress)} secretLeak=${appListedRaw.includes('app-client-secret-value')} header=${appFirst.authHeader === 'Bearer app-token-1'}/${appSecond.authHeader === 'Bearer app-token-1'} tokenRequests=${tokenRequests.length} del=${appDeleted.status}`,
   );
 }
 

@@ -74,10 +74,10 @@ Für ein Team-Postfach eignet sich die App-Anmeldung besser: Sie hängt nicht am
    ```
 
    Mit `Application Mail.ReadWrite` liest Tale das Postfach und schreibt Antwortentwürfe, mit `Application Mail.Send` sendet es. Nutzen Automatisierungen den Kalender oder die Kontakte des Postfachs, weise auf dieselbe Weise `Application Calendars.ReadWrite` oder `Application Contacts.Read` zu. Bis Exchange eine neue Zuweisung anwendet, können bis zu zwei Stunden vergehen.
-3. Wähle in Tale **Zugangsdaten hinzufügen** und dann **Microsoft Outlook**. Gib im Formular die Verzeichnis-ID (Tenant), die Anwendungs-ID (Client), das Client-Secret und unter **Postfach** die freigegebene Adresse ein und füge die Zugangsdaten hinzu. Ihre Zeile zeigt **App-Anmeldung**.
+3. Wähle in Tale **Zugangsdaten hinzufügen** und dann **Microsoft Outlook**. Gib im Formular die Verzeichnis-ID (Tenant), die Anwendungs-ID (Client), das Client-Secret und unter **Postfach** die freigegebene Adresse ein und füge die Zugangsdaten hinzu. Ihre Zeile zeigt **App-Anmeldung** und anhand von Anwendungs-ID und Verzeichnis, welche App sie verwendet. Vom Client-Secret zeigt sie nur die ersten und letzten Zeichen.
 4. Sende eine Testnachricht an die freigegebene Adresse und prüfe, ob sie im Posteingang erscheint. Damit die Konversationen beim zuständigen Team landen, lege für das Postfach eine Regel im [Konversations-Routing](/de/platform/admin/governance/policies-and-limits#konversations-routing) an.
 
-Läuft das Client-Secret ab, ersetze es im Menü der Zeile mit **App-Zugangsdaten ersetzen**. Name, Postfach und Verweise der Zugangsdaten bleiben erhalten.
+Läuft das Client-Secret ab, ersetze es im Menü der Zeile mit **App-Zugangsdaten ersetzen**. Verzeichnis-ID und Anwendungs-ID sind im Formular schon eingetragen, du gibst nur das neue Client-Secret ein. Name, Postfach und Verweise der Zugangsdaten bleiben erhalten.
 
 Betreut stattdessen eine Person das Postfach, verbinde Outlook mit **Verbinden** als diese Person. Öffne danach **Zugangsdaten bearbeiten**, trage unter **Postfach** die freigegebene Adresse ein, speichere und wähle **Neu verbinden**. Die neue Freigabe fragt nach Zugriff auf die Postfächer, die dieses Konto öffnen kann. Die Person braucht Vollzugriff auf das Postfach und zum Senden die Berechtigung „Senden als“.
 

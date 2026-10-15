@@ -433,6 +433,8 @@ connectors:
     needsReauth: Reconnect needed
     needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
     needsReauthDetail: '{detail} Reconnect to grant consent again.'
+    clientApp: 'App {clientId}'
+    clientAppInTenant: 'App {clientId} in directory {tenantId}'
     reconnect: Reconnect
     deleteDefaultHandsOn: >-
       This is the default credential. Deleting it makes "{name}" the default

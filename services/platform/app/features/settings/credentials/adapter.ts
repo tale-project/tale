@@ -272,6 +272,13 @@ export interface CredentialAdapter<
    */
   detailLine?: (t: Translator, credential: Cred, vendor: V | null) => ReactNode;
   /**
+   * The draft the replace-secret dialog starts from, for a credential whose
+   * secret travels with parts that are not secret and that the row already
+   * shows (an app sign-in's directory and application ID): rotating the
+   * secret should not mean retyping them. Absent starts from `secret.empty`.
+   */
+  replaceDraft?: (credential: Cred) => Draft;
+  /**
    * Surface-specific row actions, prepended to the shared ones. A HOOK, called
    * once per row render like the mutations below: an action that talks to the
    * server (the providers' model check) needs its mutation and its toast.

@@ -460,6 +460,8 @@ connectors:
       L'autorisation stockée a expiré ou a été révoquée. Reconnecte-toi pour
       accorder le consentement à nouveau.
     needsReauthDetail: '{detail} Reconnecte-toi pour accorder le consentement à nouveau.'
+    clientApp: 'App {clientId}'
+    clientAppInTenant: "App {clientId} dans l'annuaire {tenantId}"
     reconnect: Reconnecter
     deleteDefaultHandsOn: >-
       Ce sont les identifiants par défaut. Si tu les supprimes, « {name} »

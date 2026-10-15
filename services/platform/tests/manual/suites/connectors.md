@@ -284,8 +284,9 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   **Application (client) ID**, **Client secret** and **Mailbox**, all
   required; Submit stays disabled until each is filled. Save with the shared
   address → the row shows **App sign-in**
-  (`settings.connectors.authMethod.clientCredentials`) and the client secret's
-  excerpt.
+  (`settings.connectors.authMethod.clientCredentials`), the client secret's
+  excerpt and "App <client ID> in directory <tenant>"
+  (`settings.connectors.credential.clientAppInTenant`), never the secret.
   Send a message to the shared address → it reaches the Inbox under that
   mailbox's name; a reply from it leaves from the shared address and lands in
   the shared mailbox's **Sent Items**, not in any person's.
@@ -373,8 +374,9 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   re-picked **GitHub** starts over with an empty token.
 - [ ] `CONN-B13` · **An app sign-in Exchange or Entra refuses** — On
   CONN-F24's row: **Replace app credentials**
-  (`settings.connectors.replace.clientCredentialsTitle`) with a wrong client
-  secret → the next mail sync or Outlook action fails with
+  (`settings.connectors.replace.clientCredentialsTitle`) opens with the
+  directory and application ID filled in and the secret blank; save a wrong
+  client secret → the next mail sync or Outlook action fails with
   `CREDENTIAL_APP_REFUSED`, naming `invalid_client` and the three values to
   check, and the row stays active; the right secret restores it. Then name a
   mailbox outside the app's management scope → the action fails naming that

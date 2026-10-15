@@ -448,6 +448,8 @@ connectors:
       Die gespeicherte Autorisierung ist abgelaufen oder wurde widerrufen.
       Verbinde neu, um die Freigabe erneut zu erteilen.
     needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
+    clientApp: 'App {clientId}'
+    clientAppInTenant: 'App {clientId} im Verzeichnis {tenantId}'
     reconnect: Neu verbinden
     deleteDefaultHandsOn: >-
       Das sind die Standard-Zugangsdaten. Nach dem Löschen wird "{name}" zum

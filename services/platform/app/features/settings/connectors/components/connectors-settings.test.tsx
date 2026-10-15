@@ -803,6 +803,71 @@ describe('ConnectorsSettings', () => {
       ).not.toBeInTheDocument();
     });
 
+    it('shows which app an app sign-in uses, and rotates its secret without retyping the IDs', async () => {
+      fixtures.connectors = [outlookConnector];
+      fixtures.credentials = [
+        credential({
+          id: 'cred-app',
+          name: 'Promotion mailbox',
+          connectorSlug: 'outlook',
+          authMethod: 'client-credentials',
+          maskedPreview: 'app-…ue',
+          clientApp: {
+            tenantId: 'contoso.onmicrosoft.com',
+            clientId: 'app-client-id',
+          },
+          config: {
+            mailbox: 'promotion@example.com',
+            fromAddress: 'promotion@example.com',
+          },
+        }),
+      ];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+
+      expect(
+        screen.getByText(
+          'App app-client-id in directory contoso.onmicrosoft.com',
+        ),
+      ).toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Promotion mailbox' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Replace app credentials',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Replace app credentials' }),
+      );
+      expect(
+        dialog.getByLabelText(/^Directory \(tenant\) ID/, {
+          selector: 'input',
+        }),
+      ).toHaveValue('contoso.onmicrosoft.com');
+      expect(
+        dialog.getByLabelText(/^Application \(client\) ID/, {
+          selector: 'input',
+        }),
+      ).toHaveValue('app-client-id');
+      const secret = dialog.getByLabelText(/^Client secret/, {
+        selector: 'input',
+      });
+      expect(secret).toHaveValue('');
+      const save = dialog.getByRole('button', { name: 'Save' });
+      expect(save).toBeDisabled();
+
+      await user.type(secret, 'rotated-secret');
+      await user.click(save);
+      expect(updateCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        credentialId: 'cred-app',
+        tenantId: 'contoso.onmicrosoft.com',
+        clientId: 'app-client-id',
+        clientSecret: 'rotated-secret',
+      });
+    });
+
     it('reconnects exactly the row whose menu was used, not the default', async () => {
       fixtures.connectors = [slackConnector];
       fixtures.credentials = [

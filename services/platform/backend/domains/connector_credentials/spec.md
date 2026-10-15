@@ -95,6 +95,16 @@ reached, or is down or too busy, is a retryable refusal, as for a renewable sign
   with `invalid_client` and the advice to replace the secret; Ada replaces it and the next
   pass reads the mailbox again.
 
+### CCRED-R11 · An app's directory and application ID are shown, never its client secret
+
+The two values tell an admin which app a credential signs in as, and they are what a refused
+sign-in says to check, so the credential's row shows them beside the excerpt of the client
+secret. Replacing the secret starts from them, and only the client secret is typed again.
+
+- **Example**: Ada opens Settings → Connectors → the row of the shared mailbox reads "App
+  1b2c… in directory contoso.onmicrosoft.com", and **Replace app credentials** opens with both
+  filled in.
+
 ## What the audit log records
 
 ### CCRED-R7 · Every change to a credential is written to the audit log, never its secret

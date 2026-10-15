@@ -142,6 +142,8 @@ export interface CredentialRow {
   endpointUrl: string | null;
   config: Record<string, string | number | boolean> | null;
   maskedPreview: string | null;
+  /** `client-credentials`: the app it signs in as ({@link ClientApp}). */
+  clientApp: ClientApp | null;
   isDefault: boolean;
   mailSyncInboundSince: number | null;
   mailSyncOutboundSince: number | null;
@@ -156,7 +158,7 @@ const CREDENTIAL_COLUMNS = `
   id, org_id AS "organizationId", connector_slug AS "connectorSlug",
   auth_method AS "authMethod", name, encrypted_data AS "encryptedData",
   endpoint_url AS "endpointUrl", config, masked_preview AS "maskedPreview",
-  is_default AS "isDefault",
+  client_app AS "clientApp", is_default AS "isDefault",
   mail_sync_inbound_since_ms::float8 AS "mailSyncInboundSince",
   mail_sync_outbound_since_ms::float8 AS "mailSyncOutboundSince",
   status, status_detail AS "statusDetail", created_by AS "createdBy",
@@ -487,16 +489,37 @@ function checkPayloadForConnector(
   }
 }
 
-/** Encrypt a validated payload and compute its non-secret preview. */
+/**
+ * Which app a `client-credentials` credential signs in as: its directory and
+ * application ID, which are not secret. The envelope keeps them for the
+ * token request; the row shows this copy, written from the same payload in
+ * the same statement, so an admin can tell which app and directory a
+ * credential uses — the two values its refusal tells them to check — and a
+ * secret rotation starts from them instead of blank fields.
+ */
+export interface ClientApp {
+  tenantId?: string;
+  clientId: string;
+}
+
+/** Encrypt a validated payload and compute its non-secret preview, and for
+ * an app that signs in as itself, the app it is ({@link ClientApp}). */
 function sealPayload(payload: ConnectorSecretPayload): {
   encryptedData: EncryptedSecret;
   maskedPreview?: string;
+  clientApp?: ClientApp;
 } {
   const { authMethod: _method, ...document } = payload;
   const maskedPreview = maskPayload(payload);
   return {
     encryptedData: encryptSecret(JSON.stringify(document)),
     ...(maskedPreview !== undefined && { maskedPreview }),
+    ...(payload.authMethod === 'client-credentials' && {
+      clientApp: {
+        ...(payload.tenantId !== undefined && { tenantId: payload.tenantId }),
+        clientId: payload.clientId,
+      },
+    }),
   };
 }
 
@@ -605,6 +628,8 @@ export interface MaskedCredential {
   endpointUrl?: string;
   config?: Record<string, string | number | boolean>;
   maskedPreview?: string;
+  /** `client-credentials`: the app it signs in as — not secret. */
+  clientApp?: ClientApp;
   isDefault: boolean;
   status: CredentialStatus;
   statusDetail?: string;
@@ -627,6 +652,7 @@ function toMasked(row: CredentialRow): MaskedCredential {
     ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
     ...(row.config !== null ? { config: row.config } : {}),
     ...(row.maskedPreview !== null ? { maskedPreview: row.maskedPreview } : {}),
+    ...(row.clientApp != null ? { clientApp: row.clientApp } : {}),
     isDefault: row.isDefault,
     status: row.status,
     ...(row.statusDetail !== null ? { statusDetail: row.statusDetail } : {}),
@@ -828,14 +854,16 @@ async function insertPreparedCredential(
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.connector_credentials (
       org_id, connector_slug, auth_method, name, encrypted_data,
-      endpoint_url, config, masked_preview, is_default, status,
+      endpoint_url, config, masked_preview, client_app, is_default, status,
       created_by, created_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.connectorSlug}, ${args.authMethod},
       ${prepared.name}, ${tx.json(toJson(prepared.sealed.encryptedData))},
       ${prepared.endpointUrl ?? null},
       ${prepared.config === undefined ? null : tx.json(toJson(prepared.config))},
-      ${prepared.sealed.maskedPreview ?? null}, ${isDefault}, 'active',
+      ${prepared.sealed.maskedPreview ?? null},
+      ${prepared.sealed.clientApp === undefined ? null : tx.json(toJson(prepared.sealed.clientApp))},
+      ${isDefault}, 'active',
       ${args.createdBy}, ${now}, ${now}
     )
     RETURNING id
@@ -964,6 +992,7 @@ export async function updateCredentialInTransaction(
       name = ${name},
       encrypted_data = ${sealed !== undefined ? tx.json(toJson(sealed.encryptedData)) : tx.unsafe('encrypted_data')},
       masked_preview = ${sealed !== undefined ? (sealed.maskedPreview ?? null) : tx.unsafe('masked_preview')},
+      client_app = ${sealed === undefined ? tx.unsafe('client_app') : sealed.clientApp === undefined ? null : tx.json(toJson(sealed.clientApp))},
       endpoint_url = ${endpointUrl},
       config = ${config === null ? null : tx.json(toJson(config))},
       status = ${args.status ?? tx.unsafe('status')},

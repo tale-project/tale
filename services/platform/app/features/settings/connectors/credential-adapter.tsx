@@ -361,14 +361,33 @@ export const connectorCredentialAdapter: CredentialAdapter<
   statusLabel,
   statusTone: (status) => (status === 'needs-reauth' ? 'orange' : 'slate'),
 
-  detailLine: (t, credential) =>
-    credential.status === 'needs-reauth'
-      ? credential.statusDetail !== undefined
+  detailLine: (t, credential) => {
+    if (credential.status === 'needs-reauth') {
+      return credential.statusDetail !== undefined
         ? t('connectors.credential.needsReauthDetail', {
             detail: credential.statusDetail,
           })
-        : t('connectors.credential.needsReauthHint')
-      : undefined,
+        : t('connectors.credential.needsReauthHint');
+    }
+    // Which app an app sign-in uses — the two values its refusal says to
+    // check, and neither is secret.
+    const app = credential.clientApp;
+    if (app === undefined) return undefined;
+    return app.tenantId === undefined
+      ? t('connectors.credential.clientApp', { clientId: app.clientId })
+      : t('connectors.credential.clientAppInTenant', {
+          clientId: app.clientId,
+          tenantId: app.tenantId,
+        });
+  },
+
+  // Rotating an app's client secret keeps its directory and application ID,
+  // which the row shows; only the secret is typed again.
+  replaceDraft: (credential) => ({
+    ...emptySecretDraft(),
+    tenantId: credential.clientApp?.tenantId ?? '',
+    clientId: credential.clientApp?.clientId ?? '',
+  }),
 
   // Deleting a connector's default hands it to the oldest active credential
   // left (the server's `defaultSuccessor`), which the listing names on the

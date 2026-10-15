@@ -74,10 +74,10 @@ The app sign-in is the better fit for a team inbox: it does not depend on one pe
    ```
 
    `Application Mail.ReadWrite` lets Tale read the mailbox and write reply drafts; `Application Mail.Send` lets it send. Add `Application Calendars.ReadWrite` or `Application Contacts.Read` the same way if automations use the mailbox's calendar or contacts. Exchange can take up to two hours to apply a new assignment.
-3. In Tale, select **Add credential**, then **Microsoft Outlook**. In the form, enter the directory (tenant) ID, the application (client) ID, the client secret and, under **Mailbox**, the shared address, then add the credential. Its row shows **App sign-in**.
+3. In Tale, select **Add credential**, then **Microsoft Outlook**. In the form, enter the directory (tenant) ID, the application (client) ID, the client secret and, under **Mailbox**, the shared address, then add the credential. Its row shows **App sign-in** and which app it uses, by application ID and directory; the client secret shows only as its first and last characters.
 4. Send a test message to the shared address and check that it appears in the Inbox. To give its conversations to the team that handles them, add a [conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing) rule for the mailbox.
 
-When the client secret expires, replace it with **Replace app credentials** in the row's menu; the credential keeps its name, mailbox and references.
+When the client secret expires, replace it with **Replace app credentials** in the row's menu. The form starts with the directory and application ID filled in, so only the new client secret needs entering; the credential keeps its name, mailbox and references.
 
 If a person handles the mailbox instead, connect Outlook with **Connect** as that person, then open **Edit credential**, enter the shared address under **Mailbox**, save, and choose **Reconnect**. The new consent screen asks for access to mailboxes that account can open. The person needs Full Access to the mailbox, and Send As to send from it.
 

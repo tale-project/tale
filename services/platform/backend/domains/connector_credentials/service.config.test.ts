@@ -12,24 +12,38 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { createAuditLog } = vi.hoisted(() => ({ createAuditLog: vi.fn() }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 
-import { createCredential } from './service.ts';
+import {
+  createCredential,
+  listCredentials,
+  updateCredential,
+} from './service.ts';
 
 interface Statement {
   text: string;
   values: unknown[];
 }
 
-/** A `sql` that records every statement and answers the insert with an id. */
-function fakeSql(): { sql: Sql; statements: Statement[] } {
+/** A `sql` that records every statement, answers the insert with an id
+ * and a read of the table with `stored`, when given. */
+function fakeSql(stored?: Record<string, unknown>): {
+  sql: Sql;
+  statements: Statement[];
+} {
   const statements: Statement[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
-    return Promise.resolve(
-      text.startsWith('INSERT INTO app.connector_credentials')
-        ? [{ id: 'cred-new' }]
-        : [],
-    );
+    if (text.startsWith('INSERT INTO app.connector_credentials')) {
+      return Promise.resolve([{ id: 'cred-new' }]);
+    }
+    if (
+      stored !== undefined &&
+      text.startsWith('SELECT') &&
+      text.includes('FROM app.connector_credentials')
+    ) {
+      return Promise.resolve([stored]);
+    }
+    return Promise.resolve([]);
   };
   tag.begin = (fn: (tx: unknown) => Promise<unknown>) => fn(tag);
   tag.unsafe = (text: string) => text;
@@ -95,5 +109,102 @@ describe('a per-credential setting is stored without the blanks around it [CONN-
       createCredential(sql, { ...APP_SIGN_IN, config: { mailbox: '   ' } }),
     ).rejects.toMatchObject({ code: 'CREDENTIAL_CONFIG_REQUIRED' });
     expect(statements).toEqual([]);
+  });
+});
+
+/** The stored row of an app sign-in, as the table answers it. */
+const APP_ROW = {
+  id: 'cred-app',
+  organizationId: 'org-1',
+  connectorSlug: 'outlook',
+  authMethod: 'client-credentials',
+  name: 'Promotion mailbox',
+  encryptedData: { keyFingerprint: 'fp', iv: 'iv', ciphertext: 'ct', tag: 't' },
+  endpointUrl: null,
+  config: {
+    mailbox: 'promotion@example.com',
+    fromAddress: 'promotion@example.com',
+  },
+  maskedPreview: 'app-…ue',
+  clientApp: { tenantId: 'contoso.onmicrosoft.com', clientId: 'app-client-id' },
+  isDefault: true,
+  mailSyncInboundSince: null,
+  mailSyncOutboundSince: null,
+  status: 'active',
+  statusDetail: null,
+  createdBy: 'user-1',
+  createdAt: 1,
+  updatedAt: 1,
+};
+
+/** The statement that wrote the row, and the values it carried. */
+function write(statements: readonly Statement[], verb: 'INSERT' | 'UPDATE') {
+  const statement = statements.find(
+    (entry) =>
+      entry.text.startsWith(`${verb} INTO app.connector_credentials`) ||
+      entry.text.startsWith(`${verb} app.connector_credentials`),
+  );
+  if (statement === undefined) throw new Error(`no ${verb} of the row`);
+  return statement;
+}
+
+describe('an app sign-in shows which app it signs in as, never its secret [CCRED-R11]', () => {
+  it('stores the directory and application ID beside the sealed secret', async () => {
+    const { sql, statements } = fakeSql();
+
+    await createCredential(sql, {
+      ...APP_SIGN_IN,
+      config: { mailbox: 'promotion@example.com' },
+    });
+
+    const insert = write(statements, 'INSERT');
+    expect(insert.text).toContain('client_app');
+    expect(insert.values).toContainEqual({
+      tenantId: 'contoso.onmicrosoft.com',
+      clientId: 'app-client-id',
+    });
+    expect(JSON.stringify(insert.values)).not.toContain(
+      'app-client-secret-value',
+    );
+  });
+
+  it('lists them on the row, beside the client secret’s excerpt', async () => {
+    const { sql } = fakeSql(APP_ROW);
+
+    const [listed] = await listCredentials(sql, 'org-1');
+
+    expect(listed).toMatchObject({
+      maskedPreview: 'app-…ue',
+      clientApp: {
+        tenantId: 'contoso.onmicrosoft.com',
+        clientId: 'app-client-id',
+      },
+    });
+  });
+
+  it('rewrites them with a replaced secret, and keeps them through any other edit', async () => {
+    const replaced = fakeSql(APP_ROW);
+    await updateCredential(replaced.sql, {
+      organizationId: 'org-1',
+      credentialId: 'cred-app',
+      secret: {
+        tenantId: 'fabrikam.onmicrosoft.com',
+        clientId: 'other-app-id',
+        clientSecret: 'other-secret-value',
+      },
+    });
+    expect(write(replaced.statements, 'UPDATE').values).toContainEqual({
+      tenantId: 'fabrikam.onmicrosoft.com',
+      clientId: 'other-app-id',
+    });
+
+    const renamed = fakeSql(APP_ROW);
+    await updateCredential(renamed.sql, {
+      organizationId: 'org-1',
+      credentialId: 'cred-app',
+      name: 'Promotion',
+    });
+    // `unsafe('client_app')`: the column keeps what it holds.
+    expect(write(renamed.statements, 'UPDATE').values).toContain('client_app');
   });
 });

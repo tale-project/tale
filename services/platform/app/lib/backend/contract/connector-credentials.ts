@@ -191,6 +191,8 @@ export interface ConnectorCredentialsContract {
       isDefault: boolean;
       status: 'active' | 'disabled' | 'needs-reauth';
       maskedPreview?: string;
+      /** `client-credentials`: the app it signs in as — not secret. */
+      clientApp?: { tenantId?: string; clientId: string };
       config?: Record<string, string | number | boolean>;
       endpointUrl?: string;
       id: string;
