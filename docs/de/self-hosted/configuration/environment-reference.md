@@ -154,6 +154,8 @@ Ohne age-Schlüssel schreibt der SOPS-Helfer unterstützte Geheimnisdateien als 
 
 Anbieterzugangsdaten können stattdessen eine Variable mit Präfix `TALE_PROVIDER_KEY_` und höchstens 40 Zeichen referenzieren. Zugangsdaten für Abonnement-Broker verwenden das getrennte Präfix `TALE_TOKEN_SOURCE_` mit höchstens 60 Zeichen. Diese Felder speichern Variablennamen, keine Geheimniswerte. Übergib Werte an die Backend-Prozesse und erstelle betroffene Container nach Änderungen neu. [Anbieter](/de/self-hosted/configuration/providers) beschreibt die Einrichtung.
 
+Eine [Plattformkonfiguration](/de/self-hosted/install/cli-install#plattform-konfigurieren) liest die Werte der Agent-Secrets und Connector-Zugangsdaten, die sie deklariert, aus Variablen mit Präfix `TALE_CONFIG_SECRET_` (höchstens 80 Zeichen) in der Umgebung der CLI, die sie anwendet; in einem verwalteten Deployment ist das die Umgebung des Backend-Containers. Die Deklaration speichert die Variablennamen, die Plattform die übergebenen Werte; ein geänderter Wert wird beim nächsten Anwenden geschrieben.
+
 ## Connector-OAuth-Apps
 
 OAuth-Connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre Vendor-App zuerst pro Organisation auf: Eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte App gewinnt für diese Org. Die Umgebung liefert darunter den deployment-weiten Standard (und ist die einzige Quelle für Slack, dessen Event-Signaturprüfung läuft, bevor eine Org bekannt ist). Pro Connector-Slug:

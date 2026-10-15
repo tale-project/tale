@@ -426,7 +426,83 @@ Utilise `agent-model` pour choisir la configuration d’exécution des prochains
 
 Utilise `task-review-context` pour inscrire une tâche opérationnelle vierge pour un seul réviseur. Son `config` contient `projectId`, `taskId`, `reviewerAgentId` et `enabled`. Par défaut, la tâche doit déjà exister, sans historique d’exécution, de révision ou de travail de mise en œuvre. Pour la créer, ajoute `createIfMissing: true` à côté de `kind` et de `config`, et choisis un UUID stable pour `taskId`. Avec les droits de modification du projet, tu peux alors créer la tâche dans le backlog et l’inscrire dans une seule transaction. Si l’inscription échoue, aucune tâche ni modification des compteurs ou du journal d’audit ne subsiste. Le réviseur doit déjà disposer de `task_review` ; l’inscription n’accorde aucun outil et ne lance aucun travail. Les tâches existantes restent soumises aux contrôles de tâche vierge ; une identité occupée n’est jamais écrasée. Après une interruption, conserve le même ID et le reçu en attente. La désactivation conserve le réviseur et la finalité du contexte.
 
-Utilise `project-dispatch` pour déclarer la [répartition du travail](/fr/platform/projects/dispatch) d’un projet : les agents qui lancent son travail prêt, le nombre d’exécutions qu’ils mènent à la fois, ses rôles permanents et ses barrières. Son objet `config` contient le `projectId` exact et les champs de la répartition : `enabled`, `agents`, `maxConcurrentRuns`, `statuses` et `assignment`, ainsi que, en option, `perAgentConcurrency`, `rebalance`, `labels`, `admission`, `standingRoles` et `gates`. Un projet n’a qu’une répartition ; s’il n’en a pas encore, la déclaration la crée, activée ou désactivée selon `enabled`. Chaque application remplace tout le document : un champ que tu omets prend sa valeur par défaut, et une modification faite dans l’app est écrasée. Seuls les administrateurs du projet ainsi que les Propriétaires et Admins de l’organisation peuvent l’appliquer, et seulement sur un projet actif. La plateforme refuse une répartition qui nomme un agent ou une tâche hors du projet, un rôle permanent sur une tâche archivée, une expression cron invalide ou une étiquette que le projet n’a pas ; crée donc d’abord les étiquettes. Une répartition activée lance du travail aussitôt, c’est pourquoi la CLI l’applique après toutes les autres ressources de la déclaration. Déclare chaque barrière sous `gates` ; ce qu’un système externe signale sur une barrière via `POST /api/v1/projects/{id}/dispatch/gates/{key}` est un état d’exécution et n’apparaît jamais dans la déclaration, le plan ou la relecture. Si le runtime ne peut pas lire une répartition enregistrée, par exemple parce qu’une version plus récente de Tale l’a écrite, elle est refusée dès la planification au lieu d’être planifiée comme nouvelle.
+Utilise `project-dispatch` pour déclarer la [répartition du travail](/fr/platform/projects/dispatch) d’un projet : les agents qui lancent son travail prêt, le nombre d’exécutions qu’ils mènent à la fois, ses rôles permanents et ses barrières. Son objet `config` contient le `projectId` exact et les champs de la répartition : `enabled`, `agents`, `maxConcurrentRuns`, `statuses` et `assignment`, ainsi que, en option, `perAgentConcurrency`, `rebalance`, `labels`, `admission`, `standingRoles` et `gates`. Un projet n’a qu’une répartition ; s’il n’en a pas encore, la déclaration la crée, activée ou désactivée selon `enabled`. Chaque application remplace tout le document : un champ que tu omets prend sa valeur par défaut, et une modification faite dans l’app est écrasée. Seuls les administrateurs du projet ainsi que les Propriétaires et Admins de l’organisation peuvent l’appliquer, et seulement sur un projet actif. La plateforme refuse une répartition qui nomme un agent ou une tâche hors du projet, un rôle permanent sur une tâche archivée, une expression cron invalide ou une étiquette que le projet n’a pas ; déclare donc ses étiquettes avec `project-label` ou crée-les d’abord. Une répartition activée lance du travail aussitôt, c’est pourquoi la CLI l’applique après toutes les autres ressources de la déclaration. Déclare chaque barrière sous `gates` ; ce qu’un système externe signale sur une barrière via `POST /api/v1/projects/{id}/dispatch/gates/{key}` est un état d’exécution et n’apparaît jamais dans la déclaration, le plan ou la relecture. Si le runtime ne peut pas lire une répartition enregistrée, par exemple parce qu’une version plus récente de Tale l’a écrite, elle est refusée dès la planification au lieu d’être planifiée comme nouvelle.
+
+Une déclaration peut aussi créer ce avec quoi travaille un groupe d’agents : son projet, les étiquettes du projet, ses agents et ses tâches permanentes, ainsi que les secrets d’agent et les identifiants de connector qu’ils utilisent. Chacun de ces types reprend la ressource que nomme son identité. Pour en créer une qui n’existe pas encore, ajoute `createIfMissing: true` à côté de `kind` et de `config` ; un projet, un agent et une tâche ont alors besoin d’un UUID stable que tu choisis, afin qu’une nouvelle tentative retrouve ce qu’une application interrompue a déjà créé. Un champ que tu omets garde ce que Tale a enregistré ; un champ que tu indiques reprend la valeur déclarée à chaque application.
+
+| Type                   | Identité                                        | Configuration |
+| ---------------------- | ----------------------------------------------- | ------------- |
+| `project`              | `projectId`                                     | `name`, et en option `description` (`null` l’efface) et `teamIds` (`[]` ouvre le projet à toute l’organisation). Une `key` à côté de `createIfMissing` choisit la clé du projet, qui ne change plus ensuite. |
+| `project-label`        | `projectId` et `name`, quelle que soit la casse | Rien d’autre : Tale déduit la couleur d’une étiquette de son nom. Une étiquette écrite autrement est réécrite comme la déclaration la nomme. |
+| `project-agent`        | `projectId` et `agentId`                        | `name`, et en option `connectors`, `secrets` (noms de secrets d’agent) et `skills`. Créer un agent exige son `agent-model` dans la même déclaration ; ses `agent-instructions` et `agent-tools` déclarés sont créés avec lui. |
+| `task`                 | `projectId` et `taskId`                         | `title`, et en option `labels`, `assigneeAgentId` (`null` pour aucun agent) et `priority` (`p0` à `p3`, `null` pour aucune). Un `initialStatus` à côté de `createIfMissing` choisit `backlog` (par défaut) ou `todo`. Sa description vient de `task-instructions`. |
+| `agent-secret`         | `name`                                          | `envName`, la variable d’environnement d’où la valeur est lue. |
+| `connector-credential` | `connector` et `name`, quelle que soit la casse | `authMethod` (`api-key`, `bearer` ou `basic`) et `fields`, qui associe chaque champ secret à `{ "env": "<variable>" }` : `token`, ou `username` et `password`, avec en option `smtpUsername` et `smtpPassword`. En option, `endpoint` et `isDefault`. |
+
+Le statut d’une tâche appartient à son travail : une déclaration ne fixe que la colonne où commence une tâche qu’elle crée, et ne le lit ni ne le change ensuite. L’environnement d’exécution, le modèle, les instructions et les outils d’un agent restent à `agent-model`, `agent-instructions` et `agent-tools`, pour qu’aucun champ n’appartienne à deux types. Une personne à qui une tâche est assignée la garde jusqu’à ce que la déclaration nomme un agent. L’`endpoint` d’identifiants de connector est l’origine HTTPS d’un connector qui en demande une par identifiant.
+
+La valeur d’un secret n’entre jamais dans la déclaration, le plan ou le reçu. La CLI la lit au moment de planifier et d’appliquer, dans une variable d’environnement dont le nom commence par `TALE_CONFIG_SECRET_` — dans un déploiement géré, l’environnement de la plateforme elle-même — et refuse de planifier tant que la variable manque. Tale ne renvoie qu’un condensat salé de la valeur enregistrée : une valeur remplacée dans l’environnement, ou par une personne dans Tale, apparaît donc comme un changement dans le plan, alors que le hash de la déclaration reste le même. Une connexion que le système externe renouvelle (OAuth) se connecte dans Tale et n’est jamais déclarée, et des identifiants déclarés gardent la méthode de connexion avec laquelle ils ont été créés.
+
+L’application crée d’abord ce que d’autres ressources référencent : projets, étiquettes, secrets d’agent, identifiants de connector, agents puis tâches, avant les instructions, outils, modèles, contextes de revue, automatisations et, en dernier, la répartition du travail. Rien n’est lu pendant la planification à l’intérieur d’un projet, d’un agent ou d’une tâche que la déclaration crée : ces ressources apparaissent comme `create` dans le plan, et l’application les écrit par-dessus ce que la création a laissé. La vérification de la répartition compte les agents, tâches permanentes et étiquettes que crée la même déclaration ; une répartition pour un projet que la déclaration crée exige un Propriétaire ou un Admin de l’organisation. Un déploiement `--configuration-only` accepte tous ces types. Par exemple, cette déclaration crée un projet avec un agent sur une tâche permanente :
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "project",
+      "createIfMissing": true,
+      "key": "FLT",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "name": "Fleet"
+      }
+    },
+    {
+      "kind": "agent-secret",
+      "createIfMissing": true,
+      "config": {
+        "name": "GITHUB_TOKEN",
+        "envName": "TALE_CONFIG_SECRET_GITHUB"
+      }
+    },
+    {
+      "kind": "project-agent",
+      "createIfMissing": true,
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "agentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50",
+        "name": "Manager",
+        "secrets": ["GITHUB_TOKEN"]
+      }
+    },
+    {
+      "kind": "agent-model",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "agentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50",
+        "harness": "codex",
+        "model": "example-model",
+        "modelProvider": "example"
+      }
+    },
+    {
+      "kind": "task",
+      "createIfMissing": true,
+      "initialStatus": "todo",
+      "config": {
+        "projectId": "6f1c2a14-4d55-4d61-9b2a-7a5c2e0f3b11",
+        "taskId": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+        "title": "Manage the fleet",
+        "assigneeAgentId": "0c3d5e8a-1b2c-4d3e-8f9a-0b1c2d3e4f50"
+      }
+    }
+  ]
+}
+```
+
+
+Remplace le modèle et le fournisseur par ceux que ton organisation sert, et définis `TALE_CONFIG_SECRET_GITHUB` là où la CLI s’exécute ; un déploiement géré déclare chacune de ces variables comme référence `environment` obligatoire, comme celle d’un identifiant de fournisseur. Rien n’est jamais supprimé : une ressource retirée de la déclaration n’est plus gérée et reste telle quelle. Pour mettre hors service une partie du groupe, applique d’abord une déclaration qui la désactive — par exemple `enabled: false` sur sa répartition —, retire-la ensuite de la déclaration, puis supprime dans Tale ce dont tu n’as plus besoin.
 
 Les politiques de conservation et DSAR exigent leurs workflows natifs dédiés. Interromps les envois, la synchronisation et les crawls avant de changer de modèle d’embedding. La CLI vérifie le nombre de documents et de sites web dans toute l’organisation ; elle ne verrouille pas l’import et ne migre pas les vecteurs existants. Pour une organisation avec des documents ou des sites web enregistrés, un changement de modèle exige une migration native distincte de l’index. Une modification limitée à `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` ou `maxRequestsPerMinute` laisse les vecteurs existants valables et échappe donc à cette vérification. Les paramètres d’instance exigent aussi la liste native des éditeurs autorisés. L’application autonome signale `restartRequired` pour les paramètres de démarrage ; les enregistrer ne les active pas encore. Examine les effets du plan avant de l’appliquer.
 
@@ -488,6 +564,8 @@ Les déploiements gérés utilisent le même moteur via `configuration`. Ajoute 
 `envName` suit le préfixe natif `TALE_PROVIDER_KEY_` et la limite de 40 caractères. Chaque alias exige une référence `environment` obligatoire. Les endpoints privés exigent aussi une référence explicite `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` dont la valeur est `1` ; les restrictions natives d’hôtes restent actives. `expectedModels` vérifie le catalogue fraîchement résolu par Tale lors de la relecture. Ce contrôle ne prouve ni la capacité d’inférence, ni la latence, ni les résultats métier.
 
 Pour la sélection du modèle de vision, utilise `governance` avec `key: "vision_model"` et les champs natifs `providerSlug`/`modelId`. L’embedding utilise `knowledge-embedding` avec `providerSlug`, `model`, `dimensions` et `baseUrl`, plus les réglages facultatifs que la plateforme garde à côté du modèle dans [`embedding.json`](/fr/self-hosted/configuration/data-residency#le-modele-dembedding-de-lorganisation) : `minSimilarity`, le plancher de cosinus de l’assistant pour ce modèle, et les limites du serveur `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` et `maxRequestsPerMinute` ([Doser les requêtes vers un serveur d’embedding auto-hébergé](/fr/self-hosted/configuration/data-residency#capacite-du-serveur-dembedding)). Chacun suit la règle de la plateforme elle-même : une valeur le fixe, une clé omise laisse ce que le fichier contient (une valeur posée à la main survit à une release qui ne la mentionne pas), et `null` l’efface — `"minSimilarity": null`, par exemple, est la seule façon de retirer un plancher par la CLI. Pour remplacer les identifiants par défaut, déclare aussi les anciens identifiants d’environnement avec `isDefault: false` ; la CLI applique ce changement explicite en premier. Les secrets ne figurent ni dans la déclaration ni dans le reçu.
+
+Un déploiement géré peut nommer son fichier de déclaration avec `configurationSource` au lieu d’une `configuration` en ligne. Ce fichier peut lister sous `include` d’autres fichiers de déclaration, relatifs à lui ; ils sont fusionnés en une seule déclaration avant sa validation. Un fichier de déclaration inclus deux fois est refusé, tandis qu’un fichier d’instructions ou de workflow que plusieurs ressources nomment n’est lu qu’une fois. Une déclaration contient au plus 512 ressources sur l’ensemble de ses fichiers.
 
 La configuration native suit la vérification d’identité et précède les versions de configuration. Le reçu `native.configuration` lie les hashes de déclaration et de bundle, l’organisation, les hashes des ressources et les révisions natives. Un reçu en attente précède la première écriture. Si une ressource échoue ensuite, les changements précédents peuvent rester en place. Relis l’état natif et le reçu avant de reprendre le même plan vérifié. Le compare-and-set natif protège chaque ressource des modifications concurrentes d’un admin ; aucune transaction ne couvre l’ensemble. Conserve l’état du déploiement, les snapshots et les reçus pour la restauration.
 

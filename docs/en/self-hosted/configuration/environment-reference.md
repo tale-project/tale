@@ -154,6 +154,8 @@ Without an age key, the SOPS helper writes supported sidecars as plaintext at mo
 
 Provider credentials may instead reference a variable under `TALE_PROVIDER_KEY_` (maximum name length 40). Subscription-broker credentials use the separate `TALE_TOKEN_SOURCE_` prefix (maximum 60). These fields store variable names, not secret values. Inject values into the backend processes and recreate the consumers when values change. [Providers](/self-hosted/configuration/providers) describes this setup.
 
+A [platform configuration](/self-hosted/install/cli-install#configure-the-platform) reads the values of the agent secrets and connector credentials it declares from variables under `TALE_CONFIG_SECRET_` (maximum name length 80), in the environment of the CLI that applies it; in a managed deployment, that is the backend container's environment. The declaration stores the variable names, and the platform the values it was given; a changed value is written at the next apply.
+
 ## Connector OAuth apps
 
 OAuth connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) resolve their vendor app per organization first: an app configured under **Settings > Connectors > OAuth apps** wins for that org. The environment supplies the deployment-wide default underneath (and is the only source for Slack, whose inbound event verification runs before any org is known). For each connector slug:
