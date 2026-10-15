@@ -413,6 +413,7 @@ connectors:
   vendorColumn: Connector
   vendorFilterLabel: Connector
   invalidPort: Gib eine ganze Zahl zwischen 1 und 65535 ein.
+  invalidEmailAddress: Gib eine E-Mail-Adresse ein, etwa support@example.com.
   catalog:
     emptyBody: >-
       Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
@@ -423,9 +424,11 @@ connectors:
     bearer: Token
     basic: Benutzername & Passwort
     oauth2: OAuth
+    clientCredentials: App-Anmeldung
   card:
     actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
     connect: Verbinden
+    connectGroup: Mit deinem {connector}-Konto verbinden
     emptyBodyOauth:
       Verbinde {connector}, damit konfigurierte Workflows und unterstützte
       Plattform-Werkzeuge dieses Konto nutzen können.
@@ -447,6 +450,8 @@ connectors:
       Die gespeicherte Autorisierung ist abgelaufen oder wurde widerrufen.
       Verbinde neu, um die Freigabe erneut zu erteilen.
     needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
+    clientApp: 'App {clientId}'
+    clientAppInTenant: 'App {clientId} im Verzeichnis {tenantId}'
     reconnect: Neu verbinden
     deleteDefaultHandsOn: >-
       Das sind die Standard-Zugangsdaten. Nach dem Löschen wird "{name}" zum
@@ -462,6 +467,7 @@ connectors:
     apiKeyTitle: API-Schlüssel ersetzen
     tokenTitle: Token ersetzen
     basicTitle: Benutzername & Passwort ersetzen
+    clientCredentialsTitle: App-Zugangsdaten ersetzen
     note:
       Das gespeicherte Secret wird nie angezeigt. Ein neuer Wert ersetzt es
       überall dort, wo dieser Eintrag verwendet wird.
@@ -530,6 +536,14 @@ connectors:
     smtpPassword: SMTP-Passwort
     smtpHint: SMTP-Benutzername und -Passwort deines Relays (Resend, SendGrid,
       Amazon SES, …).
+    fixedSettingReason: Wurde beim Hinzufügen der Zugangsdaten festgelegt. Für einen anderen Wert fügst du weitere Zugangsdaten hinzu.
+    tenantId: Verzeichnis-ID (Tenant)
+    tenantIdHelp: Die ID des Verzeichnisses, in dem die App registriert ist.
+    clientId: Anwendungs-ID (Client)
+    clientSecret: Client-Secret
+    clientSecretHelp:
+      Tale holt damit nur das Zugriffstoken der App und erneuert dieses
+      Token selbst.
     endpointUrl: Instanz-URL
     endpointHelpConfluence: Die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest.
     endpointHelpShopify:

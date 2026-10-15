@@ -28217,6 +28217,64 @@ async function checkConnectorOauth(
       `start=${startedAgain.status}, stranger=${stranger.status} (want 400), pendingLeft=${afterStranger[0]?.count} (want 0), vendorCalls=${seen.length} (want 0)`,
     );
 
+    // ---- start: an Add's settings (0218) --------------------------------
+    // Settings the connector does not take are refused at the door, before
+    // anything is minted; settings it takes ride the pending row as the
+    // door normalized them, for the callback to create the credential with.
+    const refusedSettings = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}&config=${encodeURIComponent(JSON.stringify({ mailbox: 'promotion@door.test' }))}`,
+    );
+    const afterRefusedSettings = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    // A start link opened from another site carries the session cookie
+    // (SameSite=Lax) but starts nothing: no pending row, no vendor.
+    const crossSite = await fetch(
+      `${base}/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+      {
+        redirect: 'manual',
+        headers: { cookie, origin: base, 'sec-fetch-site': 'cross-site' },
+      },
+    );
+    const afterCrossSite = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    record(
+      'connector oauth: a start opened from another site is refused before anything is minted',
+      crossSite.status === 403 &&
+        crossSite.headers.get('location') === null &&
+        afterCrossSite[0]?.count === '0',
+      `crossSite=${crossSite.status} (want 403), location=${crossSite.headers.get('location') ?? 'none'}, pending=${afterCrossSite[0]?.count} (want 0)`,
+    );
+    const { hashStateToken: hashConfigState } =
+      await import('./core/http_connectors/oauth_state.ts');
+    const configStateHash = await hashConfigState('itest-oauth-config-state');
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: configStateHash,
+      organizationId: orgId,
+      userId,
+      connectorSlug: 'outlook',
+      codeVerifier: 'itest-verifier-value-000000000000000000000',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
+      config: { mailbox: 'promotion@door.test' },
+    });
+    const pendingConfig = await sql<{ config: unknown }[]>`
+      SELECT config FROM app.connector_oauth_states
+      WHERE state_hash = ${configStateHash}
+    `;
+    await sql`
+      DELETE FROM app.connector_oauth_states WHERE state_hash = ${configStateHash}
+    `;
+    record(
+      "connector oauth: an Add's settings are checked at the start door and kept on its pending row",
+      refusedSettings.status === 400 &&
+        afterRefusedSettings[0]?.count === '0' &&
+        JSON.stringify(pendingConfig[0]?.config) ===
+          JSON.stringify({ mailbox: 'promotion@door.test' }),
+      `refused=${refusedSettings.status} (want 400), pendingAfterRefusal=${afterRefusedSettings[0]?.count} (want 0), kept=${JSON.stringify(pendingConfig[0]?.config)}`,
+    );
+
     // ---- callback: the happy path, driven through the service -----------
     // The vendor endpoint comes from the catalog, so the exchange is driven
     // at the service seam with the fake token URL — the routes above already
@@ -29143,6 +29201,86 @@ async function checkConnectorCredentials(
       rePromoted &&
       disabledCode === 'CREDENTIAL_DISABLED',
     `create=${created.success}, listed=${mainRow !== undefined} default=${mainRow?.isDefault} preview=${typeof mainRow?.maskedPreview === 'string'} cfg=${String(mainRow?.config?.imapHost)}/${String(mainRow?.config?.imapPort)}/from=${String(mainRow?.config?.fromAddress)} secretLeak=${listedRaw.includes('imap-pass-1')}, clash=${clash.status} unknown=${unknownConnector.status} wrongMethod=${wrongMethod.status} (want 409/404/400), resolve=${resolved.credentialId === mainId}/${resolved.secrets.password === 'imap-pass-1'}/basic=${resolved.authHeader === expectedBasic}, byName=${byName.credentialId === secondId}, promote=${promoted} del=${deleted.status} repromote=${rePromoted}, disabled=${disabledCode}`,
+  );
+
+  // An app that signs in as itself (0217): the widened method check stores
+  // it, the listing shows its client secret's excerpt, the app it is
+  // (`client_app`) and its mailbox as the From, and the resolve seam fetches
+  // the app's token once and keeps it sealed on the row.
+  const appCreated = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await api('', {
+        body: {
+          connectorSlug: 'outlook',
+          authMethod: 'client-credentials',
+          name: 'Promotion mailbox',
+          secret: {
+            tenantId: 'contoso.onmicrosoft.com',
+            clientId: 'app-client-id',
+            clientSecret: 'app-client-secret-value',
+          },
+          config: { mailbox: 'promotion@door.test' },
+        },
+      })
+    ).json(),
+  );
+  const appId = appCreated.success ? appCreated.data.credentialId : '';
+  const appListedRaw = await (await api('')).text();
+  const appRow = z
+    .object({
+      credentials: z.array(
+        z.looseObject({
+          id: z.string(),
+          authMethod: z.string(),
+          maskedPreview: z.string().optional(),
+          clientApp: z
+            .object({ tenantId: z.string().optional(), clientId: z.string() })
+            .optional(),
+          config: z.record(z.string(), z.unknown()).optional(),
+        }),
+      ),
+    })
+    .safeParse(JSON.parse(appListedRaw));
+  const app = appRow.success
+    ? appRow.data.credentials.find((row) => row.id === appId)
+    : undefined;
+  const tokenRequests: string[] = [];
+  const fakeTokenEndpoint = (url: string): Promise<Response> => {
+    tokenRequests.push(url);
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ access_token: 'app-token-1', expires_in: 3599 }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+  };
+  const appFirst = await resolveConnectorCredential(
+    sql,
+    { organizationId: orgId, connectorSlug: 'outlook', credentialRef: appId },
+    { fetchImpl: fakeTokenEndpoint },
+  );
+  const appSecond = await resolveConnectorCredential(
+    sql,
+    { organizationId: orgId, connectorSlug: 'outlook', credentialRef: appId },
+    { fetchImpl: fakeTokenEndpoint },
+  );
+  const appDeleted = await api(`/${appId}`, { method: 'DELETE' });
+  record(
+    'connector credentials (an app signing in as itself)',
+    appCreated.success &&
+      app?.authMethod === 'client-credentials' &&
+      app.maskedPreview === 'app-…ue' &&
+      app.clientApp?.tenantId === 'contoso.onmicrosoft.com' &&
+      app.clientApp.clientId === 'app-client-id' &&
+      app.config?.fromAddress === 'promotion@door.test' &&
+      !appListedRaw.includes('app-client-secret-value') &&
+      appFirst.authHeader === 'Bearer app-token-1' &&
+      appSecond.authHeader === 'Bearer app-token-1' &&
+      tokenRequests.length === 1 &&
+      tokenRequests[0] ===
+        'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token' &&
+      appDeleted.status === 204,
+    `create=${appCreated.success} method=${String(app?.authMethod)} preview=${String(app?.maskedPreview)} app=${JSON.stringify(app?.clientApp)} from=${String(app?.config?.fromAddress)} secretLeak=${appListedRaw.includes('app-client-secret-value')} header=${appFirst.authHeader === 'Bearer app-token-1'}/${appSecond.authHeader === 'Bearer app-token-1'} tokenRequests=${tokenRequests.length} del=${appDeleted.status}`,
   );
 }
 

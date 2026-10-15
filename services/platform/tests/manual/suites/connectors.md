@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 48 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -275,6 +275,33 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   (`settings.connectors.credential.deleteDefaultLeavesNone`), and after the
   delete **Paused bot** stays **Disabled** and not the default. Deleting a
   credential that is not the default says nothing about the default.
+- [ ] `CONN-F24` · **A shared mailbox through an app sign-in** — Mode B, a
+  Microsoft 365 test tenant with a shared mailbox and a single-tenant app
+  scoped to it by RBAC for Applications (`Application Mail.ReadWrite` and
+  `Application Mail.Send`; the steps in the Connector credentials guide).
+  Picker → **Microsoft Outlook** → the form under the OAuth card asks for
+  **Directory (tenant) ID** (`settings.connectors.dialog.tenantId`),
+  **Application (client) ID**, **Client secret** and **Mailbox**, all
+  required; Submit stays disabled until each is filled. Save with the shared
+  address → the row shows **App sign-in**
+  (`settings.connectors.authMethod.clientCredentials`), the client secret's
+  excerpt and "App <client ID> in directory <tenant>"
+  (`settings.connectors.credential.clientAppInTenant`), never the secret.
+  Send a message to the shared address → it reaches the Inbox under that
+  mailbox's name; a reply from it leaves from the shared address and lands in
+  the shared mailbox's **Sent Items**, not in any person's.
+- [ ] `CONN-F25` · **A shared mailbox through a person's sign-in** — Mode B,
+  an Outlook account with Full Access and Send As on a shared mailbox, and a
+  second account with a personal mailbox → Picker → **Microsoft Outlook** →
+  the box above the form, a group named **Connect with your Microsoft Outlook
+  account** (`settings.connectors.card.connectGroup`), has its own
+  **Mailbox** field. Enter the shared address → **Connect** as the first
+  account → the consent screen also asks for access to mailboxes the account
+  can open. Back in Tale, the new row's first mail sync lists the shared
+  mailbox's mail and nothing of the account's own Inbox; a reply leaves from
+  the shared address. Then **Connect** with **Mailbox** empty as the second
+  account → the consent asks for its own mailbox only, and the row reads that
+  account's own mail.
 
 ## Boundary & error tests
 
@@ -349,6 +376,44 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   this connector — pick a different name.`) with the name and token still
   filled. Once settled, the back control returns to the picker, and a
   re-picked **GitHub** starts over with an empty token.
+- [ ] `CONN-B13` · **An app sign-in Exchange or Entra refuses** — On
+  CONN-F24's row: **Replace app credentials**
+  (`settings.connectors.replace.clientCredentialsTitle`) opens with the
+  directory and application ID filled in and the secret blank; save a wrong
+  client secret → the next mail sync or Outlook action fails saying the
+  token endpoint refused the app's sign-in, naming `invalid_client` and the
+  three values to check (backend `CREDENTIAL_APP_REFUSED`, which the sentence
+  does not show), and the row stays active; the right secret restores it. Then add a
+  second app sign-in for a mailbox outside the app's management scope → the
+  action fails naming that mailbox and the Exchange role it lacks
+  (`Application Mail.Read`), never a bare 403.
+- [ ] `CONN-B14` · **A credential keeps its mailbox** — On CONN-F25's shared
+  row: **Edit credential** → **Mailbox** shows the shared address, stays
+  focusable, cannot be typed into, and says why on hover and focus
+  (`settings.connectors.dialog.fixedSettingReason`); renaming still saves.
+  `PATCH /api/app/connector-credentials/{id}` whose `config` names another
+  `mailbox`, or none, answers `CREDENTIAL_CONFIG_INVALID` (400) saying to add another
+  credential; the row and its mail sync are unchanged.
+- [ ] `CONN-B15` · **A start link with settings the connector refuses** —
+  Copy the start URL **Connect** opens for Outlook with a mailbox, change
+  `config` to `{"region":"eu"}` (or to text that is not JSON), and open it →
+  the server page **These settings cannot be used for this connection**
+  (German with a German browser), 400, a link back to connector settings; no
+  consent screen opens, and nothing is saved. A Slack start link carrying any
+  `config` answers the same, and so does a `mailbox` that is no address. In
+  the form, a **Mailbox** holding a directory object ID says "Enter an email
+  address, such as support@example.com."
+  (`settings.connectors.invalidEmailAddress`) and keeps **Connect** and
+  **Add credential** unavailable until it holds an address.
+- [ ] `CONN-B16` · **A start link opened from another site** — Signed in as
+  an Admin, put the start URL **Connect** opens for Outlook with a mailbox
+  into a link on a page of another site (an HTML file served from
+  `http://127.0.0.1:8000` while Tale runs on `localhost`, or a webmail
+  message) and click it → the server page **Start this connection in Tale**
+  (German with a German browser), 403, a link back to connector settings; no
+  consent screen opens, and nothing is saved. A row's **Reconnect** URL
+  answers the same. The same URL pasted into the address bar opens the
+  consent screen, and **Connect** in Tale still does.
 
 ## Accessibility (WCAG 2.1 AA)
 

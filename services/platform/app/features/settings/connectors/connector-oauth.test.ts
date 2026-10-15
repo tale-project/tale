@@ -39,4 +39,22 @@ describe('authorizationUrl', () => {
       credentialId: 'cred-sales',
     });
   });
+
+  it('starts an Add with the settings its credential is born with [CCRED-R12]', () => {
+    const url = new URL(
+      authorizationUrl('org-1', 'outlook', {
+        kind: 'add',
+        config: { mailbox: 'promotion@example.com' },
+      }),
+    );
+    expect(url.searchParams.get('config')).toBe(
+      '{"mailbox":"promotion@example.com"}',
+    );
+    // No settings: no parameter, as for every other connector.
+    expect(
+      new URL(
+        authorizationUrl('org-1', 'outlook', { kind: 'add', config: {} }),
+      ).searchParams.has('config'),
+    ).toBe(false);
+  });
 });

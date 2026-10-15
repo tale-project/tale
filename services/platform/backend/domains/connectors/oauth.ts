@@ -2,7 +2,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import type { ConsentIntent } from '../../../lib/shared/connector-consent.ts';
+import type {
+  ConsentConfig,
+  ConsentIntent,
+} from '../../../lib/shared/connector-consent.ts';
 import {
   MembershipError,
   requireOrganizationMember,
@@ -26,12 +29,15 @@ import {
   exchangeAuthorizationCode,
   type Oauth2Tokens,
 } from '../../core/http_connectors/token_exchange.ts';
+import { toJson } from '../../db/sql.ts';
 import {
+  ConnectorCredentialError,
   CREDENTIAL_NAME_MAX,
   createCredentialInTransaction,
   findOauth2Grant,
   listCredentials,
   lockCredentialPair,
+  normalizeNewCredentialConfig,
   updateCredentialInTransaction,
 } from '../connector_credentials/service.ts';
 import {
@@ -72,6 +78,28 @@ export interface Oauth2Endpoints {
   readonly authorizeUrl: string;
   readonly tokenUrl: string;
   readonly scopes: readonly string[];
+  /** Scopes asked on top, per per-credential setting a credential sets. */
+  readonly configScopes: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * The scopes a consent asks for: the connector's own, plus those it
+ * declares for each per-credential setting the credential has set — the
+ * settings an Add carries, or the stored ones of the credential being
+ * reconnected (Outlook's shared-mailbox permissions, once a `mailbox` is
+ * named).
+ */
+export function consentScopes(
+  endpoints: Pick<Oauth2Endpoints, 'scopes' | 'configScopes'>,
+  config: Readonly<Record<string, string | number | boolean>> | undefined,
+): string[] {
+  const scopes = [...endpoints.scopes];
+  for (const [key, extra] of Object.entries(endpoints.configScopes)) {
+    const value = config?.[key];
+    if (value === undefined || value === '' || value === false) continue;
+    for (const scope of extra) if (!scopes.includes(scope)) scopes.push(scope);
+  }
+  return scopes;
 }
 
 /**
@@ -92,6 +120,7 @@ export function readOauth2Endpoints(
     authorizeUrl: oauth2.authorizeUrl,
     tokenUrl: oauth2.tokenUrl,
     scopes: oauth2.scopes,
+    configScopes: oauth2.configScopes ?? {},
   };
 }
 
@@ -107,12 +136,18 @@ export interface PendingAuthorization {
   /** The credential a Reconnect renews; null for an Add, which stores a NEW
    * credential. Checked at the start door, re-checked at the callback. */
   reconnectCredentialId: string | null;
+  /** An Add's per-credential settings, normalized at the start door — the
+   * new credential is created with them; null when it names none. */
+  config: ConsentConfig | null;
 }
 
 /** Record the authorization the browser is about to be redirected into. */
 export async function createPendingAuthorization(
   sql: Sql,
-  args: PendingAuthorization & { stateHash: string },
+  args: Omit<PendingAuthorization, 'config'> & {
+    stateHash: string;
+    config?: ConsentConfig | null;
+  },
 ): Promise<void> {
   const now = Date.now();
   await sql`
@@ -126,11 +161,14 @@ export async function createPendingAuthorization(
   await sql`
     INSERT INTO app.connector_oauth_states (
       state_hash, org_id, user_id, connector_slug, code_verifier,
-      redirect_uri, reconnect_credential_id, created_at_ms, expires_at_ms
+      redirect_uri, reconnect_credential_id, config, created_at_ms,
+      expires_at_ms
     ) VALUES (
       ${args.stateHash}, ${args.organizationId}, ${args.userId},
       ${args.connectorSlug}, ${args.codeVerifier}, ${args.redirectUri},
-      ${args.reconnectCredentialId}, ${now}, ${now + OAUTH_STATE_TTL_MS}
+      ${args.reconnectCredentialId},
+      ${args.config == null ? null : sql.json(toJson(args.config))},
+      ${now}, ${now + OAUTH_STATE_TTL_MS}
     )
   `;
 }
@@ -157,6 +195,7 @@ async function consumePendingAuthorization(
       codeVerifier: string;
       redirectUri: string;
       reconnectCredentialId: string | null;
+      config: ConsentConfig | null;
       expiresAt: number;
     }[]
   >`
@@ -167,6 +206,7 @@ async function consumePendingAuthorization(
               code_verifier AS "codeVerifier",
               redirect_uri AS "redirectUri",
               reconnect_credential_id AS "reconnectCredentialId",
+              config,
               expires_at_ms::float8 AS "expiresAt"
   `;
   const row = rows[0];
@@ -182,14 +222,18 @@ async function consumePendingAuthorization(
     codeVerifier: row.codeVerifier,
     redirectUri: row.redirectUri,
     reconnectCredentialId: row.reconnectCredentialId,
+    config: row.config ?? null,
   };
 }
 
 /** A pending row's intent, as the grant store reads it. */
-function intentOf(reconnectCredentialId: string | null): ConsentIntent {
-  return reconnectCredentialId === null
+function intentOf(pending: PendingAuthorization): ConsentIntent {
+  if (pending.reconnectCredentialId !== null) {
+    return { kind: 'reconnect', credentialId: pending.reconnectCredentialId };
+  }
+  return pending.config == null
     ? { kind: 'add' }
-    : { kind: 'reconnect', credentialId: reconnectCredentialId };
+    : { kind: 'add', config: pending.config };
 }
 
 /**
@@ -291,6 +335,7 @@ export type StoreGrantOutcome =
         | 'credential_missing'
         | 'account_mismatch'
         | 'workspace_claimed'
+        | 'invalid_settings'
         | 'forbidden';
     };
 
@@ -425,6 +470,13 @@ export async function storeOauth2Grant(
             createdBy: args.userId,
             actor: { userId: args.userId },
             secret,
+            // Born with the settings the consent was asked for: an Outlook
+            // credential for a shared mailbox is never, even for a pass of
+            // the mail sync, one for the person's own.
+            ...(args.intent.kind === 'add' &&
+              args.intent.config !== undefined && {
+                config: { ...args.intent.config },
+              }),
           })
         ).credentialId;
       }
@@ -457,6 +509,7 @@ export type StartOutcome =
 
 export type ConnectorFlowError =
   | 'unsupported_connector'
+  | 'invalid_settings'
   | 'not_configured'
   | 'vendor_declined'
   | 'vendor_unreachable'
@@ -472,10 +525,15 @@ export type ConnectorFlowError =
  * has already established WHO is asking and that they may add credentials to
  * this organization — this half owns the OAuth mechanics and the intent.
  *
- * No `reconnectCredentialId` is an Add: the consent stores a new credential.
- * With one, it must name an OAuth grant of THIS organization and connector —
- * checked here, before anything is minted or the browser leaves, and again
- * when the consent comes back. The id then rides the server-side row only.
+ * No `reconnectCredentialId` is an Add: the consent stores a new credential,
+ * with the per-credential `config` the person entered beside Connect —
+ * validated here by the rules the credential is created by, so a setting
+ * the connector refuses never reaches the vendor's consent screen, and
+ * kept on the pending row for the callback. With one, it must name an OAuth
+ * grant of THIS organization and connector — checked here, before anything
+ * is minted or the browser leaves, and again when the consent comes back;
+ * a Reconnect keeps the credential's settings and takes none. The id and
+ * the settings then ride the server-side row only.
  */
 export async function startOauth2(
   sql: Sql,
@@ -485,6 +543,8 @@ export async function startOauth2(
     userId: string;
     /** The credential a Reconnect renews; absent for an Add. */
     reconnectCredentialId?: string;
+    /** An Add's per-credential settings; refused beside a Reconnect. */
+    config?: ConsentConfig;
     /** The configured site origin the browser is on — the callback must land
      * on the domain holding the session that started the flow. */
     publicOrigin?: string | null;
@@ -506,18 +566,45 @@ export async function startOauth2(
   if (!endpoints) return { kind: 'error', error: 'unsupported_connector' };
 
   const reconnectCredentialId = args.reconnectCredentialId ?? null;
-  if (
-    reconnectCredentialId !== null &&
-    (await findOauth2Grant(sql, {
-      organizationId: args.organizationId,
-      connectorSlug: args.connectorSlug,
-      credentialId: reconnectCredentialId,
-    })) === null
-  ) {
+  const reconnecting =
+    reconnectCredentialId === null
+      ? null
+      : await findOauth2Grant(sql, {
+          organizationId: args.organizationId,
+          connectorSlug: args.connectorSlug,
+          credentialId: reconnectCredentialId,
+        });
+  if (reconnectCredentialId !== null && reconnecting === null) {
     console.warn(
       `[connectors:oauth2] refused to reconnect a credential that is not an OAuth grant of "${args.connectorSlug}" in organization ${args.organizationId}`,
     );
     return { kind: 'error', error: 'credential_missing' };
+  }
+  let config: ConsentConfig | null = null;
+  if (args.config !== undefined) {
+    if (reconnectCredentialId !== null) {
+      console.warn(
+        `[connectors:oauth2] refused a "${args.connectorSlug}" reconnect that carries settings in organization ${args.organizationId}: a credential keeps its own`,
+      );
+      return { kind: 'error', error: 'invalid_settings' };
+    }
+    try {
+      const normalized = normalizeNewCredentialConfig(
+        args.connectorSlug,
+        'oauth2',
+        args.config,
+      );
+      config =
+        normalized === undefined || Object.keys(normalized).length === 0
+          ? null
+          : normalized;
+    } catch (error) {
+      if (!(error instanceof ConnectorCredentialError)) throw error;
+      console.warn(
+        `[connectors:oauth2] refused "${args.connectorSlug}" consent settings in organization ${args.organizationId}: ${error.code}`,
+      );
+      return { kind: 'error', error: 'invalid_settings' };
+    }
   }
 
   const app = await resolveConnectorOauthApp(
@@ -543,6 +630,7 @@ export async function startOauth2(
     codeVerifier: pkce.verifier,
     redirectUri,
     reconnectCredentialId,
+    config,
   });
 
   try {
@@ -553,7 +641,10 @@ export async function startOauth2(
           endpoints.authorizeUrl,
           app.tenantId,
         ),
-        scopes: endpoints.scopes,
+        scopes: consentScopes(
+          endpoints,
+          reconnecting?.config ?? config ?? undefined,
+        ),
         clientId: app.clientId,
         redirectUri,
         state,
@@ -640,7 +731,7 @@ export async function completeOauth2(
   }
   const { organizationId, userId, connectorSlug, codeVerifier, redirectUri } =
     pending;
-  const intent = intentOf(pending.reconnectCredentialId);
+  const intent = intentOf(pending);
 
   if (
     args.requesterUserId === null ||

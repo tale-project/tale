@@ -70,7 +70,8 @@ export interface OauthAppView {
 export interface ResolvedOauthApp {
   clientId: string;
   clientSecret: string;
-  /** Microsoft-family directory (tenant) id, org rows only. */
+  /** Microsoft-family directory (tenant) id: the org row's, or the
+   * deployment's `CONNECTOR_OAUTH_<SLUG>_TENANT_ID`. */
   tenantId?: string;
   source: 'org' | 'env';
 }

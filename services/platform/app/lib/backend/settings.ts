@@ -171,6 +171,9 @@ const CONNECTOR_SECRET_KEYS = [
   'refreshToken',
   'expiresAt',
   'scopes',
+  'tenantId',
+  'clientId',
+  'clientSecret',
 ] as const;
 
 /** The 0.4 connector actions carry secret fields FLAT; the pg routes take a

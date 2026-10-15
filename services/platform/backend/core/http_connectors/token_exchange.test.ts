@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   exchangeAuthorizationCode,
   refreshAccessToken,
+  requestClientCredentialsToken,
 } from './token_exchange';
 
 const PARAMS = {
@@ -234,6 +235,21 @@ describe('refreshAccessToken', () => {
     expect(JSON.stringify(result)).not.toContain('secret-echo');
   });
 
+  it('reports an endpoint that is down or throttling as unreachable, never as a dead grant [CCRED-R6]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const response of [
+      jsonResponse({ error: 'temporarily_unavailable' }, 503),
+      jsonResponse({ error: 'invalid_grant' }, 502),
+      new Response('<html>Too many requests</html>', { status: 429 }),
+      new Response('<html>Service unavailable</html>', { status: 500 }),
+    ]) {
+      const fetchImpl = vi.fn().mockResolvedValue(response);
+      const result = await refreshAccessToken(REFRESH, fetchImpl);
+      expect(result).toMatchObject({ ok: false, reason: 'vendor_unreachable' });
+    }
+    warn.mockRestore();
+  });
+
   it('refuses a plaintext token endpoint without contacting it', async () => {
     const fetchImpl = vi.fn();
     const result = await refreshAccessToken(
@@ -242,5 +258,76 @@ describe('refreshAccessToken', () => {
     );
     expect(result).toEqual({ ok: false, reason: 'vendor_unreachable' });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('requestClientCredentialsToken', () => {
+  const APP = {
+    tokenUrl: 'https://login.example/tenant-1/oauth2/v2.0/token',
+    clientId: 'app-id',
+    clientSecret: 'app-secret',
+    scopes: ['https://graph.example/.default'],
+  };
+
+  it('asks as the app itself, for the declared scopes, and keeps the expiry', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        token_type: 'Bearer',
+        access_token: 'app-token-1',
+        expires_in: 3599,
+      }),
+    );
+
+    const before = Date.now();
+    const result = await requestClientCredentialsToken(APP, fetchImpl);
+
+    expect(result).toMatchObject({
+      ok: true,
+      tokens: { accessToken: 'app-token-1' },
+    });
+    if (!result.ok) return;
+    expect(result.tokens.refreshToken).toBeUndefined();
+    expect(result.tokens.expiresAt).toBeGreaterThanOrEqual(before + 3_599_000);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe(APP.tokenUrl);
+    expect(Object.fromEntries(new URLSearchParams(String(init.body)))).toEqual({
+      grant_type: 'client_credentials',
+      client_id: 'app-id',
+      client_secret: 'app-secret',
+      scope: 'https://graph.example/.default',
+    });
+  });
+
+  it('answers a refused registration with the vendor code and nothing else', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: 'invalid_client',
+          error_description:
+            'AADSTS7000222: The provided client secret keys are expired.',
+        },
+        401,
+      ),
+    );
+
+    expect(await requestClientCredentialsToken(APP, fetchImpl)).toEqual({
+      ok: false,
+      reason: 'vendor_rejected',
+      code: 'invalid_client',
+    });
+  });
+
+  it('never sends the client secret to a plaintext endpoint', async () => {
+    const fetchImpl = vi.fn();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await requestClientCredentialsToken(
+      { ...APP, tokenUrl: 'http://login.example/token' },
+      fetchImpl,
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'vendor_unreachable' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });

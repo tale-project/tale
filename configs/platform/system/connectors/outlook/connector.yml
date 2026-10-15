@@ -1,10 +1,16 @@
 # Connector — Microsoft Outlook through the Microsoft Graph v1.0 API.
-# An OAuth2 credential authorizes every action; the platform injects it as the
+# A credential authorizes every action, signed in one of two ways: a person
+# through OAuth (their own mailbox, or with `mailbox` set one they have Full
+# Access to), or the organization's own app signing in as itself
+# (client-credentials) on the one mailbox `mailbox` names — scoped to it in
+# Exchange by RBAC for Applications. The platform injects the token as the
 # Authorization header, so the live bodies below carry only Graph's functional
-# headers. Reads return the resource(s) under a named key plus Graph's pagination
-# link; writes return the identifiers a caller routes on. Attachment actions
-# store bytes through ctx.files and return a file reference. Every mock is
-# deterministic — same input, same output, no IO.
+# headers, and every Graph path starts at `graphRoot` (the prelude):
+# `/users/{mailbox}` when a mailbox is set, `/me` otherwise. Reads return the
+# resource(s) under a named key plus Graph's pagination link; writes return
+# the identifiers a caller routes on. Attachment actions store bytes through
+# ctx.files and return a file reference. Every mock is deterministic — same
+# input, same output, no IO.
 name: outlook
 displayName: Microsoft Outlook
 description: Manage Outlook mail, calendar, and contacts.
@@ -12,6 +18,47 @@ tags:
   - Email
 allowedHosts:
   - graph.microsoft.com
+configFields:
+  - key: mailbox
+    label: Mailbox
+    type: string
+    requiredFor:
+      - client-credentials
+    # Everything the credential does belongs to its mailbox: the mail sync's
+    # positions, the conversations it filed and the replies they send. So a
+    # credential is added for a mailbox and keeps it; another mailbox is
+    # another credential.
+    fixed: true
+    # Named by its address, never by an ID Graph also takes: the Inbox, the
+    # composer and the mail sync tell the mailbox's own mail by it.
+    format: email
+    description: >-
+      The address of the mailbox to work in, such as a shared mailbox like
+      support@example.com. Required for an app sign-in. With an OAuth
+      connection, leave it empty to use the signed-in account's own mailbox,
+      or name a mailbox that account has Full Access to. Set when the
+      credential is added: to work in another mailbox, add another
+      credential.
+    i18n:
+      de:
+        label: 'Postfach'
+        description: 'Die Adresse des Postfachs, in dem gearbeitet wird, etwa ein freigegebenes Postfach wie support@example.com. Für eine App-Anmeldung erforderlich. Bei einer OAuth-Verbindung leer lassen, um das eigene Postfach des angemeldeten Kontos zu verwenden, oder ein Postfach angeben, auf das dieses Konto Vollzugriff hat. Wird beim Hinzufügen der Zugangsdaten festgelegt: Für ein anderes Postfach fügst du weitere Zugangsdaten hinzu.'
+      fr:
+        label: 'Boîte aux lettres'
+        description: 'L’adresse de la boîte aux lettres dans laquelle travailler, par exemple une boîte partagée comme support@example.com. Obligatoire pour une connexion de l’app. Avec une connexion OAuth, laisse vide pour utiliser la boîte du compte connecté, ou indique une boîte à laquelle ce compte a un accès complet. Elle est fixée à l’ajout des identifiants : pour travailler dans une autre boîte, ajoute d’autres identifiants.'
+  - key: fromAddress
+    label: From address
+    type: string
+    description: >-
+      The mailbox address the Inbox and the composer show, kept by Tale: the
+      mailbox named above, else the signed-in account's own address.
+    i18n:
+      de:
+        label: 'Absenderadresse'
+        description: 'Die Postfachadresse, die der Posteingang und der Editor zeigen, von Tale gepflegt: das oben genannte Postfach, sonst die eigene Adresse des angemeldeten Kontos.'
+      fr:
+        label: 'Adresse d’expéditeur'
+        description: 'L’adresse de boîte que la boîte de réception et l’éditeur affichent, tenue par Tale : la boîte indiquée ci-dessus, sinon l’adresse du compte connecté.'
 auth:
   - method: oauth2
     authorizeUrl: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
@@ -24,6 +71,52 @@ auth:
       - Calendars.ReadWrite
       - Contacts.Read
       - User.Read
+    # Asked only of a credential that names a mailbox — entered beside
+    # Connect, or stored on the credential a Reconnect renews: a personal
+    # Microsoft account cannot grant the shared-mailbox permissions.
+    configScopes:
+      mailbox:
+        - Mail.Read.Shared
+        - Mail.ReadWrite.Shared
+        - Mail.Send.Shared
+        - Calendars.Read.Shared
+        - Calendars.ReadWrite.Shared
+        - Contacts.Read.Shared
+  # The organization's own single-tenant app, signing in as itself. Its
+  # Microsoft Graph access comes from Exchange application roles scoped to
+  # the mailbox (RBAC for Applications); `.default` asks for what was granted.
+  - method: client-credentials
+    tokenUrl: https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
+    scopes:
+      - https://graph.microsoft.com/.default
+# Shared by every live body: where its Graph calls go, and what a refusal
+# means. `graphRoot` is the mailbox's Graph root — `/users/<mailbox>` when the
+# credential names one (an app has no `/me`), else the signed-in account's
+# `/me`. `graphCheck` throws the sentence a person can act on: a 403 on a
+# named mailbox says how the mailbox is granted, a 429 names Graph's wait,
+# and a 404 names the mailbox only for a call on the mailbox itself
+# (`mailboxRoot`) — a message, attachment or folder Graph no longer finds
+# keeps Graph's own `(404)`, which the mail sync reads as gone.
+livePrelude: |
+  const outlookMailbox = String((ctx.config && ctx.config.mailbox) || '').trim();
+  const graphRoot = 'https://graph.microsoft.com/v1.0/' + (outlookMailbox ? 'users/' + encodeURIComponent(outlookMailbox).replace(/%40/g, '@') : 'me');
+  const graphRefusal = (action, r, opts) => {
+    const o = opts || {};
+    const head = `Outlook ${action} failed${o.during ? ` during ${o.during}` : ''}`;
+    if (r.status === 401) return new Error(`${head}: Microsoft Graph refused the sign-in — reconnect the account, or for an app sign-in replace its client secret in Settings → Connectors.`);
+    if (r.status === 403) {
+      const permission = o.permission || 'Mail.Read';
+      if (outlookMailbox) return new Error(`${head}: Microsoft Graph denied access to the mailbox ${outlookMailbox} — an app signing in as itself needs the Exchange role "Application ${permission}" assigned with a management scope that includes this mailbox (RBAC for Applications); a person needs Full Access to the mailbox${permission === 'Mail.Send' ? ' and Send As' : ''}.`);
+      return new Error(`${head}: permission denied — verify the app has the ${o.permission ? `${o.permission} Microsoft Graph scope` : 'required Microsoft Graph scopes'}.`);
+    }
+    if (r.status === 404 && o.notFound) return new Error(`${head}: ${o.notFound} not found.`);
+    if (r.status === 404 && o.mailboxRoot && outlookMailbox) return new Error(`${head}: Microsoft Graph has no mailbox ${outlookMailbox}${o.folder ? ` or no folder "${o.folder}" in it` : ''} — add a credential with the right address in Settings → Connectors.`);
+    // The wait Graph names (Retry-After, in seconds) rides in the sentence, so a sync can report it.
+    if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); return new Error(`${head}: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
+    if (!r.status || r.status >= 400) return new Error(`${head} (${r.status}): ${r.text()}`);
+    return null;
+  };
+  const graphCheck = (action, r, opts) => { const refusal = graphRefusal(action, r, opts); if (refusal) throw refusal; };
 actions:
   - name: list_messages
     title: List messages
@@ -122,20 +215,21 @@ actions:
         // and this keeps a caller's own $filter (a sync cursor) applying on top.
         const folder = input.folder ? String(input.folder) : '';
         const base = folder
-          ? `https://graph.microsoft.com/v1.0/me/mailFolders/${encodeURIComponent(folder)}/messages`
-          : 'https://graph.microsoft.com/v1.0/me/messages';
+          ? `${graphRoot}/mailFolders/${encodeURIComponent(folder)}/messages`
+          : `${graphRoot}/messages`;
         const r = await ctx.http.get(`${base}?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook list_messages failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook list_messages failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        // The wait Graph names (Retry-After, in seconds) rides in the sentence, so a sync can report it.
-        if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); throw new Error(`Outlook list_messages failed: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
-        if (!r.status || r.status >= 400) throw new Error(`Outlook list_messages failed (${r.status}): ${r.text()}`);
+        graphCheck('list_messages', r, { mailboxRoot: true, folder });
         const j = r.json();
         let messages = j.value || [];
         if (input.format === 'email') {
-          const me = await ctx.http.get('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', { headers: h });
-          const profile = me.status === 200 ? me.json() : {};
-          const account = String(profile.mail || profile.userPrincipalName || '').toLowerCase();
+          // The mailbox's own address tells its mail from a customer's: the
+          // named mailbox, else the signed-in account's.
+          let account = outlookMailbox.toLowerCase();
+          if (!account) {
+            const me = await ctx.http.get(`${graphRoot}?$select=mail,userPrincipalName`, { headers: h });
+            const profile = me.status === 200 ? me.json() : {};
+            account = String(profile.mail || profile.userPrincipalName || '').toLowerCase();
+          }
           const addrs = (list) => (list || []).map((x) => ({ name: (x.emailAddress && x.emailAddress.name) || '', address: (x.emailAddress && x.emailAddress.address) || '' }));
           messages = messages.map((m) => {
             const from = (m.from && m.from.emailAddress) || {};
@@ -216,24 +310,20 @@ actions:
         // References and threads nowhere. The field list is a superset of what
         // conversation ingest reads, so nothing the default shape carried is lost.
         const select = 'id,conversationId,internetMessageId,internetMessageHeaders,subject,bodyPreview,body,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,hasAttachments,isRead,isDraft,importance';
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.messageId)}?$select=${select}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook get_message failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook get_message failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 404) throw new Error(`Outlook get_message failed: message ${input.messageId} not found.`);
-        if (r.status === 429) { const wait = String((r.headers || {})['retry-after'] || ''); throw new Error(`Outlook get_message failed: rate limited by Microsoft Graph${/^\d+$/.test(wait) ? ` (retry after ${wait}s)` : ''} — retry later.`); }
-        if (!r.status || r.status >= 400) throw new Error(`Outlook get_message failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/messages/${encodeURIComponent(input.messageId)}?$select=${select}`, { headers: h });
+        graphCheck('get_message', r, { notFound: `message ${input.messageId}` });
         const message = r.json();
         const attachments = [];
         if (input.includeAttachments && message.hasAttachments && ctx.files) {
-          const ar = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(message.id)}/attachments`, { headers: h });
-          if (!ar.status || ar.status >= 400) throw new Error(`Outlook get_message failed to list attachments (${ar.status}): ${ar.text()}`);
+          const ar = await ctx.http.get(`${graphRoot}/messages/${encodeURIComponent(message.id)}/attachments`, { headers: h });
+          graphCheck('get_message', ar, { during: 'attachment listing' });
           for (const a of ar.json().value || []) {
             if (a['@odata.type'] !== '#microsoft.graph.fileAttachment') continue;
             const fileName = a.name || 'attachment';
             const contentType = a.contentType || 'application/octet-stream';
             const stored = a.contentBytes
               ? await ctx.files.store(a.contentBytes, { encoding: 'base64', contentType, fileName })
-              : await ctx.files.download(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(a.id)}/$value`, { fileName });
+              : await ctx.files.download(`${graphRoot}/messages/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(a.id)}/$value`, { fileName });
             const entry = { id: a.id, name: fileName, contentType, size: a.size || 0, fileId: stored.id, url: stored.url };
             if (a.contentId) entry.contentId = String(a.contentId).replace(/^<|>$/g, '');
             attachments.push(entry);
@@ -270,18 +360,14 @@ actions:
         let graphId = String(input.messageId);
         if (graphId.indexOf('<') !== -1 || graphId.indexOf('@') !== -1) {
           const f = encodeURIComponent(`internetMessageId eq '${graphId.replace(/'/g, "''")}'`);
-          const lr = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages?$filter=${f}&$select=id&$top=1`, { headers: h });
-          if (!lr.status || lr.status >= 400) throw new Error(`Outlook get_attachments failed to resolve the internet message ID (${lr.status}): ${lr.text()}`);
+          const lr = await ctx.http.get(`${graphRoot}/messages?$filter=${f}&$select=id&$top=1`, { headers: h });
+          graphCheck('get_attachments', lr, { during: 'internet message ID lookup', mailboxRoot: true });
           const hit = (lr.json().value || [])[0];
           if (!hit) throw new Error(`Outlook get_attachments failed: no message matches the internet message ID ${graphId}.`);
           graphId = hit.id;
         }
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(graphId)}/attachments`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook get_attachments failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook get_attachments failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 404) throw new Error(`Outlook get_attachments failed: message ${input.messageId} not found.`);
-        if (r.status === 429) throw new Error('Outlook get_attachments failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook get_attachments failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/messages/${encodeURIComponent(graphId)}/attachments`, { headers: h });
+        graphCheck('get_attachments', r, { notFound: `message ${input.messageId}` });
         const attachments = [];
         for (const a of r.json().value || []) {
           if (a['@odata.type'] !== '#microsoft.graph.fileAttachment') continue;
@@ -289,7 +375,7 @@ actions:
           const contentType = a.contentType || 'application/octet-stream';
           const stored = a.contentBytes
             ? await ctx.files.store(a.contentBytes, { encoding: 'base64', contentType, fileName })
-            : await ctx.files.download(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(graphId)}/attachments/${encodeURIComponent(a.id)}/$value`, { fileName });
+            : await ctx.files.download(`${graphRoot}/messages/${encodeURIComponent(graphId)}/attachments/${encodeURIComponent(a.id)}/$value`, { fileName });
           const entry = { id: a.id, name: fileName, contentType, size: a.size || 0, fileId: stored.id, url: stored.url };
           if (a.contentId) entry.contentId = String(a.contentId).replace(/^<|>$/g, '');
           attachments.push(entry);
@@ -340,11 +426,8 @@ actions:
           '$search="' + encodeURIComponent(String(input.query)) + '"',
           '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
         ];
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook search_messages failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook search_messages failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 429) throw new Error('Outlook search_messages failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook search_messages failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/messages?${q.join('&')}`, { headers: h });
+        graphCheck('search_messages', r, { mailboxRoot: true });
         const j = r.json();
         return { messages: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { query: 'invoice', top: 25 }
@@ -387,12 +470,10 @@ actions:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/json', 'Content-Type': 'application/json' };
-        const check = (r, what) => {
-          if (r.status === 401) throw new Error(`Outlook send_message failed: authentication expired during ${what} — re-authorize the connection.`);
-          if (r.status === 403) throw new Error(`Outlook send_message failed: permission denied during ${what} — verify the app has the Mail.Send Microsoft Graph scope.`);
-          if (r.status === 429) throw new Error(`Outlook send_message failed: rate limited by Microsoft Graph during ${what} — retry later.`);
-          if (!r.status || r.status >= 400) throw new Error(`Outlook send_message failed during ${what} (${r.status}): ${r.text()}`);
-        };
+        // The draft and its attachments are written to the mailbox (Mail.ReadWrite); only the send itself needs Mail.Send.
+        // Only the draft is created on the mailbox itself; the upload and
+        // the send act on that draft.
+        const check = (r, what) => graphCheck('send_message', r, { during: what, permission: what === 'send' ? 'Mail.Send' : 'Mail.ReadWrite', mailboxRoot: what === 'draft creation' });
         const addresses = (v) => (Array.isArray(v) ? v : [v]).filter((x) => x != null && x !== '').map(String);
         const to = addresses(input.to);
         const draft = {
@@ -401,7 +482,7 @@ actions:
           toRecipients: to.map((address) => ({ emailAddress: { address } })),
         };
         if (input.cc != null) draft.ccRecipients = addresses(input.cc).map((address) => ({ emailAddress: { address } }));
-        const cr = await ctx.http.post('https://graph.microsoft.com/v1.0/me/messages', { headers: h, body: JSON.stringify(draft) });
+        const cr = await ctx.http.post(`${graphRoot}/messages`, { headers: h, body: JSON.stringify(draft) });
         check(cr, 'draft creation');
         const created = cr.json();
         for (const att of Array.isArray(input.attachments) ? input.attachments : []) {
@@ -413,10 +494,10 @@ actions:
             bytes = fr.text();
           }
           const payload = { '@odata.type': '#microsoft.graph.fileAttachment', name: att.name || 'attachment', contentType: att.contentType || 'application/octet-stream', contentBytes: bytes };
-          const ar = await ctx.http.post(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(created.id)}/attachments`, { headers: h, body: JSON.stringify(payload) });
+          const ar = await ctx.http.post(`${graphRoot}/messages/${encodeURIComponent(created.id)}/attachments`, { headers: h, body: JSON.stringify(payload) });
           check(ar, 'attachment upload');
         }
-        const sr = await ctx.http.post(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(created.id)}/send`, { headers: h, body: '' });
+        const sr = await ctx.http.post(`${graphRoot}/messages/${encodeURIComponent(created.id)}/send`, { headers: h, body: '' });
         check(sr, 'send');
         return { sent: true, messageId: created.internetMessageId || '', to, subject: input.subject };
     exampleInput:
@@ -432,7 +513,7 @@ actions:
         title: Adresse des Postfachs abrufen
       fr:
         title: Récupérer l’adresse de la boîte mail
-    description: The address of the connected mailbox (the signed-in account's mail address, else its principal name), as the mail sync reads it to tell the mailbox's own mail from a customer's.
+    description: The address of the connected mailbox (the mailbox the credential names, else the signed-in account's mail address, else its principal name), as the mail sync reads it to tell the mailbox's own mail from a customer's.
     effects: read
     input:
       type: object
@@ -443,9 +524,11 @@ actions:
     backend:
       kind: yaml-js
       live: |
-        const r = await ctx.http.get('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', { headers: { Accept: 'application/json' } });
-        if (r.status === 401) throw new Error('Outlook get_profile failed: authentication expired — re-authorize the connection.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook get_profile failed (${r.status}): ${r.text()}`);
+        // A named mailbox is the identity: reading another user's profile
+        // would need a directory permission the mailbox grant never carries.
+        if (outlookMailbox) return { emailAddress: outlookMailbox };
+        const r = await ctx.http.get(`${graphRoot}?$select=mail,userPrincipalName`, { headers: { Accept: 'application/json' } });
+        graphCheck('get_profile', r, { permission: 'User.Read', mailboxRoot: true });
         const j = r.json();
         return { emailAddress: String(j.mail || j.userPrincipalName || '') };
     exampleInput: {}
@@ -499,11 +582,8 @@ actions:
           const to = String(input.endDateTime).replace(/'/g, "''");
           q.push('$filter=' + encodeURIComponent(`start/dateTime ge '${from}' and end/dateTime le '${to}'`));
         }
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/events?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook list_events failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook list_events failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 429) throw new Error('Outlook list_events failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook list_events failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/events?${q.join('&')}`, { headers: h });
+        graphCheck('list_events', r, { permission: 'Calendars.Read', mailboxRoot: true });
         const j = r.json();
         return { events: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput:
@@ -544,12 +624,8 @@ actions:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/json' };
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(input.eventId)}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook get_event failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook get_event failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 404) throw new Error(`Outlook get_event failed: event ${input.eventId} not found.`);
-        if (r.status === 429) throw new Error('Outlook get_event failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook get_event failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/events/${encodeURIComponent(input.eventId)}`, { headers: h });
+        graphCheck('get_event', r, { permission: 'Calendars.Read', notFound: `event ${input.eventId}` });
         return { event: r.json() };
     exampleInput: { eventId: 'AAMkAGI2TG93...' }
   - name: create_event
@@ -615,11 +691,8 @@ actions:
         if (input.location != null) event.location = { displayName: input.location };
         if (input.attendees != null) event.attendees = (Array.isArray(input.attendees) ? input.attendees : [input.attendees]).filter((x) => x != null && x !== '').map((address) => ({ emailAddress: { address: String(address) }, type: 'required' }));
         if (input.isAllDay) event.isAllDay = true;
-        const r = await ctx.http.post('https://graph.microsoft.com/v1.0/me/events', { headers: h, body: JSON.stringify(event) });
-        if (r.status === 401) throw new Error('Outlook create_event failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook create_event failed: permission denied — verify the app has the Calendars.ReadWrite Microsoft Graph scope.');
-        if (r.status === 429) throw new Error('Outlook create_event failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook create_event failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.post(`${graphRoot}/events`, { headers: h, body: JSON.stringify(event) });
+        graphCheck('create_event', r, { permission: 'Calendars.ReadWrite', mailboxRoot: true });
         const j = r.json();
         return {
           id: j.id,
@@ -687,11 +760,8 @@ actions:
           q.push('$filter=' + encodeURIComponent(`startsWith(displayName,'${s}') or startsWith(givenName,'${s}') or startsWith(surname,'${s}')`));
         }
         if (input.skip) q.push('$skip=' + encodeURIComponent(String(input.skip)));
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/contacts?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook list_contacts failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook list_contacts failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 429) throw new Error('Outlook list_contacts failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook list_contacts failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/contacts?${q.join('&')}`, { headers: h });
+        graphCheck('list_contacts', r, { permission: 'Contacts.Read', mailboxRoot: true });
         const j = r.json();
         return { contacts: j.value || [], nextLink: j['@odata.nextLink'] || '' };
     exampleInput: { top: 25, search: 'Ada' }
@@ -730,11 +800,7 @@ actions:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/json' };
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/contacts/${encodeURIComponent(input.contactId)}`, { headers: h });
-        if (r.status === 401) throw new Error('Outlook get_contact failed: authentication expired — re-authorize the connection.');
-        if (r.status === 403) throw new Error('Outlook get_contact failed: permission denied — verify the app has the required Microsoft Graph scopes.');
-        if (r.status === 404) throw new Error(`Outlook get_contact failed: contact ${input.contactId} not found.`);
-        if (r.status === 429) throw new Error('Outlook get_contact failed: rate limited by Microsoft Graph — retry later.');
-        if (!r.status || r.status >= 400) throw new Error(`Outlook get_contact failed (${r.status}): ${r.text()}`);
+        const r = await ctx.http.get(`${graphRoot}/contacts/${encodeURIComponent(input.contactId)}`, { headers: h });
+        graphCheck('get_contact', r, { permission: 'Contacts.Read', notFound: `contact ${input.contactId}` });
         return { contact: r.json() };
     exampleInput: { contactId: 'AAMkAGI2TGuc...' }

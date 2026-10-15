@@ -5,7 +5,8 @@
 A connector lets an agent or an automation act in an outside system: read a mailbox, file a
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
 account is connected by signing in at the outside system, what importing tasks through a
-connector may write, and where an agent's call runs. The catalog of connectors and what each
+connector may write, where an agent's call runs, and which mailbox an Outlook credential
+reaches. The catalog of connectors and what each
 one can do are not covered; see Not yet.
 
 ## Whom a connector call acts for
@@ -94,11 +95,25 @@ is allowed to manage connectors. Nothing in the returning request can change it.
 ### CONN-R10 · A Slack workspace has one credential, however often it is connected
 
 Connecting a workspace that is already connected renews its credential, even when the person
-chose to add an account. A second workspace gets a credential of its own, named after the
-workspace.
+chose to add an account. An added account that carries settings is refused there instead
+(`invalid_settings`) and nothing is written: the workspace's credential keeps its own. A
+second workspace gets a credential of its own, named after the workspace.
 
 - **Example**: Ada connects the same Slack workspace a second time through **Add** → the
   existing credential is renewed, and no duplicate appears.
+
+### CONN-R32 · A connection starts only from Tale's own pages
+
+A link to start a connection that is opened from another website is refused
+(`cross_site_start`) before anything is kept or the browser is sent to the outside system,
+whatever account or settings it names; a reconnect link is refused the same way. Started from
+Tale, from another domain of the same site, or from an address typed into the browser, it
+goes ahead. The return from the outside system is never refused for coming from another site.
+
+- **Example**: Noah may read the Inbox but not manage connectors. He sends Ada, an admin, a
+  link that would connect the `hr@example.com` mailbox. Ada opens it from her mail → Tale
+  refuses it and nothing is connected; to connect a mailbox, Ada uses **Connect** in her
+  connector settings.
 
 ## Importing tasks
 
@@ -314,6 +329,48 @@ One run sends at most 100 messages across its steps; a step that would pass that
 `task.get` with `agentRunId` returns only that run’s identity, status and clocks when it belongs to the already read task, project and organization. A missing or foreign run is `agentRun: null`, never a different or latest run. Without the option, the original response stays unchanged. `task.list_comments` with `includeIds: true` adds native message IDs beside the existing trusted author metadata; text in a comment cannot supply its ID. Reads change no grants or admission rules.
 
 - **Example**: A checkpoint claims a run from another task → the read returns null metadata; the checker keeps identity unknown instead of borrowing the latest run.
+
+## Reaching a shared mailbox
+
+An Outlook credential may name a mailbox to work in, such as a shared mailbox nobody signs in
+to. The organization's own app can reach it signing in as itself, and a person who has Full
+Access to it can reach it through their own sign-in.
+
+### CONN-R29 · An Outlook credential naming a mailbox acts on it, whoever signed in
+
+Every call it makes lists, reads, drafts and sends in that mailbox, and the mailbox's address
+is the identity the Inbox, the composer and the mail sync use. The mailbox is named when the
+credential is added and stays its own (`CCRED-R12`), so nothing the credential reads or sends
+ever belongs to another mailbox. A credential that names none acts on the signed-in account's
+own mailbox. An app that signs in as itself has no mailbox of its own, so its credential is
+refused until it names one (`CREDENTIAL_CONFIG_REQUIRED`).
+
+- **Example**: The organization's app is connected for `promotion@example.com` → the Inbox
+  lists the mail that arrives there, and Lena's reply leaves from `promotion@example.com`.
+
+### CONN-R30 · A refused call on a named mailbox says how that mailbox is granted
+
+When Microsoft Graph denies access to the named mailbox, the refusal names the mailbox, the
+Exchange application role the app needs for the action, scoped to the mailbox with RBAC for
+Applications, and for a person Full Access (and Send As, to send). A mailbox Graph does not
+know is refused as such, but only by a call on the mailbox itself: a message, attachment or
+draft Graph no longer finds inside it keeps Graph's own not-found answer, which the mail sync
+reads as gone. A throttled call still names Graph's wait.
+
+- **Example**: The app was granted reading but not sending, and Ada's automation replies from
+  `promotion@example.com` → the step fails, saying the app needs "Application Mail.Send" for
+  that mailbox.
+
+### CONN-R31 · Only a credential naming a mailbox asks for shared-mailbox permissions
+
+A new Outlook connection that names no mailbox asks for the account's own mailbox only, so an
+account that cannot grant shared-mailbox permissions can still connect. One that names a
+mailbox beside **Connect** asks for them as well, and so does a reconnect of it. A mailbox of
+blanks names none.
+
+- **Example**: Lena enters the shared `support@example.com` beside **Connect** → the consent
+  screen asks for access to mailboxes she can open, and the new credential works in
+  `support@example.com` from its first call.
 
 ## Not yet
 

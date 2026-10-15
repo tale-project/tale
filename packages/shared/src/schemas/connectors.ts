@@ -54,6 +54,13 @@ const displayNameSchema = z.string().min(1).max(200);
  * the pack manifest. */
 const LOCALE_RE = /^[a-z]{2}(-[A-Z]{2})?$/;
 
+/** A per-credential setting's key (`configFields[].key`). */
+const configKeySchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-zA-Z0-9]*$/, 'config key is lowerCamelCase');
+
 /** An action named for a person: a short verb phrase in sentence case
  * ("List issues"), without the connector's name — a surface shows it beside
  * the connector's display name ("GitHub · List issues"). */
@@ -69,6 +76,13 @@ const actionTitleSchema = z.string().min(1).max(80);
  *  - `basic`   — username + password (HTTP Basic; also SMTP/IMAP login).
  *  - `oauth2`  — an OAuth app: client id/secret + the authorize/token URLs and
  *                default scopes the connector's flow uses.
+ *  - `client-credentials` — the organization's own app signs in as itself
+ *                (OAuth 2.0 client credentials grant, RFC 6749 §4.4): no
+ *                person and no consent screen. The credential stores the
+ *                app's client id/secret (and its directory, where the token
+ *                URL names `{tenantId}`); the platform fetches the access
+ *                token from `tokenUrl` for `scopes` and keeps it until it
+ *                expires.
  *  - `platform` — the platform itself is the identity: no stored credential,
  *                no connect flow. Only native-backed platform capabilities
  *                (sandbox scripts, task/document actions) declare it, it
@@ -100,9 +114,40 @@ const connectorAuthMethodSchema = z.discriminatedUnion('method', [
       authorizeUrl: z.string().url(),
       tokenUrl: z.string().url(),
       scopes: z.array(z.string().min(1)).default([]),
+      /**
+       * Scopes the consent asks for on top of `scopes`, only for a credential
+       * whose per-credential setting `<key>` (one of `configFields`) is set —
+       * a permission some accounts cannot grant, asked of the credentials
+       * that need it. Outlook asks for the shared-mailbox permissions only
+       * when the credential names a `mailbox`: a personal Microsoft account
+       * cannot grant them.
+       */
+      configScopes: z
+        .record(configKeySchema, z.array(z.string().min(1)).min(1))
+        .optional(),
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal('client-credentials'),
+      /** The token endpoint. `{tenantId}` in it is replaced by the
+       * credential's directory (tenant) id, which the credential then
+       * requires. */
+      tokenUrl: z
+        .string()
+        .url()
+        .refine(
+          (url) => url.startsWith('https://'),
+          'a client-credentials token URL is https — the client secret travels to it',
+        ),
+      scopes: z.array(z.string().min(1)).default([]),
     })
     .strict(),
 ]);
+
+/** The placeholder a `client-credentials` token URL carries where the
+ * credential's directory (tenant) id goes. */
+export const CLIENT_CREDENTIALS_TENANT_PLACEHOLDER = '{tenantId}';
 export type ConnectorAuthMethod = z.infer<typeof connectorAuthMethodSchema>;
 export type ConnectorAuthMethodName = ConnectorAuthMethod['method'];
 /** Auth methods a credential row can store — every method but `platform`,
@@ -145,15 +190,39 @@ const endpointModeSchema = z.enum(['fixed', 'per-credential']);
  */
 const configFieldSchema = z
   .object({
-    key: z
-      .string()
-      .min(1)
-      .max(64)
-      .regex(/^[a-z][a-zA-Z0-9]*$/, 'config key is lowerCamelCase'),
+    key: configKeySchema,
     label: z.string().min(1).max(120),
     type: z.enum(['string', 'number', 'boolean']),
     description: z.string().max(2000).optional(),
     required: z.boolean().default(false),
+    /**
+     * Required only for a credential that signs in with one of these
+     * methods — an app signing in as itself (`client-credentials`) has no
+     * account of its own, so it must be told which one to act on, where a
+     * person's sign-in falls back to that person's.
+     */
+    requiredFor: z
+      .array(
+        z.enum(['api-key', 'bearer', 'basic', 'oauth2', 'client-credentials']),
+      )
+      .min(1)
+      .optional(),
+    /**
+     * Set when the credential is added and kept for its life: an edit that
+     * changes it is refused. For a setting that decides WHERE the credential
+     * acts — Outlook's `mailbox` — and so what everything the credential
+     * already did belongs to: its mail sync's positions, the conversations
+     * it filed and the replies they send. Another value is another
+     * credential.
+     */
+    fixed: z.boolean().optional(),
+    /**
+     * What a `string` value must look like, checked wherever it is entered:
+     * `email` takes a mail address (`local@domain`) — Outlook's `mailbox`,
+     * which everything the credential does is filed under, so an ID that
+     * names the mailbox to the vendor but is no address is refused up front.
+     */
+    format: z.enum(['email']).optional(),
     /** Closed set of accepted values, for a `string` field rendered as a select. */
     enum: z.array(z.string().min(1)).min(1).optional(),
     /** Numeric constraints for number fields. */
@@ -297,6 +366,14 @@ export const connectorSchema = z
      * a call may reach (the generic HTTP connector's public hosts).
      */
     credential: z.enum(['required', 'optional']).default('required'),
+    /**
+     * JavaScript every `yaml-js` live body of this connector starts with:
+     * the helpers its actions share (Outlook's Graph mailbox root and its
+     * refusal sentences), written once instead of copied into each body. It
+     * runs in the body's own scope, with the same `input` and `ctx`, and
+     * declares names the bodies then use; it returns nothing.
+     */
+    livePrelude: z.string().min(1).optional(),
     actions: z
       .array(connectorActionSchema)
       .min(1)
@@ -314,5 +391,49 @@ export const connectorSchema = z
         'a connector that is the platform itself holds no credential to make optional',
       path: ['credential'],
     },
-  );
+  )
+  .superRefine((connector, context) => {
+    const keys = new Set(connector.configFields.map((field) => field.key));
+    const methods = new Set(connector.auth.map((entry) => entry.method));
+    connector.auth.forEach((entry, index) => {
+      if (entry.method !== 'oauth2' || entry.configScopes === undefined) return;
+      for (const key of Object.keys(entry.configScopes))
+        if (!keys.has(key))
+          context.addIssue({
+            code: 'custom',
+            path: ['auth', index, 'configScopes', key],
+            message: `configScopes names "${key}", which is not one of the connector's configFields`,
+          });
+    });
+    connector.configFields.forEach((field, index) => {
+      if (field.format !== undefined && field.type !== 'string')
+        context.addIssue({
+          code: 'custom',
+          path: ['configFields', index, 'format'],
+          message: `format ${field.format} applies to a string field, not a ${field.type} one`,
+        });
+      for (const method of field.requiredFor ?? [])
+        if (!methods.has(method))
+          context.addIssue({
+            code: 'custom',
+            path: ['configFields', index, 'requiredFor'],
+            message: `requiredFor names ${method}, which the connector does not accept`,
+          });
+    });
+  });
 export type Connector = z.infer<typeof connectorSchema>;
+
+/**
+ * The program a `yaml-js` action's live path runs: its connector's
+ * `livePrelude`, then the action's own body, in one scope. Every runner (in
+ * process, out of process, a test) asks here, so a body never runs without
+ * the helpers it was written against.
+ */
+export function connectorLiveBody(
+  connector: Pick<Connector, 'livePrelude'>,
+  live: string,
+): string {
+  return connector.livePrelude === undefined
+    ? live
+    : `${connector.livePrelude}\n${live}`;
+}

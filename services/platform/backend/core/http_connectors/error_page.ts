@@ -33,6 +33,10 @@ export type ConnectorErrorKind =
   | 'not_configured'
   /** The slug is not a shipped connector, or it offers no OAuth2 method. */
   | 'unsupported_connector'
+  /** The settings a connection was started with are not ones the connector
+   * takes, a Reconnect carried settings of its own, or an Add's settings
+   * met a credential it would renew, which keeps its own. */
+  | 'invalid_settings'
   /** The Slack workspace is already connected to a different organization. */
   | 'workspace_claimed'
   /** Tokens were obtained but could not be stored. */
@@ -43,7 +47,9 @@ export type ConnectorErrorKind =
   /** A Reconnect was consented in another workspace than its credential's. */
   | 'account_mismatch'
   /** The member may no longer write this organization's credentials. */
-  | 'forbidden';
+  | 'forbidden'
+  /** The start link was opened from another site, not from Tale's pages. */
+  | 'cross_site_start';
 
 interface ErrorCopy {
   readonly title: string;
@@ -82,6 +88,12 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
       'The connector you asked for is unknown, or it does not use a sign-in flow. Check the connector list in your settings.',
     status: 400,
   },
+  invalid_settings: {
+    title: 'These settings cannot be used for this connection',
+    detail:
+      'The settings entered beside Connect cannot be used for this connection, so nothing was saved. Go back to your connector settings, check them, and connect again.',
+    status: 400,
+  },
   workspace_claimed: {
     title: 'That workspace is already connected',
     detail:
@@ -112,6 +124,12 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
       'Your access to this organization changed while the connection was in progress, so nothing was saved. Owners, Admins and Developers can connect connectors; ask an organization admin.',
     status: 403,
   },
+  cross_site_start: {
+    title: 'Start this connection in Tale',
+    detail:
+      'This connection was opened from a link on another website, so you were not sent to the provider and nothing was saved. Open your connector settings and select Connect there.',
+    status: 403,
+  },
 };
 
 /** Only the newly introduced intent errors opt into localized server copy.
@@ -122,6 +140,19 @@ const LOCALIZED_COPY: Partial<
     Record<SupportedLocale, Pick<ErrorCopy, 'title' | 'detail'>>
   >
 > = {
+  invalid_settings: {
+    en: ERROR_COPY.invalid_settings,
+    de: {
+      title: 'Diese Einstellungen passen nicht zu dieser Verbindung',
+      detail:
+        'Die neben „Verbinden“ eingegebenen Einstellungen passen nicht zu dieser Verbindung. Deshalb wurde nichts gespeichert. Prüfe sie in deinen Connector-Einstellungen und verbinde erneut.',
+    },
+    fr: {
+      title: 'Ces paramètres ne conviennent pas à cette connexion',
+      detail:
+        'Les paramètres saisis à côté de « Connecter » ne conviennent pas à cette connexion. Rien n’a donc été enregistré. Vérifie-les dans les paramètres de tes connecteurs, puis connecte-toi à nouveau.',
+    },
+  },
   credential_missing: {
     en: ERROR_COPY.credential_missing,
     de: {
@@ -159,6 +190,19 @@ const LOCALIZED_COPY: Partial<
       title: 'Tu ne peux plus connecter de connecteurs ici',
       detail:
         'Ton accès à cette organisation a changé pendant la connexion. Rien n’a donc été enregistré. Les Propriétaires, Admins et Développeurs peuvent connecter des connecteurs. Adresse-toi à un admin de l’organisation.',
+    },
+  },
+  cross_site_start: {
+    en: ERROR_COPY.cross_site_start,
+    de: {
+      title: 'Starte diese Verbindung in Tale',
+      detail:
+        'Diese Verbindung wurde über einen Link auf einer anderen Website geöffnet. Deshalb wurdest du nicht zum Anbieter weitergeleitet, und es wurde nichts gespeichert. Öffne deine Connector-Einstellungen und wähle dort „Verbinden“.',
+    },
+    fr: {
+      title: 'Lance cette connexion depuis Tale',
+      detail:
+        'Cette connexion a été ouverte depuis un lien sur un autre site web. Tu n’as donc pas été redirigé vers le fournisseur et rien n’a été enregistré. Ouvre les paramètres de tes connecteurs et sélectionne « Connecter » à cet endroit.',
     },
   },
 };

@@ -14,6 +14,9 @@
  *    an SMTP/IMAP login and a WebDAV app password take.
  *  - `oauth2`  — an authorization-code grant: access token, optional refresh
  *    token, expiry, and the granted scopes.
+ *  - `client-credentials` — an app that signs in as itself: its client id
+ *    and secret (and directory), plus the access token the platform last
+ *    fetched with them and its expiry.
  *
  * Secret material NEVER leaves server-side code: queries return metadata plus
  * the write-time `maskedPreview`; plaintext is reachable only through
@@ -27,4 +30,9 @@
  * a workflow node or chat invocation names one via `credential`, and omitting
  * it selects the org default for that connector.
  */
-export type ConnectorAuthMethod = 'api-key' | 'bearer' | 'basic' | 'oauth2';
+export type ConnectorAuthMethod =
+  | 'api-key'
+  | 'bearer'
+  | 'basic'
+  | 'oauth2'
+  | 'client-credentials';

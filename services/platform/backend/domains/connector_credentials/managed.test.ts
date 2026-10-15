@@ -3,7 +3,7 @@
 /**
  * A connector credential as a managed declaration reads and writes it: the
  * readback names its secret fields and a digest of their values — never a
- * value — a credential the connector renews is never declared, and the
+ * value — a credential whose access Tale renews is never declared, and the
  * write goes through the connector settings' own writers on the hash its
  * plan read, keeping the sign-in method the credential was created with.
  */
@@ -136,6 +136,30 @@ describe('a declared credential is read back as a digest of its values; a renewe
         ]),
         'org-1',
         'jira',
+        'Ops',
+      ),
+    ).rejects.toMatchObject({ code: 'CREDENTIAL_NOT_DECLARABLE' });
+  });
+
+  it('refuses an app that signs in as itself: its fetched token would read as drift', async () => {
+    await expect(
+      readManagedConnectorCredential(
+        database([
+          row({
+            connectorSlug: 'outlook',
+            authMethod: 'client-credentials',
+            encryptedData: {
+              sealed: JSON.stringify({
+                tenantId: 'contoso.onmicrosoft.com',
+                clientId: 'app-id',
+                clientSecret: 'app-secret',
+                accessToken: 'hourly-token',
+              }),
+            },
+          }),
+        ]),
+        'org-1',
+        'outlook',
         'Ops',
       ),
     ).rejects.toMatchObject({ code: 'CREDENTIAL_NOT_DECLARABLE' });
@@ -302,6 +326,11 @@ describe('a declared credential is checked against its connector before anything
     await expect(
       check({ connector: 'confluence' }, [
         row({ connectorSlug: 'confluence', authMethod: 'oauth2' }),
+      ]),
+    ).resolves.toEqual(refusal('authMethod', 'CREDENTIAL_NOT_DECLARABLE'));
+    await expect(
+      check({ connector: 'outlook', authMethod: 'api-key' }, [
+        row({ connectorSlug: 'outlook', authMethod: 'client-credentials' }),
       ]),
     ).resolves.toEqual(refusal('authMethod', 'CREDENTIAL_NOT_DECLARABLE'));
   });

@@ -33,10 +33,11 @@
 
 import { createHash } from 'node:crypto';
 
-import type {
-  ConnectorAction,
-  Connector,
-  ConnectorEffect,
+import {
+  connectorLiveBody,
+  type ConnectorAction,
+  type Connector,
+  type ConnectorEffect,
 } from '@tale/shared/schemas/connectors';
 import { Ajv, type ValidateFunction } from 'ajv';
 
@@ -884,7 +885,7 @@ export async function executeConnectorAction(
       };
       output = await unlessInterrupted(ctx.signal, where, () =>
         liveRunner.runBody(
-          buildPortableLiveCode(backend.live),
+          buildPortableLiveCode(connectorLiveBody(connector, backend.live)),
           { input, ctx: portableCtx },
           { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
           { async: true },
@@ -946,7 +947,7 @@ export async function executeConnectorAction(
       } else if (backend.kind === 'yaml-js') {
         output = await unlessInterrupted(ctx.signal, where, () =>
           liveRunner.runBody(
-            backend.live,
+            connectorLiveBody(connector, backend.live),
             { input, ctx: connectorCtx },
             { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
             { async: true },

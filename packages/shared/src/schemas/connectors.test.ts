@@ -357,6 +357,123 @@ describe('connectorSchema', () => {
     expect(connectorSchema.safeParse(bad).success).toBe(false);
   });
 
+  describe('an app that signs in as itself (client-credentials)', () => {
+    const graphApp = {
+      method: 'client-credentials',
+      tokenUrl:
+        'https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token',
+      scopes: ['https://graph.microsoft.com/.default'],
+    };
+    const mailbox = {
+      key: 'mailbox',
+      label: 'Mailbox',
+      type: 'string',
+      requiredFor: ['client-credentials'],
+    };
+
+    it('accepts a token URL naming the tenant, beside a consent grant', () => {
+      const parsed = connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        configFields: [mailbox],
+        auth: [
+          {
+            method: 'oauth2',
+            authorizeUrl:
+              'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+            tokenUrl:
+              'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            scopes: ['Mail.Read'],
+            configScopes: { mailbox: ['Mail.Read.Shared'] },
+          },
+          graphApp,
+        ],
+      });
+      expect(parsed.auth[1]).toEqual(graphApp);
+      expect(parsed.configFields[0]?.requiredFor).toEqual([
+        'client-credentials',
+      ]);
+    });
+
+    it('keeps a setting declared fixed for the credential’s life', () => {
+      const parsed = connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        configFields: [{ ...mailbox, requiredFor: undefined, fixed: true }],
+      });
+      expect(parsed.configFields[0]?.fixed).toBe(true);
+      expect(
+        connectorSchema.safeParse({
+          ...connectorSchema.parse(GITHUB),
+          configFields: [{ ...mailbox, requiredFor: undefined, fixed: 'yes' }],
+        }).success,
+      ).toBe(false);
+    });
+
+    it('declares a setting that takes a mail address, on a string field only', () => {
+      const parsed = connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        configFields: [{ ...mailbox, requiredFor: undefined, format: 'email' }],
+      });
+      expect(parsed.configFields[0]?.format).toBe('email');
+      for (const field of [
+        { ...mailbox, requiredFor: undefined, format: 'uuid' },
+        { key: 'port', label: 'Port', type: 'number', format: 'email' },
+      ])
+        expect(
+          connectorSchema.safeParse({
+            ...connectorSchema.parse(GITHUB),
+            configFields: [field],
+          }).success,
+        ).toBe(false);
+    });
+
+    it('refuses a token URL the client secret would travel to in the clear', () => {
+      const bad = {
+        ...connectorSchema.parse(GITHUB),
+        auth: [{ ...graphApp, tokenUrl: 'http://login.example.com/token' }],
+      };
+      expect(connectorSchema.safeParse(bad).success).toBe(false);
+    });
+
+    it('refuses extra scopes keyed on a setting the connector does not declare', () => {
+      const bad = {
+        ...connectorSchema.parse(GITHUB),
+        auth: [
+          {
+            method: 'oauth2',
+            authorizeUrl:
+              'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+            tokenUrl:
+              'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            configScopes: { mailbox: ['Mail.Read.Shared'] },
+          },
+        ],
+      };
+      expect(connectorSchema.safeParse(bad).success).toBe(false);
+    });
+
+    it('refuses a setting required for a method the connector does not accept', () => {
+      const bad = {
+        ...connectorSchema.parse(GITHUB),
+        configFields: [mailbox],
+      };
+      expect(connectorSchema.safeParse(bad).success).toBe(false);
+    });
+  });
+
+  it('accepts one live prelude for the whole connector', () => {
+    const parsed = connectorSchema.parse({
+      ...connectorSchema.parse(GITHUB),
+      livePrelude: "const root = 'https://api.github.com';",
+    });
+    expect(parsed.livePrelude).toBe("const root = 'https://api.github.com';");
+    expect(
+      connectorSchema.safeParse({
+        ...connectorSchema.parse(GITHUB),
+        livePrelude: '',
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects unknown top-level and action fields (strict)', () => {
     const github = connectorSchema.parse(GITHUB);
     expect(connectorSchema.safeParse({ ...github, extra: 1 }).success).toBe(

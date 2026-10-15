@@ -13,7 +13,9 @@ import { uniqueCredentialName } from '../../../lib/shared/utils/credential-name.
  *   credential — with one exception that is not a different account: a Slack
  *   workspace this organization already connected renews its own credential,
  *   because the team route (one workspace, one credential) says the consent
- *   is for exactly that row.
+ *   is for exactly that row. An Add that carries settings cannot land
+ *   there: the routed credential keeps its own, so the Add is refused
+ *   rather than renewing it with the settings silently dropped.
  * - **Reconnect** renews exactly the credential it named, keeping its id,
  *   name, default flag and references. Gone meanwhile: refused, nothing
  *   written — never redirected onto a sibling. For Slack, the consent must be
@@ -66,7 +68,11 @@ export type GrantPlan =
   | { kind: 'create'; name: string; claimTeamId?: string }
   | {
       kind: 'refuse';
-      reason: 'credential_missing' | 'account_mismatch' | 'workspace_claimed';
+      reason:
+        | 'credential_missing'
+        | 'account_mismatch'
+        | 'workspace_claimed'
+        | 'invalid_settings';
     };
 
 export function planOauth2Grant(input: GrantPlanInput): GrantPlan {
@@ -106,6 +112,10 @@ export function planOauth2Grant(input: GrantPlanInput): GrantPlan {
       ? undefined
       : grants.find((row) => row.id === route.credentialId);
   if (routed !== undefined) {
+    // A renewal keeps the credential's settings; an Add's would be lost.
+    if (input.intent.config !== undefined) {
+      return { kind: 'refuse', reason: 'invalid_settings' };
+    }
     return {
       kind: 'renew',
       credentialId: routed.id,

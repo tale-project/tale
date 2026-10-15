@@ -7,6 +7,7 @@ import { Stack } from '@tale/ui/layout';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { Link2, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
 
 import {
   looseMutation,
@@ -19,7 +20,10 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import {
+  connectorConfigComplete,
+  ConnectorConfigFields,
   connectorConfigExtras,
+  pruneBlank,
   type ConnectorConfigValue,
 } from './config-fields';
 import { goToAuthorization } from './connector-oauth';
@@ -47,10 +51,11 @@ import {
 /**
  * How a connector's credentials plug into the shared credential UI.
  *
- * A connector's secret is one token, or a username/password pair, or nothing at
- * all — an OAuth grant arrives from the consent flow, never from a form, which
- * is why `hasFields` is false for it and the row offers Reconnect instead of
- * Replace secret.
+ * A connector's secret is one token, or a username/password pair, or an app's
+ * own registration (directory, client ID and secret — the app signs in as
+ * itself), or nothing at all — an OAuth grant arrives from the consent flow,
+ * never from a form, which is why `hasFields` is false for it and the row
+ * offers Reconnect instead of Replace secret.
  */
 
 export interface SecretDraft {
@@ -64,6 +69,10 @@ export interface SecretDraft {
   smtpSeparate: boolean;
   smtpUsername: string;
   smtpPassword: string;
+  /** `client-credentials`: the app's directory, ID and secret. */
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
 }
 
 /** The methods a connector credential can actually be stored with. */
@@ -72,6 +81,7 @@ const STORABLE_METHODS: readonly StorableAuthMethodName[] = [
   'bearer',
   'basic',
   'oauth2',
+  'client-credentials',
 ];
 
 const emptySecretDraft = (): SecretDraft => ({
@@ -81,7 +91,16 @@ const emptySecretDraft = (): SecretDraft => ({
   smtpSeparate: false,
   smtpUsername: '',
   smtpPassword: '',
+  tenantId: '',
+  clientId: '',
+  clientSecret: '',
 });
+
+/** Whether an app signing in to this vendor names its directory (tenant) —
+ * unknown (no vendor at hand) counts as yes, the shipped case. */
+function needsTenant(vendor: ConnectorVendor | undefined): boolean {
+  return vendor?.summary.clientCredentialsTenant !== false;
+}
 
 /** The vendor projection the shared UI consumes. */
 export interface ConnectorVendor extends CredentialVendor {
@@ -111,11 +130,46 @@ function SecretFields({
   value: SecretDraft;
   onChange: (next: SecretDraft) => void;
   disabled?: boolean;
-  vendor?: CredentialVendor;
+  vendor?: ConnectorVendor;
 }) {
   const { t } = useT('settings');
 
   if (method === 'oauth2') return null;
+
+  if (method === 'client-credentials') {
+    return (
+      <>
+        {needsTenant(vendor) && (
+          <Input
+            label={t('connectors.dialog.tenantId')}
+            description={t('connectors.dialog.tenantIdHelp')}
+            value={value.tenantId}
+            onChange={(e) => onChange({ ...value, tenantId: e.target.value })}
+            autoComplete="off"
+            disabled={disabled}
+            required
+          />
+        )}
+        <Input
+          label={t('connectors.dialog.clientId')}
+          value={value.clientId}
+          onChange={(e) => onChange({ ...value, clientId: e.target.value })}
+          autoComplete="off"
+          disabled={disabled}
+          required
+        />
+        <Input
+          label={t('connectors.dialog.clientSecret')}
+          type="password"
+          value={value.clientSecret}
+          onChange={(e) => onChange({ ...value, clientSecret: e.target.value })}
+          description={t('connectors.dialog.clientSecretHelp')}
+          disabled={disabled}
+          required
+        />
+      </>
+    );
+  }
 
   if (method === 'basic') {
     // Only imap-smtp offers a second login: IMAP stays on the mailbox pair,
@@ -207,7 +261,13 @@ function SecretFields({
 }
 
 /**
- * Step two for a connector joined through OAuth: an explainer and the hand-off.
+ * Step two for a connector joined through OAuth: an explainer, the settings
+ * the new credential is born with, and the hand-off.
+ *
+ * The settings travel with the consent (Outlook's mailbox decides the
+ * permissions it asks for, and is fixed once the credential exists), so
+ * they are entered here, beside Connect — never on the credential after it
+ * was stored for the account's own mailbox.
  *
  * Renders nothing for a connector that offers no grant, so it can sit
  * unconditionally above the credential form — a connector declaring BOTH an
@@ -220,6 +280,9 @@ function ConnectorConsent({
 }: CredentialConsentProps<ConnectorVendor>) {
   const { t } = useT('settings');
   const ability = useAbility();
+  // The connector's declared settings, with the credential form's fields,
+  // checks and pruning.
+  const [config, setConfig] = useState<ConnectorConfigValue>({});
   // Literal keys per case, so the catalog guard sees every string in use.
   const oauthAppMissingCopy = (explainer: OauthAppMissingExplainer) => {
     const values = { connector: vendor.displayName };
@@ -252,19 +315,39 @@ function ConnectorConsent({
     );
   }
   return (
-    <Stack gap={3} className="border-border rounded-lg border p-4">
+    // A group of its own: its settings carry the same labels as the
+    // credential form's below it, and belong to the connection.
+    <Stack
+      gap={3}
+      className="border-border rounded-lg border p-4"
+      role="group"
+      aria-label={t('connectors.card.connectGroup', {
+        connector: vendor.displayName,
+      })}
+    >
       <Text as="p" variant="muted" className="text-sm">
         {t('connectors.card.emptyBodyOauth', {
           connector: vendor.displayName,
         })}
       </Text>
+      <ConnectorConfigFields
+        vendor={vendor}
+        value={config}
+        onChange={setConfig}
+        method="oauth2"
+      />
       <div>
         <Button
           icon={Link2}
           size="sm"
-          onClick={() =>
-            goToAuthorization(organizationId, vendor.key, { kind: 'add' })
-          }
+          disabled={!connectorConfigComplete(config, vendor, 'oauth2')}
+          onClick={() => {
+            const settings = pruneBlank(config);
+            goToAuthorization(organizationId, vendor.key, {
+              kind: 'add',
+              ...(Object.keys(settings).length > 0 && { config: settings }),
+            });
+          }}
         >
           {t('connectors.card.connect')}
         </Button>
@@ -311,14 +394,33 @@ export const connectorCredentialAdapter: CredentialAdapter<
   statusLabel,
   statusTone: (status) => (status === 'needs-reauth' ? 'orange' : 'slate'),
 
-  detailLine: (t, credential) =>
-    credential.status === 'needs-reauth'
-      ? credential.statusDetail !== undefined
+  detailLine: (t, credential) => {
+    if (credential.status === 'needs-reauth') {
+      return credential.statusDetail !== undefined
         ? t('connectors.credential.needsReauthDetail', {
             detail: credential.statusDetail,
           })
-        : t('connectors.credential.needsReauthHint')
-      : undefined,
+        : t('connectors.credential.needsReauthHint');
+    }
+    // Which app an app sign-in uses — the two values its refusal says to
+    // check, and neither is secret.
+    const app = credential.clientApp;
+    if (app === undefined) return undefined;
+    return app.tenantId === undefined
+      ? t('connectors.credential.clientApp', { clientId: app.clientId })
+      : t('connectors.credential.clientAppInTenant', {
+          clientId: app.clientId,
+          tenantId: app.tenantId,
+        });
+  },
+
+  // Rotating an app's client secret keeps its directory and application ID,
+  // which the row shows; only the secret is typed again.
+  replaceDraft: (credential) => ({
+    ...emptySecretDraft(),
+    tenantId: credential.clientApp?.tenantId ?? '',
+    clientId: credential.clientApp?.clientId ?? '',
+  }),
 
   // Deleting a connector's default hands it to the oldest active credential
   // left (the server's `defaultSuccessor`), which the listing names on the
@@ -371,8 +473,18 @@ export const connectorCredentialAdapter: CredentialAdapter<
       draft.password.length > 0 ||
       draft.smtpSeparate ||
       draft.smtpUsername.length > 0 ||
-      draft.smtpPassword.length > 0,
-    isComplete: (method, draft) => {
+      draft.smtpPassword.length > 0 ||
+      draft.tenantId.length > 0 ||
+      draft.clientId.length > 0 ||
+      draft.clientSecret.length > 0,
+    isComplete: (method, draft, vendor) => {
+      if (method === 'client-credentials') {
+        return (
+          (!needsTenant(vendor) || draft.tenantId.trim().length > 0) &&
+          draft.clientId.trim().length > 0 &&
+          draft.clientSecret.trim().length > 0
+        );
+      }
       if (method === 'basic') {
         const mailbox =
           draft.username.trim().length > 0 && draft.password.trim().length > 0;
@@ -407,6 +519,18 @@ export const connectorCredentialAdapter: CredentialAdapter<
         };
       }
       if (method === 'oauth2') return { ok: true, args: {} };
+      if (method === 'client-credentials') {
+        return {
+          ok: true,
+          args: {
+            ...(draft.tenantId.trim().length > 0 && {
+              tenantId: draft.tenantId.trim(),
+            }),
+            clientId: draft.clientId.trim(),
+            clientSecret: draft.clientSecret.trim(),
+          },
+        };
+      }
       return { ok: true, args: { token: draft.token.trim() } };
     },
     hasFields: (method) => method !== 'oauth2',
@@ -418,6 +542,8 @@ export const connectorCredentialAdapter: CredentialAdapter<
           return t('connectors.replace.tokenTitle');
         case 'basic':
           return t('connectors.replace.basicTitle');
+        case 'client-credentials':
+          return t('connectors.replace.clientCredentialsTitle');
         default:
           return null;
       }

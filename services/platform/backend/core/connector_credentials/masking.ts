@@ -26,8 +26,10 @@ export function maskSecret(plaintext: string): string | undefined {
 /**
  * The preview a credential row stores for its method's payload: the single
  * secret for `api-key`/`bearer`, the PASSWORD for `basic` (the username is
- * not secret and shows in full elsewhere), and the ACCESS token for `oauth2`
- * (what the platform actually sends).
+ * not secret and shows in full elsewhere), the ACCESS token for `oauth2`
+ * (what the platform actually sends), and the CLIENT SECRET for
+ * `client-credentials` (what the person typed and will rotate — the access
+ * token fetched from it changes every hour).
  */
 export function maskPayload(
   payload: ConnectorSecretPayload,
@@ -40,6 +42,8 @@ export function maskPayload(
       return maskSecret(payload.password);
     case 'oauth2':
       return maskSecret(payload.accessToken);
+    case 'client-credentials':
+      return maskSecret(payload.clientSecret);
     default: {
       const _exhaustive: never = payload;
       return _exhaustive;

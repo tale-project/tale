@@ -425,6 +425,7 @@ connectors:
   vendorColumn: Connector
   vendorFilterLabel: Connector
   invalidPort: Saisis un port entier compris entre 1 et 65535.
+  invalidEmailAddress: Saisis une adresse e-mail, par exemple support@example.com.
   catalog:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
@@ -435,9 +436,11 @@ connectors:
     bearer: Jeton
     basic: Nom d'utilisateur et mot de passe
     oauth2: OAuth
+    clientCredentials: Connexion de l'app
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connecter
+    connectGroup: Se connecter avec ton compte {connector}
     emptyBodyOauth:
       Connecte {connector} pour que les workflows configurés et les outils
       compatibles de la plateforme puissent utiliser ce compte.
@@ -459,6 +462,8 @@ connectors:
       L'autorisation stockée a expiré ou a été révoquée. Reconnecte-toi pour
       accorder le consentement à nouveau.
     needsReauthDetail: '{detail} Reconnecte-toi pour accorder le consentement à nouveau.'
+    clientApp: 'App {clientId}'
+    clientAppInTenant: "App {clientId} dans l'annuaire {tenantId}"
     reconnect: Reconnecter
     deleteDefaultHandsOn: >-
       Ce sont les identifiants par défaut. Si tu les supprimes, « {name} »
@@ -475,6 +480,7 @@ connectors:
     apiKeyTitle: Remplacer la clé API
     tokenTitle: Remplacer le jeton
     basicTitle: Remplacer le nom d'utilisateur et le mot de passe
+    clientCredentialsTitle: Remplacer les identifiants de l'app
     note:
       Le secret stocké n'est jamais affiché. En saisir un nouveau le remplace
       partout où cet identifiant est utilisé.
@@ -545,6 +551,14 @@ connectors:
     smtpHint:
       Saisis le nom d'utilisateur et le mot de passe SMTP de ton relais
       (Resend, SendGrid, Amazon SES, …).
+    fixedSettingReason: Fixé à l'ajout des identifiants. Pour une autre valeur, ajoute d'autres identifiants.
+    tenantId: ID d'annuaire (tenant)
+    tenantIdHelp: L'ID de l'annuaire dans lequel l'app est enregistrée.
+    clientId: ID d'application (client)
+    clientSecret: Secret client
+    clientSecretHelp:
+      Tale ne s'en sert que pour obtenir le jeton d'accès de l'app, et
+      renouvelle lui-même ce jeton.
     endpointUrl: URL de l'instance
     endpointHelpConfluence: L'adresse de ton site Atlassian — celle où tu ouvres Confluence.
     endpointHelpShopify:

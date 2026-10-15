@@ -6,6 +6,7 @@ import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 
 import { useLocalized } from '@/app/features/automations/components/settings-field-control';
+import { looksLikeEmailAddress } from '@/lib/shared/utils/email-address';
 
 import { type CredentialExtraModule } from '../credentials/adapter';
 import { type ConnectorSummary } from './hooks/backend';
@@ -36,14 +37,28 @@ export interface ConnectorVendorLike {
  */
 export type ConnectorConfigValue = Record<string, string | number | boolean>;
 
-/** Declared fields shown on the create/edit form. `fromAddress` is mirrored
- * from the IMAP login username server-side and must not appear as a second
- * input (From and username are the same value). */
+/** Declared fields shown on the create/edit form. `fromAddress` is kept
+ * server-side — mirrored from the IMAP login username, from the mailbox an
+ * Outlook credential names, or learned from the provider — and must not
+ * appear as a second input. */
 const HIDDEN_CONFIG_KEYS = new Set(['fromAddress']);
 
 function fieldsOf(summary: ConnectorSummary): ConnectorSummary['configFields'] {
   return summary.configFields.filter(
     (field) => !HIDDEN_CONFIG_KEYS.has(field.key),
+  );
+}
+
+/** Whether `field` must be filled in for a credential of `method`: always
+ * when it is `required`, else when it is `requiredFor` that method. */
+function isRequired(
+  field: ConnectorSummary['configFields'][number],
+  method: string | undefined,
+): boolean {
+  if (field.required) return true;
+  return (
+    method !== undefined &&
+    (field.requiredFor ?? []).some((required) => required === method)
   );
 }
 
@@ -59,7 +74,13 @@ function isValidFieldValue(
   field: ConnectorSummary['configFields'][number],
   value: string | number | boolean | undefined,
 ): boolean {
-  if (!isSupplied(value) || field.type !== 'number') return true;
+  if (!isSupplied(value)) return true;
+  // The server's own test: a mailbox named by an ID is refused there, for
+  // good — the setting is fixed — so the form says so before Connect.
+  if (field.format === 'email') {
+    return typeof value === 'string' && looksLikeEmailAddress(value);
+  }
+  if (field.type !== 'number') return true;
   const numberValue = typeof value === 'number' ? value : Number(value);
   return (
     Number.isFinite(numberValue) &&
@@ -69,16 +90,26 @@ function isValidFieldValue(
   );
 }
 
-function ConnectorConfigFields({
+/**
+ * A connector's declared settings as form fields. `editing` is the edit
+ * dialog: a setting the connector declares `fixed` (Outlook's mailbox) is
+ * shown there but cannot be changed — the server refuses a change, and the
+ * field says why instead of letting a save fail.
+ */
+export function ConnectorConfigFields({
   vendor,
   value,
   onChange,
   disabled,
+  method,
+  editing,
 }: {
   vendor: ConnectorVendorLike;
   value: ConnectorConfigValue;
   onChange: (next: ConnectorConfigValue) => void;
   disabled?: boolean;
+  method?: string;
+  editing?: boolean;
 }) {
   const { t } = useT('settings');
   const localized = useLocalized();
@@ -96,6 +127,10 @@ function ConnectorConfigFields({
         const field = localized(declared);
         const current = value[field.key];
         const invalid = !isValidFieldValue(field, current);
+        const locked = editing === true && field.fixed === true;
+        const lockedReason = locked
+          ? t('connectors.dialog.fixedSettingReason')
+          : undefined;
         if (field.type === 'boolean') {
           return (
             <Switch
@@ -110,7 +145,7 @@ function ConnectorConfigFields({
                     : false
               }
               onCheckedChange={(next) => set(field.key, next)}
-              disabled={disabled}
+              disabled={disabled === true || locked}
             />
           );
         }
@@ -132,8 +167,8 @@ function ConnectorConfigFields({
                 value: option,
                 label: option,
               }))}
-              disabled={disabled}
-              required={field.required}
+              disabled={disabled === true || locked}
+              required={isRequired(field, method)}
             />
           );
         }
@@ -150,14 +185,27 @@ function ConnectorConfigFields({
             }
             value={current === undefined ? '' : String(current)}
             onChange={(e) => set(field.key, e.target.value)}
-            inputMode={field.type === 'number' ? 'numeric' : undefined}
+            inputMode={
+              field.type === 'number'
+                ? 'numeric'
+                : field.format === 'email'
+                  ? 'email'
+                  : undefined
+            }
             min={field.min}
             max={field.max}
             step={field.integer === true ? 1 : undefined}
-            errorMessage={invalid ? t('connectors.invalidPort') : undefined}
+            errorMessage={
+              !invalid
+                ? undefined
+                : field.format === 'email'
+                  ? t('connectors.invalidEmailAddress')
+                  : t('connectors.invalidPort')
+            }
             isInvalid={invalid}
-            disabled={disabled}
-            required={field.required}
+            disabled={disabled === true || locked}
+            disabledReason={lockedReason}
+            required={isRequired(field, method)}
           />
         );
       })}
@@ -182,14 +230,7 @@ export function connectorConfigExtras<
     fromCredential: (credential) => ({ ...credential.config }),
     isDirty: (value, baseline) =>
       JSON.stringify(value) !== JSON.stringify(baseline),
-    isComplete: (value, vendor) =>
-      fieldsOf(vendor.summary).every(
-        (field) =>
-          (isSupplied(value[field.key]) &&
-            isValidFieldValue(field, value[field.key])) ||
-          (!isSupplied(value[field.key]) &&
-            (!field.required || field.default !== undefined)),
-      ),
+    isComplete: connectorConfigComplete,
     // Blank entries are dropped rather than sent as '': the server applies the
     // declared default for an ABSENT field, and would reject '' for a number.
     createArgs: (value) => {
@@ -201,7 +242,25 @@ export function connectorConfigExtras<
   };
 }
 
-function pruneBlank(value: ConnectorConfigValue): ConnectorConfigValue {
+/** Whether the declared settings are filled in enough for a credential of
+ * `method`: every required one supplied (or defaulted), every supplied one
+ * valid. */
+export function connectorConfigComplete(
+  value: ConnectorConfigValue,
+  vendor: ConnectorVendorLike,
+  method?: string,
+): boolean {
+  return fieldsOf(vendor.summary).every(
+    (field) =>
+      (isSupplied(value[field.key]) &&
+        isValidFieldValue(field, value[field.key])) ||
+      (!isSupplied(value[field.key]) &&
+        (!isRequired(field, method) || field.default !== undefined)),
+  );
+}
+
+/** The settings as they are sent: blank entries dropped. */
+export function pruneBlank(value: ConnectorConfigValue): ConnectorConfigValue {
   const out: ConnectorConfigValue = {};
   for (const [key, entry] of Object.entries(value)) {
     if (isSupplied(entry)) out[key] = entry;

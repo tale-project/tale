@@ -5,12 +5,7 @@
  * public mirror in sync with the username.
  */
 
-/** True when `value` looks like `local@domain` (non-empty local + domain). */
-export function looksLikeEmailAddress(value: string): boolean {
-  const trimmed = value.trim();
-  const at = trimmed.lastIndexOf('@');
-  return at > 0 && at < trimmed.length - 1 && !/\s/.test(trimmed);
-}
+import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
 
 /** The mirrored From already stored on a credential row, when it is usable. */
 export function storedImapFromAddress(row: {
@@ -48,4 +43,21 @@ export function withImapFromAddress(
 ): Record<string, string | number | boolean> | undefined {
   if (connectorSlug !== 'imap-smtp') return config;
   return withFromAddress(config, username);
+}
+
+/**
+ * Keep `fromAddress` on the mailbox a credential names (`config.mailbox` —
+ * Outlook's shared mailbox): the Inbox, the composer and the sync's
+ * direction all read `fromAddress`, and the credential acts on that mailbox,
+ * not on the account that signed in. The mailbox is set when the credential
+ * is added and never changes (a `fixed` setting), so the mirror never has to
+ * follow it away. Returns `config` unchanged when it names no mailbox.
+ */
+export function withMailboxFromAddress(
+  config: Record<string, string | number | boolean> | undefined,
+): Record<string, string | number | boolean> | undefined {
+  const mailbox = config?.mailbox;
+  return typeof mailbox === 'string'
+    ? withFromAddress(config, mailbox)
+    : config;
 }

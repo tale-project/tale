@@ -131,7 +131,7 @@ export function CredentialEditDialog<
         // Editing can CLEAR a required extra field (a connector's configFields),
         // and `updateCredential` refuses that — so gate it here too rather than
         // letting a save fail on something the form accepted.
-        (extra.isComplete?.(extraValue, vendor) ?? true)
+        (extra.isComplete?.(extraValue, vendor, credential.authMethod) ?? true)
       }
       confirmDiscardOnDirty
       onSubmit={(e) => void handleSubmit(e)}
@@ -169,6 +169,8 @@ export function CredentialEditDialog<
           value={extraValue}
           onChange={setExtraValue}
           disabled={update.isPending}
+          method={credential.authMethod}
+          editing
         />
       )}
     </FormDialog>

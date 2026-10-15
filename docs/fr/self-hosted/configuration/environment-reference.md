@@ -164,6 +164,7 @@ Les connectors OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) résolven
 | -------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset  | Identifiant client OAuth pour ce connector. Slug en majuscules, tirets remplacés par des tirets bas (`gmail` → `GMAIL`). |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset  | Secret client correspondant.                                                                                              |
+| `CONNECTOR_OAUTH_<SLUG>_TENANT_ID`     | unset  | ID d'annuaire (tenant) d'une application Microsoft à locataire unique. Définie, la connexion utilise ce locataire au lieu de `/common` ; une application d'organisation apporte son propre ID d'annuaire. |
 | `CONNECTOR_SLACK_SIGNING_SECRET`       | unset  | Le secret de signature de l’app Slack. L’endpoint d’événements entrants vérifie chaque livraison avec lui et renvoie 503 tant qu’il manque. |
 
 Enregistre `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` sur l’application fournisseur, et pour Slack aussi `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` comme Events Request URL. Détails : [Connectors (développement)](/fr/develop/connectors).

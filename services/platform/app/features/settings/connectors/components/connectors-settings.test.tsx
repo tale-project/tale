@@ -218,6 +218,36 @@ const confluenceConnector: ConnectorSummary = {
   iconUrl: '/api/connectors/confluence/icon.svg',
 };
 
+// Outlook takes a person's consent or the organization's own app; the app
+// sign-in names its directory and must name the mailbox it works in.
+const outlookConnector: ConnectorSummary = {
+  slug: 'outlook',
+  displayName: 'Microsoft Outlook',
+  description: 'Manage Outlook mail, calendar, and contacts.',
+  tags: ['Email'],
+  endpointMode: 'fixed',
+  authMethods: ['oauth2', 'client-credentials'],
+  configFields: [
+    {
+      key: 'mailbox',
+      label: 'Mailbox',
+      type: 'string',
+      required: false,
+      requiredFor: ['client-credentials'],
+      format: 'email',
+    },
+    {
+      key: 'fromAddress',
+      label: 'From address',
+      type: 'string',
+      required: false,
+    },
+  ],
+  actionCount: 11,
+  clientCredentialsTenant: true,
+  oauthApp: { configured: true, source: 'env', orgConfigurable: true },
+};
+
 // WebDAV ships no icon — the catalog carries none and the card falls back.
 const webdavConnector: ConnectorSummary = {
   slug: 'webdav',
@@ -639,6 +669,176 @@ describe('ConnectorsSettings', () => {
     });
   });
 
+  it('signs an app in to a shared mailbox, asking for its directory, ID, secret and mailbox', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+
+    // The person's consent stays offered beside the app's form.
+    expect(form.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+    const submit = form.getByRole('button', { name: 'Add credential' });
+    await user.type(
+      form.getByLabelText(/^Directory \(tenant\) ID/, { selector: 'input' }),
+      'contoso.onmicrosoft.com',
+    );
+    await user.type(
+      form.getByLabelText(/^Application \(client\) ID/, { selector: 'input' }),
+      'app-client-id',
+    );
+    await user.type(
+      form.getByLabelText(/^Client secret/, { selector: 'input' }),
+      'app-client-secret',
+    );
+    // An app has no mailbox of its own: without one the server would refuse.
+    expect(submit).toBeDisabled();
+    // The consent box asks for its own; this is the app form's.
+    const consent = form.getByRole('group', {
+      name: 'Connect with your Microsoft Outlook account',
+    });
+    const appMailbox = form
+      .getAllByRole('textbox', { name: /^Mailbox/ })
+      .find((field) => !consent.contains(field));
+    if (appMailbox === undefined) throw new Error('no app form mailbox');
+    await user.type(appMailbox, 'promotion@example.com');
+    expect(submit).toBeEnabled();
+
+    await user.click(submit);
+    expect(createCredential).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      connectorSlug: 'outlook',
+      authMethod: 'client-credentials',
+      name: 'Microsoft Outlook',
+      tenantId: 'contoso.onmicrosoft.com',
+      clientId: 'app-client-id',
+      clientSecret: 'app-client-secret',
+      config: { mailbox: 'promotion@example.com' },
+    });
+  });
+
+  it('connects a person to a shared mailbox named before the consent, never after [CCRED-R12]', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+    const consent = within(
+      form.getByRole('group', {
+        name: 'Connect with your Microsoft Outlook account',
+      }),
+    );
+
+    await user.type(
+      consent.getByRole('textbox', { name: /^Mailbox/ }),
+      ' promotion@example.com',
+    );
+    await user.click(consent.getByRole('button', { name: 'Connect' }));
+
+    expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'outlook', {
+      kind: 'add',
+      config: { mailbox: ' promotion@example.com' },
+    });
+  });
+
+  it('refuses a mailbox named by anything but its address, before Connect [CCRED-R12]', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+    const consent = within(
+      form.getByRole('group', {
+        name: 'Connect with your Microsoft Outlook account',
+      }),
+    );
+    const mailbox = consent.getByRole('textbox', { name: /^Mailbox/ });
+    const connect = consent.getByRole('button', { name: 'Connect' });
+
+    // A directory object ID: Graph takes it, the mail sync could not.
+    await user.type(mailbox, '9f1c2b7e-4d3a-4c8e-9b1f-2a6d5e8c7b40');
+    expect(connect).toBeDisabled();
+    expect(mailbox).toHaveAttribute('aria-invalid', 'true');
+    expect(
+      consent.getByText('Enter an email address, such as support@example.com.'),
+    ).toBeInTheDocument();
+    await user.click(connect);
+    expect(goToAuthorization).not.toHaveBeenCalled();
+
+    await user.clear(mailbox);
+    await user.type(mailbox, 'promotion@example.com');
+    expect(connect).toBeEnabled();
+    expect(
+      consent.queryByText(
+        'Enter an email address, such as support@example.com.',
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it('connects a person’s own mailbox when no mailbox is named', async () => {
+    fixtures.connectors = [outlookConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'Microsoft Outlook');
+
+    await user.click(form.getByRole('button', { name: 'Connect' }));
+
+    expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'outlook', {
+      kind: 'add',
+    });
+  });
+
+  it('shows a credential’s mailbox on Edit without letting it change [CCRED-R12]', async () => {
+    fixtures.connectors = [
+      {
+        ...outlookConnector,
+        configFields: outlookConnector.configFields.map((field) =>
+          field.key === 'mailbox' ? { ...field, fixed: true } : field,
+        ),
+      },
+    ];
+    fixtures.credentials = [
+      credential({
+        id: 'cred-lena',
+        name: 'Promotion (Lena)',
+        connectorSlug: 'outlook',
+        authMethod: 'oauth2',
+        config: {
+          mailbox: 'promotion@example.com',
+          fromAddress: 'promotion@example.com',
+        },
+      }),
+    ];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', { name: 'Actions for Promotion (Lena)' }),
+    );
+    await user.click(
+      within(await screen.findByRole('menu')).getByRole('menuitem', {
+        name: 'Edit credential',
+      }),
+    );
+    const dialog = within(
+      await screen.findByRole('dialog', { name: 'Edit credential' }),
+    );
+
+    const mailbox = dialog.getByRole('textbox', { name: /^Mailbox/ });
+    expect(mailbox).toHaveValue('promotion@example.com');
+    expect(mailbox).toHaveAttribute('aria-disabled', 'true');
+    await user.type(mailbox, 'x');
+    expect(mailbox).toHaveValue('promotion@example.com');
+
+    await rename(user, dialog, 'Promotion');
+    await user.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(updateCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'cred-lena',
+        name: 'Promotion',
+        config: {
+          mailbox: 'promotion@example.com',
+          fromAddress: 'promotion@example.com',
+        },
+      }),
+    );
+  });
+
   it('collects a separate SMTP relay login when the toggle is on', async () => {
     // 0.3's "Use a separate SMTP provider": IMAP keeps the mailbox login,
     // SMTP authenticates as the relay. Without the toggle the form only
@@ -730,6 +930,71 @@ describe('ConnectorsSettings', () => {
       expect(
         menu.queryByRole('menuitem', { name: /Replace/ }),
       ).not.toBeInTheDocument();
+    });
+
+    it('shows which app an app sign-in uses, and rotates its secret without retyping the IDs', async () => {
+      fixtures.connectors = [outlookConnector];
+      fixtures.credentials = [
+        credential({
+          id: 'cred-app',
+          name: 'Promotion mailbox',
+          connectorSlug: 'outlook',
+          authMethod: 'client-credentials',
+          maskedPreview: 'app-…ue',
+          clientApp: {
+            tenantId: 'contoso.onmicrosoft.com',
+            clientId: 'app-client-id',
+          },
+          config: {
+            mailbox: 'promotion@example.com',
+            fromAddress: 'promotion@example.com',
+          },
+        }),
+      ];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+
+      expect(
+        screen.getByText(
+          'App app-client-id in directory contoso.onmicrosoft.com',
+        ),
+      ).toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Promotion mailbox' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Replace app credentials',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Replace app credentials' }),
+      );
+      expect(
+        dialog.getByLabelText(/^Directory \(tenant\) ID/, {
+          selector: 'input',
+        }),
+      ).toHaveValue('contoso.onmicrosoft.com');
+      expect(
+        dialog.getByLabelText(/^Application \(client\) ID/, {
+          selector: 'input',
+        }),
+      ).toHaveValue('app-client-id');
+      const secret = dialog.getByLabelText(/^Client secret/, {
+        selector: 'input',
+      });
+      expect(secret).toHaveValue('');
+      const save = dialog.getByRole('button', { name: 'Save' });
+      expect(save).toBeDisabled();
+
+      await user.type(secret, 'rotated-secret');
+      await user.click(save);
+      expect(updateCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        credentialId: 'cred-app',
+        tenantId: 'contoso.onmicrosoft.com',
+        clientId: 'app-client-id',
+        clientSecret: 'rotated-secret',
+      });
     });
 
     it('reconnects exactly the row whose menu was used, not the default', async () => {

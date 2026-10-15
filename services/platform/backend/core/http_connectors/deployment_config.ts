@@ -16,15 +16,22 @@
  * unset `SITE_URL` is refused rather than guessed from the request: guessing
  * is what makes `Host`-header injection work.
  *
- * App credentials live ONLY in environment variables. The connector file
- * declares the vendor's endpoints and scopes; the client id/secret identify
- * THIS deployment's registration with that vendor and are secret, so they are
- * never in the catalog, never in a table, and never logged. The naming is
- * mechanical — connector slug upper-cased with dashes as underscores — so a new
- * OAuth2 connector needs no code change to become configurable:
+ * The DEPLOYMENT's app credentials live in environment variables; an
+ * organization may register its own app instead, sealed in
+ * `app.connector_oauth_apps` (`domains/connectors/oauth-apps.ts`), which is
+ * resolved first. The connector file declares the vendor's endpoints and
+ * scopes; the client id/secret identify a registration with that vendor and
+ * are secret, so they are never in the catalog and never logged. The naming
+ * is mechanical — connector slug upper-cased with dashes as underscores — so
+ * a new OAuth2 connector needs no code change to become configurable:
  *
  *   CONNECTOR_OAUTH_GOOGLE_DRIVE_CLIENT_ID
  *   CONNECTOR_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET
+ *
+ * A single-tenant Microsoft registration also names its directory, which
+ * replaces the catalog's `/common/` in the authorize and token URLs:
+ *
+ *   CONNECTOR_OAUTH_OUTLOOK_TENANT_ID
  *
  * Slack's inbound endpoint additionally needs the app's signing secret, which
  * is what authenticates every event delivery:
@@ -103,6 +110,8 @@ export function oauthAppEnvPrefix(connectorSlug: string): string {
 export interface OauthAppCredentials {
   readonly clientId: string;
   readonly clientSecret: string;
+  /** Microsoft-family directory (tenant) id of a single-tenant app. */
+  readonly tenantId?: string;
 }
 
 /**
@@ -110,6 +119,8 @@ export interface OauthAppCredentials {
  * operator has not configured one. Callers report the MISSING VARIABLE NAMES to
  * the server log and show the user a generic "not configured" page — the names
  * are not secret, but the values must never reach a response or a log line.
+ * `<PREFIX>TENANT_ID` is optional: unset, a Microsoft app signs in on the
+ * catalog's multi-tenant endpoints.
  */
 export function resolveOauthAppCredentials(
   connectorSlug: string,
@@ -118,7 +129,8 @@ export function resolveOauthAppCredentials(
   const clientId = (process.env[`${prefix}CLIENT_ID`] ?? '').trim();
   const clientSecret = (process.env[`${prefix}CLIENT_SECRET`] ?? '').trim();
   if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
+  const tenantId = (process.env[`${prefix}TENANT_ID`] ?? '').trim();
+  return { clientId, clientSecret, ...(tenantId ? { tenantId } : {}) };
 }
 
 /** The Slack app's signing secret, or null when unconfigured. */

@@ -1,7 +1,9 @@
+import { CLIENT_CREDENTIALS_TENANT_PLACEHOLDER } from '@tale/shared/schemas/connectors';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { CONNECTOR_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
 import {
   buildAuthHeader,
   buildSecretBindings,
@@ -13,12 +15,17 @@ import {
   connectorBearerScheme,
   loadConnectorDefinitions,
 } from '../../core/connector_credentials/connector_catalog.ts';
-import { withImapFromAddress } from '../../core/connector_credentials/imap_from_address.ts';
+import {
+  withImapFromAddress,
+  withMailboxFromAddress,
+} from '../../core/connector_credentials/imap_from_address.ts';
 import { maskPayload } from '../../core/connector_credentials/masking.ts';
 import { normalizeEndpointOrigin } from '../../core/connector_credentials/mutations.ts';
+import type { ConnectorAuthMethod } from '../../core/connector_credentials/types.ts';
 import { oauthAppEnvPrefix } from '../../core/http_connectors/deployment_config.ts';
 import {
   refreshAccessToken,
+  requestClientCredentialsToken,
   type FetchLike,
 } from '../../core/http_connectors/token_exchange.ts';
 import {
@@ -85,7 +92,7 @@ function credentialState(row: {
   return { name: row.name, status: row.status, isDefault: row.isDefault };
 }
 
-type AuthMethod = 'api-key' | 'bearer' | 'basic' | 'oauth2';
+type AuthMethod = ConnectorAuthMethod;
 /**
  * `disabled` is an operator decision; `needs-reauth` is the system's — an
  * oauth2 grant whose refresh failed. They are distinct because only the second
@@ -136,6 +143,8 @@ export interface CredentialRow {
   endpointUrl: string | null;
   config: Record<string, string | number | boolean> | null;
   maskedPreview: string | null;
+  /** `client-credentials`: the app it signs in as ({@link ClientApp}). */
+  clientApp: ClientApp | null;
   isDefault: boolean;
   mailSyncInboundSince: number | null;
   mailSyncOutboundSince: number | null;
@@ -150,7 +159,7 @@ const CREDENTIAL_COLUMNS = `
   id, org_id AS "organizationId", connector_slug AS "connectorSlug",
   auth_method AS "authMethod", name, encrypted_data AS "encryptedData",
   endpoint_url AS "endpointUrl", config, masked_preview AS "maskedPreview",
-  is_default AS "isDefault",
+  client_app AS "clientApp", is_default AS "isDefault",
   mail_sync_inbound_since_ms::float8 AS "mailSyncInboundSince",
   mail_sync_outbound_since_ms::float8 AS "mailSyncOutboundSince",
   status, status_detail AS "statusDetail", created_by AS "createdBy",
@@ -243,10 +252,13 @@ function normalizeEndpointUrl(
 }
 
 /** Validate the connector's non-secret per-credential config against its
- * declared `configFields` (0.4 `normalizeConfig` semantics). */
+ * declared `configFields` (0.4 `normalizeConfig` semantics). A field
+ * `requiredFor` the credential's sign-in method is required like a
+ * `required` one. */
 function normalizeConfig(
   connector: Connector,
   raw: Record<string, string | number | boolean> | undefined,
+  authMethod: AuthMethod,
 ): Record<string, string | number | boolean> | undefined {
   const fields = connector.configFields;
   if (fields.length === 0) {
@@ -270,13 +282,21 @@ function normalizeConfig(
   }
   const out: Record<string, string | number | boolean> = {};
   for (const field of fields) {
-    const provided = supplied[field.key];
-    const value = provided ?? field.default;
+    const given = supplied[field.key] ?? field.default;
+    // Stored without the blanks around it, and blanks alone are no value:
+    // a mailbox of spaces must not pass for one an app's sign-in requires.
+    const value = typeof given === 'string' ? given.trim() : given;
     if (value === undefined || value === '') {
       if (field.required) {
         throw new ConnectorCredentialError(
           'CREDENTIAL_CONFIG_REQUIRED',
           `Connector "${connector.name}" needs "${field.label}".`,
+        );
+      }
+      if (field.requiredFor?.includes(authMethod) === true) {
+        throw new ConnectorCredentialError(
+          'CREDENTIAL_CONFIG_REQUIRED',
+          `Connector "${connector.name}" needs "${field.label}" for a ${authMethod} credential.`,
         );
       }
       continue;
@@ -313,9 +333,67 @@ function normalizeConfig(
         `"${field.label}" must be one of: ${field.enum.join(', ')}.`,
       );
     }
+    // A mailbox the credential is filed under is named by its address: an
+    // ID the vendor also takes would leave the Inbox and the mail sync
+    // without the address they tell its own mail by, for the credential's
+    // life (the setting is fixed).
+    if (field.format === 'email' && !looksLikeEmailAddress(s)) {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_CONFIG_INVALID',
+        `"${field.label}" must be an email address, such as support@example.com.`,
+      );
+    }
     out[field.key] = s;
   }
   return out;
+}
+
+/**
+ * Refuse an edit that changes a setting the connector declares `fixed` —
+ * Outlook's `mailbox`, which decides where the credential acts and so what
+ * its mail sync's positions, the conversations it filed and their replies
+ * belong to. Absent and empty are the same value; another value is another
+ * credential, added beside this one.
+ */
+function assertFixedConfigKept(
+  connector: Connector,
+  stored: Record<string, string | number | boolean> | null,
+  next: Record<string, string | number | boolean> | undefined,
+): void {
+  const valueOf = (
+    config: Record<string, string | number | boolean> | null | undefined,
+    key: string,
+  ): string | number | boolean => {
+    const value = config?.[key];
+    return typeof value === 'string' ? value.trim() : (value ?? '');
+  };
+  for (const field of connector.configFields) {
+    if (field.fixed !== true) continue;
+    if (valueOf(stored, field.key) === valueOf(next, field.key)) continue;
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_CONFIG_INVALID',
+      `"${field.label}" is set when a "${connector.name}" credential is added and cannot be changed — add another credential instead.`,
+    );
+  }
+}
+
+/**
+ * A new credential's per-credential settings, validated and normalized the
+ * way {@link createCredential} stores them, before the credential exists —
+ * for a flow that collects them first and creates the credential later: the
+ * connector OAuth consent, whose settings (Outlook's `mailbox`) decide the
+ * permissions it asks for and travel with it to the callback.
+ */
+export function normalizeNewCredentialConfig(
+  connectorSlug: string,
+  authMethod: AuthMethod,
+  raw: Record<string, string | number | boolean> | undefined,
+): Record<string, string | number | boolean> | undefined {
+  return normalizeConfig(
+    requireConnectorAuthMethod(connectorSlug, authMethod),
+    raw,
+    authMethod,
+  );
 }
 
 export interface SecretInput {
@@ -328,6 +406,10 @@ export interface SecretInput {
   refreshToken?: string;
   expiresAt?: number;
   scopes?: string[];
+  /** `client-credentials`: the app's directory, id and secret. */
+  tenantId?: string;
+  clientId?: string;
+  clientSecret?: string;
 }
 
 /** Assemble + validate the method's secret payload (0.4 `buildPayload`). */
@@ -381,6 +463,17 @@ function buildPayload(
           ...(input.expiresAt !== undefined && { expiresAt: input.expiresAt }),
           ...(input.scopes !== undefined && { scopes: input.scopes }),
         };
+      // Only what a person types: the access token is fetched by the
+      // platform, so a replaced secret always starts without one.
+      case 'client-credentials':
+        return {
+          tenantId: input.tenantId?.trim() || undefined,
+          clientId: input.clientId?.trim(),
+          clientSecret:
+            input.clientSecret === undefined
+              ? undefined
+              : normalizeSecretValue(input.clientSecret, 'The client secret'),
+        };
       default: {
         const _exhaustive: never = authMethod;
         return _exhaustive;
@@ -403,16 +496,89 @@ function buildPayload(
   }
 }
 
-/** Encrypt a validated payload and compute its non-secret preview. */
+/**
+ * The token URL an app signing in as itself asks, with the credential's
+ * directory in place of the connector's `{tenantId}` — or the refusal that
+ * says the credential lacks the directory the URL needs. The directory's
+ * grammar (`parseSecretPayload`) keeps it inside its path segment.
+ */
+function clientCredentialsTokenUrl(
+  connector: Connector,
+  payload: Extract<
+    ConnectorSecretPayload,
+    { authMethod: 'client-credentials' }
+  >,
+): { tokenUrl: string; scopes: readonly string[] } {
+  const entry = connector.auth.find(
+    (method) => method.method === 'client-credentials',
+  );
+  if (entry === undefined) {
+    throw new ConnectorCredentialError(
+      'AUTH_METHOD_NOT_SUPPORTED',
+      `Connector "${connector.name}" does not accept client-credentials credentials.`,
+    );
+  }
+  if (!entry.tokenUrl.includes(CLIENT_CREDENTIALS_TENANT_PLACEHOLDER)) {
+    return { tokenUrl: entry.tokenUrl, scopes: entry.scopes };
+  }
+  if (payload.tenantId === undefined) {
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_SECRET_INVALID',
+      `Connector "${connector.name}" signs an app in within its directory — enter the directory (tenant) ID.`,
+    );
+  }
+  return {
+    tokenUrl: entry.tokenUrl.replaceAll(
+      CLIENT_CREDENTIALS_TENANT_PLACEHOLDER,
+      encodeURIComponent(payload.tenantId),
+    ),
+    scopes: entry.scopes,
+  };
+}
+
+/** A new or replaced secret, checked against what its connector needs of it
+ * beyond its own shape — today the directory a client-credentials token URL
+ * names. */
+function checkPayloadForConnector(
+  connector: Connector,
+  payload: ConnectorSecretPayload,
+): void {
+  if (payload.authMethod === 'client-credentials') {
+    clientCredentialsTokenUrl(connector, payload);
+  }
+}
+
+/**
+ * Which app a `client-credentials` credential signs in as: its directory and
+ * application ID, which are not secret. The envelope keeps them for the
+ * token request; the row shows this copy, written from the same payload in
+ * the same statement, so an admin can tell which app and directory a
+ * credential uses — the two values its refusal tells them to check — and a
+ * secret rotation starts from them instead of blank fields.
+ */
+interface ClientApp {
+  tenantId?: string;
+  clientId: string;
+}
+
+/** Encrypt a validated payload and compute its non-secret preview, and for
+ * an app that signs in as itself, the app it is ({@link ClientApp}). */
 function sealPayload(payload: ConnectorSecretPayload): {
   encryptedData: EncryptedSecret;
   maskedPreview?: string;
+  clientApp?: ClientApp;
 } {
   const { authMethod: _method, ...document } = payload;
   const maskedPreview = maskPayload(payload);
   return {
     encryptedData: encryptSecret(JSON.stringify(document)),
     ...(maskedPreview !== undefined && { maskedPreview }),
+    ...(payload.authMethod === 'client-credentials' && {
+      clientApp: {
+        ...(payload.tenantId !== undefined && { tenantId: payload.tenantId }),
+        clientId: payload.clientId,
+      },
+    }),
   };
 }
 
@@ -521,6 +687,8 @@ export interface MaskedCredential {
   endpointUrl?: string;
   config?: Record<string, string | number | boolean>;
   maskedPreview?: string;
+  /** `client-credentials`: the app it signs in as — not secret. */
+  clientApp?: ClientApp;
   isDefault: boolean;
   status: CredentialStatus;
   statusDetail?: string;
@@ -543,6 +711,7 @@ function toMasked(row: CredentialRow): MaskedCredential {
     ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
     ...(row.config !== null ? { config: row.config } : {}),
     ...(row.maskedPreview !== null ? { maskedPreview: row.maskedPreview } : {}),
+    ...(row.clientApp != null ? { clientApp: row.clientApp } : {}),
     isDefault: row.isDefault,
     status: row.status,
     ...(row.statusDetail !== null ? { statusDetail: row.statusDetail } : {}),
@@ -679,19 +848,23 @@ function prepareCredential(args: CreateCredentialArgs): PreparedCredential {
   const endpointUrl = normalizeEndpointUrl(connector, args.endpointUrl);
   let config: Record<string, string | number | boolean> | undefined;
   try {
-    config = withImapFromAddress(
-      args.connectorSlug,
-      normalizeConfig(connector, args.config),
-      args.secret.username,
+    config = withMailboxFromAddress(
+      withImapFromAddress(
+        args.connectorSlug,
+        normalizeConfig(connector, args.config, args.authMethod),
+        args.secret.username,
+      ),
     );
   } catch (error) {
     translateAppError(error);
   }
+  const payload = buildPayload(args.authMethod, args.secret);
+  checkPayloadForConnector(connector, payload);
   return {
     endpointUrl,
     config,
     name: normalizeName(args.name),
-    sealed: sealPayload(buildPayload(args.authMethod, args.secret)),
+    sealed: sealPayload(payload),
   };
 }
 
@@ -716,7 +889,7 @@ export function checkCredentialTarget(args: {
   );
   if (args.creating || args.endpointUrl !== undefined)
     normalizeEndpointUrl(connector, args.endpointUrl);
-  if (args.creating) normalizeConfig(connector, undefined);
+  if (args.creating) normalizeConfig(connector, undefined, args.authMethod);
 }
 
 async function insertPreparedCredential(
@@ -739,14 +912,16 @@ async function insertPreparedCredential(
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.connector_credentials (
       org_id, connector_slug, auth_method, name, encrypted_data,
-      endpoint_url, config, masked_preview, is_default, status,
+      endpoint_url, config, masked_preview, client_app, is_default, status,
       created_by, created_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.connectorSlug}, ${args.authMethod},
       ${prepared.name}, ${tx.json(toJson(prepared.sealed.encryptedData))},
       ${prepared.endpointUrl ?? null},
       ${prepared.config === undefined ? null : tx.json(toJson(prepared.config))},
-      ${prepared.sealed.maskedPreview ?? null}, ${isDefault}, 'active',
+      ${prepared.sealed.maskedPreview ?? null},
+      ${prepared.sealed.clientApp === undefined ? null : tx.json(toJson(prepared.sealed.clientApp))},
+      ${isDefault}, 'active',
       ${args.createdBy}, ${now}, ${now}
     )
     RETURNING id
@@ -838,7 +1013,9 @@ export async function updateCredentialInTransaction(
   }
   let sealed: ReturnType<typeof sealPayload> | undefined;
   if (args.secret !== undefined) {
-    sealed = sealPayload(buildPayload(row.authMethod, args.secret));
+    const payload = buildPayload(row.authMethod, args.secret);
+    checkPayloadForConnector(connector, payload);
+    sealed = sealPayload(payload);
   }
   let endpointUrl = row.endpointUrl;
   if (args.endpointUrl !== undefined) {
@@ -846,12 +1023,16 @@ export async function updateCredentialInTransaction(
   }
   let config = row.config;
   if (args.config !== undefined) {
+    const normalized = normalizeConfig(connector, args.config, row.authMethod);
+    assertFixedConfigKept(connector, row.config, normalized);
     try {
       config =
-        withImapFromAddress(
-          row.connectorSlug,
-          normalizeConfig(connector, args.config),
-          args.secret?.username,
+        withMailboxFromAddress(
+          withImapFromAddress(
+            row.connectorSlug,
+            normalized,
+            args.secret?.username,
+          ),
         ) ?? null;
     } catch (error) {
       translateAppError(error);
@@ -870,6 +1051,7 @@ export async function updateCredentialInTransaction(
       name = ${name},
       encrypted_data = ${sealed !== undefined ? tx.json(toJson(sealed.encryptedData)) : tx.unsafe('encrypted_data')},
       masked_preview = ${sealed !== undefined ? (sealed.maskedPreview ?? null) : tx.unsafe('masked_preview')},
+      client_app = ${sealed === undefined ? tx.unsafe('client_app') : sealed.clientApp === undefined ? null : tx.json(toJson(sealed.clientApp))},
       endpoint_url = ${endpointUrl},
       config = ${config === null ? null : tx.json(toJson(config))},
       status = ${args.status ?? tx.unsafe('status')},
@@ -1086,7 +1268,8 @@ async function findCredentialForRef(
  * An active oauth2 row passes through the same refresh seam as
  * {@link resolveConnectorCredential} first, so the envelope handed out is the
  * renewed one and a dead grant is already marked `needs-reauth` for the
- * reused resolver to refuse. Best-effort by design: this answer also serves
+ * reused resolver to refuse; an app signing in as itself fetches its token
+ * there too. Best-effort by design: this answer also serves
  * readers that only want the row's config, so a refresh the vendor could not
  * be reached for hands the row back as stored (warned, not thrown) and the
  * invocation fails at the vendor the way it would have anyway.
@@ -1101,9 +1284,21 @@ export async function resolveCredentialRowForShim(
 ): Promise<Record<string, unknown> | null> {
   let row = await findCredentialForRef(sql, args);
   if (row === null) return null;
-  if (row.status === 'active' && row.authMethod === 'oauth2') {
+  // The envelope handed out: the stored one, unless an app's token was
+  // fetched on the way and lost its compare-and-swap — then a copy sealed
+  // around the token in hand, so the reused resolver still sends one.
+  let encryptedData = row.encryptedData;
+  if (
+    row.status === 'active' &&
+    (row.authMethod === 'oauth2' || row.authMethod === 'client-credentials')
+  ) {
     try {
-      row = (await freshenOauth2Row(sql, row, openRowEnvelope(row), {})).row;
+      const fresh = await freshenRow(sql, row, openRowEnvelope(row), {});
+      row = fresh.row;
+      encryptedData =
+        fresh.payload.authMethod === 'client-credentials'
+          ? sealPayload(fresh.payload).encryptedData
+          : row.encryptedData;
     } catch (error) {
       if (!(error instanceof ConnectorCredentialError)) throw error;
       if (error.code === 'CREDENTIAL_NEEDS_REAUTH') {
@@ -1122,7 +1317,7 @@ export async function resolveCredentialRowForShim(
     connectorSlug: row.connectorSlug,
     authMethod: row.authMethod,
     name: row.name,
-    encryptedData: row.encryptedData,
+    encryptedData,
     ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
     ...(row.config !== null ? { config: row.config } : {}),
     status: row.status,
@@ -1445,6 +1640,126 @@ async function freshenOauth2Row(
 }
 
 /**
+ * The client-credentials seam: an app that signs in as itself holds no
+ * grant to renew, only its registration, so the platform asks the token
+ * endpoint for an access token whenever the stored one is missing, expired
+ * or about to be, and keeps it in the envelope under the same
+ * compare-and-swap as an oauth2 refresh — the next call within the hour
+ * reuses it, whichever process makes it. The token and the client secret
+ * never reach a log: what is logged is the credential, the organization and
+ * the vendor's short error code.
+ *
+ * A token endpoint that REFUSES the app (`invalid_client`: a wrong or expired
+ * secret, a wrong directory) is refused with what to check
+ * (`CREDENTIAL_APP_REFUSED`); the credential stays active, since only a
+ * person replacing the secret fixes it and nothing would be gained by hiding
+ * it. An endpoint that cannot be reached is refused as retryable
+ * (`CREDENTIAL_REFRESH_FAILED`), as for oauth2.
+ */
+async function freshenClientCredentialsRow(
+  sql: Sql,
+  row: CredentialRow,
+  payload: ConnectorSecretPayload,
+  options: ResolveCredentialOptions,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  if (
+    payload.authMethod !== 'client-credentials' ||
+    (payload.accessToken !== undefined &&
+      payload.expiresAt !== undefined &&
+      payload.expiresAt - OAUTH2_REFRESH_SKEW_MS > Date.now())
+  ) {
+    return { row, payload };
+  }
+  const connector = loadConnectorDefinitions().find(
+    (entry) => entry.name === row.connectorSlug,
+  );
+  if (connector === undefined) {
+    throw new ConnectorCredentialError(
+      'CONNECTOR_UNKNOWN',
+      `Credential "${row.name}" belongs to "${row.connectorSlug}", which this deployment does not ship.`,
+      404,
+    );
+  }
+  const { tokenUrl, scopes } = clientCredentialsTokenUrl(connector, payload);
+  const fetched = await requestClientCredentialsToken(
+    {
+      tokenUrl,
+      clientId: payload.clientId,
+      clientSecret: payload.clientSecret,
+      scopes,
+    },
+    options.fetchImpl,
+  );
+  if (!fetched.ok) {
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" got no app token for organization ${row.organizationId}: ${fetched.reason}${fetched.code ? ` (${fetched.code})` : ''}`,
+    );
+    if (fetched.reason === 'vendor_rejected') {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_APP_REFUSED',
+        `Credential "${row.name}": the "${row.connectorSlug}" token endpoint refused the app's sign-in${
+          fetched.code ? ` (${fetched.code})` : ''
+        } — check the directory (tenant) ID, the application (client) ID and the client secret, which may have expired, and replace them in Settings → Connectors.`,
+      );
+    }
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_REFRESH_FAILED',
+      `Credential "${row.name}" needs a new access token and the "${row.connectorSlug}" token endpoint ${
+        fetched.reason === 'vendor_unreachable'
+          ? 'could not be reached'
+          : 'answered without a usable token'
+      } — try again shortly.`,
+    );
+  }
+
+  const next = parseSecretPayload('client-credentials', {
+    ...(payload.tenantId !== undefined && { tenantId: payload.tenantId }),
+    clientId: payload.clientId,
+    clientSecret: payload.clientSecret,
+    accessToken: fetched.tokens.accessToken,
+    ...(fetched.tokens.expiresAt !== undefined && {
+      expiresAt: fetched.tokens.expiresAt,
+    }),
+  });
+  // A token that names no lifetime serves this call only: kept, nothing
+  // could ever tell it had gone stale.
+  if (fetched.tokens.expiresAt === undefined) return { row, payload: next };
+
+  const sealed = sealPayload(next);
+  const written = await sql<CredentialRow[]>`
+    UPDATE app.connector_credentials
+    SET encrypted_data = ${sql.json(toJson(sealed.encryptedData))},
+        masked_preview = ${sealed.maskedPreview ?? null},
+        updated_at_ms = ${Date.now()}
+    WHERE id = ${row.id} AND org_id = ${row.organizationId}
+      AND updated_at_ms = ${row.updatedAt}
+    RETURNING ${sql.unsafe(CREDENTIAL_COLUMNS)}
+  `;
+  const stored = written[0];
+  if (stored !== undefined) return { row: stored, payload: next };
+  // Someone wrote the row first — another call's token, the mail sync's
+  // cursor, an admin's edit. The token in hand is valid either way; the
+  // re-read row only decides whether the credential may still be used.
+  const current = await requireOwnRow(sql, row.organizationId, row.id);
+  assertRowUsable(current);
+  return { row: current, payload: next };
+}
+
+/** Bring an active credential's access up to date before it is handed out:
+ * an oauth2 grant is renewed, an app signing in as itself fetches its
+ * token. Anything else passes through. */
+async function freshenRow(
+  sql: Sql,
+  row: CredentialRow,
+  payload: ConnectorSecretPayload,
+  options: ResolveCredentialOptions,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  return payload.authMethod === 'client-credentials'
+    ? freshenClientCredentialsRow(sql, row, payload, options)
+    : freshenOauth2Row(sql, row, payload, options);
+}
+
+/**
  * Resolve one (org, connector[, credential]) selection to the material an
  * invocation runs with — the ONE decrypt seam. An expired oauth2 grant is
  * renewed on the way through ({@link freshenOauth2Row}), so what comes back
@@ -1462,7 +1777,7 @@ export async function resolveConnectorCredential(
 ): Promise<ResolvedConnectorCredential> {
   const loaded = await loadRowForResolve(sql, args);
   assertRowUsable(loaded);
-  const { row, payload } = await freshenOauth2Row(
+  const { row, payload } = await freshenRow(
     sql,
     loaded,
     openRowEnvelope(loaded),

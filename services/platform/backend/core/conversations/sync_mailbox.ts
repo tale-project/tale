@@ -28,9 +28,9 @@ import {
   FIRST_PASS_BACKFILL_DAYS,
   type MailboxSyncReceipt,
 } from '../../../lib/connectors/natives/platform-conversations';
+import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
 import { isRecord } from '../../../lib/utils/type-utils';
 import {
-  looksLikeEmailAddress,
   withFromAddress,
   withImapFromAddress,
 } from '../connector_credentials/imap_from_address';
@@ -517,7 +517,7 @@ async function listTimedFolder(
   if (args.connectorSlug === 'outlook') {
     const field = OUTLOOK_FIELD[args.folder];
     input.top = args.limit;
-    // Always a folder: `/me/messages` spans every folder, Sent Items
+    // Always a folder: the mailbox's `messages` spans every folder, Sent Items
     // included, and the mailbox's own mail opened conversations with the
     // mailbox as the customer.
     input.folder = args.folder === 'sent' ? 'sentitems' : 'inbox';

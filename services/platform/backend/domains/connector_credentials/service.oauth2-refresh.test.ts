@@ -402,6 +402,20 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(store.row.status).toBe('active');
   });
 
+  it('never marks a grant for reconnection when the token endpoint answers it is down [CCRED-R6]', async () => {
+    const store: Store = { row: row(EXPIRED) };
+    const sql = fakeSql(store);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: 'server_error' }, 503));
+    const attempt = resolveConnectorCredential(sql, ARGS, { fetchImpl });
+    await expect(attempt).rejects.toMatchObject({
+      code: 'CREDENTIAL_REFRESH_FAILED',
+    });
+    expect(sql.updates).toEqual([]);
+    expect(store.row.status).toBe('active');
+  });
+
   it('refuses without flipping the row when no OAuth app can renew the grant', async () => {
     resolveConnectorOauthApp.mockResolvedValue(null);
     const store: Store = { row: row(EXPIRED) };

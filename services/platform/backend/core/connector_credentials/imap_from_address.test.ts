@@ -1,26 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  looksLikeEmailAddress,
   withFromAddress,
   storedImapFromAddress,
   withImapFromAddress,
+  withMailboxFromAddress,
 } from './imap_from_address';
-
-describe('looksLikeEmailAddress', () => {
-  it('accepts a simple local@domain', () => {
-    expect(looksLikeEmailAddress('hello@acme.test')).toBe(true);
-    expect(looksLikeEmailAddress('  Hello@Acme.TEST  ')).toBe(true);
-  });
-
-  it('rejects non-emails', () => {
-    expect(looksLikeEmailAddress('')).toBe(false);
-    expect(looksLikeEmailAddress('resend')).toBe(false);
-    expect(looksLikeEmailAddress('@acme.test')).toBe(false);
-    expect(looksLikeEmailAddress('hello@')).toBe(false);
-    expect(looksLikeEmailAddress('hello @acme.test')).toBe(false);
-  });
-});
 
 describe('storedImapFromAddress', () => {
   it('carries an existing mirror so a config replace cannot drop it', () => {
@@ -101,5 +86,26 @@ describe('withFromAddress', () => {
       fromAddress: 'x',
     });
     expect(withFromAddress(undefined, undefined)).toBe(undefined);
+  });
+});
+
+describe('withMailboxFromAddress — a named mailbox is the identity [CONN-R29]', () => {
+  it('keeps fromAddress on the mailbox a credential names', () => {
+    expect(
+      withMailboxFromAddress({
+        mailbox: 'promotion@example.com',
+        fromAddress: 'lena@example.com',
+      }),
+    ).toEqual({
+      mailbox: 'promotion@example.com',
+      fromAddress: 'promotion@example.com',
+    });
+  });
+
+  it('leaves an account’s own learned address alone when no mailbox is named', () => {
+    expect(withMailboxFromAddress({ fromAddress: 'lena@example.com' })).toEqual(
+      { fromAddress: 'lena@example.com' },
+    );
+    expect(withMailboxFromAddress(undefined)).toBeUndefined();
   });
 });

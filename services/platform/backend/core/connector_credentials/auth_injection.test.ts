@@ -141,6 +141,56 @@ describe('buildAuthHeader', () => {
   });
 });
 
+describe('an app that signs in as itself (client-credentials)', () => {
+  const app = {
+    tenantId: 'contoso.onmicrosoft.com',
+    clientId: 'app-id',
+    clientSecret: 'app-secret',
+  };
+
+  it('parses the registration with or without a fetched token', () => {
+    expect(parseSecretPayload('client-credentials', app)).toEqual({
+      authMethod: 'client-credentials',
+      ...app,
+    });
+    expect(
+      parseSecretPayload('client-credentials', {
+        ...app,
+        accessToken: 'at',
+        expiresAt: 5,
+      }),
+    ).toMatchObject({ accessToken: 'at', expiresAt: 5 });
+  });
+
+  it('refuses a directory that could leave its path segment', () => {
+    for (const tenantId of ['../common', 'a/b', 'x?y=1', 'a%2Fb', '']) {
+      expect(() =>
+        parseSecretPayload('client-credentials', { ...app, tenantId }),
+      ).toThrow(SecretPayloadError);
+    }
+  });
+
+  it('sends the fetched token, never the client secret, and nothing before one is fetched', () => {
+    expect(
+      buildAuthHeader({
+        authMethod: 'client-credentials',
+        ...app,
+        accessToken: 'at',
+      }),
+    ).toBe('Bearer at');
+    expect(
+      buildAuthHeader({ authMethod: 'client-credentials', ...app }),
+    ).toBeUndefined();
+    const bindings = buildSecretBindings({
+      authMethod: 'client-credentials',
+      ...app,
+      accessToken: 'at',
+    });
+    expect(bindings).toEqual({ token: 'at', accessToken: 'at' });
+    expect(Object.values(bindings)).not.toContain('app-secret');
+  });
+});
+
 describe('buildSecretBindings', () => {
   it('publishes an api key under every name the shipped bodies read', () => {
     // tavily reads `apiKey`; shopify reads `accessToken` — both api-key.

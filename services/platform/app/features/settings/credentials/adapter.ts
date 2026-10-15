@@ -176,15 +176,22 @@ export interface CredentialExtraModule<V, Cred, Extra> {
    * Whether the extra fields are filled in enough to submit. Vendor-aware
    * because what is required is declared per vendor (a connector's
    * `configFields`), not per surface. Omit when nothing here is mandatory —
-   * the dialogs treat an absent check as satisfied.
+   * the dialogs treat an absent check as satisfied. `method` is the sign-in
+   * method being authored or edited: a field may be required for one method
+   * only (an app signing in as itself must name the mailbox it acts on).
    */
-  isComplete?: (value: Extra, vendor: V) => boolean;
+  isComplete?: (value: Extra, vendor: V, method?: string) => boolean;
   /** Return `null` to render nothing for this vendor. */
   Fields: ComponentType<{
     vendor: V;
     value: Extra;
     onChange: (next: Extra) => void;
     disabled?: boolean;
+    /** The sign-in method being authored or edited. */
+    method?: string;
+    /** True in the edit dialog: a field set once, when the credential was
+     * added, is shown without being editable. */
+    editing?: boolean;
   }> | null;
 }
 
@@ -267,6 +274,13 @@ export interface CredentialAdapter<
    * badge on the vendor's card. `null` when the vendor left the catalog.
    */
   detailLine?: (t: Translator, credential: Cred, vendor: V | null) => ReactNode;
+  /**
+   * The draft the replace-secret dialog starts from, for a credential whose
+   * secret travels with parts that are not secret and that the row already
+   * shows (an app sign-in's directory and application ID): rotating the
+   * secret should not mean retyping them. Absent starts from `secret.empty`.
+   */
+  replaceDraft?: (credential: Cred) => Draft;
   /**
    * Surface-specific row actions, prepended to the shared ones. A HOOK, called
    * once per row render like the mutations below: an action that talks to the

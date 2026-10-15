@@ -145,6 +145,25 @@ describe('planOauth2Grant — Slack workspaces [CONN-R10]', () => {
     ).toEqual({ kind: 'renew', credentialId: 'cred-1', reactivate: true });
   });
 
+  it('refuses an Add whose settings would land on the workspace’s credential, which keeps its own', () => {
+    const withSettings: ConsentIntent = {
+      kind: 'add',
+      config: { region: 'eu' },
+    };
+    expect(
+      slack({
+        intent: withSettings,
+        siblings: [row('cred-1', 'Slack')],
+        team: { id: 'T-1' },
+        route: routed('cred-1'),
+      }),
+    ).toEqual({ kind: 'refuse', reason: 'invalid_settings' });
+    // A workspace not connected yet is a new credential, born with them.
+    expect(
+      slack({ intent: withSettings, team: { id: 'T-2', name: 'Ops' } }),
+    ).toEqual({ kind: 'create', name: 'Slack', claimTeamId: 'T-2' });
+  });
+
   it('keeps a disabled workspace credential disabled when it is renewed', () => {
     expect(
       slack({

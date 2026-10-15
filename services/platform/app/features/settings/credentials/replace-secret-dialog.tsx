@@ -18,9 +18,12 @@ import {
  * Replace the secret material of one credential, with the fields the method
  * actually uses.
  *
- * Stored secrets are never read back, so the fields always start blank — there
- * is no "current value" to show and nothing to diff against. That is also why
- * this is a separate dialog from Edit: everything here is write-only.
+ * Stored secrets are never read back, so the secret fields always start
+ * blank — there is no "current value" to show. That is also why this is a
+ * separate dialog from Edit: every secret here is write-only. What travels
+ * with the secret without being one, and the row already shows (an app
+ * sign-in's directory and application ID), starts filled in
+ * (`adapter.replaceDraft`).
  */
 export function ReplaceSecretDialog<
   V extends CredentialVendor,
@@ -50,13 +53,20 @@ export function ReplaceSecretDialog<
   const { secret } = adapter;
 
   const method = adapter.methodOf(credential);
-  const [draft, setDraft] = useState<Draft>(secret.empty);
+  const startDraft = (): Draft =>
+    adapter.replaceDraft?.(credential) ?? secret.empty();
+  const [draft, setDraft] = useState<Draft>(startDraft);
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
-    setDraft(secret.empty());
+    setDraft(startDraft());
     setError(null);
   };
+  // What the dialog opened with is nothing the reader typed: closing over
+  // it has nothing to discard.
+  const isDirty =
+    secret.isDirty(draft) &&
+    JSON.stringify(draft) !== JSON.stringify(startDraft());
 
   const title = method === null ? null : secret.replaceTitle(t, method);
   const note = method === null ? undefined : secret.replaceNote?.(t, method);
@@ -106,7 +116,7 @@ export function ReplaceSecretDialog<
       title={title}
       description={credential.name}
       isSubmitting={update.isPending}
-      isDirty={secret.isDirty(draft)}
+      isDirty={isDirty}
       isValid={isValid}
       onSubmit={(e) => void handleSubmit(e)}
     >

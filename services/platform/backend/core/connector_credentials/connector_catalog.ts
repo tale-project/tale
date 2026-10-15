@@ -19,6 +19,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { CLIENT_CREDENTIALS_TENANT_PLACEHOLDER } from '@tale/shared/schemas/connectors';
+
 import {
   connectorBearerScheme,
   findConnector,
@@ -53,6 +55,12 @@ interface ConnectorSummary {
     type: 'string' | 'number' | 'boolean';
     description?: string;
     required: boolean;
+    /** Required only for a credential of these sign-in methods. */
+    requiredFor?: ConnectorAuthMethod[];
+    /** Set when the credential is added; an edit cannot change it. */
+    fixed?: boolean;
+    /** What a string value must look like: `email`, a mail address. */
+    format?: 'email';
     enum?: string[];
     integer?: boolean;
     min?: number;
@@ -63,6 +71,10 @@ interface ConnectorSummary {
   }>;
   actionCount: number;
   iconUrl?: string;
+  /** A connector an app can sign in to as itself (`client-credentials`):
+   * whether that sign-in names the app's directory (tenant) — its token URL
+   * carries `{tenantId}`. Absent for a connector without that method. */
+  clientCredentialsTenant?: boolean;
 }
 
 /**
@@ -133,6 +145,11 @@ export function listConnectorSummaries(): ConnectorSummary[] {
         label: field.label,
         type: field.type,
         required: field.required,
+        ...(field.requiredFor !== undefined && {
+          requiredFor: field.requiredFor,
+        }),
+        ...(field.fixed === true && { fixed: true }),
+        ...(field.format !== undefined && { format: field.format }),
         ...(field.description !== undefined && {
           description: field.description,
         }),
@@ -145,6 +162,14 @@ export function listConnectorSummaries(): ConnectorSummary[] {
       })),
       actionCount: connector.actions.length,
     };
+    const appSignIn = connector.auth.find(
+      (method) => method.method === 'client-credentials',
+    );
+    if (appSignIn !== undefined) {
+      summary.clientCredentialsTenant = appSignIn.tokenUrl.includes(
+        CLIENT_CREDENTIALS_TENANT_PLACEHOLDER,
+      );
+    }
     const iconUrl = readConnectorIcon(connectorsDir, connector.name);
     if (iconUrl !== undefined) summary.iconUrl = iconUrl;
     summaries.push(summary);

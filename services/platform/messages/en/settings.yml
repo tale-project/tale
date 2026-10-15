@@ -401,6 +401,7 @@ connectors:
   vendorColumn: Connector
   vendorFilterLabel: Connector
   invalidPort: Enter an integer port from 1 to 65535.
+  invalidEmailAddress: Enter an email address, such as support@example.com.
   catalog:
     emptyBody: >-
       This deployment ships no connector files. Check that the config root
@@ -411,9 +412,11 @@ connectors:
     bearer: Token
     basic: Username & password
     oauth2: OAuth
+    clientCredentials: App sign-in
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connect
+    connectGroup: Connect with your {connector} account
     emptyBodyOauth:
       Connect {connector} so configured workflows and supported platform
       tools can use this account.
@@ -432,6 +435,8 @@ connectors:
     needsReauth: Reconnect needed
     needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
     needsReauthDetail: '{detail} Reconnect to grant consent again.'
+    clientApp: 'App {clientId}'
+    clientAppInTenant: 'App {clientId} in directory {tenantId}'
     reconnect: Reconnect
     deleteDefaultHandsOn: >-
       This is the default credential. Deleting it makes "{name}" the default
@@ -447,6 +452,7 @@ connectors:
     apiKeyTitle: Replace API key
     tokenTitle: Replace token
     basicTitle: Replace username & password
+    clientCredentialsTitle: Replace app credentials
     note: The stored secret is never shown. Entering a new one replaces it
       everywhere this credential is used.
   oauthApps:
@@ -511,6 +517,14 @@ connectors:
     smtpPassword: SMTP password
     smtpHint: Enter your relay's SMTP username and password (Resend, SendGrid,
       Amazon SES, …).
+    fixedSettingReason: Set when the credential was added. To use another value, add another credential.
+    tenantId: Directory (tenant) ID
+    tenantIdHelp: The ID of the directory the app is registered in.
+    clientId: Application (client) ID
+    clientSecret: Client secret
+    clientSecretHelp:
+      Tale uses it only to fetch the app's access token, and renews that
+      token itself.
     endpointUrl: Instance URL
     endpointHelpConfluence: Your Atlassian site origin — the address you open Confluence at.
     endpointHelpShopify:
