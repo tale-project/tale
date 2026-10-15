@@ -226,6 +226,15 @@ function platform() {
   let failNext: string | undefined;
 
   const sorted = (values: string[]) => [...values].sort();
+  // The platform derives a digest on every read; the stand-in remembers the
+  // ones it derived, so a test reading the same value again stays fast.
+  const derived = new Map<string, string>();
+  const digest = (args: Parameters<typeof managedSecretDigest>[0]) => {
+    const key = JSON.stringify(args);
+    const known = derived.get(key) ?? managedSecretDigest(args);
+    derived.set(key, known);
+    return known;
+  };
   const views = {
     project: (id: string) => {
       const project = projects.get(id);
@@ -269,7 +278,7 @@ function platform() {
       return (
         value !== undefined && {
           name,
-          valueDigest: managedSecretDigest({
+          valueDigest: digest({
             organizationId: ORG,
             scope: agentSecretDigestScope(name),
             value,
@@ -287,7 +296,7 @@ function platform() {
           endpoint: row.endpoint,
           isDefault: row.isDefault,
           fields: Object.keys(row.values).sort(),
-          valueDigest: managedSecretDigest({
+          valueDigest: digest({
             organizationId: ORG,
             scope: connectorCredentialDigestScope(connector, row.name),
             value: row.values,
@@ -1009,6 +1018,41 @@ describe('a declared secret keeps its value out of everything but its write', ()
       expect(text).not.toContain(TOKEN);
       expect(text).not.toContain(JIRA_PASSWORD);
     }
+  });
+
+  test('reads back whether a secret holds the declared value, never the digest that verifies it [ASEC-R5]', async () => {
+    const api = platform();
+    const configuration = fleet();
+    await applyPlatformConfiguration(
+      configuration,
+      await planPlatformConfiguration(configuration, api.client, {
+        environment,
+      }),
+      api.client,
+      await receiptPath(),
+      { environment },
+    );
+    const shown = (
+      read: Awaited<ReturnType<typeof readPlatformConfiguration>>,
+    ) =>
+      read.resources.find(({ id }) => id === 'agent-secret/GITHUB_TOKEN')
+        ?.config;
+    const read = await readPlatformConfiguration(configuration, api.client, {
+      environment,
+    });
+    expect(shown(read)).toEqual({ name: 'GITHUB_TOKEN', valueMatches: true });
+    expect(
+      read.resources.find(({ id }) => id === 'connector-credential/jira/Ops')
+        ?.config,
+    ).toMatchObject({ valueMatches: true });
+    expect(JSON.stringify(read)).not.toContain('pbkdf2-sha256:');
+    const rotated = await readPlatformConfiguration(configuration, api.client, {
+      environment: { ...environment, TALE_CONFIG_SECRET_GITHUB: 'rotated' },
+    });
+    expect(shown(rotated)).toEqual({
+      name: 'GITHUB_TOKEN',
+      valueMatches: false,
+    });
   });
 
   test('rotates a secret whose value changed, and leaves an equal one alone [CCRED-R8]', async () => {

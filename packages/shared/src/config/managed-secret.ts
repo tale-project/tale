@@ -10,19 +10,22 @@ import { stableStringify } from '../utils/stable-stringify';
  * CLI compares it with the digest of the value it would write: equal, the
  * secret is as declared; different, applying writes the new value.
  *
- * A digest is readable by whoever may read the secret's configuration, so it
- * must not make guessing a weak value cheap: PBKDF2-HMAC-SHA-256 with a salt
- * bound to the organization and the secret's identity, so a digest proves
- * nothing about another organization or another secret holding the same
- * value. The platform stores no digest — it computes one from the value it
- * holds whenever it is read — so this function may change: a change reads
- * every declared secret as changed once, and the next apply rewrites them.
+ * A digest is a verifier of the value: whoever reads it — the secret's
+ * configuration, and every plan, receipt and journal hash computed over it —
+ * can test guesses offline. So it must not make guessing a weak value
+ * cheap: PBKDF2-HMAC-SHA-256 at the iteration count OWASP recommends for it
+ * (600,000), with a salt bound to the organization and the secret's
+ * identity, so a digest proves nothing about another organization or
+ * another secret holding the same value. The platform stores no digest — it
+ * computes one from the value it holds whenever it is read — so this
+ * function may change: a change reads every declared secret as changed
+ * once, and the next apply rewrites them.
  *
  * Server-only (Node's crypto), like `platform-resources`.
  */
 
 const VERSION = 'tale/managed-secret/v1';
-export const MANAGED_SECRET_DIGEST_ITERATIONS = 100_000;
+export const MANAGED_SECRET_DIGEST_ITERATIONS = 600_000;
 
 /** A secret value as it is stored: one string, or a connector credential's
  * fields by name. */

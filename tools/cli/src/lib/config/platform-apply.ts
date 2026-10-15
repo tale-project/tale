@@ -467,6 +467,32 @@ export async function applyPlatformConfiguration(
   };
 }
 
+/** What `read` shows of a resource's native state. A declared secret's
+ * digest is a verifier of its value — anyone holding it can test guesses
+ * offline — so instead of it, `read` shows whether the stored value is the
+ * one the environment holds now. */
+function shownState(
+  resource: PlatformResource,
+  config: unknown,
+  secrets: DeclaredSecrets,
+): unknown {
+  if (
+    !isSecretResource(resource) ||
+    typeof config !== 'object' ||
+    config === null
+  )
+    return config;
+  const valueDigest: unknown = Reflect.get(config, 'valueDigest');
+  return {
+    ...Object.fromEntries(
+      Object.entries(config).filter(([key]) => key !== 'valueDigest'),
+    ),
+    valueMatches:
+      typeof valueDigest === 'string' &&
+      valueDigest === secrets.desired(resource).valueDigest,
+  };
+}
+
 export async function readPlatformConfiguration(
   input: unknown,
   client: PlatformConfigurationClient,
@@ -481,7 +507,7 @@ export async function readPlatformConfiguration(
     resources.push({
       id: resourceId(resource),
       scope: resource.kind === 'deployment' ? 'instance' : 'organization',
-      config: actual.config,
+      config: shownState(resource, actual.config, secrets),
       revision: actual.revision,
       matches: converged(resource, actual, secrets),
     });
