@@ -36,6 +36,7 @@ const EXPECTED_SLUGS = [
   'conversation',
   'discord',
   'document',
+  'forgejo',
   'github',
   'glitchtip',
   'gmail',
