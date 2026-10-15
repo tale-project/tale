@@ -837,12 +837,22 @@ describe('kickAgentRun — the workspace follows the person who starts the run',
   });
 
   /** The kick's statements with their values, answering the starter's
-   * membership and the project's audience from the case. */
-  function kickTx(role: string | null): {
+   * membership and the project's audience from the case. With `served`, the
+   * agent is one of `p-dev` (Development), whose dispatch serves the task's
+   * board `p-1` (Billing): each project is shared with its own team, and
+   * the starter is in the teams the case names. */
+  function kickTx(
+    role: string | null,
+    served?: { starterTeams: string[] },
+  ): {
     tx: TransactionSql;
     sessionId: () => unknown;
   } {
     let inserted: unknown[] = [];
+    const audience: Record<string, string[]> = {
+      'p-1': ['team-billing'],
+      'p-dev': ['team-dev'],
+    };
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
       if (text.includes('FROM "member"')) {
@@ -851,6 +861,25 @@ describe('kickAgentRun — the workspace follows the person who starts the run',
             ? []
             : [{ id: 'm-1', organizationId: 'org-1', userId: 'u-1', role }],
         );
+      }
+      if (served !== undefined) {
+        if (text.startsWith('SELECT a.project_id AS "projectId"')) {
+          return Promise.resolve([{ projectId: 'p-dev', archived: false }]);
+        }
+        if (text.includes('FROM "teamMember" tm')) {
+          return Promise.resolve(
+            served.starterTeams.map((teamId) => ({ teamId, projectId: null })),
+          );
+        }
+        if (text.includes('AS "teamIds" FROM app.projects')) {
+          const ids = values.find(Array.isArray) ?? [];
+          return Promise.resolve(
+            ids.map((id) => ({
+              id,
+              teamIds: audience[String(id)] ?? [],
+            })),
+          );
+        }
       }
       if (text.includes('AS "teamIds" FROM app.projects')) {
         return Promise.resolve([{ id: 'p-1', teamIds: [] }]);
@@ -906,6 +935,27 @@ describe('kickAgentRun — the workspace follows the person who starts the run',
     const { tx, sessionId } = kickTx(null);
     await kickAgentRun(tx, kick);
     expect(sessionId()).not.toBe('pa-agent-1');
+  });
+
+  it('confines a person’s run of another project’s agent on a board its dispatch serves unless they edit both projects [TASK-R79]', async () => {
+    // Every door a person starts a run through — Start agent, a comment, a
+    // move to In progress, the retry of their run, a start their run
+    // delegates — kicks here with no workspace chosen. Bea edits Billing
+    // alone, Dan Development alone, Ada both.
+    const sessionOf = async (starterTeams: string[], startedBy: string) => {
+      const { tx, sessionId } = kickTx('editor', { starterTeams });
+      await kickAgentRun(tx, { ...kick, startedBy });
+      return sessionId();
+    };
+    expect(await sessionOf(['team-billing'], 'bea')).toBe(
+      memberSessionIdForProjectAgent('agent-1', 'bea'),
+    );
+    expect(await sessionOf(['team-dev'], 'dan')).toBe(
+      memberSessionIdForProjectAgent('agent-1', 'dan'),
+    );
+    expect(await sessionOf(['team-billing', 'team-dev'], 'ada')).toBe(
+      'pa-agent-1',
+    );
   });
 
   it('works in the workspace a caller already chose and judged — the automatic retry’s', async () => {
