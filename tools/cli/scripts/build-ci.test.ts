@@ -27,7 +27,7 @@ type Workflow = {
   jobs: Record<string, Job>;
 };
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
-const standaloneServices = ['web', 'docs', 'ui-docs', 'ai-gateway'];
+const standaloneServices = ['web', 'docs', 'ui-docs'];
 const standaloneHarnesses = standaloneServices.map(
   (service) =>
     `services/platform/tests/integration/container-${service}-test.ts`,
@@ -248,7 +248,6 @@ describe('container build boundaries', () => {
         'web',
         'docs',
         'ui-docs',
-        'ai-gateway',
       ]) {
         const dockerfile = (
           await readFile(

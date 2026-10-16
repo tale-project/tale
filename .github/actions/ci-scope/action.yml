@@ -86,7 +86,6 @@ runs:
         BUILD_web: ${{ steps.filter.outputs.build_web }}
         BUILD_docs: ${{ steps.filter.outputs.build_docs }}
         BUILD_ui_docs: ${{ steps.filter.outputs.build_ui-docs }}
-        BUILD_ai_gateway: ${{ steps.filter.outputs.build_ai-gateway }}
         BUILD_storybook: ${{ steps.filter.outputs.build_storybook }}
         BUILD_sandbox: ${{ steps.filter.outputs.build_sandbox }}
         BUILD_sandbox_egress: ${{ steps.filter.outputs.build_sandbox-egress }}

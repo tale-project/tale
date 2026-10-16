@@ -67,7 +67,6 @@ test('every image cleanup uses one candidate-independent policy and preserves co
     ['build', 'web-test', '20'],
     ['build', 'docs-test', '20'],
     ['build', 'ui-docs-test', '20'],
-    ['build', 'ai-gateway-test', '20'],
     ['build', 'image-validate', '28'],
     ['build', 'image-validate-fork', '40'],
     ['release', 'build', '40'],

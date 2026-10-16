@@ -58,11 +58,6 @@ const coverage: Record<string, Coverage> = {
     remaining:
       'Daemon code measured on host; runtime image, agent CLIs, document toolchain and Linux process isolation require Docker and image builds.',
   },
-  '@tale/ai-gateway': {
-    workloads: ['gateway.store'],
-    remaining:
-      'Synthetic encrypted local account store; OAuth/provider refresh latency and real credential-pool throughput require vendor credentials and a controlled test account.',
-  },
   '@tale/ui': {
     workloads: ['ui.static-http', 'ui.seo-cold', 'ui.seo-hot', 'ui.render'],
     remaining:

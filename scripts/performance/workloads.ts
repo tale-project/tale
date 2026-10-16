@@ -31,7 +31,6 @@ export const workloadRuntimes = {
   'daemon.exec-replay': 'node',
   'daemon.journal-write': 'node',
   'daemon.journal-reconnect': 'node',
-  'gateway.store': 'bun',
   'ui.static-http': 'bun',
   'ui.seo-cold': 'bun',
   'ui.seo-hot': 'bun',
@@ -313,57 +312,6 @@ export async function prepareWorkload(
         await manager.terminateAll();
         await rm(directory, { recursive: true, force: true });
       },
-    };
-  }
-
-  if (id === 'gateway.store') {
-    const { createFileAccountStore } =
-      await import('../../services/ai-gateway/backend/store.ts');
-    const { createTokenCipher } =
-      await import('../../services/ai-gateway/backend/crypto.ts');
-    const directory = await mkdtemp(
-      join(fixtureRoot, 'tale-performance-gateway-'),
-    );
-    const cipher = createTokenCipher(randomBytes(32));
-    const store = createFileAccountStore({ dataDir: directory });
-    for (let i = 0; i < 100; i++) {
-      await store.putAccount({
-        id: `account-${i}`,
-        provider: 'anthropic',
-        label: 'Synthetic account',
-        accountEmail: null,
-        accountId: null,
-        plan: null,
-        subscription: null,
-        identityCheckedAt: null,
-        accessToken: cipher.seal('synthetic-token'),
-        refreshToken: cipher.seal('synthetic-refresh'),
-        expiresAt: null,
-        scopes: null,
-        status: 'active',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        lastRefreshedAt: null,
-        usage: null,
-        usageAttemptedAt: null,
-      });
-    }
-    return {
-      operations: 100,
-      unit: 'accounts',
-      description:
-        'Read/validate 100 encrypted file-backed accounts, decrypt each, atomically update one; no vendor calls',
-      async run() {
-        const accounts = await store.listAccounts();
-        assert.equal(accounts.length, 100);
-        for (const account of accounts)
-          assert.equal(cipher.open(account.accessToken), 'synthetic-token');
-        assert.ok(
-          await store.updateAccount('account-0', (account) => {
-            account.label = 'Synthetic refreshed account';
-          }),
-        );
-      },
-      cleanup: () => rm(directory, { recursive: true, force: true }),
     };
   }
 

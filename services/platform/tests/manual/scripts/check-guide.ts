@@ -35,7 +35,7 @@
  *    `fullPath` in `services/<service>/app/routeTree.gen.ts`. A path with a
  *    segment starting `nope` is a deliberate not-found probe and is skipped.
  *    A service whose route tree cannot list its pages — a root splat that
- *    serves content (docs, ui-docs), or a single `/` route (ai-gateway) —
+ *    serves content (docs, ui-docs) —
  *    gets no route check; the script says so instead of flagging every page.
  * 3. Spec refs — every backticked `<name>.spec.ts` must exist under
  *    `services/<service>/tests/e2e/specs/`.

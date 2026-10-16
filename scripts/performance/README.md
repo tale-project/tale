@@ -73,7 +73,6 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | Agent progress (`platform.agent-progress`) | 4,000 events across 1,000 tool cycles with 100 KB payloads; bounded resumable projection | Live model throughput, database write contention and end-to-end task latency |
 | Sandbox spawner | 1000 exec boundary validations with 128 environment values; 1000-event SSE burst | Docker/Kubernetes provisioning, concurrent session admission, image warmup |
 | Sandbox daemon/runtime | Real Node process output and complete 1 MiB disk replay; 16,000-record journal writes; 20 late reconnects per sample requesting the last ten records | Linux subreaper, sustained concurrent reconnects, container resource ceilings and image-only document dependencies |
-| AI gateway | Read/validate/decrypt 100 file-backed accounts and atomic update | OAuth, provider refresh, controlled credential-pool traffic |
 | UI and marketing UI | 100-button SSR, including marketing wrappers | Browser layout/hydration, all other components and animation |
 | Web/docs/UI docs | Shared server: 100 HTTP requests in batches of ten; cold/cached 250-page SEO artifact bursts | Service content/search/build/prerender and browser navigation; shared code is labelled `shared-library-only` |
 | CLI | Fresh process `--help` startup | Deployment/backup/archive/object-store workflows |

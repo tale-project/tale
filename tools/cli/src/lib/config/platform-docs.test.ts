@@ -63,7 +63,6 @@ const CHECKED_CI_FILES = [
   'services/platform/tests/integration/container-web-test.ts',
   'services/platform/tests/integration/container-docs-test.ts',
   'services/platform/tests/integration/container-ui-docs-test.ts',
-  'services/platform/tests/integration/container-ai-gateway-test.ts',
   'services/platform/turbo.json',
 ];
 /**
@@ -85,7 +84,6 @@ const PARITY_FILES = [
   'compose.web.yml',
   'compose.docs.yml',
   'compose.ui-docs.yml',
-  'compose.ai-gateway.yml',
   'services/proxy/Caddyfile',
   'services/proxy/docker-entrypoint.sh',
   'services/platform/Dockerfile',

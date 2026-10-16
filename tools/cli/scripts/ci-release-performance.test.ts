@@ -333,25 +333,15 @@ test.skipIf(process.platform === 'win32').each(['', 'image', 'smoke'])(
   },
 );
 
-test.skipIf(process.platform === 'win32').each([
-  ['true', ''],
-  ['true', 'docs'],
-  ['false', ''],
-  ['false', 'ai-gateway'],
-])(
-  'release standalone checks preserve sites_only=%s and await every child when %s fails',
-  async (sites, failed) => {
-    const expected = [
-      'web',
-      'docs',
-      'ui-docs',
-      ...(sites === 'false' ? ['ai-gateway'] : []),
-    ];
+test.skipIf(process.platform === 'win32').each(['', 'docs'])(
+  'release standalone checks await every child when %s fails',
+  async (failed) => {
+    const expected = ['web', 'docs', 'ui-docs'];
     const proof = await probeFixture(expected, failed);
     const result = await execute(
       (await step('container-test', 'Run standalone container tests')).run!,
       proof.directory,
-      { ...proof.env, SITES_ONLY: sites },
+      proof.env,
     );
     expect(result.code, result.stdout + result.stderr).toBe(failed ? 1 : 0);
     expect(
@@ -495,7 +485,7 @@ test
 test
   .skipIf(process.platform === 'win32')
   .each(['', 'platform', 'sandbox-runtime'])(
-  'final manifest checks preserve all twelve services and aggregate failure %s',
+  'final manifest checks preserve all eleven services and aggregate failure %s',
   async (failure) => {
     const directory = await fixture();
     const services = [
@@ -505,7 +495,6 @@ test
       'web',
       'docs',
       'ui-docs',
-      'ai-gateway',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',

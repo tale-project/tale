@@ -281,7 +281,7 @@ describe('native CI readiness', () => {
     expect(evaluateReadiness(input).passed).toBe(false);
   });
 
-  test.each(['web', 'docs', 'ui-docs', 'ai-gateway'])(
+  test.each(['web', 'docs', 'ui-docs'])(
     'Build requires the %s container proof while allowing the unneeded platform stack to skip',
     (service) => {
       const input = fixture('build');
@@ -299,7 +299,6 @@ describe('native CI readiness', () => {
         'web-test',
         'docs-test',
         'ui-docs-test',
-        'ai-gateway-test',
         'vulnerability-scan',
         'storybook',
       ])
@@ -327,7 +326,6 @@ describe('native CI readiness', () => {
       'web-test',
       'docs-test',
       'ui-docs-test',
-      'ai-gateway-test',
       'vulnerability-scan',
       'storybook',
     ])

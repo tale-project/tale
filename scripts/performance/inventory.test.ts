@@ -31,7 +31,7 @@ test('a filtered run never marks unexecuted workloads as measured', async () => 
   ).toBe('not-measured');
 });
 
-test('shared HTTP serving does not count as a gateway workload', async () => {
+test('shared HTTP serving does not mark an unrelated workspace as measured', async () => {
   const inventory = await workspaceInventory(
     new Set(['ui.static-http']),
     new Set(),
@@ -39,9 +39,7 @@ test('shared HTTP serving does not count as a gateway workload', async () => {
   expect(inventory.find((entry) => entry.name === '@tale/ui')?.status).toBe(
     'measured-hot-path',
   );
-  expect(
-    inventory.find((entry) => entry.name === '@tale/ai-gateway'),
-  ).toMatchObject({
+  expect(inventory.find((entry) => entry.name === '@tale/cli')).toMatchObject({
     status: 'not-measured',
     workloads: [],
   });

@@ -290,7 +290,7 @@ describe('a brokered automation agent reaching a vendor rate limit', () => {
 });
 
 describe('a brokered automation agent turn the vendor answered 401', () => {
-  // Observed live (2026-09-28): the AI gateway refreshed every account at
+  // Observed live (2026-09-28): the token broker refreshed every account at
   // once and a turn's token was revoked mid-work ("401 OAuth access token
   // has been revoked"). The broker's rotation, not a fault of the account.
   const REVOKED = [

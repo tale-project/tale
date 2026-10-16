@@ -499,8 +499,10 @@ export async function checkAgentTaskReadTools(
       taskId: foreignTask,
       status: 'running',
     });
-    // A valid neighbour run must carry its own project. A stale/malformed
-    // run identity is refused before the read tool sees any cursor or task.
+    // A valid neighbour run must carry its own project. A run on a board its
+    // agent neither works nor reaches through its project's dispatch acts for
+    // nobody (`schedule_revoked`, `dispatch-reach.ts`): it is refused before
+    // the read tool sees any cursor or task.
     let mismatchedProject: Body;
     await sql`UPDATE app.project_agent_runs SET project_id = ${projectA}
       WHERE id = ${outsiderRun.runId}`;
@@ -519,7 +521,7 @@ export async function checkAgentTaskReadTools(
       'read tools: a mismatched live run project is refused; its coherent identity restores only its own project reads',
       mismatchedProject.status === 'unavailable' &&
         listAt(mismatchedProject, 'blockers').some(
-          (runBlocker) => runBlocker.code === 'run_ended',
+          (runBlocker) => runBlocker.code === 'schedule_revoked',
         ) &&
         restoredProject.status === 'ok' &&
         sameList([...idsOf(restoredProject)].sort(), [...foreignTasks].sort()),

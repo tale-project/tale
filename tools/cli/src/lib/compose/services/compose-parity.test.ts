@@ -1214,7 +1214,6 @@ fi
     [false, 'web'],
     [false, 'docs'],
     [false, 'ui-docs'],
-    [false, 'ai-gateway'],
     [true, ''],
     [true, 'web'],
     [true, 'docs'],
@@ -1230,11 +1229,11 @@ fi
         'Run standalone container tests',
       ]);
       expect(steps[0]!.if).toBe("needs.prepare.outputs.sites_only != 'true'");
-      // image, smoke, web, docs, ui-docs, ai-gateway. Keep all six actual
+      // image, smoke, web, docs, ui-docs. Keep all five actual
       // commands: combining steps must not remove a container check.
       const groups = [
         ['image', 'smoke'],
-        ['web', 'docs', 'ui-docs', ...(sitesOnly ? [] : ['ai-gateway'])],
+        ['web', 'docs', 'ui-docs'],
       ];
       const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-checks-'));
       const log = resolve(directory, 'calls');
@@ -1272,16 +1271,13 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
           const environment = Object.fromEntries(
             Object.entries(step.env ?? {}).map(([key, value]) => [
               key,
-              key === 'SITES_ONLY' ? String(sitesOnly) : String(value),
+              String(value),
             ]),
           );
           expect(environment.SKIP_BUILD).toBe('true');
           expect(environment.PULL_POLICY).toBe('never');
           if (index === 0) expect(environment.SMOKE_TEST_TIMEOUT).toBe('300');
-          else
-            expect(step.env?.SITES_ONLY).toBe(
-              '${{ needs.prepare.outputs.sites_only }}',
-            );
+          else expect(step.env?.SITES_ONLY).toBeUndefined();
           const result = shell(step.run!, {
             ...environment,
             PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,

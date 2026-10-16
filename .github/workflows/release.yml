@@ -91,7 +91,7 @@ jobs:
             fi
           fi
           # Start the longest native builds first within the bounded matrix.
-          SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","ai-gateway","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
+          SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
           if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs","ui-docs"]'; fi
           {
             echo "sites_only=$SITES_ONLY"
@@ -535,17 +535,15 @@ jobs:
           done
           exit "$FAILED"
 
-      # These projects have unique container names, volumes and ports13001–13004.
+      # These projects have unique container names, volumes and ports 13001–13003.
       - name: Run standalone container tests
         env:
           PULL_POLICY: never
           SKIP_BUILD: 'true'
-          SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
         run: |
           set -euo pipefail
           LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/release-validation.XXXXXX")
           SERVICES=(web docs ui-docs)
-          if [ "$SITES_ONLY" != true ]; then SERVICES+=(ai-gateway); fi
           PIDS=()
           for SERVICE in "${SERVICES[@]}"; do
             TEST_SCRIPT="services/platform/tests/integration/container-${SERVICE}-test.ts"

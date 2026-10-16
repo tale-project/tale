@@ -46890,8 +46890,21 @@ async function checkTaskAgentRuns(
 
   // A live run makes a concurrent kick REUSE it; a terminal one mints anew
   // (under the phantom agent too, so its turn job is skipped, not driven).
-  const reuseProbe = await sql.begin((tx) =>
-    agentRuns.kickAgentRun(tx, {
+  // Every start passes the reach check (a deleted agent works no board), so
+  // the phantom is a real project agent for the length of the kick's own
+  // transaction and gone again at its commit: the turn job the kick
+  // enqueues then finds no agent, as before, and no live worker can drive it.
+  const reuseProbe = await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO app.project_agents (
+        id, org_id, project_id, name, harness, model, created_by,
+        created_at_ms, updated_at_ms
+      ) VALUES (
+        ${ledgerAgentId}, ${orgId}, ${projectId}, 'Ledger phantom',
+        'claude-code', 'itest-model', ${ctx.userId}, ${Date.now()}, ${Date.now()}
+      )
+    `;
+    const reKicked = await agentRuns.kickAgentRun(tx, {
       organizationId: orgId,
       projectId,
       taskId,
@@ -46899,8 +46912,10 @@ async function checkTaskAgentRuns(
       harness: 'claude-code',
       model: 'itest-model',
       startedBy: 'itest:ledger',
-    }),
-  );
+    });
+    await tx`DELETE FROM app.project_agents WHERE id = ${ledgerAgentId}`;
+    return reKicked;
+  });
   const secondRuns = {
     success: true as const,
     data: {
