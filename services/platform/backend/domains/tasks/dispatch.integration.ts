@@ -680,6 +680,14 @@ export async function checkFleetDispatch(
       execId: faq.execId,
       resultText: 'Done.',
     });
+    // The FAQ start cleared the manager's capacity refusals on this model,
+    // which begins its ramp (TASK-R43 has its own lane): here the ramp is
+    // over, so the pass an opened gate asks for starts the release build.
+    await sql`
+      UPDATE app.model_capacity_recoveries
+      SET cleared_at_ms = cleared_at_ms - ${MODEL_CAPACITY_RAMP_MS}
+      WHERE org_id = ${orgId}
+    `;
     const openPass = await pass(ADMIT);
     const releaseBuild = await runOf(tasks.t7);
     record(
