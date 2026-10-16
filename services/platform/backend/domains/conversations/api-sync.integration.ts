@@ -87,16 +87,43 @@ export async function checkConversationApi(
     return z.object({ key: z.string() }).parse(await response.json()).key;
   };
   let key = await mint();
-  const machine = (path: string, body?: unknown, explicit = true) =>
+  const personalKey = key;
+  const machineWithKey = (
+    credential: string,
+    path: string,
+    body?: unknown,
+    explicit = true,
+  ) =>
     fetch(`${base}/api/v1${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
-        authorization: `Bearer ${key}`,
+        authorization: `Bearer ${credential}`,
         'Content-Type': 'application/json',
         ...(explicit ? { 'X-Organization-Slug': slug } : {}),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const machine = (path: string, body?: unknown, explicit = true) =>
+    machineWithKey(key, path, body, explicit);
+  const mintOwned = async () => {
+    const response = await fetch(
+      `${base}/api/app/api-keys?orgId=${ctx.orgId}`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: ctx.cookie,
+          origin: base,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'conversation-sync-owned',
+          owner: { kind: 'organization', role: 'admin' },
+        }),
+      },
+    );
+    assert.equal(response.status, 201);
+    return z.object({ key: z.string() }).parse(await response.json()).key;
+  };
   const app = (path: string, body: unknown) =>
     fetch(`${base}/api/app/conversations${path}?orgId=${ctx.orgId}`, {
       method: 'POST',
@@ -416,6 +443,75 @@ export async function checkConversationApi(
   assert.equal(state.status, 200);
   key = await mint();
   assert.equal((await machine('/conversations/sync', payload)).status, 200);
+
+  // Organization keys have a fresh service identity on every rotation. The
+  // source must remain owned by the organization principal, so the next key
+  // can continue the mirror and drain replies already queued for it.
+  const ownedKeyA = await mintOwned();
+  const ownedSource = `owned-${suffix.slice(0, 8)}`;
+  const ownedPayload = {
+    ...payload,
+    source: ownedSource,
+    externalId: `owned-thread-${suffix}`,
+    version: 0,
+  };
+  assert.equal(
+    (await machineWithKey(ownedKeyA, '/conversations/sync', ownedPayload))
+      .status,
+    200,
+  );
+  const ownedResult = snapshotResult.parse(
+    await (
+      await machineWithKey(ownedKeyA, '/conversations/sync', ownedPayload)
+    ).json(),
+  );
+  const ownedConversationId = ownedResult.conversationId;
+  const ownedKeyB = await mintOwned();
+  assert.equal(
+    (
+      await machineWithKey(ownedKeyB, '/conversations/sync', {
+        ...ownedPayload,
+        version: 1,
+        subject: 'Rotated organization key',
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await machineWithKey(personalKey, '/conversations/sync', {
+        ...ownedPayload,
+        version: 2,
+      })
+    ).status,
+    403,
+  );
+  const ownedReply = await app(`/${ownedConversationId}/reply`, {
+    content: '<p>Queued after rotation</p>',
+    sourceMarkdown: 'Queued after rotation',
+  });
+  assert.equal(ownedReply.status, 201);
+  const ownedMessageId = z
+    .object({ messageId: z.string() })
+    .parse(await ownedReply.json()).messageId;
+  await sql`UPDATE app.conversation_api_deliveries SET available_at_ms = ${Date.now() - 1}, retry_at_ms = 0 WHERE message_id = ${ownedMessageId}`;
+  const rotatedClaim = claimResult.parse(
+    await (
+      await machineWithKey(ownedKeyB, '/conversations/deliveries/claim', {
+        source: ownedSource,
+      })
+    ).json(),
+  );
+  assert.equal(
+    rotatedClaim.deliveries.find((row) => row.messageId === ownedMessageId)
+      ?.body,
+    'Queued after rotation',
+  );
+  record(
+    'conversation API ownership survives organization key rotation',
+    true,
+    'A replacement organization key continues an existing source and claims its queued reply while a personal key remains isolated',
+  );
 
   // Team assignment through the door: the key user owns this mirror and is
   // an owner, so it may queue the conversation to a team, and clear it.

@@ -30,7 +30,12 @@ interface Statement {
  * version 2 (or that mirror as `binding` changes it) and recording every
  * statement the sync issues. */
 function txDouble(
-  binding: { ownerUserId?: string; sourceDeleted?: boolean } = {},
+  binding: {
+    ownerUserId?: string;
+    ownerPrincipalKind?: string;
+    ownerPrincipalId?: string;
+    sourceDeleted?: boolean;
+  } = {},
 ) {
   const statements: Statement[] = [];
   const tag = (
@@ -44,6 +49,8 @@ function txDouble(
         {
           conversationId: 'conv-1',
           ownerUserId: 'user-1',
+          ownerPrincipalKind: 'user',
+          ownerPrincipalId: 'user-1',
           externalContactId: 'crm:contact-1',
           version: '2',
           hash: 'h2',
@@ -165,7 +172,10 @@ describe('a mirror another API key user created', () => {
     ['a content snapshot', content],
     ['a teardown', teardown],
   ])('refuses %s and changes nothing [CONV-R14]', async (_kind, snapshot) => {
-    const { tx, statements } = txDouble({ ownerUserId: 'user-2' });
+    const { tx, statements } = txDouble({
+      ownerUserId: 'user-2',
+      ownerPrincipalId: 'user-2',
+    });
 
     expect(await refusal(tx, snapshot)).toMatchObject({
       name: 'ConversationError',
