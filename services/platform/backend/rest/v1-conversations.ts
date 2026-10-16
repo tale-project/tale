@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -7,6 +7,7 @@ import {
   apiDeliveryFailureSchema,
   apiExternalIdSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
   acknowledgeApiDelivery,
   apiDeliveryAttachment,
@@ -24,6 +25,7 @@ import {
 } from '../domains/conversations/api-sync.ts';
 import {
   viewerCanWrite,
+  type ConversationSourceOwner,
   type ConversationViewer,
 } from '../domains/conversations/service.ts';
 import { readBodyBounded } from '../domains/files/bounded-body.ts';
@@ -72,12 +74,35 @@ export function createConversationRestRoutes(deps: {
       );
     return next();
   });
-  const viewer = (c: {
-    get: (key: 'organizationId' | 'userId' | 'role') => string;
-  }): ConversationViewer => ({
+  const sourceOwnerOf = (
+    owner: ApiKeyOwner | null,
+    organizationId: string,
+    userId: string,
+  ): ConversationSourceOwner => {
+    if (owner === null || owner === undefined) {
+      return { kind: 'user', id: userId };
+    }
+    if (owner.kind === 'member') {
+      return { kind: 'member', id: owner.principalUserId };
+    }
+    if (owner.kind === 'team' && owner.teamId !== null) {
+      return { kind: 'team', id: owner.teamId };
+    }
+    if (owner.kind === 'project' && owner.projectId !== null) {
+      return { kind: 'project', id: owner.projectId };
+    }
+    return { kind: 'organization', id: organizationId };
+  };
+
+  const viewer = (c: Context<RestEnv>): ConversationViewer => ({
     organizationId: c.get('organizationId'),
     userId: c.get('userId'),
     role: c.get('role'),
+    sourceOwner: sourceOwnerOf(
+      c.get('apiKeyOwner'),
+      c.get('organizationId'),
+      c.get('userId'),
+    ),
   });
 
   app.get('/conversations/sync', async (c) => {
@@ -100,7 +125,7 @@ export function createConversationRestRoutes(deps: {
     }
   });
   /**
-   * Every conversation this key user mirrored under a source — the
+   * Every conversation this integration principal mirrored under a source — the
    * reconciliation read the mirror had none of (2026-09-14 evaluation,
    * h6). Newest first; the cursor is signed under the source, so one
    * source's page never redeems on another's; `contactStatus` narrows
