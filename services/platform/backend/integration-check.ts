@@ -46904,7 +46904,7 @@ async function checkTaskAgentRuns(
         'claude-code', 'itest-model', ${ctx.userId}, ${Date.now()}, ${Date.now()}
       )
     `;
-    const kicked = await agentRuns.kickAgentRun(tx, {
+    const reKicked = await agentRuns.kickAgentRun(tx, {
       organizationId: orgId,
       projectId,
       taskId,
@@ -46914,7 +46914,7 @@ async function checkTaskAgentRuns(
       startedBy: 'itest:ledger',
     });
     await tx`DELETE FROM app.project_agents WHERE id = ${ledgerAgentId}`;
-    return kicked;
+    return reKicked;
   });
   const secondRuns = {
     success: true as const,
