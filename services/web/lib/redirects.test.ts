@@ -32,3 +32,21 @@ describe('UI documentation entry redirect', () => {
     }
   });
 });
+
+describe('retired hardware pricing redirect', () => {
+  for (const [from, to] of [
+    ['/hardware-pricing', '/pricing'],
+    ['/de/hardware-pricing', '/de/pricing'],
+    ['/fr/hardware-pricing', '/fr/pricing'],
+  ] as const) {
+    for (const method of ['GET', 'HEAD'] as const) {
+      it(`${method} ${from} redirects to ${to} and preserves the query`, () => {
+        const url = new URL(`${from}?source=legacy`, 'https://tale.dev');
+        const response = handleWebRedirect(new Request(url, { method }), url);
+        expect(response?.status).toBe(301);
+        expect(response?.headers.get('Location')).toBe(`${to}?source=legacy`);
+        expect(response?.body).toBeNull();
+      });
+    }
+  }
+});

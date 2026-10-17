@@ -22,17 +22,6 @@ entries:
   # `INTEGRATION_LOGOS` in content/connectors.ts.
   - 'companies'
 
-  # Hardware-pricing planIncludes header — kept symmetric with pricing tiers
-  # even though the hardware page does not currently print it.
-  - 'hardwarePricing.configIncludes'
-
-  # Hardware spec lookups — keys are dispatched off the typed identifiers in
-  # `hardware-specs.ts` (`aiRam.type`, `gpu.chip`, etc.) and the per-tier
-  # size lookup `specs.sizes.{mode}.{key}`. Adding/removing a type or tier
-  # means editing the JSON values, never these prefixes.
-  - 'hardwarePricing.specs.types'
-  - 'hardwarePricing.specs.sizes'
-
   # Feature namespaces — loaded via useT(namespace) with returnObjects /
   # dotted paths the static scanner cannot resolve.
   - 'platformHub'

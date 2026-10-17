@@ -22,7 +22,7 @@ export const Community: Story = {
     tagline: 'For tinkerers — run Tale locally with full features.',
     children: (
       <ul className="flex flex-col gap-2 text-sm">
-        <li>Self-host on your own hardware</li>
+        <li>Self-host on your own infrastructure</li>
         <li>Unlimited workspaces</li>
         <li>Community support</li>
       </ul>

@@ -30,7 +30,7 @@ describe('CompareTable', () => {
   it('scrolls its card sideways on a phone instead of clipping a spec', () => {
     const { container } = render(
       <CompareTable
-        caption="Hardware"
+        caption="Comparison"
         tiers={tiers}
         rows={[
           {

@@ -59,8 +59,8 @@ The visual receives a `DemoStage` by default. Set `visualTreatment="plain"` when
 Use `SectionHeading layout="editorial"` when a section's description should sit beside its heading on desktop. `PageSection pad="compact"` provides shorter spacing for a proof strip or a small group of destinations. `surface="contrast"` creates an ink band with locally scoped foreground and action colors; neighboring sections keep their original palette. Reserve that change of pace for an important section rather than alternating every band.
 
 `MarketingSection` also accepts a `visual` slot beside the lead heading and controls. Use it for a
-page-specific pricing or hardware illustration; the host keeps the content, and existing sections
-without a visual retain their centered layout.
+page-specific pricing illustration; the host keeps the content, and existing sections without a
+visual retain their centered layout.
 
 ## Connect host routing
 

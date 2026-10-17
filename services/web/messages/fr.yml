@@ -26,12 +26,6 @@ seo:
       Apporte une tâche à résoudre en équipe. Vois comment Tale coordonne
       collègues et agents IA avec des tableaux de projet, des sandboxes et des
       validations.
-  hardwarePricing:
-    title: Combien coûte le hardware AI Tale ?
-    description:
-      'Hardware d’inférence silencieux, du nœud unique au rack : location,
-      leasing ou achat. Sur site avec maintenance à distance, ou en centres de
-      données sécurisés.'
   platform:
     title: Coordonner agents IA et projets | Tale
     description: Réunis collègues, agents IA, tâches et fichiers dans un même espace.
@@ -116,9 +110,6 @@ nav:
     useCases:
       label: Cas d’usage
       description: Des tâches concrètes pour ton équipe et tes agents IA.
-    hardware:
-      label: Matériel
-      description: Matériel pour l’inférence IA locale.
     docs:
       label: Documentation
       description: Guides de configuration et référence du produit.
@@ -564,7 +555,7 @@ pricing:
     userBreakdown: '{count} utilisateurs × {perUser}/utilisateur/mois'
     tagline:
       Tout Community, exploité par des pros — installation, maintenance et
-      support, dans le cloud ou sur ton matériel.
+      support, dans le cloud ou en auto-hébergement.
     cta: Nous contacter
     feature1: Auto-hébergé ou cloud
     feature2: Exploitation professionnelle par Ruler GmbH, certifiée ISO 27001
@@ -619,11 +610,6 @@ pricing:
       yes: Inclus
       no: Non inclus
   extras:
-    hardware:
-      title: Matériel
-      prefix: Pour l’auto-hébergement, nous proposons des
-      linkLabel: options matérielles flexibles
-      suffix: ' — location, achat ou financement.'
     cloudProviders:
       title: Fournisseurs d’IA cloud
       description:
@@ -635,135 +621,6 @@ pricing:
     prefix: Toutes les configurations sont soumises à notre
     linkLabel: contrat de service
     suffix: .
-hardwarePricing:
-  title: Combien coûte le hardware AI Tale ?
-  description:
-    Hardware d’inférence silencieux, du nœud unique au rack — location,
-    leasing ou achat. Déployé sur site avec maintenance à distance, ou hébergé
-    en centres de données sécurisés.
-  popular: Populaire
-  configIncludes: 'La configuration inclut :'
-  billing:
-    ariaLabel: Option de paiement
-    leasing: Leasing
-    buying: Achat
-    termAriaLabel: Durée du leasing
-    termHeading: 'Mois :'
-  modesAriaLabel: Mode de déploiement
-  deploymentNote: Toutes les configurations matérielles sont silencieuses (sans
-    bruit) et peuvent être déployées chez toi et maintenues à distance par notre
-    équipe, ou hébergées dans nos centres de données sécurisés.
-  tiers:
-    quality:
-      priceSuffix: + TVA/mois
-      buySuffix: + TVA
-      tagline: Réglé pour la précision et des résultats constants.
-      nodeTagline: Conçu pour la précision et des résultats constants.
-      cta: Nous contacter
-      highlightQuality: Qualité
-      highlightSpeed: Standard
-    hybrid:
-      priceSuffix: + TVA/mois
-      buySuffix: + TVA
-      tagline: Équilibre précision et vitesse.
-      nodeTagline: Associe le contrôle local des données à une inférence rapide.
-      cta: Nous contacter
-      highlightQuality: Élevée
-      highlightSpeed: Élevée
-    speed:
-      priceSuffix: + TVA/mois
-      buySuffix: + TVA
-      tagline: Réglé pour des réponses à faible latence.
-      nodeTagline: Conçu pour des réponses à faible latence.
-      cta: Nous contacter
-      highlightQuality: Standard
-      highlightSpeed: Qualité
-    rack:
-      priceSuffix: + TVA/mois
-      buySuffix: + TVA
-      tagline: Performance multi-nœud dans un châssis unique et sécurisé — avec
-        confidential computing.
-      nodeTagline:
-        Performance multi-nœud dans un châssis unique et sécurisé — avec
-        confidential computing.
-      cta: Nous contacter
-      highlightQuality: Élevée
-      highlightSpeed: Élevée
-  compare:
-    title: Comparer les configurations
-    subtitle: Détail de chaque configuration
-    categories:
-      model: Modèle d’IA recommandé
-      modelInfo:
-        Suggestion pour une configuration multi-nœud. Les configurations à un
-        seul nœud peuvent exécuter des variantes plus petites — ton équipe
-        choisit le modèle réel au déploiement.
-      size: Taille
-      sizeInfo: Valeurs indicatives — les dimensions réelles peuvent varier légèrement.
-      gpu: Puce (GPU)
-      cpu: Puce (CPU)
-      ram: RAM IA
-      ramInfo:
-        Mémoire rapide utilisée pour les calculs d’IA, p. ex. mémoire vidéo
-        GDDR7 ou mémoire unifiée (UMA).
-      umaInfo:
-        Unified Memory Architecture — mémoire partagée entre le CPU et le GPU
-        sur la même puce (Apple Silicon).
-      gddr7Info:
-        Graphics DDR de 7e génération — mémoire vidéo à haute bande passante
-        sur la carte GPU, optimisée pour l’inférence d’IA.
-      ddr5Info: DDR SDRAM de cinquième génération (plus rapide et efficace que DDR4).
-      ddr5eccInfo:
-        DDR5 avec code correcteur d’erreurs — mémoire serveur capable de
-        détecter et corriger les défauts d’un seul bit.
-      zen4Info: Microarchitecture x86 d’AMD de 4e génération (2022).
-      zen5Info: Microarchitecture x86 d’AMD de 5e génération (2024).
-      int4Info:
-        Quantification entière 4 bits — perte de précision minime, empreinte
-        mémoire ~4× plus petite.
-      m2nvmeInfo: SSD m.2 NVMe dans un pool ZFS RAID — stockage rapide et redondant.
-      nqInfo: Nœud Quality
-      naInfo: Nœud Application
-      nsInfo: Nœud Speed
-      mqInfo: Multi-nœud Quality
-      mhInfo: Multi-nœud Hybrid
-      msInfo: Multi-nœud Speed
-      srInfo: Server Rack
-      systemRam: RAM
-      ssd: SSD
-      hdd: HDD
-      cables: Câbles & équipement réseau
-      confidentialComputing: Confidential computing
-      version: Version du produit
-      productNumber: Numéro de produit
-      composition: Composition
-    cellLabels:
-      yes: Inclus
-      onRequest: Disponible sur demande
-      notAvailable: Non disponible
-    sections:
-      specifications: Spécifications
-      other: Autres
-  extras:
-    software:
-      title: Logiciels & services
-      prefix:
-        Pour l’installation, le support et les services professionnels, nous
-        proposons des
-      linkLabel: options flexibles
-      suffix: .
-  terms:
-    title: Conditions
-    prefix: Toutes les configurations sont soumises à notre
-    linkLabel: contrat matériel
-    suffix: .
-  warranty:
-    title: Garantie
-    content: Garantie constructeur 24 mois (extensible à 36 mois sur demande)
-  metrics:
-    quality: Qualité de sortie
-    speed: Vitesse en tokens
-    storage: Stockage de données
 requestDemo:
   eyebrow: Démo
   title: Regarde Tale en action
@@ -787,7 +644,6 @@ requestDemo:
     enterprise: Solutions Entreprise
     professionalServices: Services professionnels
     customAiTraining: Entraînement de modèle IA sur mesure
-    aiHardware: Matériel IA
   submit: Prendre contact
 contact:
   eyebrow: Contact
@@ -897,9 +753,6 @@ about:
       body: Auto-héberge Tale sur ton infrastructure ou choisis un hébergement
         géré en Suisse ou dans l’UE. Choisis des modèles locaux ou cloud et
         configure les services externes accessibles à l’espace de travail.
-    beyond:
-      title: Au-delà du logiciel
-      body: Nous fournissons du matériel IA à louer, financer ou acheter pour les équipes qui exécutent des modèles sur leur propre infrastructure.
   work:
     heading: Comment nous travaillons avec les entreprises
     description: Faire travailler des agents demande un processus clair et un logiciel
@@ -925,8 +778,8 @@ about:
     tailored:
       title: Des solutions taillées sur tes objectifs
       body: Aucune organisation n’adopte l’IA de la même façon. Nous construisons
-        les agents, les automatisations, les connaissances et le matériel autour
-        de ce que tu veux atteindre — et laissons de côté le reste.
+        les agents, les automatisations et les connaissances autour de ce que tu
+        veux atteindre — et laissons de côté le reste.
   values:
     heading: Ce que nous défendons
     privacy:
@@ -1946,8 +1799,8 @@ platformProjects:
 pricingPage:
   relatedHeading: À suivre
   ctaTitle: Mets un chiffre sur ta configuration
-  ctaDescription: Demande une démo ou parle à l’équipe des sièges Enterprise, du
-    stockage et du matériel.
+  ctaDescription: Demande une démo ou parle à l’équipe des sièges Enterprise et du
+    stockage.
   faq:
     heading: FAQ tarifs
     items:
@@ -1958,10 +1811,6 @@ pricingPage:
           par To et par mois.
       - q: Community est-il gratuit ?
         a: Oui. L’édition Community est gratuite à auto-héberger en open source.
-      - q: Puis-je acheter du matériel avec le logiciel ?
-        a:
-          Oui. Du matériel d’inférence silencieux est disponible en location, leasing
-          ou achat — vois les tarifs matériel.
 changelogPage:
   eyebrow: Changelog
   title: Quoi de neuf dans Tale ?

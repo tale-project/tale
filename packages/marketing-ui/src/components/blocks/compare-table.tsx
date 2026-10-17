@@ -89,7 +89,7 @@ interface CompareTableProps<TK extends string> {
 }
 
 /**
- * Comparison table shared between pricing-compare and hardware-compare.
+ * Comparison table shared by the marketing pricing surfaces.
  */
 export function CompareTable<TK extends string>({
   caption,

@@ -10,7 +10,7 @@ noindex: true
 
 These Terms of Service ("Terms") govern your access to and use of the website [https://tale.dev](https://tale.dev) ("Website") operated by Ruler GmbH ("we", "us", "our"). By accessing or using our Website, you agree to be bound by these Terms. If you do not agree with any part of these Terms, please do not use our Website.
 
-These Terms apply to the use of the Website only. The use of Tale products and services is governed separately by our [Service Agreement](/files/Service_Agreement_Template.pdf) and [Hardware Agreement](/files/Hardware_Agreement_Template.pdf), as applicable.
+These Terms apply to the use of the Website only. The use of Tale products and services is governed separately by our [Service Agreement](/files/Service_Agreement_Template.pdf).
 
 ## 2. Operator
 

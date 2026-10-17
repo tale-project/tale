@@ -133,7 +133,7 @@ export const RelatedAndCta: Story = {
       />
       <FeatureCta
         title="See Tale on your stack"
-        description="Book a guided demo or talk to the team about self-hosted deployment, pricing, and hardware."
+        description="Book a guided demo or talk to the team about self-hosted deployment and pricing."
         primary={{ label: 'Request a demo', to: '/request-demo' }}
         secondary={{ label: 'Contact us', to: '/contact' }}
       />

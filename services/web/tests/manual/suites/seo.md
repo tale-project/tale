@@ -13,7 +13,7 @@ the `dist-seo` artifacts (`sitemap.xml`, `robots.txt`, `llms.txt`,
 
 | Surface         | Route                                                                                                                      |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Marketing pages | All `MARKETING_ROUTE_URLS` (home, about, pricing, platform/\*, changelog, contact, request-demo, hardware-pricing) × `/de`, `/fr` |
+| Marketing pages | All `MARKETING_ROUTE_URLS` (home, about, pricing, platform/\*, changelog, contact, request-demo) × `/de`, `/fr` |
 | Legal pages     | `/legal/{slug}` (× locales) — **noindex**, excluded from sitemap                                                           |
 | 404             | `/404` — **noindex**, HTTP 404 when served from dist                                                                       |
 | Sitemap         | `/sitemap.xml`                                                                                                             |
