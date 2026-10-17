@@ -30,10 +30,7 @@ import {
   groupReleasesByMonth,
   releaseDayOfMonth,
 } from '@/lib/releases/group-by-month';
-import {
-  prerenderedBodyCount,
-  RELEASE_DISPLAY_LIMIT,
-} from '@/lib/releases/prerender-budget';
+import { prerenderedBodyCount } from '@/lib/releases/prerender-budget';
 import { CHANGELOG_JSON_ROUTE } from '@/lib/releases/route';
 import type { Release } from '@/lib/releases/types';
 import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
@@ -77,10 +74,7 @@ export function ChangelogPage() {
     releases: RELEASES,
     fetchedAt: RELEASES_FETCHED_AT,
   });
-  const releases = useMemo(
-    () => feed.releases.slice(0, RELEASE_DISPLAY_LIMIT) as Release[],
-    [feed.releases],
-  );
+  const releases = feed.releases as readonly Release[];
 
   // False for the prerendered HTML and for the first client render (so
   // hydration matches), then true for every render after mount.

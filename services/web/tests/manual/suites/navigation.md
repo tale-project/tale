@@ -45,7 +45,7 @@ routes render without a backend.
   Platform places **Platform overview** above six modules **Chats → Projects
   → Knowledge → Agents → Automations → Governance** (labels under
   `nav.product.*`); Resources lists **Documentation** (external) → **Compare**
-  → **Use cases** → **Changelog** → **Hardware** → **About us** (labels under
+  → **Use cases** → **Changelog** → **About us** (labels under
   `nav.resource.*`); Pricing remains a direct header link; each panel stays
   within the screen at 1024px, with readable descriptions in both themes.
 - [ ] `NAV-F2` · **Get started** — Header → **Get started** (`nav.getStarted`)
@@ -66,18 +66,17 @@ routes render without a backend.
   `/platform/{module}` pages; company links commit `/about`, `/contact`, and
   `/request-demo`; address shows Ruler GmbH + VAT link.
 - [ ] `NAV-F6` · **Footer Legal column** — Footer **Legal** (`footer.legal`),
-  top to bottom → Order is **Service Agreement** (`footer.serviceAgreement`),
-  **Hardware Agreement** (`footer.hardwareAgreement`) — both external PDF
-  links — then the four legal-document links: **Privacy Policy**, **Terms of
-  Service**, DPA, TOM (`footer.privacyPolicy`, `footer.termsOfService`,
-  `footer.processingAgreement`, `footer.technicalOrganizationalMeasures`),
-  which commit `/legal/{slug}`
+  top to bottom → **Service Agreement** (`footer.serviceAgreement`) is the
+  external PDF link, followed by the four legal-document links: **Privacy
+  Policy**, **Terms of Service**, DPA, TOM (`footer.privacyPolicy`,
+  `footer.termsOfService`, `footer.processingAgreement`,
+  `footer.technicalOrganizationalMeasures`), which commit `/legal/{slug}`
 - [ ] `NAV-F7` · **Footer Resources + bottom bar** — Footer **Resources**:
-  Documentation / Tale UI / Compare / Use cases / Changelog / Hardware / Pricing;
+  Documentation / Tale UI / Compare / Use cases / Changelog / Pricing;
   bottom bar: company address and **llms.txt** +
   **llms-full.txt** links (`footer.llmsTxtLabel`, `footer.llmsFullTxtLabel`),
   then the language/theme switchers and the GitHub icon → Docs is external;
-  Changelog / Hardware / Pricing commit internal routes; `llms.txt` /
+  Changelog / Pricing commit internal routes; `llms.txt` /
   `llms-full.txt` fetch plaintext (HTTP 200 — see [seo.md](seo.md) SEO-F6);
   GitHub links to the repo.
 - [ ] `NAV-F8` · **Legal tabs + print** — Open

@@ -17,10 +17,7 @@ import {
 } from '../../lib/content/server';
 import { localizedPath, SUPPORTED_LOCALES } from '../../lib/i18n/locales';
 import { UI_DOCS_ENTRY_PATHS } from '../../lib/redirects';
-import {
-  prerenderedBodyCount,
-  RELEASE_DISPLAY_LIMIT,
-} from '../../lib/releases/prerender-budget';
+import { prerenderedBodyCount } from '../../lib/releases/prerender-budget';
 import { withLegalArtifactNoindex } from '../../lib/seo/legal-artifacts';
 import {
   MARKETING_ROUTE_URLS,
@@ -465,7 +462,7 @@ describe('prerender SEO suite', () => {
     ).toBeNull();
   });
 
-  it('keeps uncompressed hashed JavaScript under 2.5MB total', () => {
+  it('keeps uncompressed hashed JavaScript under 4MB total', () => {
     const assets = join(DIST, 'assets');
     if (!existsSync(assets)) return;
     let total = 0;
@@ -473,8 +470,9 @@ describe('prerender SEO suite', () => {
       if (!name.endsWith('.js')) continue;
       total += statSync(join(assets, name)).size;
     }
-    // Soft budget on uncompressed hashed JS — catches accidental mega-chunks.
-    expect(total).toBeLessThan(2_500_000);
+    // The complete release history is bundled for the changelog's offline
+    // fallback; keep room for that data while catching accidental mega-chunks.
+    expect(total).toBeLessThan(4_000_000);
   });
 
   for (const path of ['/changelog', '/de/changelog', '/fr/changelog']) {
@@ -537,18 +535,14 @@ describe('prerender SEO suite', () => {
     });
   });
 
-  // Regression: the changelog prerendered all 40 release bodies, putting
-  // ~400 KB of GitHub release notes into the HTML and growing with every
-  // release. Ahrefs flags it as a slow page. Every release stays in the
-  // stream; only the newest bodies within `prerenderedBodyCount`'s byte
-  // budget are prerendered, the rest mount on hydration from the manifest
-  // the JS bundle already ships.
+  // Regression: the changelog keeps the complete release history in the
+  // stream while only prerendering the newest bodies within
+  // `prerenderedBodyCount`'s byte budget. Older bodies mount on hydration from
+  // the manifest the JS bundle already ships.
   describe('changelog page weight', () => {
     // The shared stream bound and body budget apply to the manifest fetched
     // (`bun run build` refreshes it before prerendering).
-    const PRERENDERED_BODIES = prerenderedBodyCount(
-      RELEASES.slice(0, RELEASE_DISPLAY_LIMIT),
-    );
+    const PRERENDERED_BODIES = prerenderedBodyCount(RELEASES);
     const MARKDOWN_BODY_COUNT = RELEASES.slice(0, PRERENDERED_BODIES).filter(
       ({ body }) => Boolean(body),
     ).length;
@@ -558,9 +552,7 @@ describe('prerender SEO suite', () => {
         expect(html, `missing ${distIndex(url)}`).not.toBeNull();
         const found = html ?? '';
 
-        expect((found.match(/<article/g) ?? []).length).toBe(
-          RELEASE_DISPLAY_LIMIT,
-        );
+        expect((found.match(/<article/g) ?? []).length).toBe(RELEASES.length);
         // Count rendered release bodies independently of typography classes.
         const document = new JSDOM(found).window.document;
         expect(
@@ -573,10 +565,10 @@ describe('prerender SEO suite', () => {
       it(`${url} stays under the HTML size budget`, () => {
         const html = readHtml(url);
         if (!html) return;
-        // Was 407 KB with every body prerendered; 216 KB with a fixed
-        // twelve, until the 0.5.x fix releases' notes grew and the same
-        // twelve weighed 308 KB; ~245 KB under the byte budget.
-        expect(html.length).toBeLessThan(300_000);
+        // The complete history currently prerenders to about 873 KB. Keep
+        // enough room for the growing release index without allowing an
+        // accidental full-body render to pass unnoticed.
+        expect(html.length).toBeLessThan(1_000_000);
       });
     }
   });
