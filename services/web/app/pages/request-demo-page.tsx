@@ -38,7 +38,6 @@ const INTEREST_KEY_MAP: Record<
   enterprise: 'enterprise',
   professional_services: 'professionalServices',
   custom_ai_training: 'customAiTraining',
-  ai_hardware: 'aiHardware',
 };
 
 export function RequestDemoPage() {

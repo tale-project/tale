@@ -72,7 +72,6 @@ screen, and no console error. Deep coverage lives in the per-area guides.
 | `/platform/automations`                    | heading matching `platformAutomations.title` |
 | `/platform/governance`                     | heading matching `platformGovernance.title`    |
 | `/pricing`                                 | heading **How much does Tale cost?** (`pricing.title`)                  |
-| `/hardware-pricing`                        | heading **What does Tale AI hardware cost?** (`hardwarePricing.title`)  |
 | `/changelog`                               | heading **What's new in Tale?** (`changelogPage.title`) + timeline      |
 | `/contact`                                 | heading **Contact us** (`contact.title`) + form                         |
 | `/request-demo`                            | heading **See Tale in action** (`requestDemo.title`) + form             |
@@ -85,5 +84,5 @@ screen, and no console error. Deep coverage lives in the per-area guides.
 | `/fr`                                      | French hero matching `home.hero.title` in `messages/fr.yml`                   |
 
 ```
-Smoke: ___/20 routes load   Console errors: ___   Status: PASS / FAIL
+Smoke: ___/19 routes load   Console errors: ___   Status: PASS / FAIL
 ```

@@ -25,7 +25,7 @@ export function ExternalLink({
         // After `className` so caller `inline-block` / `block` cannot drop the
         // icon onto its own line (tailwind-merge keeps the last display utility).
         // The flex row is what keeps the icon beside the label — the label
-        // itself may wrap, so a long one ("Hardware Agreement", a German
+        // itself may wrap, so a long one ("Service Agreement", a German
         // compound) stays inside a narrow footer column instead of running
         // past the screen's edge.
         showIcon && 'inline-flex items-center gap-1',

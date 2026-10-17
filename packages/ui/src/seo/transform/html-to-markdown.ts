@@ -46,7 +46,7 @@ const SKIP_TAGS = new Set([
  * sitting outside any paragraph contributes nothing), while inline
  * `<button>` triggers used for tooltips and copy-to-clipboard surface
  * their inner text in paragraphs / headings / cells — without this
- * distinction, `(<button>UMA</button>)` from the hardware-pricing table
+ * distinction, `(<button>UMA</button>)` from a comparison table
  * renders as bare `()`.
  */
 const SKIP_ROLES = new Set(['navigation', 'banner', 'contentinfo', 'button']);

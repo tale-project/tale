@@ -35,7 +35,6 @@ const INTEREST_LABELS: Record<string, string> = {
   enterprise: 'Enterprise solutions',
   professional_services: 'Professional services',
   custom_ai_training: 'Custom AI model training',
-  ai_hardware: 'AI hardware',
 };
 
 function clip(value: string, max: number): string {

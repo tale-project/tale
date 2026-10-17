@@ -200,23 +200,6 @@ export function PricingCompare({ region }: PricingCompareProps) {
 
     {
       kind: 'span',
-      label: t('extras.hardware.title'),
-      content: (
-        <>
-          {t('extras.hardware.prefix')}{' '}
-          <MarketingLink
-            to="/hardware-pricing"
-            tone="inline"
-            className="font-medium"
-          >
-            {t('extras.hardware.linkLabel')}
-          </MarketingLink>
-          {t('extras.hardware.suffix')}
-        </>
-      ),
-    },
-    {
-      kind: 'span',
       label: t('extras.cloudProviders.title'),
       content: t('extras.cloudProviders.description'),
     },

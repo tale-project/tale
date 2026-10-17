@@ -18,7 +18,6 @@ in [locale.md](locale.md) / [theme.md](theme.md).
 | Comparisons      | `/compare` + `/compare/{slug}`                                                                                              |
 | Use cases        | `/use-cases` + `/use-cases/{slug}`                                                                                           |
 | Pricing          | `/pricing`                                                                                                                  |
-| Hardware pricing | `/hardware-pricing`                                                                                                         |
 | Changelog        | `/changelog`                                                                                                                |
 | About            | `/about`                                                                                                                    |
 | Contact          | `/contact`                                                                                                                  |
@@ -85,9 +84,8 @@ routes render without a backend.
 - [ ] `NAV-F9` · **Pricing controls** — On `/pricing`, toggle billing /
   currency / users → Prices update; state in URL search params survives
   reload.
-- [ ] `NAV-F10` · **Hardware controls** — On `/hardware-pricing`, switch mode
-  / billing / term → Tier cards swap; state in `?mode=` / `?billing=` /
-  `?term=`
+- [ ] `NAV-F10` · **Retired product URL** — Open `/hardware-pricing` → The
+  request redirects to `/pricing` and preserves query parameters.
 - [ ] `NAV-F11` · **FAQ + history** — On `/`, expand two FAQ items; click
   **Contact our team**; then browser Back → Both items stay open; link commits
   `/contact`; Back returns to `/`

@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 // A marketing footer column is half a phone wide (~126px at 320). The link
-// used to be `whitespace-nowrap`, so "Hardware Agreement ↗" ran past the
+// used to be `whitespace-nowrap`, so "Service Agreement ↗" ran past the
 // column and off the screen. Whether a label wraps is layout — only a real
 // engine answers it.
 describe('ExternalLink in a narrow column (real layout)', () => {
@@ -20,11 +20,11 @@ describe('ExternalLink in a narrow column (real layout)', () => {
     render(
       <div style={{ width: 110 }}>
         <ExternalLink href="https://example.com" className="text-sm">
-          Hardware Agreement
+          Service Agreement
         </ExternalLink>
       </div>,
     );
-    const link = screen.getByRole('link', { name: /Hardware Agreement/ });
+    const link = screen.getByRole('link', { name: /Service Agreement/ });
     const column = link.parentElement as HTMLElement;
     const icon = link.querySelector('svg');
     if (!icon) throw new Error('no icon');

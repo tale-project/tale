@@ -26,12 +26,6 @@ seo:
       Bring a task your team needs to solve. See how Tale coordinates
       teammates and AI agents through project boards, sandbox work, and
       review.
-  hardwarePricing:
-    title: What does Tale AI hardware cost?
-    description:
-      Silent inference hardware from single nodes to racks — rent, lease,
-      or buy. Deploy on-site with remote maintenance, or host in secure data
-      centers.
   platform:
     title: AI Agent Coordination and Project Management | Tale
     description: Bring people, AI agents, tasks, and project files into one workspace.
@@ -116,9 +110,6 @@ nav:
     useCases:
       label: Use cases
       description: Real work for your team and AI agents.
-    hardware:
-      label: Hardware
-      description: Hardware for local AI inference.
     docs:
       label: Documentation
       description: Setup guides and product reference.
@@ -550,7 +541,7 @@ pricing:
     storageAddOn: 1 TB + {price}/TB/month additional storage
     userBreakdown: '{count} users × {perUser}/user/month'
     tagline: Everything in Community, professionally run — installation,
-      maintenance, and support, in the cloud or on your hardware.
+      maintenance, and support, in the cloud or self-hosted.
     cta: Contact us
     feature1: Self-hosted or cloud
     feature2: Professional operation by ISO 27001-certified Ruler GmbH
@@ -599,11 +590,6 @@ pricing:
       yes: Included
       no: Not included
   extras:
-    hardware:
-      title: Hardware
-      prefix: For self-hosting, we offer
-      linkLabel: flexible hardware options
-      suffix: ' — renting, buying, or financing.'
     cloudProviders:
       title: Cloud AI providers
       description:
@@ -615,133 +601,6 @@ pricing:
     prefix: All configurations are subject to our
     linkLabel: service agreement
     suffix: .
-hardwarePricing:
-  title: What does Tale AI hardware cost?
-  description:
-    Silent inference hardware from single nodes to racks — rent, lease,
-    or buy. Deploy on-site with remote maintenance, or host in secure data
-    centers.
-  popular: Popular
-  configIncludes: 'Configuration includes:'
-  billing:
-    ariaLabel: Payment option
-    leasing: Leasing
-    buying: Buying
-    termAriaLabel: Leasing term
-    termHeading: 'Months:'
-  modesAriaLabel: Deployment mode
-  deploymentNote: All hardware configurations are silent (noise-free) and can be
-    deployed at your site and maintained remotely by our team, or hosted in our
-    secure data centers.
-  tiers:
-    quality:
-      priceSuffix: + VAT/month
-      buySuffix: + VAT
-      tagline: Tuned for accuracy and consistent output.
-      nodeTagline: Made for accuracy and consistent output.
-      cta: Contact us
-      highlightQuality: Quality
-      highlightSpeed: Standard
-    hybrid:
-      priceSuffix: + VAT/month
-      buySuffix: + VAT
-      tagline: Balances accuracy with speed.
-      nodeTagline: Combines local data control with high-speed inference.
-      cta: Contact us
-      highlightQuality: High
-      highlightSpeed: High
-    speed:
-      priceSuffix: + VAT/month
-      buySuffix: + VAT
-      tagline: Tuned for low-latency replies.
-      nodeTagline: Made for low-latency replies.
-      cta: Contact us
-      highlightQuality: Standard
-      highlightSpeed: Quality
-    rack:
-      priceSuffix: + VAT/month
-      buySuffix: + VAT
-      tagline:
-        Multi-node performance packaged in a single, secure chassis — with
-        confidential computing.
-      nodeTagline:
-        Multi-node performance packaged in a single, secure chassis — with
-        confidential computing.
-      cta: Contact us
-      highlightQuality: High
-      highlightSpeed: High
-  compare:
-    title: Compare Configurations
-    subtitle: Breakdown of each configuration
-    categories:
-      model: Recommended AI model
-      modelInfo:
-        Suggested model for a multi-node setup. Single-node configurations
-        can run smaller variants — your team picks the actual model at deploy
-        time.
-      size: Size
-      sizeInfo: Approximate dimensions — actual size may vary slightly.
-      gpu: Chip (GPU)
-      cpu: Chip (CPU)
-      ram: AI RAM
-      ramInfo:
-        Fast memory used for AI workloads, e.g. GDDR7 video memory or Unified
-        Memory (UMA).
-      umaInfo: Unified Memory Architecture — RAM shared between CPU and GPU on a
-        single chip (Apple Silicon).
-      gddr7Info:
-        7th-generation graphics DDR — high-bandwidth video memory on the GPU
-        board, optimised for AI inference workloads.
-      ddr5Info: Fifth-generation DDR SDRAM (faster, more efficient than DDR4).
-      ddr5eccInfo:
-        DDR5 with error-correcting code — server-grade memory that detects
-        and corrects single-bit faults.
-      zen4Info: AMD's 4th-generation x86 CPU microarchitecture (2022).
-      zen5Info: AMD's 5th-generation x86 CPU microarchitecture (2024).
-      int4Info:
-        4-bit integer quantization — trades a small amount of model precision
-        for ~4× less memory.
-      m2nvmeInfo: m.2 NVMe SSDs in a ZFS RAID pool — fast, redundant storage.
-      nqInfo: Node Quality
-      naInfo: Node Application
-      nsInfo: Node Speed
-      mqInfo: Multi-node Quality
-      mhInfo: Multi-node Hybrid
-      msInfo: Multi-node Speed
-      srInfo: Server Rack
-      systemRam: RAM
-      ssd: SSD
-      hdd: HDD
-      cables: Cables & network equipment
-      confidentialComputing: Confidential computing
-      version: Product version
-      productNumber: Product number
-      composition: Composition
-    cellLabels:
-      yes: Included
-      onRequest: Available on request
-      notAvailable: Not available
-    sections:
-      specifications: Specifications
-      other: Other
-  extras:
-    software:
-      title: Software & services
-      prefix: For installation, support, and professional services, we offer
-      linkLabel: flexible options
-      suffix: .
-  terms:
-    title: Terms
-    prefix: All configurations are subject to our
-    linkLabel: hardware agreement
-    suffix: .
-  warranty:
-    title: Warranty
-    content: 24 months manufacturer warranty (extensible to 36 months on request)
-  metrics:
-    quality: Output quality
-    speed: Token speed
-    storage: Data storage
 requestDemo:
   eyebrow: Demo
   title: See Tale in action
@@ -767,7 +626,6 @@ requestDemo:
     enterprise: Enterprise solutions
     professionalServices: Professional services
     customAiTraining: Custom AI model training
-    aiHardware: AI hardware
   submit: Get in touch
 contact:
   eyebrow: Contact
@@ -871,9 +729,6 @@ about:
       body: Self-host on your own infrastructure or choose managed hosting in
         Switzerland or the EU. Choose local or cloud models and configure
         which external services the workspace can reach.
-    beyond:
-      title: Beyond software
-      body: We supply AI hardware to rent, lease, or buy for teams running models on their own infrastructure.
   work:
     heading: How we work with companies
     description: Putting agents to work takes a clear process as well as software. We
@@ -897,8 +752,8 @@ about:
     tailored:
       title: Solutions shaped to your goals
       body: No two organizations adopt AI the same way. We build the agents,
-        automations, knowledge, and hardware around what you are trying to
-        achieve — and leave out what you don't need.
+        automations, and knowledge around what you are trying to achieve — and
+        leave out what you don't need.
   values:
     heading: What we stand for
     privacy:
@@ -1868,8 +1723,8 @@ platformGovernance:
 pricingPage:
   relatedHeading: Related
   ctaTitle: Put a number on your setup
-  ctaDescription: Request a demo or talk to the team about Enterprise seats,
-    storage, and hardware.
+  ctaDescription: Request a demo or talk to the team about Enterprise seats
+    and storage.
   faq:
     heading: Pricing FAQ
     items:
@@ -1879,10 +1734,6 @@ pricingPage:
           yearly billing. Storage is CHF 10 (EUR 12) per TB/month.
       - q: Is Community free?
         a: Yes. The open-source Community edition is free to self-host.
-      - q: Can I buy hardware with software?
-        a:
-          Yes. Silent inference hardware is available to rent, lease, or buy — see
-          Hardware pricing.
 changelogPage:
   eyebrow: Changelog
   title: What's new in Tale?

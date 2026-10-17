@@ -10,7 +10,7 @@ noindex: true
 
 Les présentes conditions d’utilisation (« Conditions ») régissent ton accès et ton usage du site [https://tale.dev](https://tale.dev) (« Site ») exploité par Ruler GmbH (« nous »). En accédant au Site ou en l’utilisant, tu acceptes d’être lié par ces Conditions. Si tu n’es pas d’accord avec une partie, n’utilise pas le Site.
 
-Ces Conditions ne s’appliquent qu’au Site. L’usage des produits et services Tale est régi séparément par notre [Service Agreement](/files/Service_Agreement_Template.pdf) et notre [Hardware Agreement](/files/Hardware_Agreement_Template.pdf), selon applicabilité.
+Ces Conditions ne s’appliquent qu’au Site. L’usage des produits et services Tale est régi séparément par notre [Service Agreement](/files/Service_Agreement_Template.pdf).
 
 ## 2. Exploitant
 

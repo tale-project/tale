@@ -199,13 +199,13 @@ of hand-rolling motion, CTAs, links, or section chrome. Variants use `class-vari
 
 Also reuse:
 
-- `MarketingSection` (`@tale/marketing-ui/marketing-section`) — pricing/hardware lead + subsection
+- `MarketingSection` (`@tale/marketing-ui/marketing-section`) — pricing lead + subsection
   shell (already on `Reveal`).
 - The feature frames (`@tale/marketing-ui/feature-*`, `related-pages`, `docs-links`) — hero,
   capabilities, steps, FAQ, related, docs, CTA. Web's
   [`components/blocks/feature/`](../../services/web/app/components/blocks/feature/) keeps only the
   thin wrappers that feed them `featureShared` copy, the site CTAs and the platform-page registry.
-- `TierCard`, `CompareTable`, `SegmentedRadio`, `LogoCloudSection` — the pricing / hardware and
+- `TierCard`, `CompareTable`, `SegmentedRadio`, `LogoCloudSection` — the pricing and
   logo-band blocks, also from the package; the tiers, rows and copy stay in web.
 - `DemoStage` / `DemoShell` — product windows on atmospheric wash (no continuous float).
 - `useSkipEntrance` (`@tale/marketing-ui/entrance`) — SSR, reduced-motion, and SPA revisits skip
@@ -218,7 +218,7 @@ Also reuse:
 - `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.
 - Header navigation: Platform overview + six modules in one compact two-column disclosure,
   a direct Compare link when its hub is published, Pricing, and Resources (localized docs,
-  use cases, changelog, hardware, company). Desktop disclosures center under their triggers
+  use cases, changelog, company). Desktop disclosures center under their triggers
   and mark the current module; all triggers have 44px hit areas and visible focus.
   Header menus use click + Esc + fine-pointer hover intent. Mobile navigation is a focus-managed
   modal Sheet with a flat list, safe-area padding, Escape/focus return, and breakpoint cleanup.
@@ -255,7 +255,7 @@ Motion rules:
 | Homepage        | `tale.dev/`                                                  | Split hero + actual project task → compact agents → two editorial chapters (projects, agent workspace) → review/knowledge/automation/chat destinations → contrast deployment/control band → compact connectors → use cases → FAQ → CTA |
 | Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ individual product capture) → two topic tours (copy + DemoShell rows) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
 | Platform hub    | `/platform`                                                  | Hero (+ individual product capture) → two topic tours → module grid → FAQ → CTA                                                                                                    |
-| Pricing / forms | `/pricing`, `/hardware-pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
+| Pricing / forms | `/pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
 | Changelog       | `/changelog`                                                 | Release list from GitHub manifest                                                                                                                                      |
 | Company         | `/about`                                                     | Hero (display heading + CTA pair) → facts panel → story/mission (+ legal-entity address) → product panel → values (`FeatureCapability`) → CTA                          |
 

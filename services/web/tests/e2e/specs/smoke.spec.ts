@@ -18,7 +18,6 @@ const MARKETING_PATHS = [
   '/about',
   '/pricing',
   '/contact',
-  '/hardware-pricing',
   '/request-demo',
   '/platform',
   '/platform/agents',

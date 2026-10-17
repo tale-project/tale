@@ -7,7 +7,6 @@ type PageIllustrationKind =
   | 'contact'
   | 'demo'
   | 'pricing'
-  | 'hardware'
   | 'changelog';
 
 /**
@@ -23,7 +22,6 @@ const PRODUCT_PAGE_BY_KIND: Record<
   contact: 'chat',
   demo: 'automations',
   pricing: 'governance',
-  hardware: 'agents',
   changelog: 'projects',
 };
 

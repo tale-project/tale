@@ -4,8 +4,8 @@
 
 Verify the marketing site adapts across viewports — the mobile hamburger
 drawer (the desktop nav is `hidden lg:flex`, so the split is the Tailwind
-**`lg` breakpoint, 1024 px**), single-column reflow, the wide pricing/hardware
-compare tables, and that no page overflows horizontally at phone width.
+**`lg` breakpoint, 1024 px**), single-column reflow, the wide pricing compare
+table, and that no page overflows horizontally at phone width.
 Cross-cutting: it re-walks pages other guides own at narrow widths.
 
 ## Scope & routes
@@ -20,7 +20,6 @@ with `browser_resize` (or a context `viewport`).
 | Platform hub (demo stages + module grid)      | `/platform`                                                                                |
 | One module page (tour rows + capability grid) | `/platform/chat` (widest content: compare-style grids, alternating tour rows, demo stages) |
 | Pricing (cards + compare table)               | `/pricing`                                                                                 |
-| Hardware pricing (compare table)              | `/hardware-pricing`                                                                        |
 | Changelog (sticky timeline + release stream)  | `/changelog`                                                                               |
 | Contact form                                  | `/contact`                                                                                 |
 | Request demo form                             | `/request-demo`                                                                            |
@@ -52,8 +51,8 @@ read-only (no form submits needed).
 - [ ] `RESP-F3` · **No overflow** — At 390 px, on each scoped route, read
   `document.documentElement.scrollWidth` → `scrollWidth === clientWidth (390)`
   on every page — no horizontal scrollbar, nothing off-canvas.
-- [ ] `RESP-F4` · **Compare tables** — At 390 px, on `/pricing` and
-  `/hardware-pricing`, scroll to the **Compare** section → The wide comparison
+- [ ] `RESP-F4` · **Compare table** — At 390 px on `/pricing`, scroll to the
+  **Compare** section → The wide comparison
   table is horizontally scrollable **inside its own container** (the page
   itself doesn't overflow — RESP-F3 still holds); segmented controls wrap or
   shrink without clipping.
@@ -77,7 +76,7 @@ read-only (no form submits needed).
 
 - [ ] `RESP-A1` · **Touch targets** → The hamburger is ≥ 44×44 CSS px
   (rendered `size-11`); drawer links and footer controls are comfortably
-  tappable (≥ 44 px height). On `/pricing` and `/hardware-pricing`, tap a
+  tappable (≥ 44 px height). On `/pricing`, tap a
   comparison help icon → Its 44×44 px target opens readable information
   without hover, and tapping outside dismisses it.
 - [ ] `RESP-A2` · **Reflow** → At **320 px** width content reflows to one

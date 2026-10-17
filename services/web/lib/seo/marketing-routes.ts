@@ -46,7 +46,6 @@ const ROUTE_SEO_KEYS = [
   { url: '/', key: 'home' },
   { url: '/about', key: 'about' },
   { url: '/pricing', key: 'pricing' },
-  { url: '/hardware-pricing', key: 'hardwarePricing' },
   { url: '/contact', key: 'contact' },
   { url: '/request-demo', key: 'requestDemo' },
   { url: '/platform', key: 'platform' },

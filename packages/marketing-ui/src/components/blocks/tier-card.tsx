@@ -58,7 +58,7 @@ interface TierCardProps {
 }
 
 /**
- * Pricing/hardware tier card — flat raised surface, hairline only.
+ * Pricing tier card — flat raised surface, hairline only.
  * The non-recommended tier gets a quiet frosted wash (`backdrop-blur` +
  * translucent inset); the recommended tier stays crisp raised white so
  * Free / Community reads soft and Enterprise / popular reads clear.

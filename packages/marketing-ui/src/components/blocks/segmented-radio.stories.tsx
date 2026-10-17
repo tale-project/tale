@@ -64,9 +64,9 @@ export const NarrowContainer: Story = {
   render: () => (
     <div style={{ width: 208 }}>
       <SegmentedRadio
-        ariaLabel="Hardware"
-        options={['Einzelserver', 'Mehrere Server', 'Rack']}
-        value="Mehrere Server"
+        ariaLabel="Deployment"
+        options={['Cloud', 'Private', 'Hybrid']}
+        value="Private"
         onChange={() => {}}
         renderLabel={(option) => option}
       />

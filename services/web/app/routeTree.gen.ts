@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root';
 import { Route as UiRouteImport } from './routes/ui';
 import { Route as RequestDemoRouteImport } from './routes/request-demo';
 import { Route as PricingRouteImport } from './routes/pricing';
-import { Route as HardwarePricingRouteImport } from './routes/hardware-pricing';
 import { Route as ContactRouteImport } from './routes/contact';
 import { Route as ChangelogRouteImport } from './routes/changelog';
 import { Route as AboutRouteImport } from './routes/about';
@@ -34,7 +33,6 @@ import { Route as CompareSlugRouteImport } from './routes/compare/$slug';
 import { Route as LangUiRouteImport } from './routes/$lang/ui';
 import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
 import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
-import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
 import { Route as LangContactRouteImport } from './routes/$lang/contact';
 import { Route as LangChangelogRouteImport } from './routes/$lang/changelog';
 import { Route as LangAboutRouteImport } from './routes/$lang/about';
@@ -64,11 +62,6 @@ const RequestDemoRoute = RequestDemoRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const HardwarePricingRoute = HardwarePricingRouteImport.update({
-  id: '/hardware-pricing',
-  path: '/hardware-pricing',
   getParentRoute: () => rootRouteImport,
 } as any);
 const ContactRoute = ContactRouteImport.update({
@@ -176,11 +169,6 @@ const LangPricingRoute = LangPricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => LangRoute,
 } as any);
-const LangHardwarePricingRoute = LangHardwarePricingRouteImport.update({
-  id: '/hardware-pricing',
-  path: '/hardware-pricing',
-  getParentRoute: () => LangRoute,
-} as any);
 const LangContactRoute = LangContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -263,14 +251,12 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
-  '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
   '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
-  '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/$lang/ui': typeof LangUiRoute;
@@ -305,14 +291,12 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
-  '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
   '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
-  '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/$lang/ui': typeof LangUiRoute;
@@ -349,14 +333,12 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
-  '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
   '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
-  '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/$lang/ui': typeof LangUiRoute;
@@ -394,14 +376,12 @@ export interface FileRouteTypes {
     | '/about'
     | '/changelog'
     | '/contact'
-    | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
     | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
-    | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/$lang/ui'
@@ -436,14 +416,12 @@ export interface FileRouteTypes {
     | '/about'
     | '/changelog'
     | '/contact'
-    | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
     | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
-    | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/$lang/ui'
@@ -479,14 +457,12 @@ export interface FileRouteTypes {
     | '/about'
     | '/changelog'
     | '/contact'
-    | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
     | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
-    | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/$lang/ui'
@@ -523,7 +499,6 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute;
   ChangelogRoute: typeof ChangelogRoute;
   ContactRoute: typeof ContactRoute;
-  HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
   UiRoute: typeof UiRoute;
@@ -562,13 +537,6 @@ declare module '@tanstack/react-router' {
       path: '/pricing';
       fullPath: '/pricing';
       preLoaderRoute: typeof PricingRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/hardware-pricing': {
-      id: '/hardware-pricing';
-      path: '/hardware-pricing';
-      fullPath: '/hardware-pricing';
-      preLoaderRoute: typeof HardwarePricingRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/contact': {
@@ -718,13 +686,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangPricingRouteImport;
       parentRoute: typeof LangRoute;
     };
-    '/$lang/hardware-pricing': {
-      id: '/$lang/hardware-pricing';
-      path: '/hardware-pricing';
-      fullPath: '/$lang/hardware-pricing';
-      preLoaderRoute: typeof LangHardwarePricingRouteImport;
-      parentRoute: typeof LangRoute;
-    };
     '/$lang/contact': {
       id: '/$lang/contact';
       path: '/contact';
@@ -837,7 +798,6 @@ interface LangRouteChildren {
   LangAboutRoute: typeof LangAboutRoute;
   LangChangelogRoute: typeof LangChangelogRoute;
   LangContactRoute: typeof LangContactRoute;
-  LangHardwarePricingRoute: typeof LangHardwarePricingRoute;
   LangPricingRoute: typeof LangPricingRoute;
   LangRequestDemoRoute: typeof LangRequestDemoRoute;
   LangUiRoute: typeof LangUiRoute;
@@ -860,7 +820,6 @@ const LangRouteChildren: LangRouteChildren = {
   LangAboutRoute: LangAboutRoute,
   LangChangelogRoute: LangChangelogRoute,
   LangContactRoute: LangContactRoute,
-  LangHardwarePricingRoute: LangHardwarePricingRoute,
   LangPricingRoute: LangPricingRoute,
   LangRequestDemoRoute: LangRequestDemoRoute,
   LangUiRoute: LangUiRoute,
@@ -887,7 +846,6 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   ChangelogRoute: ChangelogRoute,
   ContactRoute: ContactRoute,
-  HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
   UiRoute: UiRoute,

@@ -27,7 +27,7 @@ const PLATFORM_INDEX_BODY = [
   `- ${TALE_DOCS_LLMS_TXT} — index of all documentation pages`,
   `- ${TALE_DOCS_LLMS_FULL_TXT} — full documentation content`,
   '',
-  'For information about Tale as a product (pricing, hardware, contact), see:',
+  'For information about Tale as a product (pricing and contact), see:',
   '',
   `- ${TALE_SITE_LLMS_TXT}`,
   `- ${TALE_SITE_LLMS_FULL_TXT}`,

@@ -30,11 +30,6 @@ pricing:
       description: Wir unterstützen OpenAI, Anthropic, Gemini und weitere grosse
         Cloud-KI-Anbieter in CH & EU — ohne Aufschlag; die Nutzung wird zu
         Anbieterpreisen abgerechnet.
-hardwarePricing:
-  compare:
-    categories:
-      size: Grösse
-      sizeInfo: Richtwerte — die tatsächliche Grösse kann leicht abweichen.
 platformAgents:
   tour:
     stages:

@@ -8,10 +8,6 @@ export const ROUTE_PATHS = {
   '/about': { en: '/about', prefixed: '/$lang/about' },
   '/pricing': { en: '/pricing', prefixed: '/$lang/pricing' },
   '/contact': { en: '/contact', prefixed: '/$lang/contact' },
-  '/hardware-pricing': {
-    en: '/hardware-pricing',
-    prefixed: '/$lang/hardware-pricing',
-  },
   '/request-demo': { en: '/request-demo', prefixed: '/$lang/request-demo' },
   '/platform': { en: '/platform', prefixed: '/$lang/platform' },
   '/platform/agents': {

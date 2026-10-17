@@ -76,7 +76,6 @@ export const REQUEST_DEMO_INTERESTS = [
   'enterprise',
   'professional_services',
   'custom_ai_training',
-  'ai_hardware',
 ] as const;
 
 export const requestDemoSchema = z.object({

@@ -74,15 +74,10 @@ export function PricingPage() {
           <MarketingPanel>
             <ul
               role="list"
-              className="bg-border-base grid gap-px sm:grid-cols-3"
+              className="bg-border-base grid gap-px sm:grid-cols-2"
             >
               {(
                 [
-                  {
-                    to: '/hardware-pricing' as const,
-                    title: tSeo('hardwarePricing.title'),
-                    description: tSeo('hardwarePricing.description'),
-                  },
                   {
                     to: '/platform' as const,
                     title: tSeo('platform.title'),

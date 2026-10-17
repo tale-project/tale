@@ -67,7 +67,7 @@ describe('htmlToMarkdown', () => {
   });
 
   it('preserves inline <button> content used as tooltip triggers', async () => {
-    // Reproduces the hardware-pricing table cell shape:
+    // Reproduces a comparison-table cell shape:
     // a paragraph contains text + a button whose inner text is the
     // bracketed acronym (e.g. UMA). Before the fix, the button's
     // subtree was dropped entirely and `(UMA)` rendered as bare `()`.
