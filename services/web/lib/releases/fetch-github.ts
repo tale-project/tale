@@ -10,7 +10,16 @@ import type { Release } from './types';
 const RELEASES_API = 'https://api.github.com/repos/tale-project/tale/releases';
 
 /** GitHub's max page size for this endpoint. */
-export const RELEASES_PER_PAGE = 30;
+export const RELEASES_PER_PAGE = 100;
+
+/**
+ * Safe history budget for the build and runtime feed.
+ *
+ * Ten 100-release requests cover the current repository history and keep the
+ * 30-minute runtime refresh below GitHub's unauthenticated 60-request/hour
+ * limit. Callers can lower this for a smaller, deliberate snapshot.
+ */
+export const RELEASES_MAX_PAGES = 10;
 
 export interface FetchGithubReleasesOptions {
   /** How many pages of `RELEASES_PER_PAGE` to walk before stopping. */
@@ -65,7 +74,7 @@ async function fetchPage({
  * build step, the runtime feed keeps serving its last good list).
  */
 export async function fetchGithubReleases({
-  maxPages = 2,
+  maxPages = RELEASES_MAX_PAGES,
   timeoutMs = 20_000,
   token,
   fetchImpl = fetch,

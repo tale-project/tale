@@ -113,6 +113,6 @@ its content is only as fresh as the last build.
 - [ ] `PAGE-P1` · **Demo scroll cost** → Scrolling `/platform` end-to-end
   stays smooth (no visible jank/long-task stalls from the animated scenes;
   static under reduced motion)
-- [ ] `PAGE-P2` · **Changelog render** → `/changelog` (40-release snapshot)
+- [ ] `PAGE-P2` · **Changelog render** → `/changelog` (complete fetched release history)
   settles in **< 2 s** on a warm build; a timeline click scrolls and updates
   `aria-current` in **< 500 ms**.

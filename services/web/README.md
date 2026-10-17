@@ -100,14 +100,15 @@ of the box. Set these at deploy time (compose, systemd, K8s), or via a local
 
 `/changelog` renders two layers of the same GitHub Releases list:
 
-- **Build-time snapshot** — `fetch-releases` writes
-  the newest 40 releases to `app/generated/releases-manifest.ts`, matching
-  the page's visible history. The prerendered HTML and SEO/LLM artifacts use
-  this snapshot; it also provides the cold-start and offline feed fallback.
-- **Runtime feed** — `GET /api/releases` (`lib/releases/feed.ts`) re-fetches
-  the full two-page list on a 30-minute TTL and the page swaps it in after
-  hydration, still displaying only the newest 40 releases. `GET /changelog.json` serves the same
-  cache outside the `/api/` robots exclusion, with complete release bodies, `source` and `fetchedAt`.
+- **Build-time snapshot** — `fetch-releases` writes the complete fetched release
+  history to `app/generated/releases-manifest.ts`. The prerendered HTML and
+  SEO/LLM artifacts use this snapshot; it also provides the cold-start and
+  offline feed fallback.
+- **Runtime feed** — `GET /api/releases` (`lib/releases/feed.ts`) re-fetches up
+  to ten 100-release pages on a 30-minute TTL and the page swaps it in after
+  hydration, displaying the complete fetched history. `GET /changelog.json`
+  serves the same cache outside the `/api/` robots exclusion, with complete
+  release bodies, `source` and `fetchedAt`.
   Each localized changelog advertises it as an alternate representation; `llms.txt` links to it.
   Readers that do not run JavaScript can use this endpoint for current notes.
 

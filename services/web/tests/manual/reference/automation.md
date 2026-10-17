@@ -61,7 +61,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [responsive](../suites/responsive.md) | Unequal pricing segment labels retain both text gutters and fit narrow containers, with keyboard selection | ✅ automated | `packages/marketing-ui/src/components/blocks/segmented-radio.stories.tsx` (`test:storybook`) |
 | [seo](../suites/seo.md) | Registry bijection | ✅ | `lib/seo/marketing-routes.test.ts` |
 | [seo](../suites/seo.md) | Image budgets | ✅ | `tests/images.test.ts` |
-| [seo](../suites/seo.md) | Build-time release snapshot keeps the newest 40 complete releases without mutating the fetched list | ✅ | `lib/releases/write-manifest.test.ts` |
+| [seo](../suites/seo.md) | Build-time release snapshot keeps every fetched release without mutating the fetched list | ✅ | `lib/releases/write-manifest.test.ts` |
 | [seo](../suites/seo.md) | Crawlable live JSON releases, cache fallback, six-hour freshness reporting (counted from the server start at the earliest) and localized alternate links | ✅ | `lib/releases/route.test.ts`, `lib/releases/feed.test.ts`, `tests/prerender/seo.test.ts` |
 | [seo](../suites/seo.md) | Container HTTP probes | ✅ | `services/platform/tests/integration/container-web-test.ts` (`/nope`→404, `/pricing`, `/de/pricing`, sitemap, og.png) |
 | [seo](../suites/seo.md) | A path no file can carry — a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`), or one past the OS path limit (5000 characters) — answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |

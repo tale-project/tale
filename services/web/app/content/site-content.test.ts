@@ -59,7 +59,6 @@ describe('site content contracts', () => {
       'compare',
       'useCases',
       'changelog',
-      'hardware',
       'about',
     ]);
     expect(COMPARISON_NAV_ITEM).toMatchObject({

@@ -31,7 +31,7 @@ describe('writeReleasesManifest', () => {
     }
   });
 
-  it('caps the bundled snapshot at the 40 newest releases without changing their contents or input', async () => {
+  it('bundles every fetched release without changing its contents or input', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'web-releases-'));
     dirs.push(dir);
     const path = join(dir, 'releases-manifest.ts');
@@ -59,8 +59,8 @@ describe('writeReleasesManifest', () => {
     )?.[1];
     expect(serialized).toBeDefined();
     const snapshot: unknown = JSON.parse(serialized ?? 'null');
-    expect(snapshot).toHaveLength(40);
-    expect(snapshot).toEqual(original.slice(0, 40));
+    expect(snapshot).toHaveLength(60);
+    expect(snapshot).toEqual(original);
     expect(releases).toEqual(original);
   });
 

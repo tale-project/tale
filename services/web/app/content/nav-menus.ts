@@ -12,7 +12,6 @@ import {
   Building2,
   GitCompareArrows,
   History,
-  Server,
   BriefcaseBusiness,
 } from 'lucide-react';
 
@@ -53,7 +52,7 @@ export const COMPARISON_NAV_ITEM = listMarketingContent(
     } as const)
   : null;
 
-/** Resources — docs (external), comparisons, use cases, changelog, hardware, about. */
+/** Resources — docs (external), comparisons, use cases, changelog, about. */
 const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
   ...(COMPARISON_NAV_ITEM ? [COMPARISON_NAV_ITEM] : []),
   ...(['use-cases'] as const).flatMap((category): NavMenuItem[] => {
@@ -79,13 +78,6 @@ const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
     labelKey: 'resource.changelog.label',
     descriptionKey: 'resource.changelog.description',
     icon: History,
-  },
-  {
-    id: 'hardware',
-    path: '/hardware-pricing',
-    labelKey: 'resource.hardware.label',
-    descriptionKey: 'resource.hardware.description',
-    icon: Server,
   },
   {
     id: 'about',

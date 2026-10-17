@@ -1,8 +1,5 @@
 import type { Release } from './types';
 
-/** Visible release history; the bundled snapshot needs no older bodies. */
-export const RELEASE_DISPLAY_LIMIT = 40;
-
 /**
  * How many of the newest release bodies the prerendered changelog carries.
  *
@@ -10,11 +7,11 @@ export const RELEASE_DISPLAY_LIMIT = 40;
  * `dist/changelog/index.html`. A fixed count of twelve held the page near
  * 216 KB until the notes themselves grew: six consecutive 0.5.x fix
  * releases of 17–24 KB of Markdown each pushed the same twelve past the
- * 300 KB `tests/prerender/seo.test.ts` holds the page to. So the cut is a
- * byte budget, not a count — the newest bodies whose Markdown, summed,
+ * page-size guard in `tests/prerender/seo.test.ts` holds the page to. So the
+ * cut is a byte budget, not a count — the newest bodies whose Markdown, summed,
  * stays within {@link PRERENDER_BODY_BUDGET_CHARS} (about 1.3× that once
- * rendered, on top of a ~160 KB skeleton: forty release headers, the two
- * timelines and the JSON-LD), at most {@link PRERENDER_BODY_MAX} of them.
+ * rendered, on top of the release headers, two timelines and JSON-LD), at
+ * most {@link PRERENDER_BODY_MAX} of them.
  * The newest release is always prerendered, whatever its size. Every other
  * body mounts on hydration from the manifest the JS bundle already ships,
  * so a visitor sees the same page; the server and the first client render

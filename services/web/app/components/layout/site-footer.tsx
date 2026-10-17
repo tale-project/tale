@@ -118,9 +118,6 @@ export function SiteFooter() {
         <RouteLink key="changelog" to="/changelog">
           {t('changelog')}
         </RouteLink>,
-        <RouteLink key="hardware" to="/hardware-pricing">
-          {t('hardwarePricing')}
-        </RouteLink>,
         <RouteLink key="pricing" to="/pricing">
           {t('pricing')}
         </RouteLink>,
@@ -143,13 +140,6 @@ export function SiteFooter() {
           tone="footer"
         >
           {t('serviceAgreement')}
-        </MarketingExternalLink>,
-        <MarketingExternalLink
-          key="hardwareAgreement"
-          href={EXTERNAL_LINKS.hardwareTerms}
-          tone="footer"
-        >
-          {t('hardwareAgreement')}
         </MarketingExternalLink>,
         <LegalLink key="privacyPolicy" slug="privacy-policy">
           {t('privacyPolicy')}

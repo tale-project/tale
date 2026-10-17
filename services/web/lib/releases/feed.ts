@@ -17,13 +17,13 @@
  *   unauthenticated limit (one refresh = `maxPages` requests).
  */
 
-import { fetchGithubReleases } from './fetch-github';
+import { fetchGithubReleases, RELEASES_MAX_PAGES } from './fetch-github';
 import type { Release } from './types';
 
-/** 30 min of freshness ≈ 4 upstream requests/hour at 2 pages per refresh. */
+/** 30 min of freshness ≈ 20 upstream requests/hour at 10 pages per refresh. */
 const DEFAULT_TTL_MS = 30 * 60 * 1000;
-/** Back-off after a failed refresh — ≈24 requests/hour worst case. */
-const DEFAULT_ERROR_TTL_MS = 5 * 60 * 1000;
+/** Back-off after a failed refresh — ≈40 requests/hour worst case. */
+const DEFAULT_ERROR_TTL_MS = 15 * 60 * 1000;
 /** Shorter than the build script's: this runs on a request path. */
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const RELEASES_STALE_AFTER_MS = 6 * 60 * 60 * 1000;
@@ -70,7 +70,7 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
     snapshotFetchedAt,
     ttlMs = DEFAULT_TTL_MS,
     errorTtlMs = DEFAULT_ERROR_TTL_MS,
-    maxPages = 2,
+    maxPages = RELEASES_MAX_PAGES,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     fetchImpl,
     fetchReleases = fetchGithubReleases,
