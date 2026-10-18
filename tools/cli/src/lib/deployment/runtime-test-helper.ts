@@ -29,6 +29,7 @@ import {
   type ComposeDocument,
   type RuntimeDependencies,
 } from './runtime-model';
+import { INCUS_BACKEND_MARKER } from './runtime-sandbox';
 import { sourceAutomationProtocol } from './source-automation-protocol';
 import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
@@ -113,12 +114,18 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '127.0.0.1:8003:8003',
     '127.0.0.1:8004:8004',
   ];
+  // The variables of the Docker shape the Incus shape replaces, as the release
+  // source sets them, beside the image routing the preparation pins.
   source.services.sandbox.environment = {
+    SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
+    SANDBOX_HUB_PORT: '${SANDBOX_HUB_PORT:-8004}',
     SANDBOX_RUNTIME_IMAGE:
       '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
     SANDBOX_BUILDKITD_IMAGE:
       '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
     SANDBOX_BUILDKITD_MIRROR_IMAGE: `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`,
+    SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',
+    SANDBOX_EGRESS_PROXY: 'http://sandbox-egress:3128',
   };
   // A proxy source from before or after the external-terminator trust fix:
   // only the latter carries the placeholder additional origins depend on.
@@ -130,6 +137,12 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '}\n{$DOCS_ORIGIN:https://docs.localhost} {\n respond "docs"\n}\n{$SITE_ORIGIN:https://localhost} {\n # TLS_PLACEHOLDER\n # BACKEND_PLACEHOLDER\n reverse_proxy platform:3000\n}\n';
   writeFileSync(join(repoRoot, 'compose.yml'), stringify(source));
   writeFileSync(join(repoRoot, 'services/proxy/Caddyfile'), caddy);
+  // A revision that has the spawner's Incus backend commits its config module.
+  mkdirSync(join(repoRoot, INCUS_BACKEND_MARKER, '..'), { recursive: true });
+  writeFileSync(
+    join(repoRoot, INCUS_BACKEND_MARKER),
+    '// Incus backend source fixture\n',
+  );
   mkdirSync(join(repoRoot, 'services/platform/lib/engine/core'), {
     recursive: true,
   });
@@ -186,6 +199,7 @@ export type RuntimeFixture = ReturnType<typeof runtimeFixture>;
 export const REPOSITORY_RUNTIME_SOURCE = [
   'compose.yml',
   'services/proxy/Caddyfile',
+  INCUS_BACKEND_MARKER,
   AUTOMATION_PROTOCOL_SOURCE,
   ...SOURCE_MIGRATION_ROOTS.flatMap((root) =>
     readdirSync(

@@ -16,6 +16,15 @@ import { slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
 import { automationWriterProtocolSchema } from './automation-model';
 import { migrationInventorySchema } from './migration-model';
+import {
+  assertSandboxShape,
+  incusImage,
+  SANDBOX_INCUS_MOUNT,
+  sandboxBundleSchema,
+  sandboxPorts,
+  type SandboxBundle,
+  type SandboxPrepare,
+} from './runtime-sandbox';
 
 export const RUNTIME_SERVICES = [
   'db',
@@ -73,6 +82,10 @@ export const runtimeBundleSchema = z
      * policy then hands organization creation to the backend instead of
      * refusing it, and the reader checks the file against this word. */
     organizationCreatorsDeclared: z.literal(true).optional(),
+    /** Recorded only when the deployment declares the Incus sandbox: the
+     * sandbox, backend API and LLM gateway services are then in the Incus
+     * shape, and the reader checks the compose file against this record. */
+    sandbox: sandboxBundleSchema.optional(),
     // Legacy bundles remain deployable; read-only acceptance requires the
     // inventory prepared from the exact runtime source, including TS data migrations.
     migrations: migrationInventorySchema.optional(),
@@ -117,6 +130,9 @@ export interface PrepareRuntimeOptions {
   /** Declared organization creators: the proxy policy hands organization
    * creation to the backend instead of refusing it at the edge. */
   organizationCreators?: readonly string[];
+  /** The declared Incus sandbox: the bundle's sandbox, backend API and LLM
+   * gateway services are prepared in their Incus shape. */
+  sandbox?: SandboxPrepare;
 }
 export interface ApplyRuntimeOptions {
   bundleDirectory: string;
@@ -223,9 +239,16 @@ export type ComposeDocument = Record<string, unknown> & {
   volumes: Record<string, unknown>;
   networks: Record<string, unknown>;
 };
+/**
+ * `sandbox` is the Incus record of a bundle that has one. Only then does the
+ * sandbox service mount the Incus credentials and do the backend API and the
+ * LLM gateway publish the two ports on the declared address; a source and a
+ * Docker bundle are refused either.
+ */
 export function parseCompose(
   source: string,
   containerPrefix?: string,
+  sandbox?: Pick<SandboxBundle, 'address'>,
 ): ComposeDocument {
   const document = parseDocument(source, { uniqueKeys: true });
   requireRuntime(
@@ -324,13 +347,17 @@ export function parseCompose(
         ['/var/run/docker.sock', '/var/lib/tale-sandbox'].includes(from) &&
         to === from &&
         mode === undefined;
+      const sandboxIncus =
+        name === 'sandbox' &&
+        sandbox !== undefined &&
+        mount === SANDBOX_INCUS_MOUNT;
       const proxy =
         name === 'proxy' &&
         from === './Caddyfile.production' &&
         to === '/etc/caddy/Caddyfile' &&
         mode === 'ro';
       requireRuntime(
-        named || sandboxConfig || sandboxHost || proxy,
+        named || sandboxConfig || sandboxHost || sandboxIncus || proxy,
         'Runtime source contains an unrecognized host mount.',
       );
     }
@@ -352,7 +379,17 @@ export function parseCompose(
       'Runtime source refers to an unrecognized environment file.',
     );
     const ports = JSON.stringify(service.ports ?? []);
+    const published =
+      sandbox === undefined ? {} : sandboxPorts(sandbox.address);
     const allowedPorts: Record<string, string[]> = {
+      // The Incus shape publishes the two services sessions dial on the
+      // declared address, and nothing else.
+      ...Object.fromEntries(
+        Object.entries(published).map(([target, list]) => [
+          target,
+          [JSON.stringify(list)],
+        ]),
+      ),
       db: ['["5432:5432"]', '["127.0.0.1:5432:5432"]'],
       'knowledge-db': ['["5433:5432"]', '["127.0.0.1:5433:5432"]'],
       proxy: ['["80:80","443:443"]'],
@@ -432,6 +469,7 @@ export function readRuntimeBundle(directory: string): {
   const compose = parseCompose(
     contents['compose.yml'].toString('utf8'),
     bundle.containerPrefix,
+    bundle.sandbox,
   );
   for (const service of RUNTIME_SERVICES) {
     const spec = compose.services[service];
@@ -496,5 +534,14 @@ export function readRuntimeBundle(directory: string): {
       'Runtime spawner image custody differs.',
     );
   }
+  const runtime = bundle.images.find(
+    (item) => item.repository === `${TALE_REGISTRY}/tale-sandbox-runtime`,
+  );
+  requireRuntime(runtime, 'Runtime spawner image custody differs.');
+  assertSandboxShape(
+    compose,
+    bundle.sandbox,
+    bundle.sandbox === undefined ? undefined : incusImage(runtime),
+  );
   return { bundle, identity: hash(raw), compose, contents };
 }

@@ -29,6 +29,12 @@ import {
   type RuntimeImage,
   type RuntimePlatform,
 } from './runtime-model';
+import {
+  applyIncusShape,
+  INCUS_BACKEND_MARKER,
+  sandboxBundle,
+  sandboxPrepareSchema,
+} from './runtime-sandbox';
 import { sourceAutomationProtocol } from './source-automation-protocol';
 import { sourceMigrationInventory } from './source-migrations';
 
@@ -262,6 +268,13 @@ function sourceFiles(
   }
 }
 
+/** Whether the committed revision has the spawner's Incus backend. */
+function sourceHasIncusBackend(repoRoot: string, revision: string): boolean {
+  return /^100644 blob [a-f0-9]{40}\t/.test(
+    git(repoRoot, 'ls-tree', revision, '--', INCUS_BACKEND_MARKER).toString(),
+  );
+}
+
 /** Prepare an immutable runtime without copying source checkouts or credentials. */
 export async function prepareRuntime(
   options: PrepareRuntimeOptions,
@@ -278,6 +291,18 @@ export async function prepareRuntime(
     'Runtime output must be separate from the source checkout.',
   );
   const source = sourceFiles(options.repoRoot, options.revision);
+  const sandboxDeclaration = sandboxPrepareSchema
+    .optional()
+    .safeParse(options.sandbox);
+  requireRuntime(
+    sandboxDeclaration.success,
+    'The Incus sandbox needs a unicast IPv4 address and an http egress proxy with an explicit port.',
+  );
+  requireRuntime(
+    sandboxDeclaration.data === undefined ||
+      sourceHasIncusBackend(options.repoRoot, options.revision),
+    'Runtime source predates the Incus sandbox backend; select a Tale revision from v0.5.91 or later.',
+  );
   const migrations = sourceMigrationInventory(
     options.repoRoot,
     options.revision,
@@ -445,6 +470,13 @@ export async function prepareRuntime(
     ...proxyVolumes,
     './Caddyfile.production:/etc/caddy/Caddyfile:ro',
   ];
+  const runtimeImage = images.get(`${TALE_REGISTRY}/tale-sandbox-runtime`);
+  requireRuntime(runtimeImage, 'Runtime sandbox image is missing.');
+  const sandbox =
+    sandboxDeclaration.data === undefined
+      ? undefined
+      : sandboxBundle(sandboxDeclaration.data, runtimeImage);
+  if (sandbox !== undefined) applyIncusShape(compose, sandbox);
   const productionCompose = stringify(compose, { lineWidth: 0 });
   const bundle = runtimeBundleSchema.parse({
     schemaVersion: 1,
@@ -455,6 +487,7 @@ export async function prepareRuntime(
     ...(options.organizationCreators?.length
       ? { organizationCreatorsDeclared: true as const }
       : {}),
+    ...(sandbox === undefined ? {} : { sandbox }),
     source: {
       composeSha256: hash(source.compose),
       caddySha256: hash(source.caddy),
