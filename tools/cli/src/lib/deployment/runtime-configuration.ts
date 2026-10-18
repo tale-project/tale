@@ -10,13 +10,14 @@ import { configurationTargetSchema } from '../config/platform-model';
 import { valueHash } from '../config/releases/identity';
 import { sha } from '../config/releases/model';
 import { readPrivateJson, writePrivateJson } from '../state/private-files';
-import { runtimeCommand, runtimeSleep } from './runtime-command';
+import { runtimeCommand } from './runtime-command';
 import {
   hash,
   requireRuntime,
   type ApplyRuntimeOptions,
   type RuntimeDependencies,
 } from './runtime-model';
+import { drainSpawner, spawnerJson, spawnerStatus } from './runtime-spawner';
 
 const runtimeConfigurationEffectSchema = z.strictObject({
   deploymentBundleSha256: sha,
@@ -114,15 +115,6 @@ process.stdout.write(JSON.stringify(result));
 }
 `;
 
-function json(text: string): unknown {
-  requireRuntime(text.length <= 100_000, 'Spawner response is oversized.');
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw externalDepError('Spawner returned invalid JSON.');
-  }
-}
-
 async function mountedConfiguration(
   containerId: string,
   effect: RuntimeConfigurationEffect,
@@ -138,7 +130,7 @@ async function mountedConfiguration(
       file: z.enum(['deployment.yml', 'deployment.json']).nullable(),
       data: z.string().max(90_000).nullable(),
     })
-    .parse(json(response.stdout));
+    .parse(spawnerJson(response.stdout));
   requireRuntime(
     (parsed.file === null) === (parsed.data === null),
     'Spawner configuration readback is incomplete.',
@@ -161,42 +153,6 @@ async function mountedConfiguration(
     'Spawner mounted configuration differs from the verified native resource.',
   );
   return { file: parsed.file, bytesSha256: hash(bytes) };
-}
-
-async function control(
-  containerId: string,
-  command: 'drain' | 'drain-status',
-  dependencies: RuntimeDependencies,
-) {
-  const result = await runtimeCommand(
-    [
-      'exec',
-      containerId,
-      'timeout',
-      '15',
-      'bun',
-      '/app/src/control-cli.ts',
-      command,
-    ],
-    dependencies,
-    { timeout: 20 },
-  );
-  return json(result.stdout);
-}
-async function status(containerId: string, dependencies: RuntimeDependencies) {
-  const result = z
-    .strictObject({
-      draining: z.boolean(),
-      sessions: z.number().int().nonnegative(),
-      sessionIds: z.array(z.string().min(1).max(128)).max(10000),
-    })
-    .parse(await control(containerId, 'drain-status', dependencies));
-  requireRuntime(
-    result.sessions === result.sessionIds.length &&
-      new Set(result.sessionIds).size === result.sessions,
-    'Spawner drain status is inconsistent.',
-  );
-  return result;
 }
 
 /** The caller holds the existing deployment lock. observe/wait reuse the
@@ -261,7 +217,7 @@ export async function activateConfiguration(
   ) {
     await wait();
     requireRuntime(
-      !(await status(boot.containerId, dependencies)).draining,
+      !(await spawnerStatus(boot.containerId, dependencies)).draining,
       'Ready spawner is draining; configuration activation cannot be claimed.',
     );
     requireRuntime(
@@ -287,28 +243,7 @@ export async function activateConfiguration(
         });
   if (pending !== previous) await writePrivateJson(path, pending);
   if (valueHash(pending.before) === valueHash(boot)) {
-    z.strictObject({ draining: z.literal(true) }).parse(
-      await control(boot.containerId, 'drain', dependencies),
-    );
-    let drained = false;
-    const deadline = performance.now() + 300_000;
-    for (let attempt = 0; attempt < 60; attempt++) {
-      if (performance.now() >= deadline) break;
-      const observed = await status(boot.containerId, dependencies);
-      requireRuntime(
-        observed.draining,
-        'Spawner did not retain its drain latch.',
-      );
-      if (observed.sessions === 0) {
-        drained = true;
-        break;
-      }
-      if (attempt !== 59 && performance.now() < deadline)
-        await runtimeSleep(
-          dependencies,
-          Math.min(5000, deadline - performance.now()),
-        );
-    }
+    const { drained } = await drainSpawner(boot.containerId, dependencies);
     requireRuntime(
       drained,
       'Spawner still has active sessions; configuration activation remains pending.',
@@ -333,7 +268,7 @@ export async function activateConfiguration(
     'Spawner restart did not establish a new boot.',
   );
   requireRuntime(
-    !(await status(after.containerId, dependencies)).draining,
+    !(await spawnerStatus(after.containerId, dependencies)).draining,
     'Restarted spawner is still draining.',
   );
   requireRuntime(
