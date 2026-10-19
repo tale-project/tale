@@ -5,7 +5,8 @@
 
 import { afterAll, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { crc32, gunzipSync } from 'node:zlib';
+
+import JSZip from 'jszip';
 
 import {
   npmProject,
@@ -17,79 +18,32 @@ import {
   serveStandInCaches,
 } from './registry-stand-ins.ts';
 
-const packages = probePackages();
-
-/** The entries of an uncompressed tar: name, content, and whether the header's
- * checksum is the one its bytes give. */
-function readTar(archive: Buffer) {
-  const entries: { name: string; text: string; sound: boolean }[] = [];
-  let offset = 0;
-  while (offset + 512 <= archive.length) {
-    const header = archive.subarray(offset, offset + 512);
-    if (header.every((byte) => byte === 0)) break;
-    const name = header.toString('utf8', 0, 100).replace(/\0.*$/s, '');
-    const size = Number.parseInt(header.toString('ascii', 124, 135), 8);
-    const stored = Number.parseInt(header.toString('ascii', 148, 154), 8);
-    let sum = 0;
-    for (const [index, byte] of header.entries()) {
-      sum += index >= 148 && index < 156 ? 0x20 : byte;
-    }
-    entries.push({
-      name,
-      text: archive.toString('utf8', offset + 512, offset + 512 + size),
-      sound: sum === stored,
-    });
-    offset += 512 + Math.ceil(size / 512) * 512;
-  }
-  return entries;
-}
-
-/** The entries of a stored zip, read from its central directory. */
-function readZip(archive: Buffer) {
-  const end = archive.length - 22;
-  expect(archive.readUInt32LE(end)).toBe(0x06054b50);
-  const count = archive.readUInt16LE(end + 10);
-  let offset = archive.readUInt32LE(end + 16);
-  const entries: { name: string; text: string; crcMatches: boolean }[] = [];
-  for (let index = 0; index < count; index += 1) {
-    expect(archive.readUInt32LE(offset)).toBe(0x02014b50);
-    const crc = archive.readUInt32LE(offset + 16);
-    const size = archive.readUInt32LE(offset + 24);
-    const nameLength = archive.readUInt16LE(offset + 28);
-    const local = archive.readUInt32LE(offset + 42);
-    const name = archive.toString(
-      'utf8',
-      offset + 46,
-      offset + 46 + nameLength,
-    );
-    expect(archive.readUInt32LE(local)).toBe(0x04034b50);
-    const start = local + 30 + archive.readUInt16LE(local + 26);
-    const data = archive.subarray(start, start + size);
-    entries.push({
-      name,
-      text: data.toString('utf8'),
-      crcMatches: crc32(data) === crc,
-    });
-    offset += 46 + nameLength;
-  }
-  return entries;
-}
+const packages = await probePackages();
 
 describe('the npm package', () => {
-  test('is a gzipped tar of a package, with the integrity npm checks', () => {
-    const entries = readTar(gunzipSync(packages.npm.tarball));
-    expect(entries.map((entry) => entry.name)).toEqual([
+  test('is a gzipped tar of a package, with the integrity npm checks', async () => {
+    // A gzip stream, which Bun reads as the tar it holds.
+    expect([...packages.npm.tarball.subarray(0, 2)]).toEqual([0x1f, 0x8b]);
+    const entries = await new Bun.Archive(packages.npm.tarball).files();
+    expect([...entries.keys()]).toEqual([
       'package/package.json',
       'package/index.js',
     ]);
-    expect(entries.every((entry) => entry.sound)).toBe(true);
-    expect(JSON.parse(entries[0]?.text ?? '')).toEqual({
+    expect(
+      JSON.parse((await entries.get('package/package.json')?.text()) ?? ''),
+    ).toEqual({
       name: PROBE_NAME,
       version: PROBE_VERSION,
       main: 'index.js',
     });
+    expect(await entries.get('package/index.js')?.text()).toBe(
+      `module.exports = "${PROBE_NAME}";\n`,
+    );
     expect(packages.npm.integrity).toBe(
       `sha512-${createHash('sha512').update(packages.npm.tarball).digest('base64')}`,
+    );
+    expect(packages.npm.shasum).toBe(
+      createHash('sha1').update(packages.npm.tarball).digest('hex'),
     );
   });
 
@@ -110,15 +64,22 @@ describe('the npm package', () => {
 });
 
 describe('the Python wheel', () => {
-  test('is a zip of a package and its metadata, with a RECORD that tells the truth', () => {
-    const entries = readZip(packages.wheel.bytes);
-    expect(entries.map((entry) => entry.name)).toEqual([
+  test('is a zip of a package and its metadata, with a RECORD that tells the truth', async () => {
+    const wheel = await JSZip.loadAsync(packages.wheel.bytes, {
+      checkCRC32: true,
+    });
+    const names = Object.keys(wheel.files);
+    expect(names).toEqual([
       'tale_e2e_probe/__init__.py',
       'tale_e2e_probe-1.0.0.dist-info/METADATA',
       'tale_e2e_probe-1.0.0.dist-info/WHEEL',
       'tale_e2e_probe-1.0.0.dist-info/RECORD',
     ]);
-    expect(entries.every((entry) => entry.crcMatches)).toBe(true);
+    const entries: { name: string; text: string }[] = [];
+    for (const name of names) {
+      const text = await wheel.file(name)?.async('string');
+      entries.push({ name, text: text ?? '' });
+    }
     const record = entries.at(-1)?.text.trim().split('\n') ?? [];
     for (const entry of entries.slice(0, -1)) {
       const hash = createHash('sha256').update(entry.text).digest('base64url');
@@ -127,6 +88,8 @@ describe('the Python wheel', () => {
       );
     }
     expect(record.at(-1)).toBe('tale_e2e_probe-1.0.0.dist-info/RECORD,,');
+    // Stored, not compressed: the text is in the bytes as it is.
+    expect(packages.wheel.bytes.includes(entries[0]?.text ?? '?')).toBe(true);
     expect(packages.wheel.fileName).toBe(
       'tale_e2e_probe-1.0.0-py3-none-any.whl',
     );
@@ -147,6 +110,7 @@ describe('the servers', () => {
     hostname: '127.0.0.1',
     npmPort: 0,
     pypiPort: 0,
+    packages,
   });
   afterAll(() => caches.stop());
 

@@ -2,14 +2,15 @@
 // session installing through them: one npm package and one Python wheel, each
 // served the way the real cache (Verdaccio for npm, devpi for PyPI) serves a
 // package it holds, and a log of every request that reached them. The packages
-// are made here, byte for byte, with no tool beyond this file: a tarball and a
-// wheel are an archive with a few files in it.
+// are made here: a tarball is a gzipped tar (Bun's own archive writer) and a
+// wheel is a zip (jszip).
 //
 // Neither package exists on the public registries under this name, so an
 // install that went around the stand-in would find nothing there.
 
 import { createHash } from 'node:crypto';
-import { crc32, gzipSync } from 'node:zlib';
+
+import JSZip from 'jszip';
 
 export const PROBE_NAME = 'tale-e2e-probe';
 export const PROBE_VERSION = '1.0.0';
@@ -20,81 +21,23 @@ const TARBALL_PATH = `/${PROBE_NAME}/-/${PROBE_NAME}-${PROBE_VERSION}.tgz`;
 export const PYPI_INDEX_PATH = '/root/pypi/+simple/';
 const WHEEL_PATH = `/root/pypi/+f/${WHEEL_FILE}`;
 
-function tarEntry(name: string, content: Buffer): Buffer {
-  const header = Buffer.alloc(512);
-  header.write(name, 0, 100, 'utf8');
-  header.write('0000644\0', 100);
-  header.write('0000000\0', 108);
-  header.write('0000000\0', 116);
-  header.write(`${content.length.toString(8).padStart(11, '0')}\0`, 124);
-  header.write('00000000000\0', 136);
-  header.write('        ', 148);
-  header.write('0', 156);
-  header.write('ustar\0', 257);
-  header.write('00', 263);
-  let sum = 0;
-  for (const byte of header) sum += byte;
-  header.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148);
-  const padding = Buffer.alloc((512 - (content.length % 512)) % 512);
-  return Buffer.concat([header, content, padding]);
-}
-
 /** A gzipped tar of these files, as `npm pack` makes one. */
-function tarball(files: Record<string, string>): Buffer {
-  const entries = Object.entries(files).map(([name, text]) =>
-    tarEntry(name, Buffer.from(text, 'utf8')),
+async function tarball(files: Record<string, string>): Promise<Buffer> {
+  return Buffer.from(
+    await new Bun.Archive(files, { compress: 'gzip', level: 9 }).bytes(),
   );
-  return gzipSync(Buffer.concat([...entries, Buffer.alloc(1024)]), {
-    level: 9,
-  });
 }
 
-/** A zip of these files, stored without compression, as a wheel is. */
-function zip(files: Record<string, string>): Buffer {
-  const parts: Buffer[] = [];
-  const central: Buffer[] = [];
-  let offset = 0;
+/** A zip of these files, stored without compression, as a wheel is. The
+ * entries carry the first moment a zip can name, so the bytes do not depend on
+ * the clock, and no directory entries, which a wheel does not list. */
+async function zip(files: Record<string, string>): Promise<Buffer> {
+  const archive = new JSZip();
+  const date = new Date(Date.UTC(1980, 0, 1));
   for (const [name, text] of Object.entries(files)) {
-    const data = Buffer.from(text, 'utf8');
-    const label = Buffer.from(name, 'utf8');
-    const checksum = crc32(data);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0, 6);
-    local.writeUInt16LE(0, 8);
-    local.writeUInt16LE(0, 10);
-    local.writeUInt16LE(0x21, 12);
-    local.writeUInt32LE(checksum, 14);
-    local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22);
-    local.writeUInt16LE(label.length, 26);
-    local.writeUInt16LE(0, 28);
-    parts.push(local, label, data);
-    const entry = Buffer.alloc(46);
-    entry.writeUInt32LE(0x02014b50, 0);
-    entry.writeUInt16LE(20, 4);
-    entry.writeUInt16LE(20, 6);
-    entry.writeUInt16LE(0, 8);
-    entry.writeUInt16LE(0, 10);
-    entry.writeUInt16LE(0, 12);
-    entry.writeUInt16LE(0x21, 14);
-    entry.writeUInt32LE(checksum, 16);
-    entry.writeUInt32LE(data.length, 20);
-    entry.writeUInt32LE(data.length, 24);
-    entry.writeUInt16LE(label.length, 28);
-    entry.writeUInt32LE(offset, 42);
-    central.push(entry, label);
-    offset += local.length + label.length + data.length;
+    archive.file(name, text, { date, createFolders: false });
   }
-  const directory = Buffer.concat(central);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(Object.keys(files).length, 8);
-  end.writeUInt16LE(Object.keys(files).length, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...parts, directory, end]);
+  return archive.generateAsync({ type: 'nodebuffer', compression: 'STORE' });
 }
 
 function recordHash(text: string): string {
@@ -106,9 +49,11 @@ export interface ProbePackages {
   wheel: { fileName: string; bytes: Buffer; sha256: string };
 }
 
-/** The two packages the stand-ins hold. */
-export function probePackages(): ProbePackages {
-  const archive = tarball({
+/** The two packages the stand-ins hold. The tarball carries the time it was
+ * made, so one run makes the packages once and gives the same ones to the
+ * servers and to the lock files. */
+export async function probePackages(): Promise<ProbePackages> {
+  const archive = await tarball({
     'package/package.json': `${JSON.stringify({ name: PROBE_NAME, version: PROBE_VERSION, main: 'index.js' }, null, 2)}\n`,
     'package/index.js': `module.exports = ${JSON.stringify(PROBE_NAME)};\n`,
   });
@@ -128,7 +73,7 @@ export function probePackages(): ProbePackages {
     `${dist}/RECORD,,`,
     '',
   ].join('\n');
-  const wheel = zip({ ...content, [`${dist}/RECORD`]: record });
+  const wheel = await zip({ ...content, [`${dist}/RECORD`]: record });
 
   return {
     npm: {
@@ -196,8 +141,9 @@ export function serveStandInCaches(options: {
   hostname: string;
   npmPort: number;
   pypiPort: number;
+  packages: ProbePackages;
 }): StandInCaches {
-  const packages = probePackages();
+  const { packages } = options;
   const requests: string[] = [];
   const note = (server: { port?: number }, request: Request) => {
     requests.push(

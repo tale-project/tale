@@ -415,7 +415,7 @@ describe('a session on the sandbox bridge', () => {
       // port, and the registries' hosts refused by the egress proxy. The
       // caches are stand-ins on the gateway's address (a link of the node's
       // own), serving one npm package and one wheel that exist nowhere else.
-      const packages = probePackages();
+      const packages = await probePackages();
       const rules = [4873, 3141].map((port) => [
         'network',
         'acl',
@@ -433,6 +433,7 @@ describe('a session on the sandbox bridge', () => {
         hostname: lab.gatewayAddress,
         npmPort: 4873,
         pypiPort: 3141,
+        packages,
       });
       const D = sessionId('netd');
       let aclRules = 0;
