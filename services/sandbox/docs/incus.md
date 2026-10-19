@@ -545,7 +545,10 @@ SANDBOX_EGRESS_DENIED_HOSTS=registry.npmjs.org,registry.yarnpkg.com,pypi.org,fil
   removed. A symbolic link in its place is neither followed nor written
   through. A file that cannot be written is a warning in the console and not the
   end of the boot. The files need the runtime image of the spawner's own
-  release; an older image writes none and the session installs as before.
+  release. An older image writes none: its sessions install from the public
+  registries as before, unless the proxy's list is set, and then they cannot
+  install at all. Roll the image and the spawner together, and set the proxy's
+  list last.
 - **`NO_PROXY`** gains the cache addresses (hosts, because not every tool
   understands a CIDR block), since the egress proxy refuses private
   destinations. A standby made before the settings changed no longer matches the
