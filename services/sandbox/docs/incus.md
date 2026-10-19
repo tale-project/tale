@@ -580,8 +580,12 @@ uv pip install --require-hashes -r requirements.txt
 
 **What the caches are.** One set of caches serves every session of every
 organization the node holds. They are read-only and hold public packages only,
-so no session can write what another reads, and which public package another
-organization installed is visible to whoever runs the caches. Every profile
+so no session can write what another reads. They do show what they hold:
+Verdaccio lists every package it has fetched to whoever asks (`GET /-/all`),
+even with its web interface off, so a session can read which public npm
+packages other organizations installed, though not which organization installed
+them; devpi lists its whole upstream index and not what was fetched. Whoever
+runs the caches also sees every request in their logs. Every profile
 gets them, the `default` profile that runs untrusted code included, and that is
 safe only because a session cannot write to a cache: the Docker backend's
 shared dependency volumes leave that profile out because a cache that code can
@@ -589,8 +593,11 @@ write would carry what it wrote into a more privileged session. Nothing private
 goes through them: the files carry no credential, a private registry stays in
 the session's own settings, and a session's own `.npmrc` or `pip.conf` is never
 replaced. Docker inside a session builds with its inner builder, which has no
-cache configured here, and other package managers (apt, go, gem, git) keep going
-through the egress proxy.
+cache configured here. Its nested containers reach the internet through the same
+egress proxy and resolve through the same forwarder, so with
+`SANDBOX_EGRESS_DENIED_HOSTS` set a `RUN npm install` or `pip install` in a
+session's `docker build` cannot install from the four registry hosts either.
+Other package managers (apt, go, gem, git) keep going through the egress proxy.
 
 ## The warm pool
 
