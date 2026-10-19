@@ -397,6 +397,26 @@ enforced `two_factor_policy`, keep the operator on a passkey and never an
 authenticator app: the CLI stops at a TOTP challenge or at an enrolment wall after
 the grace period, and names which one it met.
 
+### Sign people in through an OpenID Connect provider
+
+Beside the Entra fields, `identity.oidc` declares a generic OpenID Connect
+connection: `issuer` (HTTPS, a literal or an environment reference), `clientId` and
+`clientSecret` (environment references, so a bundle carries names and never values),
+and optionally `displayName`, `scopes`, `pkce`, `claimMappings` (`email`, `name`,
+`groups`) and `trustEmail`. `trustEmail` marks the mapped email claim as verified and
+needs `claimMappings.email`; the backend refuses a sign-in that lacks a mapped email
+claim instead of falling back to `email`. A declaration without the block behaves as
+before.
+
+Declare both blocks when one declaration serves hosts with different providers: every
+reference of both must then be `optional`, and the destination's environment selects
+the block whose credentials resolve. Both resolving, neither resolving or one
+resolving only in part refuses the deployment before anything changes. A declaration
+that names `identity.oidc` also reads the stored connection first, replaces the
+managed Entra or OpenID Connect one by the other, removes either when `ssoEnabled` is
+`false`, and stops on any other connection. See
+[sign people in through an OpenID Connect provider](../../docs/en/self-hosted/install/cli-install.md#managed-oidc-sign-in).
+
 ### Serve additional origins
 
 Declare top-level `additionalOrigins` for the other HTTPS origins the same instance

@@ -131,6 +131,7 @@ export function createSsoAdminRoutes(deps: {
         scopes: z.array(z.string().max(200)).max(50),
         pkce: z.boolean().optional(),
         claimMappings: optionalAttributeMapping,
+        trustEmail: z.boolean().optional(),
         domainHint: z.string().max(255).optional(),
       })
       .merge(provisioningSchema)

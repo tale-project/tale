@@ -34,6 +34,8 @@ export interface SsoProviderConfig {
   clientSecret: string;
   scopes: string[];
   claimMappings?: { email?: string; name?: string; groups?: string };
+  /** The operator vouches for the address in the mapped email claim. */
+  trustEmail?: boolean;
 }
 
 export type SsoPromptMode = 'none' | 'login' | 'consent' | 'select_account';

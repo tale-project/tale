@@ -199,6 +199,7 @@ export async function resolveSignInConfig(
     scopes: c.scopes,
     pkce: c.pkce ?? false,
     claimMappings: c.claimMappings,
+    trustEmail: c.trustEmail,
     domainHint: c.domainHint,
     enableOneDriveAccess: c.enableOneDriveAccess,
     autoProvisionRole: p.autoProvisionRole,

@@ -47,6 +47,30 @@ off, no role is touched.
 - **Example**: The provider maps Mia's group to Editor, and she is a Member. She signs in →
   she is an Editor.
 
+### SSO-R19 · A mapped email claim is the only address an OIDC sign-in uses
+
+When an OIDC or OAuth2 connection names the claim that carries the email, the provider's
+answer must carry it. An answer without it is refused: no session is created and nothing is
+changed. The person's own `email` or `preferred_username` is never used in its place, because
+the person may be able to edit it at the provider.
+
+- **Example**: Ada's connection reads the email from the claim `upn`. Zoe can edit her own
+  `email` at the provider and sets it to Mia's address, but she has no `upn` → refused, and
+  Mia's account is untouched.
+
+### SSO-R20 · A connection can vouch for the address its mapped email claim carries
+
+An operator can set an OIDC connection to trust the email it maps. A sign-in then marks that
+address verified, for a person who is new and for one who is already a member. The setting
+applies only to a generic OIDC connection that maps the email claim, and a save that asks for
+it without one, or for another provider, is refused (`sso_trust_email_needs_email_claim`,
+`sso_trust_email_unsupported`). A save that leaves the setting out keeps it, and one that
+removes the mapping drops it.
+
+- **Example**: Ada's connection trusts the claim `upn` it maps as the email. Mia signs in for
+  the first time → her address is verified. On a connection without the setting it stays
+  unverified.
+
 ## Teams from the provider's groups
 
 ### SSO-R6 · Team sync gives a person the teams named by their groups

@@ -171,7 +171,7 @@ describe('generic OIDC adapter (#1506)', () => {
     expect(info.groups).toEqual(['admins', 'engineering']);
   });
 
-  it('falls back to the standard claims when a mapped claim is missing', async () => {
+  it('falls back to the standard claims when a mapped name or groups claim is missing', async () => {
     mockFetch((url) => {
       if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
       return jsonResponse({
@@ -185,7 +185,7 @@ describe('generic OIDC adapter (#1506)', () => {
     const info = await genericOidcAdapter.getUserInfo(
       {
         ...config,
-        claimMappings: { email: 'contact.email', name: 'profile.displayName' },
+        claimMappings: { name: 'profile.displayName' },
       },
       'at',
     );
@@ -359,5 +359,158 @@ describe('generic OIDC adapter — userinfo without an email', () => {
         'at',
       ),
     ).rejects.toThrow(/carries no email/);
+  });
+});
+
+describe('generic OIDC adapter — a mapped email claim is the only address [SSO-R19]', () => {
+  it('reads the address from the mapped claim when it is present', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        upn: 'ada@example.com',
+        preferred_username: 'ada',
+      });
+    });
+
+    const info = await genericOidcAdapter.getUserInfo(
+      { ...config, claimMappings: { email: 'upn' } },
+      'at',
+    );
+    expect(info.email).toBe('ada@example.com');
+  });
+
+  it('fails when the mapped claim is absent, even though email is present', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({ sub: 'user-1', email: 'mia@example.com' });
+    });
+
+    await expect(
+      genericOidcAdapter.getUserInfo(
+        { ...config, claimMappings: { email: 'upn' } },
+        'at',
+      ),
+    ).rejects.toThrow(/carries no email/);
+  });
+
+  it('fails when the mapped claim is absent, even though preferred_username is present', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        preferred_username: 'mia@example.com',
+      });
+    });
+
+    await expect(
+      genericOidcAdapter.getUserInfo(
+        { ...config, claimMappings: { email: 'upn' } },
+        'at',
+      ),
+    ).rejects.toThrow(/carries no email/);
+  });
+
+  it('fails when the mapped claim is empty or not text', async () => {
+    for (const upn of ['', null, 42, []]) {
+      mockFetch((url) => {
+        if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+        return jsonResponse({ sub: 'user-1', email: 'mia@example.com', upn });
+      });
+
+      await expect(
+        genericOidcAdapter.getUserInfo(
+          { ...config, claimMappings: { email: 'upn' } },
+          'at',
+        ),
+      ).rejects.toThrow(/carries no email/);
+      vi.restoreAllMocks();
+      resetOidcDiscoveryCacheForTests();
+    }
+  });
+
+  it('keeps the mapped address when the plain email claim differs', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        upn: 'ada@example.com',
+        email: 'mia@example.com',
+      });
+    });
+
+    const info = await genericOidcAdapter.getUserInfo(
+      { ...config, claimMappings: { email: 'upn' } },
+      'at',
+    );
+    expect(info.email).toBe('ada@example.com');
+  });
+
+  it('still uses email, then preferred_username, when no email mapping is configured', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        email: 'mia@example.com',
+        preferred_username: 'mia',
+      });
+    });
+    const withEmail = await genericOidcAdapter.getUserInfo(
+      { ...config, claimMappings: { name: 'name' } },
+      'at',
+    );
+    expect(withEmail.email).toBe('mia@example.com');
+
+    vi.restoreAllMocks();
+    resetOidcDiscoveryCacheForTests();
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({
+        sub: 'user-1',
+        preferred_username: 'mia@example.com',
+      });
+    });
+    const withUsername = await genericOidcAdapter.getUserInfo(config, 'at');
+    expect(withUsername.email).toBe('mia@example.com');
+  });
+});
+
+describe('generic OIDC adapter — the operator vouches for the mapped email [SSO-R20]', () => {
+  const claims = {
+    sub: 'user-1',
+    upn: 'ada@example.com',
+    email: 'ada@example.com',
+  };
+
+  async function userInfo(change: Partial<SsoProviderConfig>) {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse(claims);
+    });
+    return genericOidcAdapter.getUserInfo({ ...config, ...change }, 'at');
+  }
+
+  it('marks the address verified when trustEmail is set and the email claim is mapped', async () => {
+    const info = await userInfo({
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+    expect(info.emailVerified).toBe(true);
+  });
+
+  it('leaves the address unverified without trustEmail', async () => {
+    const info = await userInfo({ claimMappings: { email: 'upn' } });
+    expect(info.emailVerified).toBeUndefined();
+    const explicit = await userInfo({
+      claimMappings: { email: 'upn' },
+      trustEmail: false,
+    });
+    expect(explicit.emailVerified).toBeUndefined();
+  });
+
+  it('never vouches for a plain email claim, whatever the flag says', async () => {
+    const info = await userInfo({ trustEmail: true });
+    expect(info.email).toBe('ada@example.com');
+    expect(info.emailVerified).toBeUndefined();
   });
 });

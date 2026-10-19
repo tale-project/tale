@@ -40,10 +40,11 @@ export function claimValueToStrings(value: unknown): string[] {
  * when the IdP sent none. Every adapter funnels its candidates (mapped claim,
  * standard claim, fallback) through here so a scope set without `email`, a
  * userinfo endpoint that emits only `sub`, or a mistyped `claimMappings.email`
- * path surfaces as "the email claim is missing" — on the login page and in
- * the audit row — instead of a `TypeError` from the first `.toLowerCase()`
- * downstream. `source` names the response for the operator (e.g. "OIDC
- * userinfo").
+ * path surfaces as a readable error instead of a `TypeError` from the first
+ * `.toLowerCase()` downstream. The callback handler writes that message to the
+ * audit row of the failed sign-in; the login page shows only the generic
+ * `sso.errors.serverError`. `source` names the response for the operator (e.g.
+ * "OIDC userinfo").
  */
 export function requireEmailClaim(candidate: unknown, source: string): string {
   if (typeof candidate === 'string' && candidate.trim() !== '') {
