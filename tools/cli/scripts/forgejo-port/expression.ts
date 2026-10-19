@@ -15,6 +15,18 @@
  * to case, `''`, `0`, `null` and `false` are falsy) and leaves everything else
  * alone, so an expression it does not understand is carried through unchanged
  * rather than guessed at.
+ *
+ * GitHub's own package, `@actions/expressions` (0.3.61), does not serve here, for three
+ * reasons. Its parser refuses an expression that names a context or a function it was not
+ * given beforehand, so one new name would stop the whole condition from being folded, where
+ * this parser folds what it knows and keeps the rest. Its lexer decodes only the first `''` of
+ * a string literal (`'a''b''c'` reads as `a'b''c`), and the folder compares string literals.
+ * And it has a parser and an evaluator but no printer and no partial evaluation (its evaluator
+ * reads a value it was not given as null, not as unknown, so it cannot leave the undecided part
+ * of a condition in place), so the folder and the printer below would stay, behind an adapter
+ * from its token-bearing tree to the folder's. The lexer and parser are the smallest part of
+ * this file. Revisit when its parser takes names it was not given and its lexer decodes every
+ * escape.
  */
 
 export type Scalar = null | boolean | number | string;

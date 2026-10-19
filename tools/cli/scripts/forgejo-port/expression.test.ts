@@ -68,6 +68,17 @@ describe('parseExpression and printExpression', () => {
     expect(print("'it''s'")).toBe("'it''s'");
   });
 
+  test('read every escaped quote of a string, and any name it is given', () => {
+    expect(parseExpression("'a''b''c'")).toEqual({
+      kind: 'literal',
+      value: "a'b'c",
+    });
+    expect(print("'a''b''c'")).toBe("'a''b''c'");
+    expect(print('someNewContext.value[otherName]')).toBe(
+      'someNewContext.value[otherName]',
+    );
+  });
+
   test('give && more weight than ||, and ! more than both', () => {
     expect(parseExpression('a || b && c')).toEqual({
       kind: 'binary',
@@ -148,6 +159,12 @@ describe('simplify', () => {
         "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)",
       ),
     ).toBe('!cancelled() && github.event.pull_request.draft != true');
+  });
+
+  test('folds what it knows around a name it does not know', () => {
+    expect(
+      fold("someNewContext.value || github.event_name == 'merge_group'"),
+    ).toBe('someNewContext.value');
   });
 
   test('drops the merge-group half of the readiness gate', () => {
