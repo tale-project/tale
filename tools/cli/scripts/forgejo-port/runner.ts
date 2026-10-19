@@ -31,6 +31,8 @@ function warn(message: string): void {
  * The cache holds a binary that is executed by path after its digest is checked, so no one
  * else may write to it: it is the caller's own directory, closed to the group and to others,
  * and not a link. A shared, predictable path under the temporary directory is refused.
+ * Windows has no `getuid`, and its directories report the mode bits of every user and ignore
+ * the mode given to `mkdir`, so there only the directory itself is checked.
  */
 async function ownDirectory(path: string): Promise<boolean> {
   try {
@@ -39,8 +41,7 @@ async function ownDirectory(path: string): Promise<boolean> {
     const uid = process.getuid?.();
     if (
       found.isDirectory() &&
-      (uid === undefined || found.uid === uid) &&
-      (found.mode & 0o077) === 0
+      (uid === undefined || (found.uid === uid && (found.mode & 0o077) === 0))
     )
       return true;
     warn(

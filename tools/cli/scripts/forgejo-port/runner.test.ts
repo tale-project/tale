@@ -97,28 +97,32 @@ describe('pinnedRunner', () => {
     expect(error.warnings).toContain('offline');
   });
 
-  test('takes nothing from a cache another user could write to, or a link', async () => {
-    let asked = false;
-    const get = (() => {
-      asked = true;
-      return Promise.resolve(new Response(BYTES));
-    }) as unknown as typeof fetch;
-    const open = cache();
-    chmodSync(open, 0o755);
-    const shared = await warned(() => pinnedRunner(open, LINUX, get));
-    expect(shared.result).toBeUndefined();
-    expect(shared.warnings).toContain('only this user can use');
+  // Windows has no owners and no mode bits to read, and creating a link there needs a privilege.
+  test.skipIf(process.platform === 'win32')(
+    'takes nothing from a cache another user could write to, or a link',
+    async () => {
+      let asked = false;
+      const get = (() => {
+        asked = true;
+        return Promise.resolve(new Response(BYTES));
+      }) as unknown as typeof fetch;
+      const open = cache();
+      chmodSync(open, 0o755);
+      const shared = await warned(() => pinnedRunner(open, LINUX, get));
+      expect(shared.result).toBeUndefined();
+      expect(shared.warnings).toContain('only this user can use');
 
-    const target = cache();
-    const link = join(cache(), 'link');
-    symlinkSync(target, link);
-    const linked = await warned(() => pinnedRunner(link, LINUX, get));
-    expect(linked.result).toBeUndefined();
-    expect(linked.warnings).toContain('only this user can use');
-    expect(asked).toBe(false);
-  });
+      const target = cache();
+      const link = join(cache(), 'link');
+      symlinkSync(target, link);
+      const linked = await warned(() => pinnedRunner(link, LINUX, get));
+      expect(linked.result).toBeUndefined();
+      expect(linked.warnings).toContain('only this user can use');
+      expect(asked).toBe(false);
+    },
+  );
 
-  test('downloads the binary once, checks it against the digest and makes it executable', async () => {
+  test('downloads the binary once and checks it against the digest', async () => {
     const directory = cache();
     const digest = createHash('sha256').update(BYTES).digest('hex');
     let fetched = 0;
@@ -130,9 +134,38 @@ describe('pinnedRunner', () => {
     expect(path).toBe(
       join(directory, `forgejo-runner-${RUNNER.version}-linux-amd64`),
     );
-    expect(statSync(path ?? '').mode & 0o111).not.toBe(0);
     expect(await pinnedRunner(directory, LINUX, get, digest)).toBe(path);
     expect(fetched).toBe(1);
+  });
+
+  // Windows files have no executable bit to read.
+  test.skipIf(process.platform === 'win32')(
+    'makes the downloaded binary executable',
+    async () => {
+      const digest = createHash('sha256').update(BYTES).digest('hex');
+      const get = (() =>
+        Promise.resolve(new Response(BYTES))) as unknown as typeof fetch;
+      const path = await pinnedRunner(cache(), LINUX, get, digest);
+      expect(statSync(path ?? '').mode & 0o111).not.toBe(0);
+    },
+  );
+
+  test('reads no mode bits where there are no users to own a directory, as on Windows', async () => {
+    // Windows reports every directory as writable by the group and by others.
+    const open = cache();
+    chmodSync(open, 0o777);
+    const digest = createHash('sha256').update(BYTES).digest('hex');
+    const get = (() =>
+      Promise.resolve(new Response(BYTES))) as unknown as typeof fetch;
+    const getuid = process.getuid;
+    process.getuid = undefined as unknown as typeof process.getuid;
+    try {
+      expect(await pinnedRunner(open, LINUX, get, digest)).toBe(
+        join(open, `forgejo-runner-${RUNNER.version}-linux-amd64`),
+      );
+    } finally {
+      process.getuid = getuid;
+    }
   });
 
   test('reuses a binary it already holds, and replaces one that is not the pin', async () => {
