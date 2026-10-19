@@ -17,6 +17,7 @@ import {
   upsertOidcConnection,
   upsertSamlConnection,
 } from './admin.ts';
+import { resolveSignInConfig } from './config.ts';
 
 /** The adapter under "Test connection": records what it was asked to probe. */
 const { validateConfig } = vi.hoisted(() => ({
@@ -464,6 +465,38 @@ describe('upsertOidcConnection — the operator vouches for the mapped email [SS
     });
 
     expect((await stored())?.trustEmail).toBe(true);
+  });
+
+  it('reaches the sign-in config and the settings view as stored', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+
+    await expect(
+      resolveSignInConfig(slugSql('acme'), 'org-1'),
+    ).resolves.toMatchObject({
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+    await expect(
+      getSsoConnectionView(slugSql('acme'), 'org-1'),
+    ).resolves.toMatchObject({ oidc: { trustEmail: true } });
+
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      clientSecret: undefined,
+      claimMappings: { email: 'upn' },
+      trustEmail: false,
+    });
+
+    await expect(
+      resolveSignInConfig(slugSql('acme'), 'org-1'),
+    ).resolves.toMatchObject({ trustEmail: false });
+    await expect(
+      getSsoConnectionView(slugSql('acme'), 'org-1'),
+    ).resolves.toMatchObject({ oidc: { trustEmail: false } });
   });
 
   it('refuses the flag without a mapped email claim and writes nothing', async () => {
