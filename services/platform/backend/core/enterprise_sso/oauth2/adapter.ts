@@ -124,10 +124,12 @@ async function getUserInfo(
     (mappings?.name ? mappedClaimString(data, mappings.name) : undefined) ??
     (typeof data.name === 'string' ? data.name : '') ??
     '';
+  // A mapped email claim is the only address: the generic OIDC adapter holds
+  // the same rule, and for the same reason (the person may edit `email`).
   const email = requireEmailClaim(
-    (mappings?.email ? mappedClaimString(data, mappings.email) : undefined) ??
-      data.email ??
-      data.preferred_username,
+    mappings?.email
+      ? mappedClaimString(data, mappings.email)
+      : (data.email ?? data.preferred_username),
     'OAuth2 userinfo',
   );
   const groups = mappings?.groups

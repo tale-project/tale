@@ -44,4 +44,30 @@ describe('OAuth2 adapter — userinfo email boundary', () => {
       /OAuth2 userinfo response carries no email/,
     );
   });
+
+  it('reads the address from the mapped claim and ignores a plain email that differs [SSO-R19]', async () => {
+    stubUserinfo({
+      sub: 'user-1',
+      upn: 'ada@example.com',
+      email: 'mia@example.com',
+    });
+
+    const info = await oauth2Adapter.getUserInfo(
+      { ...config, claimMappings: { email: 'upn' } },
+      'at',
+    );
+
+    expect(info.email).toBe('ada@example.com');
+  });
+
+  it('refuses when the mapped claim is absent, even though email is present [SSO-R19]', async () => {
+    stubUserinfo({ sub: 'user-1', email: 'mia@example.com' });
+
+    await expect(
+      oauth2Adapter.getUserInfo(
+        { ...config, claimMappings: { email: 'upn' } },
+        'at',
+      ),
+    ).rejects.toThrow(/OAuth2 userinfo response carries no email/);
+  });
 });

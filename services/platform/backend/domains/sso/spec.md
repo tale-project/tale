@@ -47,6 +47,17 @@ off, no role is touched.
 - **Example**: The provider maps Mia's group to Editor, and she is a Member. She signs in →
   she is an Editor.
 
+### SSO-R19 · A mapped email claim is the only address an OIDC sign-in uses
+
+When an OIDC or OAuth2 connection names the claim that carries the email, the provider's
+answer must carry it. An answer without it is refused: no session is created and nothing is
+changed. The person's own `email` or `preferred_username` is never used in its place, because
+the person may be able to edit it at the provider.
+
+- **Example**: Ada's connection reads the email from the claim `upn`. Zoe can edit her own
+  `email` at the provider and sets it to Mia's address, but she has no `upn` → refused, and
+  Mia's account is untouched.
+
 ## Teams from the provider's groups
 
 ### SSO-R6 · Team sync gives a person the teams named by their groups

@@ -141,11 +141,14 @@ async function getUserInfo(
           ? data.preferred_username
           : ''));
 
-  const mappedEmail = mappings?.email
-    ? mappedClaimString(data, mappings.email)
-    : undefined;
+  // A connection that maps the email claim names the one address its people
+  // are matched by. When the provider does not send it the sign-in fails:
+  // falling back to `email` or `preferred_username` would match by a claim
+  // the signed-in person may be able to edit themselves.
   const email = requireEmailClaim(
-    mappedEmail ?? data.email ?? data.preferred_username,
+    mappings?.email
+      ? mappedClaimString(data, mappings.email)
+      : (data.email ?? data.preferred_username),
     'OIDC userinfo',
   );
 
