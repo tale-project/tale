@@ -6,12 +6,15 @@ declares and the list of what Forgejo would refuse come out. No workflow under `
 changed until the cut-over, which adds one condition to one of them (`github --write`, below).
 
 The unit tests of `@tale/cli` run the port over the workflows as they are today. They fail a
-change only when the generator crashes on a workflow or `declared-checks.yml` no longer lists the
-checks the port generates (`checks --write` rewrites it). What Forgejo would refuse in a workflow,
-an action the node's mirror list below lacks, and a rule that no longer finds the text it changes
-(its `anchor` warning) are printed as warnings, so that a workflow edited today is not held to a
-port applied later; `check` fails on all three. The rule that finds nothing leaves its file as the
-GitHub workflow has it, so a ported file would then lack what the rule exists to change.
+change when the generator crashes on a workflow, when `declared-checks.yml` no longer lists the
+checks the port generates (`checks --write` rewrites it), when a composite action or a script the
+manifest names is renamed or removed, when `e2e.yml` or `sast.yml` stops carrying the tier it is
+generated for, and when this README lacks a row for a workflow or an edit the manifest lists.
+What Forgejo would refuse in a workflow, an action the node's mirror list below lacks, and a rule
+that no longer finds the text it changes (its `anchor` warning) are printed as warnings, so that a
+workflow edited today is not held to a port applied later; `check` fails on all three. The rule
+that finds nothing leaves its file as the GitHub workflow has it, so a ported file would then lack
+what the rule exists to change.
 
 The port is applied once, at the cut-over. After that `.forgejo/workflows/` is edited by hand
 and the generator is not run again. Until then it stays current with `.github/` by being

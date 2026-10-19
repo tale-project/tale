@@ -1026,9 +1026,11 @@ The complete [release-candidate gate](RELEASING.md) remains required before tagg
 is applied once, when the repository moves to Forgejo, and changes no workflow here until then;
 the cut-over adds one condition, to the `publish` job of `publish-packages.yml`, so that it
 publishes nothing once Forgejo is the source. The unit tests of `@tale/cli` run the port over
-these workflows. They fail a change only when the generator crashes on a workflow, or when
-`declared-checks.yml` no longer lists the `CI ready (…)` checks the workflows define: a change
-that adds, renames or removes one runs `bun tools/cli/scripts/forgejo-port.ts checks --write`.
+these workflows. They fail a change when the generator crashes on a workflow, when
+`declared-checks.yml` no longer lists the `CI ready (…)` checks the workflows define (a change
+that adds, renames or removes one runs `bun tools/cli/scripts/forgejo-port.ts checks --write`),
+when a composite action or a script the port names is renamed or removed, or when `e2e.yml` or
+`sast.yml` stops carrying the tier it is generated for.
 
 On Forgejo a pull request owes what a batch of the merge train (a push to `mq/**`) owes, the
 whole suite, so that a failure shows on the pull request and not in the train. A workflow whose
