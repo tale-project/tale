@@ -1038,8 +1038,9 @@ purge_old_exec_temp() {
 # are written as the profile uid ($DROP), through a temporary name and a
 # rename, which replaces a planted symbolic link and never follows it. Never
 # fatal: a file that cannot be written is a warning, and the session installs
-# as it would without the cache. $1 is the home (/agent/.runtime/home); the
-# tests pass their own.
+# as it would without the cache. $1 is the home, /agent/.runtime/home unless
+# given; the tests run the whole entrypoint with /agent moved under a
+# temporary directory.
 # ---------------------------------------------------------------------------
 _REGISTRY_CACHE_SCRIPT='home=$1
 npm=$2
