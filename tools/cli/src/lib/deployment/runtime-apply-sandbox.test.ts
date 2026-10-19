@@ -467,11 +467,20 @@ describePosix(
       const run = await create();
       await run.apply('docker');
       run.place();
-      const dockerMounts = run.mountsOf('sandbox') as Mount[];
+      const dockerMounts = structuredClone(run.sandbox().Mounts) as Mount[];
       // A start that leaves the Docker mounts in place is not the Incus shape.
-      run.docker.onUp = () => run.mutate('sandbox', () => dockerMounts);
+      run.docker.onUp = () =>
+        run.mutate('sandbox', () => structuredClone(dockerMounts));
       await expect(run.apply('incus')).rejects.toThrow('host-mount identity');
       expect(run.receipt().phase).toBe('pending');
+      // The retry of the same bundle admits the Docker mounts the container
+      // still has, and a start that follows the bundle completes the switch.
+      run.docker.onUp = null;
+      expect(await run.apply('incus')).toMatchObject({ changed: true });
+      expect(run.receipt().phase).toBe('ready');
+      expect(run.mountsOf('sandbox').map((mount) => mount.Destination)).toEqual(
+        ['/run/secrets/incus', '/app/platform-config'],
+      );
     });
 
     test('refuses a ready runtime whose container has drifted to the other shape', async () => {
@@ -512,6 +521,10 @@ describePosix(
       await run.apply('incus');
       run.mutate('sandbox', (mounts) => [...mounts, EXTRA]);
       await expect(run.apply('docker')).rejects.toThrow('host-mount identity');
+      run.mutate('sandbox', (mounts) =>
+        mounts.filter((mount) => mount !== EXTRA),
+      );
+      expect(await run.apply('docker')).toMatchObject({ changed: true });
     });
 
     test('refuses a container of the other shape that lacks its config volume', async () => {
@@ -549,6 +562,15 @@ describePosix(
           additionalOrigins: ['https://more.example.invalid'],
         }),
       ).rejects.toThrow('host-mount identity');
+      // Without the extra mounts the same change is admitted.
+      run.mutate('sandbox', (mounts) =>
+        mounts.filter((mount) => mount.Destination !== '/run/secrets/incus'),
+      );
+      expect(
+        await run.apply('docker', {
+          additionalOrigins: ['https://more.example.invalid'],
+        }),
+      ).toMatchObject({ changed: true });
     });
 
     test('does not look at the credentials when it accepts the other shape for a Docker bundle', async () => {
