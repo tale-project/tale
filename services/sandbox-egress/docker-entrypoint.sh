@@ -19,8 +19,9 @@ set -e
 # ----------------------------------------------------------------------------
 # SSRF firewall (defense-in-depth)
 # ----------------------------------------------------------------------------
-# Egress is open at the hostname layer by default (entrypoint.sh only
-# renders a default-deny allowlist when SANDBOX_EGRESS_ALLOWLIST is set),
+# Egress is open at the hostname layer by default (entrypoint.sh renders a
+# default-deny allowlist when SANDBOX_EGRESS_ALLOWLIST is set, and only a
+# deny-list of named hosts when SANDBOX_EGRESS_DENIED_HOSTS is),
 # so these IP-layer rules are the ONLY thing keeping tunnels away from
 # 169.254.169.254 (cloud IMDS) and RFC1918 (corp VPN, host bridge). Even
 # with an allowlist they stay load-bearing: the filter is a hostname regex
