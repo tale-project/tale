@@ -200,6 +200,9 @@ export function isManagedOrigin(value: string): boolean {
   );
 }
 
+/** The most bytes of any one input file the managed runtime reads. */
+export const RUNTIME_INPUT_LIMIT = 2_000_000;
+
 export function readRegular(file: string): Buffer {
   const status = lstatSync(file);
   requireRuntime(
@@ -207,7 +210,7 @@ export function readRegular(file: string): Buffer {
     'Runtime input must be a regular file.',
   );
   requireRuntime(
-    status.size <= 2_000_000,
+    status.size <= RUNTIME_INPUT_LIMIT,
     'Runtime input exceeds its size limit.',
   );
   return readFileSync(file);

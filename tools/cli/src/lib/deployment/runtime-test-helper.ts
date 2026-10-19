@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse, stringify } from 'yaml';
@@ -322,8 +322,8 @@ export class RuntimeDockerFixture {
             Name: volume ? `tale_${raw}` : undefined,
             Source: volume
               ? `/var/lib/docker/volumes/tale_${raw}/_data`
-              : raw.startsWith('./')
-                ? join(this.fixture.options.stateDirectory, 'src', raw.slice(2))
+              : raw.startsWith('./') || raw.startsWith('../')
+                ? resolve(this.fixture.options.stateDirectory, 'src', raw)
                 : raw,
             Destination: destination,
             RW: mode !== 'ro',

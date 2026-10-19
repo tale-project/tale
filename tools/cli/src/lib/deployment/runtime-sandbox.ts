@@ -49,6 +49,25 @@ const INCUS_SANDBOX_MOUNTS: readonly string[] = [
   CONFIG_MOUNT,
 ];
 
+/** The two shapes a sandbox service has: it drives the Docker socket of the
+ * host, or an Incus node through the credentials directory. */
+export type SandboxShape = 'docker' | 'incus';
+export const SANDBOX_SHAPE_MOUNTS: Record<SandboxShape, readonly string[]> = {
+  docker: DOCKER_SANDBOX_MOUNTS,
+  incus: INCUS_SANDBOX_MOUNTS,
+};
+export const otherSandboxShape = (shape: SandboxShape): SandboxShape =>
+  shape === 'docker' ? 'incus' : 'docker';
+/** The shape a prepared compose file puts the sandbox service in. */
+export function sandboxShapeOf(compose: ComposeDocument): SandboxShape {
+  return z
+    .array(z.string())
+    .parse(compose.services.sandbox.volumes ?? [])
+    .includes(SANDBOX_INCUS_MOUNT)
+    ? 'incus'
+    : 'docker';
+}
+
 /** A committed file of the spawner that exists only in a revision that has the
  * Incus backend. */
 export const INCUS_BACKEND_MARKER =

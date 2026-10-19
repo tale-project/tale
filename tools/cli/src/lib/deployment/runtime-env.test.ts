@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -8,6 +15,7 @@ import {
   readBootstrapPassword,
 } from './runtime-env';
 import { prepareRuntime } from './runtime-prepare';
+import { SANDBOX_OWNED_VARIABLES, type SandboxShape } from './runtime-sandbox';
 import {
   installLegacy,
   RuntimeDockerFixture,
@@ -463,5 +471,112 @@ describe('managed runtime credential adoption', () => {
         true,
       ),
     ).toThrow('override');
+  });
+});
+
+describe('the managed environment file keeps what no shape owns', () => {
+  const absent = (text: string, name: string) =>
+    expect(parseRuntimeEnvironment(text, 'compose')).not.toHaveProperty(name);
+  async function environment(
+    previous: Record<string, string>,
+    declared: Record<string, string>,
+    shape: SandboxShape,
+  ) {
+    const fixture = runtimeFixture();
+    fixtures.push(fixture);
+    const root = realpathSync(fixture.directory);
+    const options = {
+      ...fixture.options,
+      stateDirectory: join(root, 'state'),
+      environment: declared,
+    };
+    mkdirSync(join(options.stateDirectory, 'src'), { recursive: true });
+    const first = prepareRuntimeEnvironment(
+      { ...options, environment: previous },
+      fixture.revision,
+      false,
+      true,
+      'docker',
+    );
+    writeFileSync(join(options.stateDirectory, 'secrets.env'), first.secrets);
+    writeFileSync(join(options.stateDirectory, 'src/.env'), first.environment);
+    return {
+      first,
+      second: prepareRuntimeEnvironment(
+        options,
+        fixture.revision,
+        true,
+        true,
+        shape,
+      ),
+    };
+  }
+
+  test('keeps the Docker declarations byte for byte under the Docker shape', async () => {
+    const declared = {
+      SANDBOX_BACKEND: 'docker',
+      SANDBOX_RUNTIME: 'sysbox',
+      SANDBOX_INCUS_ENDPOINT: 'https://10.200.60.2:8443',
+    };
+    const { first, second } = await environment(declared, declared, 'docker');
+    expect(second.environment).toBe(first.environment);
+    expect(
+      parseRuntimeEnvironment(second.environment, 'compose'),
+    ).toMatchObject(declared);
+  });
+
+  test('drops the Incus variables an earlier declaration left once the Docker shape no longer declares them', async () => {
+    const earlier = {
+      SANDBOX_BACKEND: ' incus ',
+      SANDBOX_INCUS_ENDPOINT: 'https://10.200.60.2:8443',
+      SANDBOX_INCUS_IMAGE: 'tale-sandbox-runtime-0',
+      SANDBOX_RUNTIME: 'sysbox',
+    };
+    const { second } = await environment(earlier, {}, 'docker');
+    for (const name of [
+      'SANDBOX_BACKEND',
+      'SANDBOX_INCUS_ENDPOINT',
+      'SANDBOX_INCUS_IMAGE',
+    ])
+      absent(second.environment, name);
+    // Not an Incus name: the Docker shape keeps it.
+    expect(
+      parseRuntimeEnvironment(second.environment, 'compose'),
+    ).toMatchObject({
+      SANDBOX_RUNTIME: 'sysbox',
+    });
+  });
+
+  test('keeps a Docker backend and a declared Incus variable under the Docker shape', async () => {
+    const { second } = await environment(
+      { SANDBOX_BACKEND: 'docker', SANDBOX_INCUS_ENDPOINT: 'https://10.0.0.1' },
+      { SANDBOX_BACKEND: 'docker', SANDBOX_INCUS_ENDPOINT: 'https://10.0.0.2' },
+      'docker',
+    );
+    expect(
+      parseRuntimeEnvironment(second.environment, 'compose'),
+    ).toMatchObject({
+      SANDBOX_BACKEND: 'docker',
+      SANDBOX_INCUS_ENDPOINT: 'https://10.0.0.2',
+    });
+  });
+
+  test('drops the ten variables the Incus shape sets itself and keeps the other declarations', async () => {
+    const earlier = Object.fromEntries(
+      SANDBOX_OWNED_VARIABLES.map((name) => [name, 'earlier']),
+    );
+    const { second } = await environment(
+      { ...earlier, SANDBOX_MAX_SESSIONS: '32' },
+      { SANDBOX_MAX_SESSIONS: '64', SANDBOX_INCUS_PROJECT: 'example' },
+      'incus',
+    );
+    for (const name of SANDBOX_OWNED_VARIABLES)
+      absent(second.environment, name);
+    expect(
+      parseRuntimeEnvironment(second.environment, 'compose'),
+    ).toMatchObject({
+      SANDBOX_MAX_SESSIONS: '64',
+      SANDBOX_INCUS_PROJECT: 'example',
+    });
   });
 });
