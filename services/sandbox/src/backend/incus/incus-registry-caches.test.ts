@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { isIpv4Address } from '../../network-address.ts';
 import {
   deniedRegistryHosts,
   describeRegistryCaches,
@@ -25,6 +26,18 @@ function refusal(env: Record<string, string>): string {
     throw error;
   }
   throw new Error('expected the settings to be refused');
+}
+
+/** Whether the settings take this host, by the refusal's own message. */
+function accepts(host: string): boolean {
+  try {
+    readRegistryCaches({ SANDBOX_INCUS_NPM_REGISTRY: `http://${host}/` });
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('IPv4 address'))
+      return false;
+    throw error;
+  }
 }
 
 describe('reading the settings', () => {
@@ -99,6 +112,21 @@ describe('reading the settings', () => {
       expect(message).toContain(`Env var ${name} must be an http URL`);
       expect(message).toContain('IPv4 address');
     }
+  });
+});
+
+describe('the host of a cache', () => {
+  test.each([
+    '10.200.41.8',
+    '0.0.0.0',
+    '255.255.255.255',
+    '256.0.0.1',
+    '01.2.3.4',
+    '1.2.3',
+    '1.2.3.4.5',
+    '1..2.3',
+  ])('is judged as every other IPv4 address of the spawner is: %s', (host) => {
+    expect(accepts(host)).toBe(isIpv4Address(host));
   });
 });
 

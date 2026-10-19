@@ -12,6 +12,7 @@
 // Off unless set: a deployment that sets neither variable gets the instance it
 // got before these existed.
 
+import { isIpv4Address } from '../../network-address.ts';
 import type { RegistryCaches } from '../../types.ts';
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -33,15 +34,15 @@ export const REGISTRY_CACHE_ENV = {
   pypi: 'TALE_REGISTRY_CACHE_PYPI',
 } as const;
 
-const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
 /**
- * An http URL whose host is a dotted-quad literal, with an optional port and a
- * path of characters that mean the same in an .npmrc, an ini file, a TOML
+ * An http URL whose host is made of digits and dots, with an optional port and
+ * a path of characters that mean the same in an .npmrc, an ini file, a TOML
  * string and a shell word: no quote, space, backslash, `#`, `;`, `?` or `$`.
+ * Whether the host is an IPv4 address is `isIpv4Address`'s to say, so that a
+ * cache is held to the grammar every other address setting of the spawner is.
  */
-const CACHE_URL_RE = new RegExp(
-  `^http://(?:${OCTET}\\.){3}${OCTET}(?::[1-9]\\d{0,4})?(?:/[A-Za-z0-9._~+/%-]*)?$`,
-);
+const CACHE_URL_RE =
+  /^http:\/\/([0-9.]+)(?::[1-9]\d{0,4})?(?:\/[A-Za-z0-9._~+/%-]*)?$/;
 
 function cacheUrl(env: Env, name: string, example: string): string | undefined {
   const value = env[name]?.trim();
@@ -49,7 +50,8 @@ function cacheUrl(env: Env, name: string, example: string): string | undefined {
   const refusal = new Error(
     `Env var ${name} must be an http URL whose host is an IPv4 address, such as ${example}: a session resolves no name before it reaches a cache, and a cache answers plain HTTP on the node's own network; got: ${JSON.stringify(value)}`,
   );
-  if (!CACHE_URL_RE.test(value)) throw refusal;
+  const host = CACHE_URL_RE.exec(value)?.[1];
+  if (host === undefined || !isIpv4Address(host)) throw refusal;
   let url: URL;
   try {
     url = new URL(value);
