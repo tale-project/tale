@@ -2,9 +2,10 @@
 // spawner, the runtime entrypoint that writes the package managers' files, the
 // egress proxy that refuses the registries, and the documentation an operator
 // copies from. This holds them to one another: the list of hosts the proxy is
-// told to refuse is the one the spawner knows, in the contract and in each
-// language of the environment reference, and the entrypoint reads the variables
-// the spawner sets.
+// told to refuse is the one the spawner knows, in the contract, in the
+// environment template, in the proxy's README and in each language of the
+// environment reference, and the entrypoint reads the variables the spawner
+// sets.
 
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
@@ -29,6 +30,19 @@ describe('the registry hosts the proxy is told to refuse', () => {
   test('read the same in the contract', () => {
     const contract = read('services/sandbox/docs/incus.md');
     expect(contract).toContain(`SANDBOX_EGRESS_DENIED_HOSTS=${LIST}\n`);
+  });
+
+  test('read the same in the environment template', () => {
+    expect(read('.env.example')).toContain(
+      `\n# SANDBOX_EGRESS_DENIED_HOSTS=${LIST}\n`,
+    );
+  });
+
+  test("read the same in the egress proxy's README", () => {
+    const readme = read('services/sandbox-egress/README.md');
+    const named =
+      /`((?:[a-z0-9-]+\.)+[a-z]+(?:,(?:[a-z0-9-]+\.)+[a-z]+)+)`/.exec(readme);
+    expect(named?.[1]).toBe(LIST);
   });
 
   test.each(['en', 'de', 'fr'])(
