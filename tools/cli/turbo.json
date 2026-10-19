@@ -130,6 +130,7 @@
         "$TURBO_ROOT$/services/proxy/Caddyfile",
         "$TURBO_ROOT$/services/sandbox/src/config.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-config.ts",
+        "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-registry-caches.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-units.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts",
         "$TURBO_ROOT$/services/sandbox/src/host-memory.ts",

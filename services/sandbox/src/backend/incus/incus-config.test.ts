@@ -322,3 +322,36 @@ describe('the API timeout', () => {
     );
   });
 });
+
+describe('the registry caches', () => {
+  test('are off unless set: the config carries no trace of them', () => {
+    const { config, warnings } = read();
+    expect('registryCaches' in config).toBe(false);
+    expect(warnings).toEqual([]);
+    expect(
+      'registryCaches' in
+        read({ SANDBOX_INCUS_NPM_REGISTRY: '', SANDBOX_INCUS_PYPI_INDEX: ' ' })
+          .config,
+    ).toBe(false);
+  });
+
+  test('are read from the two variables, as addresses', () => {
+    const { config, warnings } = read({
+      SANDBOX_INCUS_NPM_REGISTRY: 'http://10.200.41.8:4873/',
+      SANDBOX_INCUS_PYPI_INDEX: 'http://10.200.41.9:3141/root/pypi/+simple/',
+    });
+    expect(config.registryCaches).toEqual({
+      npm: 'http://10.200.41.8:4873/',
+      pypi: 'http://10.200.41.9:3141/root/pypi/+simple/',
+    });
+    expect(warnings).toEqual([]);
+  });
+
+  test('refuse a name in words that name the variable, like the egress proxy', () => {
+    const message = refusal({
+      SANDBOX_INCUS_PYPI_INDEX: 'http://pypi.cache.tale.internal:3141/',
+    });
+    expect(message).toContain('SANDBOX_INCUS_PYPI_INDEX');
+    expect(message).toContain('IPv4 address');
+  });
+});

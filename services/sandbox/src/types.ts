@@ -239,8 +239,23 @@ export interface IncusConfig {
   dockerConfig: Readonly<Record<string, string>>;
   /** Lab escape hatch: run without an ACL on the sandbox network. */
   allowUnfilteredNetwork: boolean;
+  /** Package registry caches sessions install through; absent when none is
+   * set, which leaves a session as it was before they existed. */
+  registryCaches?: RegistryCaches;
   /** Budget of one Incus API request. */
   apiTimeoutMs: number;
+}
+
+/**
+ * The node's package registry caches, as normalized http URLs whose host is an
+ * IPv4 literal (a session resolves no name before it reaches one). Each is
+ * read-only and holds public packages only.
+ */
+export interface RegistryCaches {
+  /** The npm registry (`registry=` of an .npmrc, `[install] registry` of a bunfig). */
+  npm?: string;
+  /** The PyPI simple index (`index-url` of a pip.conf, a uv index). */
+  pypi?: string;
 }
 
 /** A Pod toleration, as the apiserver accepts it (validated by loadConfig). */
