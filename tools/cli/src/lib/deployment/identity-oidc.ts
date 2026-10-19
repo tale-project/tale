@@ -22,7 +22,8 @@ function isIssuerUrl(input: string): boolean {
   } catch {
     return false;
   }
-  if (url.username || url.password || /[?#]/.test(input)) return false;
+  if (url.username || url.password || /[?#]/.test(input) || input.endsWith('/'))
+    return false;
   const canonical = url.origin + (url.pathname === '/' ? '' : url.pathname);
   if (input !== canonical) return false;
   return (

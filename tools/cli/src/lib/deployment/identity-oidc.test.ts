@@ -169,6 +169,11 @@ describe('the declaration of a generic OpenID Connect sign-in', () => {
     ['a padded display name', { displayName: ' Sign in ' }],
     ['a plain HTTP issuer', { issuer: 'http://id.example.org' }],
     ['an issuer with a trailing slash', { issuer: 'https://id.example.org/' }],
+    [
+      'an issuer path with a trailing slash',
+      { issuer: 'https://login.example.org/realms/north/' },
+    ],
+    ['an issuer ending in two slashes', { issuer: 'https://id.example.org//' }],
     ['an issuer with credentials', { issuer: 'https://a:b@id.example.org' }],
     ['an issuer with a fragment', { issuer: 'https://id.example.org#x' }],
     ['an upper-case issuer host', { issuer: 'https://ID.example.org' }],
