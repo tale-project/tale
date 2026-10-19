@@ -17,6 +17,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { REGISTRY_HOSTS } from './backend/incus/incus-registry-caches.ts';
+
 const root = mkdtempSync(join(tmpdir(), 'tale-egress-config-'));
 const bin = join(root, 'bin');
 const etc = join(root, 'etc');
@@ -269,12 +271,9 @@ describe('egress proxy connection limit', () => {
 // The hosts the proxy refuses, whatever else it serves: the registries a
 // node's caches replace.
 describe('egress proxy host deny-list', () => {
-  const REGISTRIES = [
-    'registry.npmjs.org',
-    'registry.yarnpkg.com',
-    'pypi.org',
-    'files.pythonhosted.org',
-  ];
+  // The registries the spawner's caches replace, which the spawner's own list
+  // names: the proxy must take exactly these.
+  const REGISTRIES = [...REGISTRY_HOSTS.npm, ...REGISTRY_HOSTS.pypi];
   const denylist = () => readFileSync(join(etc, 'denylist'), 'utf8');
   const dnsmasqAddresses = () =>
     readFileSync(dnsmasqArgs, 'utf8')
@@ -317,14 +316,9 @@ describe('egress proxy host deny-list', () => {
     expect(directive(config, 'Filter')).toEqual([`"${etc}/denylist"`]);
     expect(config).not.toContain('${');
     expect(denylist()).toBe(
-      [
-        '(^|\\.)registry\\.npmjs\\.org$',
-        '(^|\\.)registry\\.yarnpkg\\.com$',
-        '(^|\\.)pypi\\.org$',
-        '(^|\\.)files\\.pythonhosted\\.org$',
-        '',
-      ].join('\n'),
+      `${REGISTRIES.map((host) => `(^|\\.)${host.replaceAll('.', '\\.')}$`).join('\n')}\n`,
     );
+    expect(denylist().split('\n')[0]).toBe('(^|\\.)registry\\.npmjs\\.org$');
     expect(result.stdout).toContain('egress mode: denylist,');
     for (const host of REGISTRIES) {
       expect(result.stdout).toContain(`  ${host}\n`);
