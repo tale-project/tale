@@ -876,7 +876,10 @@ storage driver, a reboot, many tenants.
     stop and a resume.
     **Lab (`network`):** has a case for it, with stand-in caches, an ACL rule for
     each port and the four hosts in the proxy's list. **Not in the lab:** the real
-    Verdaccio and devpi, and your own ACL.
+    Verdaccio and devpi, your own ACL, and a session's own file surviving a stop
+    and a resume (the entrypoint's tests,
+    `services/sandbox-runtime/daemon/src/registry-cache-files.test.ts`, run it
+    again over a home that already holds the file).
 
 The bounded API client, the TLS pinning shapes, every lifecycle method, the
 pool's refill and capacity bound, the config validation and the boot checks are
