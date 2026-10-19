@@ -81,6 +81,8 @@ Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdat
 
 Prüfe `sandbox-egress` und die Ziel-URL. Eine konfigurierte `SANDBOX_EGRESS_ALLOWLIST` muss den benötigten Hostnamen enthalten; private Ziele und Cloud-Metadaten bleiben blockiert. Für HTTPS-Tunnel gilt die unterstützte Portregel. Bestätige das gewünschte Ziel, bevor du eine Freigabeliste erweiterst. Erstelle den Egress-Dienst nach Umgebungsänderungen neu.
 
+Ein `403` oder ein Name, der sich nicht auflösen lässt, für einen Paketregister-Host wie `pypi.org` oder `registry.npmjs.org` ist die gewollte Antwort, wenn `SANDBOX_EGRESS_DENIED_HOSTS` diesen Host nennt: Die Session soll über die Registry-Caches installieren (`SANDBOX_INCUS_NPM_REGISTRY` und `SANDBOX_INCUS_PYPI_INDEX`). Nimm den Host nur aus der Liste, wenn die Caches nicht mehr gewünscht sind, und erstelle danach den Egress-Dienst neu.
+
 Ein gesunder Egress-Prozess belegt nicht die Verfügbarkeit von Gegenstelle, DNS, Zertifikat oder Konto. Bewahre den konkreten Anfragefehler im Störungsbericht auf.
 
 Wenn viele Sessions gleichzeitig Pakete installieren oder Seiten laden und Verbindungen mit Resets abbrechen, während der Proxy gesund bleibt, hat er womöglich `SANDBOX_EGRESS_MAX_CLIENTS` erreicht, die Verbindungen, die er für alle Sessions zusammen gleichzeitig bedient. Sein Log meldet dann, dass die Höchstzahl an Verbindungen erreicht ist. Erhöhe den Wert zusammen mit den Prozess- und Dateigrenzen des Egress-Containers und erstelle den Egress-Dienst neu.

@@ -81,6 +81,8 @@ For provider failures, check the selected credential's quota and permissions, an
 
 Inspect `sandbox-egress` and the target URL. A configured `SANDBOX_EGRESS_ALLOWLIST` must include the required hostname; private and cloud-metadata targets remain blocked. HTTPS tunnels use the supported port policy. Confirm the intended destination before broadening an allowlist, then recreate the egress service when changing its environment.
 
+A `403`, or a name that does not resolve, for a package registry host such as `pypi.org` or `registry.npmjs.org` is the intended answer when `SANDBOX_EGRESS_DENIED_HOSTS` lists that host: the session should install through the registry caches (`SANDBOX_INCUS_NPM_REGISTRY` and `SANDBOX_INCUS_PYPI_INDEX`). Remove the host from the list only if the caches are no longer wanted, then recreate the egress service.
+
 A healthy egress process does not prove that the remote host, DNS, certificate, or account is available. Keep the specific request error with the incident report.
 
 When many sessions install packages or load pages at once and connections fail with resets while the proxy stays healthy, the proxy may have reached `SANDBOX_EGRESS_MAX_CLIENTS`, the connections it serves at once for all sessions together. Its log then reports that the maximum number of connections was reached. Raise the value, together with the egress container's process and open-file limits, and recreate the egress service.
