@@ -559,10 +559,14 @@ SANDBOX_EGRESS_DENIED_HOSTS=registry.npmjs.org,registry.yarnpkg.com,pypi.org,fil
   for the caches that are set): the proxy answers a request or a tunnel to one,
   and to its subdomains, `403`, and its DNS forwarder answers them `NXDOMAIN`, so
   a package manager that ignores its configuration fails visibly instead of
-  installing around the cache. Only registry hosts leave the path: browsing and
-  every other host stay open. The proxy refuses to start on an entry that is not
-  a plain host name, on a list that names no host (`,` or a space; an empty
-  value means the list is off) and beside `SANDBOX_EGRESS_ALLOWLIST`.
+  installing around the cache. Only the listed hosts leave the path, and they
+  leave it for everything and not only for installs: while the list is set, a
+  session cannot open a page on `pypi.org` or `registry.npmjs.org` either, and it
+  cannot install a private package held on `registry.npmjs.org`, whatever token
+  its own `.npmrc` carries. Every other host stays open, a private registry on
+  one of them included. The proxy refuses to start on an entry that is not a
+  plain host name, on a list that names no host (`,` or a space; an empty value
+  means the list is off) and beside `SANDBOX_EGRESS_ALLOWLIST`.
 
 **Locked installs.** An `npm ci` goes through the cache: npm sends the
 `registry.npmjs.org` addresses a lock file records to the registry it is
@@ -590,9 +594,9 @@ gets them, the `default` profile that runs untrusted code included, and that is
 safe only because a session cannot write to a cache: the Docker backend's
 shared dependency volumes leave that profile out because a cache that code can
 write would carry what it wrote into a more privileged session. Nothing private
-goes through them: the files carry no credential, a private registry stays in
-the session's own settings, and a session's own `.npmrc` or `pip.conf` is never
-replaced. Docker inside a session builds with its inner builder, which has no
+goes through them: the files carry no credential, a private registry on a host
+other than the four stays in the session's own settings, and a session's own
+`.npmrc` or `pip.conf` is never replaced. Docker inside a session builds with its inner builder, which has no
 cache configured here. Its nested containers reach the internet through the same
 egress proxy and resolve through the same forwarder, so with
 `SANDBOX_EGRESS_DENIED_HOSTS` set a `RUN npm install` or `pip install` in a
