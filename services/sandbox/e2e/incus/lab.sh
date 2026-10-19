@@ -44,8 +44,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # builds per channel, so a pin that ages out fails loudly in `install`, which
 # lists what the index has now).
 readonly ZABBLY_KEY_FINGERPRINT=4EFC590696CB15B87C73A3AD82CC8797C838DCFD
-readonly INCUS_VERSION_NOBLE="${INCUS_VERSION_NOBLE:-1:7.5.1-ubuntu24.04-202610032323}"
-readonly INCUS_VERSION_RESOLUTE="${INCUS_VERSION_RESOLUTE:-1:7.5.1-ubuntu26.04-202610032329}"
+readonly INCUS_VERSION_NOBLE="${INCUS_VERSION_NOBLE:-1:7.5.1-ubuntu24.04-202610160649}"
+readonly INCUS_VERSION_RESOLUTE="${INCUS_VERSION_RESOLUTE:-1:7.5.1-ubuntu26.04-202610160649}"
 # The CNCF distribution registry, by digest.
 readonly REGISTRY_IMAGE='ghcr.io/distribution/distribution:3.0.0@sha256:4ba3adf47f5c866e9a29288c758c5328ef03396cb8f5f6454463655fa8bc83e2'
 
