@@ -18,6 +18,7 @@ import {
   type InstanceInput,
   type InstanceOptions,
 } from '../../lib/deployment/identity';
+import { oidcMatchesDeclaration } from '../../lib/deployment/identity-oidc';
 import {
   createBackendNativeClients,
   createBackendNativeUpdate,
@@ -77,7 +78,9 @@ export function verifyProvisionIdentity(
     (typeof identity.breakGlass?.email === 'string' &&
       identity.breakGlass.email.toLowerCase() !==
         input.breakGlass?.email.toLowerCase()) ||
-    identity.nativeClients.length !== input.nativeClients.length
+    identity.nativeClients.length !== input.nativeClients.length ||
+    (input.oidc !== undefined &&
+      !oidcMatchesDeclaration(identity.oidc, input.oidc))
   )
     throw preconditionError(
       'Private provisioning identity differs from the deployment bundle.',

@@ -23,6 +23,14 @@ import {
   type EmailAttestationProof,
 } from './email-attestation';
 import {
+  OIDC_DEFAULT_DISPLAY_NAME,
+  OIDC_DEFAULT_SCOPES,
+  OIDC_PROVIDER_ID,
+  oidcIssuer,
+  oidcOptionalFields,
+  trustsUnmappedEmail,
+} from './identity-oidc';
+import {
   nativeClientsSchema,
   intentSchema as nativeClientIntentSchema,
   nativeOriginSchema,
@@ -68,6 +76,16 @@ const inputSchema = z
     tenantId: z.string().max(256).optional(),
     clientId: z.string().max(500).optional(),
     clientSecret: z.string().max(5000).optional(),
+    /** The OpenID Connect block the destination's environment selected,
+     * instead of the Entra fields above. */
+    oidc: z
+      .strictObject({
+        ...oidcOptionalFields,
+        issuer: oidcIssuer,
+        clientId: z.string().min(1).max(500),
+        clientSecret: z.string().min(1).max(5000),
+      })
+      .optional(),
     breakGlass: z
       .strictObject({ email: emailAddress, passwordHash: passwordHashSchema })
       .optional(),
@@ -96,10 +114,14 @@ const inputSchema = z
   .refine(
     (input) =>
       !input.ssoEnabled ||
-      (Boolean(input.tenantId && uuid.test(input.tenantId)) &&
-        Boolean(input.clientId) &&
-        Boolean(input.clientSecret)),
-  );
+      (input.oidc
+        ? !input.tenantId && !input.clientId && !input.clientSecret
+        : Boolean(input.tenantId && uuid.test(input.tenantId)) &&
+          Boolean(input.clientId) &&
+          Boolean(input.clientSecret)),
+  )
+  .refine((input) => !input.oidc || input.ssoEnabled)
+  .refine((input) => !input.oidc || !trustsUnmappedEmail(input.oidc));
 export type InstanceInput = z.infer<typeof inputSchema>;
 export interface ProvisionContext extends NativeClientContext {
   baseUrl: string;
@@ -182,6 +204,23 @@ const provisioning = {
   autoProvisionTeam: false,
   excludeGroups: [],
 };
+/** The connection body for the generic OpenID Connect provider. Roles inside
+ * Tale stay as they are for Entra: the provider decides who signs in, not
+ * what they may do. */
+function oidcConnectionBody(oidc: NonNullable<InstanceInput['oidc']>) {
+  return {
+    displayName: oidc.displayName ?? OIDC_DEFAULT_DISPLAY_NAME,
+    providerId: OIDC_PROVIDER_ID,
+    issuer: oidc.issuer,
+    clientId: oidc.clientId,
+    clientSecret: oidc.clientSecret,
+    scopes: oidc.scopes ?? OIDC_DEFAULT_SCOPES,
+    pkce: oidc.pkce ?? true,
+    ...(oidc.claimMappings ? { claimMappings: oidc.claimMappings } : {}),
+    trustEmail: oidc.trustEmail ?? false,
+    ...provisioning,
+  };
+}
 export const bootstrapSchema = z.strictObject({
   schemaVersion: z.literal(1),
   phase: z.enum(['pending', 'ready']),
@@ -875,18 +914,22 @@ export async function configureInstance(
           await request(
             `/api/app/sso/config/oidc?orgId=${encodeURIComponent(organization.id)}`,
             'PUT',
-            {
-              displayName: 'Microsoft Entra ID',
-              providerId: 'entra-id',
-              issuer: `https://login.microsoftonline.com/${input.tenantId}/v2.0`,
-              clientId: input.clientId,
-              clientSecret: input.clientSecret,
-              scopes: entraScopes,
-              pkce: true,
-              ...provisioning,
-            },
+            input.oidc
+              ? oidcConnectionBody(input.oidc)
+              : {
+                  displayName: 'Microsoft Entra ID',
+                  providerId: 'entra-id',
+                  issuer: `https://login.microsoftonline.com/${input.tenantId}/v2.0`,
+                  clientId: input.clientId,
+                  clientSecret: input.clientSecret,
+                  scopes: entraScopes,
+                  pkce: true,
+                  ...provisioning,
+                },
           ),
-          'Entra SSO configuration',
+          input.oidc
+            ? 'OpenID Connect SSO configuration'
+            : 'Entra SSO configuration',
         );
       } else {
         const connection = connectionSchema.safeParse(

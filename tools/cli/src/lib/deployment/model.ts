@@ -14,6 +14,11 @@ import {
   sha,
   slug,
 } from '../config/releases/model';
+import {
+  oidcIssuer,
+  oidcOptionalFields,
+  trustsUnmappedEmail,
+} from './identity-oidc';
 import { containerPrefixSchema, isManagedOrigin } from './runtime-model';
 import {
   SANDBOX_OWNED_VARIABLES,
@@ -74,6 +79,15 @@ const nativeClient = z.strictObject({
   redirectUris: z.array(redirectUri).min(1).max(16),
 });
 const emailAddress = z.email().max(254);
+/** A generic OpenID Connect sign-in, the alternative to Entra. The issuer may
+ * be a reference so one declaration serves hosts that hold a different
+ * provider's credentials. */
+const oidcSignIn = z.strictObject({
+  ...oidcOptionalFields,
+  issuer: z.union([oidcIssuer, environmentReference]),
+  clientId: environmentReference,
+  clientSecret: environmentReference,
+});
 const identity = z.strictObject({
   bootstrap: z.literal('fresh').optional(),
   migrateOriginFrom: origin.optional(),
@@ -88,6 +102,10 @@ const identity = z.strictObject({
   tenantId: environmentReference.optional(),
   clientId: environmentReference.optional(),
   clientSecret: environmentReference.optional(),
+  /** Sign in through a generic OpenID Connect provider instead of Entra. With
+   * both blocks declared, the references of both are optional and the host's
+   * environment selects the one whose references resolve. */
+  oidc: oidcSignIn.optional(),
   /** A separate administrator for when the deploy operator is unavailable.
    * Its password reaches the deployment only as a Better Auth hash. */
   breakGlass: z
@@ -347,14 +365,50 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
           });
       }
     }
-    if (spec.identity?.ssoEnabled)
-      for (const field of ['tenantId', 'clientId', 'clientSecret'] as const)
-        if (!spec.identity[field])
+    const sso = spec.identity;
+    const entraFields = ['tenantId', 'clientId', 'clientSecret'] as const;
+    if (sso?.ssoEnabled) {
+      // Without an OpenID Connect block the Entra references are required, as
+      // ever; with one, an Entra block is optional but must be whole.
+      if (!sso.oidc || entraFields.some((field) => sso[field]))
+        for (const field of entraFields)
+          if (!sso[field])
+            context.addIssue({
+              code: 'custom',
+              message: 'Entra environment reference is required',
+              path: ['identity', field],
+            });
+    }
+    if (sso?.oidc && trustsUnmappedEmail(sso.oidc))
+      context.addIssue({
+        code: 'custom',
+        message: 'Vouching for the email needs the email claim to be mapped',
+        path: ['identity', 'oidc', 'trustEmail'],
+      });
+    // Resolution is eager and a host holds one provider's credentials, so
+    // when both providers are declared every reference must resolve to
+    // nothing instead of failing on the host that lacks the other's set.
+    if (sso?.oidc && entraFields.every((field) => sso[field])) {
+      const references: [
+        string[],
+        string | EnvironmentReference | undefined,
+      ][] = [
+        [['identity', 'tenantId'], sso.tenantId],
+        [['identity', 'clientId'], sso.clientId],
+        [['identity', 'clientSecret'], sso.clientSecret],
+        [['identity', 'oidc', 'issuer'], sso.oidc.issuer],
+        [['identity', 'oidc', 'clientId'], sso.oidc.clientId],
+        [['identity', 'oidc', 'clientSecret'], sso.oidc.clientSecret],
+      ];
+      for (const [path, reference] of references)
+        if (typeof reference === 'object' && !reference.optional)
           context.addIssue({
             code: 'custom',
-            message: 'Entra environment reference is required',
-            path: ['identity', field],
+            message:
+              'With both Entra and OpenID Connect declared, each environment reference must be optional',
+            path,
           });
+    }
     const identities = spec.configs.map(
       (config) => `${config.client}/${config.automation}`,
     );

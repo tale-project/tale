@@ -197,7 +197,17 @@ function fixture(options: FixtureOptions = {}) {
         );
       }
       if (path === '/api/app/sso/config/oidc?orgId=org-example') {
-        connection = structuredClone(MANAGED);
+        // Like the backend's upsert: what was written is what is stored.
+        const written = body as {
+          displayName: string;
+          providerId: string;
+          issuer: string;
+        };
+        connection = {
+          ...structuredClone(MANAGED),
+          displayName: written.displayName,
+          oidc: { providerId: written.providerId, issuer: written.issuer },
+        };
         return Response.json({ ok: true });
       }
       if (path === '/api/app/sso/discovery/configured')
@@ -275,7 +285,7 @@ const PORTAL = {
   clientId: 'existing-portal-client',
   redirectUris: ['https://portal.example.org/oauth/callback'],
 };
-function reviewedBundle() {
+function reviewedBundle(identity: Record<string, unknown> = {}) {
   return deploymentBundleSchema.parse({
     schemaVersion: 1,
     kind: 'tale-deployment',
@@ -295,6 +305,7 @@ function reviewedBundle() {
         name: INPUT.name,
         ssoEnabled: false,
         nativeClients: [PORTAL],
+        ...identity,
       },
     },
     // The bundle verifier owns byte inventory. These tests pin the additional
@@ -2379,6 +2390,241 @@ describe('configuration-only existing identity session', () => {
           },
         ),
       ).rejects.toThrow('cleanup failed');
+    });
+  });
+});
+
+const OIDC = {
+  issuer: 'https://id.example.org',
+  clientId: 'oidc-client-private',
+  clientSecret: 'synthetic-oidc-private',
+};
+
+describe('generic OpenID Connect sign-in', () => {
+  test('writes the connection with the declared fields and Entra-like provisioning', async () =>
+    withFixture({ connection: ABSENT }, async (f) => {
+      await configureInstance(
+        {
+          ...INPUT,
+          oidc: {
+            ...OIDC,
+            displayName: 'Example sign-in',
+            scopes: ['openid', 'email', 'groups'],
+            pkce: false,
+            claimMappings: { email: 'upn', groups: 'roles' },
+            trustEmail: true,
+          },
+        },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(writes(f.calls)).toHaveLength(1);
+      expect(writes(f.calls)[0]).toMatchObject({
+        method: 'PUT',
+        path: '/api/app/sso/config/oidc?orgId=org-example',
+        body: {
+          displayName: 'Example sign-in',
+          providerId: 'generic-oidc',
+          issuer: OIDC.issuer,
+          clientId: OIDC.clientId,
+          clientSecret: OIDC.clientSecret,
+          scopes: ['openid', 'email', 'groups'],
+          pkce: false,
+          claimMappings: { email: 'upn', groups: 'roles' },
+          trustEmail: true,
+          autoProvisionRole: false,
+          defaultRole: 'member',
+          roleMappingRules: [],
+          autoProvisionTeam: false,
+          excludeGroups: [],
+        },
+      });
+    }));
+
+  test('defaults the display name, scopes and PKCE, and says trustEmail is off', async () =>
+    withFixture({ connection: ABSENT }, async (f) => {
+      await configureInstance(
+        { ...INPUT, oidc: OIDC },
+        { fetchImpl: f.fetchImpl },
+      );
+      const body = writes(f.calls)[0]?.body as Record<string, unknown>;
+      expect(body).toMatchObject({
+        displayName: 'OpenID Connect',
+        scopes: ['openid', 'profile', 'email'],
+        pkce: true,
+        trustEmail: false,
+      });
+      expect(body).not.toHaveProperty('claimMappings');
+      expect(body).not.toHaveProperty('tenantId');
+    }));
+
+  test('reports SSO as enabled and never echoes the credentials', async () =>
+    withFixture({ connection: ABSENT }, async (f) => {
+      const result = await configureInstance(
+        { ...INPUT, oidc: OIDC },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(result.ssoEnabled).toBe(true);
+      expect(JSON.stringify(result)).not.toContain(OIDC.clientSecret);
+    }));
+
+  test('a failed write names the provider without the secret', async () =>
+    withFixture(
+      {
+        connection: ABSENT,
+        failedPath: '/api/app/sso/config/oidc?orgId=org-example',
+      },
+      async (f) => {
+        const attempt = configureInstance(
+          { ...INPUT, oidc: OIDC },
+          { fetchImpl: f.fetchImpl },
+        );
+        await expect(attempt).rejects.toThrow(
+          'OpenID Connect SSO configuration failed (HTTP 503)',
+        );
+        await attempt.catch((error: Error) =>
+          expect(error.message).not.toContain(OIDC.clientSecret),
+        );
+      },
+    ));
+
+  const withOidc = (change: Record<string, unknown> = {}) => ({
+    ...INPUT,
+    oidc: { ...OIDC, ...change },
+  });
+  test.each([
+    ['an Entra field beside it', { ...withOidc(), tenantId: ENTRA.tenantId }],
+    ['all three Entra fields beside it', { ...withOidc(), ...ENTRA }],
+    ['SSO disabled', { ...withOidc(), ssoEnabled: false }],
+    [
+      'a trusted email with no mapped email claim',
+      withOidc({ trustEmail: true }),
+    ],
+    [
+      'a trusted email with only a name claim mapped',
+      withOidc({ trustEmail: true, claimMappings: { name: 'name' } }),
+    ],
+    ['a plain HTTP issuer', withOidc({ issuer: 'http://id.example.org' })],
+    [
+      'an issuer with a trailing slash',
+      withOidc({ issuer: 'https://id.example.org/' }),
+    ],
+    [
+      'an issuer with a query',
+      withOidc({ issuer: 'https://id.example.org?a=b' }),
+    ],
+    ['no client secret', withOidc({ clientSecret: '' })],
+    ['an unknown key', withOidc({ createUsers: false })],
+  ])('refuses private input with %s', (_name, raw) => {
+    expect(() => parsePrivateInstanceJson(JSON.stringify(raw))).toThrow(
+      'Invalid native instance provisioning input',
+    );
+  });
+
+  test('accepts a plain HTTP issuer on a loopback address only', () => {
+    for (const issuer of [
+      'http://localhost:8080',
+      'http://127.0.0.1:18090',
+      'http://[::1]:8080',
+    ])
+      expect(
+        parsePrivateInstanceJson(
+          JSON.stringify({ ...INPUT, oidc: { ...OIDC, issuer } }),
+        ).oidc?.issuer,
+      ).toBe(issuer);
+  });
+
+  test('a declaration without an OpenID Connect block still needs the Entra fields', () => {
+    expect(() =>
+      parsePrivateInstanceJson(JSON.stringify({ ...INPUT })),
+    ).toThrow('Invalid native instance provisioning input');
+    expect(
+      parsePrivateInstanceJson(JSON.stringify({ ...INPUT, ...ENTRA })).oidc,
+    ).toBeUndefined();
+  });
+
+  describe('against the reviewed bundle', () => {
+    const declared = {
+      ssoEnabled: true,
+      oidc: {
+        displayName: 'Example sign-in',
+        issuer: { env: 'EXAMPLE_ISSUER', optional: true },
+        clientId: { env: 'EXAMPLE_CLIENT_ID', optional: true },
+        clientSecret: { env: 'EXAMPLE_CLIENT_SECRET', optional: true },
+        scopes: ['openid', 'email'],
+        pkce: true,
+        claimMappings: { email: 'upn' },
+        trustEmail: true,
+      },
+    };
+    const supplied = {
+      ...INPUT,
+      nativeClients: [PORTAL],
+      oidc: {
+        ...OIDC,
+        displayName: 'Example sign-in',
+        scopes: ['openid', 'email'],
+        pkce: true,
+        claimMappings: { email: 'upn' },
+        trustEmail: true,
+      },
+    };
+    const parse = (value: unknown) =>
+      parsePrivateInstanceJson(JSON.stringify(value));
+
+    test('admits the declared public fields and leaves the credentials to the destination', () => {
+      expect(() =>
+        verifyProvisionIdentity(reviewedBundle(declared), parse(supplied)),
+      ).not.toThrow();
+    });
+
+    test('admits the selected Entra block when the bundle also declares OpenID Connect', () => {
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(declared),
+          parse({ ...INPUT, ...ENTRA, nativeClients: [PORTAL] }),
+        ),
+      ).not.toThrow();
+    });
+
+    test.each([
+      ['another display name', { displayName: 'Other' }],
+      ['other scopes', { scopes: ['openid'] }],
+      ['PKCE changed', { pkce: false }],
+      ['another email claim', { claimMappings: { email: 'mail' } }],
+      ['an added name claim', { claimMappings: { email: 'upn', name: 'n' } }],
+      ['trustEmail changed', { trustEmail: false }],
+    ])('refuses %s', (_name, change) => {
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(declared),
+          parse({ ...supplied, oidc: { ...supplied.oidc, ...change } }),
+        ),
+      ).toThrow('differs');
+    });
+
+    test('refuses a supplied block the bundle never declared', () => {
+      expect(() =>
+        verifyProvisionIdentity(reviewedBundle(), parse(supplied)),
+      ).toThrow('differs');
+    });
+
+    test('refuses another issuer when the bundle declares it literally', () => {
+      const literal = {
+        ...declared,
+        oidc: { ...declared.oidc, issuer: 'https://id.example.org' },
+      };
+      expect(() =>
+        verifyProvisionIdentity(reviewedBundle(literal), parse(supplied)),
+      ).not.toThrow();
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(literal),
+          parse({
+            ...supplied,
+            oidc: { ...supplied.oidc, issuer: 'https://other.example.org' },
+          }),
+        ),
+      ).toThrow('differs');
     });
   });
 });
