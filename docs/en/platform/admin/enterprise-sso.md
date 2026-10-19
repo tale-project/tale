@@ -97,7 +97,7 @@ Open a separate browser session and choose **Continue with SSO**. The organizati
 | Symptom | What to check |
 | --- | --- |
 | Redirect mismatch, including `AADSTS50011` | Compare the registered callback with Tale's exact URL; check domain, scheme, path, and trailing slash. |
-| Sign-in fails with “Single sign-on failed due to a server error” | The sign-in page never says why. Open the [audit log](/platform/admin/governance/audit-logs) and read the error information of the failed `sso_login_failed` event. When it says “carries no email for the signed-in user”, check that the provider sends the claim the connection maps as the email, and that the requested scopes include it. A person without that claim cannot sign in. |
+| Sign-in fails with “Single sign-on failed due to a server error” | The sign-in page never says why. Open the [audit log](/platform/admin/governance/audit-logs) and open the failed event shown as “sso login failed” (`sso_login_failed` in an export) and read its **Error** field. When it says “carries no email for the signed-in user”, check that the provider sends the claim the connection maps as the email, and that the requested scopes include it. A person without that claim cannot sign in. |
 | Connection test fails | Check issuer/endpoints, client ID, secret value and expiry, and required provider consent. |
 | Browser-binding error | Start sign-in again in the same browser and allow the cookies needed across redirects. |
 | Wrong role or missing team | Inspect the IdP's actual claims, role rules and their order, exclusions, and group permissions. An **App role** rule matches the app role's Value, not its display name or ID. |
