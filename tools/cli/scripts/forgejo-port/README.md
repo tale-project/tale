@@ -10,11 +10,13 @@ change when the generator crashes on a workflow, when `declared-checks.yml` no l
 checks the port generates (`checks --write` rewrites it), when a composite action or a script the
 manifest names is renamed or removed, when `e2e.yml` or `sast.yml` stops carrying the tier it is
 generated for, and when this README lacks a row for a workflow or an edit the manifest lists.
-What Forgejo would refuse in a workflow, an action the node's mirror list below lacks, and a rule
-that no longer finds the text it changes (its `anchor` warning) are printed as warnings, so that a
-workflow edited today is not held to a port applied later; `check` fails on all three. The rule
-that finds nothing leaves its file as the GitHub workflow has it, so a ported file would then lack
-what the rule exists to change.
+What Forgejo would refuse in a workflow, an action the node's mirror list below lacks, a rule
+that no longer finds the text it changes (its `anchor` warning) and a local action the port does
+not generate (its `local-action-unported` warning) are printed as warnings, so that a workflow
+edited today is not held to a port applied later; `check` fails on all four. The rule that finds
+nothing leaves its file as the GitHub workflow has it, so a ported file would then lack what the
+rule exists to change, and a local action left as it is stays a call to the GitHub copy, which
+the port itself calls GitHub-only.
 
 The port is applied once, at the cut-over. After that `.forgejo/workflows/` is edited by hand
 and the generator is not run again. Until then it stays current with `.github/` by being
@@ -25,7 +27,7 @@ rules that find what to change from what it says.
 
 ```sh
 bun tools/cli/scripts/forgejo-port.ts report               # what the port does to each file
-bun tools/cli/scripts/forgejo-port.ts check                # fail on a problem, a rule with nothing to change, a stale declared-checks.yml
+bun tools/cli/scripts/forgejo-port.ts check                # fail on a problem, a rule with nothing to change, a local action left as GitHub's, a stale declared-checks.yml
 bun tools/cli/scripts/forgejo-port.ts check --runner PATH  # also hold every file to a forgejo-runner
 bun tools/cli/scripts/forgejo-port.ts generate [--write]   # the files of .forgejo/ (the cut-over); --force to overwrite what differs
 bun tools/cli/scripts/forgejo-port.ts checks [--write]     # the checks the merge train declares
@@ -168,8 +170,8 @@ check.
 ## Cut-over
 
 1. `check --runner PATH` is clean: no problem in the generated files, no rule without the text
-   it changes, `declared-checks.yml` is current and the Mirrors row lists every action the files
-   use.
+   it changes, no local action left as GitHub's, `declared-checks.yml` is current and the
+   Mirrors row lists every action the files use.
 2. `generate --write` in a branch of the Forgejo repository; read the diff, in particular the
    comments that describe GitHub's behaviour.
 3. `github --write` in a branch of the GitHub repository, merged before the push mirror is

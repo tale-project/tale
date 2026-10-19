@@ -310,6 +310,26 @@ describe('the command line', () => {
     expect(run(root, 'report').code).toBe(0);
   });
 
+  test('check fails on a local action the port leaves as the GitHub copy, and says which', () => {
+    const root = repository();
+    run(root, 'checks', '--write');
+    expect(run(root, 'check').code).toBe(0);
+    put(
+      root,
+      '.github/workflows/checks.yml',
+      CHECKS.replace(
+        '      - run: echo lint\n',
+        '      - uses: ./.github/actions/brand-new\n',
+      ),
+    );
+    const unported = run(root, 'check');
+    expect(unported.code).toBe(1);
+    expect(unported.err.join('\n')).toContain(
+      '`./.github/actions/brand-new` is not ported',
+    );
+    expect(run(root, 'report').code).toBe(0);
+  });
+
   test('generate is a dry run until --write, and refuses a port with problems', () => {
     const root = repository();
     const dry = run(root, 'generate');

@@ -3,7 +3,7 @@
  * Port Tale's GitHub Actions to Forgejo.
  *
  *   bun tools/cli/scripts/forgejo-port.ts report            what the port does to each file
- *   bun tools/cli/scripts/forgejo-port.ts check             port in memory and fail on a problem, a rule that found nothing to change, or a README that lacks a mirror
+ *   bun tools/cli/scripts/forgejo-port.ts check             port in memory and fail on a problem, a rule that found nothing to change, a local action left as GitHub's, or a README that lacks a mirror
  *   bun tools/cli/scripts/forgejo-port.ts generate [--write [--force]] the files of `.forgejo/` (the cut-over)
  *   bun tools/cli/scripts/forgejo-port.ts checks [--write]  the checks the merge train declares
  *   bun tools/cli/scripts/forgejo-port.ts github [--write]  the edits GitHub's copies of the workflows that stay need
@@ -257,15 +257,23 @@ export function runnerCheck(runner: string, generated: Generated): Problem[] {
   return problems;
 }
 
+/** The warnings of the port that leave a generated file wrong, which `check` fails on. */
+const CHECKED_WARNINGS: ReadonlySet<string> = new Set([
+  'anchor',
+  'local-action-unported',
+]);
+
 /**
  * A rule of the port finds the text it changes by what the workflow says. When that text is
- * gone the rule leaves the file as it is and says so as a warning, which the unit tests only
- * print: the generated file then keeps what the rule exists to change (a retired page that goes
- * unseen, a batch that lints one commit). `check`, the first step of the cut-over, fails on each.
+ * gone the rule leaves the file as it is and says so as an `anchor` warning, which the unit
+ * tests only print: the generated file then keeps what the rule exists to change (a retired
+ * page that goes unseen, a batch that lints one commit). A local action the port does not
+ * generate is left as a call to the GitHub copy, which the port itself calls GitHub-only
+ * (`local-action-unported`). `check`, the first step of the cut-over, fails on each.
  */
-export function anchorProblems(generated: Generated): Problem[] {
+export function ruleProblems(generated: Generated): Problem[] {
   return generated.report.warnings
-    .filter((warning) => warning.rule === 'anchor')
+    .filter((warning) => CHECKED_WARNINGS.has(warning.rule))
     .map((warning) => ({
       file: warning.file,
       at: warning.at,
@@ -369,7 +377,7 @@ export function main(
       ...planGithubEdits(readSources(root, manifest).workflows, manifest)
         .problems,
     ];
-    problems.push(...anchorProblems(generated));
+    problems.push(...ruleProblems(generated));
     problems.push(...mirrorProblems(root, generated));
     if (parsed.values.runner)
       problems.push(...runnerCheck(parsed.values.runner, generated));
