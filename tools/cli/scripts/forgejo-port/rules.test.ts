@@ -87,6 +87,21 @@ ${services}
       'service-port',
     ]);
   });
+
+  test('says when the volumes of a service are not carried over', () => {
+    const { text, report } = port(
+      JOB(`      db:
+        image: postgres:16
+        volumes:
+          - /tmp/data:/var/lib/postgresql/data
+        options: --user 1000 --memory 2g`),
+    );
+    expect(text).not.toContain('/tmp/data');
+    expect(text).toContain('--user 1000 --memory 2g');
+    expect(report.warnings.map((warning) => warning.rule)).toEqual([
+      'service-volumes',
+    ]);
+  });
 });
 
 describe('matrixTotals', () => {

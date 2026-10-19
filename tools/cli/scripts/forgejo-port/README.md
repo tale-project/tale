@@ -39,7 +39,7 @@ bun tools/cli/scripts/forgejo-port.ts github [--write]     # the edits GitHub's 
 | Merge group | `github.event_name == 'merge_group'` reads `push` | a batch is a push, and the only pushes a ported workflow has are batches |
 | Scope | the `ci-scope` step is replaced by what it answers for the tier (below); Security runs on every pull request | the answer is a function of the event, and the files a pull request touches need GitHub's API |
 | Readiness | each `CI ready (…)` job runs `forgejo-port/ready.ts`, which hands the needs to Tale's own policy (`../ci-ready.ts`) as a pull request or as a merge group, by the tier | the check the merge train reads is the one the merge queue read |
-| Services | `services:` become `docker run` steps on the loopback address | a runner in host mode never starts them |
+| Services | `services:` become `docker run` steps on the loopback address; a service's `credentials` and `volumes` are not carried over and are reported as warnings | a runner in host mode never starts them |
 | Matrix | `strategy.job-total` is written as the number; rows whose runner the pool does not serve are removed | the runner leaves `job-total` empty, and a label it does not serve falls back to a Docker image instead of waiting |
 | Actions | each external action is kept, replaced, dropped or refused from one table (`actions.ts`) | the node mirrors every action a workflow pins; the artifact actions have Forgejo forks; the runner cache is per instance |
 | Registry | CI images go to `git.tale.dev` with the token of the secret `CI_PACKAGES_TOKEN`; BuildKit's `type=gha` cache becomes a registry cache written by batches | the job token can log in but cannot push a package |

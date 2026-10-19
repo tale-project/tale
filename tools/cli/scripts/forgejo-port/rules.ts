@@ -96,8 +96,8 @@ function startScript(
  * Forgejo's runner never starts `services:` for a job that runs on a host
  * (label `:host`), so a service becomes the `docker run` it stands for, published
  * on the loopback address where the job's steps already look for it, and waited
- * for when its options define a health check. The step goes first, so the image
- * is pulled and the container started while the next steps check out the code.
+ * for when its options define a health check. The step goes first, so that the
+ * service is up before any step needs it.
  * Nothing removes the container: the runner's instance is deleted with the job.
  */
 const servicesToDockerRun: Rule = (doc, context) => {
@@ -121,6 +121,14 @@ const servicesToDockerRun: Rule = (doc, context) => {
           at: `jobs.${id}.services.${name}`,
           rule: 'service-credentials',
           detail: 'a registry login for a service is not carried over',
+        });
+      if (spec.has('volumes'))
+        report.warnings.push({
+          file,
+          at: `jobs.${id}.services.${name}`,
+          rule: 'service-volumes',
+          detail:
+            'the volumes of a service are not carried over: it starts with none',
         });
       const ports = sequenceStrings(spec.get('ports')).map((entryPort) => ({
         entry: entryPort,
