@@ -113,6 +113,29 @@ by downloading the pinned build (`runner.ts`: version 13.2.0, the digest the ops
 pins for the node). A problem the port reports about the workflows as they are today is
 printed as a warning, so that a workflow edited today is not held to a port applied later.
 
+`forgejo-runner` is a Linux binary. On a workstation that is not Linux, `FORGEJO_RUNNER` may
+name a script that runs the same version from its container image (the version, not the
+pinned bytes), with the scratch directory shared at the same path:
+
+```sh
+#!/bin/sh
+exec docker run --rm -v "$TMPDIR:$TMPDIR" --entrypoint /bin/forgejo-runner \
+  code.forgejo.org/forgejo/runner:13.2.0 "$@"
+```
+
+Set `TMPDIR` to a directory the container engine shares. Give the script to `check --runner`,
+or set `FORGEJO_RUNNER` to it for the tests. Without a runner the test says so and skips the
+check.
+
+## What the port leaves as it is
+
+| What | On Forgejo | Why it stays |
+| --- | --- | --- |
+| `continue-on-error: true` on the job of an advisory scan (Build's `vulnerability-scan`) | the server ignores it, so a failing scan is a red context of its own | `ci-ready.ts` reads that job as advisory, a success or a failure, so `CI ready (Build)` stays green and the merge train, which waits for the seven checks only, never reads the scan |
+| `$GITHUB_STEP_SUMMARY` | Forgejo 15.0.9 discards the summary | the readiness job prints its verdict table to the job log |
+| SARIF uploads to the Security tab | dropped with `github/codeql-action/upload-sarif`: Forgejo has no code scanning | a job that already retains the SARIF as an artifact keeps doing so |
+| Comments that describe GitHub's behaviour | carried through unchanged | they are read and tidied by hand in the cut-over commit |
+
 ## Changing the port
 
 1. Find what the rule has to recognise in the workflow itself (a job id Tale's readiness table
