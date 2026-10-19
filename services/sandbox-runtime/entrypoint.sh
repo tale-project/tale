@@ -24,6 +24,9 @@
 #   TALE_SHM_SIZE  -> size of a tmpfs mounted on /dev/shm while still root (Incus)
 #   TALE_END_WITH_RUNNERD  -> end the whole container when runnerd's supervisor
 #                     ends (Incus: its init waits for every orphan)
+#   TALE_REGISTRY_CACHE_NPM / TALE_REGISTRY_CACHE_PYPI  -> the node's package
+#                     registry caches (Incus): written into the home as the
+#                     package managers' config files (write_registry_cache_files)
 #   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
 #   TALE_RUNNERD_INCARNATION  -> creation stamp runnerd names in its answers
 #
@@ -1019,6 +1022,97 @@ purge_old_exec_temp() {
 }
 
 # ---------------------------------------------------------------------------
+# The node's package registry caches (the Incus backend). The spawner names a
+# cache by an IPv4 literal in TALE_REGISTRY_CACHE_NPM and
+# TALE_REGISTRY_CACHE_PYPI (both unset everywhere else, and then nothing here
+# has an effect), and this writes the files the package managers read from the
+# session's home, before runnerd starts: ~/.npmrc and ~/.bunfig.toml for npm and
+# bun, ~/.config/pip/pip.conf and ~/.config/uv/uv.toml for pip and uv. A cache
+# answers plain HTTP, so pip is told to trust its host and uv to allow it.
+#
+# The home is on the workspace and outlives the instance, so every start
+# settles it again: a file this wrote (its first line is the marker) is
+# rewritten, and removed when its cache is no longer named, so a resumed
+# workspace never keeps the address of a cache that was switched off. A file
+# without the marker is the session owner's own and is never touched. The files
+# are written as the profile uid ($DROP), through a temporary name and a
+# rename, which replaces a planted symbolic link and never follows it. Never
+# fatal: a file that cannot be written is a warning, and the session installs
+# as it would without the cache. $1 is the home (/agent/.runtime/home); the
+# tests pass their own.
+# ---------------------------------------------------------------------------
+_REGISTRY_CACHE_SCRIPT='home=$1
+npm=$2
+pypi=$3
+mark="# Written by the Tale sandbox from the registry caches of this node. Delete this line to keep the file as it is."
+nl="
+"
+ours() { [ -f "$1" ] && [ "$(head -n 1 "$1" 2>/dev/null)" = "$mark" ]; }
+# An http URL of characters that mean the same in an .npmrc, an ini file, a
+# TOML string and a shell word.
+sound() {
+  case "$1" in
+    http://*) case "$1" in *[!A-Za-z0-9._~+/%:-]*) return 1 ;; esac ;;
+    *) return 1 ;;
+  esac
+}
+put() {
+  file=$1
+  body=$2
+  if [ -z "$body" ]; then
+    if ours "$file" && ! rm -f "$file"; then
+      echo "[entrypoint] WARN: could not remove $file, which names a registry cache that is no longer set" >&2
+    fi
+    return 0
+  fi
+  if { [ -e "$file" ] || [ -L "$file" ]; } && ! ours "$file"; then
+    return 0
+  fi
+  dir=$(dirname "$file")
+  tmp=
+  if mkdir -p "$dir" && tmp=$(mktemp "$dir/.registry-cache.XXXXXX") &&
+    printf "%s\n%s\n" "$mark" "$body" >"$tmp" && chmod 644 "$tmp" &&
+    mv -f "$tmp" "$file"; then
+    return 0
+  fi
+  [ -z "$tmp" ] || rm -f "$tmp"
+  echo "[entrypoint] WARN: could not write $file; this session keeps its package manager defaults" >&2
+}
+for value in "$npm" "$pypi"; do
+  [ -z "$value" ] || sound "$value" || {
+    echo "[entrypoint] WARN: ignoring a registry cache that is not a plain http URL: $value" >&2
+    [ "$value" != "$npm" ] || npm=
+    [ "$value" != "$pypi" ] || pypi=
+  }
+done
+npmrc=
+bunfig=
+pipconf=
+uvtoml=
+if [ -n "$npm" ]; then
+  npmrc="registry=$npm"
+  bunfig="[install]${nl}registry = \"$npm\""
+fi
+if [ -n "$pypi" ]; then
+  hostport=${pypi#http://}
+  hostport=${hostport%%/*}
+  pipconf="[global]${nl}index-url = $pypi${nl}trusted-host = $hostport"
+  uvtoml="allow-insecure-host = [\"$hostport\"]${nl}${nl}[[index]]${nl}url = \"$pypi\"${nl}default = true"
+fi
+put "$home/.npmrc" "$npmrc"
+put "$home/.bunfig.toml" "$bunfig"
+put "$home/.config/pip/pip.conf" "$pipconf"
+put "$home/.config/uv/uv.toml" "$uvtoml"'
+
+write_registry_cache_files() {
+  _home="${1:-/agent/.runtime/home}"
+  # Word splitting of $DROP is intended.
+  $DROP /bin/sh -c "$_REGISTRY_CACHE_SCRIPT" registry-cache-files "$_home" \
+    "${TALE_REGISTRY_CACHE_NPM:-}" "${TALE_REGISTRY_CACHE_PYPI:-}" ||
+    echo "[entrypoint] WARN: could not settle the registry cache files under $_home" >&2
+}
+
+# ---------------------------------------------------------------------------
 # K8s transparent-egress native sidecar. The session Pod runs a sidecar
 # container (an initContainer with restartPolicy: Always — K8s 1.28+) with this
 # arg + NET_ADMIN. It installs the OUTPUT REDIRECT into the SHARED pod netns as
@@ -1185,6 +1279,9 @@ if [ "$1" = "daemon" ]; then
     /agent/.runtime/tmp \
     /agent/.runtime/deps/python \
     /agent/.runtime/deps/node
+  # The package managers' files for the node's registry caches, when the
+  # spawner names any (and the removal of ones an earlier start wrote).
+  write_registry_cache_files /agent/.runtime/home
   # Stale per-exec steer queues (mid-turn message injection): a container
   # (re)start means no exec is live, so leftover steer/consumed files are
   # garbage from a previous incarnation — drop them. The platform re-queues
