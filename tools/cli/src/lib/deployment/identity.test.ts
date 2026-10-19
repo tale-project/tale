@@ -2642,6 +2642,33 @@ describe('generic OpenID Connect sign-in', () => {
       ).toThrow('differs');
     });
 
+    test('refuses another managed issuer from a host that supplies no connection block', () => {
+      const literal = {
+        ...declared,
+        ssoEnabled: false,
+        oidc: { ...declared.oidc, issuer: 'https://id.example.org' },
+      };
+      const removal = (issuer: string) =>
+        parse({
+          ...INPUT,
+          ssoEnabled: false,
+          managedOidc: { issuer },
+          nativeClients: [PORTAL],
+        });
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(literal),
+          removal('https://id.example.org'),
+        ),
+      ).not.toThrow();
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(literal),
+          removal('https://other.example.org'),
+        ),
+      ).toThrow('differs');
+    });
+
     test('refuses an input that leaves out the guard the bundle asks for', () => {
       expect(() =>
         verifyProvisionIdentity(
