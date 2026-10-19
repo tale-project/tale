@@ -3,11 +3,15 @@
 // proxy's resolver (the bridge's forwards nothing); they reach the gateway and
 // backend stand-ins on the two ports the ACL names, and not the node's API,
 // the spawner, the metadata address, another session or the internet directly.
-// Last, the other way an infrastructure can give them the platform's names: the
+// Then, the other way an infrastructure can give them the platform's names: the
 // bridge's resolver told the names, and the spawner pointing sessions at it.
+// Last, the node's package registry caches (stand-ins on the gateway's
+// address): a session told them installs a locked npm project and a pip
+// project through them, and the proxy refuses the public registries' hosts.
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
+import { REGISTRY_HOSTS } from '../../../src/backend/incus/incus-registry-caches.ts';
 import {
   admin,
   expectStatus,
@@ -18,7 +22,15 @@ import {
   sh,
   spawnerOf,
   step,
+  until,
 } from '../harness.ts';
+import {
+  npmProject,
+  pipRequirements,
+  PROBE_NAME,
+  probePackages,
+  serveStandInCaches,
+} from '../registry-stand-ins.ts';
 import { newToken } from '../spawner.ts';
 
 const report = reportFor('network');
@@ -390,6 +402,227 @@ describe('a session on the sandbox bridge', () => {
           console.warn(
             `could not close the bridge resolver again: ${restored.stderr.trim()}`,
           );
+        }
+      }
+    },
+  );
+
+  step(
+    'a session told the registry caches installs through them, and no registry host is reached',
+    async () => {
+      // What an operator does to give sessions the node's caches: the cache
+      // addresses in the spawner's two settings, an ACL rule for each cache's
+      // port, and the registries' hosts refused by the egress proxy. The
+      // caches are stand-ins on the gateway's address (a link of the node's
+      // own), serving one npm package and one wheel that exist nowhere else.
+      const packages = probePackages();
+      const rules = [4873, 3141].map((port) => [
+        'network',
+        'acl',
+        'rule',
+        'add',
+        lab.acl,
+        'egress',
+        'action=allow',
+        `destination=${lab.gatewayAddress}/32`,
+        'protocol=tcp',
+        `destination_port=${port}`,
+      ]);
+      const denied = [...REGISTRY_HOSTS.npm, ...REGISTRY_HOSTS.pypi];
+      const caches = serveStandInCaches({
+        hostname: lab.gatewayAddress,
+        npmPort: 4873,
+        pypiPort: 3141,
+      });
+      const D = sessionId('netd');
+      let aclRules = 0;
+      let proxyRestricted = false;
+      const proxyAnswers = async () =>
+        (
+          await admin.host(
+            [
+              'curl',
+              '-sS',
+              '-o',
+              '/dev/null',
+              '-w',
+              '%{http_code}',
+              '--max-time',
+              '10',
+              '--proxy',
+              lab.egressProxy,
+              'https://github.com/robots.txt',
+            ],
+            { allowFailure: true },
+          )
+        ).stdout.trim() === '200';
+      try {
+        for (const rule of rules) {
+          await admin.run(rule);
+          aclRules += 1;
+        }
+        await admin.run([
+          'config',
+          'set',
+          lab.egressInstance,
+          `environment.SANDBOX_EGRESS_DENIED_HOSTS=${denied.join(',')}`,
+        ]);
+        proxyRestricted = true;
+        await admin.run(['restart', lab.egressInstance]);
+        await until('the egress proxy to answer again', proxyAnswers, {
+          timeoutMs: 120_000,
+          intervalMs: 2_000,
+        });
+
+        expect(await spawner.stop()).not.toBeNull();
+        spawner.start({
+          SANDBOX_INCUS_NPM_REGISTRY: caches.npmUrl,
+          SANDBOX_INCUS_PYPI_INDEX: caches.pypiUrl,
+        });
+        await spawner.ready();
+        const created = await api.create({
+          sessionId: D,
+          organizationId: ORG,
+          profile: 'agent',
+        });
+        if (created.session === undefined) {
+          throw new Error(
+            `create ${D}: ${created.reply.status} ${created.reply.text}`,
+          );
+        }
+
+        // What the session was given.
+        expect(
+          (await sh(api, D, 'cat "$HOME/.npmrc" "$HOME/.bunfig.toml"')).trim(),
+        ).toContain(`registry=${caches.npmUrl}`);
+        const pipConf = await sh(api, D, 'cat "$HOME/.config/pip/pip.conf"');
+        expect(pipConf).toContain(`index-url = ${caches.pypiUrl}`);
+        expect(pipConf).toContain(`trusted-host = ${lab.gatewayAddress}:3141`);
+        expect(await sh(api, D, 'cat "$HOME/.config/uv/uv.toml"')).toContain(
+          `allow-insecure-host = ["${lab.gatewayAddress}:3141"]`,
+        );
+        expect(await sh(api, D, 'echo "$NO_PROXY"')).toContain(
+          lab.gatewayAddress,
+        );
+
+        // A locked npm project, a pip project locked by hash and the same
+        // requirements through uv.
+        const files = [
+          ...Object.entries(npmProject(packages)).map(([name, content]) => ({
+            path: `workspace/npm-probe/${name}`,
+            content,
+          })),
+          {
+            path: 'workspace/pip-probe/requirements.txt',
+            content: pipRequirements(packages),
+          },
+        ];
+        expectStatus(await api.stage(D, files), 200, `stage into ${D}`);
+        expect(
+          (
+            await sh(
+              api,
+              D,
+              'cd /agent/workspace/npm-probe && npm ci --no-fund && node -p "require(\'tale-e2e-probe\')"',
+            )
+          ).trim(),
+        ).toEndWith(PROBE_NAME);
+        const pip = await sh(
+          api,
+          D,
+          'cd /agent/workspace/pip-probe && pip install --require-hashes -r requirements.txt && python3 -c "import tale_e2e_probe; print(tale_e2e_probe.NAME)"',
+        );
+        expect(pip.trim()).toEndWith(PROBE_NAME);
+        const uv = await sh(
+          api,
+          D,
+          'cd /agent/workspace/pip-probe && uv pip install --target /agent/workspace/uv-target --require-hashes -r requirements.txt && PYTHONPATH=/agent/workspace/uv-target python3 -c "import tale_e2e_probe; print(tale_e2e_probe.NAME)"',
+        );
+        expect(uv.trim()).toEndWith(PROBE_NAME);
+
+        // Every package came from the stand-ins.
+        const served = caches.requests.join('\n');
+        expect(served).toContain(
+          `4873 GET /${PROBE_NAME}/-/${PROBE_NAME}-1.0.0.tgz`,
+        );
+        expect(served).toMatch(
+          /3141 GET \/root\/pypi\/(\+|%2B)f\/tale_e2e_probe-1\.0\.0-py3-none-any\.whl/,
+        );
+
+        // No registry host is reached: the proxy refuses a tunnel to each, and
+        // the names it resolves for the session are not there. Everything
+        // else stays open.
+        for (const host of denied) {
+          const tunnel = await api.exec(D, {
+            shell: `curl -sS -o /dev/null --max-time 30 --proxy ${lab.egressProxy} https://${host}/`,
+            timeoutMs: 60_000,
+          });
+          expect({ host, exit: tunnel.result?.exitCode }).not.toEqual({
+            host,
+            exit: 0,
+          });
+          expect(tunnel.stderr).toContain('403');
+          const lookup = await api.exec(D, { shell: `getent hosts ${host}` });
+          expect({ host, found: lookup.result?.exitCode === 0 }).toEqual({
+            host,
+            found: false,
+          });
+        }
+        expect(await http(D, 'https://github.com/robots.txt')).toEqual({
+          code: 0,
+          stdout: '200',
+        });
+        // A package manager that ignores its configuration fails, visibly.
+        const around = await api.exec(D, {
+          shell:
+            'npm view left-pad version --registry https://registry.npmjs.org/ --fetch-retries=0 --fetch-timeout=30000',
+          timeoutMs: 90_000,
+        });
+        expect(around.result?.exitCode ?? 0).not.toBe(0);
+        report.fact(
+          'npm told to use the public registry, with the proxy refusing it',
+          `exit ${around.result?.exitCode}`,
+        );
+        expectStatus(await api.destroy(D), 200, `destroy ${D}`);
+      } finally {
+        await caches.stop();
+        for (let index = 0; index < aclRules; index += 1) {
+          const rule = rules[index];
+          const removal = rule?.map((part) =>
+            part === 'add' ? 'remove' : part,
+          );
+          const result =
+            removal === undefined
+              ? undefined
+              : await admin.run(removal, { allowFailure: true });
+          if (result !== undefined && result.code !== 0) {
+            console.warn(
+              `could not remove an ACL rule again: ${result.stderr.trim()}`,
+            );
+          }
+        }
+        if (proxyRestricted) {
+          const opened = await admin.run(
+            [
+              'config',
+              'unset',
+              lab.egressInstance,
+              'environment.SANDBOX_EGRESS_DENIED_HOSTS',
+            ],
+            { allowFailure: true },
+          );
+          await admin.run(['restart', lab.egressInstance], {
+            allowFailure: true,
+          });
+          if (opened.code !== 0) {
+            console.warn(
+              `could not open the egress proxy again: ${opened.stderr.trim()}`,
+            );
+          }
+          await until('the egress proxy to answer again', proxyAnswers, {
+            timeoutMs: 120_000,
+            intervalMs: 2_000,
+          });
         }
       }
     },
