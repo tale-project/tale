@@ -158,7 +158,7 @@ const egressProxySchema = z
   .string()
   .refine(
     isEgressProxy,
-    'Must be http://<unicast IPv4 address>:<port> with an explicit port.',
+    'Must be http://<unicast IPv4 address>:<port>, with a port from 1 to 65535 other than 80, the default port of http.',
   );
 
 /** What a deployment declares: the sandbox runs against an Incus node. */

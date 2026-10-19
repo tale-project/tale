@@ -296,7 +296,7 @@ export async function prepareRuntime(
     .safeParse(options.sandbox);
   requireRuntime(
     sandboxDeclaration.success,
-    'The Incus sandbox needs a unicast IPv4 address and an http egress proxy with an explicit port.',
+    'The Incus sandbox needs a unicast IPv4 address and an http egress proxy with a port from 1 to 65535 other than 80.',
   );
   requireRuntime(
     sandboxDeclaration.data === undefined ||

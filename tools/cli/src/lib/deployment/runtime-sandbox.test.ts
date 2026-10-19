@@ -113,6 +113,18 @@ describe('the Incus sandbox declaration', () => {
     expect(isEgressProxy(proxy)).toBe(false);
   });
 
+  test('says which ports the egress proxy takes when it refuses port 80', () => {
+    const refused = sandboxDeclarationSchema.safeParse({
+      backend: 'incus',
+      address: DECLARED.address,
+      egressProxy: 'http://10.200.40.10:80',
+    });
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues[0]?.message).toContain(
+      'from 1 to 65535 other than 80',
+    );
+  });
+
   test('holds the declaration to its three keys', () => {
     expect(
       sandboxDeclarationSchema.safeParse({ backend: 'incus', ...DECLARED }),
