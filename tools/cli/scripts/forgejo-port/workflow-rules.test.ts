@@ -1,4 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { parse } from 'yaml';
 
 import { buildCache } from './cache';
 import type { Rule } from './context';
@@ -10,6 +16,7 @@ import {
   dropForeignRows,
   dropJobs,
   githubApiToken,
+  lintLinksBase,
   movePaths,
   ownPath,
   publishOnTag,
@@ -233,6 +240,153 @@ jobs:
     ]);
     expect(run(SCRIPT, [commitlintBatch], 'other.yml').text).toContain(
       '--last',
+    );
+  });
+});
+
+describe('lintLinksBase', () => {
+  const SOURCE = `name: Checks
+on:
+  pull_request:
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA} # v6
+        with:
+          persist-credentials: false
+          # lint:links compares a change with HEAD^1 (a pull request's merge
+          # commit has the base branch as its first parent).
+          fetch-depth: 2
+      - name: Refuse links that do not land
+        run: bun run lint:links
+`;
+
+  const roots: string[] = [];
+  afterEach(() => {
+    for (const root of roots.splice(0))
+      rmSync(root, { recursive: true, force: true });
+  });
+
+  /** A repository with the commits a Forgejo run sees: main, and a branch of two commits off it. */
+  function repository() {
+    const root = mkdtempSync(join(tmpdir(), 'forgejo-port-links-'));
+    roots.push(root);
+    const config = join(root, 'gitconfig');
+    writeFileSync(config, '');
+    const env = {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([name]) => !name.startsWith('GIT_'),
+        ),
+      ),
+      GIT_CONFIG_GLOBAL: config,
+      GIT_CONFIG_NOSYSTEM: '1',
+    };
+    const work = join(root, 'work');
+    const git = (...args: string[]): string => {
+      const result = spawnSync(
+        'git',
+        [
+          '-c',
+          'user.name=Fixture',
+          '-c',
+          'user.email=f@example.invalid',
+          ...args,
+        ],
+        { cwd: work, env, encoding: 'utf8' },
+      );
+      if (result.status !== 0)
+        throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
+      return result.stdout.trim();
+    };
+    spawnSync('git', ['init', '--quiet', '--initial-branch', 'main', work], {
+      env,
+    });
+    const commit = (name: string): string => {
+      writeFileSync(join(work, name), `${name}\n`);
+      git('add', '--all');
+      git('commit', '--quiet', '-m', name);
+      return git('rev-parse', 'HEAD');
+    };
+    return { work, env, git, commit };
+  }
+
+  test('compares a change with the merge base with main, with the history to find it', () => {
+    const { text, report } = run(SOURCE, [lintLinksBase], 'checks.yml');
+    expect(text).toContain('fetch-depth: 0');
+    expect(text).not.toContain('fetch-depth: 2');
+    expect(text).not.toContain('HEAD^1');
+    expect(text).toContain('LINT_LINKS_BASE="$base" bun run lint:links');
+    expect(report.changes.map((change) => change.rule)).toEqual([
+      'lint-links-base',
+    ]);
+  });
+
+  test('gives the commit a pull request of two commits, or a batch of two, branched from', () => {
+    const { text } = run(SOURCE, [lintLinksBase], 'checks.yml');
+    const steps = (
+      parse(text) as { jobs: { format: { steps: { run?: string }[] } } }
+    ).jobs.format.steps;
+    const script = steps[1]?.run ?? '';
+    // What the step runs, with lint:links itself replaced by what it would be given.
+    const probe = script.replace(
+      'bun run lint:links',
+      `sh -c 'printf %s "$LINT_LINKS_BASE"'`,
+    );
+    expect(probe).not.toBe(script);
+
+    const { work, env, git, commit } = repository();
+    const main = commit('main.txt');
+    git('update-ref', 'refs/remotes/origin/main', main);
+    git('checkout', '--quiet', '-b', 'change');
+    const first = commit('first.txt');
+    commit('second.txt');
+    const result = spawnSync('bash', ['-e', '-c', probe], {
+      cwd: work,
+      env: { ...env, GITHUB_ACTIONS: 'true' },
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+    // `HEAD^1` is the first commit, which hides what that commit retired.
+    expect(git('rev-parse', 'HEAD^1')).toBe(first);
+    expect(result.stdout).toBe(main);
+  });
+
+  test('fails the step when there is no merge base to compare with', () => {
+    const { text } = run(SOURCE, [lintLinksBase], 'checks.yml');
+    const script =
+      (parse(text) as { jobs: { format: { steps: { run?: string }[] } } }).jobs
+        .format.steps[1]?.run ?? '';
+    const { work, env, commit } = repository();
+    commit('main.txt');
+    const result = spawnSync(
+      'bash',
+      ['-e', '-c', script.replace('bun run lint:links', 'echo ran')],
+      { cwd: work, env, encoding: 'utf8' },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).not.toContain('ran');
+  });
+
+  test('adds the history and the base where the checkout has no inputs, and says when the step is gone', () => {
+    const bare = run(
+      SOURCE.replace(/ {8}with:[\s\S]*?fetch-depth: 2\n/, ''),
+      [lintLinksBase],
+      'checks.yml',
+    );
+    expect(bare.text).toContain('fetch-depth: 0');
+    const gone = run(
+      SOURCE.replace('bun run lint:links', 'bun run lint:conflicts'),
+      [lintLinksBase],
+      'checks.yml',
+    );
+    expect(gone.report.warnings.map((warning) => warning.rule)).toEqual([
+      'anchor',
+    ]);
+    expect(run(SOURCE, [lintLinksBase], 'other.yml').text).toContain(
+      'fetch-depth: 2',
     );
   });
 });

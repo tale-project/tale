@@ -37,6 +37,7 @@ bun tools/cli/scripts/forgejo-port.ts github [--write]     # the edits GitHub's 
 | Matrix | `strategy.job-total` is written as the number; rows whose runner the pool does not serve are removed | the runner leaves `job-total` empty, and a label it does not serve falls back to a Docker image instead of waiting |
 | Actions | each external action is kept, replaced, dropped or refused from one table (`actions.ts`) | the node mirrors every action a workflow pins; the artifact actions have Forgejo forks; the runner cache is per instance |
 | Registry | CI images go to `git.tale.dev` with the token of the secret `CI_PACKAGES_TOKEN`; BuildKit's `type=gha` cache becomes a registry cache written by batches | the job token can log in but cannot push a package |
+| Link check | `lint:links` runs with `LINT_LINKS_BASE` set to the merge base with main, and the Format job fetches the whole history | GitHub checks a pull request out as a merge commit, so `HEAD^1` is the base there; a Forgejo run checks out the pull request's head and a batch is one commit per pull request, so `HEAD^1` would hide a page retired in an earlier commit |
 | Release feed | `GITHUB_TOKEN` handed to a build becomes the secret `CI_GITHUB_TOKEN` | the web site's release feed calls api.github.com, which does not know Forgejo's token |
 | Publisher | `publish-packages.yml` pushes to the Forgejo repository and runs on a `v*.*.*` tag as well | the push mirror makes GitHub's refs exactly Forgejo's, so snapshots and pins must be made there |
 

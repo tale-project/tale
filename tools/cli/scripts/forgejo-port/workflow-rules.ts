@@ -9,7 +9,7 @@
  * carried through wrong.
  */
 
-import { Pair, Scalar, YAMLMap, YAMLSeq, isMap, isSeq } from 'yaml';
+import { Pair, Scalar, YAMLMap, YAMLSeq, isMap, isScalar, isSeq } from 'yaml';
 import type { Document } from 'yaml';
 
 import { replaceText } from './actions';
@@ -224,6 +224,73 @@ export const commitlintBatch: Rule = (doc, context) => {
       detail:
         'a push of a new branch lints every commit since main, not only the last',
     });
+};
+
+const LINT_LINKS = 'bun run lint:links';
+
+/**
+ * `lint:links` holds a change to the pages it retires by comparing the tree with the commit
+ * the change branched from. Under GitHub Actions it takes `HEAD^1`, which is that commit only
+ * because GitHub checks a pull request out as a merge commit whose first parent is the base
+ * branch. Here a pull request is checked out as its own head and a batch is a branch of one
+ * squash commit per pull request, so `HEAD^1` is the previous commit of the pull request or
+ * of the batch: a page retired without a redirect in any earlier commit would never be seen.
+ * The base is the merge base with main, which needs the history down to it.
+ */
+export const lintLinksBase: Rule = (doc, context) => {
+  if (context.file !== 'checks.yml') return;
+  const { file, report } = context;
+  for (const { at, steps } of stepLists(doc)) {
+    const index = steps.items.findIndex(
+      (step) => isMap(step) && stringOf(step.get('run'))?.trim() === LINT_LINKS,
+    );
+    const lint = steps.items[index];
+    if (!isMap(lint)) continue;
+    const checkout = steps.items
+      .slice(0, index)
+      .findLast(
+        (step) =>
+          isMap(step) &&
+          stringOf(step.get('uses'))?.startsWith('actions/checkout@'),
+      );
+    if (!isMap(checkout)) break;
+
+    const comment =
+      ' lint:links compares a change with the commit it branched from, the merge base with main:\n' +
+      ' a pull request is checked out as its own head here, and a batch is one commit per pull request,\n' +
+      ' so a page retired without a redirect in an earlier commit is only seen from the whole history.';
+    const existing = checkout.get('with');
+    const inputs = isMap(existing) ? existing : new YAMLMap();
+    if (!isMap(existing)) checkout.set('with', inputs);
+    const depth = inputs.items.find(
+      (pair) => stringOf(pair.key) === 'fetch-depth',
+    );
+    const key = isScalar(depth?.key) ? depth.key : new Scalar('fetch-depth');
+    key.commentBefore = comment;
+    if (depth) depth.value = new Scalar(0);
+    else inputs.items.push(new Pair(key, new Scalar(0)));
+
+    lint.set(
+      'run',
+      literal(
+        `base="$(git merge-base HEAD origin/main)"\nLINT_LINKS_BASE="$base" ${LINT_LINKS}\n`,
+      ),
+    );
+    report.changes.push({
+      file,
+      at: `${at}.steps[${index}]`,
+      rule: 'lint-links-base',
+      detail:
+        'compares a change with the merge base with main: a pull request is checked out as its own head, not as a merge commit',
+    });
+    return;
+  }
+  report.warnings.push({
+    file,
+    at: 'jobs',
+    rule: 'anchor',
+    detail: `the step \`run: ${LINT_LINKS}\` after a checkout is gone: a retired page may no longer be caught`,
+  });
 };
 
 /**
