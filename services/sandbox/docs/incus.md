@@ -419,6 +419,8 @@ variables are named at once.
 | `SANDBOX_INCUS_DNS`                     | the egress proxy   | Comma-separated IPv4 resolvers handed to a session.                                                                                  |
 | `SANDBOX_INCUS_DOCKER_CONFIG`           | nesting + intercept | A JSON object of instance config added to a session with Docker inside, replacing the default (`security.nesting`, and the `mknod` and `setxattr` interceptions). Only `security.nesting` and the interceptions a restricted project can allow (`security.syscalls.intercept.` plus `bpf`, `bpf.devices`, `mknod`, `mount`, `mount.fuse`, `setxattr` or `sysinfo`), each `true` or `false`; the other low-level keys, such as `security.idmap.size`, a restricted project refuses. |
 | `SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK` | `false` | Do not require an ACL on the profile's NIC (a lab, or an ACL attached to the network alone, which the certificate cannot see). |
+| `SANDBOX_INCUS_NPM_REGISTRY`            | unset              | An npm cache sessions install from, an `http://` URL whose host is an IPv4 address ([below](#package-registry-caches)).              |
+| `SANDBOX_INCUS_PYPI_INDEX`              | unset              | A PyPI simple index sessions install from, in the same form ([below](#package-registry-caches)).                                     |
 | `SANDBOX_INCUS_API_TIMEOUT_MS`          | `15000`            | Budget of one API request (long-poll waits for operations excepted).                                                                 |
 
 Under this backend the runtime tier is fixed at `sysbox` (an unprivileged
@@ -448,7 +450,7 @@ it, so unset it stays `8`, and boot says so.
 | `/dev/shm` size (`SANDBOX_AGENT_SHM_SIZE`) | the entrypoint mounts a tmpfs of that size on `/dev/shm` while it is still root (`TALE_SHM_SIZE`), because a restricted project admits no tmpfs disk device; the session therefore boots as root and drops to its user, as it does for transparent egress |
 | IPv6 off                                  | `linux.sysctl.net.ipv6.conf.{all,default}.disable_ipv6=1`                                                                                                                                                                                                 |
 | host-path workspace bind                  | a custom volume with a quota                                                                                                                                                                                                                              |
-| per-organization package caches, BuildKit | none: each session installs into its own workspace; Docker inside builds with its own inner builder                                                                                                                                                       |
+| per-organization package caches, BuildKit | none per organization: each session installs into its own workspace, from the public registries or, when the node's [registry caches](#package-registry-caches) are set, through them; Docker inside builds with its own inner builder                    |
 
 ### Capacity and admission
 
@@ -492,6 +494,99 @@ quota), for a Docker container a `--cpu-shares` value whose cgroup weight is
 above 100. Better still, keep the sum of `SANDBOX_MAX_SESSIONS` times
 `SANDBOX_AGENT_CPUS` within the node's cores plus the headroom you accept, so
 that contention is the exception.
+
+## Package registry caches
+
+Sessions install from the public npm and PyPI registries through the egress
+proxy, so a node with many sessions downloads the same packages over and over.
+Two optional settings point them at caches the node runs (a Verdaccio and a
+devpi on a network of their own) instead. **Both are off unless set**: with
+neither, a session, its environment and the egress proxy are exactly what they
+were before they existed.
+
+```
+# the spawner
+SANDBOX_INCUS_NPM_REGISTRY=http://10.200.41.8:4873/
+SANDBOX_INCUS_PYPI_INDEX=http://10.200.41.9:3141/root/pypi/+simple/
+# the egress proxy (not the spawner)
+SANDBOX_EGRESS_DENIED_HOSTS=registry.npmjs.org,registry.yarnpkg.com,pypi.org,files.pythonhosted.org
+```
+
+- **Each cache is an `http://` URL whose host is an IPv4 address**, like
+  `SANDBOX_EGRESS_PROXY`: a session resolves no name before it reaches a cache,
+  and a cache answers plain HTTP on the node's own network. Boot refuses a
+  name, `https:`, credentials, a query, a fragment and a character that an
+  `.npmrc`, an ini file, a TOML string and a shell word would not all read the
+  same. The index's host and port are what pip is told to trust and uv to allow,
+  so there is no third setting to keep in step.
+- **The sandbox network's ACL admits tcp to each cache's address and port**, as
+  it does to the gateway's: `incus network acl rule add sandbox-egress egress
+  action=allow destination=10.200.41.8/32 protocol=tcp destination_port=4873`,
+  and the same for the PyPI cache's port. Without a rule a session cannot reach
+  the cache, and an install fails: there is no fallback to the public registry,
+  which the proxy refuses.
+- **The files.** With a cache set, the runtime entrypoint writes these into the
+  session's home (`/agent/.runtime/home`) at every start, before runnerd, from
+  `TALE_REGISTRY_CACHE_NPM` and `TALE_REGISTRY_CACHE_PYPI`, which the spawner
+  puts in the instance's environment (an address is no secret):
+
+  | Tool | File                    | Holds                                                         |
+  | ---- | ----------------------- | ------------------------------------------------------------- |
+  | npm  | `~/.npmrc`              | `registry=` the npm cache                                     |
+  | bun  | `~/.bunfig.toml`        | `[install]` with `registry =` the npm cache                   |
+  | pip  | `~/.config/pip/pip.conf`| `index-url` the PyPI cache, `trusted-host` its host and port  |
+  | uv   | `~/.config/uv/uv.toml`  | `allow-insecure-host` its host and port, a default `[[index]]`|
+
+  The first line of each file is a comment that says the sandbox wrote it. A
+  file with that line is the sandbox's: rewritten when the cache moves, removed
+  when its setting is gone, so a resumed workspace never keeps the address of a
+  cache that was switched off. A file without it is the session's own (an
+  `.npmrc` with a token for a private registry, say) and is never replaced or
+  removed. A symbolic link in its place is neither followed nor written
+  through. A file that cannot be written is a warning in the console and not the
+  end of the boot. The files need the runtime image of the spawner's own
+  release; an older image writes none and the session installs as before.
+- **`NO_PROXY`** gains the cache addresses (hosts, because not every tool
+  understands a CIDR block), since the egress proxy refuses private
+  destinations. A standby made before the settings changed no longer matches the
+  pool and is replaced; a session already running keeps what it was given until
+  it is stopped and resumed.
+- **The egress proxy refuses the registries.** `SANDBOX_EGRESS_DENIED_HOSTS`
+  lists the public hosts the caches replace (the line above, which boot prints
+  for the caches that are set): the proxy answers a request or a tunnel to one,
+  and to its subdomains, `403`, and its DNS forwarder answers them `NXDOMAIN`, so
+  a package manager that ignores its configuration fails visibly instead of
+  installing around the cache. Only registry hosts leave the path: browsing and
+  every other host stay open. The proxy refuses to start on an entry that is not
+  a plain host name, on an empty list and beside `SANDBOX_EGRESS_ALLOWLIST`.
+
+**Locked installs.** An `npm ci` goes through the cache: npm sends the
+`registry.npmjs.org` addresses a lock file records to the registry it is
+configured with, and `bun install` does the same with a lock file that records
+no registry. A pip requirements file locked by hash (`--require-hashes`)
+installs from the index. A `uv.lock` records the address of every file and
+registry it was made against, so `uv sync` goes around the configured index and
+meets the proxy's refusal. Install a locked uv project through the index
+instead, and leave the lock as it is:
+
+```
+uv export --frozen --no-emit-project --no-header -o requirements.txt
+uv pip install --require-hashes -r requirements.txt
+```
+
+**What the caches are.** One set of caches serves every session of every
+organization the node holds. They are read-only and hold public packages only,
+so no session can write what another reads, and which public package another
+organization installed is visible to whoever runs the caches. Every profile
+gets them, the `default` profile that runs untrusted code included, and that is
+safe only because a session cannot write to a cache: the Docker backend's
+shared dependency volumes leave that profile out because a cache that code can
+write would carry what it wrote into a more privileged session. Nothing private
+goes through them: the files carry no credential, a private registry stays in
+the session's own settings, and a session's own `.npmrc` or `pip.conf` is never
+replaced. Docker inside a session builds with its inner builder, which has no
+cache configured here, and other package managers (apt, go, gem, git) keep going
+through the egress proxy.
 
 ## The warm pool
 
@@ -576,8 +671,10 @@ still claim from them.
   synchronously with the instance: `workspaceDeletion` answers `done` once its
   volume is gone.
 - **Not supported:** connected devices (the hub), the shared Docker build cache,
-  per-organization package caches, and an out-of-memory report on a dead
-  session (the backend does not read one from Incus).
+  per-organization package caches (the node's
+  [registry caches](#package-registry-caches) are shared by every
+  organization), and an out-of-memory report on a dead session (the backend does
+  not read one from Incus).
 
 ## Verify a node before trusting it
 
@@ -753,6 +850,18 @@ storage driver, a reboot, many tenants.
     on a 4-vCPU runner.
 16. **Capacity UI.** Settings > Sandboxes names the Incus project scope and
     leaves CPU and memory unavailable. **Not in the lab** (the platform's UI).
+17. **Registry caches** (only if you set them). In a new session, `~/.npmrc`,
+    `~/.bunfig.toml`, `~/.config/pip/pip.conf` and `~/.config/uv/uv.toml` hold
+    the cache addresses and `NO_PROXY` names them. A locked `npm ci`, a
+    `pip install --require-hashes` and a `uv pip install --require-hashes` install
+    from the caches, whose logs show the requests. From the session, a tunnel
+    through the proxy to each registry host in `SANDBOX_EGRESS_DENIED_HOSTS` is
+    refused with `403` and the name does not resolve, while another host still
+    answers. A file the session wrote itself under one of those names survives a
+    stop and a resume.
+    **Lab (`network`):** has a case for it, with stand-in caches, an ACL rule for
+    each port and the four hosts in the proxy's list. **Not in the lab:** the real
+    Verdaccio and devpi, and your own ACL.
 
 The bounded API client, the TLS pinning shapes, every lifecycle method, the
 pool's refill and capacity bound, the config validation and the boot checks are

@@ -486,7 +486,10 @@ node's server certificate; boot refuses a node that cannot run sessions safely
 limit that would refuse every create, a missing API extension) and says what
 to change. `SANDBOX_INCUS_POOL_SIZE` keeps
 that many started standby instances ready, which hides the instance's DHCP wait
-from a handout. The choice of an OCI container over a system container, the
+from a handout. `SANDBOX_INCUS_NPM_REGISTRY` and `SANDBOX_INCUS_PYPI_INDEX`
+(both off by default) point sessions at the node's npm and PyPI caches, with
+`SANDBOX_EGRESS_DENIED_HOSTS` on the egress proxy refusing the public
+registries. The choice of an OCI container over a system container, the
 trust boundary, what the operator creates on the node (project, profile,
 network and ACL, pool, image alias, certificates), every `SANDBOX_INCUS_*`
 variable and the list of what only a real node can prove are in the
