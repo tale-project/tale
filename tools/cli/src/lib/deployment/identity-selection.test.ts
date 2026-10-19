@@ -212,17 +212,17 @@ describe('which sign-in credentials a destination resolves', () => {
       });
     });
 
-    test('a destination that holds both sets is refused', () => {
+    test('a destination that holds both sets is refused and names both', () => {
       set({ ...ENTRA_ENV, ...OIDC_ENV });
       expect(() => resolveSignIn(both())).toThrow(
-        'Both the Entra and the OpenID Connect environment references resolve',
+        'Both the Entra and the OpenID Connect environment references resolve in this destination (Entra: EXAMPLE_ENTRA_TENANT, EXAMPLE_ENTRA_CLIENT, EXAMPLE_ENTRA_SECRET; OpenID Connect: EXAMPLE_OIDC_CLIENT, EXAMPLE_OIDC_SECRET, EXAMPLE_OIDC_ISSUER); give it one provider’s credentials.',
       );
     });
 
-    test('a destination that holds neither set is refused', () => {
+    test('a destination that holds neither set is refused and names both', () => {
       set({});
       expect(() => resolveSignIn(both())).toThrow(
-        'Sign-in is enabled but the Entra or OpenID Connect environment references do not resolve',
+        'Sign-in is enabled but the Entra or OpenID Connect environment references do not resolve in this destination; set EXAMPLE_ENTRA_TENANT, EXAMPLE_ENTRA_CLIENT, EXAMPLE_ENTRA_SECRET for Entra or EXAMPLE_OIDC_CLIENT, EXAMPLE_OIDC_SECRET, EXAMPLE_OIDC_ISSUER for OpenID Connect.',
       );
     });
 
@@ -313,7 +313,7 @@ describe('which sign-in credentials a destination resolves', () => {
     expect(() =>
       resolveSignIn(identity({ oidc: true, optional: true })),
     ).toThrow(
-      'Sign-in is enabled but the OpenID Connect environment references do not resolve',
+      'Sign-in is enabled but the OpenID Connect environment references do not resolve in this destination; set EXAMPLE_OIDC_CLIENT, EXAMPLE_OIDC_SECRET, EXAMPLE_OIDC_ISSUER.',
     );
   });
 

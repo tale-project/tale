@@ -30,6 +30,9 @@ interface Resolved {
   credentials: number;
   /** The public variables (an issuer) that resolved to nothing. */
   lacking: string[];
+  /** Every variable the block reads: the credentials, then an issuer that
+   * comes from the environment. */
+  names: string[];
 }
 
 /** A block's credentials decide whether it is the destination's: its public
@@ -42,12 +45,15 @@ function resolveBlock(
   const values: Record<string, string> = {};
   const missing: string[] = [];
   const lacking: string[] = [];
+  const names: string[] = [];
   for (const [field, reference] of Object.entries(credentials)) {
     values[field] = resolveValue(reference);
+    names.push(reference.env);
     if (values[field] === '') missing.push(reference.env);
   }
   for (const [field, reference] of Object.entries(publicFields)) {
     values[field] = resolveValue(reference);
+    if (typeof reference === 'object') names.push(reference.env);
     if (values[field] === '' && typeof reference === 'object')
       lacking.push(reference.env);
   }
@@ -56,6 +62,7 @@ function resolveBlock(
     missing,
     credentials: Object.keys(credentials).length,
     lacking,
+    names,
   };
 }
 
@@ -117,9 +124,9 @@ export function resolveSignIn(identity: Identity): SignInFields {
   );
   const entra = entraBlock && usable('Entra', entraBlock);
   const connect = usable('OpenID Connect', connectBlock);
-  if (entra && connect)
+  if (entraBlock && entra && connect)
     throw preconditionError(
-      'Both the Entra and the OpenID Connect environment references resolve in this destination; give it one provider’s credentials.',
+      `Both the Entra and the OpenID Connect environment references resolve in this destination (Entra: ${entraBlock.names.join(', ')}; OpenID Connect: ${connectBlock.names.join(', ')}); give it one provider’s credentials.`,
     );
   const managed = {
     managedOidc: managedOidc(connectBlock.values.issuer ?? ''),
@@ -133,7 +140,9 @@ export function resolveSignIn(identity: Identity): SignInFields {
     };
   if (!connect)
     throw preconditionError(
-      `Sign-in is enabled but the ${entraBlock ? 'Entra or OpenID Connect' : 'OpenID Connect'} environment references do not resolve in this destination.`,
+      entraBlock
+        ? `Sign-in is enabled but the Entra or OpenID Connect environment references do not resolve in this destination; set ${entraBlock.names.join(', ')} for Entra or ${connectBlock.names.join(', ')} for OpenID Connect.`
+        : `Sign-in is enabled but the OpenID Connect environment references do not resolve in this destination; set ${connectBlock.names.join(', ')}.`,
     );
   // A literal issuer was judged with the declaration; one the environment
   // supplies is judged here, before anything is changed.
