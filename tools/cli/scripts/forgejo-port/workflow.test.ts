@@ -273,6 +273,40 @@ describe('foldCondition', () => {
     ).toEqual({ kind: 'unchanged' });
   });
 
+  test('keeps the status function a fold would drop, as an `if:` without one waits for success', () => {
+    const always = { kind: 'text', text: 'always()' } as const;
+    for (const source of [
+      "always() || github.event_name != 'merge_group'",
+      "!cancelled() || github.event_name != 'merge_group'",
+      "failure() || github.event_name != 'merge_group'",
+      "github.event_name != 'merge_group' || always()",
+      "!(always() && github.event_name == 'merge_group')",
+    ])
+      expect(foldCondition(source, facts), source).toEqual(always);
+    expect(
+      foldCondition(
+        "${{ always() || github.event_name != 'merge_group' }}",
+        facts,
+      ),
+    ).toEqual({ kind: 'text', text: '${{ always() }}' });
+    expect(
+      foldCondition(
+        "(always() || github.event_name != 'merge_group') && github.event.pull_request.draft != true",
+        facts,
+      ),
+    ).toEqual({
+      kind: 'text',
+      text: 'always() && github.event.pull_request.draft != true',
+    });
+    // a condition that is false is false whatever the status, and one with no status function has none to keep
+    expect(
+      foldCondition("always() && github.event_name == 'merge_group'", facts),
+    ).toEqual({ kind: 'never' });
+    expect(
+      foldCondition("github.event_name != 'merge_group' || x.y", facts),
+    ).toEqual({ kind: 'always' });
+  });
+
   test('refuse a wrapped condition with text around it', () => {
     expect(() => foldCondition('${{ a }} and ${{ b }}', facts)).toThrow(
       'one expression',
@@ -295,6 +329,25 @@ describe('foldWorkflow', () => {
     expect(job?.get('if')).toBe(
       '!cancelled() && github.event.pull_request.draft != true',
     );
+  });
+
+  test('keeps the status function of a job condition that folds to true', () => {
+    const { doc } = fold(`name: x
+on:
+  push:
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo a
+  b:
+    needs: a
+    if: always() || github.event_name != 'merge_group'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo b
+`);
+    expect(jobOf(doc, 'b')?.get('if')).toBe('always()');
   });
 
   test('drops an action input that comes to nothing, and types a constant', () => {

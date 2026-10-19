@@ -26,6 +26,7 @@ import {
   type Expr,
   foldTemplate,
   hasExpression,
+  keepStatusFunction,
   parseExpression,
   parseTemplate,
   printExpression,
@@ -220,7 +221,10 @@ export function foldCondition(source: string, facts: Facts): Condition {
       );
     return only.expr;
   })();
-  const folded = simplify(expression, facts, 'condition');
+  const folded = keepStatusFunction(
+    expression,
+    simplify(expression, facts, 'condition'),
+  );
   const after = printExpression(folded);
   if (folded.kind === 'literal' && after !== printExpression(expression))
     return { kind: truthy(folded.value) ? 'always' : 'never' };

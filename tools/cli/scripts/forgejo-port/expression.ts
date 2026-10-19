@@ -693,6 +693,48 @@ function simplifyBinary(
   return { kind: 'binary', op, left, right };
 }
 
+const STATUS_FUNCTIONS = new Set(['always', 'cancelled', 'failure', 'success']);
+
+/** Whether an expression calls a status check function: `always()`, `cancelled()`, `failure()` or `success()`. */
+export function hasStatusFunction(node: Expr): boolean {
+  switch (node.kind) {
+    case 'literal':
+    case 'ident':
+      return false;
+    case 'member':
+    case 'wildcard':
+      return hasStatusFunction(node.object);
+    case 'index':
+      return hasStatusFunction(node.object) || hasStatusFunction(node.index);
+    case 'call':
+      return (
+        STATUS_FUNCTIONS.has(node.name.toLowerCase()) ||
+        node.args.some(hasStatusFunction)
+      );
+    case 'not':
+      return hasStatusFunction(node.operand);
+    case 'binary':
+      return hasStatusFunction(node.left) || hasStatusFunction(node.right);
+  }
+}
+
+/**
+ * GitHub and Forgejo put `success() &&` in front of an `if:` that calls no status function,
+ * so the job or step is skipped once something it needs has failed. A condition that called
+ * one and folds to something that calls none (`always() || github.event_name == 'push'` in a
+ * workflow that only pushes is true, and `true` is a condition that waits for success) would
+ * change when it runs, so the status function is put back: `always()` for a condition that
+ * holds, `always() && <the rest>` for one that still depends on something. A condition that
+ * is false is false whatever the status.
+ */
+export function keepStatusFunction(original: Expr, folded: Expr): Expr {
+  if (!hasStatusFunction(original) || hasStatusFunction(folded)) return folded;
+  if (isLiteral(folded) && !truthy(folded.value)) return folded;
+  const always: Expr = { kind: 'call', name: 'always', args: [] };
+  if (isLiteral(folded)) return always;
+  return { kind: 'binary', op: '&&', left: always, right: folded };
+}
+
 /** A string value with `${{ }}` holes. */
 export type TemplatePart =
   | { readonly kind: 'text'; readonly text: string }

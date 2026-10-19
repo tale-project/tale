@@ -4,6 +4,8 @@ import {
   ExpressionError,
   contextPath,
   foldTemplate,
+  hasStatusFunction,
+  keepStatusFunction,
   parseExpression,
   parseTemplate,
   printExpression,
@@ -134,6 +136,39 @@ describe('contextPath', () => {
     expect(contextPath(parseExpression('a[b]'))).toBeUndefined();
     expect(contextPath(parseExpression('f(a).b'))).toBeUndefined();
     expect(contextPath(parseExpression("a['b'].c"))).toBe('a.b.c');
+  });
+});
+
+describe('status functions', () => {
+  const parse = parseExpression;
+
+  test('are found wherever an expression calls one, in any case', () => {
+    for (const source of [
+      'always()',
+      '!cancelled()',
+      'success() && a',
+      "a == 'x' || FAILURE()",
+      'contains(github.ref, always())',
+      'a[always()]',
+    ])
+      expect(hasStatusFunction(parse(source)), source).toBe(true);
+    for (const source of [
+      'a',
+      "github.event_name == 'push'",
+      'contains(github.ref, x)',
+    ])
+      expect(hasStatusFunction(parse(source)), source).toBe(false);
+  });
+
+  test('are put back when a fold left none, and only then', () => {
+    const keep = (original: string, folded: string) =>
+      printExpression(keepStatusFunction(parse(original), parse(folded)));
+    expect(keep('always() || a', 'true')).toBe('always()');
+    expect(keep('always() || a', 'b')).toBe('always() && b');
+    expect(keep('always() || a', 'b || c')).toBe('always() && (b || c)');
+    expect(keep('always() && a', 'false')).toBe('false');
+    expect(keep('always() && a', '!cancelled()')).toBe('!cancelled()');
+    expect(keep('a || b', 'true')).toBe('true');
   });
 });
 
