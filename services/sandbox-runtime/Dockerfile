@@ -716,6 +716,13 @@ COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-r
 # prepends onto PYTHONPATH (/agent/.runtime/deps/python) can never shadow PIL.
 COPY services/sandbox-runtime/tale-vision /opt/tale-vision/cli.py
 
+# The image's PATH for login shells. `ENV PATH` above does not reach a login
+# shell (`bash -lc`: runnerd's shell exec form, Codex's shell tool): Debian's
+# /etc/profile resets PATH before it reads /etc/profile.d. This file puts the
+# agent, Node and session dependency directories back; it must name the same
+# directories as `ENV PATH` and entrypoint.sh (held by login-shell-path.test.ts).
+COPY --chmod=644 services/sandbox-runtime/login-shell-path.sh /etc/profile.d/tale-path.sh
+
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
