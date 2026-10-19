@@ -3,19 +3,25 @@
 #
 # App-level launch for the sandbox egress proxy. `docker-entrypoint.sh`
 # runs first and installs the IP-layer SSRF firewall; we render the
-# tinyproxy config (open egress by default, or a default-deny allowlist
-# when the operator sets SANDBOX_EGRESS_ALLOWLIST) and supervise foreground
-# tinyproxy alongside the DNS forwarder.
+# tinyproxy config (open egress by default, a default-deny allowlist when the
+# operator sets SANDBOX_EGRESS_ALLOWLIST, or open egress that refuses the hosts
+# named in SANDBOX_EGRESS_DENIED_HOSTS) and supervise foreground tinyproxy
+# alongside the DNS forwarder.
 
 set -e
 
 # Operator opt-in lockdown. SANDBOX_EGRESS_ALLOWLIST is one hostname regex
 # per line, or `|`-separated for compose-friendly single-line env values.
 #   non-empty      => default-deny: only matching hosts are proxied.
-#   unset or empty => open egress: no hostname filtering at all.
+#   unset or empty => open egress: no hostname filtering at all, unless
+#                     SANDBOX_EGRESS_DENIED_HOSTS names hosts to refuse.
 # The IP-layer SSRF firewall (IMDS + link-local + RFC1918 REJECT, installed
-# by docker-entrypoint.sh) applies in BOTH modes. LLM traffic never transits
+# by docker-entrypoint.sh) applies in EVERY mode. LLM traffic never transits
 # this proxy either way (NO_PROXY=sandbox-llm-gateway on the runtime containers).
+if [ -n "$SANDBOX_EGRESS_ALLOWLIST" ] && [ -n "$SANDBOX_EGRESS_DENIED_HOSTS" ]; then
+  echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_ALLOWLIST and SANDBOX_EGRESS_DENIED_HOSTS are both set; an allow-list already refuses every host it does not name, so set one of them"
+  exit 1
+fi
 if [ -n "$SANDBOX_EGRESS_ALLOWLIST" ]; then
   echo "$SANDBOX_EGRESS_ALLOWLIST" | tr '|' '\n' > /etc/tinyproxy/allowlist
   FILTER_BLOCK='# Host-name allow-list (default-deny), rendered from SANDBOX_EGRESS_ALLOWLIST.
@@ -25,6 +31,49 @@ FilterExtended Yes
 FilterURLs Off
 Filter "/etc/tinyproxy/allowlist"'
   EGRESS_MODE=allowlist
+elif [ -n "$SANDBOX_EGRESS_DENIED_HOSTS" ]; then
+  # Hosts the proxy refuses, whatever else it serves: the package registries a
+  # node's own caches replace, so that a package manager that ignores its
+  # configuration fails visibly instead of installing around the cache.
+  # SANDBOX_EGRESS_DENIED_HOSTS is a list of host names separated by commas or
+  # `|`. Each also covers its subdomains: the proxy answers it 403, and the DNS
+  # forwarder answers it NXDOMAIN, so a client that resolves through the proxy
+  # and then connects by address fails at the name. Names, not regexes: a
+  # value that is not a plain host name stops the start, as does a list that
+  # names none. It is refused beside an allow-list, which already refuses every
+  # host it does not name.
+  DENIED_HOSTS=""
+  : > /etc/tinyproxy/denylist
+  set -f
+  for _host in $(echo "$SANDBOX_EGRESS_DENIED_HOSTS" | tr ',|' '  '); do
+    case "$_host" in
+      '' | *[!A-Za-z0-9.-]* | .* | *. | *..* | -* | *- | *.-* | *-.*)
+        echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_DENIED_HOSTS must be host names separated by commas, such as registry.npmjs.org,pypi.org; got '${_host}'"
+        exit 1 ;;
+      *.*) ;;
+      *)
+        echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_DENIED_HOSTS names '${_host}', which is no host name with a domain"
+        exit 1 ;;
+    esac
+    _host="$(echo "$_host" | tr '[:upper:]' '[:lower:]')"
+    DENIED_HOSTS="${DENIED_HOSTS} ${_host}"
+    # The host and every subdomain of it, as extended regexes. One trailing dot
+    # is covered: tinyproxy matches the host as the client wrote it, and
+    # `registry.npmjs.org.` resolves to the same address as the name without it.
+    printf '(^|\\.)%s\\.?$\n' "$(echo "$_host" | sed 's/\./\\./g')" >> /etc/tinyproxy/denylist
+  done
+  set +f
+  if [ -z "$DENIED_HOSTS" ]; then
+    echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_DENIED_HOSTS is set but names no host"
+    exit 1
+  fi
+  FILTER_BLOCK='# Host-name deny-list (everything else is open), rendered from SANDBOX_EGRESS_DENIED_HOSTS.
+FilterDefaultDeny No
+FilterCaseSensitive No
+FilterExtended Yes
+FilterURLs Off
+Filter "/etc/tinyproxy/denylist"'
+  EGRESS_MODE=denylist
 else
   # Omit the Filter directive entirely. tinyproxy 1.11.x treats an EMPTY
   # filter file with FilterDefaultDeny Yes as deny-everything, and exits
@@ -77,6 +126,9 @@ echo "[sandbox-egress] starting tinyproxy on :3128 (egress mode: ${EGRESS_MODE},
 if [ "$EGRESS_MODE" = allowlist ]; then
   echo "[sandbox-egress] CONNECT allow-list:"
   sed 's/^/  /' /etc/tinyproxy/allowlist
+elif [ "$EGRESS_MODE" = denylist ]; then
+  echo "[sandbox-egress] open egress except the hosts below and their subdomains, which are refused (the proxy answers 403, the DNS forwarder NXDOMAIN):"
+  for _host in $DENIED_HOSTS; do echo "  ${_host}"; done
 else
   echo "[sandbox-egress] open egress: CONNECT to any public host on :443 (IP-layer SSRF firewall still blocks IMDS/RFC1918; set SANDBOX_EGRESS_ALLOWLIST to restrict)"
 fi
@@ -138,8 +190,18 @@ running() {
 # the probe proves the forwarder answers on :53 without depending on an
 # upstream resolver (nothing under `.invalid` exists in public DNS).
 echo "[sandbox-egress] starting dnsmasq DNS forwarder on :53 (internal-network external resolution)"
+#
+# Hosts the proxy refuses (SANDBOX_EGRESS_DENIED_HOSTS) get no address here
+# either: `--address=/<host>/` with no address answers NXDOMAIN for the host
+# and its subdomains, so a client that resolves through this forwarder and then
+# connects by address fails at the name. Names were validated above, so the
+# word splitting below is of plain host names.
+_refuse=""
+for _host in ${DENIED_HOSTS:-}; do _refuse="${_refuse} --address=/${_host}/"; done
+# shellcheck disable=SC2086
 dnsmasq --keep-in-foreground --bind-dynamic --no-hosts -u root \
-  --cache-size=4096 --host-record=sandbox-egress-health.invalid,127.0.0.1 &
+  --cache-size=4096 --host-record=sandbox-egress-health.invalid,127.0.0.1 \
+  $_refuse &
 DNSMASQ_PID=$!
 
 # tinyproxy logs to its stdout, which is the container log, so nothing else

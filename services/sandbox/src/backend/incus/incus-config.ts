@@ -12,6 +12,7 @@ import { isAbsolute } from 'node:path';
 
 import { isIpv4Address } from '../../network-address.ts';
 import type { IncusConfig } from '../../types.ts';
+import { readRegistryCaches } from './incus-registry-caches.ts';
 import { toIncusSize } from './incus-units.ts';
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -287,6 +288,7 @@ export function readIncusConfig(
   }
 
   const source = imageSource(env);
+  const registryCaches = readRegistryCaches(env);
   const config: IncusConfig = {
     endpoint: endpoint(env),
     project: objectName(env, 'SANDBOX_INCUS_PROJECT'),
@@ -303,6 +305,7 @@ export function readIncusConfig(
     dns: nameservers(env, ctx),
     dockerConfig: dockerConfig(env),
     allowUnfilteredNetwork,
+    ...(registryCaches === undefined ? {} : { registryCaches }),
     apiTimeoutMs: whole(env, 'SANDBOX_INCUS_API_TIMEOUT_MS', 15_000, {
       min: 1_000,
       max: 300_000,

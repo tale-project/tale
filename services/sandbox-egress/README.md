@@ -6,6 +6,22 @@ proxy; `iptables` REJECT rules block the cloud metadata endpoint (IMDS) and
 private destinations, with an exact-address DNS exception for configured
 upstream resolvers.
 
+`SANDBOX_EGRESS_DENIED_HOSTS` keeps egress open and refuses the hosts it names:
+a list of host names separated by commas or `|` (for example
+`registry.npmjs.org,registry.yarnpkg.com,pypi.org,files.pythonhosted.org`), each
+also covering its subdomains. A request for one gets `403` from the proxy
+(a `CONNECT` tunnel fails with the same status), and the DNS forwarder answers it
+`NXDOMAIN`, so a client that resolves through the proxy and then connects by
+address fails at the name. It is for a deployment whose sessions install from
+package caches of their own (the Incus backend's `SANDBOX_INCUS_NPM_REGISTRY` and
+`SANDBOX_INCUS_PYPI_INDEX`): a package manager that ignores its configuration
+then fails visibly instead of installing around the cache. Entries are host
+names, not regular expressions, and the entrypoint refuses to start on a value
+that is not a plain host name with a domain, on a list that names none, and when
+`SANDBOX_EGRESS_ALLOWLIST` is also set (an allow-list already refuses every host
+it does not name). Recreate the service to apply a change: the list reaches the
+container through its environment file, which a restart does not read again.
+
 The entrypoint validates literal nameserver addresses from `/etc/resolv.conf`
 and permits UDP/TCP destination port 53 to those exact IPs, so a private
 Kubernetes DNS Service can resolve upstream names. It does not allow the

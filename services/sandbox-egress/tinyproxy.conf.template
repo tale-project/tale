@@ -43,9 +43,11 @@ ConnectPort 443
 ConnectPort 80
 
 # Hostname filter — rendered by entrypoint.sh: omitted entirely for open
-# egress (the default), or a default-deny allowlist when the operator sets
-# SANDBOX_EGRESS_ALLOWLIST. In open mode the IP-layer SSRF firewall from
-# docker-entrypoint.sh (REJECT IMDS + RFC1918) is the only egress fence.
+# egress (the default), a default-deny allowlist when the operator sets
+# SANDBOX_EGRESS_ALLOWLIST, or a deny-list over otherwise open egress
+# (FilterDefaultDeny No) when the operator sets SANDBOX_EGRESS_DENIED_HOSTS.
+# Without an allowlist the IP-layer SSRF firewall from docker-entrypoint.sh
+# (REJECT IMDS + RFC1918) is the only egress fence.
 ${FILTER_BLOCK}
 
 # Client allow-list (network-layer): only loopback (healthcheck) and the

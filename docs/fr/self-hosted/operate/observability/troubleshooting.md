@@ -81,6 +81,8 @@ Pour un échec fournisseur, vérifie quota et permissions des identifiants chois
 
 Examine `sandbox-egress` et l’URL cible. Une `SANDBOX_EGRESS_ALLOWLIST` configurée doit contenir l’hôte nécessaire ; les destinations privées et de métadonnées cloud restent bloquées. Les tunnels HTTPS suivent la politique de ports prise en charge. Confirme la destination voulue avant d’élargir la liste, puis recrée le service de sortie après un changement d’environnement.
 
+Un `403`, ou un nom qui ne se résout pas, pour un hôte de registre de paquets comme `pypi.org` ou `registry.npmjs.org` est la réponse voulue quand `SANDBOX_EGRESS_DENIED_HOSTS` nomme cet hôte : la session doit installer par les caches de registres (`SANDBOX_INCUS_NPM_REGISTRY` et `SANDBOX_INCUS_PYPI_INDEX`). Ne retire l’hôte de la liste que si les caches ne sont plus voulus, puis recrée le service de sortie.
+
 Un processus de sortie sain ne prouve pas la disponibilité de l’hôte distant, du DNS, du certificat ou du compte. Conserve l’erreur précise dans le rapport d’incident.
 
 Quand de nombreuses sessions installent des paquets ou chargent des pages en même temps et que des connexions échouent sur des réinitialisations alors que le proxy reste sain, il a peut-être atteint `SANDBOX_EGRESS_MAX_CLIENTS`, les connexions qu’il sert en même temps pour toutes les sessions réunies. Son journal indique alors que le nombre maximal de connexions est atteint. Augmente la valeur, avec les limites de processus et de fichiers ouverts du conteneur de sortie, puis recrée le service de sortie.

@@ -17,6 +17,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { REGISTRY_HOSTS } from './backend/incus/incus-registry-caches.ts';
+
 const root = mkdtempSync(join(tmpdir(), 'tale-egress-config-'));
 const bin = join(root, 'bin');
 const etc = join(root, 'etc');
@@ -108,13 +110,17 @@ function boot(
     tinyproxyFiles,
     dnsmasqArgs,
     events,
+    join(etc, 'allowlist'),
+    join(etc, 'denylist'),
   ])
     rmSync(file, { force: true });
   const env: Record<string, string | undefined> = {
     ...process.env,
+    // Neither list is the host's, unless a case sets one.
+    SANDBOX_EGRESS_ALLOWLIST: '',
+    SANDBOX_EGRESS_DENIED_HOSTS: '',
     ...stubs,
     PATH: `${bin}:/usr/bin:/bin`,
-    SANDBOX_EGRESS_ALLOWLIST: '',
   };
   if (maxClients === undefined) delete env.SANDBOX_EGRESS_MAX_CLIENTS;
   else env.SANDBOX_EGRESS_MAX_CLIENTS = maxClients;
@@ -259,5 +265,213 @@ describe('egress proxy connection limit', () => {
       "WARN: 3500 connections need about 7064 open files, more than this container's limit of 4096 allows; raise its nofile ulimit",
     );
     expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('4096');
+  });
+});
+
+// The hosts the proxy refuses, whatever else it serves: the registries a
+// node's caches replace.
+describe('egress proxy host deny-list', () => {
+  // The registries the spawner's caches replace, which the spawner's own list
+  // names: the proxy must take exactly these.
+  const REGISTRIES = [...REGISTRY_HOSTS.npm, ...REGISTRY_HOSTS.pypi];
+  const denylist = () => readFileSync(join(etc, 'denylist'), 'utf8');
+  const dnsmasqAddresses = () =>
+    readFileSync(dnsmasqArgs, 'utf8')
+      .trim()
+      .split(' ')
+      .filter((arg) => arg.startsWith('--address='));
+
+  /** Which of these names the rendered deny-list matches, as tinyproxy would
+   * match a host: an extended regular expression, case-insensitive. */
+  function refused(names: string[]): string[] {
+    return names.filter(
+      (name) =>
+        spawnSync(
+          'grep',
+          ['-E', '-i', '-q', '-f', join(etc, 'denylist'), '--', '-'],
+          { input: `${name}\n` },
+        ).status === 0,
+    );
+  }
+
+  test('unset, the proxy is open as before: no filter, no list, no refused name', () => {
+    const { result, config } = boot();
+    expect(result.status).toBe(0);
+    expect(config).toContain('# Open egress: no hostname filter');
+    expect(directive(config, 'Filter')).toEqual([]);
+    expect(directive(config, 'FilterDefaultDeny')).toEqual([]);
+    expect(existsSync(join(etc, 'denylist'))).toBe(false);
+    expect(dnsmasqAddresses()).toEqual([]);
+    expect(result.stdout).toContain('egress mode: open,');
+  });
+
+  test('refuses the named hosts and leaves everything else open', () => {
+    const { result, config } = boot(undefined, '', {
+      SANDBOX_EGRESS_DENIED_HOSTS: REGISTRIES.join(','),
+    });
+    expect(result.status).toBe(0);
+    expect(directive(config, 'FilterDefaultDeny')).toEqual(['No']);
+    expect(directive(config, 'FilterExtended')).toEqual(['Yes']);
+    expect(directive(config, 'FilterURLs')).toEqual(['Off']);
+    expect(directive(config, 'Filter')).toEqual([`"${etc}/denylist"`]);
+    expect(config).not.toContain('${');
+    expect(denylist()).toBe(
+      `${REGISTRIES.map((host) => `(^|\\.)${host.replaceAll('.', '\\.')}\\.?$`).join('\n')}\n`,
+    );
+    expect(denylist().split('\n')[0]).toBe(
+      '(^|\\.)registry\\.npmjs\\.org\\.?$',
+    );
+    expect(result.stdout).toContain('egress mode: denylist,');
+    for (const host of REGISTRIES) {
+      expect(result.stdout).toContain(`  ${host}\n`);
+    }
+    // The rest of the config is the open proxy's own.
+    expect(directive(config, 'ConnectPort')).toEqual(['443', '80']);
+    expect(directive(config, 'MaxClients')).toEqual(['2000']);
+  });
+
+  test('a host and its subdomains are refused, and a name that only looks like one is not', () => {
+    boot(undefined, '', { SANDBOX_EGRESS_DENIED_HOSTS: REGISTRIES.join(',') });
+    expect(
+      refused([
+        'registry.npmjs.org',
+        'REGISTRY.NPMJS.ORG',
+        'a.registry.npmjs.org',
+        // The fully qualified form resolves to the same address, and a client
+        // may write it: tinyproxy matches the host as it was written.
+        'registry.npmjs.org.',
+        'a.registry.npmjs.org.',
+        'pypi.org',
+        'PyPI.org.',
+        'files.pythonhosted.org',
+        'cdn.files.pythonhosted.org',
+      ]),
+    ).toEqual([
+      'registry.npmjs.org',
+      'REGISTRY.NPMJS.ORG',
+      'a.registry.npmjs.org',
+      'registry.npmjs.org.',
+      'a.registry.npmjs.org.',
+      'pypi.org',
+      'PyPI.org.',
+      'files.pythonhosted.org',
+      'cdn.files.pythonhosted.org',
+    ]);
+    expect(
+      refused([
+        'xregistry.npmjs.org',
+        'registry-npmjs.org',
+        'registry.npmjs.org.example.test',
+        'registry.npmjs.org..',
+        'notpypi.org',
+        'pypi.org.example.test',
+        'npmjs.org',
+        'github.com',
+        'example.com',
+      ]),
+    ).toEqual([]);
+  });
+
+  test('the DNS forwarder answers none of them an address, subdomains included', () => {
+    const { result } = boot(undefined, '', {
+      SANDBOX_EGRESS_DENIED_HOSTS: REGISTRIES.join(','),
+    });
+    expect(result.status).toBe(0);
+    expect(dnsmasqAddresses()).toEqual(
+      REGISTRIES.map((host) => `--address=/${host}/`),
+    );
+    // The forwarder keeps what it had: the cache and the health probe's name.
+    const args = readFileSync(dnsmasqArgs, 'utf8').trim().split(' ');
+    expect(args).toContain('--cache-size=4096');
+    expect(args).toContain(
+      '--host-record=sandbox-egress-health.invalid,127.0.0.1',
+    );
+  });
+
+  test('takes commas, bars and spaces, any case, and a trailing separator', () => {
+    const { result } = boot(undefined, '', {
+      SANDBOX_EGRESS_DENIED_HOSTS:
+        ' Pypi.org|files.pythonhosted.org, registry.npmjs.org  ,',
+    });
+    expect(result.status).toBe(0);
+    expect(denylist().trim().split('\n')).toEqual([
+      '(^|\\.)pypi\\.org\\.?$',
+      '(^|\\.)files\\.pythonhosted\\.org\\.?$',
+      '(^|\\.)registry\\.npmjs\\.org\\.?$',
+    ]);
+  });
+
+  test('never expands a pattern of the shell in the list into the names of files', () => {
+    // Run from the root, where `*` would name directories that read as hosts.
+    const { result } = boot(undefined, 'cd /', {
+      SANDBOX_EGRESS_DENIED_HOSTS: '*',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      'FATAL: SANDBOX_EGRESS_DENIED_HOSTS must be host names',
+    );
+    expect(result.stdout).toContain("got '*'");
+  });
+
+  test.each([
+    'registry.npmjs.org/x',
+    '^pypi\\.org$',
+    'https://pypi.org',
+    'pypi.org:443',
+    'localhost',
+    '.example.com',
+    'example.com.',
+    '-a.example.com',
+    'a-.example.com',
+    'a.-b.example.com',
+    'a..example.com',
+    'a$(reboot).example.com',
+    'a;b.example.com',
+    '(^|.)pypi.org',
+    'ex ample',
+  ])('stops the start on %p, which is no plain host name', (value) => {
+    const { result, config } = boot(undefined, '', {
+      SANDBOX_EGRESS_DENIED_HOSTS: value,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('FATAL: SANDBOX_EGRESS_DENIED_HOSTS');
+    expect(config).toBeNull();
+    expect(existsSync(dnsmasqArgs)).toBe(false);
+  });
+
+  test('stops the start on a list that names no host', () => {
+    for (const value of [',', ' | , ']) {
+      const { result, config } = boot(undefined, '', {
+        SANDBOX_EGRESS_DENIED_HOSTS: value,
+      });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('names no host');
+      expect(config).toBeNull();
+    }
+  });
+
+  test('stops the start beside an allow-list, which already refuses what it does not name', () => {
+    const { result, config } = boot(undefined, '', {
+      SANDBOX_EGRESS_ALLOWLIST: '^github\\.com$',
+      SANDBOX_EGRESS_DENIED_HOSTS: 'pypi.org',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      'SANDBOX_EGRESS_ALLOWLIST and SANDBOX_EGRESS_DENIED_HOSTS are both set',
+    );
+    expect(config).toBeNull();
+  });
+
+  test('an allow-list alone is rendered as it was', () => {
+    const { result, config } = boot(undefined, '', {
+      SANDBOX_EGRESS_ALLOWLIST: '^github\\.com$|^pypi\\.org$',
+    });
+    expect(result.status).toBe(0);
+    expect(directive(config, 'FilterDefaultDeny')).toEqual(['Yes']);
+    expect(readFileSync(join(etc, 'allowlist'), 'utf8')).toBe(
+      '^github\\.com$\n^pypi\\.org$\n',
+    );
+    expect(existsSync(join(etc, 'denylist'))).toBe(false);
+    expect(dnsmasqAddresses()).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
+import type { RegistryCaches } from '../../types.ts';
 import {
   incusInstanceName,
   incusPoolInstanceName,
@@ -398,6 +399,71 @@ describe('a session started cold', () => {
     expect(body.config['user.tale.sandbox-instance']).toBe('device');
   });
 
+  describe('the registry caches', () => {
+    const CACHES = {
+      npm: 'http://10.200.41.8:4873/',
+      pypi: 'http://10.200.41.9:3141/root/pypi/+simple/',
+    };
+    const withCaches = (registryCaches: RegistryCaches = CACHES) =>
+      incusTestConfig({ registryCaches });
+
+    test('unset, the environment is what it was before they existed', () => {
+      for (const profile of ['agent', 'agent-light', 'default'] as const) {
+        const { config } = buildSessionInstance(incusTestConfig(), {
+          ...input,
+          profile,
+        });
+        expect(config['environment.NO_PROXY']).toBe(
+          '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+        );
+        expect(
+          Object.keys(config).filter((key) =>
+            key.startsWith('environment.TALE_REGISTRY_CACHE'),
+          ),
+        ).toEqual([]);
+      }
+    });
+
+    test('set, a session is given their addresses and reaches them directly, and nothing else changes', () => {
+      const plain = buildSessionInstance(incusTestConfig(), input).config;
+      const set = buildSessionInstance(withCaches(), input).config;
+      expect(set['environment.NO_PROXY']).toBe(
+        '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay,10.200.41.8,10.200.41.9',
+      );
+      expect(set['environment.TALE_REGISTRY_CACHE_NPM']).toBe(CACHES.npm);
+      expect(set['environment.TALE_REGISTRY_CACHE_PYPI']).toBe(CACHES.pypi);
+      const changed = Object.keys(set).filter((key) => set[key] !== plain[key]);
+      expect(changed.toSorted()).toEqual([
+        'environment.NO_PROXY',
+        'environment.TALE_REGISTRY_CACHE_NPM',
+        'environment.TALE_REGISTRY_CACHE_PYPI',
+      ]);
+    });
+
+    test('every profile gets them: the proxy refuses the registries for all of them', () => {
+      for (const profile of ['agent', 'agent-light', 'default'] as const) {
+        const { config } = buildSessionInstance(withCaches(), {
+          ...input,
+          profile,
+        });
+        expect(config['environment.TALE_REGISTRY_CACHE_NPM']).toBe(CACHES.npm);
+        expect(config['environment.TALE_REGISTRY_CACHE_PYPI']).toBe(
+          CACHES.pypi,
+        );
+      }
+    });
+
+    test('one cache alone is given alone', () => {
+      const { config } = buildSessionInstance(
+        withCaches({ npm: CACHES.npm }),
+        input,
+      );
+      expect(config['environment.NO_PROXY']).toEndWith(',10.200.41.8');
+      expect(config['environment.TALE_REGISTRY_CACHE_NPM']).toBe(CACHES.npm);
+      expect(config['environment.TALE_REGISTRY_CACHE_PYPI']).toBeUndefined();
+    });
+  });
+
   test('refuses ids that are not plain, and an address that is not one', () => {
     const cfg = incusTestConfig();
     expect(() =>
@@ -527,7 +593,33 @@ describe('the warm pool', () => {
     expect(poolFingerprint(bigger, poolShape(bigger))).not.toBe(same);
     const docker = dockerCapable();
     expect(poolFingerprint(docker, poolShape(docker))).not.toBe(same);
+    // A standby made before the caches were set, or moved, is replaced.
+    const cached = incusTestConfig({
+      registryCaches: { npm: 'http://10.200.41.8:4873/' },
+    });
+    expect(poolFingerprint(cached, poolShape(cached))).not.toBe(same);
+    const recached = incusTestConfig({
+      registryCaches: { npm: 'http://10.200.41.12:4873/' },
+    });
+    expect(poolFingerprint(recached, poolShape(recached))).not.toBe(
+      poolFingerprint(cached, poolShape(cached)),
+    );
     expect(same).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  test('a standby carries the caches in its environment, like a session cold started', () => {
+    const cfg = incusTestConfig({
+      registryCaches: { npm: 'http://10.200.41.8:4873/' },
+    });
+    const standby = buildPoolInstance(cfg, poolShape(cfg), {
+      name: 'tale-sbx-pool-ab12',
+      imageFingerprint: 'f'.repeat(64),
+      nowMs: 1_700_000_000_000,
+    });
+    expect(standby.config['environment.TALE_REGISTRY_CACHE_NPM']).toBe(
+      'http://10.200.41.8:4873/',
+    );
+    expect(standby.config['environment.NO_PROXY']).toEndWith(',10.200.41.8');
   });
 
   test('a claim labels the instance, mounts the workspace and hands over the token', () => {

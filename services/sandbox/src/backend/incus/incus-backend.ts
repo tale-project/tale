@@ -24,6 +24,7 @@ import {
   label,
   LABEL,
 } from './incus-naming.ts';
+import { describeRegistryCaches } from './incus-registry-caches.ts';
 import { removeIncusInstance } from './incus-remove.ts';
 import { getIncusRuntime, type IncusRuntime } from './incus-runtime.ts';
 import { buildWarmupInstance } from './incus-session-spec.ts';
@@ -113,6 +114,11 @@ export class IncusBackend implements HostBackend {
     console.log(
       `[sandbox.incus] Incus ${server.serverVersion || '(unknown version)'} at ${incus.endpoint}: project=${incus.project} profile=${incus.profile} network=${incus.network} pool=${incus.storagePool} (${storagePool.driver}) image=${incus.image} warmPool=${incus.poolSize}`,
     );
+    if (incus.registryCaches !== undefined) {
+      console.log(
+        `[sandbox.incus] ${describeRegistryCaches(incus.registryCaches)}`,
+      );
+    }
     pool.start();
   }
 

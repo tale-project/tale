@@ -56,6 +56,10 @@ import {
   LABEL,
 } from './incus-naming.ts';
 import {
+  registryCacheEnvironment,
+  registryCacheHosts,
+} from './incus-registry-caches.ts';
+import {
   claimFile,
   STANDBY_COMMAND,
   standbyScriptDigest,
@@ -171,10 +175,13 @@ function sharedEnvironment(
   cfg: SpawnerConfig,
   shape: SessionShape,
 ): Record<string, string> {
+  const caches = incusOf(cfg).registryCaches;
   const env: Record<string, string> = {
     HTTPS_PROXY: cfg.egressProxy,
     HTTP_PROXY: cfg.egressProxy,
-    NO_PROXY: SESSION_NO_PROXY,
+    // The proxy refuses private destinations, so a registry cache, which sits
+    // on the node's own network, is reached directly.
+    NO_PROXY: [SESSION_NO_PROXY, ...registryCacheHosts(caches)].join(','),
     // HOME on the persistent workspace so agent state survives every exec
     // and a resume.
     HOME: '/agent/.runtime/home',
@@ -189,6 +196,8 @@ function sharedEnvironment(
     // Docker's PID 1 does by exiting.
     TALE_END_WITH_RUNNERD: '1',
   };
+  // The addresses the entrypoint writes the package managers' files from.
+  Object.assign(env, registryCacheEnvironment(caches));
   if (shape.dind) {
     env.TALE_DIND = '1';
     // The entrypoint asserts, for the tier it is told, that container root is

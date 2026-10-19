@@ -109,6 +109,23 @@ describe('SANDBOX_BACKEND=incus', () => {
     expect(cfg.egressProxy).toBe('http://10.20.0.2:3128');
   });
 
+  test('installs through no registry cache unless one is named, and refuses a name that is no address', () => {
+    useIncus();
+    expect(loadConfig().incus).not.toHaveProperty('registryCaches');
+
+    useIncus({
+      SANDBOX_INCUS_NPM_REGISTRY: 'http://10.200.41.8:4873/',
+      SANDBOX_INCUS_PYPI_INDEX: 'http://10.200.41.9:3141/root/pypi/+simple/',
+    });
+    expect(loadConfig().incus?.registryCaches).toEqual({
+      npm: 'http://10.200.41.8:4873/',
+      pypi: 'http://10.200.41.9:3141/root/pypi/+simple/',
+    });
+
+    useIncus({ SANDBOX_INCUS_NPM_REGISTRY: 'http://npm.cache.internal:4873/' });
+    expect(() => loadConfig()).toThrow('SANDBOX_INCUS_NPM_REGISTRY');
+  });
+
   test('is the unprivileged-container tier whatever tier was asked for', () => {
     useIncus({ SANDBOX_RUNTIME: 'runc' });
     const cfg = loadConfig();

@@ -218,6 +218,7 @@ export const REPOSITORY_RUNTIME_SOURCE = [
 export const SPAWNER_CONFIG_SOURCE = [
   'services/sandbox/src/config.ts',
   'services/sandbox/src/backend/incus/incus-config.ts',
+  'services/sandbox/src/backend/incus/incus-registry-caches.ts',
   'services/sandbox/src/backend/incus/incus-units.ts',
   'services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts',
   'services/sandbox/src/host-memory.ts',

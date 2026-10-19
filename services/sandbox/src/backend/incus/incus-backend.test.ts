@@ -44,6 +44,25 @@ describe('init', () => {
     expect(line).toContain('(zfs)');
   });
 
+  test('says which registry caches sessions install through, and what the proxy should refuse', async () => {
+    const f = hostFixture({
+      incus: {
+        registryCaches: {
+          npm: 'http://10.200.41.8:4873/',
+          pypi: 'http://10.200.41.9:3141/root/pypi/+simple/',
+        },
+      },
+    });
+    await f.host.init();
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('project=sandbox-pr');
+    expect(lines[1]).toContain('npm http://10.200.41.8:4873/');
+    expect(lines[1]).toContain(
+      'SANDBOX_EGRESS_DENIED_HOSTS=registry.npmjs.org',
+    );
+  });
+
   test('starts the warm pool after the checks', async () => {
     const f = hostFixture({ incus: { poolSize: 2 }, maxSessions: 8 });
     await f.host.init();
