@@ -3,7 +3,7 @@
  * Port Tale's GitHub Actions to Forgejo.
  *
  *   bun tools/cli/scripts/forgejo-port.ts report            what the port does to each file
- *   bun tools/cli/scripts/forgejo-port.ts check             port in memory and fail on a problem
+ *   bun tools/cli/scripts/forgejo-port.ts check             port in memory and fail on a problem, or on a README that lacks a mirror
  *   bun tools/cli/scripts/forgejo-port.ts generate [--write] the files of `.forgejo/` (the cut-over)
  *   bun tools/cli/scripts/forgejo-port.ts checks [--write]  the checks the merge train declares
  *   bun tools/cli/scripts/forgejo-port.ts github [--write]  the edits GitHub's copies of the workflows that stay need
@@ -44,6 +44,9 @@ import type { Problem } from './forgejo-port/validate';
 /** The checks the merge train waits for, as the port generates them. */
 export const DECLARED_CHECKS =
   'tools/cli/scripts/forgejo-port/declared-checks.yml';
+
+/** The README that lists what the node must hold, among it the actions it mirrors. */
+export const README = 'tools/cli/scripts/forgejo-port/README.md';
 
 /** The directories the generator owns under the repository root. */
 const GENERATED_DIRS = [
@@ -249,6 +252,30 @@ export function runnerCheck(runner: string, generated: Generated): Problem[] {
   return problems;
 }
 
+/**
+ * Each external action the generated files use against the README's `Mirrors` row: the node
+ * resolves `uses:` at its own mirrors, so an action the README does not list is one nobody was
+ * told to mirror.
+ */
+export function mirrorProblems(root: string, generated: Generated): Problem[] {
+  const text = textOf(join(root, README));
+  if (text === undefined)
+    return [
+      { file: README, at: '', message: 'is missing: it lists the mirrors' },
+    ];
+  const row = /\| Mirrors[^\n]*\n/.exec(text)?.[0] ?? '';
+  const named = new Set(
+    [...row.matchAll(/`([a-z0-9-]+\/[a-z0-9._-]+)`/g)].map((match) => match[1]),
+  );
+  return [...generated.actions.keys()]
+    .filter((name) => !named.has(name))
+    .map((name) => ({
+      file: README,
+      at: 'Mirrors',
+      message: `does not list \`${name}\`, an action the generated workflows use: the node must mirror it`,
+    }));
+}
+
 export interface Io {
   readonly cwd: string;
   readonly out: (line: string) => void;
@@ -320,6 +347,7 @@ export function main(
       ...planGithubEdits(readSources(root, manifest).workflows, manifest)
         .problems,
     ];
+    problems.push(...mirrorProblems(root, generated));
     if (parsed.values.runner)
       problems.push(...runnerCheck(parsed.values.runner, generated));
     if (

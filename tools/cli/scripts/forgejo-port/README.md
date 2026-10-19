@@ -2,8 +2,14 @@
 
 Turns the workflows under `.github/` into the ones Forgejo's runner runs under `.forgejo/`.
 It is a function of text: the files go in, the generated files, the checks the merge train
-declares and the list of what Forgejo would refuse come out. Nothing in this directory is
-read by the CI that runs today, and no file under `.github/` is changed by it.
+declares and the list of what Forgejo would refuse come out. No workflow under `.github/` is
+changed until the cut-over, which adds one condition to one of them (`github --write`, below).
+
+The unit tests of `@tale/cli` run the port over the workflows as they are today. They fail a
+change only when the generator crashes on a workflow or `declared-checks.yml` no longer lists the
+checks the port generates (`checks --write` rewrites it). What Forgejo would refuse in a workflow,
+and an action the node's mirror list below lacks, are printed as warnings, so that a workflow
+edited today is not held to a port applied later; `check` fails on both.
 
 The port is applied once, at the cut-over. After that `.forgejo/workflows/` is edited by hand
 and the generator is not run again. Until then it stays current with `.github/` by being
@@ -81,7 +87,7 @@ workflow to `fast` with its own `tier` when the pool saturates.
 | Secrets of the repository | `CI_PACKAGES_TOKEN`, a token that may write packages (the job's own token logs in to the registry but cannot push), and `CI_GITHUB_TOKEN`, a read-only GitHub token for the web site's release feed |
 | Registry | `git.tale.dev`, where CI images are pushed under `tale/tale/` |
 
-`report` prints the actions the generated files use; a test holds the table to it.
+`report` prints the actions the generated files use; `check` holds the Mirrors row to them.
 
 ## What stays on GitHub
 
@@ -111,8 +117,9 @@ rewrites it.
 and `forgejo-runner exec --list` on every workflow, so a file that parses but cannot be
 planned fails too. The tests run it when `FORGEJO_RUNNER` names a binary, or on linux/amd64
 by downloading the pinned build (`runner.ts`: version 13.2.0, the digest the ops repository
-pins for the node). A problem the port reports about the workflows as they are today is
-printed as a warning, so that a workflow edited today is not held to a port applied later.
+pins for the node). A problem the port or the runner reports about the workflows as they are
+today is printed as a warning by the tests, so that a workflow edited today is not held to a port
+applied later.
 
 `forgejo-runner` is a Linux binary. On a workstation that is not Linux, `FORGEJO_RUNNER` may
 name a script that runs the same version from its container image (the version, not the
@@ -148,7 +155,8 @@ check.
 
 ## Cut-over
 
-1. `check --runner PATH` is clean and `declared-checks.yml` is current.
+1. `check --runner PATH` is clean: no problem in the generated files, `declared-checks.yml` is
+   current and the Mirrors row lists every action the files use.
 2. `generate --write` in a branch of the Forgejo repository; read the diff, in particular the
    comments that describe GitHub's behaviour.
 3. `github --write` in a branch of the GitHub repository, merged before the push mirror is

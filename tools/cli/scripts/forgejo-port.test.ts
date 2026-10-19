@@ -13,10 +13,12 @@ import { fileURLToPath } from 'node:url';
 
 import {
   DECLARED_CHECKS,
+  README,
   compare,
   declaredChecksText,
   describe as describeGenerated,
   main,
+  mirrorProblems,
   readDeclaredChecks,
   readSources,
   runnerCheck,
@@ -104,6 +106,7 @@ function repository(): string {
   const root = scratch();
   put(root, '.github/workflows/checks.yml', CHECKS);
   put(root, '.github/workflows/publish-packages.yml', PUBLISH);
+  put(root, README, '| Mirrors | `actions/checkout` |\n');
   return root;
 }
 
@@ -219,6 +222,20 @@ describe('the command line', () => {
     expect(drifted.err.join('\n')).toContain('is not what the port generates');
   });
 
+  test('check fails on an action the README does not list among the mirrors', () => {
+    const root = repository();
+    run(root, 'checks', '--write');
+    expect(run(root, 'check').code).toBe(0);
+    put(root, README, '| Mirrors | `actions/setup-node` |\n');
+    const unlisted = run(root, 'check');
+    expect(unlisted.code).toBe(1);
+    expect(unlisted.err.join('\n')).toContain(
+      'does not list `actions/checkout`',
+    );
+    rmSync(join(root, README));
+    expect(run(root, 'check').err.join('\n')).toContain('is missing');
+  });
+
   test('check says when an edit of a workflow that stays has lost its place', () => {
     const root = repository();
     run(root, 'checks', '--write');
@@ -306,7 +323,10 @@ describe("Tale's own workflows", () => {
   test('are ported without the port failing, and the checks the merge train declares are the ones listed', () => {
     const generated = generate(sources);
     expect(generated.checks.length).toBeGreaterThan(0);
-    expect(generated.checks).toEqual(readDeclaredChecks(ROOT) ?? []);
+    expect(
+      generated.checks,
+      'declared-checks.yml is stale: run `bun tools/cli/scripts/forgejo-port.ts checks --write`',
+    ).toEqual(readDeclaredChecks(ROOT) ?? []);
     for (const path of generated.files.keys())
       expect(path.startsWith('.forgejo/')).toBe(true);
   });
@@ -352,19 +372,12 @@ describe("Tale's own workflows", () => {
       expect(readme, edit.file).toContain(`\`${edit.file}\``);
   });
 
-  test('are held to the README’s list of the actions the node mirrors', () => {
-    const readme = readFileSync(
-      join(ROOT, 'tools/cli/scripts/forgejo-port/README.md'),
-      'utf8',
-    );
-    const table = /\| Mirrors[^\n]*\n/.exec(readme)?.[0] ?? '';
-    const named = new Set(
-      [...table.matchAll(/`([a-z0-9-]+\/[a-z0-9._-]+)`/g)].map(
-        (match) => match[1],
-      ),
-    );
-    for (const name of generate(sources).actions.keys())
-      expect(named.has(name), name).toBe(true);
+  test('say which actions the README does not list among the mirrors, without holding a workflow edited today to it', () => {
+    for (const problem of mirrorProblems(ROOT, generate(sources)))
+      console.warn(
+        `forgejo-port: ${problem.file} ${problem.at}: ${problem.message}`,
+      );
+    expect(existsSync(join(ROOT, README))).toBe(true);
   });
 
   test('is either ported or given a reason, and the files the manifest names exist', () => {
