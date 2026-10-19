@@ -9,7 +9,7 @@
  * writes it, for a push of the merge train only: a pull request never writes a
  * cache another run reads.
  *
- * The site images (web, docs, ui-docs, ai-gateway) and the database image the
+ * The site images (web, docs, ui-docs) and the database image the
  * integration job builds have no login step before their cache, so for now they
  * build without a layer cache: that is a decision of the port's, in its note, and
  * not a limit of Forgejo.
