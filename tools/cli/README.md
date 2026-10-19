@@ -439,7 +439,10 @@ alias and source, the three paths and the egress proxy itself. An `environment` 
 cannot name those variables. The apply checks the files' metadata, never their
 content, before it touches Docker, and switching a running deployment between the
 Docker and the Incus backend first drains the outgoing spawner and refuses while it
-holds sessions. Without `sandbox` nothing changes. See the
+holds sessions; a refused switch leaves its bundle pending, so only that bundle
+applies again. Without `sandbox` the only change is that every apply removes the
+Incus variables an earlier declaration left in the managed `.env` file, unless the
+`environment` declares them. See the
 [Incus sandbox guide](../../docs/en/self-hosted/install/cli-install.md#managed-incus-sandbox).
 
 ## Apply native configuration
