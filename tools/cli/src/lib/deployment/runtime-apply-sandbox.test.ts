@@ -25,6 +25,10 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 
 import * as logger from '../../utils/logger';
+import {
+  AUTOMATION_PROTOCOL_MIGRATION,
+  AUTOMATION_PROTOCOL_SOURCE,
+} from './automation-model';
 import { applyRuntime, observeReadyRuntime } from './runtime-apply';
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
@@ -73,11 +77,35 @@ interface Mount {
   RW: boolean;
 }
 
+/** The fixture's release source as a release that writes automations with
+ * protocol 2 commits it: the declaration and the migration that carries it. */
+function commitWriterProtocol2(fixture: RuntimeFixture) {
+  writeFileSync(
+    join(fixture.repoRoot, AUTOMATION_PROTOCOL_SOURCE),
+    'export const ENGINE_PROTOCOL = 2;\n',
+  );
+  writeFileSync(
+    join(
+      fixture.repoRoot,
+      'services/platform/backend/db/migrations',
+      AUTOMATION_PROTOCOL_MIGRATION,
+    ),
+    '// source inventory fixture\n',
+  );
+  fixture.git('add', '.');
+  fixture.git('commit', '-qm', 'writer protocol 2');
+  fixture.revision = fixture.git('rev-parse', 'HEAD');
+}
+
 /** One release source prepared into both shapes, to apply to one state
  * directory. */
-async function create(shapes: readonly SandboxShape[] = ['docker', 'incus']) {
+async function create(
+  shapes: readonly SandboxShape[] = ['docker', 'incus'],
+  writerProtocol: 1 | 2 = 1,
+) {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
+  if (writerProtocol === 2) commitWriterProtocol2(fixture);
   // The credential check refuses a state directory below a link, and the
   // system temporary directory is one on macOS.
   const root = realpathSync(fixture.directory);
@@ -660,8 +688,11 @@ describePosix('draining the outgoing spawner before a backend switch', () => {
         (args[0] === 'network' && args[1] === 'create') ||
         args.includes('up'),
     );
-  async function running(shape: SandboxShape = 'docker') {
-    const run = await create();
+  async function running(
+    shape: SandboxShape = 'docker',
+    writerProtocol: 1 | 2 = 1,
+  ) {
+    const run = await create(['docker', 'incus'], writerProtocol);
     // A fresh Docker runtime does not hold the credentials directory.
     if (shape === 'incus') run.place();
     await run.apply(shape);
@@ -688,6 +719,15 @@ describePosix('draining the outgoing spawner before a backend switch', () => {
     expect(message).toContain('Restarting the spawner lifts the drain');
     expect(message).not.toContain('session-secret');
     expect(run.configuration.draining).toBe(true);
+    expect(pulls(run)).toEqual([]);
+    expect(written(run)).toEqual(before);
+  });
+
+  test('refuses before it pulls the writer image of a release that writes automations with protocol 2', async () => {
+    const run = await running('docker', 2);
+    run.configuration.sessions = ['one'];
+    const before = written(run);
+    await expect(run.apply('incus')).rejects.toThrow('still holds 1 session');
     expect(pulls(run)).toEqual([]);
     expect(written(run)).toEqual(before);
   });

@@ -1095,6 +1095,36 @@ export async function applyRuntime(
     );
   };
   await checkInstalledProtocol();
+  // Read before anything changes: the result keeps what the rollout found.
+  const gateway = gatewayState(
+    receipt,
+    containers,
+    bundle,
+    projectVolumes.includes(
+      projectVolumeName(options.composeProject, GATEWAY_VOLUME),
+    ),
+    inspectedDigests,
+  );
+  const environment = prepareRuntimeEnvironment(
+    options,
+    bundle.revision,
+    existing && !(receipt?.phase === 'pending' && !receipt.existing),
+    !options.dryRun,
+    shape,
+  );
+  const planned = {
+    ...contents,
+    '.env': Buffer.from(environment.environment),
+    'secrets.env': Buffer.from(environment.secrets),
+  };
+  // A switch replaces the spawner container, but its sessions live on and the
+  // other backend does not see them. A custody that found the other shape is
+  // always a change, so this runs before the runtime's first pull or write,
+  // and a refusal leaves the runtime as it was. What the caller recorded
+  // before it called (a recovery snapshot, the pending bundle) stays, so only
+  // the same bundle can be applied again.
+  if (outgoingShape !== undefined && !options.dryRun)
+    await drainOutgoingSpawner(containers, outgoingShape, dependencies);
   if (bundle.automationWriterProtocol === 2) {
     const platformImage = bundle.images.find((image) =>
       image.services.includes('platform'),
@@ -1124,34 +1154,6 @@ export async function applyRuntime(
       'Runtime image automation writer protocol differs from its prepared capability.',
     );
   }
-  // Read before anything changes: the result keeps what the rollout found.
-  const gateway = gatewayState(
-    receipt,
-    containers,
-    bundle,
-    projectVolumes.includes(
-      projectVolumeName(options.composeProject, GATEWAY_VOLUME),
-    ),
-    inspectedDigests,
-  );
-  const environment = prepareRuntimeEnvironment(
-    options,
-    bundle.revision,
-    existing && !(receipt?.phase === 'pending' && !receipt.existing),
-    !options.dryRun,
-    shape,
-  );
-  const planned = {
-    ...contents,
-    '.env': Buffer.from(environment.environment),
-    'secrets.env': Buffer.from(environment.secrets),
-  };
-  // A switch replaces the spawner container, but its sessions live on and the
-  // other backend does not see them. A custody that found the other shape is
-  // always a change, so this runs before the first pull or write, and a
-  // refusal leaves a state the same bundle can be applied to again.
-  if (outgoingShape !== undefined && !options.dryRun)
-    await drainOutgoingSpawner(containers, outgoingShape, dependencies);
   if (pendingTakeover && receipt && !options.dryRun) {
     const stage = randomUUID();
     const stageDirectory = join(
