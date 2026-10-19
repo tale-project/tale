@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { parseInstanceInput } from './identity';
 import { resolveManagedOidc, resolveSignIn } from './identity-selection';
@@ -46,7 +48,7 @@ function identity(options: {
   const spec = deploymentSpecSchema.parse({
     schemaVersion: 1,
     name: 'north-labs',
-    stateDirectory: '/var/lib/north-labs',
+    stateDirectory: join(tmpdir(), 'north-labs'),
     composeProject: 'tale',
     runtime: { revision: 'b'.repeat(40) },
     origin: 'https://desk.north-labs.example',
