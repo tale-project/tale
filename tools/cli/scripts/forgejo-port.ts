@@ -271,7 +271,7 @@ const CHECKED_WARNINGS: ReadonlySet<string> = new Set([
  * generate is left as a call to the GitHub copy, which the port itself calls GitHub-only
  * (`local-action-unported`). `check`, the first step of the cut-over, fails on each.
  */
-export function ruleProblems(generated: Generated): Problem[] {
+function ruleProblems(generated: Generated): Problem[] {
   return generated.report.warnings
     .filter((warning) => CHECKED_WARNINGS.has(warning.rule))
     .map((warning) => ({
