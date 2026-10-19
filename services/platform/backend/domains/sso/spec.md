@@ -58,6 +58,19 @@ the person may be able to edit it at the provider.
   `email` at the provider and sets it to Mia's address, but she has no `upn` → refused, and
   Mia's account is untouched.
 
+### SSO-R20 · A connection can vouch for the address its mapped email claim carries
+
+An operator can set an OIDC connection to trust the email it maps. A sign-in then marks that
+address verified, for a person who is new and for one who is already a member. The setting
+applies only to a generic OIDC connection that maps the email claim, and a save that asks for
+it without one, or for another provider, is refused (`sso_trust_email_needs_email_claim`,
+`sso_trust_email_unsupported`). A save that leaves the setting out keeps it, and one that
+removes the mapping drops it.
+
+- **Example**: Ada's connection trusts the claim `upn` it maps as the email. Mia signs in for
+  the first time → her address is verified. On a connection without the setting it stays
+  unverified.
+
 ## Teams from the provider's groups
 
 ### SSO-R6 · Team sync gives a person the teams named by their groups

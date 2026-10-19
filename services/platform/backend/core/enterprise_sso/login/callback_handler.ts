@@ -304,6 +304,7 @@ async function completeCallback(
       clientSecret,
       scopes: config.scopes,
       claimMappings: config.claimMappings,
+      trustEmail: config.trustEmail,
     };
 
     let codeVerifier: string | undefined;

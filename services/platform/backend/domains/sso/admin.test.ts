@@ -7,12 +7,14 @@ import path from 'node:path';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { readExisting } from '../../core/enterprise_sso/config/file_store.ts';
 import type { SsoProviderAdapter } from '../../core/enterprise_sso/types.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
   getSsoConnectionView,
   SsoAdminError,
   testSsoConnection,
+  upsertOidcConnection,
   upsertSamlConnection,
 } from './admin.ts';
 
@@ -408,5 +410,145 @@ describe('getSsoConnectionView — unreadable connection config', () => {
       status: 409,
       message: expect.stringContaining('repair connection.yml'),
     });
+  });
+});
+
+/**
+ * `trustEmail` lets an operator vouch for the address in the mapped email
+ * claim, so a sign-in marks the user's email verified. It only means
+ * something for a generic OIDC connection that maps the email claim; the
+ * settings form does not show it, so a save that omits it keeps it.
+ */
+describe('upsertOidcConnection — the operator vouches for the mapped email [SSO-R20]', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-sso-admin-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    clearOrgConfigCaches();
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configRoot, { recursive: true, force: true });
+    clearOrgConfigCaches();
+  });
+
+  const actor = { userId: 'user-1', email: 'admin@acme.test', role: 'admin' };
+  const oidc = {
+    displayName: 'Acme OIDC',
+    providerId: 'generic-oidc' as const,
+    issuer: 'https://idp.acme.test',
+    clientId: 'client-1',
+    clientSecret: 'secret-1',
+    scopes: ['openid', 'email'],
+    autoProvisionRole: false,
+    defaultRole: 'member' as const,
+    roleMappingRules: [],
+    autoProvisionTeam: false,
+    excludeGroups: [],
+  };
+
+  async function stored() {
+    return (await readExisting('acme')).config?.oidc;
+  }
+
+  it('stores the flag with a mapped email claim', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+
+    expect((await stored())?.trustEmail).toBe(true);
+  });
+
+  it('refuses the flag without a mapped email claim and writes nothing', async () => {
+    const attempt = upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { name: 'name' },
+      trustEmail: true,
+    });
+
+    await expect(attempt).rejects.toMatchObject({
+      code: 'sso_trust_email_needs_email_claim',
+      status: 400,
+    });
+    expect(await stored()).toBeUndefined();
+  });
+
+  it('refuses the flag for another provider', async () => {
+    for (const providerId of ['entra-id', 'oauth2'] as const) {
+      await expect(
+        upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+          ...oidc,
+          providerId,
+          claimMappings: { email: 'upn' },
+          trustEmail: true,
+        }),
+      ).rejects.toMatchObject({ code: 'sso_trust_email_unsupported' });
+    }
+    expect(await stored()).toBeUndefined();
+  });
+
+  it('keeps the stored flag when a save omits it', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      displayName: 'Renamed',
+      clientSecret: undefined,
+      claimMappings: { email: 'upn' },
+    });
+
+    expect((await stored())?.trustEmail).toBe(true);
+  });
+
+  it('drops the stored flag when a save removes the email mapping', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      clientSecret: undefined,
+    });
+
+    expect((await stored())?.trustEmail).toBeUndefined();
+  });
+
+  it('clears the flag when a save sets it to false', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      clientSecret: undefined,
+      claimMappings: { email: 'upn' },
+      trustEmail: false,
+    });
+
+    expect((await stored())?.trustEmail).toBe(false);
+  });
+
+  it('leaves a connection that never had the flag without one', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      claimMappings: { email: 'upn' },
+    });
+
+    expect((await stored())?.trustEmail).toBeUndefined();
   });
 });

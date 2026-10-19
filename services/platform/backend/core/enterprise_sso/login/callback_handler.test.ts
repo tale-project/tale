@@ -626,7 +626,7 @@ describe('ssoCallbackHandler — app roles and claims come from the ID token', (
   /** A connection whose role rules need app roles; `handleSsoLogin` refuses
    * so the test stays off the session mint — the arguments under test were
    * handed over before the refusal. */
-  function provisioningCtx(): {
+  function provisioningCtx(extra: Record<string, unknown> = {}): {
     ctx: ActionCtx;
     runAction: ReturnType<typeof vi.fn>;
   } {
@@ -645,6 +645,7 @@ describe('ssoCallbackHandler — app roles and claims come from the ID token', (
         roleMappingRules: [
           { source: 'appRole', pattern: 'Administrator', targetRole: 'admin' },
         ],
+        ...extra,
       }),
       runAction,
       runMutation: vi.fn().mockResolvedValue(undefined),
@@ -707,6 +708,34 @@ describe('ssoCallbackHandler — app roles and claims come from the ID token', (
       expect.objectContaining({
         rawClaims: { realm_access: { roles: ['platform-admin'] } },
       }),
+    );
+  });
+
+  it("hands the connection's trustEmail to the adapter and the verified address to provisioning", async () => {
+    fakeAdapter.getUserInfo.mockResolvedValue({
+      externalId: 'ext-1',
+      email: 'admin@example.test',
+      emailVerified: true,
+      name: 'Admin One',
+    });
+    const { ctx, runAction } = provisioningCtx({
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+
+    await completeLogin(ctx);
+
+    expect(fakeAdapter.getUserInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        claimMappings: { email: 'upn' },
+        trustEmail: true,
+      }),
+      'access-token',
+    );
+    expect(runAction).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({ emailVerified: true }),
     );
   });
 });

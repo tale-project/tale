@@ -157,7 +157,40 @@ export interface UpsertOidcArgs extends SsoProvisioningInput {
       ? M
       : never
     : never;
+  /** The operator vouches for the mapped email claim. Omitted, the stored
+   * value is kept, so a form that does not show it cannot reset it. */
+  trustEmail?: boolean;
   domainHint?: string;
+}
+
+/**
+ * The effective `trustEmail` of a save. Vouching for an address is only
+ * meaningful for a generic OIDC connection that maps the email claim, so a
+ * save that asks for it without either is refused. A stored flag whose
+ * precondition a later save removes (the mapping cleared, another provider
+ * chosen) is dropped instead: the settings form cannot show the flag, so it
+ * could never be cleared by hand.
+ */
+function trustEmailFor(
+  args: UpsertOidcArgs,
+  stored: boolean | undefined,
+): boolean | undefined {
+  const eligible =
+    args.providerId === 'generic-oidc' && !!args.claimMappings?.email;
+  if (args.trustEmail === true && args.providerId !== 'generic-oidc') {
+    throw new SsoAdminError(
+      'sso_trust_email_unsupported',
+      'Only a generic OIDC connection can vouch for its email claim.',
+    );
+  }
+  if (args.trustEmail === true && !eligible) {
+    throw new SsoAdminError(
+      'sso_trust_email_needs_email_claim',
+      'Vouching for the email needs the email claim to be mapped.',
+    );
+  }
+  if (args.trustEmail !== undefined) return args.trustEmail;
+  return eligible ? stored : undefined;
 }
 
 /** Configure (or update) an OIDC / OAuth2 sign-in connection. */
@@ -178,6 +211,7 @@ export async function upsertOidcConnection(
     );
   }
 
+  const trustEmail = trustEmailFor(args, existing.config?.oidc?.trustEmail);
   const protocol = args.providerId === 'oauth2' ? 'oauth2' : 'oidc';
   const config: SsoConnectionFile = {
     enabled: true,
@@ -202,6 +236,7 @@ export async function upsertOidcConnection(
       ...(args.claimMappings !== undefined
         ? { claimMappings: args.claimMappings }
         : {}),
+      ...(trustEmail !== undefined ? { trustEmail } : {}),
       // Deprecated SSO flag — never request Graph file scopes on sign-in.
       enableOneDriveAccess: false,
     },
@@ -559,6 +594,7 @@ export async function getSsoConnectionView(
           pkce: config.oidc.pkce,
           domainHint: config.oidc.domainHint,
           claimMappings: config.oidc.claimMappings,
+          trustEmail: config.oidc.trustEmail,
           enableOneDriveAccess: config.oidc.enableOneDriveAccess,
         }
       : null,

@@ -59,7 +59,8 @@ export const ssoAuthContextSchema = z.object({
 export type SsoAuthContext = z.infer<typeof ssoAuthContextSchema>;
 
 export const ssoUserInfoSchema = z.object({
-  /** True only when the adapter obtained the address from an authenticated identity authority. */
+  /** True only when the adapter obtained the address from an authenticated identity authority,
+   *  or the operator vouches for the connection's mapped email claim (`trustEmail`). */
   emailVerified: z.boolean().optional(),
   externalId: z.string(),
   email: z.string(),
@@ -133,6 +134,9 @@ const oidcConfigViewSchema = z.object({
   pkce: z.boolean().optional(),
   domainHint: z.string().optional(),
   claimMappings: attributeMappingSchema.optional(),
+  /** The operator vouches for the mapped email claim, so a sign-in marks the
+   *  user's email verified (generic OIDC with a mapped email claim only). */
+  trustEmail: z.boolean().optional(),
   /** @deprecated Ignored. File import uses Knowledge cloud-import OAuth, not SSO. */
   enableOneDriveAccess: z.boolean().optional(),
 });
@@ -226,6 +230,9 @@ const oidcFileConfigSchema = z.object({
   pkce: z.boolean().optional(),
   domainHint: z.string().optional(),
   claimMappings: attributeMappingSchema.optional(),
+  /** The operator vouches for the mapped email claim, so a sign-in marks the
+   *  user's email verified (generic OIDC with a mapped email claim only). */
+  trustEmail: z.boolean().optional(),
   /** @deprecated Ignored. File import uses Knowledge cloud-import OAuth, not SSO. */
   enableOneDriveAccess: z.boolean().optional(),
 });

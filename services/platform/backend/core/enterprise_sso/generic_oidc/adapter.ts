@@ -175,6 +175,11 @@ async function getUserInfo(
   return {
     externalId,
     email,
+    // The operator vouches for the address only when it is the mapped claim:
+    // a plain `email` claim may be one the person edited themselves.
+    ...(config.trustEmail === true && mappings?.email
+      ? { emailVerified: true }
+      : {}),
     name,
     groups,
     rawClaims: isRecord(data) ? data : undefined,

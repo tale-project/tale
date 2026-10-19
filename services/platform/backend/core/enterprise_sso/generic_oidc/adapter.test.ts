@@ -474,3 +474,43 @@ describe('generic OIDC adapter — a mapped email claim is the only address [SSO
     expect(withUsername.email).toBe('mia@example.com');
   });
 });
+
+describe('generic OIDC adapter — the operator vouches for the mapped email [SSO-R20]', () => {
+  const claims = {
+    sub: 'user-1',
+    upn: 'ada@example.com',
+    email: 'ada@example.com',
+  };
+
+  async function userInfo(change: Partial<SsoProviderConfig>) {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse(claims);
+    });
+    return genericOidcAdapter.getUserInfo({ ...config, ...change }, 'at');
+  }
+
+  it('marks the address verified when trustEmail is set and the email claim is mapped', async () => {
+    const info = await userInfo({
+      claimMappings: { email: 'upn' },
+      trustEmail: true,
+    });
+    expect(info.emailVerified).toBe(true);
+  });
+
+  it('leaves the address unverified without trustEmail', async () => {
+    const info = await userInfo({ claimMappings: { email: 'upn' } });
+    expect(info.emailVerified).toBeUndefined();
+    const explicit = await userInfo({
+      claimMappings: { email: 'upn' },
+      trustEmail: false,
+    });
+    expect(explicit.emailVerified).toBeUndefined();
+  });
+
+  it('never vouches for a plain email claim, whatever the flag says', async () => {
+    const info = await userInfo({ trustEmail: true });
+    expect(info.email).toBe('ada@example.com');
+    expect(info.emailVerified).toBeUndefined();
+  });
+});
