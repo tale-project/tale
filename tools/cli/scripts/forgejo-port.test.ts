@@ -29,6 +29,7 @@ import { generate } from './forgejo-port/generate';
 import { planGithubEdits } from './forgejo-port/github-edits';
 import { MANIFEST, type Manifest } from './forgejo-port/manifest';
 import { pinnedRunner } from './forgejo-port/runner';
+import type { Problem } from './forgejo-port/validate';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SHA = 'a'.repeat(40);
@@ -50,6 +51,22 @@ function put(root: string, path: string, text: string): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), text);
 }
+
+/** A workflow the runner reads: the second job needs the first. */
+const PROBE = `name: Probe
+on:
+  push:
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo first
+  second:
+    needs: [first]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo second
+`;
 
 const CHECKS = `name: Checks
 on:
@@ -488,22 +505,19 @@ describe("Tale's own workflows", () => {
         `forgejo-port: the pinned runner: ${problem.at}: ${problem.message}`,
       );
 
-    // The instrument can fail: a key the schema does not know, and a job that needs a job that is not there.
-    const files = new Map(generated.files);
-    const [path, text] =
-      [...files].find(([name]) => name.endsWith('/sast.yml')) ?? [];
-    expect(path).toBeDefined();
-    files.set(path ?? '', (text ?? '').replace('runs-on:', 'runs-onn:'));
-    const broken = runnerCheck(runner, { ...generated, files });
-    expect(broken.some((problem) => problem.at === path)).toBe(true);
-    files.set(
-      path ?? '',
-      (text ?? '').replace('needs: [sast]', 'needs: [nowhere]'),
-    );
+    // The instrument can fail: a key the schema does not know, and a job that needs a job that is
+    // not there. The probes are a workflow of their own, so that no edit of a workflow under
+    // `.github/` changes what they prove.
+    const probe = '.forgejo/workflows/probe.yml';
+    const planned = (text: string): Problem[] =>
+      runnerCheck(runner, {
+        ...generated,
+        files: new Map([[probe, text]]),
+      }).filter((problem) => problem.at === probe);
+    expect(planned(PROBE)).toEqual([]);
+    expect(planned(PROBE.replace('runs-on:', 'runs-onn:'))).not.toEqual([]);
     expect(
-      runnerCheck(runner, { ...generated, files }).some(
-        (problem) => problem.at === path,
-      ),
-    ).toBe(true);
+      planned(PROBE.replace('needs: [first]', 'needs: [nowhere]')),
+    ).not.toEqual([]);
   }, 120_000);
 });
