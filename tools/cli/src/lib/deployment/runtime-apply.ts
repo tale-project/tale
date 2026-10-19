@@ -55,6 +55,7 @@ import {
   type SandboxShape,
 } from './runtime-sandbox';
 import { assertIncusCredentials } from './runtime-sandbox-credentials';
+import { drainSpawner } from './runtime-spawner';
 
 const sha = z.string().regex(/^[a-f0-9]{64}$/);
 const installedFiles = [
@@ -827,6 +828,32 @@ async function waitForRuntime(
   );
 }
 
+/**
+ * Stop new sessions on the spawner a backend switch replaces, and refuse while
+ * it still holds any. The spawner ends sessions that outlast its linger by
+ * itself, so a later attempt finds none. The count is the only thing read
+ * about a session; nothing is stopped or deleted here.
+ */
+async function drainOutgoingSpawner(
+  containers: RuntimeContainer[],
+  outgoing: SandboxShape,
+  dependencies: RuntimeDependencies,
+): Promise<void> {
+  const spawner = containers.find(
+    (container) =>
+      container.Config.Labels?.['com.docker.compose.service'] === 'sandbox',
+  );
+  requireRuntime(
+    spawner?.State.Running,
+    `The ${outgoing} sandbox spawner is not running, so it cannot say whether it holds sessions; start it, or remove its container to abandon them, and apply again.`,
+  );
+  const drained = await drainSpawner(spawner.Id, dependencies);
+  requireRuntime(
+    drained.drained,
+    `The ${outgoing} sandbox spawner still holds ${drained.sessions ?? 'an unknown number of'} session(s) and refuses new ones. It stops them itself after its linger (SANDBOX_SESSION_MAX_LINGER_MS, 30 minutes by default); apply the same bundle again after that. Restarting the spawner lifts the drain.`,
+  );
+}
+
 /** Caller holds the deployment lock and snapshots a changed existing runtime. */
 export async function applyRuntime(
   options: ApplyRuntimeOptions,
@@ -902,7 +929,7 @@ export async function applyRuntime(
     options.composeProject,
     dependencies,
   );
-  assertContainerCustody(
+  const outgoingShape = assertContainerCustody(
     containers,
     compose,
     options,
@@ -1119,6 +1146,12 @@ export async function applyRuntime(
     '.env': Buffer.from(environment.environment),
     'secrets.env': Buffer.from(environment.secrets),
   };
+  // A switch replaces the spawner container, but its sessions live on and the
+  // other backend does not see them. A custody that found the other shape is
+  // always a change, so this runs before the first pull or write, and a
+  // refusal leaves a state the same bundle can be applied to again.
+  if (outgoingShape !== undefined && !options.dryRun)
+    await drainOutgoingSpawner(containers, outgoingShape, dependencies);
   if (pendingTakeover && receipt && !options.dryRun) {
     const stage = randomUUID();
     const stageDirectory = join(
@@ -1175,7 +1208,13 @@ export async function applyRuntime(
     gateway,
     dryRun: options.dryRun ?? false,
   });
-  if (options.dryRun) return result();
+  if (options.dryRun) {
+    if (outgoingShape !== undefined)
+      logger.info(
+        `The sandbox backend changes from ${outgoingShape} to ${shape}; the apply drains the running spawner first and stops while it still holds sessions.`,
+      );
+    return result();
+  }
   if (!changed) {
     // An unchanged receipt is still a claim about the running service and the
     // spawner's two local aliases, not just a comparison of JSON files.

@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
+import {
+  afterEach,
+  describe,
+  expect,
+  setDefaultTimeout,
+  spyOn,
+  test,
+} from 'bun:test';
 import {
   chmodSync,
   chownSync,
@@ -17,7 +24,9 @@ import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
+import * as logger from '../../utils/logger';
 import { applyRuntime, observeReadyRuntime } from './runtime-apply';
+import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
 import {
   readRuntimeBundle,
@@ -74,6 +83,7 @@ async function create(shapes: readonly SandboxShape[] = ['docker', 'incus']) {
   const root = realpathSync(fixture.directory);
   fixture.options.stateDirectory = join(root, 'state');
   const docker = new RuntimeDockerFixture(fixture);
+  const configuration = new ConfigurationDockerFixture(docker);
   const bundles: Record<SandboxShape, string> = {
     docker: join(root, 'bundle-docker'),
     incus: join(root, 'bundle-incus'),
@@ -101,7 +111,7 @@ async function create(shapes: readonly SandboxShape[] = ['docker', 'incus']) {
   };
   const workspaces = { created: 0 };
   const dependencies = () => ({
-    ...docker.dependencies(),
+    ...configuration.dependencies(),
     ensureSandboxWorkspace: () => {
       workspaces.created += 1;
     },
@@ -128,6 +138,7 @@ async function create(shapes: readonly SandboxShape[] = ['docker', 'incus']) {
   return {
     fixture,
     docker,
+    configuration,
     bundles,
     credentials,
     place,
@@ -603,5 +614,153 @@ describePosix('the managed environment file across the sandbox shapes', () => {
       'http://sandbox-egress:3128',
     );
     expect(egressOf(run)).not.toHaveProperty('SANDBOX_BACKEND');
+  });
+});
+
+describePosix('draining the outgoing spawner before a backend switch', () => {
+  const controls = (run: Run) =>
+    run.docker.calls.filter(({ args }) =>
+      args.includes('/app/src/control-cli.ts'),
+    );
+  const written = (run: Run) =>
+    [
+      'src/compose.yml',
+      'src/.env',
+      'src/Caddyfile.production',
+      'secrets.env',
+      '.tale/runtime.json',
+    ].map((file) => readFileSync(run.state(file)));
+  const pulls = (run: Run) =>
+    run.docker.calls.filter(
+      ({ args }) =>
+        args[0] === 'pull' ||
+        args[0] === 'tag' ||
+        (args[0] === 'network' && args[1] === 'create') ||
+        args.includes('up'),
+    );
+  async function running(shape: SandboxShape = 'docker') {
+    const run = await create();
+    // A fresh Docker runtime does not hold the credentials directory.
+    if (shape === 'incus') run.place();
+    await run.apply(shape);
+    run.place();
+    run.docker.calls = [];
+    return run;
+  }
+
+  test('refuses while the outgoing spawner holds sessions, names their number and nothing else, and leaves the runtime as it was', async () => {
+    const run = await running();
+    run.configuration.sessions = ['session-secret-one', 'session-secret-two'];
+    const before = written(run);
+    let message = '';
+    try {
+      await run.apply('incus');
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain(
+      'docker sandbox spawner still holds 2 session(s)',
+    );
+    expect(message).toContain('SANDBOX_SESSION_MAX_LINGER_MS');
+    expect(message).toContain('apply the same bundle again');
+    expect(message).toContain('Restarting the spawner lifts the drain');
+    expect(message).not.toContain('session-secret');
+    expect(run.configuration.draining).toBe(true);
+    expect(pulls(run)).toEqual([]);
+    expect(written(run)).toEqual(before);
+  });
+
+  test('refuses a spawner that is not running, which cannot say whether it holds sessions', async () => {
+    const run = await running();
+    (run.sandbox().State as { Running: boolean }).Running = false;
+    const before = written(run);
+    await expect(run.apply('incus')).rejects.toThrow(
+      'docker sandbox spawner is not running',
+    );
+    expect(controls(run)).toEqual([]);
+    expect(pulls(run)).toEqual([]);
+    expect(written(run)).toEqual(before);
+  });
+
+  test('drains first and proceeds when no session is left, and a second attempt after a refusal finds the latch set', async () => {
+    const run = await running();
+    run.configuration.sessions = ['one'];
+    await expect(run.apply('incus')).rejects.toThrow('still holds 1 session');
+    expect(run.configuration.draining).toBe(true);
+    // The spawner ended its sessions after its linger.
+    run.configuration.sessions = [];
+    run.docker.calls = [];
+    expect(await run.apply('incus')).toMatchObject({ changed: true });
+    const order = run.docker.calls.map(({ args }) =>
+      args.includes('/app/src/control-cli.ts')
+        ? `control ${args.at(-1)}`
+        : args[0] === 'pull'
+          ? 'pull'
+          : args.includes('up')
+            ? 'up'
+            : '',
+    );
+    expect(order.indexOf('control drain')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('control drain')).toBeLessThan(order.indexOf('pull'));
+    expect(order.indexOf('pull')).toBeLessThan(order.indexOf('up'));
+    expect(run.receipt().phase).toBe('ready');
+  });
+
+  test('gates the switch back to Docker the same way and names the outgoing backend', async () => {
+    const run = await running('incus');
+    run.configuration.sessions = ['one', 'two', 'three'];
+    const before = written(run);
+    await expect(run.apply('docker')).rejects.toThrow(
+      'incus sandbox spawner still holds 3 session(s)',
+    );
+    expect(written(run)).toEqual(before);
+    run.configuration.sessions = [];
+    expect(await run.apply('docker')).toMatchObject({ changed: true });
+  });
+
+  test('previews the drain in one line and reaches into no container', async () => {
+    const run = await running();
+    run.configuration.sessions = ['one'];
+    const lines: string[] = [];
+    const info = spyOn(logger, 'info').mockImplementation((message) => {
+      lines.push(message);
+    });
+    try {
+      expect(await run.apply('incus', { dryRun: true })).toMatchObject({
+        changed: true,
+        dryRun: true,
+      });
+    } finally {
+      info.mockRestore();
+    }
+    expect(
+      lines.filter((line) => line.includes('changes from docker to incus')),
+    ).toHaveLength(1);
+    expect(controls(run)).toEqual([]);
+    expect(
+      run.docker.calls.some(
+        ({ args }) =>
+          args[0] === 'exec' && args.includes(String(run.sandbox().Id)),
+      ),
+    ).toBe(false);
+    expect(run.configuration.draining).toBe(false);
+  });
+
+  test('does not gate a first deploy, a replay of the ready bundle or a change inside one shape', async () => {
+    const fresh = await create();
+    fresh.place();
+    await fresh.apply('incus');
+    expect(controls(fresh)).toEqual([]);
+
+    const run = await running();
+    run.configuration.sessions = ['one'];
+    expect(await run.apply('docker')).toMatchObject({ changed: false });
+    expect(
+      await run.apply('docker', {
+        additionalOrigins: ['https://more.example.invalid'],
+      }),
+    ).toMatchObject({ changed: true });
+    expect(controls(run)).toEqual([]);
+    expect(run.configuration.draining).toBe(false);
   });
 });
