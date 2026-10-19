@@ -99,6 +99,10 @@ export async function prepareDeployment(
       logger.step(
         `Preparing the Tale runtime at ${runtimeRequest.revision} for ${spec.runtime.platform}`,
       );
+      if (spec.sandbox)
+        logger.step(
+          `Preparing the Incus sandbox shape on ${spec.sandbox.address}`,
+        );
       await (dependencies.runtime ?? prepareRuntime)({
         repoRoot: source(runtimeRequest),
         revision: runtimeRequest.revision,
@@ -106,6 +110,14 @@ export async function prepareDeployment(
         containerPrefix: spec.runtime.containerPrefix,
         additionalOrigins: spec.additionalOrigins,
         organizationCreators: spec.organizations?.creators,
+        ...(spec.sandbox
+          ? {
+              sandbox: {
+                address: spec.sandbox.address,
+                egressProxy: spec.sandbox.egressProxy,
+              },
+            }
+          : {}),
         output: join(output, 'runtime'),
       });
       return writeDeploymentBundle(output, {

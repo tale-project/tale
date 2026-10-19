@@ -6,7 +6,15 @@ import {
   spyOn,
   test,
 } from 'bun:test';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
@@ -35,6 +43,7 @@ import {
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
 import { readRuntimeBundle } from './runtime-model';
+import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
 import {
   installLegacy,
   RuntimeDockerFixture,
@@ -62,18 +71,41 @@ afterEach(() => {
 });
 const BREAK_GLASS_HASH = `${'c'.repeat(32)}:${'d'.repeat(128)}`;
 
+function placeSandboxCredentials(stateDirectory: string) {
+  const credentials = join(stateDirectory, 'sandbox-incus');
+  mkdirSync(credentials, { recursive: true, mode: 0o700 });
+  chmodSync(credentials, 0o700);
+  for (const name of SANDBOX_INCUS_FILES)
+    writeFileSync(join(credentials, name), `${name} fixture bytes\n`, {
+      mode: 0o600,
+    });
+}
+
 /** Real Git, staging, manifests, state files and lock; only the Docker boundary
- * and backup I/O are simulated. Native HTTP has its own subprocess suite. */
+ * and backup I/O are simulated. Native HTTP has its own subprocess suite.
+ * `switchable` keeps the state directory below real ancestors, as a
+ * declaration of `sandbox` needs, for a deployment that declares it later. */
 async function create(
   legacy = false,
   identity = true,
   additionalOrigins?: string[],
   organizationCreators?: string[],
+  sandbox?: { address: string; egressProxy: string },
+  switchable = false,
 ) {
   const fixture = runtimeFixture({
     trustsTerminator: additionalOrigins !== undefined,
   });
   fixtures.push(fixture);
+  if (sandbox || switchable) {
+    // The credentials check walks the real ancestors of the state directory,
+    // and the system temporary directory is a link on macOS.
+    fixture.options.stateDirectory = join(
+      realpathSync(fixture.directory),
+      'state',
+    );
+    if (sandbox) placeSandboxCredentials(fixture.options.stateDirectory);
+  }
   const docker = new RuntimeDockerFixture(fixture);
   const configurationDocker = new ConfigurationDockerFixture(docker);
   const bundle = join(fixture.directory, 'deployment');
@@ -98,6 +130,7 @@ async function create(
     ...(organizationCreators
       ? { organizations: { creators: organizationCreators } }
       : {}),
+    ...(sandbox ? { sandbox: { backend: 'incus', ...sandbox } } : {}),
     ...(identity
       ? {
           identity: {
@@ -426,6 +459,215 @@ describePosix('fresh native receipt custody', () => {
     await expect(run.apply()).rejects.toThrow('container prefix');
     expect(run.docker.calls).toEqual([]);
     expect(existsSync(run.fixture.options.stateDirectory)).toBe(false);
+  });
+
+  test('a declared Incus sandbox is prepared into both bundle files, applied and kept out of the native identity', async () => {
+    const declared = {
+      address: '10.200.50.2',
+      egressProxy: 'http://10.200.40.10:3128',
+    };
+    const run = await create(false, true, undefined, undefined, declared);
+    const deployment = JSON.parse(
+      readFileSync(join(run.bundle, 'deployment.json'), 'utf8'),
+    );
+    const runtimeBundle = readRuntimeBundle(join(run.bundle, 'runtime')).bundle;
+    expect(deployment.spec.sandbox).toEqual({ backend: 'incus', ...declared });
+    expect(runtimeBundle.sandbox).toMatchObject({
+      backend: 'incus',
+      ...declared,
+    });
+    const runtime = run.dependencies.runtime!;
+    const seen: unknown[] = [];
+    run.dependencies.runtime = async (options) => {
+      seen.push(options.environment);
+      return runtime(options);
+    };
+    const exec = run.dependencies.exec!;
+    let provision: Record<string, unknown> = {};
+    run.dependencies.exec = async (command, args, options) => {
+      if (args.includes('provision'))
+        provision = JSON.parse(options?.stdin ?? '{}');
+      return exec(command, args, options);
+    };
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+    expect(seen).toHaveLength(2);
+    expect(JSON.stringify(provision)).not.toContain(declared.address);
+    const mounts = (
+      run.docker.containers.find(
+        (container) =>
+          (container.Config as { Labels: Record<string, string> }).Labels[
+            'com.docker.compose.service'
+          ] === 'sandbox',
+      )!.Mounts as { Destination: string }[]
+    ).map((mount) => mount.Destination);
+    expect(mounts).toEqual(['/run/secrets/incus', '/app/platform-config']);
+    expect(
+      readFileSync(
+        join(run.fixture.options.stateDirectory, 'src/compose.yml'),
+        'utf8',
+      ),
+    ).toContain(`${declared.address}:3005:3005`);
+  });
+
+  /** A ready Docker deployment whose switch to the Incus backend the drain
+   * refused, because two sessions remain. */
+  async function refusedSwitch() {
+    const run = await create(
+      false,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+    const { stateDirectory } = run.fixture.options;
+    placeSandboxCredentials(stateDirectory);
+    const specPath = join(run.fixture.directory, 'spec-incus.json');
+    writeFileSync(
+      specPath,
+      JSON.stringify({
+        ...run.spec,
+        sandbox: {
+          backend: 'incus',
+          address: '10.200.50.2',
+          egressProxy: 'http://10.200.40.10:3128',
+        },
+      }),
+    );
+    const switched = join(run.fixture.directory, 'deployment-incus');
+    await prepareDeployment(
+      { ...run.preparation, spec: specPath, output: switched },
+      run.prepareDependencies,
+    );
+    const applySwitch = () =>
+      applyDeployment({ bundle: switched, dryRun: false }, run.dependencies);
+    const intentPath = join(stateDirectory, '.tale/deployment-pending.json');
+    const ready = readFileSync(run.receiptPath);
+    run.configurationDocker.sessions = ['one', 'two'];
+    run.events.length = 0;
+    await expect(applySwitch()).rejects.toThrow(
+      'docker sandbox spawner still holds 2 session(s)',
+    );
+    return {
+      run,
+      applySwitch,
+      intentPath,
+      ready,
+      pending: JSON.parse(readFileSync(intentPath, 'utf8')),
+    };
+  }
+
+  test('a refused backend switch leaves the deployment pending on its bundle, which completes on a retry without a second snapshot', async () => {
+    const { run, applySwitch, intentPath, ready, pending } =
+      await refusedSwitch();
+    // The runtime changed nothing, but the deployment took its recovery point
+    // and records the switch bundle as pending.
+    expect(run.events).toEqual(['snapshot', 'verify-snapshot']);
+    expect(pending.snapshot.id).toBe('20260910-000000-deploy');
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+
+    // The bundle that is ready is a different bundle now.
+    run.events.length = 0;
+    await expect(run.apply()).rejects.toThrow(
+      `different deployment bundle is pending (${pending.bundleSha256})`,
+    );
+    expect(run.events).toEqual([]);
+
+    // The same bundle retries on the same snapshot while sessions remain...
+    await expect(applySwitch()).rejects.toThrow('still holds 2 session(s)');
+    expect(run.events).toEqual(['verify-snapshot']);
+    expect(JSON.parse(readFileSync(intentPath, 'utf8'))).toEqual(pending);
+
+    // ...and completes once they ended.
+    run.configurationDocker.sessions = [];
+    run.events.length = 0;
+    expect(await applySwitch()).toMatchObject({
+      phase: 'ready',
+      snapshotId: pending.snapshot.id,
+    });
+    expect(run.events).not.toContain('snapshot');
+    expect(existsSync(intentPath)).toBe(false);
+  });
+
+  test('giving up a refused backend switch takes the pending bundle over with a bundle of the backend kept', async () => {
+    const { run, intentPath, pending } = await refusedSwitch();
+    // Restarting the spawner lifts its drain.
+    run.configurationDocker.draining = false;
+    const original = await verifyDeploymentBundle(run.bundle);
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      schemaVersion: 1,
+      kind: 'tale-deployment',
+      cli: original.cli,
+      spec: { ...original.spec, supersedesPendingBundle: pending.bundleSha256 },
+      deploymentRef: 'd'.repeat(40),
+    });
+    run.events.length = 0;
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      snapshotId: pending.snapshot.id,
+      supersededBundles: [pending.bundleSha256],
+      runtimeChanged: false,
+    });
+    expect(run.events).not.toContain('snapshot');
+    expect(existsSync(intentPath)).toBe(false);
+  });
+
+  type Specification = ReturnType<typeof deploymentSpecSchema.parse>;
+  test.each([
+    [
+      'a runtime without the declared sandbox',
+      false,
+      (spec: Specification): Specification => ({
+        ...spec,
+        sandbox: {
+          backend: 'incus',
+          address: '10.200.50.2',
+          egressProxy: 'http://10.200.40.10:3128',
+        },
+      }),
+    ],
+    [
+      'a sandbox the specification does not declare',
+      true,
+      ({ sandbox: _, ...without }: Specification): Specification => without,
+    ],
+    [
+      'another address',
+      true,
+      (spec: Specification): Specification => ({
+        ...spec,
+        sandbox: { ...spec.sandbox!, address: '10.200.50.3' },
+      }),
+    ],
+    [
+      'another egress proxy',
+      true,
+      (spec: Specification): Specification => ({
+        ...spec,
+        sandbox: { ...spec.sandbox!, egressProxy: 'http://10.200.40.11:3128' },
+      }),
+    ],
+  ])('refuses %s before destination access', async (_, prepared, change) => {
+    const run = await create(
+      false,
+      true,
+      undefined,
+      undefined,
+      prepared
+        ? { address: '10.200.50.2', egressProxy: 'http://10.200.40.10:3128' }
+        : undefined,
+    );
+    const metadata = await verifyDeploymentBundle(run.bundle);
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      ...metadata,
+      spec: change(run.spec),
+    });
+    run.docker.calls = [];
+    await expect(run.apply()).rejects.toThrow('sandbox declaration');
+    expect(run.docker.calls).toEqual([]);
   });
 
   test('declared additional origins reach the runtime while the native identity keeps the primary origin', async () => {

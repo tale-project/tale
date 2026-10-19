@@ -5,6 +5,7 @@ import {
   linkSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -16,6 +17,7 @@ import { applyRuntime, activateRuntimeConfiguration } from './runtime-apply';
 import type { RuntimeConfigurationEffect } from './runtime-configuration';
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { prepareRuntime } from './runtime-prepare';
+import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
 import {
   RuntimeDockerFixture,
   runtimeFixture,
@@ -32,9 +34,24 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0))
     rmSync(fixture.directory, { recursive: true, force: true });
 });
-async function create() {
+async function create(incus = false) {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
+  if (incus) {
+    // The credentials check walks the real ancestors of the state directory,
+    // and the system temporary directory is a link on macOS.
+    fixture.options.stateDirectory = join(
+      realpathSync(fixture.directory),
+      'state',
+    );
+    const credentials = join(fixture.options.stateDirectory, 'sandbox-incus');
+    mkdirSync(credentials, { recursive: true, mode: 0o700 });
+    chmodSync(credentials, 0o700);
+    for (const name of SANDBOX_INCUS_FILES)
+      writeFileSync(join(credentials, name), `${name} fixture bytes\n`, {
+        mode: 0o600,
+      });
+  }
   const docker = new RuntimeDockerFixture(fixture);
   const configuration = new ConfigurationDockerFixture(docker);
   await prepareRuntime(
@@ -43,6 +60,14 @@ async function create() {
       revision: fixture.revision,
       output: fixture.options.bundleDirectory,
       platform: 'linux/amd64',
+      ...(incus
+        ? {
+            sandbox: {
+              address: '10.200.50.2',
+              egressProxy: 'http://10.200.40.10:3128',
+            },
+          }
+        : {}),
     },
     docker.dependencies(),
   );
@@ -115,6 +140,13 @@ describe.skipIf(process.platform === 'win32')(
             c.args[0] === 'pull',
         ),
       ).toBe(false);
+    });
+    test('activates an Incus-shaped spawner like a Docker-shaped one, checking its mounts exactly', async () => {
+      const run = await create(true);
+      const result = await run.activate();
+      expect(result.phase).toBe('ready');
+      expect(result.after?.startedAt).not.toBe(result.before.startedAt);
+      expect(run.configuration.restarted).toBe(1);
     });
     test.each(['before', 'after'] as const)(
       'retains pending across restart failure %s acceptance; recovery restarts only when needed',

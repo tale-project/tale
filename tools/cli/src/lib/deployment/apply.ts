@@ -590,13 +590,18 @@ async function applyVerifiedDeployment(
   bundle: DeploymentBundle,
 ) {
   const runtimeBundle = readRuntimeBundle(join(directory, 'runtime')).bundle;
+  const declared = bundle.spec.sandbox;
+  const prepared = runtimeBundle.sandbox;
   if (
     runtimeBundle.revision !== bundle.spec.runtime.revision ||
     runtimeBundle.platform !== bundle.spec.runtime.platform ||
-    runtimeBundle.containerPrefix !== bundle.spec.runtime.containerPrefix
+    runtimeBundle.containerPrefix !== bundle.spec.runtime.containerPrefix ||
+    prepared?.backend !== declared?.backend ||
+    prepared?.address !== declared?.address ||
+    prepared?.egressProxy !== declared?.egressProxy
   )
     throw preconditionError(
-      'Runtime bundle differs from the selected source revision, platform or container prefix.',
+      'Runtime bundle differs from the selected source revision, platform, container prefix or sandbox declaration.',
     );
   const configs = await configProofs(bundle, directory);
   const bundleSha256 = sha256(

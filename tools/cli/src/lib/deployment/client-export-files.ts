@@ -13,6 +13,7 @@ import {
   type ClientExportResult,
   type ClientExportTarget,
 } from './client-export-model';
+import { untrustedAncestor } from './private-path';
 import {
   readProvisionStateProof,
   writeProvisionState,
@@ -55,19 +56,10 @@ export function validateClientExportDirectory(directory: string): boolean {
   // An owned private leaf is not a trust root if another account can rename
   // it through a writable ancestor. Root-owned sticky system temp directories
   // are safe for an account-owned child and remain supported.
-  for (let ancestor = dirname(canonical); ; ancestor = dirname(ancestor)) {
-    const owner = lstatSync(ancestor);
-    if (
-      !owner.isDirectory() ||
-      owner.isSymbolicLink() ||
-      (owner.uid !== 0 && owner.uid !== process.getuid?.()) ||
-      ((owner.mode & 0o022) !== 0 && (owner.mode & 0o1000) === 0)
-    )
-      throw preconditionError(
-        'Credential output has an untrusted or writable ancestor.',
-      );
-    if (dirname(ancestor) === ancestor) break;
-  }
+  if (untrustedAncestor(canonical) !== undefined)
+    throw preconditionError(
+      'Credential output has an untrusted or writable ancestor.',
+    );
   try {
     const found = lstatSync(directory);
     if (

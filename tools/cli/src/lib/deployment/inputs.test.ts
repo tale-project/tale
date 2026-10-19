@@ -21,6 +21,7 @@ import {
   resolveDeploymentSpec,
   resolveValue,
 } from './model';
+import { SANDBOX_OWNED_VARIABLES } from './runtime-sandbox';
 import { withDeploymentSources } from './sources';
 
 const testPosix = test.skipIf(process.platform === 'win32');
@@ -647,4 +648,138 @@ test('refuses organization creator lists the backend could not honour', () => {
       organizations: { creators: ['ops@north-labs.example'], extra: true },
     }),
   ).toThrow();
+});
+
+const sandbox = {
+  backend: 'incus' as const,
+  address: '10.200.50.2',
+  egressProxy: 'http://10.200.40.10:3128',
+};
+
+test('resolves the Incus sandbox declaration from literals and environment references', () => {
+  const input = spec();
+  expect(resolveDeploymentSpec({ ...input, sandbox }).sandbox).toEqual(sandbox);
+  expect(
+    resolveDeploymentSpec(
+      {
+        ...input,
+        sandbox: {
+          backend: 'incus',
+          address: { env: 'HOST_ADDRESS' },
+          egressProxy: { env: 'EGRESS_PROXY' },
+        },
+      },
+      { HOST_ADDRESS: '10.200.50.2', EGRESS_PROXY: 'http://10.200.40.10:3128' },
+    ).sandbox,
+  ).toEqual(sandbox);
+  expect(resolveDeploymentSpec(input)).not.toHaveProperty('sandbox');
+  expect(() =>
+    resolveDeploymentSpec(
+      { ...input, sandbox: { ...sandbox, address: { env: 'MISSING' } } },
+      {},
+    ),
+  ).toThrow('MISSING');
+  // A reference must resolve to an address, not to whatever the host holds.
+  expect(() =>
+    resolveDeploymentSpec(
+      { ...input, sandbox: { ...sandbox, address: { env: 'NOT_AN_ADDRESS' } } },
+      { NOT_AN_ADDRESS: 'docker-host' },
+    ),
+  ).toThrow();
+  expect(() =>
+    resolveDeploymentSpec(
+      {
+        ...input,
+        sandbox: { ...sandbox, egressProxy: { env: 'NOT_A_PROXY' } },
+      },
+      { NOT_A_PROXY: 'https://10.200.40.10:3128' },
+    ),
+  ).toThrow();
+});
+
+test.each([
+  '0.0.0.0',
+  '127.0.0.1',
+  '169.254.169.254',
+  '224.0.0.1',
+  '255.255.255.255',
+  'docker-host',
+  '::1',
+  '10.200.50',
+  '10.200.50.2/24',
+])('refuses the sandbox address %j', (address) => {
+  expect(() =>
+    resolveDeploymentSpec({ ...spec(), sandbox: { ...sandbox, address } }),
+  ).toThrow();
+});
+
+test.each([
+  'https://10.200.40.10:3128',
+  'http://10.200.40.10',
+  'http://sandbox-egress:3128',
+  'http://10.200.40.10:3128/path',
+  'http://user:secret@10.200.40.10:3128',
+  'http://127.0.0.1:3128',
+  'http://[::1]:3128',
+])('refuses the sandbox egress proxy %j', (egressProxy) => {
+  expect(() =>
+    resolveDeploymentSpec({ ...spec(), sandbox: { ...sandbox, egressProxy } }),
+  ).toThrow();
+});
+
+test('holds the sandbox declaration to its three keys and the Incus backend', () => {
+  const input = spec();
+  for (const declared of [
+    { ...sandbox, backend: 'docker' },
+    { ...sandbox, backend: undefined },
+    { ...sandbox, extra: true },
+    { backend: 'incus', address: sandbox.address },
+    { backend: 'incus', egressProxy: sandbox.egressProxy },
+    {},
+  ])
+    expect(() =>
+      resolveDeploymentSpec({ ...input, sandbox: declared }),
+    ).toThrow();
+});
+
+test.each([...SANDBOX_OWNED_VARIABLES])(
+  'refuses an environment that names %s only for a deployment that declares the sandbox',
+  (name) => {
+    const input = spec();
+    const environment = {
+      ...input.environment,
+      [name]: { env: 'DECLARED_VALUE', optional: true },
+    };
+    // Without the declaration the variable is accepted as it always was.
+    expect(
+      resolveDeploymentSpec({ ...input, environment }).environment,
+    ).toHaveProperty(name);
+    expect(() =>
+      resolveDeploymentSpec({ ...input, environment, sandbox }),
+    ).toThrow(`${name} is set by the sandbox declaration`);
+  },
+);
+
+test('accepts the other sandbox variables beside the declaration', () => {
+  const input = spec();
+  expect(
+    resolveDeploymentSpec({
+      ...input,
+      environment: {
+        ...input.environment,
+        SANDBOX_MAX_SESSIONS: { env: 'MAX_SESSIONS' },
+        SANDBOX_INCUS_ENDPOINT: { env: 'INCUS_ENDPOINT' },
+      },
+      sandbox,
+    }).sandbox,
+  ).toEqual(sandbox);
+});
+
+test('the finished specification is held to the same sandbox rules', () => {
+  expect(
+    deploymentSpecSchema.safeParse({
+      ...resolveDeploymentSpec({ ...spec(), sandbox }),
+      sandbox: { ...sandbox, address: { env: 'HOST_ADDRESS' } },
+    }).success,
+  ).toBe(false);
 });

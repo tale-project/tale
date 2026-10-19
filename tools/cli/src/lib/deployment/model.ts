@@ -15,6 +15,10 @@ import {
   slug,
 } from '../config/releases/model';
 import { containerPrefixSchema, isManagedOrigin } from './runtime-model';
+import {
+  SANDBOX_OWNED_VARIABLES,
+  sandboxDeclarationSchema,
+} from './runtime-sandbox';
 
 const text = z
   .string()
@@ -127,6 +131,12 @@ const deploymentFields = z.strictObject({
   organizations: z
     .strictObject({ creators: z.array(emailAddress).min(1).max(64) })
     .optional(),
+  /** Run the sandbox spawner against an Incus node instead of this host's
+   * Docker socket: the prepared runtime mounts the three PEM files of
+   * `<stateDirectory>/sandbox-incus`, publishes the backend API and the LLM
+   * gateway on `address`, and sets the backend, the image and the egress
+   * proxy itself. Absent, the sandbox drives Docker as before. */
+  sandbox: sandboxDeclarationSchema.optional(),
   tlsMode: z.enum(['external', 'letsencrypt']),
   tlsEmail: z.string().email().optional(),
   environment: z.record(environmentName, environmentReference).default({}),
@@ -262,6 +272,16 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
           message: 'Duplicate organization creator',
           path: ['organizations', 'creators', index],
         });
+    // The shape sets these variables itself, so a declaration of the same
+    // name would be dropped from the managed `.env` or contradict the bundle.
+    if (spec.sandbox)
+      for (const name of SANDBOX_OWNED_VARIABLES)
+        if (Object.hasOwn(spec.environment, name))
+          context.addIssue({
+            code: 'custom',
+            message: `${name} is set by the sandbox declaration; remove it from the environment`,
+            path: ['environment', name],
+          });
     if (spec.identity?.emailVerification && spec.identity.bootstrap !== 'fresh')
       context.addIssue({
         code: 'custom',
@@ -398,6 +418,18 @@ const deploymentInputSchema = deploymentFields.extend({
         .max(64),
     })
     .optional(),
+  sandbox: sandboxDeclarationSchema
+    .extend({
+      address: z.union([
+        sandboxDeclarationSchema.shape.address,
+        environmentReference,
+      ]),
+      egressProxy: z.union([
+        sandboxDeclarationSchema.shape.egressProxy,
+        environmentReference,
+      ]),
+    })
+    .optional(),
   identity: identity
     .extend({
       nativeClients: z
@@ -463,6 +495,15 @@ export function resolveDeploymentSpec(
             creators: spec.organizations.creators.map((entry) =>
               resolveValue(entry, environment),
             ),
+          },
+        }),
+    ...(spec.sandbox === undefined
+      ? {}
+      : {
+          sandbox: {
+            ...spec.sandbox,
+            address: resolveValue(spec.sandbox.address, environment),
+            egressProxy: resolveValue(spec.sandbox.egressProxy, environment),
           },
         }),
     identity: spec.identity && {

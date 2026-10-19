@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse, stringify } from 'yaml';
@@ -29,6 +29,7 @@ import {
   type ComposeDocument,
   type RuntimeDependencies,
 } from './runtime-model';
+import { INCUS_BACKEND_MARKER } from './runtime-sandbox';
 import { sourceAutomationProtocol } from './source-automation-protocol';
 import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
@@ -113,12 +114,18 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '127.0.0.1:8003:8003',
     '127.0.0.1:8004:8004',
   ];
+  // The variables of the Docker shape the Incus shape replaces, as the release
+  // source sets them, beside the image routing the preparation pins.
   source.services.sandbox.environment = {
+    SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
+    SANDBOX_HUB_PORT: '${SANDBOX_HUB_PORT:-8004}',
     SANDBOX_RUNTIME_IMAGE:
       '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
     SANDBOX_BUILDKITD_IMAGE:
       '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
     SANDBOX_BUILDKITD_MIRROR_IMAGE: `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`,
+    SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',
+    SANDBOX_EGRESS_PROXY: 'http://sandbox-egress:3128',
   };
   // A proxy source from before or after the external-terminator trust fix:
   // only the latter carries the placeholder additional origins depend on.
@@ -130,6 +137,12 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '}\n{$DOCS_ORIGIN:https://docs.localhost} {\n respond "docs"\n}\n{$SITE_ORIGIN:https://localhost} {\n # TLS_PLACEHOLDER\n # BACKEND_PLACEHOLDER\n reverse_proxy platform:3000\n}\n';
   writeFileSync(join(repoRoot, 'compose.yml'), stringify(source));
   writeFileSync(join(repoRoot, 'services/proxy/Caddyfile'), caddy);
+  // A revision that has the spawner's Incus backend commits its config module.
+  mkdirSync(join(repoRoot, INCUS_BACKEND_MARKER, '..'), { recursive: true });
+  writeFileSync(
+    join(repoRoot, INCUS_BACKEND_MARKER),
+    '// Incus backend source fixture\n',
+  );
   mkdirSync(join(repoRoot, 'services/platform/lib/engine/core'), {
     recursive: true,
   });
@@ -186,12 +199,36 @@ export type RuntimeFixture = ReturnType<typeof runtimeFixture>;
 export const REPOSITORY_RUNTIME_SOURCE = [
   'compose.yml',
   'services/proxy/Caddyfile',
+  INCUS_BACKEND_MARKER,
   AUTOMATION_PROTOCOL_SOURCE,
   ...SOURCE_MIGRATION_ROOTS.flatMap((root) =>
     readdirSync(
       fileURLToPath(new URL(`../../../../../${root}`, import.meta.url)),
     ).map((name) => `${root}${name}`),
   ),
+] as const;
+
+/**
+ * The spawner modules `loadConfig` imports, which the cross-check suite runs
+ * in a child process to hold the prepared Incus sandbox environment to what
+ * the spawner accepts. They sit outside this workspace, so
+ * `tools/cli/turbo.json` hashes them for `@tale/cli#test`; the suite checks
+ * this list against the imports.
+ */
+export const SPAWNER_CONFIG_SOURCE = [
+  'services/sandbox/src/config.ts',
+  'services/sandbox/src/backend/incus/incus-config.ts',
+  'services/sandbox/src/backend/incus/incus-units.ts',
+  'services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts',
+  'services/sandbox/src/host-memory.ts',
+  'services/sandbox/src/host-pressure-assessment.ts',
+  'services/sandbox/src/network-address.ts',
+  'services/sandbox/src/operation-budget.ts',
+  'services/sandbox/src/proc-stats.ts',
+  'services/sandbox/src/runtime-tier.ts',
+  'services/sandbox/src/session/runnerd-protocol.ts',
+  'services/sandbox/src/session/session-profile.ts',
+  'services/sandbox/src/spawn-util.ts',
 ] as const;
 
 /**
@@ -308,8 +345,8 @@ export class RuntimeDockerFixture {
             Name: volume ? `tale_${raw}` : undefined,
             Source: volume
               ? `/var/lib/docker/volumes/tale_${raw}/_data`
-              : raw.startsWith('./')
-                ? join(this.fixture.options.stateDirectory, 'src', raw.slice(2))
+              : raw.startsWith('./') || raw.startsWith('../')
+                ? resolve(this.fixture.options.stateDirectory, 'src', raw)
                 : raw,
             Destination: destination,
             RW: mode !== 'ro',

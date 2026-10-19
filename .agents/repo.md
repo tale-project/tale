@@ -353,7 +353,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
-  `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
+  `runtime-test-helper.ts`); the sandbox cross-check suite also runs the spawner's
+  configuration modules in a child process (`SPAWNER_CONFIG_SOURCE` there, held to
+  their real imports by a test). The package publication suite also reads the publisher, root
   `LICENSE`, both published packages’ manifests and READMEs, `publish-packages.yml` and
   `release.yml`.
   The image metadata suite reads every service `Dockerfile`, both plop service Dockerfile

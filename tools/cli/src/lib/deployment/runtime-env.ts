@@ -10,6 +10,7 @@ import {
   readRegular,
   type ApplyRuntimeOptions,
 } from './runtime-model';
+import { SANDBOX_OWNED_VARIABLES, type SandboxShape } from './runtime-sandbox';
 
 export const RUNTIME_SECRET_KEYS = [
   'DB_PASSWORD',
@@ -146,11 +147,19 @@ export interface RuntimeEnvironment {
   regeneratedSecrets: string[];
 }
 
+/**
+ * `shape` is the sandbox shape of the bundle being applied. The sandbox
+ * service reads this file as well, so a name the other shape's apply left in
+ * it would reach the spawner: the Incus shape drops the variables it sets
+ * itself, and the Docker shape drops the Incus ones, unless the declaration
+ * being applied names them.
+ */
 export function prepareRuntimeEnvironment(
   options: ApplyRuntimeOptions,
   revision: string,
   existing: boolean,
   generate = true,
+  shape: SandboxShape = 'docker',
 ): RuntimeEnvironment {
   const secretPath = join(options.stateDirectory, 'secrets.env');
   const envPath = join(options.stateDirectory, 'src', '.env');
@@ -273,6 +282,15 @@ export function prepareRuntimeEnvironment(
     environment.TALE_ORGANIZATION_CREATORS !== undefined
   )
     delete environment.TALE_ORGANIZATION_CREATORS;
+  for (const key of Object.keys(environment)) {
+    if (Object.hasOwn(extras, key)) continue;
+    const stale =
+      shape === 'incus'
+        ? SANDBOX_OWNED_VARIABLES.includes(key)
+        : key.startsWith('SANDBOX_INCUS_') ||
+          (key === 'SANDBOX_BACKEND' && environment[key].trim() === 'incus');
+    if (stale) delete environment[key];
+  }
   for (const key of RUNTIME_SECRET_KEYS) {
     if (key !== 'TALE_BOOTSTRAP_PASSWORD')
       environment[key] = secrets[key] ?? '';

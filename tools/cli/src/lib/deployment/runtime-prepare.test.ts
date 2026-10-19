@@ -13,6 +13,7 @@ import {
   TALE_REGISTRY,
 } from './runtime-model';
 import { prepareRuntime } from './runtime-prepare';
+import { INCUS_BACKEND_MARKER, SANDBOX_INCUS_MOUNT } from './runtime-sandbox';
 import {
   commitRepositorySource,
   RuntimeDockerFixture,
@@ -36,6 +37,7 @@ function create(
     additionalOrigins?: string[];
     trustsTerminator?: boolean;
     organizationCreators?: string[];
+    sandbox?: { address: string; egressProxy: string };
   } = {},
 ) {
   const fixture = runtimeFixture({
@@ -53,6 +55,7 @@ function create(
         containerPrefix,
         additionalOrigins: declared.additionalOrigins,
         organizationCreators: declared.organizationCreators,
+        sandbox: declared.sandbox,
       },
       docker.dependencies(),
     );
@@ -639,5 +642,218 @@ describe('committed source runtime preparation', () => {
     expect(() => readRuntimeBundle(fixture.options.bundleDirectory)).toThrow(
       'spawner image custody',
     );
+  });
+});
+
+const INCUS = {
+  address: '10.200.50.2',
+  egressProxy: 'http://10.200.40.10:3128',
+};
+
+describe('the Incus shape of the sandbox service', () => {
+  /** A Docker bundle and an Incus bundle of one committed source. */
+  async function both(commit?: (fixture: RuntimeFixture) => void) {
+    const { fixture, docker } = create();
+    commit?.(fixture);
+    const prepareTo = (name: string, sandbox?: typeof INCUS) =>
+      prepareRuntime(
+        {
+          repoRoot: fixture.repoRoot,
+          revision: fixture.revision,
+          output: join(fixture.directory, name),
+          platform: 'linux/amd64',
+          sandbox,
+        },
+        docker.dependencies(),
+      );
+    await prepareTo('docker');
+    await prepareTo('incus', INCUS);
+    return {
+      fixture,
+      docker,
+      prepareTo,
+      plain: readRuntimeBundle(join(fixture.directory, 'docker')),
+      incus: readRuntimeBundle(join(fixture.directory, 'incus')),
+    };
+  }
+  type Verified = Awaited<ReturnType<typeof both>>['incus'];
+  const omit = (value: object, ...keys: string[]) =>
+    Object.fromEntries(
+      Object.entries(value).filter(([key]) => !keys.includes(key)),
+    );
+
+  /** The table of the design: three services differ, the other eight do not. */
+  function expectTable(plain: Verified, incus: Verified) {
+    const image = incus.bundle.images.find(
+      (item) => item.repository === `${TALE_REGISTRY}/tale-sandbox-runtime`,
+    );
+    if (!image) throw new Error('Fixture runtime image missing');
+    const alias = `tale-sandbox-runtime-${image.digest.slice('sha256:'.length, 'sha256:'.length + 32)}`;
+    expect(incus.bundle.sandbox).toEqual({
+      backend: 'incus',
+      ...INCUS,
+      image: { alias, source: image.reference },
+    });
+    expect(plain.bundle).not.toHaveProperty('sandbox');
+    const sandbox = incus.compose.services.sandbox;
+    expect(sandbox.volumes).toEqual([
+      SANDBOX_INCUS_MOUNT,
+      'config-data:/app/platform-config:ro',
+    ]);
+    expect(sandbox.ports).toEqual([]);
+    const docker = plain.compose.services.sandbox.environment as Record<
+      string,
+      string
+    >;
+    expect(sandbox.environment).toEqual({
+      ...Object.fromEntries(
+        Object.entries(docker).filter(
+          ([name]) =>
+            ![
+              'SANDBOX_RUNTIME',
+              'SANDBOX_HUB_PORT',
+              'SANDBOX_EGRESS_NETWORK',
+            ].includes(name),
+        ),
+      ),
+      SANDBOX_EGRESS_PROXY: INCUS.egressProxy,
+      SANDBOX_BACKEND: 'incus',
+      SANDBOX_INCUS_IMAGE: alias,
+      SANDBOX_INCUS_IMAGE_SOURCE: image.reference,
+      SANDBOX_INCUS_CLIENT_CERT_FILE: '/run/secrets/incus/client.crt',
+      SANDBOX_INCUS_CLIENT_KEY_FILE: '/run/secrets/incus/client.key',
+      SANDBOX_INCUS_SERVER_CERT_FILE: '/run/secrets/incus/server.crt',
+    });
+    expect(omit(sandbox, 'volumes', 'environment')).toEqual(
+      omit(plain.compose.services.sandbox, 'volumes', 'environment'),
+    );
+    expect(incus.compose.services['backend-api'].ports).toEqual([
+      '10.200.50.2:3005:3005',
+    ]);
+    expect(incus.compose.services['sandbox-llm-gateway'].ports).toEqual([
+      '10.200.50.2:8080:8080',
+    ]);
+    for (const service of RUNTIME_SERVICES) {
+      if (service === 'sandbox') continue;
+      const published = ['backend-api', 'sandbox-llm-gateway'].includes(
+        service,
+      );
+      expect(
+        omit(incus.compose.services[service], ...(published ? ['ports'] : [])),
+      ).toEqual(
+        omit(plain.compose.services[service], ...(published ? ['ports'] : [])),
+      );
+    }
+    expect(omit(incus.compose, 'services')).toEqual(
+      omit(plain.compose, 'services'),
+    );
+    expect(incus.contents['Caddyfile.production']).toEqual(
+      plain.contents['Caddyfile.production'],
+    );
+    expect(omit(incus.bundle, 'sandbox', 'files')).toEqual(
+      omit(plain.bundle, 'sandbox', 'files'),
+    );
+  }
+
+  test('changes three services of the Docker bundle and records the shape', async () => {
+    const { plain, incus } = await both();
+    expectTable(plain, incus);
+  });
+
+  test("prepares the repository's own runtime source into the same shape", async () => {
+    const { plain, incus } = await both(commitRepositorySource);
+    expectTable(plain, incus);
+    // The release's own sandbox service carries every variable the shape
+    // replaces, and the spawner's other settings stay as the source sets them.
+    const environment = incus.compose.services.sandbox.environment as Record<
+      string,
+      string
+    >;
+    expect(environment.SANDBOX_DOCKER_IN_CONTAINER).toBe(
+      '${SANDBOX_DOCKER_IN_CONTAINER:-}',
+    );
+  });
+
+  test('prepares the same bytes twice', async () => {
+    const { fixture, prepare } = create(undefined, { sandbox: INCUS });
+    await prepare();
+    const bytes = ['compose.yml', 'Caddyfile.production', 'runtime.json'].map(
+      (file) =>
+        readFileSync(join(fixture.options.bundleDirectory, file), 'utf8'),
+    );
+    await prepare();
+    expect(
+      ['compose.yml', 'Caddyfile.production', 'runtime.json'].map((file) =>
+        readFileSync(join(fixture.options.bundleDirectory, file), 'utf8'),
+      ),
+    ).toEqual(bytes);
+  });
+
+  test('keeps the Docker bundle of a deployment that declares no sandbox free of the shape', async () => {
+    const { fixture, prepare } = create();
+    const bundle = await prepare();
+    expect(bundle).not.toHaveProperty('sandbox');
+    const compose = readFileSync(
+      join(fixture.options.bundleDirectory, 'compose.yml'),
+      'utf8',
+    );
+    expect(compose).not.toContain('sandbox-incus');
+    expect(compose).not.toContain('SANDBOX_INCUS');
+    expect(compose).not.toContain('SANDBOX_BACKEND');
+    expect(compose).toContain('/var/run/docker.sock:/var/run/docker.sock');
+  });
+
+  test('refuses a source revision that predates the Incus backend before any Docker work', async () => {
+    const { fixture, docker, prepare } = create(undefined, { sandbox: INCUS });
+    fixture.git('rm', '-q', INCUS_BACKEND_MARKER);
+    fixture.git('commit', '-qm', 'remove the Incus backend');
+    fixture.revision = fixture.git('rev-parse', 'HEAD');
+    await expect(prepare()).rejects.toThrow(
+      'predates the Incus sandbox backend; select a Tale revision from v0.5.91 or later',
+    );
+    expect(docker.calls).toHaveLength(0);
+    expect(readdirSync(fixture.directory)).not.toContain('bundle');
+  });
+
+  test('prepares a revision that predates the Incus backend when no sandbox is declared', async () => {
+    const { fixture, prepare } = create();
+    fixture.git('rm', '-q', INCUS_BACKEND_MARKER);
+    fixture.git('commit', '-qm', 'remove the Incus backend');
+    fixture.revision = fixture.git('rev-parse', 'HEAD');
+    expect(await prepare()).not.toHaveProperty('sandbox');
+  });
+
+  test.each([
+    'SANDBOX_RUNTIME',
+    'SANDBOX_HUB_PORT',
+    'SANDBOX_EGRESS_NETWORK',
+    'SANDBOX_EGRESS_PROXY',
+  ])(
+    'refuses a source whose sandbox lacks %s rather than half apply the shape',
+    async (name) => {
+      const { fixture, prepare } = create(undefined, { sandbox: INCUS });
+      delete (
+        fixture.source.services.sandbox.environment as Record<string, string>
+      )[name];
+      writeFileSync(
+        join(fixture.repoRoot, 'compose.yml'),
+        stringify(fixture.source),
+      );
+      fixture.git('add', '.');
+      fixture.git('commit', '-qm', `remove ${name}`);
+      fixture.revision = fixture.git('rev-parse', 'HEAD');
+      await expect(prepare()).rejects.toThrow(`lacks ${name}`);
+      expect(readdirSync(fixture.directory)).not.toContain('bundle');
+    },
+  );
+
+  test.each([
+    [{ address: '0.0.0.0', egressProxy: INCUS.egressProxy }],
+    [{ address: '10.200.50.2', egressProxy: 'http://sandbox-egress:3128' }],
+    [{ address: 'docker-host', egressProxy: INCUS.egressProxy }],
+  ])('refuses the declaration %j before any Docker work', async (sandbox) => {
+    const { docker, prepare } = create(undefined, { sandbox });
+    await expect(prepare()).rejects.toThrow('unicast IPv4');
+    expect(docker.calls).toHaveLength(0);
   });
 });

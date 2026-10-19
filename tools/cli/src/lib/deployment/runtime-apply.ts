@@ -5,7 +5,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { splitSiteUrlList } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
-import { externalDepError } from '../../utils/fail';
+import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
@@ -45,6 +45,17 @@ import {
   type RuntimeResult,
 } from './runtime-model';
 import { inspectRuntimeImage } from './runtime-prepare';
+import {
+  otherSandboxShape,
+  SANDBOX_INCUS_DIRECTORY,
+  SANDBOX_INCUS_MOUNT_SOURCE,
+  SANDBOX_OWNED_VARIABLES,
+  SANDBOX_SHAPE_MOUNTS,
+  sandboxShapeOf,
+  type SandboxShape,
+} from './runtime-sandbox';
+import { assertIncusCredentials } from './runtime-sandbox-credentials';
+import { drainSpawner } from './runtime-spawner';
 
 const sha = z.string().regex(/^[a-f0-9]{64}$/);
 const installedFiles = [
@@ -399,13 +410,109 @@ async function assertFixedContainerNames(
   }
 }
 
+interface ExpectedMount {
+  named: boolean;
+  source: string;
+  target: string;
+  readonly: boolean;
+}
+
+/** The mounts a service of this runtime has when it holds `volumes`. */
+function expectedMounts(
+  volumes: readonly string[],
+  service: string,
+  compose: ComposeDocument,
+  options: ApplyRuntimeOptions,
+): ExpectedMount[] {
+  return volumes.map((volume) => {
+    const [source, target, mode] = volume.split(':');
+    requireRuntime(source && target, 'Unsupported runtime mount declaration.');
+    const named = Object.hasOwn(compose.volumes, source);
+    const incus =
+      service === 'sandbox' && source === SANDBOX_INCUS_MOUNT_SOURCE;
+    requireRuntime(
+      named ||
+        incus ||
+        [
+          '/var/run/docker.sock',
+          '/var/lib/tale-sandbox',
+          './Caddyfile.production',
+        ].includes(source),
+      'Runtime contains an unsupported host mount.',
+    );
+    return {
+      named,
+      source: named
+        ? projectVolumeName(options.composeProject, source)
+        : incus
+          ? join(options.stateDirectory, SANDBOX_INCUS_DIRECTORY)
+          : source.startsWith('./')
+            ? join(options.stateDirectory, 'src', source.slice(2))
+            : source,
+      target,
+      readonly: mode === 'ro',
+    };
+  });
+}
+
+/**
+ * What differs between a container's mounts and the mounts it should have, as
+ * the refusal that names it, or `undefined` when they agree. A mount the
+ * container has and the file lacks is always a difference. A mount the file
+ * has and the container lacks is one too, unless `projectVolumes` is given
+ * and the missing mounts are all named volumes that do not exist yet.
+ */
+function mountDifference(
+  container: RuntimeContainer,
+  expected: readonly ExpectedMount[],
+  projectVolumes?: ReadonlySet<string>,
+): string | undefined {
+  const matched = new Set<number>();
+  for (const actual of container.Mounts) {
+    const index = expected.findIndex(
+      (mount, candidate) =>
+        !matched.has(candidate) &&
+        actual.Destination === mount.target &&
+        actual.Type === (mount.named ? 'volume' : 'bind') &&
+        (mount.named ? actual.Name : actual.Source) === mount.source &&
+        actual.RW === !mount.readonly,
+    );
+    if (index < 0)
+      return 'Existing runtime data-volume or host-mount identity differs.';
+    matched.add(index);
+  }
+  const missing = expected.filter((_, index) => !matched.has(index));
+  if (missing.length === 0) return undefined;
+  // A release may add a new named volume to a retained 0.5 runtime. The
+  // volume has no data yet, and Compose will recreate only the affected
+  // service during the normal `up`; every existing mount remains checked
+  // above. A missing bind mount, or a named volume that already exists,
+  // still means the retained container has drifted and is refused.
+  const additive =
+    projectVolumes !== undefined &&
+    missing.every((mount) => mount.named && !projectVolumes.has(mount.source));
+  return additive
+    ? undefined
+    : 'Existing runtime mounts differ from the managed topology.';
+}
+
+/**
+ * Compare the running containers with the compose file. `projectVolumes` is
+ * given only at admission of an apply that changes something, and then:
+ * volumes the project does not have yet may be added, and the `sandbox`
+ * container may still hold the mounts of the other sandbox shape, exactly,
+ * which is the state a switch between the Docker and the Incus shape starts
+ * from. That other shape is returned. After a start and for a ready runtime
+ * no such relaxation applies.
+ */
 function assertContainerCustody(
   containers: RuntimeContainer[],
   compose: ComposeDocument,
   options: ApplyRuntimeOptions,
   projectVolumes?: ReadonlySet<string>,
-): void {
+): SandboxShape | undefined {
   const seen = new Set<string>();
+  let retained: SandboxShape | undefined;
   for (const container of containers) {
     const labels = container.Config.Labels;
     const service = labels?.['com.docker.compose.service'];
@@ -423,70 +530,33 @@ function assertContainerCustody(
       'Existing containers do not match this managed runtime identity and topology.',
     );
     seen.add(service);
-    const desired = z
-      .array(z.string())
-      .parse(compose.services[service].volumes ?? []);
-    const expected = desired.map((volume) => {
-      const [source, target, mode] = volume.split(':');
-      requireRuntime(
-        source && target,
-        'Unsupported runtime mount declaration.',
-      );
-      const named = Object.hasOwn(compose.volumes, source);
-      requireRuntime(
-        named ||
-          [
-            '/var/run/docker.sock',
-            '/var/lib/tale-sandbox',
-            './Caddyfile.production',
-          ].includes(source),
-        'Runtime contains an unsupported host mount.',
-      );
-      return {
-        named,
-        source: named
-          ? projectVolumeName(options.composeProject, source)
-          : source.startsWith('./')
-            ? join(options.stateDirectory, 'src', source.slice(2))
-            : source,
-        target,
-        readonly: mode === 'ro',
-      };
-    });
-    const matched = new Set<number>();
-    for (const actual of container.Mounts) {
-      const index = expected.findIndex(
-        (mount, candidate) =>
-          !matched.has(candidate) &&
-          actual.Destination === mount.target &&
-          actual.Type === (mount.named ? 'volume' : 'bind') &&
-          (mount.named ? actual.Name : actual.Source) === mount.source &&
-          actual.RW === !mount.readonly,
-      );
-      requireRuntime(
-        index >= 0,
-        'Existing runtime data-volume or host-mount identity differs.',
-      );
-      matched.add(index);
+    const expected = expectedMounts(
+      z.array(z.string()).parse(compose.services[service].volumes ?? []),
+      service,
+      compose,
+      options,
+    );
+    let difference = mountDifference(container, expected, projectVolumes);
+    if (difference !== undefined && service === 'sandbox' && projectVolumes) {
+      const other = otherSandboxShape(sandboxShapeOf(compose));
+      if (
+        mountDifference(
+          container,
+          expectedMounts(
+            SANDBOX_SHAPE_MOUNTS[other],
+            service,
+            compose,
+            options,
+          ),
+        ) === undefined
+      ) {
+        retained = other;
+        difference = undefined;
+      }
     }
-    const missing = expected.filter((_, index) => !matched.has(index));
-    if (missing.length > 0) {
-      // A release may add a new named volume to a retained 0.5 runtime. The
-      // volume has no data yet, and Compose will recreate only the affected
-      // service during the normal `up`; every existing mount remains checked
-      // above. A missing bind mount, or a named volume that already exists,
-      // still means the retained container has drifted and is refused.
-      const additive =
-        projectVolumes !== undefined &&
-        missing.every(
-          (mount) => mount.named && !projectVolumes.has(mount.source),
-        );
-      requireRuntime(
-        additive,
-        'Existing runtime mounts differ from the managed topology.',
-      );
-    }
+    if (difference !== undefined) throw preconditionError(difference);
   }
+  return retained;
 }
 
 async function inspectSandboxNetwork(
@@ -758,6 +828,32 @@ async function waitForRuntime(
   );
 }
 
+/**
+ * Stop new sessions on the spawner a backend switch replaces, and refuse while
+ * it still holds any. The spawner ends sessions that outlast its linger by
+ * itself, so a later attempt finds none. The count is the only thing read
+ * about a session; nothing is stopped or deleted here.
+ */
+async function drainOutgoingSpawner(
+  containers: RuntimeContainer[],
+  outgoing: SandboxShape,
+  dependencies: RuntimeDependencies,
+): Promise<void> {
+  const spawner = containers.find(
+    (container) =>
+      container.Config.Labels?.['com.docker.compose.service'] === 'sandbox',
+  );
+  requireRuntime(
+    spawner?.State.Running,
+    `The ${outgoing} sandbox spawner is not running, so it cannot say whether it holds sessions; start it, or remove its container to abandon them, and apply again.`,
+  );
+  const drained = await drainSpawner(spawner.Id, dependencies);
+  requireRuntime(
+    drained.drained,
+    `The ${outgoing} sandbox spawner still holds ${drained.sessions ?? 'an unknown number of'} session(s) and refuses new ones. It stops them itself after its linger (SANDBOX_SESSION_MAX_LINGER_MS, 30 minutes by default); apply the same bundle again after that. Restarting the spawner lifts the drain.`,
+  );
+}
+
 /** Caller holds the deployment lock and snapshots a changed existing runtime. */
 export async function applyRuntime(
   options: ApplyRuntimeOptions,
@@ -767,6 +863,19 @@ export async function applyRuntime(
   const { bundle, identity, compose, contents } = readRuntimeBundle(
     options.bundleDirectory,
   );
+  const shape: SandboxShape = bundle.sandbox === undefined ? 'docker' : 'incus';
+  if (shape === 'incus') {
+    // The shape sets these variables itself; a declaration of the same name
+    // would be dropped from `.env` or contradict the bundle.
+    requireRuntime(
+      SANDBOX_OWNED_VARIABLES.every(
+        (name) => !Object.hasOwn(options.environment ?? {}, name),
+      ),
+      'Managed runtime environment names a variable the Incus sandbox shape sets itself.',
+    );
+    // Before the first Docker call, so a dry run refuses too.
+    assertIncusCredentials(options.stateDirectory);
+  }
   const destination = await runtimeCommand(
     ['info', '--format', '{{.OSType}}/{{.Architecture}}'],
     dependencies,
@@ -820,7 +929,7 @@ export async function applyRuntime(
     options.composeProject,
     dependencies,
   );
-  assertContainerCustody(
+  const outgoingShape = assertContainerCustody(
     containers,
     compose,
     options,
@@ -934,7 +1043,11 @@ export async function applyRuntime(
       requireRuntime(
         !existsSync(options.stateDirectory) ||
           readdirSync(options.stateDirectory).every((file) =>
-            ['src', '.tale'].includes(file),
+            [
+              'src',
+              '.tale',
+              ...(shape === 'incus' ? [SANDBOX_INCUS_DIRECTORY] : []),
+            ].includes(file),
           ),
         'Unrecognized existing state prevents initializing this runtime.',
       );
@@ -982,6 +1095,36 @@ export async function applyRuntime(
     );
   };
   await checkInstalledProtocol();
+  // Read before anything changes: the result keeps what the rollout found.
+  const gateway = gatewayState(
+    receipt,
+    containers,
+    bundle,
+    projectVolumes.includes(
+      projectVolumeName(options.composeProject, GATEWAY_VOLUME),
+    ),
+    inspectedDigests,
+  );
+  const environment = prepareRuntimeEnvironment(
+    options,
+    bundle.revision,
+    existing && !(receipt?.phase === 'pending' && !receipt.existing),
+    !options.dryRun,
+    shape,
+  );
+  const planned = {
+    ...contents,
+    '.env': Buffer.from(environment.environment),
+    'secrets.env': Buffer.from(environment.secrets),
+  };
+  // A switch replaces the spawner container, but its sessions live on and the
+  // other backend does not see them. A custody that found the other shape is
+  // always a change, so this runs before the runtime's first pull or write,
+  // and a refusal leaves the runtime as it was. What the caller recorded
+  // before it called (a recovery snapshot, the pending bundle) stays, so only
+  // the same bundle can be applied again.
+  if (outgoingShape !== undefined && !options.dryRun)
+    await drainOutgoingSpawner(containers, outgoingShape, dependencies);
   if (bundle.automationWriterProtocol === 2) {
     const platformImage = bundle.images.find((image) =>
       image.services.includes('platform'),
@@ -1011,27 +1154,6 @@ export async function applyRuntime(
       'Runtime image automation writer protocol differs from its prepared capability.',
     );
   }
-  // Read before anything changes: the result keeps what the rollout found.
-  const gateway = gatewayState(
-    receipt,
-    containers,
-    bundle,
-    projectVolumes.includes(
-      projectVolumeName(options.composeProject, GATEWAY_VOLUME),
-    ),
-    inspectedDigests,
-  );
-  const environment = prepareRuntimeEnvironment(
-    options,
-    bundle.revision,
-    existing && !(receipt?.phase === 'pending' && !receipt.existing),
-    !options.dryRun,
-  );
-  const planned = {
-    ...contents,
-    '.env': Buffer.from(environment.environment),
-    'secrets.env': Buffer.from(environment.secrets),
-  };
   if (pendingTakeover && receipt && !options.dryRun) {
     const stage = randomUUID();
     const stageDirectory = join(
@@ -1088,7 +1210,13 @@ export async function applyRuntime(
     gateway,
     dryRun: options.dryRun ?? false,
   });
-  if (options.dryRun) return result();
+  if (options.dryRun) {
+    if (outgoingShape !== undefined)
+      logger.info(
+        `The sandbox backend changes from ${outgoingShape} to ${shape}; the apply drains the running spawner first and stops while it still holds sessions.`,
+      );
+    return result();
+  }
   if (!changed) {
     // An unchanged receipt is still a claim about the running service and the
     // spawner's two local aliases, not just a comparison of JSON files.
@@ -1202,9 +1330,12 @@ export async function applyRuntime(
       'Sandbox network creation did not converge.',
     );
   }
-  if (dependencies.ensureSandboxWorkspace)
-    dependencies.ensureSandboxWorkspace();
-  else mkdirSync('/var/lib/tale-sandbox', { recursive: true, mode: 0o750 });
+  // Only the Docker shape keeps session workspaces on this host.
+  if (shape === 'docker') {
+    if (dependencies.ensureSandboxWorkspace)
+      dependencies.ensureSandboxWorkspace();
+    else mkdirSync('/var/lib/tale-sandbox', { recursive: true, mode: 0o750 });
+  }
   for (const image of bundle.images)
     for (const alias of image.localAliases) {
       await runtimeCommand(['tag', image.reference, alias], dependencies);
