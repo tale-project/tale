@@ -21,9 +21,9 @@
     "test": "bun test --timeout 30000"
   },
   "dependencies": {
-    "@inquirer/prompts": "8.4.1",
+    "@inquirer/prompts": "8.6.0",
     "@noble/curves": "1.9.7",
-    "@scure/base": "2.0.0",
+    "@scure/base": "2.3.0",
     "@tale/shared": "workspace:*",
     "@tale/ui": "workspace:*",
     "acorn": "8.18.0",
@@ -34,13 +34,13 @@
     "is-reference": "3.0.3",
     "jszip": "3.10.1",
     "periscopic": "4.0.3",
-    "yaml": "2.8.3",
+    "yaml": "2.9.0",
     "yauzl": "3.4.0",
     "zimmerframe": "1.1.5",
-    "zod": "4.3.6"
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@actions/glob": "0.5.1",
+    "@actions/glob": "0.7.0",
     "@better-auth/core": "1.7.5",
     "@types/bun": "1.3.11",
     "@types/picomatch": "2.3.4",
