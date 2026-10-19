@@ -22,6 +22,18 @@ exec temp that every container start wipes. The root Docker supervisor starts
 without it, because the agent user can write that directory; runnerd and its
 execs get it back.
 
+The image sets `PATH` with `ENV`, and `entrypoint.sh` puts the session's pip and
+npm prefixes (`/agent/.runtime/deps/python/bin`, `/agent/.runtime/deps/node/bin`)
+in front of it. A login shell (`bash -lc`: runnerd's `shell` exec form, and the
+shell tool of the Codex harness) discards that: Debian's `/etc/profile` resets
+`PATH` before it reads `/etc/profile.d`, which would leave node, npm, the agent
+CLIs and the session's own installs unfound. [`login-shell-path.sh`](login-shell-path.sh),
+installed as `/etc/profile.d/tale-path.sh`, puts them back in the same order, and
+for root only the image's directories, never the session's, which the agent can
+write. When you change the image's `PATH` or the directories `entrypoint.sh`
+adds, change that file with them; `daemon/src/login-shell-path.test.ts` fails
+until the three agree.
+
 ## Repository SSH access
 
 The maintained runtime installs OpenSSH (`ssh`, `ssh-agent`, `ssh-add`) and

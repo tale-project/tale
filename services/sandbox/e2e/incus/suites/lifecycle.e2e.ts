@@ -238,6 +238,22 @@ describe('a session on a real Incus node', () => {
     expect(echoed.stdout).toBe('to stdin');
   });
 
+  step('a shell exec finds the tools a command exec does', async () => {
+    // `shell` runs `bash -lc`, and a login shell starts from Debian's PATH,
+    // not the image's (`ENV PATH`): node, npm and the agent CLIs were gone
+    // from it until the image put them back in /etc/profile.d.
+    const tools = 'node npm npx nodejs bun uv python3 pip codex claude';
+    const lookup = `for tool in ${tools}; do command -v "$tool" || echo "missing $tool"; done`;
+    const viaShell = await sh(api, S1, lookup);
+    const viaCommand = await api.exec(S1, {
+      command: ['/bin/sh', '-c', lookup],
+    });
+    expect(viaCommand.result?.status).toBe('completed');
+    expect(viaCommand.stdout).not.toContain('missing');
+    expect(viaCommand.stdout).toContain('/opt/node/bin/node\n');
+    expect(viaShell).toBe(viaCommand.stdout);
+  });
+
   step(
     'exec streams while the command runs, and times its round trip',
     async () => {

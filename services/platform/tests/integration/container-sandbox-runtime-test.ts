@@ -162,6 +162,20 @@ await assertOk(
   65534,
   'yarn --version && nodejs --version',
 );
+// A login shell (runnerd's shell exec form, Codex's shell tool) starts from
+// Debian's PATH, not the image's `ENV PATH`; /etc/profile.d/tale-path.sh puts
+// the image's directories back.
+await assertOk(
+  'a login shell finds node, npm and the agent CLIs',
+  65534,
+  `bash -lc 'for tool in node npm npx nodejs bun uv codex claude; do command -v "$tool" || exit 1; done'`,
+);
+await assertContains(
+  'a login shell keeps the image and session directories first on PATH',
+  65534,
+  '/agent/.runtime/deps/python/bin:/agent/.runtime/deps/node/bin:/opt/agents/bin:/opt/node/bin:/usr/local/bin:',
+  `bash -lc 'echo "$PATH"'`,
+);
 // The read-only root cannot cache bytecode, so the stdlib's is baked.
 await assertOk(
   'stdlib bytecode is baked',
