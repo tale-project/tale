@@ -386,8 +386,9 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         path: ['identity', 'oidc', 'trustEmail'],
       });
     // Resolution is eager and a host holds one provider's credentials, so
-    // when both providers are declared every reference must resolve to
-    // nothing instead of failing on the host that lacks the other's set.
+    // when both providers are declared every reference must be `optional`:
+    // the block a host does not hold then resolves to nothing instead of
+    // failing the host.
     if (sso?.oidc && entraFields.every((field) => sso[field])) {
       const references: [
         string[],
