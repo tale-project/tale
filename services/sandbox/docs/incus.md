@@ -561,7 +561,8 @@ SANDBOX_EGRESS_DENIED_HOSTS=registry.npmjs.org,registry.yarnpkg.com,pypi.org,fil
   a package manager that ignores its configuration fails visibly instead of
   installing around the cache. Only registry hosts leave the path: browsing and
   every other host stay open. The proxy refuses to start on an entry that is not
-  a plain host name, on an empty list and beside `SANDBOX_EGRESS_ALLOWLIST`.
+  a plain host name, on a list that names no host (`,` or a space; an empty
+  value means the list is off) and beside `SANDBOX_EGRESS_ALLOWLIST`.
 
 **Locked installs.** An `npm ci` goes through the cache: npm sends the
 `registry.npmjs.org` addresses a lock file records to the registry it is
