@@ -60,9 +60,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo lint
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA}
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Refuse links that do not land
+        run: bun run lint:links
   ci-ready:
     name: CI ready (Checks)
-    needs: [lint]
+    needs: [lint, format]
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     steps:
@@ -247,6 +258,39 @@ describe('the command line', () => {
     const { code, err } = run(root, 'check');
     expect(code).toBe(1);
     expect(err.join('\n')).toContain('holds the lines of the edit nowhere');
+  });
+
+  test('generate compares the link check with the merge base with main, and check fails when its step is no longer the one the rule finds', () => {
+    const root = repository();
+    const generated = generate(readSources(root, SMALL), SMALL);
+    const text = generated.files.get('.forgejo/workflows/checks.yml') ?? '';
+    expect(text).toContain('LINT_LINKS_BASE="$base" bun run lint:links');
+    expect(text).toContain('git merge-base HEAD origin/main');
+    expect(text).toContain('fetch-depth: 0');
+    expect(text).not.toContain('fetch-depth: 2');
+    run(root, 'checks', '--write');
+    expect(run(root, 'check').code).toBe(0);
+
+    // the step is edited, so the rule finds nothing to change: the file would keep `HEAD^1` and a shallow checkout
+    put(
+      root,
+      '.github/workflows/checks.yml',
+      CHECKS.replace(
+        'run: bun run lint:links',
+        'run: bun run lint:links --verbose',
+      ),
+    );
+    const lost = run(root, 'check');
+    expect(lost.code).toBe(1);
+    expect(lost.err.join('\n')).toContain(
+      'the step `run: bun run lint:links` after a checkout is gone',
+    );
+    expect(
+      generate(readSources(root, SMALL), SMALL).files.get(
+        '.forgejo/workflows/checks.yml',
+      ),
+    ).toContain('fetch-depth: 2');
+    expect(run(root, 'report').code).toBe(0);
   });
 
   test('generate is a dry run until --write, and refuses a port with problems', () => {

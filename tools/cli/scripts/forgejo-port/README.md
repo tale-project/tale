@@ -8,8 +8,10 @@ changed until the cut-over, which adds one condition to one of them (`github --w
 The unit tests of `@tale/cli` run the port over the workflows as they are today. They fail a
 change only when the generator crashes on a workflow or `declared-checks.yml` no longer lists the
 checks the port generates (`checks --write` rewrites it). What Forgejo would refuse in a workflow,
-and an action the node's mirror list below lacks, are printed as warnings, so that a workflow
-edited today is not held to a port applied later; `check` fails on both.
+an action the node's mirror list below lacks, and a rule that no longer finds the text it changes
+(its `anchor` warning) are printed as warnings, so that a workflow edited today is not held to a
+port applied later; `check` fails on all three. The rule that finds nothing leaves its file as the
+GitHub workflow has it, so a ported file would then lack what the rule exists to change.
 
 The port is applied once, at the cut-over. After that `.forgejo/workflows/` is edited by hand
 and the generator is not run again. Until then it stays current with `.github/` by being
@@ -20,7 +22,7 @@ rules that find what to change from what it says.
 
 ```sh
 bun tools/cli/scripts/forgejo-port.ts report               # what the port does to each file
-bun tools/cli/scripts/forgejo-port.ts check                # fail on a problem, on a stale declared-checks.yml
+bun tools/cli/scripts/forgejo-port.ts check                # fail on a problem, a rule with nothing to change, a stale declared-checks.yml
 bun tools/cli/scripts/forgejo-port.ts check --runner PATH  # also hold every file to a forgejo-runner
 bun tools/cli/scripts/forgejo-port.ts generate [--write]   # the files of .forgejo/ (the cut-over); --force to overwrite what differs
 bun tools/cli/scripts/forgejo-port.ts checks [--write]     # the checks the merge train declares
@@ -155,14 +157,16 @@ check.
 1. Find what the rule has to recognise in the workflow itself (a job id Tale's readiness table
    lists, a label the pool serves, one exact line) and nothing else.
 2. Say what was done in the report and what was not found in `warnings`; a rule that finds
-   nothing to do does nothing.
+   nothing to do does nothing. A rule whose text is gone says so with `rule: 'anchor'`, which
+   `check` fails on.
 3. Test it on a small workflow, then on the real ones with `report`.
 4. Run `check --runner` before the cut-over.
 
 ## Cut-over
 
-1. `check --runner PATH` is clean: no problem in the generated files, `declared-checks.yml` is
-   current and the Mirrors row lists every action the files use.
+1. `check --runner PATH` is clean: no problem in the generated files, no rule without the text
+   it changes, `declared-checks.yml` is current and the Mirrors row lists every action the files
+   use.
 2. `generate --write` in a branch of the Forgejo repository; read the diff, in particular the
    comments that describe GitHub's behaviour.
 3. `github --write` in a branch of the GitHub repository, merged before the push mirror is
