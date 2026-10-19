@@ -199,15 +199,24 @@ describe('the command line', () => {
     const root = repository();
     const missing = run(root, 'check');
     expect(missing.code).toBe(1);
-    expect(missing.err.join('\n')).toContain(
-      'does not list the checks the port generates',
-    );
+    expect(missing.err.join('\n')).toContain('is not what the port generates');
     run(root, 'checks', '--write');
     const fine = run(root, 'check');
     expect(fine.code).toBe(0);
     expect(fine.out).toEqual(['ok: 1 files, 1 checks']);
     put(root, DECLARED_CHECKS, '- Something else\n');
     expect(run(root, 'check').code).toBe(1);
+  });
+
+  test('check also fails on a declared-checks.yml whose header has drifted, not only its list', () => {
+    const root = repository();
+    run(root, 'checks', '--write');
+    const text = readFileSync(join(root, DECLARED_CHECKS), 'utf8');
+    expect(text).toContain('deployments/tale/merge-train/pr/repositories.yml');
+    put(root, DECLARED_CHECKS, text.replace('merge-train', 'train'));
+    const drifted = run(root, 'check');
+    expect(drifted.code).toBe(1);
+    expect(drifted.err.join('\n')).toContain('is not what the port generates');
   });
 
   test('check says when an edit of a workflow that stays has lost its place', () => {

@@ -184,7 +184,7 @@ export function writeGenerated(
 
 const CHECKS_HEADER = `# The checks the merge train waits for on tale/tale, one per workflow: the
 # readiness job of each ported workflow, as Forgejo names its status. The ops
-# repository declares them in deployments/tale/train/pr/repositories.yml.
+# repository declares them in deployments/tale/merge-train/pr/repositories.yml.
 # Generated: bun tools/cli/scripts/forgejo-port.ts checks --write
 `;
 
@@ -322,15 +322,14 @@ export function main(
     ];
     if (parsed.values.runner)
       problems.push(...runnerCheck(parsed.values.runner, generated));
-    const listed = readDeclaredChecks(root);
     if (
-      listed === undefined ||
-      JSON.stringify(listed) !== JSON.stringify(generated.checks)
+      textOf(join(root, DECLARED_CHECKS)) !==
+      declaredChecksText(generated.checks)
     )
       problems.push({
         file: DECLARED_CHECKS,
         at: '',
-        message: `does not list the checks the port generates (${generated.checks.join('; ')}); run \`bun tools/cli/scripts/forgejo-port.ts checks --write\``,
+        message: `is not what the port generates (the checks are ${generated.checks.join('; ')}); run \`bun tools/cli/scripts/forgejo-port.ts checks --write\``,
       });
     for (const problem of problems) io.err(problemLine(problem));
     io.out(
