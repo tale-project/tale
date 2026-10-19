@@ -1022,11 +1022,17 @@ The complete [release-candidate gate](RELEASING.md) remains required before tagg
 
 ## Forgejo
 
-`tools/cli/scripts/forgejo-port/` turns these workflows into the ones Forgejo's runner runs.
-It is applied once, when the repository moves to Forgejo, and nothing in the CI above reads it:
-it adds no job, input or condition to a workflow here. There a pull request owes what a batch of
-the merge train (a push to `mq/**`) owes, the whole suite, so that a failure shows on the pull
-request and not in the train; a workflow whose `tier` says `fast` owes this document's pull
-request tier instead. The [README](../tools/cli/scripts/forgejo-port/README.md) says what the
-port does and what stays on GitHub; `bun tools/cli/scripts/forgejo-port.ts report` shows it on
-the workflows as they are.
+`tools/cli/scripts/forgejo-port/` turns these workflows into the ones Forgejo's runner runs. It
+is applied once, when the repository moves to Forgejo, and changes no workflow here until then;
+the cut-over adds one condition, to the `publish` job of `publish-packages.yml`, so that it
+publishes nothing once Forgejo is the source. The unit tests of `@tale/cli` run the port over
+these workflows. They fail a change only when the generator crashes on a workflow, or when
+`declared-checks.yml` no longer lists the `CI ready (…)` checks the workflows define: a change
+that adds, renames or removes one runs `bun tools/cli/scripts/forgejo-port.ts checks --write`.
+
+On Forgejo a pull request owes what a batch of the merge train (a push to `mq/**`) owes, the
+whole suite, so that a failure shows on the pull request and not in the train. A workflow whose
+`tier` says `fast` owes this document's pull request tier instead, except that Security is not
+path-scoped and runs on every pull request. The
+[README](../tools/cli/scripts/forgejo-port/README.md) says what the port does and what stays on
+GitHub; `bun tools/cli/scripts/forgejo-port.ts report` shows it on the workflows as they are.
