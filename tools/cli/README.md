@@ -426,6 +426,22 @@ and a deployment's first organization is always allowed. Removing the declaratio
 restores the refusal and removes the variable; an `environment` entry cannot set
 it. See the [organization-creators guide](../../docs/en/self-hosted/install/cli-install.md#managed-organization-creators).
 
+### Run the sandbox on an Incus node
+
+Declare `sandbox` with `backend: "incus"`, an `address` and an `egressProxy` (each a
+unicast IPv4 address or `http://<IPv4>:<port>`, or an environment reference that
+preparation resolves) to run the sandbox spawner against an Incus node. The prepared
+runtime then mounts no Docker socket and no session directory on the spawner, only
+the three PEM files of `<stateDirectory>/sandbox-incus/` (`client.crt`, `client.key`,
+`server.crt`) read-only at `/run/secrets/incus`, publishes the backend API and the
+model gateway on `address` (ports 3005 and 8080), and sets the backend, the image
+alias and source, the three paths and the egress proxy itself. An `environment` entry
+cannot name those variables. The apply checks the files' metadata, never their
+content, before it touches Docker, and switching a running deployment between the
+Docker and the Incus backend first drains the outgoing spawner and refuses while it
+holds sessions. Without `sandbox` nothing changes. See the
+[Incus sandbox guide](../../docs/en/self-hosted/install/cli-install.md#managed-incus-sandbox).
+
 ## Apply native configuration
 
 `config validate`, `plan`, `apply` and `read` use the same native configuration

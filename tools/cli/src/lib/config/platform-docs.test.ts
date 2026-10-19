@@ -9,7 +9,10 @@ import ts from 'typescript';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
-import { deploymentSpecSchema } from '../deployment/model';
+import {
+  deploymentSpecSchema,
+  resolveDeploymentSpec,
+} from '../deployment/model';
 import {
   REPOSITORY_RUNTIME_SOURCE,
   SPAWNER_CONFIG_SOURCE,
@@ -342,6 +345,26 @@ describe('documented general platform configuration', () => {
         expect(
           spec.configuration?.resources.map((resource) => resource.kind),
         ).toEqual(['provider', 'provider-credential']);
+        // The Incus sandbox example is a declaration this CLI resolves.
+        expect(
+          resolveDeploymentSpec(
+            {
+              schemaVersion: 1,
+              name: 'example',
+              stateDirectory: resolve(tmpdir(), 'tale-example'),
+              composeProject: 'tale',
+              runtime: { revision: 'a'.repeat(40) },
+              origin: 'https://native.example.invalid',
+              tlsMode: 'external',
+              ...examples.find((example) => example.sandbox),
+            },
+            { TALE_SANDBOX_EGRESS_PROXY: 'http://10.200.40.10:3128' },
+          ).sandbox,
+        ).toEqual({
+          backend: 'incus',
+          address: '10.200.50.2',
+          egressProxy: 'http://10.200.40.10:3128',
+        });
         // The fleet example parses as the declaration it teaches: a created
         // project, secret, agent with its model, and standing task.
         const fleet = examples.find((example) =>

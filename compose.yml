@@ -812,10 +812,13 @@ services:
   # the spawner needs neither the docker socket nor the session root below. It
   # reaches one restricted project of an Incus node with a restricted client
   # certificate, pinned to the node's server certificate, and sessions are
-  # Incus instances, not sibling containers. This file keeps the Docker shape;
-  # an Incus deployment overrides this service to drop the socket mount, mount
-  # the three PEM files (SANDBOX_INCUS_*_FILE) read-only and join a network the
-  # node's API is reachable from.
+  # Incus instances, not sibling containers. This file keeps the Docker shape.
+  # A managed deployment that declares `sandbox` (`tale deploy prepare`) gets
+  # the Incus shape from the CLI instead: it drops the socket and session-root
+  # mounts, mounts the three PEM files (SANDBOX_INCUS_*_FILE) read-only from
+  # `<stateDirectory>/sandbox-incus`, and publishes the backend API and the LLM
+  # gateway on the declared address
+  # (tools/cli/src/lib/deployment/runtime-sandbox.ts).
   # ============================================================================
   sandbox:
     image: ghcr.io/tale-project/tale/tale-sandbox:${VERSION:-latest}

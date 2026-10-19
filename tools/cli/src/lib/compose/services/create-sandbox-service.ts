@@ -35,9 +35,12 @@ import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
  * reaches one restricted project of an Incus node with a restricted client
  * certificate, pinned to the node's server certificate, and sessions are Incus
  * instances, not sibling containers. This generator keeps the Docker shape
- * (compose.yml says the same); an Incus deployment overrides this service to
- * drop the socket mount, mount the three PEM files (SANDBOX_INCUS_*_FILE)
- * read-only and join a network the node's API is reachable from.
+ * (compose.yml says the same). A managed deployment that declares `sandbox`
+ * (`tale deploy prepare`) gets the Incus shape from the CLI instead: it drops
+ * the socket and session-root mounts, mounts the three PEM files
+ * (SANDBOX_INCUS_*_FILE) read-only from `<stateDirectory>/sandbox-incus`, and
+ * publishes the backend API and the LLM gateway on the declared address
+ * (deployment/runtime-sandbox.ts).
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {
   // Opt-in: a Linux daemon data-root path is not a valid host bind on every
