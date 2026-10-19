@@ -8,6 +8,11 @@ const declaration = {
   origin: 'https://north.invalid',
   runtime: { revision: 'a'.repeat(40) },
   additionalOrigins: ['https://desk.partner.example'],
+  sandbox: {
+    backend: 'incus',
+    address: { env: 'DOCKER_HOST_ADDRESS' },
+    egressProxy: 'http://10.200.40.10:3128',
+  },
   identity: { email: { env: 'OPERATOR_EMAIL' }, ssoEnabled: false },
 };
 const yaml = [
@@ -19,6 +24,10 @@ const yaml = [
   `  revision: ${'a'.repeat(40)}`,
   'additionalOrigins:',
   '  - https://desk.partner.example',
+  'sandbox:',
+  '  backend: incus',
+  '  address: { env: DOCKER_HOST_ADDRESS }',
+  '  egressProxy: http://10.200.40.10:3128',
   'identity:',
   '  email: { env: OPERATOR_EMAIL }',
   '  ssoEnabled: false',

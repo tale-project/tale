@@ -6,7 +6,15 @@ import {
   spyOn,
   test,
 } from 'bun:test';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
@@ -35,6 +43,7 @@ import {
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
 import { readRuntimeBundle } from './runtime-model';
+import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
 import {
   installLegacy,
   RuntimeDockerFixture,
@@ -69,11 +78,27 @@ async function create(
   identity = true,
   additionalOrigins?: string[],
   organizationCreators?: string[],
+  sandbox?: { address: string; egressProxy: string },
 ) {
   const fixture = runtimeFixture({
     trustsTerminator: additionalOrigins !== undefined,
   });
   fixtures.push(fixture);
+  if (sandbox) {
+    // The credentials check walks the real ancestors of the state directory,
+    // and the system temporary directory is a link on macOS.
+    fixture.options.stateDirectory = join(
+      realpathSync(fixture.directory),
+      'state',
+    );
+    const credentials = join(fixture.options.stateDirectory, 'sandbox-incus');
+    mkdirSync(credentials, { recursive: true, mode: 0o700 });
+    chmodSync(credentials, 0o700);
+    for (const name of SANDBOX_INCUS_FILES)
+      writeFileSync(join(credentials, name), `${name} fixture bytes\n`, {
+        mode: 0o600,
+      });
+  }
   const docker = new RuntimeDockerFixture(fixture);
   const configurationDocker = new ConfigurationDockerFixture(docker);
   const bundle = join(fixture.directory, 'deployment');
@@ -98,6 +123,7 @@ async function create(
     ...(organizationCreators
       ? { organizations: { creators: organizationCreators } }
       : {}),
+    ...(sandbox ? { sandbox: { backend: 'incus', ...sandbox } } : {}),
     ...(identity
       ? {
           identity: {
@@ -426,6 +452,110 @@ describePosix('fresh native receipt custody', () => {
     await expect(run.apply()).rejects.toThrow('container prefix');
     expect(run.docker.calls).toEqual([]);
     expect(existsSync(run.fixture.options.stateDirectory)).toBe(false);
+  });
+
+  test('a declared Incus sandbox is prepared into both bundle files, applied and kept out of the native identity', async () => {
+    const declared = {
+      address: '10.200.50.2',
+      egressProxy: 'http://10.200.40.10:3128',
+    };
+    const run = await create(false, true, undefined, undefined, declared);
+    const deployment = JSON.parse(
+      readFileSync(join(run.bundle, 'deployment.json'), 'utf8'),
+    );
+    const runtimeBundle = readRuntimeBundle(join(run.bundle, 'runtime')).bundle;
+    expect(deployment.spec.sandbox).toEqual({ backend: 'incus', ...declared });
+    expect(runtimeBundle.sandbox).toMatchObject({
+      backend: 'incus',
+      ...declared,
+    });
+    const runtime = run.dependencies.runtime!;
+    const seen: unknown[] = [];
+    run.dependencies.runtime = async (options) => {
+      seen.push(options.environment);
+      return runtime(options);
+    };
+    const exec = run.dependencies.exec!;
+    let provision: Record<string, unknown> = {};
+    run.dependencies.exec = async (command, args, options) => {
+      if (args.includes('provision'))
+        provision = JSON.parse(options?.stdin ?? '{}');
+      return exec(command, args, options);
+    };
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+    expect(seen).toHaveLength(2);
+    expect(JSON.stringify(provision)).not.toContain(declared.address);
+    const mounts = (
+      run.docker.containers.find(
+        (container) =>
+          (container.Config as { Labels: Record<string, string> }).Labels[
+            'com.docker.compose.service'
+          ] === 'sandbox',
+      )!.Mounts as { Destination: string }[]
+    ).map((mount) => mount.Destination);
+    expect(mounts).toEqual(['/run/secrets/incus', '/app/platform-config']);
+    expect(
+      readFileSync(
+        join(run.fixture.options.stateDirectory, 'src/compose.yml'),
+        'utf8',
+      ),
+    ).toContain(`${declared.address}:3005:3005`);
+  });
+
+  type Specification = ReturnType<typeof deploymentSpecSchema.parse>;
+  test.each([
+    [
+      'a runtime without the declared sandbox',
+      false,
+      (spec: Specification): Specification => ({
+        ...spec,
+        sandbox: {
+          backend: 'incus',
+          address: '10.200.50.2',
+          egressProxy: 'http://10.200.40.10:3128',
+        },
+      }),
+    ],
+    [
+      'a sandbox the specification does not declare',
+      true,
+      ({ sandbox: _, ...without }: Specification): Specification => without,
+    ],
+    [
+      'another address',
+      true,
+      (spec: Specification): Specification => ({
+        ...spec,
+        sandbox: { ...spec.sandbox!, address: '10.200.50.3' },
+      }),
+    ],
+    [
+      'another egress proxy',
+      true,
+      (spec: Specification): Specification => ({
+        ...spec,
+        sandbox: { ...spec.sandbox!, egressProxy: 'http://10.200.40.11:3128' },
+      }),
+    ],
+  ])('refuses %s before destination access', async (_, prepared, change) => {
+    const run = await create(
+      false,
+      true,
+      undefined,
+      undefined,
+      prepared
+        ? { address: '10.200.50.2', egressProxy: 'http://10.200.40.10:3128' }
+        : undefined,
+    );
+    const metadata = await verifyDeploymentBundle(run.bundle);
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      ...metadata,
+      spec: change(run.spec),
+    });
+    run.docker.calls = [];
+    await expect(run.apply()).rejects.toThrow('sandbox declaration');
+    expect(run.docker.calls).toEqual([]);
   });
 
   test('declared additional origins reach the runtime while the native identity keeps the primary origin', async () => {
