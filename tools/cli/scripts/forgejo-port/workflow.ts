@@ -26,6 +26,7 @@ import {
   type Expr,
   foldTemplate,
   hasExpression,
+  hasStatusFunction,
   keepStatusFunction,
   parseExpression,
   parseTemplate,
@@ -229,8 +230,12 @@ export function foldCondition(source: string, facts: Facts): Condition {
   if (folded.kind === 'literal' && after !== printExpression(expression))
     return { kind: truthy(folded.value) ? 'always' : 'never' };
   const everywhere = holdsForEveryEvent(folded, facts);
-  if (everywhere !== undefined)
+  if (everywhere !== undefined) {
+    // A condition that holds for every event still waits for success once its status function is gone.
+    if (everywhere && hasStatusFunction(expression))
+      return { kind: 'text', text: wrapped ? '${{ always() }}' : 'always()' };
     return { kind: everywhere ? 'always' : 'never' };
+  }
   if (after === printExpression(expression)) return { kind: 'unchanged' };
   return { kind: 'text', text: wrapped ? `\${{ ${after} }}` : after };
 }

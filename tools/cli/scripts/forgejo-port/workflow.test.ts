@@ -298,12 +298,30 @@ describe('foldCondition', () => {
       kind: 'text',
       text: 'always() && github.event.pull_request.draft != true',
     });
+    // a condition that holds for each of the workflow's events, not for one comparison alone, keeps it too
+    for (const source of [
+      "always() || github.event_name == 'push' || github.event_name == 'pull_request'",
+      "failure() || (github.event_name == 'push' || github.event_name == 'pull_request')",
+    ])
+      expect(foldCondition(source, facts), source).toEqual(always);
+    expect(
+      foldCondition(
+        "${{ always() || github.event_name == 'push' || github.event_name == 'pull_request' }}",
+        facts,
+      ),
+    ).toEqual({ kind: 'text', text: '${{ always() }}' });
     // a condition that is false is false whatever the status, and one with no status function has none to keep
     expect(
       foldCondition("always() && github.event_name == 'merge_group'", facts),
     ).toEqual({ kind: 'never' });
     expect(
       foldCondition("github.event_name != 'merge_group' || x.y", facts),
+    ).toEqual({ kind: 'always' });
+    expect(
+      foldCondition(
+        "github.event_name == 'push' || github.event_name == 'pull_request'",
+        facts,
+      ),
     ).toEqual({ kind: 'always' });
   });
 
