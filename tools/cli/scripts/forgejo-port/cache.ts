@@ -9,10 +9,10 @@
  * writes it, for a push of the merge train only: a pull request never writes a
  * cache another run reads.
  *
- * The site images (web, docs, ui-docs) and the database image the
- * integration job builds have no login step before their cache, so for now they
- * build without a layer cache: that is a decision of the port's, in its note, and
- * not a limit of Forgejo.
+ * The site images (web, docs, ui-docs) and the database image the integration job
+ * builds have no registry login before their cache step, which a registry cache
+ * needs, so they build without a layer cache. A login step before the cache would
+ * give them one.
  */
 
 import { isMap, isScalar } from 'yaml';

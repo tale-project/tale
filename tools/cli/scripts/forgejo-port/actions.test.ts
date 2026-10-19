@@ -42,7 +42,7 @@ describe('the action table', () => {
   });
 
   test('knows every external action Tale uses today', () => {
-    // the 18 names of `grep uses: .github` on 2026-10-13, less the local ones
+    // every external action the workflows used when the table was written
     for (const name of [
       'actions/checkout',
       'actions/upload-artifact',

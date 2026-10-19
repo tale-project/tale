@@ -17,10 +17,9 @@ import { parseUses, stepLists, stringOf } from './workflow';
  * Forgejo's own builds of the artifact actions. The upstream v4+ clients refuse every
  * server that is not github.com (`isGhes()`); these are upstream's v5 and v7 with that
  * check removed, at the commits Forgejo tags (code.forgejo.org/forgejo/upload-artifact
- * `v5`, code.forgejo.org/forgejo/download-artifact `v7`). Measured on a Forgejo 15.0.9 with
- * a runner 13.2.0 (2026-10-14): upload `v5`, `v4` and `v3-node20` upload, and download `v5`,
- * `v6` and `v7` download by name, by id and by pattern; upload `branch-v6` is refused at the
- * upload itself, because its client drops the padding of the signature in the signed URL.
+ * `v5`, code.forgejo.org/forgejo/download-artifact `v7`). The upload is pinned at `v5` and
+ * not at `branch-v6`: the v6 client drops the padding of the signature in the signed URL,
+ * and the server refuses the upload.
  */
 export const UPLOAD_ARTIFACT = {
   name: 'forgejo/upload-artifact',
