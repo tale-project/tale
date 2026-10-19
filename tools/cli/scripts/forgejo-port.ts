@@ -4,14 +4,16 @@
  *
  *   bun tools/cli/scripts/forgejo-port.ts report            what the port does to each file
  *   bun tools/cli/scripts/forgejo-port.ts check             port in memory and fail on a problem, or on a README that lacks a mirror
- *   bun tools/cli/scripts/forgejo-port.ts generate [--write] the files of `.forgejo/` (the cut-over)
+ *   bun tools/cli/scripts/forgejo-port.ts generate [--write [--force]] the files of `.forgejo/` (the cut-over)
  *   bun tools/cli/scripts/forgejo-port.ts checks [--write]  the checks the merge train declares
  *   bun tools/cli/scripts/forgejo-port.ts github [--write]  the edits GitHub's copies of the workflows that stay need
  *
  * `--root <dir>` names the repository (default: the checkout this file is in), `--out <dir>`
  * where `generate --write` puts the files (default: the root) and `--runner <binary>` makes
- * `check` hold every generated file to that forgejo-runner. The port is a function of the files
- * under `.github/`; `forgejo-port/README.md` says what it does and why.
+ * `check` hold every generated file to that forgejo-runner. `generate --write` overwrites a file
+ * that differs and deletes a file of the generated directories it does not produce, so it refuses
+ * both unless `--force` is given. The port is a function of the files under `.github/`;
+ * `forgejo-port/README.md` says what it does and why.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -172,7 +174,10 @@ export function compare(
   return { files, stale: stale.toSorted() };
 }
 
-/** Write the generated files, and remove the stale ones the generator made earlier. */
+/**
+ * Write the generated files, and remove `stale`: every file of the generator's directories that
+ * this run does not produce, whoever made it.
+ */
 export function writeGenerated(
   out: string,
   generated: Generated,
@@ -288,6 +293,7 @@ const OPTIONS = {
   runner: { type: 'string' },
   tier: { type: 'string' },
   write: { type: 'boolean' },
+  force: { type: 'boolean' },
 } as const;
 
 function parseCommandLine(argv: readonly string[]) {
@@ -379,6 +385,13 @@ export function main(
     for (const [path, state] of files) io.out(`${state.padEnd(7)} ${path}`);
     for (const path of stale) io.out(`stale   ${path}`);
     if (parsed.values.write) {
+      const changed = [...files].filter(([, state]) => state === 'changed');
+      if ((changed.length > 0 || stale.length > 0) && !parsed.values.force) {
+        io.err(
+          `not writing: ${changed.length} files would be overwritten and ${stale.length} deleted, and the generator did not make them all; read the list above and pass --force to do it`,
+        );
+        return 1;
+      }
       writeGenerated(out, generated, stale);
       io.out(`wrote ${generated.files.size} files to ${out}`);
     } else io.out('dry run: add --write to write them');

@@ -22,12 +22,17 @@ rules that find what to change from what it says.
 bun tools/cli/scripts/forgejo-port.ts report               # what the port does to each file
 bun tools/cli/scripts/forgejo-port.ts check                # fail on a problem, on a stale declared-checks.yml
 bun tools/cli/scripts/forgejo-port.ts check --runner PATH  # also hold every file to a forgejo-runner
-bun tools/cli/scripts/forgejo-port.ts generate [--write]   # the files of .forgejo/ (the cut-over)
+bun tools/cli/scripts/forgejo-port.ts generate [--write]   # the files of .forgejo/ (the cut-over); --force to overwrite what differs
 bun tools/cli/scripts/forgejo-port.ts checks [--write]     # the checks the merge train declares
 bun tools/cli/scripts/forgejo-port.ts github [--write]     # the edits GitHub's copies of the workflows that stay need
 ```
 
 `--root DIR` names another checkout and `--out DIR` another place to write to.
+
+`generate --write` overwrites a generated file whose contents differ and deletes any file in
+`.forgejo/workflows`, `.forgejo/actions` and `.forgejo/scripts` that it does not generate, a
+hand-written one included. The dry run lists them as `changed` and `stale`, and `--write` refuses
+until `--force` is given.
 
 ## What it does
 

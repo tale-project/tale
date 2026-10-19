@@ -272,6 +272,34 @@ describe('the command line', () => {
     expect(refused.err.join('\n')).toContain('not generating');
   });
 
+  test('generate --write refuses to overwrite or delete what it may not have made, unless forced', () => {
+    const root = repository();
+    const out = scratch();
+    const path = '.forgejo/workflows/checks.yml';
+    expect(run(root, 'generate', '--write', '--out', out).code).toBe(0);
+    expect(run(root, 'generate', '--write', '--out', out).code).toBe(0);
+
+    put(out, path, 'name: edited by hand\n');
+    put(out, '.forgejo/workflows/renovate.yml', 'name: renovate\n');
+    const refused = run(root, 'generate', '--write', '--out', out);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain(`changed ${path}`);
+    expect(refused.out).toContain('stale   .forgejo/workflows/renovate.yml');
+    expect(refused.err.join('\n')).toContain('pass --force');
+    expect(readFileSync(join(out, path), 'utf8')).toBe(
+      'name: edited by hand\n',
+    );
+    expect(existsSync(join(out, '.forgejo/workflows/renovate.yml'))).toBe(true);
+    expect(run(root, 'generate', '--out', out).code).toBe(0);
+
+    const forced = run(root, 'generate', '--write', '--force', '--out', out);
+    expect(forced.code).toBe(0);
+    expect(readFileSync(join(out, path), 'utf8')).toContain('name: Checks');
+    expect(existsSync(join(out, '.forgejo/workflows/renovate.yml'))).toBe(
+      false,
+    );
+  });
+
   test('github shows the edit and makes it, once', () => {
     const root = repository();
     const dry = run(root, 'github');
