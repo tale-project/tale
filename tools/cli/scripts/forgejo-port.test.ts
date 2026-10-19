@@ -401,7 +401,9 @@ describe("Tale's own workflows", () => {
   test('are read by the pinned forgejo-runner, and a broken file is not', async () => {
     const runner =
       process.env.FORGEJO_RUNNER ??
-      (await pinnedRunner(join(tmpdir(), 'forgejo-port-runner')));
+      (await pinnedRunner(
+        join(tmpdir(), `forgejo-port-runner-${process.getuid?.() ?? 'user'}`),
+      ));
     if (runner === undefined) {
       console.warn(
         'forgejo-port: no forgejo-runner to check against (set FORGEJO_RUNNER, or run on linux/amd64)',

@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,6 +26,22 @@ function cache(): string {
   const directory = mkdtempSync(join(tmpdir(), 'forgejo-runner-test-'));
   temporary.push(directory);
   return directory;
+}
+
+/** What the work says through `console.warn`, so that a test can read it. */
+async function warned<T>(
+  work: () => Promise<T>,
+): Promise<{ result: T; warnings: string }> {
+  const original = console.warn;
+  const warnings: string[] = [];
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.join(' '));
+  };
+  try {
+    return { result: await work(), warnings: warnings.join('\n') };
+  } finally {
+    console.warn = original;
+  }
 }
 
 /** A download whose bytes hash to the pin: the test pins its own digest for the fake binary. */
@@ -50,33 +68,54 @@ describe('pinnedRunner', () => {
     expect(asked).toBe(false);
   });
 
-  test('refuses a download that is not the pinned binary', async () => {
+  test('refuses a download that is not the pinned binary, and says so', async () => {
     const directory = cache();
     const get = (() =>
       Promise.resolve(new Response(BYTES))) as unknown as typeof fetch;
-    expect(await pinnedRunner(directory, LINUX, get)).toBeUndefined();
+    const { result, warnings } = await warned(() =>
+      pinnedRunner(directory, LINUX, get),
+    );
+    expect(result).toBeUndefined();
+    expect(warnings).toContain('not the pinned runner');
     expect(createHash('sha256').update(BYTES).digest('hex')).not.toBe(
       RUNNER.linuxAmd64Sha256,
     );
   });
 
-  test('says nothing but returns nothing when the download fails', async () => {
-    const get = (() =>
+  test('says why when the download fails, by status or by error', async () => {
+    const refused = (() =>
       Promise.resolve(
         new Response('', { status: 503 }),
       )) as unknown as typeof fetch;
-    expect(await pinnedRunner(cache(), LINUX, get)).toBeUndefined();
-    const warnings: unknown[] = [];
-    const original = console.warn;
-    console.warn = (...args: unknown[]) => warnings.push(args);
-    try {
-      const failing = (() =>
-        Promise.reject(new Error('offline'))) as unknown as typeof fetch;
-      expect(await pinnedRunner(cache(), LINUX, failing)).toBeUndefined();
-    } finally {
-      console.warn = original;
-    }
-    expect(JSON.stringify(warnings)).toContain('offline');
+    const status = await warned(() => pinnedRunner(cache(), LINUX, refused));
+    expect(status.result).toBeUndefined();
+    expect(status.warnings).toContain('answered 503');
+    const failing = (() =>
+      Promise.reject(new Error('offline'))) as unknown as typeof fetch;
+    const error = await warned(() => pinnedRunner(cache(), LINUX, failing));
+    expect(error.result).toBeUndefined();
+    expect(error.warnings).toContain('offline');
+  });
+
+  test('takes nothing from a cache another user could write to, or a link', async () => {
+    let asked = false;
+    const get = (() => {
+      asked = true;
+      return Promise.resolve(new Response(BYTES));
+    }) as unknown as typeof fetch;
+    const open = cache();
+    chmodSync(open, 0o755);
+    const shared = await warned(() => pinnedRunner(open, LINUX, get));
+    expect(shared.result).toBeUndefined();
+    expect(shared.warnings).toContain('only this user can use');
+
+    const target = cache();
+    const link = join(cache(), 'link');
+    symlinkSync(target, link);
+    const linked = await warned(() => pinnedRunner(link, LINUX, get));
+    expect(linked.result).toBeUndefined();
+    expect(linked.warnings).toContain('only this user can use');
+    expect(asked).toBe(false);
   });
 
   test('downloads the binary once, checks it against the digest and makes it executable', async () => {
@@ -108,7 +147,11 @@ describe('pinnedRunner', () => {
       Promise.resolve(
         new Response('', { status: 404 }),
       )) as unknown as typeof fetch;
-    expect(await pinnedRunner(directory, LINUX, get)).toBeUndefined();
+    const { result, warnings } = await warned(() =>
+      pinnedRunner(directory, LINUX, get),
+    );
+    expect(result).toBeUndefined();
+    expect(warnings).toContain('answered 404');
     expect(readFileSync(path)).toEqual(Buffer.from(BYTES));
     expect(statSync(path).size).toBe(BYTES.length);
   });

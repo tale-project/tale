@@ -117,7 +117,8 @@ rewrites it.
 and `forgejo-runner exec --list` on every workflow, so a file that parses but cannot be
 planned fails too. The tests run it when `FORGEJO_RUNNER` names a binary, or on linux/amd64
 by downloading the pinned build (`runner.ts`: version 13.2.0, the digest the ops repository
-pins for the node). A problem the port or the runner reports about the workflows as they are
+pins for the node) into a directory only the user can use; a download that fails or does not match
+the digest is reported. A problem the port or the runner reports about the workflows as they are
 today is printed as a warning by the tests, so that a workflow edited today is not held to a port
 applied later.
 

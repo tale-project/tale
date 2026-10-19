@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const RUNNER = {
@@ -23,10 +23,42 @@ function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+function warn(message: string): void {
+  console.warn(`forgejo-port: ${message}`);
+}
+
+/**
+ * The cache holds a binary that is executed by path after its digest is checked, so no one
+ * else may write to it: it is the caller's own directory, closed to the group and to others,
+ * and not a link. A shared, predictable path under the temporary directory is refused.
+ */
+async function ownDirectory(path: string): Promise<boolean> {
+  try {
+    await mkdir(path, { recursive: true, mode: 0o700 });
+    const found = await lstat(path);
+    const uid = process.getuid?.();
+    if (
+      found.isDirectory() &&
+      (uid === undefined || found.uid === uid) &&
+      (found.mode & 0o077) === 0
+    )
+      return true;
+    warn(
+      `${path} is not a directory of this user that only this user can use: the pinned runner is not taken from it`,
+    );
+  } catch (error) {
+    warn(
+      `could not prepare ${path} for the pinned runner: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  return false;
+}
+
 /**
  * The pinned binary, downloaded once into `cache` and checked against its digest.
  * Only the linux/amd64 build is pinned, so on another platform this is `undefined`
- * and a caller points `FORGEJO_RUNNER` at a binary it can run.
+ * and a caller points `FORGEJO_RUNNER` at a binary it can run. Anything that keeps the
+ * pinned binary from being used says so, and the result is `undefined`.
  */
 export async function pinnedRunner(
   cache: string,
@@ -38,6 +70,7 @@ export async function pinnedRunner(
   digest: string = RUNNER.linuxAmd64Sha256,
 ): Promise<string | undefined> {
   if (platform.os !== 'linux' || platform.arch !== 'x64') return undefined;
+  if (!(await ownDirectory(cache))) return undefined;
   const path = join(cache, `forgejo-runner-${RUNNER.version}-linux-amd64`);
   const held = await readFile(path).catch((error: unknown) => {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
@@ -49,16 +82,25 @@ export async function pinnedRunner(
       `https://code.forgejo.org/forgejo/runner/releases/download/v${RUNNER.version}/forgejo-runner-${RUNNER.version}-linux-amd64`,
       { signal: AbortSignal.timeout(60_000) },
     );
-    if (!response.ok) return undefined;
+    if (!response.ok) {
+      warn(
+        `could not download the pinned runner: the server answered ${response.status}`,
+      );
+      return undefined;
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (sha256(bytes) !== digest) return undefined;
-    await mkdir(cache, { recursive: true });
+    if (sha256(bytes) !== digest) {
+      warn(
+        'the download is not the pinned runner: its digest is not the one pinned',
+      );
+      return undefined;
+    }
     await writeFile(path, bytes);
     await chmod(path, 0o755);
     return path;
   } catch (error) {
-    console.warn(
-      `forgejo-port: could not download the pinned runner: ${error instanceof Error ? error.message : String(error)}`,
+    warn(
+      `could not download the pinned runner: ${error instanceof Error ? error.message : String(error)}`,
     );
     return undefined;
   }
