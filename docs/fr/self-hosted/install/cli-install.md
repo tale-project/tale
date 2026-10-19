@@ -340,7 +340,7 @@ Une observation complète renvoie `ok:true` et `data.complete:true`. Si les preu
 
 #### Configurer l’identité native
 
-`deploy provision [--bundle <directory>]` est la phase locale au backend du déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local et l’organisation sélectionnée, puis ferme la session avant d’annoncer le succès. Ses champs comprennent `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les identifiants Entra optionnels et `nativeClients`. Par défaut, le compte existant reste requis. Un `identity.bootstrap: "fresh"` explicite autorise la création du premier compte local et de l’organisation. Un bundle lie ce choix et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont contrôlées avant connexion.
+`deploy provision [--bundle <directory>]` est la phase locale au backend du déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local et l’organisation sélectionnée, puis ferme la session avant d’annoncer le succès. Ses champs comprennent `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les identifiants Entra optionnels ou un [bloc OpenID Connect](#managed-oidc-sign-in) et `nativeClients`. Par défaut, le compte existant reste requis. Un `identity.bootstrap: "fresh"` explicite autorise la création du premier compte local et de l’organisation. Un bundle lie ce choix et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont contrôlées avant connexion.
 
 Le déploiement du bundle appelle `deploy provision` avec des options internes pour les mises à jour de configuration seules et la vérification des identités conservées ; utilise `tale deploy --bundle <directory> --configuration-only` pour ce parcours opérateur.
 
@@ -378,6 +378,64 @@ Si un autre compte détient la nouvelle adresse, si le compte conservé ne déti
 `identity.breakGlass` conserve un administrateur pour le cas où l’opérateur de déploiement est indisponible, par exemple `{ "email": "break-glass@example.org", "passwordHash": { "env": "TALE_BREAK_GLASS_PASSWORD_HASH" } }`. L’adresse est une valeur littérale ou une référence d’environnement obligatoire, et doit différer de l’adresse actuelle et de l’adresse précédente de l’opérateur. Le mot de passe n’atteint jamais le déploiement : crée son hachage avec `tale auth hash-password` là où le mot de passe est conservé, et ne fournis que le hachage.
 
 Chaque déploiement aligne le backend sur la déclaration. Un compte absent est créé avec une adresse vérifiée et exactement les identifiants déclarés, et un journal conservé lie l’adresse à son identifiant de compte dès que le compte existe. Les déploiements suivants rétablissent les identifiants déclarés sur le compte lié et mettent fin à toutes ses sessions dès que ces identifiants changent, y compris lorsqu’ils terminent une exécution interrompue. Un compte à cette adresse que ce déploiement n’a pas créé, ou plus tard un autre compte qui la détient, arrête le déploiement. Le compte devient `admin` de l’organisation gérée via les points d’accès natifs des membres ; un `owner` n’est jamais modifié. Le déploiement ne se connecte jamais avec ce compte. Change son mot de passe en modifiant le hachage déclaré, pas dans l’application. Le déploiement n’enregistre aucune date de changement de mot de passe : une politique de rotation des mots de passe de l’organisation peut donc demander un nouveau mot de passe à ce compte, que le déploiement suivant rétablit.
+
+#### Connecter les personnes via un fournisseur OpenID Connect {#managed-oidc-sign-in}
+
+`identity.ssoEnabled` active ou désactive l’unique connexion d’authentification unique de l’organisation. Avec Microsoft Entra ID, la connexion provient de `identity.tenantId`, `identity.clientId` et `identity.clientSecret`. Pour tout autre fournisseur qui parle OpenID Connect, comme ZITADEL, Keycloak ou Okta, déclare plutôt `identity.oidc` :
+
+```json
+{
+  "identity": {
+    "ssoEnabled": true,
+    "oidc": {
+      "displayName": "Example sign-in",
+      "issuer": "https://id.example.org",
+      "clientId": { "env": "EXAMPLE_OIDC_CLIENT_ID" },
+      "clientSecret": { "env": "EXAMPLE_OIDC_CLIENT_SECRET" },
+      "claimMappings": { "email": "upn" },
+      "trustEmail": true
+    }
+  }
+}
+```
+
+| Champ | Signification |
+| --- | --- |
+| `issuer` | L’URL de l’émetteur du fournisseur : HTTPS, sans barre oblique finale, sans requête ni fragment (le HTTP simple n’est accepté que pour une adresse de bouclage). Une valeur littérale ou une référence d’environnement. Tale en découvre les points de terminaison. |
+| `clientId`, `clientSecret` | Les identifiants de l’application, sous forme de références d’environnement. Un bundle contient les noms, jamais les valeurs. |
+| `displayName` | Ce que les personnes voient sur la page de connexion. Par défaut : `OpenID Connect`. |
+| `scopes` | Les scopes demandés. Par défaut : `openid`, `profile` et `email`. |
+| `pkce` | Indique si la connexion utilise PKCE. Par défaut : `true`. |
+| `claimMappings` | Les noms de claims, sous forme de chemins à points, qui portent `email`, `name` et `groups`. Déclare-en au moins un ou omets le bloc. |
+| `trustEmail` | Marque comme vérifiée, à la connexion, l’adresse du claim d’e-mail associé. Par défaut : `false`. Exige `claimMappings.email`. |
+
+La connexion est écrite comme celle d’Entra : les nouveaux membres reçoivent le rôle `member`, et le fournisseur n’attribue ni rôles ni équipes. Tale associe chaque personne aux membres qu’il a déjà d’après l’adresse du claim d’e-mail. Si tu associes ce claim, le fournisseur doit l’envoyer : une connexion dont la réponse ne le contient pas est refusée, et Tale ne se rabat jamais sur le claim simple `email` ou `preferred_username`, qu’une personne peut parfois modifier elle-même chez le fournisseur. Sans association, Tale lit `email`, puis `preferred_username`, comme pour toute connexion OIDC générique. Une adresse qu’aucun compte du déploiement ne détient crée un nouveau membre, comme avec Entra. Une adresse détenue par un compte qui n’est pas membre de l’organisation est refusée, et rien n’est modifié.
+
+`trustEmail` convient à un fournisseur dont le claim associé est saisi par un administrateur et ne peut pas être modifié par la personne. L’[émetteur OpenID Connect](/fr/develop/api-reference) de Tale et le consentement des agents de code n’acceptent que des membres dont l’adresse est vérifiée, et une adresse connectée via Entra compte déjà comme vérifiée. Le réglage ne vaut que pour le claim associé, et la connexion le refuse sans association.
+
+L’exigence du claim et `trustEmail` sont appliqués par le backend. Ils valent donc dès que la révision du runtime du déploiement les inclut. Un runtime plus ancien se rabat sur le claim simple `email` et ignore `trustEmail`. Une CLI qui ne connaît pas encore le champ refuse une déclaration qui utilise `identity.oidc`.
+
+Déclare à la fois les champs Entra et `identity.oidc` quand la même déclaration sert des hôtes qui détiennent les identifiants de fournisseurs différents. Chaque référence des deux blocs doit alors être `optional`, l’émetteur compris lorsqu’il est une référence :
+
+```json
+{
+  "identity": {
+    "ssoEnabled": true,
+    "tenantId": { "env": "EXAMPLE_ENTRA_TENANT_ID", "optional": true },
+    "clientId": { "env": "EXAMPLE_ENTRA_CLIENT_ID", "optional": true },
+    "clientSecret": { "env": "EXAMPLE_ENTRA_CLIENT_SECRET", "optional": true },
+    "oidc": {
+      "issuer": { "env": "EXAMPLE_OIDC_ISSUER", "optional": true },
+      "clientId": { "env": "EXAMPLE_OIDC_CLIENT_ID", "optional": true },
+      "clientSecret": { "env": "EXAMPLE_OIDC_CLIENT_SECRET", "optional": true }
+    }
+  }
+}
+```
+
+L’environnement de la destination choisit le bloc : celui dont les identifiants se résolvent. Le déploiement s’arrête avant tout changement lorsque les deux blocs se résolvent, lorsqu’aucun ne se résout, ou lorsqu’un bloc ne se résout qu’en partie ; le message nomme les variables. Une référence d’émetteur qui se résout sans ses identifiants client ne fait pas de la destination celle du fournisseur.
+
+Une déclaration qui nomme `identity.oidc` gère aussi la connexion déjà en place. Elle la lit d’abord et reconnaît deux connexions comme les siennes : la connexion Entra gérée et la connexion OpenID Connect générique pour l’émetteur déclaré. Elle remplace l’une par l’autre, et `ssoEnabled: false` retire l’une ou l’autre. Toute autre connexion, c’est-à-dire un autre fournisseur, un autre émetteur ou un émetteur que cet hôte ne fournit pas, arrête le déploiement avec un message qui nomme le fournisseur ; rien n’est écrit ni retiré. Une déclaration sans `identity.oidc` garde son comportement antérieur et ne reconnaît que la connexion Entra gérée.
 
 #### Connexion à deux facteurs imposée
 

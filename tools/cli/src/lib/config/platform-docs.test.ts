@@ -9,6 +9,7 @@ import ts from 'typescript';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
+import { resolveSignIn } from '../deployment/identity-selection';
 import {
   deploymentSpecSchema,
   resolveDeploymentSpec,
@@ -388,6 +389,79 @@ describe('documented general platform configuration', () => {
   }
 });
 
+/** The OpenID Connect sign-in examples of the install guide, in every language,
+ * are declarations this CLI accepts, and the one that serves two providers
+ * selects the block its destination's environment resolves. */
+describe('documented OpenID Connect sign-in', () => {
+  const NAMES = [
+    'EXAMPLE_ENTRA_TENANT_ID',
+    'EXAMPLE_ENTRA_CLIENT_ID',
+    'EXAMPLE_ENTRA_CLIENT_SECRET',
+    'EXAMPLE_OIDC_ISSUER',
+    'EXAMPLE_OIDC_CLIENT_ID',
+    'EXAMPLE_OIDC_CLIENT_SECRET',
+  ];
+  const declaration = (identity: Record<string, unknown>) =>
+    deploymentSpecSchema.parse({
+      schemaVersion: 1,
+      name: 'example',
+      stateDirectory: resolve(tmpdir(), 'tale-example'),
+      composeProject: 'tale',
+      runtime: { revision: 'a'.repeat(40) },
+      origin: 'https://native.example.invalid',
+      tlsMode: 'external',
+      identity: {
+        email: 'operator@example.invalid',
+        slug: 'example',
+        name: 'Example',
+        ...identity,
+      },
+    });
+  for (const locale of LOCALES) {
+    test(`${locale} examples parse and select a block by the environment`, () => {
+      const examples = [
+        ...readFileSync(installPage(locale), 'utf8').matchAll(
+          /```json[^\r\n]*\r?\n([\s\S]*?)\r?\n```/g,
+        ),
+      ].map((match) => JSON.parse(match[1]));
+      const declared = examples.filter((example) => example.identity?.oidc);
+      // One provider alone, then both for a declaration that serves two hosts.
+      expect(declared).toHaveLength(2);
+      const [single, both] = declared.map(
+        (example) => declaration(example.identity).identity,
+      );
+      if (!single || !both) throw new Error('the examples declare no identity');
+      expect(single.oidc?.issuer).toBe('https://id.example.org');
+      expect(single.oidc?.trustEmail).toBe(true);
+      expect(single.tenantId).toBeUndefined();
+      const saved = Object.fromEntries(
+        NAMES.map((name) => [name, process.env[name]]),
+      );
+      try {
+        for (const name of NAMES) delete process.env[name];
+        Object.assign(process.env, {
+          EXAMPLE_OIDC_ISSUER: 'https://id.example.org',
+          EXAMPLE_OIDC_CLIENT_ID: 'client',
+          EXAMPLE_OIDC_CLIENT_SECRET: 'secret',
+        });
+        expect(Object.keys(resolveSignIn(both).oidc ?? {})).toContain('issuer');
+        for (const name of NAMES) delete process.env[name];
+        Object.assign(process.env, {
+          EXAMPLE_ENTRA_TENANT_ID: '11111111-1111-4111-8111-111111111111',
+          EXAMPLE_ENTRA_CLIENT_ID: 'client',
+          EXAMPLE_ENTRA_CLIENT_SECRET: 'secret',
+        });
+        expect(resolveSignIn(both).tenantId).toBe(
+          '11111111-1111-4111-8111-111111111111',
+        );
+      } finally {
+        for (const name of NAMES)
+          if (saved[name] === undefined) delete process.env[name];
+          else process.env[name] = saved[name];
+      }
+    });
+  }
+});
 /** The pages sit outside this workspace, which is all turbo hashes by default:
  * without them as `test` inputs (`tools/cli/turbo.json`) a docs-only edit
  * replays this suite's cached verdict instead of parsing the new examples.

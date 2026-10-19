@@ -340,7 +340,7 @@ A complete observation returns `ok:true` and `data.complete:true`. Missing legac
 
 #### Provision the native identity
 
-`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
+`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials or an [OpenID Connect block](#managed-oidc-sign-in), and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
 
 Bundle deployment invokes `deploy provision` with internal options for configuration-only updates and retained identity checks; use `tale deploy --bundle <directory> --configuration-only` for this operator workflow.
 
@@ -378,6 +378,64 @@ Another account holding the new address, a retained account holding neither addr
 `identity.breakGlass` keeps one administrator for when the deploy operator is unavailable, for example `{ "email": "break-glass@example.org", "passwordHash": { "env": "TALE_BREAK_GLASS_PASSWORD_HASH" } }`. The address is a literal or a required environment reference and must differ from the operator’s current and previous address. The password never reaches the deployment: create its hash where the password is kept, with `tale auth hash-password`, and supply only the hash.
 
 Every deployment makes the backend match the declaration. An absent account is created with a verified address and exactly the declared credential, and a retained journal binds the address to its account ID as soon as the account exists. Later deployments set the bound account back to the declared credential and end every session it held whenever the credential changes, also when they finish an interrupted run. An account at the address that this deployment did not create, or a different account holding it later, stops the deployment. The account becomes an `admin` of the managed organization through the native member endpoints; an `owner` is never changed. The deployment never signs in as this account. Rotate its password by changing the declared hash, not in the application. The deployment records no password-change time, so an organization password rotation policy may ask this account for a new password, which the next deployment sets back.
+
+#### Sign people in through an OpenID Connect provider {#managed-oidc-sign-in}
+
+`identity.ssoEnabled` turns the organization's single sign-on connection on or off. With Microsoft Entra ID the connection comes from `identity.tenantId`, `identity.clientId` and `identity.clientSecret`. For any other provider that speaks OpenID Connect — ZITADEL, Keycloak or Okta, for example — declare `identity.oidc` instead:
+
+```json
+{
+  "identity": {
+    "ssoEnabled": true,
+    "oidc": {
+      "displayName": "Example sign-in",
+      "issuer": "https://id.example.org",
+      "clientId": { "env": "EXAMPLE_OIDC_CLIENT_ID" },
+      "clientSecret": { "env": "EXAMPLE_OIDC_CLIENT_SECRET" },
+      "claimMappings": { "email": "upn" },
+      "trustEmail": true
+    }
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `issuer` | The provider's issuer URL: HTTPS, no trailing slash, query or fragment (plain HTTP is accepted for a loopback address only). A literal or an environment reference. Tale discovers the endpoints from it. |
+| `clientId`, `clientSecret` | The application's credentials, as environment references. A bundle carries the names and never the values. |
+| `displayName` | What people see on the sign-in page. Default `OpenID Connect`. |
+| `scopes` | The requested scopes. Default `openid`, `profile` and `email`. |
+| `pkce` | Whether the sign-in uses PKCE. Default `true`. |
+| `claimMappings` | The claim names, as dot paths, that carry the `email`, `name` and `groups`. Declare at least one or omit the block. |
+| `trustEmail` | Marks the address of the mapped email claim as verified at sign-in. Default `false`. It needs `claimMappings.email`. |
+
+The connection is written like the Entra one: new members get the `member` role, and roles and teams are not assigned from the provider. People are matched to the members Tale already has by the address in the email claim. When you map that claim, the provider must send it: a sign-in whose answer lacks it is refused, and Tale never falls back to the plain `email` or `preferred_username` claim, which a person may be able to edit at the provider. Without a mapping, Tale reads `email` and then `preferred_username`, as for any generic OIDC connection. An address that no account on the deployment holds creates a new member, as it does with Entra; an address held by an account that is not a member of the organization is refused and nothing is changed.
+
+`trustEmail` is for a provider whose mapped claim an administrator writes and a person cannot change. Tale's own [OpenID Connect issuer](/develop/api-reference) and the consent step of coding agents accept only members whose address is verified, and an address that signed in through Entra already counts as verified. The flag applies to the mapped claim alone, and the connection refuses it without one.
+
+The claim requirement and `trustEmail` are enforced by the backend, so they apply once the deployment's runtime revision includes them. An older runtime falls back to the plain `email` claim and ignores `trustEmail`. A CLI that predates the field refuses a declaration that uses `identity.oidc`.
+
+Declare both the Entra fields and `identity.oidc` when the same declaration serves hosts that hold different providers' credentials. Then every reference of both blocks, the issuer included when it is a reference, must be `optional`:
+
+```json
+{
+  "identity": {
+    "ssoEnabled": true,
+    "tenantId": { "env": "EXAMPLE_ENTRA_TENANT_ID", "optional": true },
+    "clientId": { "env": "EXAMPLE_ENTRA_CLIENT_ID", "optional": true },
+    "clientSecret": { "env": "EXAMPLE_ENTRA_CLIENT_SECRET", "optional": true },
+    "oidc": {
+      "issuer": { "env": "EXAMPLE_OIDC_ISSUER", "optional": true },
+      "clientId": { "env": "EXAMPLE_OIDC_CLIENT_ID", "optional": true },
+      "clientSecret": { "env": "EXAMPLE_OIDC_CLIENT_SECRET", "optional": true }
+    }
+  }
+}
+```
+
+The destination's environment selects the block. It is the block whose credentials resolve. The deployment stops before anything changes when both blocks resolve, when neither does, or when a block resolves in part; the message names the variables. An issuer reference that resolves without its client credentials does not make a destination the provider's.
+
+A declaration that names `identity.oidc` also manages the connection that is already there. It reads it first and recognizes two connections as its own: the managed Entra connection, and the generic OpenID Connect connection for the declared issuer. It replaces either by the other, and `ssoEnabled: false` removes either. Any other connection — another provider, another issuer, or an issuer this host does not provide — stops the deployment with a message that names the provider, and nothing is written or removed. A declaration without `identity.oidc` keeps its earlier behavior and recognizes only the managed Entra connection.
 
 #### Enforced two-factor sign-in
 
