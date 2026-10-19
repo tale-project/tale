@@ -10,7 +10,10 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 
 import { deploymentSpecSchema } from '../deployment/model';
-import { REPOSITORY_RUNTIME_SOURCE } from '../deployment/runtime-test-helper';
+import {
+  REPOSITORY_RUNTIME_SOURCE,
+  SPAWNER_CONFIG_SOURCE,
+} from '../deployment/runtime-test-helper';
 import { parsePlatformConfiguration } from './platform-model';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -370,7 +373,8 @@ describe('documented general platform configuration', () => {
  * must re-run those suites as well.
  * So do the files the compose parity suite reads and the release's own runtime
  * source the runtime suites prepare: an edit to `compose.yml` alone must not
- * replay a verdict that says this CLI accepts it. */
+ * replay a verdict that says this CLI accepts it. The spawner modules the
+ * sandbox cross-check suite runs are inputs for the same reason. */
 test('turbo re-runs the suites when an install page or another outside file they read changes', () => {
   const { tasks } = cliDryRun();
   const inputs = new Set(
@@ -395,6 +399,7 @@ test('turbo re-runs the suites when an install page or another outside file they
         ...PARITY_FILES,
         ...PACKAGE_PUBLICATION_FILES,
         ...REPOSITORY_RUNTIME_SOURCE,
+        ...SPAWNER_CONFIG_SOURCE,
       ]),
     ].map((path) => resolve(REPO_ROOT, path)),
   ]
