@@ -79,6 +79,9 @@ export function verifyProvisionIdentity(
       identity.breakGlass.email.toLowerCase() !==
         input.breakGlass?.email.toLowerCase()) ||
     identity.nativeClients.length !== input.nativeClients.length ||
+    (identity.oidc === undefined) !== (input.managedOidc === undefined) ||
+    (typeof identity.oidc?.issuer === 'string' &&
+      identity.oidc.issuer !== input.managedOidc?.issuer) ||
     (input.oidc !== undefined &&
       !oidcMatchesDeclaration(identity.oidc, input.oidc))
   )

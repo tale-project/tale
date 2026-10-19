@@ -80,6 +80,27 @@ export function trustsUnmappedEmail(oidc: {
   return oidc.trustEmail === true && !oidc.claimMappings?.email;
 }
 
+/** The stored connection as the backend reports it (the fields recognition
+ * reads), for both providers. */
+export interface StoredConnection {
+  protocol?: string | null | undefined;
+  oidc?: { providerId: string; issuer: string } | null | undefined;
+}
+
+/** Whether a stored connection is the OpenID Connect one this declaration
+ * manages: the generic provider against the declared issuer. */
+export function isManagedOidcConnection(
+  connection: StoredConnection,
+  issuer: string | undefined,
+): boolean {
+  return (
+    issuer !== undefined &&
+    connection.protocol === 'oidc' &&
+    connection.oidc?.providerId === OIDC_PROVIDER_ID &&
+    connection.oidc.issuer === issuer
+  );
+}
+
 interface DeclaredOidc {
   displayName?: string | undefined;
   /** Literal in the bundle, or a reference that only the destination resolves. */

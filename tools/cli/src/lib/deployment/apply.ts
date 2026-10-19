@@ -35,7 +35,7 @@ import {
   verifyNativeConfigurationProof,
 } from './configuration';
 import { parseInstanceInput, type InstanceInput } from './identity';
-import { resolveSignIn } from './identity-selection';
+import { resolveManagedOidc, resolveSignIn } from './identity-selection';
 import { resolveValue } from './model';
 import { nativeProvisionProofSchema } from './native-proof';
 import {
@@ -227,7 +227,9 @@ function nativeInput(
           },
         }
       : {}),
-    ...(identity.ssoEnabled ? resolveSignIn(identity) : {}),
+    ...(identity.ssoEnabled
+      ? resolveSignIn(identity)
+      : resolveManagedOidc(identity)),
     nativeClients: identity.nativeClients.map((client) => {
       const selected = {
         key: client.key,

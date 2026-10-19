@@ -16,37 +16,77 @@ export interface SignInFields {
   clientId?: string | undefined;
   clientSecret?: string | undefined;
   oidc?: Record<string, unknown>;
+  /** The declaration manages an OpenID Connect connection, with this issuer
+   * when the destination provides one. It is what lets a connection be
+   * recognised as the managed one, whichever provider is enabled. */
+  managedOidc?: { issuer?: string };
 }
 
 interface Resolved {
   values: Record<string, string>;
-  /** How many of the block's fields are references, not literals. */
-  references: number;
-  /** The environment variables that resolved to nothing. */
+  /** The credential variables that resolved to nothing. */
   missing: string[];
+  /** How many credentials the block names. */
+  credentials: number;
+  /** The public variables (an issuer) that resolved to nothing. */
+  lacking: string[];
 }
 
-function resolveBlock(references: Record<string, Reference>): Resolved {
+/** A block's credentials decide whether it is the destination's: its public
+ * fields (an issuer) are only read, and may be present on a destination that
+ * holds the other provider's credentials. */
+function resolveBlock(
+  credentials: Record<string, EnvironmentReference>,
+  publicFields: Record<string, Reference> = {},
+): Resolved {
   const values: Record<string, string> = {};
   const missing: string[] = [];
-  let count = 0;
-  for (const [field, reference] of Object.entries(references)) {
+  const lacking: string[] = [];
+  for (const [field, reference] of Object.entries(credentials)) {
     values[field] = resolveValue(reference);
-    if (typeof reference !== 'object') continue;
-    count += 1;
     if (values[field] === '') missing.push(reference.env);
   }
-  return { values, references: count, missing };
+  for (const [field, reference] of Object.entries(publicFields)) {
+    values[field] = resolveValue(reference);
+    if (values[field] === '' && typeof reference === 'object')
+      lacking.push(reference.env);
+  }
+  return {
+    values,
+    missing,
+    credentials: Object.keys(credentials).length,
+    lacking,
+  };
 }
 
-/** A block is usable when all of its references resolve; a block that resolves
- * only in part is a misconfigured destination, never a quiet fallback. */
+/** A block is usable when all of its references resolve and unusable when its
+ * credentials all resolve to nothing; anything in between is a misconfigured
+ * destination, never a quiet fallback. */
 function usable(label: string, block: Resolved): boolean {
-  if (block.missing.length === 0) return true;
-  if (block.missing.length === block.references) return false;
+  if (block.missing.length === block.credentials) return false;
+  const unset = [...block.missing, ...block.lacking];
+  if (unset.length === 0) return true;
   throw preconditionError(
-    `The ${label} environment references resolve only in part; set or unset ${block.missing.join(', ')} together with the rest of the block.`,
+    `The ${label} environment references resolve only in part; set or unset ${unset.join(', ')} together with the rest of the block.`,
   );
+}
+
+function managedOidc(issuer: string): { issuer?: string } {
+  return oidcIssuer.safeParse(issuer).success ? { issuer } : {};
+}
+
+/** What a destination that signs nobody in still needs of the declaration:
+ * the issuer, with nothing required, so a managed connection can be removed. */
+export function resolveManagedOidc(identity: Identity): SignInFields {
+  const { oidc } = identity;
+  if (!oidc) return {};
+  return {
+    managedOidc: managedOidc(
+      typeof oidc.issuer === 'string'
+        ? oidc.issuer
+        : resolveValue({ ...oidc.issuer, optional: true }),
+    ),
+  };
 }
 
 /** Resolve the declared sign-in credentials for a destination that signs
@@ -71,22 +111,25 @@ export function resolveSignIn(identity: Identity): SignInFields {
           clientSecret: identity.clientSecret,
         })
       : undefined;
-  const connectBlock = resolveBlock({
-    issuer: oidc.issuer,
-    clientId: oidc.clientId,
-    clientSecret: oidc.clientSecret,
-  });
+  const connectBlock = resolveBlock(
+    { clientId: oidc.clientId, clientSecret: oidc.clientSecret },
+    { issuer: oidc.issuer },
+  );
   const entra = entraBlock && usable('Entra', entraBlock);
   const connect = usable('OpenID Connect', connectBlock);
   if (entra && connect)
     throw preconditionError(
       'Both the Entra and the OpenID Connect environment references resolve in this destination; give it one provider’s credentials.',
     );
+  const managed = {
+    managedOidc: managedOidc(connectBlock.values.issuer ?? ''),
+  };
   if (entraBlock && entra)
     return {
       tenantId: entraBlock.values.tenantId,
       clientId: entraBlock.values.clientId,
       clientSecret: entraBlock.values.clientSecret,
+      ...managed,
     };
   if (!connect)
     throw preconditionError(
@@ -110,5 +153,6 @@ export function resolveSignIn(identity: Identity): SignInFields {
       ...(oidc.trustEmail === undefined ? {} : { trustEmail: oidc.trustEmail }),
       ...connectBlock.values,
     },
+    ...managed,
   };
 }

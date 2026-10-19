@@ -23,6 +23,7 @@ import {
   type EmailAttestationProof,
 } from './email-attestation';
 import {
+  isManagedOidcConnection,
   OIDC_DEFAULT_DISPLAY_NAME,
   OIDC_DEFAULT_SCOPES,
   OIDC_PROVIDER_ID,
@@ -86,6 +87,11 @@ const inputSchema = z
         clientSecret: z.string().min(1).max(5000),
       })
       .optional(),
+    /** The declaration manages an OpenID Connect connection, whichever
+     * provider this destination enables: it names the issuer the stored
+     * connection must have to be recognised as the managed one. Absent, only
+     * the managed Entra connection is recognised, as ever. */
+    managedOidc: z.strictObject({ issuer: oidcIssuer.optional() }).optional(),
     breakGlass: z
       .strictObject({ email: emailAddress, passwordHash: passwordHashSchema })
       .optional(),
@@ -121,7 +127,10 @@ const inputSchema = z
           Boolean(input.clientSecret)),
   )
   .refine((input) => !input.oidc || input.ssoEnabled)
-  .refine((input) => !input.oidc || !trustsUnmappedEmail(input.oidc));
+  .refine((input) => !input.oidc || !trustsUnmappedEmail(input.oidc))
+  .refine(
+    (input) => !input.oidc || input.managedOidc?.issuer === input.oidc.issuer,
+  );
 export type InstanceInput = z.infer<typeof inputSchema>;
 export interface ProvisionContext extends NativeClientContext {
   baseUrl: string;
@@ -204,6 +213,21 @@ const provisioning = {
   autoProvisionTeam: false,
   excludeGroups: [],
 };
+/** Whether a stored connection is the managed Entra one: written by this CLI
+ * for a tenant, under its display name. */
+function isManagedEntraConnection(
+  connection: z.infer<typeof connectionSchema>,
+): boolean {
+  return (
+    connection.protocol === 'oidc' &&
+    connection.displayName === 'Microsoft Entra ID' &&
+    connection.oidc?.providerId === 'entra-id' &&
+    /^https:\/\/login\.microsoftonline\.com\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/v2\.0$/i.test(
+      connection.oidc.issuer,
+    )
+  );
+}
+
 /** The connection body for the generic OpenID Connect provider. Roles inside
  * Tale stay as they are for Entra: the provider decides who signs in, not
  * what they may do. */
@@ -909,7 +933,52 @@ export async function configureInstance(
         breakGlass = account.data;
       }
       const configPath = `/api/app/sso/config?orgId=${encodeURIComponent(organization.id)}`;
+      // A declaration that names an OpenID Connect block manages the
+      // connection between the two providers: it recognises either of its own
+      // and refuses to replace or remove any other. One that does not manages
+      // only Entra, as it always did.
+      const managesOidc = input.managedOidc !== undefined;
+      const provider = managesOidc ? 'SSO' : 'Entra';
+      const storedConnection = async () => {
+        const connection = connectionSchema.safeParse(
+          await requireJson(
+            await request(configPath),
+            'SSO configuration lookup',
+          ),
+        );
+        if (!connection.success)
+          throw preconditionError('Unexpected SSO configuration response.');
+        return connection.data;
+      };
+      const recognised = (stored: z.infer<typeof connectionSchema>) =>
+        isManagedEntraConnection(stored) ||
+        (managesOidc &&
+          isManagedOidcConnection(stored, input.managedOidc?.issuer));
+      const refuseUnrecognised = (
+        stored: z.infer<typeof connectionSchema>,
+        verb: 'replace' | 'remove',
+      ) => {
+        if (!managesOidc)
+          return preconditionError(
+            'Refusing to remove an unrecognized managed Entra connection.',
+          );
+        const issuer = input.managedOidc?.issuer
+          ? 'the declared issuer'
+          : 'an issuer this destination does not provide';
+        // The stored provider is the backend's word: name it only when it
+        // looks like an identifier.
+        const named = stored.oidc?.providerId ?? stored.protocol ?? '';
+        const label = /^[a-z0-9-]{1,32}$/.test(named) ? named : 'unknown';
+        return preconditionError(
+          `Refusing to ${verb} an unrecognized managed SSO connection (provider ${label}): it is neither the managed Entra connection nor the OpenID Connect connection for ${issuer}.`,
+        );
+      };
       if (input.ssoEnabled) {
+        if (managesOidc) {
+          const stored = await storedConnection();
+          if (stored.configured && !recognised(stored))
+            throw refuseUnrecognised(stored, 'replace');
+        }
         await requireJson(
           await request(
             `/api/app/sso/config/oidc?orgId=${encodeURIComponent(organization.id)}`,
@@ -932,34 +1001,16 @@ export async function configureInstance(
             : 'Entra SSO configuration',
         );
       } else {
-        const connection = connectionSchema.safeParse(
-          await requireJson(
-            await request(configPath),
-            'SSO configuration lookup',
-          ),
-        );
-        if (!connection.success)
-          throw preconditionError('Unexpected SSO configuration response.');
-        const config = connection.data;
+        const config = await storedConnection();
         if (config.otherOrgsEnabled)
           throw preconditionError(
-            'Only the managed Entra connection may be removed; another organization has SSO.',
+            `Only the managed ${provider} connection may be removed; another organization has SSO.`,
           );
         if (config.configured) {
-          if (
-            config.protocol !== 'oidc' ||
-            config.displayName !== 'Microsoft Entra ID' ||
-            config.oidc?.providerId !== 'entra-id' ||
-            !/^https:\/\/login\.microsoftonline\.com\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/v2\.0$/i.test(
-              config.oidc.issuer,
-            )
-          )
-            throw preconditionError(
-              'Refusing to remove an unrecognized managed Entra connection.',
-            );
+          if (!recognised(config)) throw refuseUnrecognised(config, 'remove');
           await requireJson(
             await request(configPath, 'DELETE'),
-            'Managed Entra removal',
+            `Managed ${provider} removal`,
           );
         }
         const after = connectionSchema.safeParse(
@@ -975,7 +1026,7 @@ export async function configureInstance(
           after.data.otherOrgsEnabled
         )
           throw preconditionError(
-            'Managed Entra connection remains configured.',
+            `Managed ${provider} connection remains configured.`,
           );
       }
       const status = z

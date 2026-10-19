@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { parseInstanceInput } from './identity';
-import { resolveSignIn } from './identity-selection';
+import { resolveManagedOidc, resolveSignIn } from './identity-selection';
 import { deploymentSpecSchema } from './model';
 
 const KEYS = [
@@ -130,6 +130,7 @@ describe('which sign-in credentials a destination resolves', () => {
         clientId: OIDC_ENV.EXAMPLE_OIDC_CLIENT,
         clientSecret: OIDC_ENV.EXAMPLE_OIDC_SECRET,
       },
+      managedOidc: { issuer: OIDC_ENV.EXAMPLE_OIDC_ISSUER },
     });
   });
 
@@ -165,6 +166,7 @@ describe('which sign-in credentials a destination resolves', () => {
       tenantId: ENTRA_ENV.EXAMPLE_ENTRA_TENANT,
       clientId: ENTRA_ENV.EXAMPLE_ENTRA_CLIENT,
       clientSecret: ENTRA_ENV.EXAMPLE_ENTRA_SECRET,
+      managedOidc: { issuer: 'https://id.example.org' },
     });
     set({ EXAMPLE_OIDC_CLIENT: OIDC_ENV.EXAMPLE_OIDC_CLIENT });
     expect(() =>
@@ -189,15 +191,24 @@ describe('which sign-in credentials a destination resolves', () => {
           clientId: OIDC_ENV.EXAMPLE_OIDC_CLIENT,
           clientSecret: OIDC_ENV.EXAMPLE_OIDC_SECRET,
         },
+        managedOidc: { issuer: OIDC_ENV.EXAMPLE_OIDC_ISSUER },
       });
     });
 
-    test('the destination that holds the Entra set uses it', () => {
+    test('the destination that holds the Entra set uses it, and has no issuer to recognise', () => {
       set(ENTRA_ENV);
       expect(resolveSignIn(both())).toEqual({
         tenantId: ENTRA_ENV.EXAMPLE_ENTRA_TENANT,
         clientId: ENTRA_ENV.EXAMPLE_ENTRA_CLIENT,
         clientSecret: ENTRA_ENV.EXAMPLE_ENTRA_SECRET,
+        managedOidc: {},
+      });
+    });
+
+    test('an issuer that resolves with the Entra set is still the one to recognise', () => {
+      set({ ...ENTRA_ENV, EXAMPLE_OIDC_ISSUER: 'https://id.example.org' });
+      expect(resolveSignIn(both()).managedOidc).toEqual({
+        issuer: 'https://id.example.org',
       });
     });
 
@@ -223,9 +234,27 @@ describe('which sign-in credentials a destination resolves', () => {
       expect(() => resolveSignIn(both())).toThrow(
         'The Entra environment references resolve only in part; set or unset EXAMPLE_ENTRA_CLIENT, EXAMPLE_ENTRA_SECRET together with the rest of the block.',
       );
+      set({ EXAMPLE_OIDC_CLIENT: OIDC_ENV.EXAMPLE_OIDC_CLIENT });
+      expect(() => resolveSignIn(both())).toThrow(
+        'The OpenID Connect environment references resolve only in part; set or unset EXAMPLE_OIDC_SECRET',
+      );
+      set({
+        EXAMPLE_OIDC_CLIENT: OIDC_ENV.EXAMPLE_OIDC_CLIENT,
+        EXAMPLE_OIDC_SECRET: OIDC_ENV.EXAMPLE_OIDC_SECRET,
+      });
+      expect(() => resolveSignIn(both())).toThrow(
+        'The OpenID Connect environment references resolve only in part; set or unset EXAMPLE_OIDC_ISSUER',
+      );
+    });
+
+    test('an issuer alone does not make a destination the provider’s', () => {
       set({ EXAMPLE_OIDC_ISSUER: OIDC_ENV.EXAMPLE_OIDC_ISSUER });
       expect(() => resolveSignIn(both())).toThrow(
-        'The OpenID Connect environment references resolve only in part; set or unset EXAMPLE_OIDC_CLIENT, EXAMPLE_OIDC_SECRET',
+        'environment references do not resolve in this destination',
+      );
+      set({ ...ENTRA_ENV, EXAMPLE_OIDC_ISSUER: OIDC_ENV.EXAMPLE_OIDC_ISSUER });
+      expect(resolveSignIn(both()).tenantId).toBe(
+        ENTRA_ENV.EXAMPLE_ENTRA_TENANT,
       );
     });
 
@@ -291,7 +320,43 @@ describe('which sign-in credentials a destination resolves', () => {
   test('an OpenID Connect declaration alone fails on a missing required variable', () => {
     set({});
     expect(() => resolveSignIn(identity({ oidc: true }))).toThrow(
-      'Required deployment environment variable EXAMPLE_OIDC_ISSUER is missing.',
+      'Required deployment environment variable EXAMPLE_OIDC_CLIENT is missing.',
     );
+  });
+});
+
+describe('what a destination that signs nobody in keeps of the declaration', () => {
+  test('nothing for an identity that declares no OpenID Connect block', () => {
+    set(ENTRA_ENV);
+    expect(resolveManagedOidc(identity({ entra: true }))).toEqual({});
+  });
+
+  test('the issuer, from a literal or from an optional or required reference', () => {
+    set(OIDC_ENV);
+    expect(resolveManagedOidc(identity({ oidc: true }))).toEqual({
+      managedOidc: { issuer: OIDC_ENV.EXAMPLE_OIDC_ISSUER },
+    });
+    expect(
+      resolveManagedOidc(
+        identity({ oidc: { issuer: 'https://login.example.org' } }),
+      ),
+    ).toEqual({ managedOidc: { issuer: 'https://login.example.org' } });
+  });
+
+  test('no issuer when the destination does not provide one, and never a failure', () => {
+    set({});
+    expect(resolveManagedOidc(identity({ oidc: true }))).toEqual({
+      managedOidc: {},
+    });
+    expect(
+      resolveManagedOidc(identity({ oidc: true, optional: true })),
+    ).toEqual({ managedOidc: {} });
+  });
+
+  test('no issuer when the destination provides one that is not canonical', () => {
+    set({ EXAMPLE_OIDC_ISSUER: 'https://id.example.org/' });
+    expect(resolveManagedOidc(identity({ oidc: true }))).toEqual({
+      managedOidc: {},
+    });
   });
 });

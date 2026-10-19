@@ -2399,6 +2399,13 @@ const OIDC = {
   clientId: 'oidc-client-private',
   clientSecret: 'synthetic-oidc-private',
 };
+/** What the declaration that names the block tells the guard. */
+const MANAGES = { managedOidc: { issuer: OIDC.issuer } };
+const MANAGED_OIDC = {
+  ...MANAGED,
+  displayName: 'OpenID Connect',
+  oidc: { providerId: 'generic-oidc', issuer: OIDC.issuer },
+};
 
 describe('generic OpenID Connect sign-in', () => {
   test('writes the connection with the declared fields and Entra-like provisioning', async () =>
@@ -2406,6 +2413,7 @@ describe('generic OpenID Connect sign-in', () => {
       await configureInstance(
         {
           ...INPUT,
+          ...MANAGES,
           oidc: {
             ...OIDC,
             displayName: 'Example sign-in',
@@ -2443,7 +2451,7 @@ describe('generic OpenID Connect sign-in', () => {
   test('defaults the display name, scopes and PKCE, and says trustEmail is off', async () =>
     withFixture({ connection: ABSENT }, async (f) => {
       await configureInstance(
-        { ...INPUT, oidc: OIDC },
+        { ...INPUT, ...MANAGES, oidc: OIDC },
         { fetchImpl: f.fetchImpl },
       );
       const body = writes(f.calls)[0]?.body as Record<string, unknown>;
@@ -2460,7 +2468,7 @@ describe('generic OpenID Connect sign-in', () => {
   test('reports SSO as enabled and never echoes the credentials', async () =>
     withFixture({ connection: ABSENT }, async (f) => {
       const result = await configureInstance(
-        { ...INPUT, oidc: OIDC },
+        { ...INPUT, ...MANAGES, oidc: OIDC },
         { fetchImpl: f.fetchImpl },
       );
       expect(result.ssoEnabled).toBe(true);
@@ -2475,7 +2483,7 @@ describe('generic OpenID Connect sign-in', () => {
       },
       async (f) => {
         const attempt = configureInstance(
-          { ...INPUT, oidc: OIDC },
+          { ...INPUT, ...MANAGES, oidc: OIDC },
           { fetchImpl: f.fetchImpl },
         );
         await expect(attempt).rejects.toThrow(
@@ -2489,6 +2497,7 @@ describe('generic OpenID Connect sign-in', () => {
 
   const withOidc = (change: Record<string, unknown> = {}) => ({
     ...INPUT,
+    ...MANAGES,
     oidc: { ...OIDC, ...change },
   });
   test.each([
@@ -2528,7 +2537,11 @@ describe('generic OpenID Connect sign-in', () => {
     ])
       expect(
         parsePrivateInstanceJson(
-          JSON.stringify({ ...INPUT, oidc: { ...OIDC, issuer } }),
+          JSON.stringify({
+            ...INPUT,
+            managedOidc: { issuer },
+            oidc: { ...OIDC, issuer },
+          }),
         ).oidc?.issuer,
       ).toBe(issuer);
   });
@@ -2558,6 +2571,7 @@ describe('generic OpenID Connect sign-in', () => {
     };
     const supplied = {
       ...INPUT,
+      ...MANAGES,
       nativeClients: [PORTAL],
       oidc: {
         ...OIDC,
@@ -2581,7 +2595,7 @@ describe('generic OpenID Connect sign-in', () => {
       expect(() =>
         verifyProvisionIdentity(
           reviewedBundle(declared),
-          parse({ ...INPUT, ...ENTRA, nativeClients: [PORTAL] }),
+          parse({ ...INPUT, ...ENTRA, ...MANAGES, nativeClients: [PORTAL] }),
         ),
       ).not.toThrow();
     });
@@ -2621,10 +2635,277 @@ describe('generic OpenID Connect sign-in', () => {
           reviewedBundle(literal),
           parse({
             ...supplied,
+            managedOidc: { issuer: 'https://other.example.org' },
             oidc: { ...supplied.oidc, issuer: 'https://other.example.org' },
           }),
         ),
       ).toThrow('differs');
     });
+
+    test('refuses an input that leaves out the guard the bundle asks for', () => {
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(declared),
+          parse({ ...INPUT, ...ENTRA, nativeClients: [PORTAL] }),
+        ),
+      ).toThrow('differs');
+    });
+
+    test('refuses an input that asks for a guard the bundle never declared', () => {
+      expect(() =>
+        verifyProvisionIdentity(
+          reviewedBundle(),
+          parse({
+            ...INPUT,
+            ...MANAGES,
+            ssoEnabled: false,
+            nativeClients: [PORTAL],
+          }),
+        ),
+      ).toThrow('differs');
+    });
+  });
+
+  test('a managed block names the issuer its connection must carry', () => {
+    expect(() =>
+      parsePrivateInstanceJson(
+        JSON.stringify({
+          ...INPUT,
+          managedOidc: { issuer: 'https://other.example.org' },
+          oidc: OIDC,
+        }),
+      ),
+    ).toThrow('Invalid native instance provisioning input');
+    expect(
+      parsePrivateInstanceJson(
+        JSON.stringify({ ...INPUT, ssoEnabled: false, managedOidc: {} }),
+      ).managedOidc,
+    ).toEqual({});
+  });
+});
+
+describe('the managed connection moves between Entra and OpenID Connect', () => {
+  const sso = (path: string) => path.includes('/sso/config');
+  const stored = (f: ReturnType<typeof fixture>) =>
+    f.calls.filter((call) => sso(call.path)).map((call) => call.method);
+
+  test('replaces the managed Entra connection by the OpenID Connect one', async () =>
+    withFixture({ connection: MANAGED }, async (f) => {
+      await configureInstance(
+        { ...INPUT, ...MANAGES, oidc: OIDC },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(stored(f)).toEqual(['GET', 'PUT']);
+      expect(writes(f.calls)[0]?.body).toMatchObject({
+        providerId: 'generic-oidc',
+        issuer: OIDC.issuer,
+      });
+    }));
+
+  test('replaces the managed OpenID Connect connection by the Entra one', async () =>
+    withFixture({ connection: MANAGED_OIDC }, async (f) => {
+      await configureInstance(
+        { ...INPUT, ...ENTRA, ...MANAGES },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(stored(f)).toEqual(['GET', 'PUT']);
+      expect(writes(f.calls)[0]?.body).toMatchObject({
+        providerId: 'entra-id',
+        issuer: `https://login.microsoftonline.com/${ENTRA.tenantId}/v2.0`,
+      });
+    }));
+
+  test('replaces the same provider again, and writes over an absent connection', async () => {
+    await withFixture({ connection: MANAGED_OIDC }, async (f) => {
+      await configureInstance(
+        { ...INPUT, ...MANAGES, oidc: OIDC },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(writes(f.calls)).toHaveLength(1);
+    });
+    await withFixture({ connection: ABSENT }, async (f) => {
+      await configureInstance(
+        { ...INPUT, ...MANAGES, oidc: OIDC },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(stored(f)).toEqual(['GET', 'PUT']);
+    });
+  });
+
+  test.each([
+    ['Entra', MANAGED],
+    ['OpenID Connect', MANAGED_OIDC],
+  ])(
+    'removes the managed %s connection when SSO is off',
+    async (_name, connection) =>
+      withFixture({ connection }, async (f) => {
+        await configureInstance(
+          { ...INPUT, ssoEnabled: false, ...MANAGES },
+          { fetchImpl: f.fetchImpl },
+        );
+        expect(writes(f.calls).map((call) => call.method)).toEqual(['DELETE']);
+        expect(stored(f)).toEqual(['GET', 'DELETE', 'GET']);
+      }),
+  );
+
+  const foreign = [
+    ['another protocol', { ...MANAGED_OIDC, protocol: 'saml' }],
+    [
+      'another provider',
+      { ...MANAGED_OIDC, oidc: { ...MANAGED_OIDC.oidc, providerId: 'oauth2' } },
+    ],
+    [
+      'another issuer',
+      {
+        ...MANAGED_OIDC,
+        oidc: { ...MANAGED_OIDC.oidc, issuer: 'https://other.example.org' },
+      },
+    ],
+    [
+      'an Entra tenant that is no tenant',
+      {
+        ...MANAGED,
+        oidc: {
+          ...MANAGED.oidc,
+          issuer: 'https://login.microsoftonline.com/x',
+        },
+      },
+    ],
+  ] as const;
+  test.each(foreign)(
+    'stops a replacement over %s and writes nothing',
+    async (_name, connection) =>
+      withFixture({ connection }, async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ...MANAGES, oidc: OIDC },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow(
+          'Refusing to replace an unrecognized managed SSO connection',
+        );
+        expect(writes(f.calls)).toHaveLength(0);
+        expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+      }),
+  );
+
+  test.each(foreign)(
+    'stops a removal of %s and writes nothing',
+    async (_name, connection) =>
+      withFixture({ connection }, async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false, ...MANAGES },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow(
+          'Refusing to remove an unrecognized managed SSO connection',
+        );
+        expect(writes(f.calls)).toHaveLength(0);
+      }),
+  );
+
+  test('names the foreign provider only when it looks like one', async () => {
+    await withFixture(
+      { connection: { ...MANAGED, protocol: 'saml', oidc: null } },
+      async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false, ...MANAGES },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow('(provider saml)');
+      },
+    );
+    await withFixture(
+      {
+        connection: {
+          ...MANAGED_OIDC,
+          oidc: { providerId: 'x\nforged', issuer: 'https://a.example.org' },
+        },
+      },
+      async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false, ...MANAGES },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow('(provider unknown)');
+      },
+    );
+  });
+
+  test('without an issuer from this destination, an OpenID Connect connection is not recognised', async () =>
+    withFixture({ connection: MANAGED_OIDC }, async (f) => {
+      await expect(
+        configureInstance(
+          { ...INPUT, ...ENTRA, managedOidc: {} },
+          { fetchImpl: f.fetchImpl },
+        ),
+      ).rejects.toThrow('an issuer this destination does not provide');
+      expect(writes(f.calls)).toHaveLength(0);
+    }));
+
+  test('without an issuer from this destination, the managed Entra connection still is', async () =>
+    withFixture({ connection: MANAGED }, async (f) => {
+      await configureInstance(
+        { ...INPUT, ...ENTRA, managedOidc: {} },
+        { fetchImpl: f.fetchImpl },
+      );
+      expect(writes(f.calls)).toHaveLength(1);
+    }));
+
+  test('stops removing a connection while another organization has SSO', async () =>
+    withFixture(
+      { connection: { ...MANAGED_OIDC, otherOrgsEnabled: true } },
+      async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false, ...MANAGES },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow('Only the managed SSO connection may be removed');
+        expect(writes(f.calls)).toHaveLength(0);
+      },
+    ));
+
+  test('reports a connection that remains after its removal', async () =>
+    withFixture(
+      { connection: MANAGED_OIDC, retainProvider: true },
+      async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false, ...MANAGES },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow('Managed SSO connection remains configured.');
+      },
+    ));
+
+  describe('a declaration with no OpenID Connect block behaves as it always did', () => {
+    test('writes over any stored connection without reading it first', async () =>
+      withFixture(
+        { connection: { ...MANAGED, protocol: 'saml' } },
+        async (f) => {
+          await configureInstance(
+            { ...INPUT, ...ENTRA },
+            { fetchImpl: f.fetchImpl },
+          );
+          expect(stored(f)).toEqual(['PUT']);
+        },
+      ));
+
+    test('refuses to remove an OpenID Connect connection, naming Entra', async () =>
+      withFixture({ connection: MANAGED_OIDC }, async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow(
+          'Refusing to remove an unrecognized managed Entra connection.',
+        );
+        expect(writes(f.calls)).toHaveLength(0);
+      }));
   });
 });
