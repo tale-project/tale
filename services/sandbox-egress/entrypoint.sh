@@ -56,8 +56,10 @@ elif [ -n "$SANDBOX_EGRESS_DENIED_HOSTS" ]; then
     esac
     _host="$(echo "$_host" | tr '[:upper:]' '[:lower:]')"
     DENIED_HOSTS="${DENIED_HOSTS} ${_host}"
-    # The host and every subdomain of it, as extended regexes.
-    printf '(^|\\.)%s$\n' "$(echo "$_host" | sed 's/\./\\./g')" >> /etc/tinyproxy/denylist
+    # The host and every subdomain of it, as extended regexes. One trailing dot
+    # is covered: tinyproxy matches the host as the client wrote it, and
+    # `registry.npmjs.org.` resolves to the same address as the name without it.
+    printf '(^|\\.)%s\\.?$\n' "$(echo "$_host" | sed 's/\./\\./g')" >> /etc/tinyproxy/denylist
   done
   set +f
   if [ -z "$DENIED_HOSTS" ]; then

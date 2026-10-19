@@ -316,9 +316,11 @@ describe('egress proxy host deny-list', () => {
     expect(directive(config, 'Filter')).toEqual([`"${etc}/denylist"`]);
     expect(config).not.toContain('${');
     expect(denylist()).toBe(
-      `${REGISTRIES.map((host) => `(^|\\.)${host.replaceAll('.', '\\.')}$`).join('\n')}\n`,
+      `${REGISTRIES.map((host) => `(^|\\.)${host.replaceAll('.', '\\.')}\\.?$`).join('\n')}\n`,
     );
-    expect(denylist().split('\n')[0]).toBe('(^|\\.)registry\\.npmjs\\.org$');
+    expect(denylist().split('\n')[0]).toBe(
+      '(^|\\.)registry\\.npmjs\\.org\\.?$',
+    );
     expect(result.stdout).toContain('egress mode: denylist,');
     for (const host of REGISTRIES) {
       expect(result.stdout).toContain(`  ${host}\n`);
@@ -335,7 +337,12 @@ describe('egress proxy host deny-list', () => {
         'registry.npmjs.org',
         'REGISTRY.NPMJS.ORG',
         'a.registry.npmjs.org',
+        // The fully qualified form resolves to the same address, and a client
+        // may write it: tinyproxy matches the host as it was written.
+        'registry.npmjs.org.',
+        'a.registry.npmjs.org.',
         'pypi.org',
+        'PyPI.org.',
         'files.pythonhosted.org',
         'cdn.files.pythonhosted.org',
       ]),
@@ -343,7 +350,10 @@ describe('egress proxy host deny-list', () => {
       'registry.npmjs.org',
       'REGISTRY.NPMJS.ORG',
       'a.registry.npmjs.org',
+      'registry.npmjs.org.',
+      'a.registry.npmjs.org.',
       'pypi.org',
+      'PyPI.org.',
       'files.pythonhosted.org',
       'cdn.files.pythonhosted.org',
     ]);
@@ -352,6 +362,7 @@ describe('egress proxy host deny-list', () => {
         'xregistry.npmjs.org',
         'registry-npmjs.org',
         'registry.npmjs.org.example.test',
+        'registry.npmjs.org..',
         'notpypi.org',
         'pypi.org.example.test',
         'npmjs.org',
@@ -384,9 +395,9 @@ describe('egress proxy host deny-list', () => {
     });
     expect(result.status).toBe(0);
     expect(denylist().trim().split('\n')).toEqual([
-      '(^|\\.)pypi\\.org$',
-      '(^|\\.)files\\.pythonhosted\\.org$',
-      '(^|\\.)registry\\.npmjs\\.org$',
+      '(^|\\.)pypi\\.org\\.?$',
+      '(^|\\.)files\\.pythonhosted\\.org\\.?$',
+      '(^|\\.)registry\\.npmjs\\.org\\.?$',
     ]);
   });
 

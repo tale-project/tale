@@ -562,6 +562,15 @@ describe('a session on the sandbox bridge', () => {
             exit: 0,
           });
           expect(tunnel.stderr).toContain('403');
+          // The fully qualified form of the name is the same host.
+          const dotted = await api.exec(D, {
+            shell: `curl -sS -o /dev/null --max-time 30 --proxy ${lab.egressProxy} https://${host}./`,
+            timeoutMs: 60_000,
+          });
+          expect({ host, stderr: dotted.stderr }).toEqual({
+            host,
+            stderr: expect.stringContaining('403'),
+          });
           const lookup = await api.exec(D, { shell: `getent hosts ${host}` });
           expect({ host, found: lookup.result?.exitCode === 0 }).toEqual({
             host,
