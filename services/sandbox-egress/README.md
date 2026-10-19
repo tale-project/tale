@@ -19,7 +19,8 @@ then fails visibly instead of installing around the cache. Entries are host
 names, not regular expressions, and the entrypoint refuses to start on a value
 that is not a plain host name with a domain, on a list that names none, and when
 `SANDBOX_EGRESS_ALLOWLIST` is also set (an allow-list already refuses every host
-it does not name). Restart the service to apply a change.
+it does not name). Recreate the service to apply a change: the list reaches the
+container through its environment file, which a restart does not read again.
 
 The entrypoint validates literal nameserver addresses from `/etc/resolv.conf`
 and permits UDP/TCP destination port 53 to those exact IPs, so a private
