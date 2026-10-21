@@ -75,7 +75,7 @@
     "lucide-react": "1.8.0"
   },
   "devDependencies": {
-    "@storybook/addon-vitest": "10.3.5",
+    "@storybook/addon-vitest": "10.6.2",
     "@storybook/react": "10.3.5",
     "@storybook/react-vite": "10.3.5",
     "@tale/ui": "workspace:*",
