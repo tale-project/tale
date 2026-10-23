@@ -37,7 +37,7 @@
     "yaml": "2.8.3",
     "yauzl": "3.4.0",
     "zimmerframe": "1.1.5",
-    "zod": "4.3.6"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@actions/glob": "0.5.1",
